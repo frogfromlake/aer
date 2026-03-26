@@ -1,21 +1,23 @@
-.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart
+.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart tidy
 
 # ==========================================
 # GLOBAL STACK CONTROLS
 # ==========================================
 
-# Starts the entire stack (Infrastructure + Documentation)
 up: infra docs
 	@echo "Entire stack is up and running!"
 
-# Stops and removes the entire stack
 down: infra-down docs-down
 	@echo "Entire stack stopped and cleaned up."
 
-# Restarts the entire stack
 restart: down up
 	@echo "Entire stack restarted."
 
+# Cleans up Go modules in the entire workspace
+tidy:
+	cd services/ingestion-api && go mod tidy
+	cd services/bff-api && go mod tidy
+	@echo "Go modules tidied up."
 
 # ==========================================
 # DOCUMENTATION STACK
@@ -31,7 +33,6 @@ docs-down:
 
 docs-restart: docs-down docs
 	@echo "Documentation restarted."
-
 
 # ==========================================
 # INFRASTRUCTURE STACK (DATA LAKE & METADATA)

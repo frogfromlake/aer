@@ -24,3 +24,6 @@ env/
 
 # Docker / MkDocs
 site/
+# Go Workspace
+go.work
+go.work.sum
