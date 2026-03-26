@@ -13,8 +13,8 @@ A modular system for real-time analysis and long-term observation of societal di
 
 ### 1. Clone and Initialize
 ```bash
-git clone https://github.com/frogfromlake/A-R.git
-cd AĒR
+git clone
+cd into the project
 ````
 
 ### 2\. Start the Infrastructure & Documentation
