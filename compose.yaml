@@ -1,0 +1,48 @@
+services:
+  # ----------------------------------------------------
+  # 1. DOCUMENTATION
+  # ----------------------------------------------------
+  docs:
+    image: squidfunk/mkdocs-material:latest
+    container_name: aer_docs
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/docs
+    command: serve --dev-addr=0.0.0.0:8000 --livereload --watch /docs --dirty
+
+  # ----------------------------------------------------
+  # 2. DATA LAKE (BRONZE LAYER / RAW DATA)
+  # ----------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: aer_minio
+    ports:
+      - "9000:9000" # API Port (For our Go code)
+      - "9001:9001" # Web UI Port (For manual inspection)
+    environment:
+      MINIO_ROOT_USER: aer_admin
+      MINIO_ROOT_PASSWORD: aer_password_123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  # ----------------------------------------------------
+  # 3. METADATA (INDEX FOR THE DATA LAKE)
+  # ----------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: aer_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: aer_user
+      POSTGRES_PASSWORD: aer_password
+      POSTGRES_DB: aer_metadata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# Persistent volumes to ensure data survives container restarts
+volumes:
+  minio_data:
+  postgres_data:

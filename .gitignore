@@ -1,0 +1,26 @@
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Docker / MkDocs
+site/
