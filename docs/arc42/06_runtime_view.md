@@ -11,10 +11,10 @@ Using an emerging geopolitical event (e.g., a newly published article) as an exa
    * The crawler extracts the raw data (title, text, date, author, source) *without* any content alteration.
    * The dataset is written as a "Bronze Record" into the Object Storage (MinIO), while its metadata path is indexed in PostgreSQL.
 
-2. **Processing (Harmonization - Python):**
-   * A Python worker registers the new raw dataset.
-   * The text is cleaned (HTML removal, character set normalization, UTC timestamp standardization).
-   * The dataset is saved and flagged as a "Silver Record".
+2. **Processing (Event-Triggered Harmonization - Python):**
+   * Upon successful upload to the "Bronze Layer", MinIO natively publishes a notification event to the NATS message broker (Subject: `aer.lake.bronze`).
+   * A Python worker, subscribed to the NATS JetStream queue, instantly receives the event payload (containing the file path).
+   * The text is fetched, cleaned (HTML removal, character set normalization, UTC timestamp standardization), saved as a "Silver Record", and the event is acknowledged.
 
 3. **Analysis (Deterministic Metrics - Python):**
    * The `analysis-service` applies scientific, transparent models (e.g., keyword extraction, N-gram counting, assignment to predefined theme clusters).
