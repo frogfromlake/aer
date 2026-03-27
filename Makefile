@@ -63,18 +63,19 @@ tidy:
 	@echo "$(SYMBOL_SUCCESS) $(BOLD)Python environment cleaned.$(RESET)"
 
 # ==========================================
-# INFRASTRUCTURE STACK (DATA LAKE & METADATA)
+# INFRASTRUCTURE STACK (DATA LAKE, METADATA & OBSERVABILITY)
 # ==========================================
 
 infra:
-	@docker compose up nats minio postgres minio-init -d > /dev/null 2>&1
+	@docker compose up nats minio postgres minio-init otel-collector tempo prometheus grafana -d > /dev/null 2>&1
 	@echo "$(SYMBOL_SUCCESS) MinIO Data Lake:      $(CYAN)http://localhost:9001$(RESET) $(GRAY)(Credentials in .env)$(RESET)"
 	@echo "$(SYMBOL_SUCCESS) PostgreSQL Database:  $(CYAN)localhost:5432$(RESET) $(GRAY)(DB: aer_metadata)$(RESET)"
 	@echo "$(SYMBOL_SUCCESS) NATS Message Broker:  $(CYAN)localhost:8222$(RESET) $(GRAY)(Monitoring UI)$(RESET)"
+	@echo "$(SYMBOL_SUCCESS) Grafana Dashboards:   $(CYAN)http://localhost:3000$(RESET) $(GRAY)(Credentials in .env)$(RESET)"
 
 infra-down:
-	@docker compose rm -f -s -v nats minio postgres minio-init > /dev/null 2>&1
-	@echo "$(SYMBOL_STOP) $(GRAY)Infrastructure services terminated.$(RESET)"
+	@docker compose rm -f -s -v nats minio postgres minio-init otel-collector tempo prometheus grafana > /dev/null 2>&1
+	@echo "$(SYMBOL_STOP) $(GRAY)Infrastructure & Observability services terminated.$(RESET)"
 
 infra-restart: infra-down infra
 

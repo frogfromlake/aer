@@ -81,6 +81,45 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+# ----------------------------------------------------
+  # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
+  # ----------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: aer_otel_collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./infra/observability/otel-collector.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC (for backend services)
+      - "4318:4318" # OTLP HTTP (for scripts/frontend)
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: aer_tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/observability/tempo.yaml:/etc/tempo.yaml
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: aer_prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aer_grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${MINIO_ROOT_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${MINIO_ROOT_PASSWORD}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - tempo
+      - prometheus
+      
 volumes:
   minio_data:
   postgres_data:
