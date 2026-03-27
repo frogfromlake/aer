@@ -14,3 +14,14 @@ The architecture and system documentation is written in Markdown (Docs-as-Code) 
 * **Volume Mount:** The root directory is mounted into the container at `/docs` to enable real-time hot-reloading upon saving `.md` files in the editor.
 
 *(Note: As the project grows, backend services like the Go Ingestion-Service, Python Analysis-Service, and the ClickHouse database will be added to this local compose stack.)*
+
+## 7.2 Developer Experience (DevEx) & Global Controls
+
+AĒR utilizes a central `Makefile` at the repository root as the primary interface for developers. This abstracts the complexity of managing multiple Docker containers and Go services.
+
+* **Single Entry Point:** Running `make up` orchestrates the entire stack:
+    1. **Infrastructure:** Starts MinIO and PostgreSQL via Docker Compose.
+    2. **Provisioning:** Automatically triggers the `minio-init` job to prepare the Medallion folders (bronze/silver).
+    3. **Documentation:** Starts the MkDocs server for real-time architecture access.
+    4. **Services:** Launches the Go microservices (`ingestion-api`, `bff-api`) using the local environment configuration.
+* **Environment Synchronization:** The central `.env` file in the root directory serves as the single source of truth for both Docker Compose and the Go services via `viper`.

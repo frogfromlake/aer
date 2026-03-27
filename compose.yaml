@@ -18,14 +18,33 @@ services:
     image: minio/minio:latest
     container_name: aer_minio
     ports:
-      - "9000:9000" # API Port (For our Go code)
-      - "9001:9001" # Web UI Port (For manual inspection)
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      MINIO_ROOT_USER: aer_admin
-      MINIO_ROOT_PASSWORD: aer_password_123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+
+  # ----------------------------------------------------
+  # 2.1 INFRASTRUCTURE PROVISIONING (INIT SCRIPT)
+  # ----------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: aer_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO to start...';
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb myminio/bronze --ignore-existing;
+      /usr/bin/mc mb myminio/silver --ignore-existing;
+      echo 'AĒR Data Lake buckets provisioned successfully.';
+      exit 0;
+      "
 
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)
@@ -36,13 +55,12 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: aer_user
-      POSTGRES_PASSWORD: aer_password
-      POSTGRES_DB: aer_metadata
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-# Persistent volumes to ensure data survives container restarts
 volumes:
   minio_data:
   postgres_data:

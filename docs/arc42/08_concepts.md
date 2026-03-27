@@ -31,3 +31,28 @@ To guarantee the scientific reliability of the data, AĒR follows a rigorous tes
 1. **Unit Testing (Logic):** Especially the harmonization and analysis algorithms in Python must be covered by strict unit tests. When a sentence enters the analysis module, the output must be 100% deterministic and verifiable.
 2. **Integration Testing (Databases):** The interaction of Go services with databases (MinIO/PostgreSQL) is tested automatically in isolated test containers (e.g., using `Testcontainers`).
 3. **Contract Testing (APIs):** Before the Frontend and BFF communicate, strict adherence to the OpenAPI contracts is enforced and tested.
+
+## 8.3 Shared Foundations (DRY Principle)
+
+To maintain a clean and scalable codebase across multiple Go microservices, AĒR utilizes a **Go Workspace** (`go.work`). 
+
+* **The `pkg/` Module:** A central, local Go module residing at the root level. It encapsulates cross-cutting concerns that are identical across all Go services, such as:
+    * **Structured Logging:** A centralized `log/slog` wrapper. It enforces consistent, machine-readable JSON logging in production and staging environments, while providing human-readable, ANSI-colored output for local development.
+    * **Configuration Management:** Powered by `spf13/viper`. It unmarshals configurations into strongly-typed structs, providing flexible multi-stage support via environment variables (`APP_ENV`) and a graceful fallback to local `.env` files.
+* **Benefits:** Microservices (e.g., `ingestion-api`, `bff-api`) import this local package. This enforces the DRY (Don't Repeat Yourself) principle and guarantees that changes to infrastructure adapters propagate instantly across the entire system.
+
+## 8.4 Clean Architecture (Microservice Structure)
+
+To ensure high maintainability, testability, and adherence to the Separation of Concerns principle, all Go microservices within AĒR (e.g., `ingestion-api`, `bff-api`) strictly follow a **Clean Architecture** directory structure:
+
+* **`cmd/api/main.go`**: The entry point. It contains zero business logic. Its sole responsibility is to load the configuration, initialize external dependencies (logger, databases), perform Dependency Injection (DI), and start the service.
+* **`internal/config/`**: Handles the mapping of environment variables (`.env`) to service-specific configuration structs using `viper`.
+* **`internal/storage/`**: Contains infrastructure adapters (e.g., `postgres.go`, `minio.go`). These adapters abstract the complexities of external database drivers away from the core logic.
+* **`internal/core/`**: Contains the pure business logic and orchestration. It defines the interfaces it needs and relies entirely on injected dependencies, making it highly unit-testable.
+
+## 8.5 Infrastructure as Code (IaC) and Provisioning
+
+AĒR strictly separates application logic from infrastructure provisioning. Microservices (Go/Python) must never attempt to create infrastructure components (e.g., databases, tables, or S3 buckets) upon startup. They must assume the required infrastructure is already present.
+
+* **Local Environment:** Infrastructure components are orchestrated via `docker compose`. Dedicated initialization containers (e.g., `minio-init` using the `minio/mc` image) act as one-off jobs to provision required layers (like the `bronze` and `silver` buckets) immediately after the foundational services start.
+* **Production Environment:** Provisioning will be managed by robust IaC tools (e.g., Terraform, OpenTofu) or Kubernetes Init Containers. This ensures immutability, auditability, and prevents race conditions across horizontally scaled microservices.
