@@ -15,6 +15,8 @@ The fundamental strategy relies on the strict separation of data collection, dat
 | **NATS (JetStream)** | Event Broker | An ultra-lightweight, high-performance messaging system. Replaces synchronous polling to enable real-time, asynchronous triggering between Go ingestion and Python analysis workers while ensuring data persistence. |
 | **PostgreSQL** | Relational Database | Storage of system metadata, user management, and configuration states for the data lake. |
 | **Docker** | Containerization | Isolation of all services. Ensures that local development (via WSL2/Ubuntu) and production environments are identical. |
+| **OpenTelemetry (OTel)** | Observability | Vendor-agnostic standard for distributed tracing and metrics. Used to track data flow continuously from Go to Python. |
+| **Grafana LGTM Stack** | Monitoring UI | Tempo (Traces), Prometheus (Metrics), and Grafana (Dashboards) form the central command center for system health. |
 
 ## 4.2 Architecture Patterns (The Data Pipeline)
 

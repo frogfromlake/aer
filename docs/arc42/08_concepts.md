@@ -56,3 +56,11 @@ AĒR strictly separates application logic from infrastructure provisioning. Micr
 
 * **Local Environment:** Infrastructure components are orchestrated via `docker compose`. Dedicated initialization containers (e.g., `minio-init` using the `minio/mc` image) act as one-off jobs to provision required layers (like the `bronze` and `silver` buckets) immediately after the foundational services start.
 * **Production Environment:** Provisioning will be managed by robust IaC tools (e.g., Terraform, OpenTofu) or Kubernetes Init Containers. This ensures immutability, auditability, and prevents race conditions across horizontally scaled microservices.
+
+## 8.6 Observability and Distributed Tracing (Day-2 Operations)
+
+AĒR utilizes a modern observability stack to ensure the complex, asynchronous data pipeline (Ingestion -> NATS -> Python -> ClickHouse) remains fully transparent and debuggable.
+
+* **Standardization:** All microservices (Go and Python) are instrumented using the **OpenTelemetry (OTel)** standard. Data is sent to a central `otel-collector`.
+* **Context Propagation:** When the `ingestion-api` triggers a process, a unique `Trace-ID` is generated. This ID is injected into the NATS message headers and extracted by the Python `analysis-worker`. This creates a unified, end-to-end trace spanning multiple independent services.
+* **Visualization:** Traces are exported via the OTLP protocol to **Grafana Tempo**, allowing developers to identify bottlenecks and verify deterministic execution paths instantly. System metrics are aggregated via **Prometheus** and visualized alongside traces in **Grafana**.

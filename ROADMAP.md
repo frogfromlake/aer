@@ -1,39 +1,39 @@
 # AĒR Refactoring & Scaling Roadmap
 
-Diese Roadmap definiert die nächsten Schritte, um die AĒR-Grundarchitektur von einem funktionalen Prototypen in ein skalierbares, wartbares und nach modernen Standards (CLEAN Code, DRY, Event-Driven) entwickeltes System zu überführen.
+Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalierbares, wartbares und nach modernen Standards (CLEAN Code, DRY, Event-Driven) entwickeltes System zu überführen.
 
-## Phase 1: Basis-Fundament & DRY-Prinzip (Go Workspace & Tooling)
-*Bevor wir spezifische Services anfassen, bauen wir das Fundament, das alle Microservices nutzen werden.*
+## Phase 1: Basis-Fundament & DRY-Prinzip (Go Workspace & Tooling) - [x] DONE
+* [x] **Go Workspace aufsetzen:** `pkg/`-Ordner für geteilte Logik.
+* [x] **`go.work` initialisieren:** Verknüpfung der Services.
+* [x] **Zentrales Konfigurationsmanagement:** `viper` Config-Loader für `.env`.
+* [x] **Standardisiertes Logging:** Custom JSON/Text-Logger (Go `slog`).
 
-* [ ] **Go Workspace aufsetzen:** Erstellung eines `pkg/`-Ordners auf Root-Ebene für geteilte Logik (Shared Libraries).
-* [ ] **`go.work` initialisieren:** Verknüpfung der Services (`ingestion-api`, `bff-api`) mit dem lokalen `pkg/`-Modul.
-* [ ] **Zentrales Konfigurationsmanagement:** Implementierung eines Config-Loaders (z. B. mit `viper` oder `godotenv`) im `pkg/`-Ordner zum sicheren Laden von `.env`-Variablen.
-* [ ] **Standardisiertes Logging:** Einführung eines zentralen, strukturierten JSON-Loggers (z. B. Go `slog` oder `zerolog`) im `pkg/`-Ordner, der von allen Services genutzt wird.
+## Phase 2: Clean Architecture (`ingestion-api`) - [x] DONE
+* [x] **Ordnerstruktur anpassen:** `cmd/api`, `internal/config`, `internal/storage`, `internal/core`.
+* [x] **Dependency Injection umsetzen:** Sauberes Wiring in `main.go`.
+* [x] **Hardcoded Credentials entfernen:** Nutzung der `.env`.
 
-## Phase 2: Clean Architecture (Am Beispiel der `ingestion-api`)
-*Refactoring des bestehenden Monolithen in der `main.go` in eine testbare, saubere Struktur.*
+## Phase 3: Infrastructure as Code (IaC) - [x] DONE
+* [x] **App-Logik bereinigen:** Bucket-Erstellung aus Go-Code entfernt.
+* [x] **Init-Skripte / IaC:** Docker-Init-Container (`minio-init`) legt Buckets an.
 
-* [ ] **Ordnerstruktur anpassen:** Erstellen der Verzeichnisse `cmd/api`, `internal/config`, `internal/storage` (für Postgres/MinIO) und `internal/core`.
-* [ ] **Dependency Injection umsetzen:** Die `main.go` übernimmt nur noch das "Wiring" (Zusammenstecken der Komponenten) und startet den Service.
-* [ ] **Hardcoded Credentials entfernen:** Datenbank- und MinIO-Zugangsdaten durch Umgebungsvariablen ersetzen (nutzt den Config-Loader aus Phase 1).
+## Phase 4: Event-Driven Communication - [x] DONE
+* [x] **Technologie-Entscheidung:** NATS JetStream gewählt.
+* [x] **Infrastruktur:** NATS zur `compose.yaml` hinzugefügt.
+* [x] **Producer (MinIO):** Automatischer Event-Trigger bei neuen Dateien im "bronze"-Layer.
+* [x] **Consumer (Python):** Python-Worker lauscht asynchron und loggt eingehende Events.
 
-## Phase 3: Infrastructure as Code (IaC) & Trennung der Verantwortlichkeiten
-*Infrastruktur-Provisionierung darf nicht Teil des Applikationscodes sein.*
+## Phase 5: Observability & Produktionsreife (In Progress)
+*Sichtbarkeit im System herstellen, um den asynchronen Datenfluss transparent zu machen.*
 
-* [ ] **App-Logik bereinigen:** Entfernen der automatischen MinIO-Bucket-Erstellung ("bronze", "silver") aus dem Go-Code.
-* [ ] **Init-Skripte / IaC einführen:** Erstellen von Docker-Init-Skripten (z. B. ein Shell-Skript, das beim Start des MinIO-Containers die Buckets anlegt) oder Einführung von Terraform/OpenTofu für das lokale Setup.
+* [ ] **Observability-Infrastruktur:** OTel-Collector, Grafana Tempo (Traces), Prometheus (Metriken) und Grafana (Dashboards) in Docker aufsetzen.
+* [ ] **Konfiguration:** YAML-Configs für den Collector und das Routing anlegen.
+* [ ] **Dokumentation:** Architektur-Entscheidungen (ADR) für OTel im arc42 dokumentieren.
 
-## Phase 4: Event-Driven Communication (Der Weg zur Asynchronität)
-*Ablösung des Polling-Konzepts durch echte, ereignisgesteuerte Datenflüsse zwischen Go (Ingestion) und Python (Analysis).*
+## Phase 6: Proof of Concept (End-to-End "Closing the Loop")
+*Beweis, dass die Architektur funktioniert: Ein kompletter Datenfluss durch alle Schichten.*
 
-* [ ] **Technologie-Entscheidung:** Festlegung auf MinIO Bucket Notifications (Webhook/RabbitMQ) oder einen dedizierten Message Broker (NATS/Kafka).
-* [ ] **Infrastruktur anpassen:** Hinzufügen des Brokers zur `compose.yaml`.
-* [ ] **Producer (Go) implementieren:** Die `ingestion-api` triggert (oder MinIO triggert) ein Event, sobald eine neue Datei im "bronze"-Layer liegt.
-* [ ] **Consumer (Python) implementieren:** Der Python-Worker lauscht auf diese Events und startet den Harmonisierungsprozess (Bronze -> Silver), sobald ein Event eingeht.
-
-## Phase 5: Observability & Produktionsreife (Day-2 Operations)
-*Sichtbarkeit im System herstellen und das Deployment vorbereiten.*
-
-* [ ] **Distributed Tracing integrieren:** Einbau von OpenTelemetry. Eine Trace-ID wird beim Ingest generiert und über den Message Broker an den Python-Worker weitergereicht.
-* [ ] **Monitoring-Stack aufsetzen:** Ergänzung der `compose.yaml` um Prometheus und Jaeger/Grafana für Metriken und Traces.
-* [ ] **CI/CD & Orchestrierung:** Erste Vorbereitungen für Kubernetes (K8s) Helm-Charts oder CI/CD-Pipelines (z. B. GitHub Actions) für automatisiertes Testen und Bauen der Docker-Images.
+* [ ] **Bronze Layer (Go):** Die `ingestion-api` lädt ein echtes JSON-Dokument in den `bronze`-Bucket hoch.
+* [ ] **NATS Trigger & Silver Layer (Python):** Der Python-Worker empfängt das Event, lädt das JSON herunter, wendet eine einfache Transformation an (z.B. Lowercase) und speichert es im `silver`-Bucket.
+* [ ] **Gold Layer (ClickHouse):** Einführung von ClickHouse in die Infrastruktur. Der Python-Worker extrahiert eine Dummy-Metrik und speichert sie als Zeitreihe in der Gold-Datenbank.
+* [ ] **Tracing Instrumentation:** Einbau der OTel-Bibliotheken in Go und Python, sodass dieser exakte Flow als durchgehender Trace in Grafana sichtbar wird.
