@@ -23,9 +23,16 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Tell MinIO to connect to NATS and publish to the subject "aer.lake.bronze"
+      MINIO_NOTIFY_NATS_ENABLE_aer: "on"
+      MINIO_NOTIFY_NATS_ADDRESS_aer: "nats:4222"
+      MINIO_NOTIFY_NATS_SUBJECT_aer: "aer.lake.bronze"
+      MINIO_NOTIFY_NATS_JETSTREAM_aer: "on"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    depends_on:
+      - nats
 
   # ----------------------------------------------------
   # 2.1 INFRASTRUCTURE PROVISIONING (INIT SCRIPT)
@@ -42,9 +49,22 @@ services:
       /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb myminio/bronze --ignore-existing;
       /usr/bin/mc mb myminio/silver --ignore-existing;
-      echo 'AĒR Data Lake buckets provisioned successfully.';
+      echo 'Linking bucket events to NATS...';
+      /usr/bin/mc event add myminio/bronze arn:minio:sqs::aer:nats --event put;
+      echo 'AĒR Data Lake buckets and events provisioned successfully.';
       exit 0;
       "
+
+  # ----------------------------------------------------
+  # 2.2 MESSAGE BROKER (EVENT PIPELINE)
+  # ----------------------------------------------------
+  nats:
+    image: nats:latest
+    container_name: aer_nats
+    ports:
+      - "4222:4222" # Client Port
+      - "8222:8222" # Web UI / Monitoring Port
+    command: "-js"  # Enables JetStream for persistence
 
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)

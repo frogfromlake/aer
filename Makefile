@@ -1,4 +1,4 @@
-.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart tidy run-ingestion run-bff build-services
+.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart tidy run-ingestion run-bff run-analysis-worker build-services
 
 # Terminal Colors & Styles (Modern Palette)
 BOLD          := \033[1m
@@ -20,7 +20,7 @@ SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
 # GLOBAL STACK CONTROLS
 # ==========================================
 
-SERVICES = run-ingestion # run-bff run-analysis-worker
+SERVICES = run-ingestion run-analysis-worker # run-bff
 
 # Starts everything sequentially, then runs services in parallel
 up: 
@@ -58,18 +58,22 @@ tidy:
 	@cd services/ingestion-api && go mod tidy
 	@cd services/bff-api && go mod tidy
 	@echo "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
+	@echo "$(GRAY)Cleaning Python caches...$(RESET)"
+	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@echo "$(SYMBOL_SUCCESS) $(BOLD)Python environment cleaned.$(RESET)"
 
 # ==========================================
 # INFRASTRUCTURE STACK (DATA LAKE & METADATA)
 # ==========================================
 
 infra:
-	@docker compose up minio postgres minio-init -d > /dev/null 2>&1
+	@docker compose up nats minio postgres minio-init -d > /dev/null 2>&1
 	@echo "$(SYMBOL_SUCCESS) MinIO Data Lake:      $(CYAN)http://localhost:9001$(RESET) $(GRAY)(Credentials in .env)$(RESET)"
 	@echo "$(SYMBOL_SUCCESS) PostgreSQL Database:  $(CYAN)localhost:5432$(RESET) $(GRAY)(DB: aer_metadata)$(RESET)"
+	@echo "$(SYMBOL_SUCCESS) NATS Message Broker:  $(CYAN)localhost:8222$(RESET) $(GRAY)(Monitoring UI)$(RESET)"
 
 infra-down:
-	@docker compose rm -f -s -v minio postgres minio-init > /dev/null 2>&1
+	@docker compose rm -f -s -v nats minio postgres minio-init > /dev/null 2>&1
 	@echo "$(SYMBOL_STOP) $(GRAY)Infrastructure services terminated.$(RESET)"
 
 infra-restart: infra-down infra
@@ -104,3 +108,18 @@ build-services:
 	@go build -o bin/ingestion-api ./services/ingestion-api/cmd/api
 	@go build -o bin/bff-api ./services/bff-api/cmd/api
 	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete.$(RESET) $(GRAY)Binaries located in ./bin/$(RESET)"
+
+# ==========================================
+# MICROSERVICE CONTROLS (Python)
+# ==========================================
+run-analysis-worker:
+	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Analysis Worker (Python)...$(RESET)"
+	@cd services/analysis-worker && \
+	if [ ! -f "venv/bin/python" ]; then \
+		echo "$(GRAY)Creating virtual environment...$(RESET)"; \
+		rm -rf venv; \
+		python3 -m venv venv; \
+	fi && \
+	echo "$(GRAY)Checking dependencies...$(RESET)" && \
+	./venv/bin/python -m pip install -r requirements.txt -q && \
+	./venv/bin/python main.py
