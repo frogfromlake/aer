@@ -111,13 +111,13 @@ run-ingestion:
 
 run-bff:
 	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting BFF API...$(RESET) $(CYAN)http://localhost:8080/api/v1/metrics$(RESET)"
-	@go run ./services/bff-api/cmd/api/main.go
+	@go run ./services/bff-api/cmd/server/main.go # <-- HIER: cmd/server/
 
 build-services:
 	@echo "$(BOLD)$(CYAN)Compiling AĒR binaries...$(RESET)"
 	@mkdir -p bin
 	@go build -o bin/ingestion-api ./services/ingestion-api/cmd/api
-	@go build -o bin/bff-api ./services/bff-api/cmd/api
+	@go build -o bin/bff-api ./services/bff-api/cmd/server # <-- HIER: cmd/server/
 	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete.$(RESET) $(GRAY)Binaries located in ./bin/$(RESET)"
 
 # ==========================================
