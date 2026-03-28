@@ -1,5 +1,6 @@
 import asyncio
 import json
+import signal
 import structlog
 from nats.aio.client import Client as NATS
 
@@ -38,21 +39,15 @@ async def main():
 
     async def message_handler(msg):
         event_data = json.loads(msg.data.decode())
-        
-        # MinIO structured event payload extraction
         obj_key = event_data['Records'][0]['s3']['object']['key']
         
         # --- TRACE CONTINUATION ---
-        # Normalize MinIO metadata to extract the OTel 'traceparent'
         raw_meta = event_data['Records'][0]['s3']['object'].get('userMetadata', {})
         normalized_meta = {k.lower().replace('x-amz-meta-', ''): v for k, v in raw_meta.items()}
         context = propagate.extract(normalized_meta)
         
-        # Start the span and pass it to the processor
         with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
             logger.info("Received event", object=obj_key)
-            
-            # Delegate all business logic to the processor
             data_processor.process_event(obj_key, span)
 
     # 4. Connect and Subscribe
@@ -61,9 +56,33 @@ async def main():
     
     logger.info("Analysis Worker initialized and awaiting events...")
     
-    # Keep the worker running
-    while True:
-        await asyncio.sleep(1)
+    # --- GRACEFUL SHUTDOWN LOGIC ---
+    stop_event = asyncio.Event()
+    
+    def shutdown_signal(*args):
+        logger.info("Shutdown signal received. Draining NATS and closing worker...")
+        stop_event.set()
+
+    # Register handlers for termination signals
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGINT, shutdown_signal)
+    loop.add_signal_handler(signal.SIGTERM, shutdown_signal)
+
+    try:
+        # Wait until the stop event is set
+        await stop_event.wait()
+    except asyncio.CancelledError:
+        pass # Ignore cancellation when forced to quit
+    finally:
+        # Cleanup before exiting
+        if nc.is_connected:
+            await nc.drain()
+            await nc.close()
+        logger.info("Analysis Worker shut down cleanly.")
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Catch the final exit to avoid stack traces in the terminal
+        pass

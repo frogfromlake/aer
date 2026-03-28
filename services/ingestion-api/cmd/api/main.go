@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/frogfromlake/aer/pkg/logger"
 	"github.com/frogfromlake/aer/pkg/telemetry"
@@ -29,7 +31,6 @@ func main() {
 	defer shutdown(context.Background())
 
 	db, err := storage.NewPostgresDB(cfg.DBUrl)
-
 	if err != nil {
 		slog.Error("Failed to initialize PostgreSQL", "error", err)
 		os.Exit(1)
@@ -37,7 +38,6 @@ func main() {
 	defer db.DB.Close()
 	slog.Info("PostgreSQL connected successfully")
 
-	// 4. Initialize MinIO Adapter
 	minioClient, err := storage.NewMinioClient(
 		cfg.MinioEndpoint,
 		cfg.MinioAccessKey,
@@ -50,13 +50,29 @@ func main() {
 	}
 	slog.Info("MinIO client connected successfully")
 
-	// 5. Dependency Injection: Wire the Core Service
 	svc := core.NewIngestionService(db, minioClient)
 
-	// 6. Execute Core Logic
-	ctx := context.Background()
-	if err := svc.Start(ctx); err != nil {
-		slog.Error("Ingestion service encountered a fatal error", "error", err)
-		os.Exit(1)
+	// --- GRACEFUL SHUTDOWN LOGIC ---
+	// Listen for interrupt signals to cancel ongoing HTTP/DB requests
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Run core logic inside a goroutine to allow listening for cancellation
+	done := make(chan struct{})
+	go func() {
+		if err := svc.Start(ctx); err != nil {
+			slog.Error("Ingestion service encountered an error", "error", err)
+		}
+		close(done)
+	}()
+
+	// Wait for either the ingestion to finish or an interrupt signal
+	select {
+	case <-ctx.Done():
+		slog.Info("Shutdown signal received. Cancelling ingestion process...")
+	case <-done:
+		slog.Info("Ingestion process completed successfully.")
 	}
+
+	slog.Info("Ingestion API shut down cleanly.")
 }
