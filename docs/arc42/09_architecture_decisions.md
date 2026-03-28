@@ -90,3 +90,20 @@ We implement a **Context-Aware Exponential Backoff Strategy** using `github.com/
 ### Consequences
 * **Positive:** The system becomes self-healing. Services can be started in any order. Temporary network partitions do not require manual intervention. The use of `v5` generics allows returning initialized connections directly.
 * **Negative:** Service startup might be intentionally delayed if infrastructure is down, meaning immediate failure feedback is suppressed in favor of resilience.
+
+## ADR-007: Data Lifecycle & Retention Strategy (Graceful Degradation)
+
+**Date:** 2026-03-28  
+**Status:** Accepted
+
+### Context
+As AĒR scales and continuously ingests raw web data (Bronze layer) and generates time-series metrics (Gold layer), storage costs and database memory usage will grow indefinitely. Unbounded data growth leads to system degradation and potential out-of-memory (OOM) crashes in ClickHouse.
+
+### Decision
+We implement automated, infrastructure-level Data Lifecycle Management (DLM):
+1. **MinIO ILM (Information Lifecycle Management):** Raw unstructured data in the `bronze` bucket is automatically deleted after 90 days. Quarantined data (`bronze-quarantine`) is purged after 30 days. The `silver` layer (cleaned, structured data) serves as the persistent training/re-evaluation baseline and has no expiry.
+2. **ClickHouse TTL (Time-To-Live):** Analytical time-series data in the `aer_gold.metrics` table is automatically dropped after 365 days using ClickHouse's native `TTL` feature on the `MergeTree` engine. Table schemas are managed via immutable IaC scripts (`init.sql`), not application code.
+
+### Consequences
+* **Positive:** Predictable storage costs. Protection against storage-related crashes. Zero application-level cron jobs required.
+* **Negative:** Raw Bronze data is permanently lost after 90 days, meaning we cannot retroactively re-parse the original HTML/JSON for those specific records if a bug is found in the parser later (unless we re-crawl).
