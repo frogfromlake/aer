@@ -1,0 +1,18 @@
+get:
+  summary: Retrieve aggregated time-series metrics
+  description: Fetches gold-layer metrics for the dashboard's "weather map" visualization.
+  operationId: getMetrics
+  parameters:
+    - $ref: '../parameters/startDate.yaml'
+    - $ref: '../parameters/endDate.yaml'
+  responses:
+    '200':
+      description: A list of time-series data points.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/MetricDataPoint.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

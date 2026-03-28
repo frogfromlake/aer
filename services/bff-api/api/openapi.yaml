@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info:
+  title: AĒR BFF API
+  description: Backend-for-Frontend serving aggregated societal metrics to the UI.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+
+paths:
+  /metrics:
+    $ref: './paths/metrics.yaml'
