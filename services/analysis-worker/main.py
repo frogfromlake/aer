@@ -3,6 +3,11 @@ import json
 import signal
 import structlog
 from nats.aio.client import Client as NATS
+from tenacity import retry, wait_exponential, stop_after_delay
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # OpenTelemetry imports
 from opentelemetry import trace, propagate
@@ -50,8 +55,16 @@ async def main():
             logger.info("Received event", object=obj_key)
             data_processor.process_event(obj_key, span)
 
-    # 4. Connect and Subscribe
-    await nc.connect("nats://localhost:4222")
+    # 4. Connect and Subscribe with Backoff
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_delay(30),
+        before_sleep=lambda rs: logger.warning("NATS not ready, retrying...", attempt=rs.attempt_number)
+    )
+    async def connect_nats():
+        await nc.connect("nats://localhost:4222")
+
+    await connect_nats()
     await nc.subscribe("aer.lake.bronze", cb=message_handler)
     
     logger.info("Analysis Worker initialized and awaiting events...")
