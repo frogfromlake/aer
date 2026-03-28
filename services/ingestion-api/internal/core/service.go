@@ -26,7 +26,14 @@ func NewIngestionService(db *storage.PostgresDB, minio *storage.MinioClient) *In
 
 // Start executes the initial bootstrapping of the core service.
 func (s *IngestionService) Start(ctx context.Context) error {
-	slog.Info("Starting AĒR Ingestion Core Logic (Poison Pill Test)...")
+	slog.Info("Starting AĒR Ingestion Core Logic (Metadata Index Test)...")
+
+	// 1. Create a tracking job in PostgreSQL (Assuming source_id 1 is our Dummy Source)
+	jobID, err := s.db.CreateIngestionJob(ctx, 1)
+	if err != nil {
+		return fmt.Errorf("could not initialize ingestion job: %w", err)
+	}
+	slog.Info("Created new ingestion job", "job_id", jobID)
 
 	tracer := otel.Tracer("aer.core")
 
@@ -43,34 +50,46 @@ func (s *IngestionService) Start(ctx context.Context) error {
 		{
 			name:     "Corrupt Data",
 			filename: "test-corrupt-data.json",
-			// Dieses JSON hat kein "message" Feld und wird die Pydantic/Python-Validierung nicht bestehen!
 			payload:  `{"status": "raw", "metric_value": 99.9}`,
 		},
 		{
 			name:     "Duplicate Data",
-			filename: "test-happy-path.json", // Gleicher Dateiname wie im Happy Path
+			filename: "test-happy-path.json",
 			payload:  `{"message": "Hello from AĒR Ingestion!", "status": "raw", "metric_value": 42.5}`,
 		},
 	}
 
 	for _, tc := range testCases {
-		// Für jeden Upload starten wir einen eigenen kleinen Trace-Span
 		ctxSpan, span := tracer.Start(ctx, fmt.Sprintf("Ingest-%s", tc.name))
+		traceID := span.SpanContext().TraceID().String()
 
-		err := s.minio.UploadJSON(ctxSpan, "bronze", tc.filename, tc.payload)
-		if err != nil {
-			slog.Error("Failed to upload to bronze", "case", tc.name, "error", err)
-			span.RecordError(err)
+		// 2. Upload to MinIO (Bronze Layer)
+		uploadErr := s.minio.UploadJSON(ctxSpan, "bronze", tc.filename, tc.payload)
+
+		if uploadErr != nil {
+			slog.Error("Failed to upload to bronze", "case", tc.name, "error", uploadErr)
+			span.RecordError(uploadErr)
 		} else {
-			slog.Info("Successfully uploaded data to Bronze layer", "case", tc.name, "object", tc.filename)
+			// 3. Log Metadata in PostgreSQL ONLY if upload was successful
+			logErr := s.db.LogDocument(ctxSpan, jobID, tc.filename, traceID)
+			if logErr != nil {
+				slog.Error("Failed to log document metadata", "error", logErr)
+			} else {
+				slog.Info("Successfully ingested and indexed data", "case", tc.name, "object", tc.filename, "trace_id", traceID)
+			}
 		}
 
 		span.End()
-		
-		// Kurze Pause, damit NATS die Events sauber nacheinander an den Python-Worker schickt
 		time.Sleep(2 * time.Second)
 	}
 
-	slog.Info("All test cases uploaded.")
+	// 4. Mark job as completed
+	err = s.db.UpdateJobStatus(ctx, jobID, "completed")
+	if err != nil {
+		slog.Error("Failed to complete job", "error", err)
+	} else {
+		slog.Info("Ingestion job marked as completed", "job_id", jobID)
+	}
+
 	return nil
 }
