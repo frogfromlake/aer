@@ -19,3 +19,21 @@ To guarantee deterministic execution and scientific integrity, we implemented th
 ### Consequences
 * **Positive:** The processing pipeline is highly robust. Corrupt data is isolated for manual inspection without halting the system. Metric duplication is structurally prevented.
 * **Negative:** Checking MinIO for existing object keys adds a slight latency overhead (one HTTP HEAD request per event) before processing. Given the system's asynchronous nature, this tradeoff is acceptable.
+
+## ADR-003: The Metadata Index and Progressive Disclosure
+
+**Date:** 2026-03-28  
+**Status:** Accepted
+
+### Context
+A core UI/UX goal of the AĒR dashboard is "Progressive Disclosure". When a sociologist analyzes an aggregated time-series metric (e.g., a spike in a specific keyword in the Gold layer), they must be able to click on that data point and drill down to the exact original raw document (Bronze layer) that caused it. Because ClickHouse (Gold) is an OLAP database optimized for aggregations, it is highly inefficient for storing and querying deep relational metadata and full file paths.
+
+### Decision
+We introduce a dedicated Metadata Index using **PostgreSQL**. 
+1. The Go `ingestion-api` writes a record to PostgreSQL detailing the `source_id`, `job_id`, the exact `bronze_object_key` (MinIO path), and the OpenTelemetry `trace_id` before saving the file to the Data Lake.
+2. The frontend will use the aggregate data from ClickHouse for the high-level "weather map" visualizations.
+3. For drill-downs, the frontend will query the PostgreSQL database to resolve the exact file origins and trace executions.
+
+### Consequences
+* **Positive:** Clear separation of concerns. ClickHouse remains extremely fast and lean because it only holds numerical time-series data. PostgreSQL securely handles relational mapping and audit trails.
+* **Negative:** The `ingestion-api` has to manage a distributed transaction span (writing to MinIO and PostgreSQL sequentially). If MinIO succeeds but PostgreSQL fails, there is an unindexed file in the data lake (an acceptable edge case handled by eventual consistency sweeps later).

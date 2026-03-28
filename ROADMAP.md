@@ -45,12 +45,12 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Dead Letter Queue (DLQ):** Fehlerhaftes JSON (Parsing-Errors) wird abgefangen und in einen Quarantäne-Bucket (`bronze-quarantine`) verschoben, anstatt den Worker crashen zu lassen.
 * [x] **Idempotenz:** ClickHouse und Python-Worker so anpassen, dass doppelte NATS-Events (Redeliveries) ignoriert werden und Metriken nicht doppelt gezählt werden.
 
-## Phase 8: The Metadata Index (PostgreSQL)
+## Phase 8: The Metadata Index (PostgreSQL) - [x] DONE
 *Aufbau des relationalen Gedächtnisses, um den Weg der Daten von Gold zurück zu Bronze garantieren zu können (Progressive Disclosure).*
 
-* [ ] **Datenbankschema:** Erstellung der Tabellen für `sources`, `ingestion_jobs` und `documents` in PostgreSQL.
-* [ ] **Go Tracking:** Die Ingestion-API speichert Metadaten (Zeitpunkt, Quelle, MinIO-Pfad) in Postgres, bevor das Dokument in den Data Lake geladen wird.
-* [ ] **Trace-Verknüpfung:** Die OTel Trace-ID wird als Fremdschlüssel in der Datenbank abgelegt, um später Audit-Trails zu ermöglichen.
+* [x] **Datenbankschema:** Erstellung der Tabellen für `sources`, `ingestion_jobs` und `documents` in PostgreSQL.
+* [x] **Go Tracking:** Die Ingestion-API speichert Metadaten (Zeitpunkt, Quelle, MinIO-Pfad) in Postgres, bevor das Dokument in den Data Lake geladen wird.
+* [x] **Trace-Verknüpfung:** Die OTel Trace-ID wird als Fremdschlüssel in der Datenbank abgelegt, um später Audit-Trails zu ermöglichen.
 
 ## Phase 9: The Serving Layer (Backend-for-Frontend)
 *Bereitstellung der aggregierten Gold-Daten über eine performante und vertragsbasierte Schnittstelle für das Frontend.*
