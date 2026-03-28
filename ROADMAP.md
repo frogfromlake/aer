@@ -26,14 +26,14 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 ## Phase 5: Observability & Produktionsreife (In Progress)
 *Sichtbarkeit im System herstellen, um den asynchronen Datenfluss transparent zu machen.*
 
-* [ ] **Observability-Infrastruktur:** OTel-Collector, Grafana Tempo (Traces), Prometheus (Metriken) und Grafana (Dashboards) in Docker aufsetzen.
-* [ ] **Konfiguration:** YAML-Configs für den Collector und das Routing anlegen.
-* [ ] **Dokumentation:** Architektur-Entscheidungen (ADR) für OTel im arc42 dokumentieren.
+* [x] **Observability-Infrastruktur:** OTel-Collector, Grafana Tempo (Traces), Prometheus (Metriken) und Grafana (Dashboards) in Docker aufsetzen.
+* [x] **Konfiguration:** YAML-Configs für den Collector und das Routing anlegen.
+* [x] **Dokumentation:** Architektur-Entscheidungen (ADR) für OTel im arc42 dokumentieren.
 
-## Phase 6: Proof of Concept (End-to-End "Closing the Loop")
+## Phase 6: Proof of Concept (End-to-End "Closing the Loop") - [x] DONE
 *Beweis, dass die Architektur funktioniert: Ein kompletter Datenfluss durch alle Schichten.*
 
-* [ ] **Bronze Layer (Go):** Die `ingestion-api` lädt ein echtes JSON-Dokument in den `bronze`-Bucket hoch.
-* [ ] **NATS Trigger & Silver Layer (Python):** Der Python-Worker empfängt das Event, lädt das JSON herunter, wendet eine einfache Transformation an (z.B. Lowercase) und speichert es im `silver`-Bucket.
-* [ ] **Gold Layer (ClickHouse):** Einführung von ClickHouse in die Infrastruktur. Der Python-Worker extrahiert eine Dummy-Metrik und speichert sie als Zeitreihe in der Gold-Datenbank.
-* [ ] **Tracing Instrumentation:** Einbau der OTel-Bibliotheken in Go und Python, sodass dieser exakte Flow als durchgehender Trace in Grafana sichtbar wird.
+* [x] **Bronze Layer (Go):** Die `ingestion-api` lädt ein echtes JSON-Dokument in den `bronze`-Bucket hoch.
+* [x] **NATS Trigger & Silver Layer (Python):** Der Python-Worker empfängt das Event, lädt das JSON herunter, wendet eine einfache Transformation an (z.B. Lowercase) und speichert es im `silver`-Bucket.
+* [x] **Gold Layer (ClickHouse):** Einführung von ClickHouse in die Infrastruktur. Der Python-Worker extrahiert eine Dummy-Metrik und speichert sie als Zeitreihe in der Gold-Datenbank.
+* [x] **Tracing Instrumentation:** Einbau der OTel-Bibliotheken in Go und Python, sodass dieser exakte Flow als durchgehender Trace in Grafana sichtbar wird.
