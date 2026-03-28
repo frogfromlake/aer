@@ -1,22 +1,23 @@
 import asyncio
-import os
 import json
-import io
-from datetime import datetime
 import structlog
-from minio import Minio
-import clickhouse_connect
 from nats.aio.client import Client as NATS
+
+# OpenTelemetry imports
 from opentelemetry import trace, propagate
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-# --- 1. Observability Setup ---
+# Internal application imports
+from internal.storage import init_minio, init_clickhouse
+from internal.processor import DataProcessor
+
+# --- Observability Setup ---
 resource = Resource(attributes={SERVICE_NAME: "aer-analysis-worker"})
 provider = TracerProvider(resource=resource)
-# Send traces to our Collector container
+# Send traces to the OpenTelemetry Collector container
 processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
@@ -25,74 +26,42 @@ tracer = trace.get_tracer(__name__)
 logger = structlog.get_logger()
 
 async def main():
-    nc = NATS()
+    # 1. Initialize Infrastructure Clients
+    minio_client = init_minio()
+    ch_client = init_clickhouse()
     
-    # Init MinIO Client
-    minio_client = Minio(
-        os.getenv("MINIO_ENDPOINT", "localhost:9000"),
-        access_key=os.getenv("MINIO_ROOT_USER", "aer_admin"),
-        secret_key=os.getenv("MINIO_ROOT_PASSWORD", "aer_password_123"),
-        secure=False
-    )
-    
-    # Init ClickHouse Client
-    ch_client = clickhouse_connect.get_client(
-        host='localhost', port=8123, 
-        username=os.getenv("CLICKHOUSE_USER", "aer_admin"), 
-        password=os.getenv("CLICKHOUSE_PASSWORD", "aer_password_123")
-    )
+    # 2. Dependency Injection for Core Processor
+    data_processor = DataProcessor(minio_client, ch_client)
 
-    # Automatically provision the Gold database and table if they don't exist
-    ch_client.command('CREATE DATABASE IF NOT EXISTS aer_gold')
-    ch_client.command('CREATE TABLE IF NOT EXISTS aer_gold.metrics (timestamp DateTime, value Float64) ENGINE = MergeTree() ORDER BY timestamp')
+    # 3. Message Broker Setup
+    nc = NATS()
 
     async def message_handler(msg):
         event_data = json.loads(msg.data.decode())
+        
+        # MinIO structured event payload extraction
         obj_key = event_data['Records'][0]['s3']['object']['key']
         
-        # --- 2. TRACE CONTINUATION ---
-        # MinIO wraps our metadata with 'X-Amz-Meta-'. We normalize it so OTel can find 'traceparent'.
+        # --- TRACE CONTINUATION ---
+        # Normalize MinIO metadata to extract the OTel 'traceparent'
         raw_meta = event_data['Records'][0]['s3']['object'].get('userMetadata', {})
         normalized_meta = {k.lower().replace('x-amz-meta-', ''): v for k, v in raw_meta.items()}
-        
         context = propagate.extract(normalized_meta)
         
+        # Start the span and pass it to the processor
         with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
-            logger.info("Processing event", object=obj_key)
-
-            # --- 3. BRONZE -> SILVER ---
-            response = minio_client.get_object("bronze", obj_key)
-            raw_content = json.loads(response.read().decode('utf-8'))
+            logger.info("Received event", object=obj_key)
             
-            # Harmonization: Lowercase the message
-            raw_content['message'] = raw_content['message'].lower()
-            raw_content['status'] = 'harmonized'
-            
-            silver_payload = json.dumps(raw_content).encode('utf-8')
-            minio_client.put_object(
-                "silver", obj_key, 
-                io.BytesIO(silver_payload), len(silver_payload),
-                content_type="application/json"
-            )
-            logger.info("Silver layer updated")
+            # Delegate all business logic to the processor
+            data_processor.process_event(obj_key, span)
 
-            # --- 4. SILVER -> GOLD ---
-            metric_val = raw_content.get('metric_value', 0)
-            ch_client.insert(
-                'aer_gold.metrics', 
-                [[datetime.now(), metric_val]], 
-                column_names=['timestamp', 'value']
-            )
-            logger.info("Gold layer updated", metric=metric_val)
-            
-            # Attach business data to the trace!
-            span.set_attribute("aer.metric_value", metric_val)
-
-    # Connect and Subscribe
+    # 4. Connect and Subscribe
     await nc.connect("nats://localhost:4222")
     await nc.subscribe("aer.lake.bronze", cb=message_handler)
     
-    logger.info("Analysis Worker is running and waiting for events...")
+    logger.info("Analysis Worker initialized and awaiting events...")
+    
+    # Keep the worker running
     while True:
         await asyncio.sleep(1)
 

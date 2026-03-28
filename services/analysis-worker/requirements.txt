@@ -6,3 +6,4 @@ clickhouse-connect==0.7.8
 opentelemetry-api==1.24.0
 opentelemetry-sdk==1.24.0
 opentelemetry-exporter-otlp==1.24.0
+pydantic==2.6.3
