@@ -6,9 +6,6 @@ from nats.aio.client import Client as NATS
 from tenacity import retry, wait_exponential, stop_after_delay
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
 # OpenTelemetry imports
 from opentelemetry import trace, propagate
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
@@ -19,6 +16,9 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 # Internal application imports
 from internal.storage import init_minio, init_clickhouse
 from internal.processor import DataProcessor
+
+# Load environment variables from .env file
+load_dotenv()
 
 # --- Observability Setup ---
 resource = Resource(attributes={SERVICE_NAME: "aer-analysis-worker"})
