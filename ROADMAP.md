@@ -52,12 +52,12 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Go Tracking:** Die Ingestion-API speichert Metadaten (Zeitpunkt, Quelle, MinIO-Pfad) in Postgres, bevor das Dokument in den Data Lake geladen wird.
 * [x] **Trace-Verknüpfung:** Die OTel Trace-ID wird als Fremdschlüssel in der Datenbank abgelegt, um später Audit-Trails zu ermöglichen.
 
-## Phase 9: The Serving Layer (Backend-for-Frontend)
+## Phase 9: The Serving Layer (Backend-for-Frontend) - [x] DONE
 *Bereitstellung der aggregierten Gold-Daten über eine performante und vertragsbasierte Schnittstelle für das Frontend.*
 
-* [ ] **Contract-First API:** Definition der REST-Schnittstellen (z.B. für Zeitreihen-Abfragen) in einer `openapi.yaml`.
-* [ ] **BFF Code Generation:** Nutzung von `oapi-codegen`, um aus der OpenAPI-Spezifikation die Go-Boilerplate (Router, Structs) für die `bff-api` zu generieren.
-* [ ] **ClickHouse Integration:** Implementierung des offiziellen `clickhouse-go` Treibers in der BFF-API, um aggregierte Daten performant auszulesen.
+* [x] **Contract-First API:** Definition der REST-Schnittstellen (z.B. für Zeitreihen-Abfragen) in einer `openapi.yaml`.
+* [x] **BFF Code Generation:** Nutzung von `oapi-codegen`, um aus der OpenAPI-Spezifikation die Go-Boilerplate (Router, Structs) für die `bff-api` zu generieren.
+* [x] **ClickHouse Integration:** Implementierung des offiziellen `clickhouse-go` Treibers in der BFF-API, um aggregierte Daten performant auszulesen.
 
 ## Phase 10: Testing & Continuous Integration (CI)
 *Sicherstellung der wissenschaftlichen Determinismus-Vorgaben und der Code-Qualität durch Automatisierung.*
