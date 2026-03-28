@@ -81,6 +81,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
 
 # ----------------------------------------------------
   # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
