@@ -1,4 +1,4 @@
-.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart tidy run-ingestion run-bff run-analysis-worker build-services
+.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart tidy codegen run-ingestion run-bff run-analysis-worker build-services
 
 # Terminal Colors & Styles (Modern Palette)
 BOLD          := \033[1m
@@ -20,7 +20,7 @@ SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
 # GLOBAL STACK CONTROLS
 # ==========================================
 
-SERVICES = run-ingestion run-analysis-worker # run-bff
+SERVICES = run-ingestion run-analysis-worker run-bff
 
 # Starts everything sequentially, then runs services in parallel
 up: 
@@ -63,6 +63,15 @@ tidy:
 	@echo "$(SYMBOL_SUCCESS) $(BOLD)Python environment cleaned.$(RESET)"
 
 # ==========================================
+# CODE GENERATION
+# ==========================================
+
+codegen:
+	@echo "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
+	@cd services/bff-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml
+	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)API contracts generated successfully.$(RESET)"
+
+# ==========================================
 # INFRASTRUCTURE STACK (DATA LAKE, METADATA, ANALYTICS & OBSERVABILITY)
 # ==========================================
 
@@ -97,11 +106,11 @@ docs-down:
 # ==========================================
 
 run-ingestion:
-	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Ingestion API...$(RESET)"
+	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Ingestion API...$(RESET) $(GRAY)(Internal Background Service)$(RESET)"
 	@go run ./services/ingestion-api/cmd/api/main.go
 
 run-bff:
-	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting BFF API...$(RESET)"
+	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting BFF API...$(RESET) $(CYAN)http://localhost:8080/api/v1/metrics$(RESET)"
 	@go run ./services/bff-api/cmd/api/main.go
 
 build-services:
@@ -115,7 +124,7 @@ build-services:
 # MICROSERVICE CONTROLS (Python)
 # ==========================================
 run-analysis-worker:
-	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Analysis Worker (Python)...$(RESET)"
+	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Analysis Worker (Python)...$(RESET) $(GRAY)(Internal NATS Consumer)$(RESET)"
 	@cd services/analysis-worker && \
 	if [ ! -f "venv/bin/python" ]; then \
 		echo "$(GRAY)Creating virtual environment...$(RESET)"; \
