@@ -28,14 +28,22 @@ func main() {
 		slog.Error("Failed to initialize OpenTelemetry", "error", err)
 		os.Exit(1)
 	}
-	defer shutdown(context.Background())
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			slog.Error("Error during OpenTelemetry shutdown", "error", err)
+		}
+	}()
 
 	db, err := storage.NewPostgresDB(cfg.DBUrl)
 	if err != nil {
 		slog.Error("Failed to initialize PostgreSQL", "error", err)
 		os.Exit(1)
 	}
-	defer db.DB.Close()
+	defer func() {
+		if err := db.DB.Close(); err != nil {
+			slog.Error("Error closing PostgreSQL connection", "error", err)
+		}
+	}()
 	slog.Info("PostgreSQL connected successfully")
 
 	minioClient, err := storage.NewMinioClient(
