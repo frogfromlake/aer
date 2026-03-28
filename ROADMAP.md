@@ -66,12 +66,12 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Go Integration Testing:** Nutzung von `testcontainers-go`, um die Interaktionen der Ingestion-API mit MinIO und PostgreSQL in isolierten Test-Containern zu validieren.
 * [x] **CI Pipeline (GitHub Actions):** Aufbau von automatisierten Workflows für Linting (`golangci-lint`, `ruff`) und Ausführung der Testsuiten bei jedem Push/Pull-Request.
 
-## Phase 11: Data Lifecycle Management & Graceful Degradation
+## Phase 11: Data Lifecycle Management & Graceful Degradation - [x] DONE
 *Ressourcenschonung für den Langzeitbetrieb und Absicherung gegen kurzzeitige Ausfälle der Infrastruktur.*
 
-* [ ] **Resilienz (Go):** Implementierung von Exponential Backoff (via `cenkalti/backoff/v5`) beim Verbindungsaufbau zu PostgreSQL und MinIO.
-* [ ] **Data Lake Lifecycle:** Erweiterung des `minio-init` Containers um `mc ilm` Policies, um rohe Bronze-Daten nach einer definierten Zeitspanne (z.B. 90 Tage) automatisch zu bereinigen/archivieren.
-* [ ] **Analytics TTL & Migrations:** Auslagerung der ClickHouse-Tabellenerstellung aus dem Python-Code in dedizierte IaC/Init-Skripte und Einführung von Time-To-Live (TTL) Regeln zur Daten-Aggregation.
+* [x] **Resilienz (Go):** Implementierung von Exponential Backoff (via `cenkalti/backoff/v5`) beim Verbindungsaufbau zu PostgreSQL und MinIO.
+* [x] **Data Lake Lifecycle:** Erweiterung des `minio-init` Containers um `mc ilm` Policies, um rohe Bronze-Daten nach einer definierten Zeitspanne (z.B. 90 Tage) automatisch zu bereinigen/archivieren.
+* [x] **Analytics TTL & Migrations:** Auslagerung der ClickHouse-Tabellenerstellung aus dem Python-Code in dedizierte IaC/Init-Skripte und Einführung von Time-To-Live (TTL) Regeln zur Daten-Aggregation.
 
 ## Phase 12: Real Data Ingestion (The First Real Crawler)
 *Ablösung des Dummy-JSONs durch echte, unstrukturierte Daten aus dem Internet.*
