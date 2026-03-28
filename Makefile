@@ -72,6 +72,28 @@ codegen:
 	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)API contracts generated successfully.$(RESET)"
 
 # ==========================================
+# TESTING & LINTING
+# ==========================================
+
+test: test-go test-python
+	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
+
+test-go:
+	@echo "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"
+	@cd services/ingestion-api && go test -v ./...
+	@cd services/bff-api && go test -v ./...
+
+test-python:
+	@echo "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
+	@cd services/analysis-worker && ./venv/bin/python -m pytest tests/ -v
+
+lint:
+	@echo "$(SYMBOL_INFO) $(CYAN)Running Linters (Requires golangci-lint and ruff)...$(RESET)"
+	@cd services/analysis-worker && ./venv/bin/python -m ruff check . && echo "$(SYMBOL_SUCCESS) $(GREEN)Python (Analysis Worker) lint passed!$(RESET)"
+	@cd services/ingestion-api && golangci-lint run && echo "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
+	@cd services/bff-api && golangci-lint run && echo "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
+
+# ==========================================
 # INFRASTRUCTURE STACK (DATA LAKE, METADATA, ANALYTICS & OBSERVABILITY)
 # ==========================================
 
