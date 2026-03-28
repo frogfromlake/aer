@@ -18,8 +18,11 @@ type MinioClient struct {
 }
 
 func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, useSSL bool) (*MinioClient, error) {
+	var client *minio.Client
+
 	operation := func() (*minio.Client, error) {
-		client, err := minio.New(endpoint, &minio.Options{
+		var err error
+		client, err = minio.New(endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 			Secure: useSSL,
 		})
@@ -27,12 +30,18 @@ func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, 
 			return nil, err
 		}
 
-		// minio.New doesn't make a network call. We use ListBuckets as a ping.
+		// Ensure the service is reachable AND our required bucket is provisioned
 		cancelCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		if _, err = client.ListBuckets(cancelCtx); err != nil {
-			return nil, err
+
+		exists, err := client.BucketExists(cancelCtx, "bronze")
+		if err != nil {
+			return nil, err // Server not reachable
 		}
+		if !exists {
+			return nil, fmt.Errorf("bucket 'bronze' does not exist yet") // Provisioning not finished
+		}
+
 		return client, nil
 	}
 

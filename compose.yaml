@@ -42,19 +42,13 @@ services:
     container_name: aer_minio_init
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      echo 'Waiting for MinIO to start...';
-      sleep 5;
-      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
-      /usr/bin/mc mb myminio/bronze --ignore-existing;
-      /usr/bin/mc mb myminio/silver --ignore-existing;
-      /usr/bin/mc mb myminio/bronze-quarantine --ignore-existing;
-      echo 'Linking bucket events to NATS...';
-      /usr/bin/mc event add myminio/bronze arn:minio:sqs::aer:nats --event put;
-      echo 'AĒR Data Lake buckets and events provisioned successfully.';
-      exit 0;
-      "
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ./infra/minio/setup.sh:/setup.sh
+    entrypoint: /bin/sh /setup.sh
 
   # ----------------------------------------------------
   # 2.2 MESSAGE BROKER (EVENT PIPELINE)
@@ -99,6 +93,7 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
 
 # ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
