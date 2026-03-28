@@ -29,11 +29,11 @@ jobs:
 
       - name: Lint with Ruff
         working-directory: ./services/analysis-worker
-        run: ruff check .
+        run: python -m ruff check .
 
       - name: Run Unit Tests
         working-directory: ./services/analysis-worker
-        run: pytest tests/ -v
+        run: python -m pytest tests/ -v
 
   go-pipeline:
     name: Go Lint & Integration Test
@@ -47,15 +47,21 @@ jobs:
         with:
           go-version: '1.26.1'
           cache: true
+          cache-dependency-path: |
+            services/ingestion-api/go.sum
+            services/bff-api/go.sum
+            pkg/go.sum
 
       - name: Lint Ingestion API
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
+          version: latest
           working-directory: ./services/ingestion-api
 
       - name: Lint BFF API
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
+          version: latest
           working-directory: ./services/bff-api
 
       - name: Run Go Integration Tests (Testcontainers)
