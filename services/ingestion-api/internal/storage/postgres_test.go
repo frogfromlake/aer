@@ -14,8 +14,8 @@ func TestPostgresStorage(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Start ephemeral PostgreSQL container
-	pgContainer, err := postgres.RunContainer(ctx,
-		testcontainers.WithImage("postgres:16-alpine"),
+	pgContainer, err := postgres.Run(ctx,
+		"postgres:16-alpine",
 		postgres.WithDatabase("aer_test"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),

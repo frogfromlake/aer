@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/testcontainers/testcontainers-go"
 	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
@@ -13,8 +12,8 @@ func TestMinioStorage(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Start ephemeral MinIO container
-	minioContainer, err := tcminio.RunContainer(ctx,
-		testcontainers.WithImage("minio/minio:latest"),
+	minioContainer, err := tcminio.Run(ctx,
+		"minio/minio:latest",
 		tcminio.WithUsername("minioadmin"),
 		tcminio.WithPassword("minioadmin"),
 	)

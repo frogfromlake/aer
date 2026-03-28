@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/testcontainers/testcontainers-go"
 	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
 
@@ -13,8 +12,7 @@ func TestClickHouseStorage(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Start ephemeral ClickHouse container
-	chContainer, err := tcclickhouse.RunContainer(ctx,
-		testcontainers.WithImage("clickhouse/clickhouse-server:23.8"),
+	chContainer, err := tcclickhouse.Run(ctx, "clickhouse/clickhouse-server:23.8",
 		tcclickhouse.WithDatabase("aer_gold"),
 		tcclickhouse.WithUsername("default"),
 		tcclickhouse.WithPassword(""),
