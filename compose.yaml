@@ -82,6 +82,23 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 # ----------------------------------------------------
+  # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
+  # ----------------------------------------------------
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: aer_clickhouse
+    ports:
+      - "8123:8123" # HTTP port
+      - "9002:9000" # Native client port
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+# ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
   # ----------------------------------------------------
   otel-collector:
@@ -95,7 +112,7 @@ services:
       - "4318:4318" # OTLP HTTP (for scripts/frontend)
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.1
     container_name: aer_tempo
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
@@ -116,6 +133,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${MINIO_ROOT_PASSWORD}
     ports:
       - "3000:3000"
+    volumes:
+      - ./infra/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     depends_on:
       - tempo
       - prometheus
@@ -123,3 +142,4 @@ services:
 volumes:
   minio_data:
   postgres_data:
+  clickhouse_data:
