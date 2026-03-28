@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/storage"
 	"go.opentelemetry.io/otel"
@@ -24,25 +26,51 @@ func NewIngestionService(db *storage.PostgresDB, minio *storage.MinioClient) *In
 
 // Start executes the initial bootstrapping of the core service.
 func (s *IngestionService) Start(ctx context.Context) error {
-	slog.Info("Starting AĒR Ingestion Core Logic...")
+	slog.Info("Starting AĒR Ingestion Core Logic (Poison Pill Test)...")
 
-	// 1. Start the Global Trace Span
 	tracer := otel.Tracer("aer.core")
-	ctx, span := tracer.Start(ctx, "End-To-End-Data-Pipeline")
-	defer span.End()
 
-	// 2. Create the dummy JSON payload (including a metric for our Gold layer)
-	jsonData := `{"message": "Hello from AĒR Ingestion!", "status": "raw", "metric_value": 42.5}`
-	objectName := "test-ingest.json"
-
-	// 3. Upload to Bronze (ctx contains the Trace-ID)
-	err := s.minio.UploadJSON(ctx, "bronze", objectName, jsonData)
-	if err != nil {
-		slog.Error("Failed to upload to bronze", "error", err)
-		span.RecordError(err)
-		return err
+	testCases := []struct {
+		name     string
+		filename string
+		payload  string
+	}{
+		{
+			name:     "Happy Path",
+			filename: "test-happy-path.json",
+			payload:  `{"message": "Hello from AĒR Ingestion!", "status": "raw", "metric_value": 42.5}`,
+		},
+		{
+			name:     "Corrupt Data",
+			filename: "test-corrupt-data.json",
+			// Dieses JSON hat kein "message" Feld und wird die Pydantic/Python-Validierung nicht bestehen!
+			payload:  `{"status": "raw", "metric_value": 99.9}`,
+		},
+		{
+			name:     "Duplicate Data",
+			filename: "test-happy-path.json", // Gleicher Dateiname wie im Happy Path
+			payload:  `{"message": "Hello from AĒR Ingestion!", "status": "raw", "metric_value": 42.5}`,
+		},
 	}
 
-	slog.Info("Successfully uploaded raw data to Bronze layer", "object", objectName)
+	for _, tc := range testCases {
+		// Für jeden Upload starten wir einen eigenen kleinen Trace-Span
+		ctxSpan, span := tracer.Start(ctx, fmt.Sprintf("Ingest-%s", tc.name))
+
+		err := s.minio.UploadJSON(ctxSpan, "bronze", tc.filename, tc.payload)
+		if err != nil {
+			slog.Error("Failed to upload to bronze", "case", tc.name, "error", err)
+			span.RecordError(err)
+		} else {
+			slog.Info("Successfully uploaded data to Bronze layer", "case", tc.name, "object", tc.filename)
+		}
+
+		span.End()
+		
+		// Kurze Pause, damit NATS die Events sauber nacheinander an den Python-Worker schickt
+		time.Sleep(2 * time.Second)
+	}
+
+	slog.Info("All test cases uploaded.")
 	return nil
 }
