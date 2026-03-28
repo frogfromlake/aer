@@ -1,4 +1,4 @@
-# AĒR Refactoring & Scaling Roadmap
+# AĒR Implementation, Refactoring & Scaling Roadmap
 
 Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalierbares, wartbares und nach modernen Standards (CLEAN Code, DRY, Event-Driven) entwickeltes System zu überführen.
 
@@ -37,3 +37,46 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **NATS Trigger & Silver Layer (Python):** Der Python-Worker empfängt das Event, lädt das JSON herunter, wendet eine einfache Transformation an (z.B. Lowercase) und speichert es im `silver`-Bucket.
 * [x] **Gold Layer (ClickHouse):** Einführung von ClickHouse in die Infrastruktur. Der Python-Worker extrahiert eine Dummy-Metrik und speichert sie als Zeitreihe in der Gold-Datenbank.
 * [x] **Tracing Instrumentation:** Einbau der OTel-Bibliotheken in Go und Python, sodass dieser exakte Flow als durchgehender Trace in Grafana sichtbar wird.
+
+## Phase 7: Data Governance & Resilienz (The Silver Contract) - [x] DONE
+*Sicherstellen, dass das System deterministisch bleibt und bei Fehlern oder Duplikaten nicht zerbricht.*
+
+* [x] **Silver Schema Contract:** Einführung von `Pydantic` im Python-Worker zur strikten Validierung und Normalisierung heterogener Bronze-Daten in ein einheitliches AĒR-Format.
+* [x] **Dead Letter Queue (DLQ):** Fehlerhaftes JSON (Parsing-Errors) wird abgefangen und in einen Quarantäne-Bucket (`bronze-quarantine`) verschoben, anstatt den Worker crashen zu lassen.
+* [x] **Idempotenz:** ClickHouse und Python-Worker so anpassen, dass doppelte NATS-Events (Redeliveries) ignoriert werden und Metriken nicht doppelt gezählt werden.
+
+## Phase 8: The Metadata Index (PostgreSQL)
+*Aufbau des relationalen Gedächtnisses, um den Weg der Daten von Gold zurück zu Bronze garantieren zu können (Progressive Disclosure).*
+
+* [ ] **Datenbankschema:** Erstellung der Tabellen für `sources`, `ingestion_jobs` und `documents` in PostgreSQL.
+* [ ] **Go Tracking:** Die Ingestion-API speichert Metadaten (Zeitpunkt, Quelle, MinIO-Pfad) in Postgres, bevor das Dokument in den Data Lake geladen wird.
+* [ ] **Trace-Verknüpfung:** Die OTel Trace-ID wird als Fremdschlüssel in der Datenbank abgelegt, um später Audit-Trails zu ermöglichen.
+
+## Phase 9: The Serving Layer (Backend-for-Frontend)
+*Bereitstellung der aggregierten Gold-Daten über eine performante und vertragsbasierte Schnittstelle für das Frontend.*
+
+* [ ] **Contract-First API:** Definition der REST-Schnittstellen (z.B. für Zeitreihen-Abfragen) in einer `openapi.yaml`.
+* [ ] **BFF Code Generation:** Nutzung von `oapi-codegen`, um aus der OpenAPI-Spezifikation die Go-Boilerplate (Router, Structs) für die `bff-api` zu generieren.
+* [ ] **ClickHouse Integration:** Implementierung des offiziellen `clickhouse-go` Treibers in der BFF-API, um aggregierte Daten performant auszulesen.
+
+## Phase 10: Testing & Continuous Integration (CI)
+*Sicherstellung der wissenschaftlichen Determinismus-Vorgaben und der Code-Qualität durch Automatisierung.*
+
+* [ ] **Python Unit Testing:** Einführung von `pytest` zur strikten Überprüfung der Datenharmonisierung (Bronze -> Silver) und der deterministischen Metrik-Extraktion.
+* [ ] **Go Integration Testing:** Nutzung von `testcontainers-go`, um die Interaktionen der Ingestion-API mit MinIO und PostgreSQL in isolierten Test-Containern zu validieren.
+* [ ] **CI Pipeline (GitHub Actions):** Aufbau von automatisierten Workflows für Linting (`golangci-lint`, `ruff`) und Ausführung der Testsuiten bei jedem Push/Pull-Request.
+
+## Phase 11: Data Lifecycle Management & Graceful Degradation
+*Ressourcenschonung für den Langzeitbetrieb und Absicherung gegen kurzzeitige Ausfälle der Infrastruktur.*
+
+* [ ] **Resilienz (Go):** Implementierung von Exponential Backoff (via `cenkalti/backoff/v5`) beim Verbindungsaufbau zu PostgreSQL und MinIO.
+* [ ] **Data Lake Lifecycle:** Erweiterung des `minio-init` Containers um `mc ilm` Policies, um rohe Bronze-Daten nach einer definierten Zeitspanne (z.B. 90 Tage) automatisch zu bereinigen/archivieren.
+* [ ] **Analytics TTL & Migrations:** Auslagerung der ClickHouse-Tabellenerstellung aus dem Python-Code in dedizierte IaC/Init-Skripte und Einführung von Time-To-Live (TTL) Regeln zur Daten-Aggregation.
+
+## Phase 12: Real Data Ingestion (The First Real Crawler)
+*Ablösung des Dummy-JSONs durch echte, unstrukturierte Daten aus dem Internet.*
+
+* [ ] **Source Definition:** Auswahl einer einfachen, echten Datenquelle (z.B. ein RSS-Feed von Nachrichtenseiten oder Wikipedia).
+* [ ] **Go Crawler Implementation:** Einbau eines asynchronen Scrapers in die `ingestion-api`, der echte Texte sammelt.
+* [ ] **Bronze Upload:** Speicherung der rohen HTML/XML/JSON-Antworten in MinIO.
+* [ ] **Python NLP Basics:** Der Analysis-Worker extrahiert echten Text aus dem HTML/XML, bereinigt ihn und generiert erste echte N-Gram Metriken für ClickHouse.

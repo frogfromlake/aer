@@ -49,6 +49,7 @@ services:
       /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb myminio/bronze --ignore-existing;
       /usr/bin/mc mb myminio/silver --ignore-existing;
+      /usr/bin/mc mb myminio/bronze-quarantine --ignore-existing;
       echo 'Linking bucket events to NATS...';
       /usr/bin/mc event add myminio/bronze arn:minio:sqs::aer:nats --event put;
       echo 'AĒR Data Lake buckets and events provisioned successfully.';
