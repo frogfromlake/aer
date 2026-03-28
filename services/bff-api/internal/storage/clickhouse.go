@@ -3,30 +3,51 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/cenkalti/backoff/v5"
 )
 
-// ClickHouseStorage is a wrapper around the ClickHouse database connection.
 type ClickHouseStorage struct {
-	conn driver.Conn
+	conn clickhouse.Conn
 }
 
-// NewClickHouseStorage establishes a connection to ClickHouse.
-func NewClickHouseStorage(addr, user, pass, db string) (*ClickHouseStorage, error) {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{addr},
-		Auth: clickhouse.Auth{
-			Database: db,
-			Username: user,
-			Password: pass,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("clickhouse connection failed: %w", err)
+func NewClickHouseStorage(ctx context.Context, addr, user, password, db string) (*ClickHouseStorage, error) {
+	operation := func() (clickhouse.Conn, error) {
+		conn, err := clickhouse.Open(&clickhouse.Options{
+			Addr: []string{addr},
+			Auth: clickhouse.Auth{
+				Database: db,
+				Username: user,
+				Password: password,
+			},
+			DialTimeout: 5 * time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if err := conn.Ping(ctx); err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
+
+	notify := func(err error, d time.Duration) {
+		slog.Warn("ClickHouse not ready, retrying...", "error", err, "backoff", d)
+	}
+
+	conn, err := backoff.Retry(ctx, operation,
+		backoff.WithBackOff(backoff.NewExponentialBackOff()),
+		backoff.WithMaxElapsedTime(30*time.Second),
+		backoff.WithNotify(notify),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to clickhouse after retries: %w", err)
+	}
+
 	return &ClickHouseStorage{conn: conn}, nil
 }
 

@@ -34,7 +34,7 @@ func TestMinioStorage(t *testing.T) {
 	}
 
 	// 2. Initialize our Adapter
-	client, err := NewMinioClient(endpoint, "minioadmin", "minioadmin", false)
+	client, err := NewMinioClient(ctx, endpoint, "minioadmin", "minioadmin", false)
 	if err != nil {
 		t.Fatalf("failed to initialize minio client: %v", err)
 	}

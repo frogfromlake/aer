@@ -42,7 +42,7 @@ func TestPostgresStorage(t *testing.T) {
 	}
 
 	// 2. Initialize our Adapter
-	db, err := NewPostgresDB(connStr)
+	db, err := NewPostgresDB(ctx, connStr)
 	if err != nil {
 		t.Fatalf("failed to connect to test database: %v", err)
 	}

@@ -15,6 +15,10 @@ import (
 )
 
 func main() {
+	// 1. Setup Context FIRST so backoff respects interrupts
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := config.Load()
 	if err != nil {
 		panic("Failed to load configuration: " + err.Error())
@@ -34,7 +38,8 @@ func main() {
 		}
 	}()
 
-	db, err := storage.NewPostgresDB(cfg.DBUrl)
+	// 2. Initialize PostgreSQL Adapter (Passing Context for Backoff)
+	db, err := storage.NewPostgresDB(ctx, cfg.DBUrl)
 	if err != nil {
 		slog.Error("Failed to initialize PostgreSQL", "error", err)
 		os.Exit(1)
@@ -46,7 +51,9 @@ func main() {
 	}()
 	slog.Info("PostgreSQL connected successfully")
 
+	// 3. Initialize MinIO Adapter (Passing Context for Backoff)
 	minioClient, err := storage.NewMinioClient(
+		ctx,
 		cfg.MinioEndpoint,
 		cfg.MinioAccessKey,
 		cfg.MinioSecretKey,
@@ -61,10 +68,6 @@ func main() {
 	svc := core.NewIngestionService(db, minioClient)
 
 	// --- GRACEFUL SHUTDOWN LOGIC ---
-	// Listen for interrupt signals to cancel ongoing HTTP/DB requests
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	// Run core logic inside a goroutine to allow listening for cancellation
 	done := make(chan struct{})
 	go func() {

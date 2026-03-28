@@ -3,27 +3,52 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"go.opentelemetry.io/otel/propagation"
 )
 
-// MinioClient is a wrapper around the MinIO SDK client.
 type MinioClient struct {
 	Client *minio.Client
 }
 
-// NewMinioClient initializes a new connection to the S3-compatible Data Lake.
-func NewMinioClient(endpoint, accessKey, secretKey string, useSSL bool) (*MinioClient, error) {
-	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: useSSL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize minio client: %w", err)
+func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, useSSL bool) (*MinioClient, error) {
+	operation := func() (*minio.Client, error) {
+		client, err := minio.New(endpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+			Secure: useSSL,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// minio.New doesn't make a network call. We use ListBuckets as a ping.
+		cancelCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		if _, err = client.ListBuckets(cancelCtx); err != nil {
+			return nil, err
+		}
+		return client, nil
 	}
+
+	notify := func(err error, d time.Duration) {
+		slog.Warn("MinIO not ready, retrying...", "error", err, "backoff", d)
+	}
+
+	client, err := backoff.Retry(ctx, operation,
+		backoff.WithBackOff(backoff.NewExponentialBackOff()),
+		backoff.WithMaxElapsedTime(30*time.Second),
+		backoff.WithNotify(notify),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to minio after retries: %w", err)
+	}
+
 	return &MinioClient{Client: client}, nil
 }
 

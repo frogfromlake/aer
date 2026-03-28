@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/frogfromlake/aer/pkg v0.0.0-20260328174849-985d236f4fd7
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/oapi-codegen/runtime v1.3.1

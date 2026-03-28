@@ -4,25 +4,45 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/cenkalti/backoff/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// PostgresDB is a wrapper around the SQL database connection.
 type PostgresDB struct {
 	DB *sql.DB
 }
 
-// NewPostgresDB establishes a connection to PostgreSQL and verifies it via Ping.
-func NewPostgresDB(connStr string) (*PostgresDB, error) {
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open postgres connection: %w", err)
+func NewPostgresDB(ctx context.Context, connStr string) (*PostgresDB, error) {
+	// 1. Define an operation returning the connection directly (thanks to v5 generics!)
+	operation := func() (*sql.DB, error) {
+		db, err := sql.Open("pgx", connStr)
+		if err != nil {
+			return nil, err
+		}
+
+		// PingContext ensures the actual network connection is established
+		if err = db.PingContext(ctx); err != nil {
+			db.Close()
+			return nil, err
+		}
+		return db, nil
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping postgres: %w", err)
+	notify := func(err error, d time.Duration) {
+		slog.Warn("PostgreSQL not ready, retrying...", "error", err, "backoff", d)
+	}
+
+	// v5 uses functional options for MaxElapsedTime
+	db, err := backoff.Retry(ctx, operation,
+		backoff.WithBackOff(backoff.NewExponentialBackOff()),
+		backoff.WithMaxElapsedTime(30*time.Second),
+		backoff.WithNotify(notify),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres after retries: %w", err)
 	}
 
 	return &PostgresDB{DB: db}, nil

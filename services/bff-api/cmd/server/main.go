@@ -18,18 +18,23 @@ import (
 )
 
 func main() {
-	// 1. Load configuration
+	// 1. Setup Context FIRST so backoff respects interrupts
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// 2. Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		panic("Failed to load configuration: " + err.Error())
 	}
 
-	// 2. Initialize Logger
+	// 3. Initialize Logger
 	logger.Init(cfg.Environment, cfg.LogLevel)
 	slog.Info("Bootstrapping AĒR BFF API...", "environment", cfg.Environment)
 
-	// 3. Initialize Storage
+	// 4. Initialize Storage (Passing Context for Backoff)
 	chStore, err := storage.NewClickHouseStorage(
+		ctx,
 		"localhost:9002",
 		cfg.ClickHouseUser,
 		cfg.ClickHousePassword,
@@ -41,7 +46,7 @@ func main() {
 	}
 	slog.Info("ClickHouse connected successfully")
 
-	// 4. Setup Handlers and Router
+	// 5. Setup Handlers and Router
 	serverLogic := handler.NewServer(chStore)
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
@@ -53,10 +58,6 @@ func main() {
 		Addr:    ":8080",
 		Handler: r,
 	}
-
-	// Listen for interrupt signals (Ctrl+C, Docker stop)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	// Start server in a separate goroutine
 	go func() {

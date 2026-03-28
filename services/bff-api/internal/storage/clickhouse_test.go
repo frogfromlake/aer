@@ -39,7 +39,7 @@ func TestClickHouseStorage(t *testing.T) {
 	addr := host + ":" + port.Port()
 
 	// 2. Initialize our Adapter
-	store, err := NewClickHouseStorage(addr, "default", "", "aer_gold")
+	store, err := NewClickHouseStorage(ctx, addr, "default", "", "aer_gold")
 	if err != nil {
 		t.Fatalf("failed to initialize clickhouse storage: %v", err)
 	}
