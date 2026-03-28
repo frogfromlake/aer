@@ -1,6 +1,6 @@
-package: api
+package: handler
 generate:
   - chi-server     # Generates the routing boilerplate
   - strict-server  # Generates strictly typed interfaces for our handlers
   - types          # Generates Go structs from our schemas
-output: internal/api/generated.go
+output: internal/handler/generated.go
