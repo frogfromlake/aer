@@ -59,12 +59,12 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **BFF Code Generation:** Nutzung von `oapi-codegen`, um aus der OpenAPI-Spezifikation die Go-Boilerplate (Router, Structs) für die `bff-api` zu generieren.
 * [x] **ClickHouse Integration:** Implementierung des offiziellen `clickhouse-go` Treibers in der BFF-API, um aggregierte Daten performant auszulesen.
 
-## Phase 10: Testing & Continuous Integration (CI)
+## Phase 10: Testing & Continuous Integration (CI) - [x] DONE
 *Sicherstellung der wissenschaftlichen Determinismus-Vorgaben und der Code-Qualität durch Automatisierung.*
 
-* [ ] **Python Unit Testing:** Einführung von `pytest` zur strikten Überprüfung der Datenharmonisierung (Bronze -> Silver) und der deterministischen Metrik-Extraktion.
-* [ ] **Go Integration Testing:** Nutzung von `testcontainers-go`, um die Interaktionen der Ingestion-API mit MinIO und PostgreSQL in isolierten Test-Containern zu validieren.
-* [ ] **CI Pipeline (GitHub Actions):** Aufbau von automatisierten Workflows für Linting (`golangci-lint`, `ruff`) und Ausführung der Testsuiten bei jedem Push/Pull-Request.
+* [x] **Python Unit Testing:** Einführung von `pytest` zur strikten Überprüfung der Datenharmonisierung (Bronze -> Silver) und der deterministischen Metrik-Extraktion.
+* [x] **Go Integration Testing:** Nutzung von `testcontainers-go`, um die Interaktionen der Ingestion-API mit MinIO und PostgreSQL in isolierten Test-Containern zu validieren.
+* [x] **CI Pipeline (GitHub Actions):** Aufbau von automatisierten Workflows für Linting (`golangci-lint`, `ruff`) und Ausführung der Testsuiten bei jedem Push/Pull-Request.
 
 ## Phase 11: Data Lifecycle Management & Graceful Degradation
 *Ressourcenschonung für den Langzeitbetrieb und Absicherung gegen kurzzeitige Ausfälle der Infrastruktur.*
