@@ -15,9 +15,14 @@ def mock_clickhouse():
     return MagicMock()
 
 @pytest.fixture
-def processor(mock_minio, mock_clickhouse):
+def mock_pg_pool():
+    """Provides a mocked PostgreSQL connection pool."""
+    return MagicMock()
+
+@pytest.fixture
+def processor(mock_minio, mock_clickhouse, mock_pg_pool):
     """Provides a DataProcessor instance with mocked infrastructure."""
-    return DataProcessor(mock_minio, mock_clickhouse)
+    return DataProcessor(mock_minio, mock_clickhouse, mock_pg_pool)
 
 @pytest.fixture
 def dummy_span():
@@ -41,8 +46,9 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     mock_response.read.return_value = valid_bronze_data
     mock_minio.get_object.return_value = mock_response
     
-    # Assume file is not yet processed
-    processor._is_already_processed = MagicMock(return_value=False)
+    # Assume file is pending (DB returns None)
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
 
     # 2. Execute
     processor.process_event("test_happy.json", dummy_span)
@@ -58,6 +64,9 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     ch_args, ch_kwargs = mock_clickhouse.insert.call_args
     assert ch_args[0] == "aer_gold.metrics"
 
+    # 5. Assert DB Update (Commit Success)
+    processor._update_document_status.assert_called_with("test_happy.json", "processed")
+
 def test_silver_contract_corrupt_data(processor, mock_minio, mock_clickhouse, dummy_span):
     """
     Tests if data missing the required 'message' field is caught 
@@ -72,7 +81,8 @@ def test_silver_contract_corrupt_data(processor, mock_minio, mock_clickhouse, du
     mock_response.read.return_value = corrupt_bronze_data
     mock_minio.get_object.return_value = mock_response
     
-    processor._is_already_processed = MagicMock(return_value=False)
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
 
     # 2. Execute
     processor.process_event("test_corrupt.json", dummy_span)
@@ -86,12 +96,15 @@ def test_silver_contract_corrupt_data(processor, mock_minio, mock_clickhouse, du
     # 4. Assert ClickHouse (Must NOT be called)
     mock_clickhouse.insert.assert_not_called()
 
+    # 5. Assert DB Update (Quarantined)
+    processor._update_document_status.assert_called_with("test_corrupt.json", "quarantined")
+
 def test_idempotency_skip_duplicate(processor, mock_minio, mock_clickhouse, dummy_span):
     """
     Tests if an already processed event is skipped entirely.
     """
-    # 1. Setup: Simulate that the file already exists in Silver or DLQ
-    processor._is_already_processed = MagicMock(return_value=True)
+    # 1. Setup: Simulate that the file already exists in DB as 'processed'
+    processor._get_document_status = MagicMock(return_value="processed")
 
     # 2. Execute
     processor.process_event("test_duplicate.json", dummy_span)
