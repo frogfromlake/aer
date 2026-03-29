@@ -69,6 +69,7 @@ func TestPostgresStorage(t *testing.T) {
 		job_id INTEGER REFERENCES ingestion_jobs(id),
 		bronze_object_key VARCHAR(500) UNIQUE NOT NULL,
 		trace_id VARCHAR(255),
+		status VARCHAR(50) DEFAULT 'pending', -- NEU hinzugefügt
 		ingested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
 	INSERT INTO sources (name, type, url) VALUES ('Test Source', 'test', 'http://localhost');
@@ -92,9 +93,25 @@ func TestPostgresStorage(t *testing.T) {
 		t.Errorf("expected no error logging document, got %v", err)
 	}
 
-	// 6. TEST: Log Document (Idempotency / ON CONFLICT DO NOTHING)
+	// 6. TEST: Log Document (Idempotency / ON CONFLICT DO UPDATE)
 	err = db.LogDocument(ctx, jobID, "test-bronze-path.json", "trace-99999")
 	if err != nil {
-		t.Errorf("expected duplicate log to be ignored safely, got error: %v", err)
+		t.Errorf("expected duplicate log to update safely, got error: %v", err)
+	}
+
+	// 7. TEST: Update Document Status (Der neue Lifecycle)
+	err = db.UpdateDocumentStatus(ctx, "test-bronze-path.json", "uploaded")
+	if err != nil {
+		t.Errorf("expected no error updating document status, got %v", err)
+	}
+
+	// Verifizieren, ob der Status wirklich in der Datenbank steht
+	var status string
+	err = db.DB.QueryRowContext(ctx, "SELECT status FROM documents WHERE bronze_object_key = $1", "test-bronze-path.json").Scan(&status)
+	if err != nil {
+		t.Fatalf("failed to query document status: %v", err)
+	}
+	if status != "uploaded" {
+		t.Errorf("expected status 'uploaded', got %s", status)
 	}
 }
