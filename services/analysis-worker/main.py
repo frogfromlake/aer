@@ -17,13 +17,11 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from internal.storage import init_minio, init_clickhouse
 from internal.processor import DataProcessor
 
-# Load environment variables from .env file
 load_dotenv()
 
 # --- Observability Setup ---
 resource = Resource(attributes={SERVICE_NAME: "aer-analysis-worker"})
 provider = TracerProvider(resource=resource)
-# Send traces to the OpenTelemetry Collector container
 processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
@@ -31,31 +29,48 @@ tracer = trace.get_tracer(__name__)
 
 logger = structlog.get_logger()
 
+# --- Concurrency Setup ---
+WORKER_COUNT = 5  # Number of parallel tasks
+task_queue = asyncio.Queue()
+
+async def worker_task(worker_id: int, data_processor: DataProcessor):
+    """Background worker that processes events asynchronously from the queue."""
+    logger.info("Worker started", worker_id=worker_id)
+    while True:
+        msg = await task_queue.get()
+        try:
+            event_data = json.loads(msg.data.decode())
+            obj_key = event_data['Records'][0]['s3']['object']['key']
+            
+            # --- TRACE CONTINUATION ---
+            raw_meta = event_data['Records'][0]['s3']['object'].get('userMetadata', {})
+            normalized_meta = {k.lower().replace('x-amz-meta-', ''): v for k, v in raw_meta.items()}
+            context = propagate.extract(normalized_meta)
+            
+            with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
+                logger.info("Processing event", worker_id=worker_id, object=obj_key)
+                # Since MinIO/ClickHouse clients are synchronous, we offload them to a thread pool
+                # to avoid blocking the asyncio event loop!
+                await asyncio.to_thread(data_processor.process_event, obj_key, span)
+
+            # IMPORTANT: Manual Ack only AFTER error-free processing (JetStream)
+            await msg.ack()
+        
+        except Exception as e:
+            logger.error("Error processing message. Event will be redelivered.", worker_id=worker_id, error=str(e))
+            # NAK triggers a faster redelivery than a timeout
+            await msg.nak()
+        finally:
+            task_queue.task_done()
+
+
 async def main():
-    # 1. Initialize Infrastructure Clients
     minio_client = init_minio()
     ch_client = init_clickhouse()
-    
-    # 2. Dependency Injection for Core Processor
     data_processor = DataProcessor(minio_client, ch_client)
 
-    # 3. Message Broker Setup
     nc = NATS()
 
-    async def message_handler(msg):
-        event_data = json.loads(msg.data.decode())
-        obj_key = event_data['Records'][0]['s3']['object']['key']
-        
-        # --- TRACE CONTINUATION ---
-        raw_meta = event_data['Records'][0]['s3']['object'].get('userMetadata', {})
-        normalized_meta = {k.lower().replace('x-amz-meta-', ''): v for k, v in raw_meta.items()}
-        context = propagate.extract(normalized_meta)
-        
-        with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
-            logger.info("Received event", object=obj_key)
-            data_processor.process_event(obj_key, span)
-
-    # 4. Connect and Subscribe with Backoff
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10),
         stop=stop_after_delay(30),
@@ -65,37 +80,66 @@ async def main():
         await nc.connect("nats://localhost:4222")
 
     await connect_nats()
-    await nc.subscribe("aer.lake.bronze", cb=message_handler)
     
-    logger.info("Analysis Worker initialized and awaiting events...")
+    # 1. Enable JetStream
+    js = nc.jetstream()
+
+    # Stream provisioning: Ensure the stream exists (idempotent)
+    try:
+        await js.add_stream(name="AER_LAKE", subjects=["aer.lake.bronze"])
+        logger.info("JetStream Stream 'AER_LAKE' ensured.")
+    except Exception as e:
+        logger.warning("Note on Stream creation", error=str(e))
+
+    # 2. Start worker tasks
+    workers = [
+        asyncio.create_task(worker_task(i, data_processor)) 
+        for i in range(WORKER_COUNT)
+    ]
+
+    # 3. Message Handler: Does not block, just pushes to the queue
+    async def message_handler(msg):
+        await task_queue.put(msg)
+
+    # 4. Durable subscription to the MinIO stream
+    await js.subscribe(
+        "aer.lake.bronze", 
+        durable="aer_analysis_worker",
+        cb=message_handler,
+        manual_ack=True
+    )
+    
+    logger.info("Analysis Worker initialized (JetStream + Queue) and awaiting events...")
     
     # --- GRACEFUL SHUTDOWN LOGIC ---
     stop_event = asyncio.Event()
     
     def shutdown_signal(*args):
-        logger.info("Shutdown signal received. Draining NATS and closing worker...")
+        logger.info("Shutdown signal received. Stopping worker...")
         stop_event.set()
 
-    # Register handlers for termination signals
     loop = asyncio.get_running_loop()
     loop.add_signal_handler(signal.SIGINT, shutdown_signal)
     loop.add_signal_handler(signal.SIGTERM, shutdown_signal)
 
     try:
-        # Wait until the stop event is set
         await stop_event.wait()
     except asyncio.CancelledError:
-        pass # Ignore cancellation when forced to quit
+        pass
     finally:
-        # Cleanup before exiting
+        logger.info("Draining NATS...")
         if nc.is_connected:
             await nc.drain()
-            await nc.close()
+            
+        logger.info("Cancelling background workers...")
+        for w in workers:
+            w.cancel()
+            
+        await nc.close()
         logger.info("Analysis Worker shut down cleanly.")
 
 if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Catch the final exit to avoid stack traces in the terminal
         pass

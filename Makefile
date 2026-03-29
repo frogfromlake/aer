@@ -1,3 +1,4 @@
+.PHONY: up down stop restart
 .PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
@@ -20,6 +21,23 @@ GRAY          := \033[38;5;245m
 SYMBOL_SUCCESS := $(GREEN)✔$(RESET)
 SYMBOL_STOP    := $(GOLD)■$(RESET)
 SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
+
+# ==========================================
+# 0. GLOBAL STACK COMMANDS
+# ==========================================
+
+up: infra-up
+	@echo -e "$(BOLD)$(CYAN)Waiting a moment for infrastructure to settle...$(RESET)"
+	@sleep 3
+	@$(MAKE) services-up
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack is up and running!$(RESET)"
+
+down: services-down infra-down
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack has been shut down.$(RESET)"
+
+stop: down
+
+restart: down up
 
 # ==========================================
 # 1. INFRASTRUCTURE & OBSERVABILITY

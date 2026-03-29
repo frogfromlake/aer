@@ -73,7 +73,18 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Data Lake Lifecycle:** Erweiterung des `minio-init` Containers um `mc ilm` Policies, um rohe Bronze-Daten nach einer definierten Zeitspanne (z.B. 90 Tage) automatisch zu bereinigen/archivieren.
 * [x] **Analytics TTL & Migrations:** Auslagerung der ClickHouse-Tabellenerstellung aus dem Python-Code in dedizierte IaC/Init-Skripte und Einführung von Time-To-Live (TTL) Regeln zur Daten-Aggregation.
 
-## Phase 12: Real Data Ingestion (The First Real Crawler)
+## Phase 12: System-Resilienz, Konsistenz & Performance-Optimierung (Technical Debt)
+*Behebung kritischer Designfehler in verteilten Transaktionen und Härtung der Infrastruktur vor der Skalierung mit echten Datenquellen.*
+
+* [x] **Infrastruktur & Netzwerke:** Einführung eines expliziten Docker-Netzwerks (`aer-network`) in der `compose.yaml` für bessere Isolation und DNS-Auflösung.
+* [x] **Robuste Init-Skripte:** Hinzufügen von Docker `healthcheck`s (z.B. für MinIO) und Umstellung der `depends_on`-Logik auf `condition: service_healthy`, um Boot-Race-Conditions zu vermeiden.
+* [x] **Verlustfreie Event-Verarbeitung (Python):** Umstellung des `analysis-worker` von Core NATS auf echtes NATS JetStream (`js.subscribe`, dauerhafte Consumer) inklusive manuellem `msg.ack()`, um Datenverlust bei Neustarts auszuschließen.
+* [x] **Concurrency Control (Python):** Entkopplung der NATS-Callbacks von CPU-intensiven Aufgaben mittels asynchroner Queues (`asyncio.Queue`) oder Thread-/Process-Pools, um ein Blockieren des Event-Loops zu verhindern.
+* [ ] **Idempotenz-Optimierung (Python):** Ablösung der netzwerkintensiven MinIO-Abfragen (`stat_object` für Silver/Quarantäne) durch performante PostgreSQL-Lookups zur Vermeidung eines Flaschenhalses bei hohem Durchsatz.
+* [ ] **Partial Failures auflösen (Go - Ingestion API):** Einführung eines "Pending"-Status in PostgreSQL vor dem MinIO-Upload. Update auf "Uploaded" erst nach Erfolg, um "Dark Data" (Dateien ohne Metadaten-Eintrag) zu verhindern.
+* [ ] **Partial Failures auflösen (Python - Worker):** Transaktionssichere Auflösung der Sequenz "MinIO Upload (Silver) -> ClickHouse Insert (Gold)". Anpassung der Retry-Logik und Status-Verfolgung, sodass bei einem ClickHouse-Timeout die Metriken nicht für immer verloren gehen.
+
+## Phase 13: Real Data Ingestion (The First Real Crawler)
 *Ablösung des Dummy-JSONs durch echte, unstrukturierte Daten aus dem Internet.*
 
 * [ ] **Source Definition:** Auswahl einer einfachen, echten Datenquelle (z.B. ein RSS-Feed von Nachrichtenseiten oder Wikipedia).
