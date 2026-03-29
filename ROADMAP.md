@@ -84,7 +84,16 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Partial Failures auflösen (Go - Ingestion API):** Einführung eines "Pending"-Status in PostgreSQL vor dem MinIO-Upload. Update auf "Uploaded" erst nach Erfolg, um "Dark Data" (Dateien ohne Metadaten-Eintrag) zu verhindern.
 * [x] **Partial Failures auflösen (Python - Worker):** Transaktionssichere Auflösung der Sequenz "MinIO Upload (Silver) -> ClickHouse Insert (Gold)". Anpassung der Retry-Logik und Status-Verfolgung, sodass bei einem ClickHouse-Timeout die Metriken nicht für immer verloren gehen.
 
-## Phase 13: Real Data Ingestion (The First Real Crawler)
+## Phase 13: Distributed Systems Hardening & Idempotency
+*Behebung kritischer Designfehler in verteilten Transaktionen und Härtung der Infrastruktur zur Vermeidung von OOM-Errors und Daten-Duplikaten.*
+
+* [ ] **Idempotente Metriken (Worker):** Ablösung von `datetime.now()` durch deterministische Zeitstempel (aus den MinIO-Event-Metadaten) beim ClickHouse-Insert, um Duplikate bei NATS-Redeliveries zu verhindern.
+* [ ] **OOM-Prevention (BFF-API):** Implementierung von Downsampling (z.B. Aggregation auf Minuten-/Stundenbasis) und Limits in den ClickHouse-Queries der Go BFF-API, um Speicherüberläufe bei großen Zeiträumen zu verhindern.
+* [ ] **Clean Graceful Shutdown (Worker):** Refactoring des Python-Workers von hartem `task.cancel()` auf Sentinel-Werte (`None`) in der Task-Queue, um abgerissene Datenbankverbindungen bei Neustarts zu vermeiden.
+* [ ] **Macro-Level Error Tracking (Ingestion):** Anpassung der Go `IngestionService`-Logik, um fehlerhafte Einzeldokumente zu tracken und den übergeordneten Job-Status am Ende korrekt auf `failed` oder `completed_with_errors` zu setzen.
+* [ ] **Boot-Race-Conditions (Infra):** Hinzufügen von nativen Docker `healthcheck`s für PostgreSQL und ClickHouse in der `compose.yaml` inklusive `depends_on: condition: service_healthy` für abhängige Services.
+
+## Phase 14: Real Data Ingestion (The First Real Crawler)
 *Ablösung des Dummy-JSONs durch echte, unstrukturierte Daten aus dem Internet.*
 
 * [ ] **Source Definition:** Auswahl einer einfachen, echten Datenquelle (z.B. ein RSS-Feed von Nachrichtenseiten oder Wikipedia).
