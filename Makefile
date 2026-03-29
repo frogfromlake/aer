@@ -1,158 +1,149 @@
-.PHONY: up down restart docs docs-down docs-restart infra infra-down infra-restart tidy codegen run-ingestion run-bff run-analysis-worker build-services
+.PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse
+.PHONY: services-up services-down services-restart services-clean
+.PHONY: ingestion-up ingestion-down ingestion-restart
+.PHONY: worker-up worker-down worker-restart
+.PHONY: bff-up bff-down bff-restart
+.PHONY: logs tidy codegen test test-go test-python lint build-services
 
-# Terminal Colors & Styles (Modern Palette)
+SHELL := /bin/bash
+
+# ==========================================
+# GLOBLAL COLORS & SYMBOLS (For Makefile Echoes)
+# ==========================================
 BOLD          := \033[1m
 RESET         := \033[0m
 GREEN         := \033[38;5;76m
 CYAN          := \033[38;5;39m
-MAGENTA       := \033[38;5;170m
 GOLD          := \033[38;5;214m
 GRAY          := \033[38;5;245m
 
-# Symbols (Distinctly Colored)
-SYMBOL_SERVICE := $(MAGENTA)◆$(RESET)
 SYMBOL_SUCCESS := $(GREEN)✔$(RESET)
 SYMBOL_STOP    := $(GOLD)■$(RESET)
-SYMBOL_RESTART := $(CYAN)↻$(RESET)
 SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
 
 # ==========================================
-# GLOBAL STACK CONTROLS
+# 1. INFRASTRUCTURE & OBSERVABILITY
 # ==========================================
 
-SERVICES = run-ingestion run-analysis-worker run-bff
+infra-up:
+	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ---$(RESET)"
+	@docker compose up -d nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana docs
+	@echo -e "$(SYMBOL_SUCCESS) MinIO:      $(CYAN)http://localhost:9001$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) Postgres:   $(CYAN)localhost:5432$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) ClickHouse: $(CYAN)http://localhost:8123/play$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) NATS:       $(CYAN)http://localhost:8222$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) Grafana:    $(CYAN)http://localhost:3000$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) Docs:       $(CYAN)http://localhost:8000$(RESET)"
 
-# Starts everything sequentially, then runs services in parallel
-up: 
-	@echo ""
-	@echo "$(BOLD)$(GRAY)--- INFRASTRUCTURE ---$(RESET)"
-	@$(MAKE) --no-print-directory infra
-	@echo ""
-	@echo "$(BOLD)$(GRAY)--- DOCUMENTATION ---$(RESET)"
-	@$(MAKE) --no-print-directory docs
-	@echo ""
-	@echo "$(BOLD)$(GRAY)--- SERVICES ---$(RESET)"
-	@echo "$(BOLD)$(CYAN)Initializing AĒR orchestration...$(RESET)"
-	@$(MAKE) --no-print-directory -j $(shell echo $(SERVICES) | wc -w) $(SERVICES)
-	@echo ""
-	@echo "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) AĒR Stack is fully operational!$(RESET)"
-	@echo ""
+infra-down:
+	@echo -e "$(BOLD)$(GRAY)--- STOPPING INFRASTRUCTURE ---$(RESET)"
+	@docker compose stop nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana docs
+	@echo -e "$(SYMBOL_STOP) $(GRAY)Infrastructure stopped.$(RESET)"
 
-# Stops everything (Containers)
-down: 
-	@echo ""
-	@echo "$(BOLD)$(GRAY)--- SHUTDOWN ---$(RESET)"
-	@$(MAKE) --no-print-directory infra-down
-	@$(MAKE) --no-print-directory docs-down
-	@echo "$(BOLD)$(GOLD)$(SYMBOL_STOP) Entire stack stopped and cleaned up.$(RESET)"
-	@echo ""
+infra-restart: infra-down infra-up
 
-# Restarts the entire stack
-restart: 
-	@echo "$(BOLD)$(CYAN)$(SYMBOL_RESTART) Restarting entire stack...$(RESET)"
-	@$(MAKE) --no-print-directory down
-	@$(MAKE) --no-print-directory up
+infra-clean:
+	@./scripts/clean_infra.sh all
 
-# Cleans up Go modules in the entire workspace
+infra-clean-postgres:
+	@./scripts/clean_infra.sh postgres
+
+infra-clean-minio:
+	@./scripts/clean_infra.sh minio
+
+infra-clean-clickhouse:
+	@./scripts/clean_infra.sh clickhouse
+
+# ==========================================
+# 2. APPLICATION SERVICES (INDIVIDUAL)
+# ==========================================
+
+ingestion-up:
+	@./scripts/start.sh ingestion
+
+ingestion-down:
+	@./scripts/stop.sh ingestion
+
+ingestion-restart: ingestion-down ingestion-up
+
+worker-up:
+	@./scripts/start.sh worker
+
+worker-down:
+	@./scripts/stop.sh worker
+
+worker-restart: worker-down worker-up
+
+bff-up:
+	@./scripts/start.sh bff
+
+bff-down:
+	@./scripts/stop.sh bff
+
+bff-restart: bff-down bff-up
+
+# ==========================================
+# 3. APPLICATION SERVICES (ALL TOGETHER)
+# ==========================================
+
+services-up: ingestion-up worker-up bff-up
+	@echo ""
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) All AĒR services are running in the background!$(RESET)"
+	@echo -e "$(GRAY)Use 'make logs' to view the live output.$(RESET)"
+
+services-down: ingestion-down worker-down bff-down
+	@echo -e "$(BOLD)$(GOLD)$(SYMBOL_STOP) All AĒR services stopped.$(RESET)"
+
+services-restart: services-down services-up
+
+services-clean: services-down
+	@./scripts/clean.sh
+
+# ==========================================
+# 4. UTILITIES
+# ==========================================
+
+logs:
+	@echo -e "$(BOLD)$(CYAN)Showing live logs for all services (Ctrl+C to exit)...$(RESET)"
+	@mkdir -p .pids
+	@touch .pids/ingestion.log .pids/worker.log .pids/bff.log
+	@tail -f .pids/*.log
+
 tidy:
 	@cd services/ingestion-api && go mod tidy
 	@cd services/bff-api && go mod tidy
-	@echo "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
-	@echo "$(GRAY)Cleaning Python caches...$(RESET)"
-	@find . -type d -name "__pycache__" -exec rm -rf {} +
-	@echo "$(SYMBOL_SUCCESS) $(BOLD)Python environment cleaned.$(RESET)"
-
-# ==========================================
-# CODE GENERATION
-# ==========================================
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
 
 codegen:
-	@echo "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
 	@cd services/bff-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml
-	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)API contracts generated successfully.$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)API contracts generated successfully.$(RESET)"
+
+build-services:
+	@echo -e "$(BOLD)$(CYAN)Compiling AĒR binaries...$(RESET)"
+	@mkdir -p bin
+	@go build -o bin/ingestion-api ./services/ingestion-api/cmd/api
+	@go build -o bin/bff-api ./services/bff-api/cmd/server
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete. Binaries in ./bin/$(RESET)"
 
 # ==========================================
-# TESTING & LINTING
+# 5. TESTING & LINTING
 # ==========================================
 
 test: test-go test-python
-	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
 
 test-go:
-	@echo "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"
 	@cd services/ingestion-api && go test -v ./...
 	@cd services/bff-api && go test -v ./...
 
 test-python:
-	@echo "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
 	@cd services/analysis-worker && ./venv/bin/python -m pytest tests/ -v
 
 lint:
-	@echo "$(SYMBOL_INFO) $(CYAN)Running Linters (Requires golangci-lint and ruff)...$(RESET)"
-	@cd services/analysis-worker && ./venv/bin/python -m ruff check . && echo "$(SYMBOL_SUCCESS) $(GREEN)Python (Analysis Worker) lint passed!$(RESET)"
-	@cd services/ingestion-api && golangci-lint run && echo "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
-	@cd services/bff-api && golangci-lint run && echo "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
-
-# ==========================================
-# INFRASTRUCTURE STACK (DATA LAKE, METADATA, ANALYTICS & OBSERVABILITY)
-# ==========================================
-
-infra:
-	@docker compose up nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana -d > /dev/null 2>&1
-	@echo "$(SYMBOL_SUCCESS) MinIO Data Lake:      $(CYAN)http://localhost:9001$(RESET) $(GRAY)(Credentials in .env)$(RESET)"
-	@echo "$(SYMBOL_SUCCESS) PostgreSQL Database:  $(CYAN)http://localhost:5432$(RESET) $(GRAY)(DB: aer_metadata)$(RESET)"
-	@echo "$(SYMBOL_SUCCESS) ClickHouse Analytics: $(CYAN)http://localhost:8123/play$(RESET) $(GRAY)(DB: aer_gold)$(RESET)"
-	@echo "$(SYMBOL_SUCCESS) NATS Message Broker:  $(CYAN)http://localhost:8222$(RESET) $(GRAY)(Monitoring UI)$(RESET)"
-	@echo "$(SYMBOL_SUCCESS) Grafana Dashboards:   $(CYAN)http://localhost:3000$(RESET) $(GRAY)(Credentials in .env)$(RESET)"
-
-infra-down:
-	@docker compose rm -f -s -v nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana > /dev/null 2>&1
-	@echo "$(SYMBOL_STOP) $(GRAY)Infrastructure & Observability services terminated.$(RESET)"
-
-infra-restart: infra-down infra
-
-# ==========================================
-# DOCUMENTATION STACK
-# ==========================================
-
-docs:
-	@docker compose up docs -d > /dev/null 2>&1
-	@echo "$(SYMBOL_SUCCESS) Documentation server: $(CYAN)http://localhost:8000$(RESET)"
-
-docs-down:
-	@docker compose rm -f -s -v docs > /dev/null 2>&1
-	@echo "$(SYMBOL_STOP) $(GRAY)Documentation server offline.$(RESET)"
-
-# ==========================================
-# MICROSERVICE CONTROLS (Go)
-# ==========================================
-
-run-ingestion:
-	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Ingestion API...$(RESET) $(GRAY)(Internal Background Service)$(RESET)"
-	@go run ./services/ingestion-api/cmd/api/main.go
-
-run-bff:
-	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting BFF API...$(RESET) $(CYAN)http://localhost:8080/api/v1/metrics$(RESET)"
-	@go run ./services/bff-api/cmd/server/main.go # <-- HIER: cmd/server/
-
-build-services:
-	@echo "$(BOLD)$(CYAN)Compiling AĒR binaries...$(RESET)"
-	@mkdir -p bin
-	@go build -o bin/ingestion-api ./services/ingestion-api/cmd/api
-	@go build -o bin/bff-api ./services/bff-api/cmd/server # <-- HIER: cmd/server/
-	@echo "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete.$(RESET) $(GRAY)Binaries located in ./bin/$(RESET)"
-
-# ==========================================
-# MICROSERVICE CONTROLS (Python)
-# ==========================================
-run-analysis-worker:
-	@echo "$(SYMBOL_SERVICE) $(MAGENTA)Starting Analysis Worker (Python)...$(RESET) $(GRAY)(Internal NATS Consumer)$(RESET)"
-	@cd services/analysis-worker && \
-	if [ ! -f "venv/bin/python" ]; then \
-		echo "$(GRAY)Creating virtual environment...$(RESET)"; \
-		rm -rf venv; \
-		python3 -m venv venv; \
-	fi && \
-	echo "$(GRAY)Checking dependencies...$(RESET)" && \
-	./venv/bin/python -m pip install -r requirements.txt -q && \
-	./venv/bin/python main.py
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"
+	@cd services/analysis-worker && ./venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"
+	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
+	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
