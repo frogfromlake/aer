@@ -9,14 +9,15 @@ import (
 
 // Config holds the environment variables required for the Ingestion API.
 type Config struct {
-	Environment  string `mapstructure:"APP_ENV"`
-	LogLevel     string `mapstructure:"LOG_LEVEL"`
-	DBUrl        string `mapstructure:"DB_URL"`
+	Environment    string `mapstructure:"APP_ENV"`
+	LogLevel       string `mapstructure:"LOG_LEVEL"`
+	IngestionPort  string `mapstructure:"INGESTION_PORT"`
+	DBUrl          string `mapstructure:"DB_URL"`
 	MinioEndpoint  string `mapstructure:"MINIO_ENDPOINT"`
 	MinioAccessKey string `mapstructure:"MINIO_ACCESS_KEY"`
 	MinioSecretKey string `mapstructure:"MINIO_SECRET_KEY"`
 	MinioUseSSL    bool   `mapstructure:"MINIO_USE_SSL"`
-	OTelEndpoint string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelEndpoint   string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -25,6 +26,7 @@ func Load() (*Config, error) {
 
 	v.SetDefault("APP_ENV", "development")
 	v.SetDefault("LOG_LEVEL", "INFO")
+	v.SetDefault("INGESTION_PORT", "8081")
 	v.SetDefault("MINIO_USE_SSL", false)
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 

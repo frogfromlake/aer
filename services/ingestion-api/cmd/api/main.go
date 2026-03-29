@@ -3,19 +3,25 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/frogfromlake/aer/pkg/logger"
 	"github.com/frogfromlake/aer/pkg/telemetry"
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/config"
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/core"
+	"github.com/frogfromlake/aer/services/ingestion-api/internal/handler"
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/storage"
 )
 
 func main() {
-	// 1. Setup Context FIRST so backoff respects interrupts
+	// 1. Setup context for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -38,7 +44,7 @@ func main() {
 		}
 	}()
 
-	// 2. Initialize PostgreSQL Adapter (Passing Context for Backoff)
+	// 2. Initialize PostgreSQL adapter
 	db, err := storage.NewPostgresDB(ctx, cfg.DBUrl)
 	if err != nil {
 		slog.Error("Failed to initialize PostgreSQL", "error", err)
@@ -51,7 +57,7 @@ func main() {
 	}()
 	slog.Info("PostgreSQL connected successfully")
 
-	// 3. Initialize MinIO Adapter (Passing Context for Backoff)
+	// 3. Initialize MinIO adapter
 	minioClient, err := storage.NewMinioClient(
 		ctx,
 		cfg.MinioEndpoint,
@@ -65,25 +71,44 @@ func main() {
 	}
 	slog.Info("MinIO client connected successfully")
 
+	// 4. Wire service and handlers
 	svc := core.NewIngestionService(db, minioClient)
+	h := handler.NewHandler(svc)
 
-	// --- GRACEFUL SHUTDOWN LOGIC ---
-	// Run core logic inside a goroutine to allow listening for cancellation
-	done := make(chan struct{})
-	go func() {
-		if err := svc.Start(ctx); err != nil {
-			slog.Error("Ingestion service encountered an error", "error", err)
-		}
-		close(done)
-	}()
+	// 5. Setup chi router with OTel instrumentation
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return otelhttp.NewHandler(next, "ingestion-api")
+	})
 
-	// Wait for either the ingestion to finish or an interrupt signal
-	select {
-	case <-ctx.Done():
-		slog.Info("Shutdown signal received. Cancelling ingestion process...")
-	case <-done:
-		slog.Info("Ingestion process completed successfully.")
+	r.Post("/api/v1/ingest", h.Ingest)
+	r.Get("/healthz", h.Healthz)
+	r.Get("/readyz", h.Readyz)
+
+	// 6. Start HTTP server
+	server := &http.Server{
+		Addr:    ":" + cfg.IngestionPort,
+		Handler: r,
 	}
 
-	slog.Info("Ingestion API shut down cleanly.")
+	go func() {
+		slog.Info("AĒR Ingestion API listening", "port", cfg.IngestionPort)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("Server crashed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// 7. Block until shutdown signal, then drain with 5s timeout
+	<-ctx.Done()
+	slog.Info("Shutdown signal received. Shutting down Ingestion API gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Forced server shutdown", "error", err)
+	} else {
+		slog.Info("Ingestion API stopped cleanly.")
+	}
 }

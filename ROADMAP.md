@@ -79,6 +79,15 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Macro-Level Error Tracking (Ingestion):** Anpassung der Go `IngestionService`-Logik, um fehlerhafte Einzeldokumente zu tracken und den übergeordneten Job-Status am Ende korrekt auf `failed` oder `completed_with_errors` zu setzen.
 * [x] **Boot-Race-Conditions (Infra):** Hinzufügen von nativen Docker `healthcheck`s für PostgreSQL und ClickHouse in der `compose.yaml` inklusive `depends_on: condition: service_healthy` für abhängige Services.
 
+## Phase 17: Ingestion API Redesign (Vom Batch-Job zum echten Service) - [x] DONE
+*Transformation der `ingestion-api` von einem einmaligen PoC-Skript in einen langlebigen, HTTP-fähigen Microservice.*
+
+* [x] **HTTP-Server einführen:** `chi`-Router mit `POST /api/v1/ingest`, konfigurierbar via `INGESTION_PORT` (default: 8081).
+* [x] **PoC-Testdaten entfernen:** Hardcoded `testCases` durch `IngestDocuments(ctx, sourceID, []Document)` ersetzt.
+* [x] **Health Check Endpoints:** `/healthz` (Liveness) und `/readyz` (prüft Postgres + MinIO).
+* [x] **Graceful Shutdown mit HTTP:** 5s Timeout analog zur BFF-API.
+* [x] **OTel-Instrumentation:** `otelhttp`-Middleware für automatisches Span-Tracking.
+
 ## Phase 15: Configuration Hardening & Environment Consistency - [x] DONE
 *Eliminierung aller hardcoded Werte und Herstellung einer konsistenten, umgebungsunabhängigen Konfiguration über alle Services hinweg. Voraussetzung für alle weiteren Phasen — ohne saubere Config kann kein Service sinnvoll konfiguriert oder skaliert werden.*
 
@@ -97,9 +106,9 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 *Die folgenden Phasen wurden aus einem professionellen Code-Review abgeleitet und in eine Reihenfolge gebracht, die den Abhängigkeitsgraph des Systems respektiert. Die zentrale Achse lautet: Config aufräumen → Ingestion zum echten Service machen → erster Crawler → beobachten & absichern → skalieren.*
 
 ```
-Phase 15 (Config)
-  → Phase 17 (Ingestion Redesign)
-    → Phase 14 (First Crawler) ← erster echter Datenfluss
+Phase 15 (Config) ✔
+  → Phase 17 (Ingestion Redesign) ✔
+    → Phase 14 (First Crawler) ← nächster Schritt, erster echter Datenfluss
       → Phase 16 (BFF Hardening)  ┐
       → Phase 18 (Observability)  ├ parallel möglich
       → Phase 19 (Testing)       ┘
@@ -107,21 +116,12 @@ Phase 15 (Config)
           → Phase 23 (Security)
             → Phase 22 (Docs)
 
-Phase 21 (Code Quality) kann parallel zu Phase 17 laufen.
+Phase 21 (Code Quality) kann jederzeit parallel bearbeitet werden.
 ```
 
 ---
 
 ### Tier 1: Fundament legen (bevor echte Daten fließen)
-
-## Phase 17: Ingestion API Redesign (Vom Batch-Job zum echten Service)
-*Transformation der `ingestion-api` von einem einmaligen PoC-Skript in einen langlebigen, HTTP-fähigen Microservice. Blocker für Phase 14 — ohne HTTP-Interface können keine Crawler oder Scheduler Daten einliefern.*
-
-* [ ] **HTTP-Server einführen:** Einbau eines `chi`-Routers mit mindestens `POST /api/v1/ingest` als Endpoint, über den externe Systeme oder Cron-Jobs Daten einliefern können.
-* [ ] **PoC-Testdaten entfernen:** Entfernung der hardcoded `testCases` aus `core/service.go`. Stattdessen: Datenquelle als Parameter über den HTTP-Request oder als konfigurierte Scheduler-Jobs.
-* [ ] **Health Check Endpoints:** Analog zur BFF-API: `/healthz` und `/readyz` (prüft Postgres + MinIO).
-* [ ] **Graceful Shutdown mit HTTP:** HTTP-Server-Shutdown analog zur BFF-API (5s Timeout für laufende Requests).
-* [ ] **OTel-Instrumentation vervollständigen:** HTTP-Middleware für automatisches Span-Tracking eingehender Requests via `otelhttp`.
 
 ## Phase 21: Code Quality & Logger Refactoring
 *Kann parallel zu Phase 17 bearbeitet werden. Behebung von Code-Qualitätsproblemen und Vereinheitlichung der Logging-Strategie, bevor die Codebasis mit Crawlern wächst — danach wird Refactoring teurer.*

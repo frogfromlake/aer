@@ -10,6 +10,20 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
+// Document represents a single document to be ingested into the bronze layer.
+type Document struct {
+	Key  string // Object key in MinIO (e.g. "article-123.json")
+	Data string // Raw JSON payload
+}
+
+// IngestResult summarizes the outcome of a batch ingestion.
+type IngestResult struct {
+	JobID    int    `json:"job_id"`
+	Accepted int    `json:"accepted"`
+	Failed   int    `json:"failed"`
+	Status   string `json:"status"`
+}
+
 // IngestionService orchestrates the data collection and storage processes.
 type IngestionService struct {
 	db    *storage.PostgresDB
@@ -24,53 +38,31 @@ func NewIngestionService(db *storage.PostgresDB, minio *storage.MinioClient) *In
 	}
 }
 
-// Start executes the initial bootstrapping of the core service.
-func (s *IngestionService) Start(ctx context.Context) error {
-	slog.Info("Starting AĒR Ingestion Core Logic (Metadata Index Test)...")
+// IngestDocuments processes a batch of documents: tracks them in PostgreSQL,
+// uploads them to the MinIO bronze layer, and returns a summary.
+func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, docs []Document) (*IngestResult, error) {
+	if len(docs) == 0 {
+		return nil, fmt.Errorf("no documents provided")
+	}
 
-	// 1. Create a tracking job in PostgreSQL (Assuming source_id 1 is our Dummy Source)
-	jobID, err := s.db.CreateIngestionJob(ctx, 1)
+	jobID, err := s.db.CreateIngestionJob(ctx, sourceID)
 	if err != nil {
-		return fmt.Errorf("could not initialize ingestion job: %w", err)
+		return nil, fmt.Errorf("could not initialize ingestion job: %w", err)
 	}
-	slog.Info("Created new ingestion job", "job_id", jobID)
+	slog.Info("Created new ingestion job", "job_id", jobID, "document_count", len(docs))
 
-	tracer := otel.Tracer("aer.core")
-
-	testCases := []struct {
-		name     string
-		filename string
-		payload  string
-	}{
-		{
-			name:     "Happy Path",
-			filename: "test-happy-path.json",
-			payload:  `{"message": "Hello from AĒR Ingestion!", "status": "raw", "metric_value": 42.5}`,
-		},
-		{
-			name:     "Corrupt Data",
-			filename: "test-corrupt-data.json",
-			payload:  `{"status": "raw", "metric_value": 99.9}`,
-		},
-		{
-			name:     "Duplicate Data",
-			filename: "test-happy-path.json",
-			payload:  `{"message": "Hello from AĒR Ingestion!", "status": "raw", "metric_value": 42.5}`,
-		},
-	}
-
-	// --- Tracking variables for final job status ---
+	tracer := otel.Tracer("aer.ingestion")
 	errorCount := 0
-	totalCount := len(testCases)
 
-	for _, tc := range testCases {
-		ctxSpan, span := tracer.Start(ctx, fmt.Sprintf("Ingest-%s", tc.name))
+	for _, doc := range docs {
+		ctxSpan, span := tracer.Start(ctx, "IngestDocument")
 		traceID := span.SpanContext().TraceID().String()
 
-		// 1. Write to DB FIRST (Status: pending)
-		logErr := s.db.LogDocument(ctxSpan, jobID, tc.filename, traceID)
+		// 1. Write to DB FIRST (Status: pending) to prevent dark data
+		logErr := s.db.LogDocument(ctxSpan, jobID, doc.Key, traceID)
 		if logErr != nil {
-			slog.Error("Failed to log pending document metadata. Skipping upload to prevent Dark Data.", "case", tc.name, "error", logErr)
+			slog.Error("Failed to log pending document metadata. Skipping upload to prevent dark data.",
+				"key", doc.Key, "error", logErr)
 			span.RecordError(logErr)
 			span.End()
 			errorCount++
@@ -78,46 +70,67 @@ func (s *IngestionService) Start(ctx context.Context) error {
 		}
 
 		// 2. Upload to MinIO (Bronze Layer)
-		uploadErr := s.minio.UploadJSON(ctxSpan, "bronze", tc.filename, tc.payload)
-
+		uploadErr := s.minio.UploadJSON(ctxSpan, "bronze", doc.Key, doc.Data)
 		if uploadErr != nil {
-			slog.Error("Failed to upload to bronze", "case", tc.name, "error", uploadErr)
+			slog.Error("Failed to upload to bronze", "key", doc.Key, "error", uploadErr)
 			span.RecordError(uploadErr)
 			errorCount++
-
-			// Mark as failed in DB so we can audit/retry later
-			_ = s.db.UpdateDocumentStatus(ctxSpan, tc.filename, "failed")
+			_ = s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "failed")
 		} else {
-			// 3. Commit Success: Update DB Status to 'uploaded'
-			updateErr := s.db.UpdateDocumentStatus(ctxSpan, tc.filename, "uploaded")
+			updateErr := s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "uploaded")
 			if updateErr != nil {
-				slog.Error("Failed to update document status to uploaded", "error", updateErr)
+				slog.Error("Failed to update document status to uploaded", "key", doc.Key, "error", updateErr)
 				errorCount++
 			} else {
-				slog.Info("Successfully ingested and indexed data", "case", tc.name, "object", tc.filename, "trace_id", traceID)
+				slog.Info("Successfully ingested document", "key", doc.Key, "trace_id", traceID)
 			}
 		}
 
 		span.End()
-		time.Sleep(2 * time.Second)
 	}
 
-	// 4. Mark job as completed based on actual error count
+	// Determine final job status
 	finalStatus := "completed"
 	if errorCount > 0 {
-		if errorCount == totalCount {
+		if errorCount == len(docs) {
 			finalStatus = "failed"
 		} else {
 			finalStatus = "completed_with_errors"
 		}
 	}
 
-	err = s.db.UpdateJobStatus(ctx, jobID, finalStatus)
-	if err != nil {
-		slog.Error("Failed to complete job", "error", err)
+	if err := s.db.UpdateJobStatus(ctx, jobID, finalStatus); err != nil {
+		slog.Error("Failed to update job status", "job_id", jobID, "error", err)
 	} else {
-		slog.Info("Ingestion job finished", "job_id", jobID, "final_status", finalStatus, "errors", errorCount, "total", totalCount)
+		slog.Info("Ingestion job finished", "job_id", jobID, "status", finalStatus,
+			"errors", errorCount, "total", len(docs))
 	}
 
+	return &IngestResult{
+		JobID:    jobID,
+		Accepted: len(docs) - errorCount,
+		Failed:   errorCount,
+		Status:   finalStatus,
+	}, nil
+}
+
+// CheckPostgres verifies the PostgreSQL connection is alive.
+func (s *IngestionService) CheckPostgres(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return s.db.DB.PingContext(ctx)
+}
+
+// CheckMinio verifies the MinIO connection by checking if the bronze bucket exists.
+func (s *IngestionService) CheckMinio(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	exists, err := s.minio.Client.BucketExists(ctx, "bronze")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("bronze bucket not found")
+	}
 	return nil
 }
