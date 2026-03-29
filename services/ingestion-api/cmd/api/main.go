@@ -27,7 +27,7 @@ func main() {
 	logger.Init(cfg.Environment, cfg.LogLevel)
 	slog.Info("Bootstrapping AĒR Ingestion API...", "environment", cfg.Environment)
 
-	shutdown, err := telemetry.InitProvider("aer-ingestion-api")
+	shutdown, err := telemetry.InitProvider("aer-ingestion-api", cfg.OTelEndpoint)
 	if err != nil {
 		slog.Error("Failed to initialize OpenTelemetry", "error", err)
 		os.Exit(1)

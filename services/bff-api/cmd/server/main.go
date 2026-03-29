@@ -33,9 +33,10 @@ func main() {
 	slog.Info("Bootstrapping AĒR BFF API...", "environment", cfg.Environment)
 
 	// 4. Initialize Storage (Passing Context for Backoff)
+	chAddr := cfg.ClickHouseHost + ":" + cfg.ClickHousePort
 	chStore, err := storage.NewClickHouseStorage(
 		ctx,
-		"localhost:9002",
+		chAddr,
 		cfg.ClickHouseUser,
 		cfg.ClickHousePassword,
 		cfg.ClickHouseDB,
@@ -55,13 +56,13 @@ func main() {
 
 	// --- GRACEFUL SHUTDOWN LOGIC ---
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + cfg.BFFPort,
 		Handler: r,
 	}
 
 	// Start server in a separate goroutine
 	go func() {
-		slog.Info("AĒR BFF API listening", "port", 8080)
+		slog.Info("AĒR BFF API listening", "port", cfg.BFFPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server crashed", "error", err)
 			os.Exit(1)

@@ -11,9 +11,13 @@ import (
 type Config struct {
 	Environment        string `mapstructure:"APP_ENV"`
 	LogLevel           string `mapstructure:"LOG_LEVEL"`
+	BFFPort            string `mapstructure:"BFF_PORT"`
+	ClickHouseHost     string `mapstructure:"CLICKHOUSE_HOST"`
+	ClickHousePort     string `mapstructure:"CLICKHOUSE_PORT"`
 	ClickHouseUser     string `mapstructure:"CLICKHOUSE_USER"`
 	ClickHousePassword string `mapstructure:"CLICKHOUSE_PASSWORD"`
 	ClickHouseDB       string `mapstructure:"CLICKHOUSE_DB"`
+	OTelEndpoint       string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -22,7 +26,11 @@ func Load() (*Config, error) {
 
 	v.SetDefault("APP_ENV", "development")
 	v.SetDefault("LOG_LEVEL", "INFO")
+	v.SetDefault("BFF_PORT", "8080")
+	v.SetDefault("CLICKHOUSE_HOST", "localhost")
+	v.SetDefault("CLICKHOUSE_PORT", "9002")
 	v.SetDefault("CLICKHOUSE_DB", "aer_gold")
+	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

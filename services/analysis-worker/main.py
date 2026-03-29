@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import signal
 import structlog
 from nats.aio.client import Client as NATS
@@ -18,10 +19,15 @@ from internal.processor import DataProcessor
 
 load_dotenv()
 
+# --- Configuration ---
+NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+OTEL_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+WORKER_COUNT = int(os.getenv("WORKER_COUNT", "5"))
+
 # --- Observability Setup ---
 resource = Resource(attributes={SERVICE_NAME: "aer-analysis-worker"})
 provider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{OTEL_ENDPOINT}/v1/traces"))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 tracer = trace.get_tracer(__name__)
@@ -29,7 +35,6 @@ tracer = trace.get_tracer(__name__)
 logger = structlog.get_logger()
 
 # --- Concurrency Setup ---
-WORKER_COUNT = 5  # Number of parallel tasks
 task_queue = asyncio.Queue()
 
 async def worker_task(worker_id: int, data_processor: DataProcessor):
@@ -88,7 +93,7 @@ async def main():
         before_sleep=lambda rs: logger.warning("NATS not ready, retrying...", attempt=rs.attempt_number)
     )
     async def connect_nats():
-        await nc.connect("nats://localhost:4222")
+        await nc.connect(NATS_URL)
 
     await connect_nats()
     

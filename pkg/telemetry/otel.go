@@ -13,12 +13,12 @@ import (
 )
 
 // InitProvider configures the global OpenTelemetry Tracer using gRPC.
-func InitProvider(serviceName string) (func(context.Context) error, error) {
+// The endpoint parameter specifies the OTel Collector address (e.g. "otel-collector:4317").
+func InitProvider(serviceName, endpoint string) (func(context.Context) error, error) {
 	ctx := context.Background()
 
-	// Connect to the OpenTelemetry Collector container on port 4317
 	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint("localhost:4317"),
+		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
