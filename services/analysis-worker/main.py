@@ -37,6 +37,13 @@ async def worker_task(worker_id: int, data_processor: DataProcessor):
     logger.info("Worker started", worker_id=worker_id)
     while True:
         msg = await task_queue.get()
+        
+        # --- CLEAN SHUTDOWN SENTINEL CHECK ---
+        if msg is None:
+            logger.info("Worker received shutdown signal. Exiting cleanly...", worker_id=worker_id)
+            task_queue.task_done()
+            break  # Exit the loop safely, releasing all resources
+            
         try:
             event_data = json.loads(msg.data.decode())
             obj_key = event_data['Records'][0]['s3']['object']['key']
@@ -52,7 +59,7 @@ async def worker_task(worker_id: int, data_processor: DataProcessor):
             with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
                 logger.info("Processing event", worker_id=worker_id, object=obj_key)
                 # Since MinIO/ClickHouse clients are synchronous, we offload them to a thread pool
-                # to avoid blocking the asyncio event loop. Now passing event_time_str!
+                # to avoid blocking the asyncio event loop!
                 await asyncio.to_thread(data_processor.process_event, obj_key, event_time_str, span)
 
             # IMPORTANT: Manual Ack only AFTER error-free processing (JetStream)
@@ -119,7 +126,7 @@ async def main():
     stop_event = asyncio.Event()
     
     def shutdown_signal(*args):
-        logger.info("Shutdown signal received. Stopping worker...")
+        logger.info("Shutdown signal received. Initiating graceful shutdown...")
         stop_event.set()
 
     loop = asyncio.get_running_loop()
@@ -135,9 +142,14 @@ async def main():
         if nc.is_connected:
             await nc.drain()
             
-        logger.info("Cancelling background workers...")
-        for w in workers:
-            w.cancel()
+        logger.info("Sending shutdown sentinels to background workers...")
+        # Push exactly one Sentinel (None) per worker to the queue
+        for _ in range(WORKER_COUNT):
+            await task_queue.put(None)
+            
+        logger.info("Waiting for workers to complete current tasks...")
+        # Gracefully wait for all workers to finish instead of cancelling them
+        await asyncio.gather(*workers)
             
         await nc.close()
         logger.info("Analysis Worker shut down cleanly.")
