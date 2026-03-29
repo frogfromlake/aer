@@ -41,6 +41,9 @@ async def worker_task(worker_id: int, data_processor: DataProcessor):
             event_data = json.loads(msg.data.decode())
             obj_key = event_data['Records'][0]['s3']['object']['key']
             
+            # --- EXTRACT DETERMINISTIC TIMESTAMP ---
+            event_time_str = event_data['Records'][0]['eventTime'] # e.g. "2023-10-25T12:34:56.000Z"
+            
             # --- TRACE CONTINUATION ---
             raw_meta = event_data['Records'][0]['s3']['object'].get('userMetadata', {})
             normalized_meta = {k.lower().replace('x-amz-meta-', ''): v for k, v in raw_meta.items()}
@@ -49,8 +52,8 @@ async def worker_task(worker_id: int, data_processor: DataProcessor):
             with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
                 logger.info("Processing event", worker_id=worker_id, object=obj_key)
                 # Since MinIO/ClickHouse clients are synchronous, we offload them to a thread pool
-                # to avoid blocking the asyncio event loop!
-                await asyncio.to_thread(data_processor.process_event, obj_key, span)
+                # to avoid blocking the asyncio event loop. Now passing event_time_str!
+                await asyncio.to_thread(data_processor.process_event, obj_key, event_time_str, span)
 
             # IMPORTANT: Manual Ack only AFTER error-free processing (JetStream)
             await msg.ack()

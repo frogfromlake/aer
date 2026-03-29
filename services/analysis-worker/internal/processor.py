@@ -18,7 +18,7 @@ class DataProcessor:
         self.ch = ch_client
         self.pg = pg_pool
 
-    def process_event(self, obj_key: str, span):
+    def process_event(self, obj_key: str, event_time_str: str, span):
         # --- 1. IDEMPOTENCY CHECK (Fast PG Lookup) ---
         status = self._get_document_status(obj_key)
         
@@ -29,6 +29,9 @@ class DataProcessor:
             span.set_attribute("aer.status", "skipped_duplicate")
             return
 
+        # Parse the ISO 8601 string from MinIO Event
+        event_time = datetime.fromisoformat(event_time_str.replace('Z', '+00:00'))
+
         # --- 2. Fetch raw data (Bronze Layer) ---
         response = self.minio.get_object("bronze", obj_key)
         raw_content = json.loads(response.read().decode('utf-8'))
@@ -37,7 +40,8 @@ class DataProcessor:
         harmonized_data = {
             "message": raw_content.get("message", "").lower(),
             "status": "harmonized",
-            "metric_value": raw_content.get("metric_value", 0.0)
+            "metric_value": raw_content.get("metric_value", 0.0),
+            "timestamp": event_time  # <-- Injected deterministic timestamp
         }
         
         # --- 4. Validation (The Silver Contract) ---
@@ -67,10 +71,10 @@ class DataProcessor:
         # and the PG status remains 'pending'/'uploaded' for retry!
         self.ch.insert(
             'aer_gold.metrics', 
-            [[datetime.now(), record.metric_value]], 
+            [[record.timestamp, record.metric_value]],  # <-- DETERMINISTIC INSERT
             column_names=['timestamp', 'value']
         )
-        logger.info("Gold layer updated", metric=record.metric_value)
+        logger.info("Gold layer updated", metric=record.metric_value, timestamp=str(record.timestamp))
         
         # --- 7. Commit Success (Solve Partial Failures) ---
         self._update_document_status(obj_key, "processed")

@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, ValidationError
+from datetime import datetime
 
 class SilverRecord(BaseModel):
     """
@@ -8,5 +9,6 @@ class SilverRecord(BaseModel):
     message: str
     status: str = Field(default="harmonized")
     metric_value: float = Field(default=0.0)
+    timestamp: datetime
 
 __all__ = ["SilverRecord", "ValidationError"]

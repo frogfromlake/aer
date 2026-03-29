@@ -1,5 +1,6 @@
 import pytest
 import json
+from datetime import datetime
 from unittest.mock import MagicMock
 from opentelemetry import trace
 from internal.processor import DataProcessor
@@ -31,10 +32,14 @@ def dummy_span():
     with tracer.start_as_current_span("test-span") as span:
         yield span
 
+# Dummy timestamp string mimicking the NATS MinIO event
+DUMMY_EVENT_TIME = "2023-10-25T12:34:56.000Z"
+EXPECTED_DATETIME = datetime.fromisoformat("2023-10-25T12:34:56+00:00")
+
 def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dummy_span):
     """
     Tests if valid Bronze data is harmonized and correctly passed 
-    to the Silver Layer (MinIO) and Gold Layer (ClickHouse).
+    to the Silver Layer (MinIO) and Gold Layer (ClickHouse) with deterministic time.
     """
     # 1. Setup
     valid_bronze_data = json.dumps({
@@ -51,7 +56,7 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     processor._update_document_status = MagicMock()
 
     # 2. Execute
-    processor.process_event("test_happy.json", dummy_span)
+    processor.process_event("test_happy.json", DUMMY_EVENT_TIME, dummy_span)
 
     # 3. Assert MinIO
     mock_minio.put_object.assert_called_once()
@@ -59,10 +64,12 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     assert args[0] == "silver" # Must be routed to silver
     assert args[1] == "test_happy.json"
     
-    # 4. Assert ClickHouse
+    # 4. Assert ClickHouse (Check Idempotency / Deterministic Timestamp)
     mock_clickhouse.insert.assert_called_once()
     ch_args, ch_kwargs = mock_clickhouse.insert.call_args
     assert ch_args[0] == "aer_gold.metrics"
+    assert ch_args[1][0][0] == EXPECTED_DATETIME # Must NOT be datetime.now()
+    assert ch_args[1][0][1] == 42.5
 
     # 5. Assert DB Update (Commit Success)
     processor._update_document_status.assert_called_with("test_happy.json", "processed")
@@ -85,7 +92,7 @@ def test_silver_contract_corrupt_data(processor, mock_minio, mock_clickhouse, du
     processor._update_document_status = MagicMock()
 
     # 2. Execute
-    processor.process_event("test_corrupt.json", dummy_span)
+    processor.process_event("test_corrupt.json", DUMMY_EVENT_TIME, dummy_span)
 
     # 3. Assert MinIO (Must go to DLQ)
     mock_minio.put_object.assert_called_once()
@@ -107,7 +114,7 @@ def test_idempotency_skip_duplicate(processor, mock_minio, mock_clickhouse, dumm
     processor._get_document_status = MagicMock(return_value="processed")
 
     # 2. Execute
-    processor.process_event("test_duplicate.json", dummy_span)
+    processor.process_event("test_duplicate.json", DUMMY_EVENT_TIME, dummy_span)
 
     # 3. Assert (Neither MinIO get/put nor ClickHouse insert should be called)
     mock_minio.get_object.assert_not_called()
