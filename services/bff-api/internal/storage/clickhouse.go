@@ -52,6 +52,7 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string) 
 }
 
 // GetMetrics retrieves aggregated time-series data from the gold layer.
+// It downsamples the data to 5-minute intervals to prevent OOM errors on large time ranges.
 func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time) ([]struct {
 	TS    time.Time
 	Value float64
@@ -61,10 +62,24 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 		Value float64
 	}
 
-	query := `SELECT timestamp as TS, value as Value FROM aer_gold.metrics 
-              WHERE timestamp >= $1 AND timestamp <= $2 
-              ORDER BY timestamp ASC`
+	// Use toStartOfFiveMinute and avg() to aggregate data on the DB level.
+	// We also apply a hard limit to guarantee memory safety.
+	query := `
+		SELECT 
+			toStartOfFiveMinute(timestamp) as TS, 
+			avg(value) as Value 
+		FROM aer_gold.metrics 
+		WHERE timestamp >= $1 AND timestamp <= $2 
+		GROUP BY TS
+		ORDER BY TS ASC
+		LIMIT 10000
+	`
 
 	err := s.conn.Select(ctx, &results, query, start, end)
-	return results, err
+	if err != nil {
+		slog.Error("Failed to query metrics from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	return results, nil
 }
