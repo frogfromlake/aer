@@ -63,17 +63,29 @@ func (s *IngestionService) Start(ctx context.Context) error {
 		ctxSpan, span := tracer.Start(ctx, fmt.Sprintf("Ingest-%s", tc.name))
 		traceID := span.SpanContext().TraceID().String()
 
+		// 1. Write to DB FIRST (Status: pending)
+		logErr := s.db.LogDocument(ctxSpan, jobID, tc.filename, traceID)
+		if logErr != nil {
+			slog.Error("Failed to log pending document metadata. Skipping upload to prevent Dark Data.", "case", tc.name, "error", logErr)
+			span.RecordError(logErr)
+			span.End()
+			continue
+		}
+
 		// 2. Upload to MinIO (Bronze Layer)
 		uploadErr := s.minio.UploadJSON(ctxSpan, "bronze", tc.filename, tc.payload)
 
 		if uploadErr != nil {
 			slog.Error("Failed to upload to bronze", "case", tc.name, "error", uploadErr)
 			span.RecordError(uploadErr)
+
+			// Mark as failed in DB so we can audit/retry later
+			_ = s.db.UpdateDocumentStatus(ctxSpan, tc.filename, "failed")
 		} else {
-			// 3. Log Metadata in PostgreSQL ONLY if upload was successful
-			logErr := s.db.LogDocument(ctxSpan, jobID, tc.filename, traceID)
-			if logErr != nil {
-				slog.Error("Failed to log document metadata", "error", logErr)
+			// 3. Commit Success: Update DB Status to 'uploaded'
+			updateErr := s.db.UpdateDocumentStatus(ctxSpan, tc.filename, "uploaded")
+			if updateErr != nil {
+				slog.Error("Failed to update document status to uploaded", "error", updateErr)
 			} else {
 				slog.Info("Successfully ingested and indexed data", "case", tc.name, "object", tc.filename, "trace_id", traceID)
 			}

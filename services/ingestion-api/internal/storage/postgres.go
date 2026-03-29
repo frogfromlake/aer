@@ -70,17 +70,27 @@ func (p *PostgresDB) UpdateJobStatus(ctx context.Context, jobID int, status stri
 	return nil
 }
 
-// LogDocument records a successfully ingested document in the metadata index.
+// LogDocument records the INTENT to ingest a document (Status: pending).
 func (p *PostgresDB) LogDocument(ctx context.Context, jobID int, bronzeKey string, traceID string) error {
-	// We use ON CONFLICT DO NOTHING to gracefully handle our duplicate test cases
+	// We use ON CONFLICT DO UPDATE to handle duplicate test cases gracefully and reset them to pending
 	query := `
-		INSERT INTO documents (job_id, bronze_object_key, trace_id) 
-		VALUES ($1, $2, $3)
-		ON CONFLICT (bronze_object_key) DO NOTHING
+		INSERT INTO documents (job_id, bronze_object_key, trace_id, status) 
+		VALUES ($1, $2, $3, 'pending')
+		ON CONFLICT (bronze_object_key) DO UPDATE SET status = 'pending', trace_id = EXCLUDED.trace_id
 	`
 	_, err := p.DB.ExecContext(ctx, query, jobID, bronzeKey, traceID)
 	if err != nil {
-		return fmt.Errorf("failed to log document metadata: %w", err)
+		return fmt.Errorf("failed to log pending document metadata: %w", err)
+	}
+	return nil
+}
+
+// UpdateDocumentStatus updates the document's state after a MinIO upload attempt.
+func (p *PostgresDB) UpdateDocumentStatus(ctx context.Context, bronzeKey string, status string) error {
+	query := `UPDATE documents SET status = $1 WHERE bronze_object_key = $2`
+	_, err := p.DB.ExecContext(ctx, query, status, bronzeKey)
+	if err != nil {
+		return fmt.Errorf("failed to update document status: %w", err)
 	}
 	return nil
 }

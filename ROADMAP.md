@@ -80,9 +80,9 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Robuste Init-Skripte:** Hinzufügen von Docker `healthcheck`s (z.B. für MinIO) und Umstellung der `depends_on`-Logik auf `condition: service_healthy`, um Boot-Race-Conditions zu vermeiden.
 * [x] **Verlustfreie Event-Verarbeitung (Python):** Umstellung des `analysis-worker` von Core NATS auf echtes NATS JetStream (`js.subscribe`, dauerhafte Consumer) inklusive manuellem `msg.ack()`, um Datenverlust bei Neustarts auszuschließen.
 * [x] **Concurrency Control (Python):** Entkopplung der NATS-Callbacks von CPU-intensiven Aufgaben mittels asynchroner Queues (`asyncio.Queue`) oder Thread-/Process-Pools, um ein Blockieren des Event-Loops zu verhindern.
-* [ ] **Idempotenz-Optimierung (Python):** Ablösung der netzwerkintensiven MinIO-Abfragen (`stat_object` für Silver/Quarantäne) durch performante PostgreSQL-Lookups zur Vermeidung eines Flaschenhalses bei hohem Durchsatz.
-* [ ] **Partial Failures auflösen (Go - Ingestion API):** Einführung eines "Pending"-Status in PostgreSQL vor dem MinIO-Upload. Update auf "Uploaded" erst nach Erfolg, um "Dark Data" (Dateien ohne Metadaten-Eintrag) zu verhindern.
-* [ ] **Partial Failures auflösen (Python - Worker):** Transaktionssichere Auflösung der Sequenz "MinIO Upload (Silver) -> ClickHouse Insert (Gold)". Anpassung der Retry-Logik und Status-Verfolgung, sodass bei einem ClickHouse-Timeout die Metriken nicht für immer verloren gehen.
+* [x] **Idempotenz-Optimierung (Python):** Ablösung der netzwerkintensiven MinIO-Abfragen (`stat_object` für Silver/Quarantäne) durch performante PostgreSQL-Lookups zur Vermeidung eines Flaschenhalses bei hohem Durchsatz.
+* [x] **Partial Failures auflösen (Go - Ingestion API):** Einführung eines "Pending"-Status in PostgreSQL vor dem MinIO-Upload. Update auf "Uploaded" erst nach Erfolg, um "Dark Data" (Dateien ohne Metadaten-Eintrag) zu verhindern.
+* [x] **Partial Failures auflösen (Python - Worker):** Transaktionssichere Auflösung der Sequenz "MinIO Upload (Silver) -> ClickHouse Insert (Gold)". Anpassung der Retry-Logik und Status-Verfolgung, sodass bei einem ClickHouse-Timeout die Metriken nicht für immer verloren gehen.
 
 ## Phase 13: Real Data Ingestion (The First Real Crawler)
 *Ablösung des Dummy-JSONs durch echte, unstrukturierte Daten aus dem Internet.*
