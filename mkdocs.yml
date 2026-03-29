@@ -19,6 +19,7 @@ theme:
 
 nav:
   - "Home": index.md
+  - "0. Manifesto": arc42/00_manifesto.md
   - "1. Introduction and Goals": arc42/01_introduction_and_goals.md
   - "2. Architecture Constraints": arc42/02_architecture_constraints.md
   - "3. System Scope and Context": arc42/03_system_scope_and_context.md
