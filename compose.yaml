@@ -10,6 +10,8 @@ services:
     volumes:
       - .:/docs
     command: serve --dev-addr=0.0.0.0:8000 --livereload --watch /docs --dirty
+    networks:
+      - aer-network
 
   # ----------------------------------------------------
   # 2. DATA LAKE (BRONZE LAYER / RAW DATA)
@@ -23,7 +25,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      # Tell MinIO to connect to NATS and publish to the subject "aer.lake.bronze"
       MINIO_NOTIFY_NATS_ENABLE_aer: "on"
       MINIO_NOTIFY_NATS_ADDRESS_aer: "nats:4222"
       MINIO_NOTIFY_NATS_SUBJECT_aer: "aer.lake.bronze"
@@ -31,8 +32,15 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    networks:
+      - aer-network
     depends_on:
       - nats
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # ----------------------------------------------------
   # 2.1 INFRASTRUCTURE PROVISIONING (INIT SCRIPT)
@@ -41,7 +49,8 @@ services:
     image: minio/mc:latest
     container_name: aer_minio_init
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy # WICHTIG: Wartet auf den Healthcheck!
     environment:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
@@ -49,6 +58,8 @@ services:
     volumes:
       - ./infra/minio/setup.sh:/setup.sh
     entrypoint: /bin/sh /setup.sh
+    networks:
+      - aer-network
 
   # ----------------------------------------------------
   # 2.2 MESSAGE BROKER (EVENT PIPELINE)
@@ -57,9 +68,11 @@ services:
     image: nats:latest
     container_name: aer_nats
     ports:
-      - "4222:4222" # Client Port
-      - "8222:8222" # Web UI / Monitoring Port
-    command: "-js"  # Enables JetStream for persistence
+      - "4222:4222"
+      - "8222:8222"
+    command: "-js"
+    networks:
+      - aer-network
 
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)
@@ -76,16 +89,18 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aer-network
 
-# ----------------------------------------------------
+  # ----------------------------------------------------
   # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
   # ----------------------------------------------------
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: aer_clickhouse
     ports:
-      - "8123:8123" # HTTP port
-      - "9002:9000" # Native client port
+      - "8123:8123"
+      - "9002:9000"
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
@@ -94,8 +109,10 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - aer-network
 
-# ----------------------------------------------------
+  # ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
   # ----------------------------------------------------
   otel-collector:
@@ -105,8 +122,10 @@ services:
     volumes:
       - ./infra/observability/otel-collector.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317" # OTLP gRPC (for backend services)
-      - "4318:4318" # OTLP HTTP (for scripts/frontend)
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - aer-network
 
   tempo:
     image: grafana/tempo:2.6.1
@@ -114,6 +133,8 @@ services:
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./infra/observability/tempo.yaml:/etc/tempo.yaml
+    networks:
+      - aer-network
 
   prometheus:
     image: prom/prometheus:latest
@@ -121,6 +142,8 @@ services:
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
     volumes:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - aer-network
 
   grafana:
     image: grafana/grafana:latest
@@ -135,8 +158,14 @@ services:
     depends_on:
       - tempo
       - prometheus
+    networks:
+      - aer-network
       
 volumes:
   minio_data:
   postgres_data:
   clickhouse_data:
+
+networks:
+  aer-network:
+    driver: bridge
