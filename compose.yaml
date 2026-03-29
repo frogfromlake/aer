@@ -42,15 +42,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # ----------------------------------------------------
-  # 2.1 INFRASTRUCTURE PROVISIONING (INIT SCRIPT)
-  # ----------------------------------------------------
   minio-init:
     image: minio/mc:latest
     container_name: aer_minio_init
     depends_on:
       minio:
-        condition: service_healthy # WICHTIG: Wartet auf den Healthcheck!
+        condition: service_healthy
     environment:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
@@ -73,6 +70,11 @@ services:
     command: "-js"
     networks:
       - aer-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)
@@ -91,6 +93,11 @@ services:
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - aer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # ----------------------------------------------------
   # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
@@ -111,6 +118,11 @@ services:
       - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - aer-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
@@ -126,6 +138,8 @@ services:
       - "4318:4318"
     networks:
       - aer-network
+    depends_on:
+      - nats
 
   tempo:
     image: grafana/tempo:2.6.1
