@@ -59,6 +59,10 @@ func (s *IngestionService) Start(ctx context.Context) error {
 		},
 	}
 
+	// --- Tracking variables for final job status ---
+	errorCount := 0
+	totalCount := len(testCases)
+
 	for _, tc := range testCases {
 		ctxSpan, span := tracer.Start(ctx, fmt.Sprintf("Ingest-%s", tc.name))
 		traceID := span.SpanContext().TraceID().String()
@@ -69,6 +73,7 @@ func (s *IngestionService) Start(ctx context.Context) error {
 			slog.Error("Failed to log pending document metadata. Skipping upload to prevent Dark Data.", "case", tc.name, "error", logErr)
 			span.RecordError(logErr)
 			span.End()
+			errorCount++
 			continue
 		}
 
@@ -78,6 +83,7 @@ func (s *IngestionService) Start(ctx context.Context) error {
 		if uploadErr != nil {
 			slog.Error("Failed to upload to bronze", "case", tc.name, "error", uploadErr)
 			span.RecordError(uploadErr)
+			errorCount++
 
 			// Mark as failed in DB so we can audit/retry later
 			_ = s.db.UpdateDocumentStatus(ctxSpan, tc.filename, "failed")
@@ -86,6 +92,7 @@ func (s *IngestionService) Start(ctx context.Context) error {
 			updateErr := s.db.UpdateDocumentStatus(ctxSpan, tc.filename, "uploaded")
 			if updateErr != nil {
 				slog.Error("Failed to update document status to uploaded", "error", updateErr)
+				errorCount++
 			} else {
 				slog.Info("Successfully ingested and indexed data", "case", tc.name, "object", tc.filename, "trace_id", traceID)
 			}
@@ -95,12 +102,21 @@ func (s *IngestionService) Start(ctx context.Context) error {
 		time.Sleep(2 * time.Second)
 	}
 
-	// 4. Mark job as completed
-	err = s.db.UpdateJobStatus(ctx, jobID, "completed")
+	// 4. Mark job as completed based on actual error count
+	finalStatus := "completed"
+	if errorCount > 0 {
+		if errorCount == totalCount {
+			finalStatus = "failed"
+		} else {
+			finalStatus = "completed_with_errors"
+		}
+	}
+
+	err = s.db.UpdateJobStatus(ctx, jobID, finalStatus)
 	if err != nil {
 		slog.Error("Failed to complete job", "error", err)
 	} else {
-		slog.Info("Ingestion job marked as completed", "job_id", jobID)
+		slog.Info("Ingestion job finished", "job_id", jobID, "final_status", finalStatus, "errors", errorCount, "total", totalCount)
 	}
 
 	return nil
