@@ -108,6 +108,11 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **`psycopg2-binary` dokumentieren:** Expliziter Kommentar in `requirements.txt`, dass `psycopg2-binary` nur für Development/CI geeignet ist. Für Production: `psycopg2` mit libpq-Abhängigkeit im Dockerfile.
 * [x] **Makefile-Sprache vereinheitlichen:** Die Shell-Skripte (`clean_infra.sh`, etc.) enthalten deutsche Kommentare und UI-Texte. Umstellung auf Englisch gemäß der Projektsprachen-Constraint (ADR in `02_architecture_constraints.md`).
 
+## Phase 14: Real Data Ingestion (The First Real Crawler) - [x] DONE
+*Ablösung des Dummy-JSONs durch echte Daten. Wichtige Architektur-Entscheidung ("Dumb Pipes, Smart Endpoints"): Crawler werden NICHT in die `ingestion-api` integriert, sondern laufen als externe Skripte, die Daten per HTTP POST einliefern. Langfristige Vision: Hunderte spezialisierter Crawler liefern über das HTTP-Interface der Ingestion-API Daten in den Bronze-Layer.*
+
+* [x] **Standalone Go Crawler:** Erstellung eines eigenständigen Go-Programms unter `crawlers/wikipedia-scraper/`, das die öffentliche Wikipedia JSON-API (z.B. Artikel des Tages) abruft und das JSON per POST an `http://localhost:8081/api/v1/ingest` sendet.
+* [x] **Worker Adaptation (Python):** Anpassung von `models.py`, `processor.py` und `test_processor.py` im `analysis-worker` an das neue Wikipedia-Format. Logik: Text bereinigen, rudimentäre N-Gramme/Wortzähler extrahieren und als Metrik an ClickHouse senden.
 ---
 
 # Open Phases (14–23) — Priorisierte Implementierungsreihenfolge
@@ -135,15 +140,7 @@ Currently Empty
 ---
 
 ### Tier 2: Erster echter Datenfluss
-
-## Phase 14: Real Data Ingestion (The First Real Crawler)
-*Ablösung des Dummy-JSONs durch echte, unstrukturierte Daten aus dem Internet. Setzt Phase 15 (saubere Config) und Phase 17 (HTTP-fähige Ingestion-API) voraus. Die Dummy-Ingestion bleibt als Fallback erhalten. Langfristige Vision: Hunderte spezialisierter Crawler liefern über das HTTP-Interface der Ingestion-API Daten in den Bronze-Layer.*
-
-* [ ] **Source Definition:** Auswahl einer einfachen, echten Datenquelle (z.B. ein RSS-Feed von Nachrichtenseiten oder Wikipedia).
-* [ ] **Go Crawler Implementation:** Einbau eines asynchronen Scrapers in die `ingestion-api`, der echte Texte sammelt.
-* [ ] **Bronze Upload:** Speicherung der rohen HTML/XML/JSON-Antworten in MinIO.
-* [ ] **Python NLP Basics:** Der Analysis-Worker extrahiert echten Text aus dem HTML/XML, bereinigt ihn und generiert erste echte N-Gram Metriken für ClickHouse.
-
+Currently Empty
 ---
 
 ### Tier 3: Härtung für Dauerbetrieb mit echten Daten

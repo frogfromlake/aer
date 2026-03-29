@@ -21,7 +21,7 @@ class DataProcessor:
     def process_event(self, obj_key: str, event_time_str: str, span):
         # --- 1. IDEMPOTENCY CHECK (Fast PG Lookup) ---
         status = self._get_document_status(obj_key)
-        
+
         # If status is None, the Go Ingestion API hasn't written the metadata yet.
         # If it's processed/quarantined, we skip.
         if status in ("processed", "quarantined"):
@@ -35,20 +35,30 @@ class DataProcessor:
         # --- 2. Fetch raw data (Bronze Layer) ---
         response = self.minio.get_object("bronze", obj_key)
         raw_content = json.loads(response.read().decode('utf-8'))
-        
-        # --- 3. Harmonization (Map raw data to Silver format) ---
+
+        # --- 3. Harmonization (Bronze → Silver, source-agnostic) ---
+        raw_text = raw_content.get("raw_text", "")
+        cleaned_text = " ".join(raw_text.split())  # normalize whitespace
+        title = raw_content.get("title", "").strip()
+        word_count = len(cleaned_text.split()) if cleaned_text else 0
+
         harmonized_data = {
-            "message": raw_content.get("message", "").lower(),
+            "title": title,
+            "raw_text": cleaned_text,
+            "word_count": word_count,
+            "source": raw_content.get("source", ""),
             "status": "harmonized",
-            "metric_value": raw_content.get("metric_value", 0.0),
-            "timestamp": event_time  # <-- Injected deterministic timestamp
+            "metric_value": float(word_count),  # word count as the primary Gold metric
+            "timestamp": event_time,             # <-- Injected deterministic timestamp
         }
-        
+
         # --- 4. Validation (The Silver Contract) ---
         try:
             record = SilverRecord(**harmonized_data)
-            if not record.message:
-                raise ValueError("Message field cannot be empty after harmonization.")
+            if not record.raw_text:
+                raise ValueError("raw_text field cannot be empty after harmonization.")
+            if not record.title:
+                raise ValueError("Title field cannot be empty after harmonization.")
         except (ValidationError, ValueError) as e:
             logger.warning("Harmonization failed. Moving to DLQ.", object=obj_key, error=str(e))
             self._move_to_quarantine(obj_key, raw_content)
@@ -60,25 +70,26 @@ class DataProcessor:
         # This is idempotent! If ClickHouse failed previously, we safely overwrite Silver.
         silver_payload = record.model_dump_json().encode('utf-8')
         self.minio.put_object(
-            "silver", obj_key, 
+            "silver", obj_key,
             io.BytesIO(silver_payload), len(silver_payload),
             content_type="application/json"
         )
-        logger.info("Silver layer updated", object=obj_key)
+        logger.info("Silver layer updated", object=obj_key, source=record.source, word_count=record.word_count)
 
         # --- 6. Extract and load to Gold Layer (ClickHouse) ---
-        # If this fails, an exception is thrown, the NATS message is NAK'd, 
+        # If this fails, an exception is thrown, the NATS message is NAK'd,
         # and the PG status remains 'pending'/'uploaded' for retry!
         self.ch.insert(
-            'aer_gold.metrics', 
+            'aer_gold.metrics',
             [[record.timestamp, record.metric_value]],  # <-- DETERMINISTIC INSERT
             column_names=['timestamp', 'value']
         )
         logger.info("Gold layer updated", metric=record.metric_value, timestamp=str(record.timestamp))
-        
+
         # --- 7. Commit Success (Solve Partial Failures) ---
         self._update_document_status(obj_key, "processed")
-        
+
+        span.set_attribute("aer.word_count", record.word_count)
         span.set_attribute("aer.metric_value", record.metric_value)
         span.set_attribute("aer.status", "processed")
 
