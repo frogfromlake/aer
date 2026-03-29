@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import structlog
+from urllib.parse import unquote
 from dataclasses import dataclass, field
 from nats.aio.client import Client as NATS
 from tenacity import retry, wait_exponential, stop_after_delay
@@ -58,7 +59,7 @@ async def worker_task(worker_id: int, data_processor: DataProcessor, task_queue:
 
         try:
             event_data = json.loads(msg.data.decode())
-            obj_key = event_data['Records'][0]['s3']['object']['key']
+            obj_key = unquote(event_data['Records'][0]['s3']['object']['key'])
 
             # --- EXTRACT DETERMINISTIC TIMESTAMP ---
             event_time_str = event_data['Records'][0]['eventTime'] # e.g. "2023-10-25T12:34:56.000Z"

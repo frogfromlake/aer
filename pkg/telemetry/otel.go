@@ -3,23 +3,28 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-// InitProvider configures the global OpenTelemetry Tracer using gRPC.
-// The endpoint parameter specifies the OTel Collector address (e.g. "otel-collector:4317").
+// InitProvider configures the global OpenTelemetry Tracer using HTTP.
+// The endpoint parameter accepts a full URL (e.g. "http://localhost:4318")
+// or a bare host:port (e.g. "localhost:4318").
 func InitProvider(serviceName, endpoint string) (func(context.Context) error, error) {
 	ctx := context.Background()
 
-	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithInsecure(),
+	// otlptracehttp.WithEndpoint expects host:port without scheme.
+	host := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
+
+	exporter, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpoint(host),
+		otlptracehttp.WithInsecure(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create otel exporter: %w", err)
