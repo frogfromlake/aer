@@ -2,6 +2,7 @@ import os
 import structlog
 import clickhouse_connect
 from minio import Minio
+from psycopg2.pool import ThreadedConnectionPool
 from tenacity import retry, wait_exponential, stop_after_delay
 
 logger = structlog.get_logger()
@@ -53,3 +54,31 @@ def init_clickhouse() -> clickhouse_connect.driver.Client:
         database=os.getenv("CLICKHOUSE_DB", "aer_gold")
     )
     return client
+
+@retry(
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    stop=stop_after_delay(30),
+    before_sleep=_log_retry
+)
+def init_postgres() -> ThreadedConnectionPool:
+    """
+    Initializes a thread-safe connection pool for PostgreSQL.
+    """
+    pool = ThreadedConnectionPool(
+        minconn=1,
+        maxconn=10,
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        user=os.getenv("POSTGRES_USER", "aer_admin"), # Update with your .env defaults
+        password=os.getenv("POSTGRES_PASSWORD", "aer_secret"),
+        database=os.getenv("POSTGRES_DB", "aer_metadata")
+    )
+    # Ping the database
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+    finally:
+        pool.putconn(conn)
+        
+    return pool

@@ -7,6 +7,7 @@ opentelemetry-api==1.24.0
 opentelemetry-sdk==1.24.0
 opentelemetry-exporter-otlp==1.24.0
 pydantic==2.6.3
+psycopg2-binary==2.9.9
 
 # --- Resilience ---
 tenacity==8.2.3

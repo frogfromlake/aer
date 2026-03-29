@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS documents (
     job_id INTEGER REFERENCES ingestion_jobs(id),
     bronze_object_key VARCHAR(500) UNIQUE NOT NULL, -- The MinIO Path
     trace_id VARCHAR(255), -- OpenTelemetry Trace ID for full observability
+    status VARCHAR(50) DEFAULT 'pending', -- Tracks document lifecycle
     ingested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

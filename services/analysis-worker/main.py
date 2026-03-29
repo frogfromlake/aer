@@ -12,9 +12,8 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
 # Internal application imports
-from internal.storage import init_minio, init_clickhouse
+from internal.storage import init_minio, init_clickhouse, init_postgres
 from internal.processor import DataProcessor
 
 load_dotenv()
@@ -67,8 +66,10 @@ async def worker_task(worker_id: int, data_processor: DataProcessor):
 async def main():
     minio_client = init_minio()
     ch_client = init_clickhouse()
-    data_processor = DataProcessor(minio_client, ch_client)
-
+    pg_pool = init_postgres()
+    
+    # Inject the pool
+    data_processor = DataProcessor(minio_client, ch_client, pg_pool)
     nc = NATS()
 
     @retry(
