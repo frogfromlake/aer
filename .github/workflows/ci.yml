@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12' # Passend zu requirements.txt
           cache: 'pip'
 
       - name: Install Dependencies
@@ -48,25 +48,28 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.1'
+          go-version: '1.26.1' # Passend zu Makefile/go.mod
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
             services/bff-api/go.sum
             pkg/go.sum
 
-      - name: Install golangci-lint from source
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-      - name: Lint Ingestion API
-        working-directory: ./services/ingestion-api
-        run: golangci-lint run
-
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          # Führt den Linter für alle Go-Module im Projekt aus
+          working-directory: services/ingestion-api
+          
       - name: Lint BFF API
-        working-directory: ./services/bff-api
-        run: golangci-lint run
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: services/bff-api
 
       - name: Run Go Integration Tests (Testcontainers)
+        # Testcontainers benötigt Docker, was auf ubuntu-latest vorinstalliert ist
         run: |
           cd services/ingestion-api && go test -v ./...
           cd ../bff-api && go test -v ./...
