@@ -2,7 +2,7 @@
 SERVICE=$1
 mkdir -p .pids
 
-# Farben definieren
+# Colors
 MAGENTA='\033[38;5;170m'
 GREEN='\033[38;5;76m'
 GRAY='\033[38;5;245m'
@@ -14,7 +14,7 @@ if [ "$SERVICE" == "ingestion" ]; then
         echo -e "${CYAN}ℹ Ingestion API is already running.${RESET}"
     else
         echo -e "${MAGENTA}◆ Starting Ingestion API...${RESET}"
-        # NEU: Erst kompilieren, dann ausführen!
+        # Build first, then run
         go build -o .pids/ingestion-bin ./services/ingestion-api/cmd/api/main.go
         ./.pids/ingestion-bin > .pids/ingestion.log 2>&1 &
         echo $! > .pids/ingestion.pid
@@ -32,7 +32,7 @@ elif [ "$SERVICE" == "worker" ]; then
             python3 -m venv venv
         fi
         ./venv/bin/python -m pip install -r requirements.txt -q
-        # Bei Python ist das kein Problem, da der Prozess direkt gestartet wird
+        # Python processes start directly, no compilation step needed
         ./venv/bin/python main.py > ../../.pids/worker.log 2>&1 &
         echo $! > ../../.pids/worker.pid
         echo -e "${GREEN}✔ Analysis Worker running in background (PID: $(cat ../../.pids/worker.pid))${RESET}"
@@ -43,7 +43,7 @@ elif [ "$SERVICE" == "bff" ]; then
         echo -e "${CYAN}ℹ BFF API is already running.${RESET}"
     else
         echo -e "${MAGENTA}◆ Starting BFF API...${RESET}"
-        # NEU: Erst kompilieren, dann ausführen!
+        # Build first, then run
         go build -o .pids/bff-bin ./services/bff-api/cmd/server/main.go
         ./.pids/bff-bin > .pids/bff.log 2>&1 &
         echo $! > .pids/bff.pid

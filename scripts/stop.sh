@@ -1,7 +1,7 @@
 #!/bin/bash
 SERVICE=$1
 
-# Farben
+# Colors
 GOLD='\033[38;5;214m'
 RESET='\033[0m'
 

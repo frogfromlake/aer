@@ -7,6 +7,9 @@ opentelemetry-api==1.24.0
 opentelemetry-sdk==1.24.0
 opentelemetry-exporter-otlp==1.24.0
 pydantic==2.6.3
+# NOTE: psycopg2-binary is for development/CI only. It bundles its own libpq
+# and is not recommended for production. For production builds, use 'psycopg2'
+# (requires libpq-dev to be installed in the Dockerfile).
 psycopg2-binary==2.9.9
 
 # --- Resilience ---

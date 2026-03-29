@@ -99,6 +99,15 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Grafana-Credentials entkoppeln:** Eigene `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` Variablen statt Wiederverwendung der MinIO-Credentials.
 * [x] **`replace`-Direktive konsistent machen:** `bff-api/go.mod` erhält dieselbe `replace`-Direktive wie `ingestion-api/go.mod` für lokale `pkg`-Referenz.
 
+## Phase 21: Code Quality & Logger Refactoring - [x] DONE
+*Kann parallel zu Phase 17 bearbeitet werden. Behebung von Code-Qualitätsproblemen und Vereinheitlichung der Logging-Strategie, bevor die Codebasis mit Crawlern wächst — danach wird Refactoring teurer.*
+
+* [x] **Logger-Refactoring (`pkg/logger`):** Der `TintHandler` ruft aktuell `fmt.Printf` direkt auf und umgeht damit das slog-System. Refactoring: Den darunterliegenden `slog.Handler` korrekt delegieren oder eine bewährte Bibliothek wie `lmittmann/tint` verwenden, die das slog-Interface korrekt implementiert.
+* [x] **Python OTel-Setup isolieren:** Das Tracer/Provider-Setup aus dem globalen Modul-Scope in eine explizite `init_telemetry()`-Funktion verschieben, die in `main()` aufgerufen wird. Dies ermöglicht sauberes Testing ohne globale Seiteneffekte.
+* [x] **Python Dependency Injection:** `DataProcessor.__init__` akzeptiert bereits Infrastructure-Clients — dasselbe Prinzip auf `main.py` anwenden, sodass die NATS-Subscription und Worker-Konfiguration testbar und konfigurierbar sind.
+* [x] **`psycopg2-binary` dokumentieren:** Expliziter Kommentar in `requirements.txt`, dass `psycopg2-binary` nur für Development/CI geeignet ist. Für Production: `psycopg2` mit libpq-Abhängigkeit im Dockerfile.
+* [x] **Makefile-Sprache vereinheitlichen:** Die Shell-Skripte (`clean_infra.sh`, etc.) enthalten deutsche Kommentare und UI-Texte. Umstellung auf Englisch gemäß der Projektsprachen-Constraint (ADR in `02_architecture_constraints.md`).
+
 ---
 
 # Open Phases (14–23) — Priorisierte Implementierungsreihenfolge
@@ -116,22 +125,13 @@ Phase 15 (Config) ✔
           → Phase 23 (Security)
             → Phase 22 (Docs)
 
-Phase 21 (Code Quality) kann jederzeit parallel bearbeitet werden.
+Phase 21 (Code Quality) ✔
 ```
 
 ---
 
 ### Tier 1: Fundament legen (bevor echte Daten fließen)
-
-## Phase 21: Code Quality & Logger Refactoring
-*Kann parallel zu Phase 17 bearbeitet werden. Behebung von Code-Qualitätsproblemen und Vereinheitlichung der Logging-Strategie, bevor die Codebasis mit Crawlern wächst — danach wird Refactoring teurer.*
-
-* [ ] **Logger-Refactoring (`pkg/logger`):** Der `TintHandler` ruft aktuell `fmt.Printf` direkt auf und umgeht damit das slog-System. Refactoring: Den darunterliegenden `slog.Handler` korrekt delegieren oder eine bewährte Bibliothek wie `lmittmann/tint` verwenden, die das slog-Interface korrekt implementiert.
-* [ ] **Python OTel-Setup isolieren:** Das Tracer/Provider-Setup aus dem globalen Modul-Scope in eine explizite `init_telemetry()`-Funktion verschieben, die in `main()` aufgerufen wird. Dies ermöglicht sauberes Testing ohne globale Seiteneffekte.
-* [ ] **Python Dependency Injection:** `DataProcessor.__init__` akzeptiert bereits Infrastructure-Clients — dasselbe Prinzip auf `main.py` anwenden, sodass die NATS-Subscription und Worker-Konfiguration testbar und konfigurierbar sind.
-* [ ] **`psycopg2-binary` dokumentieren:** Expliziter Kommentar in `requirements.txt`, dass `psycopg2-binary` nur für Development/CI geeignet ist. Für Production: `psycopg2` mit libpq-Abhängigkeit im Dockerfile.
-* [ ] **Makefile-Sprache vereinheitlichen:** Die Shell-Skripte (`clean_infra.sh`, etc.) enthalten deutsche Kommentare und UI-Texte. Umstellung auf Englisch gemäß der Projektsprachen-Constraint (ADR in `02_architecture_constraints.md`).
-
+Currently Empty
 ---
 
 ### Tier 2: Erster echter Datenfluss
