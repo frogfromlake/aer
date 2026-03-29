@@ -90,7 +90,7 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Idempotente Metriken (Worker):** Ablösung von `datetime.now()` durch deterministische Zeitstempel (aus den MinIO-Event-Metadaten) beim ClickHouse-Insert, um Duplikate bei NATS-Redeliveries zu verhindern.
 * [x] **OOM-Prevention (BFF-API):** Implementierung von Downsampling (z.B. Aggregation auf Minuten-/Stundenbasis) und Limits in den ClickHouse-Queries der Go BFF-API, um Speicherüberläufe bei großen Zeiträumen zu verhindern.
 * [x] **Clean Graceful Shutdown (Worker):** Refactoring des Python-Workers von hartem `task.cancel()` auf Sentinel-Werte (`None`) in der Task-Queue, um abgerissene Datenbankverbindungen bei Neustarts zu vermeiden.
-* [ ] **Macro-Level Error Tracking (Ingestion):** Anpassung der Go `IngestionService`-Logik, um fehlerhafte Einzeldokumente zu tracken und den übergeordneten Job-Status am Ende korrekt auf `failed` oder `completed_with_errors` zu setzen.
+* [x] **Macro-Level Error Tracking (Ingestion):** Anpassung der Go `IngestionService`-Logik, um fehlerhafte Einzeldokumente zu tracken und den übergeordneten Job-Status am Ende korrekt auf `failed` oder `completed_with_errors` zu setzen.
 * [ ] **Boot-Race-Conditions (Infra):** Hinzufügen von nativen Docker `healthcheck`s für PostgreSQL und ClickHouse in der `compose.yaml` inklusive `depends_on: condition: service_healthy` für abhängige Services.
 
 ## Phase 14: Real Data Ingestion (The First Real Crawler)
