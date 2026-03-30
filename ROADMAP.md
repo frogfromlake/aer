@@ -123,6 +123,16 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [ ] **Rate Limiting:** Token-Bucket oder Sliding-Window Rate Limiter als Middleware, konfigurierbar via Umgebungsvariablen.
 * [x] **Health Check Endpoint:** `GET /api/v1/healthz` (Liveness) und `GET /api/v1/readyz` (Readiness, prüft ClickHouse-Verbindung) als standardisierte Kubernetes-kompatible Endpunkte.
 * [x] **Request Timeout Middleware:** Globaler Context-Timeout pro Request (30s), um hängende ClickHouse-Queries zu begrenzen.
+
+## Phase 18: Observability Completion
+*Schließen aller Lücken im Monitoring- und Tracing-Stack. Jetzt gibt es echte Daten zum Beobachten — ohne Observability sind Probleme mit echten Crawlern unsichtbar.*
+
+* [x] **BFF-API OTel-Instrumentierung:** Einbau von `otelhttp`-Middleware und Tracer in die BFF-API, damit Traces nicht am Python-Worker enden, sondern bis zum API-Response sichtbar sind.
+* [x] **Python Prometheus-Metriken:** Export von Business-Metriken aus dem Worker: `events_processed_total`, `events_quarantined_total`, `event_processing_duration_seconds`, `dlq_size` (Counter/Histogram via `opentelemetry-sdk` Metrics-API oder `prometheus_client`).
+* [x] **DLQ-Monitoring:** Periodische Prüfung der Objektanzahl im `bronze-quarantine`-Bucket. Alert bei Überschreitung eines Schwellwerts.
+* [x] **Grafana Dashboard Provisioning:** Erstellung eines vorgefertigten JSON-Dashboards (`infra/observability/grafana-dashboards/`) mit Panels für: Pipeline-Durchsatz, DLQ-Rate, ClickHouse Query-Latenz, NATS Consumer Lag. Automatisches Provisioning via `grafana.ini` / Provisioning-Volume.
+* [x] **Alerting Rules:** Definition von Prometheus Alerting Rules (`alert.rules.yml`): Worker-Down, DLQ-Overflow, ClickHouse-Latenz > Schwellwert, NATS-Consumer-Lag > Schwellwert.
+
 ---
 
 # Open Phases (14–23) — Priorisierte Implementierungsreihenfolge
@@ -158,15 +168,6 @@ Currently Empty
 *Absicherung und Professionalisierung der HTTP-Schicht der BFF-API für den Produktionseinsatz. Mit echten Daten im System wird die BFF-API von außen erreichbar — sie muss abgesichert sein.*
 
 * [ ] **Rate Limiting:** (Distributed Cache): Wir nutzen eine schnelle, zentrale In-Memory-Datenbank wie Redis. Jede API-Instanz fragt bei jedem Request kurz bei Redis an.
-
-## Phase 18: Observability Completion
-*Schließen aller Lücken im Monitoring- und Tracing-Stack. Jetzt gibt es echte Daten zum Beobachten — ohne Observability sind Probleme mit echten Crawlern unsichtbar.*
-
-* [ ] **BFF-API OTel-Instrumentierung:** Einbau von `otelhttp`-Middleware und Tracer in die BFF-API, damit Traces nicht am Python-Worker enden, sondern bis zum API-Response sichtbar sind.
-* [ ] **Python Prometheus-Metriken:** Export von Business-Metriken aus dem Worker: `events_processed_total`, `events_quarantined_total`, `event_processing_duration_seconds`, `dlq_size` (Counter/Histogram via `opentelemetry-sdk` Metrics-API oder `prometheus_client`).
-* [ ] **DLQ-Monitoring:** Periodische Prüfung der Objektanzahl im `bronze-quarantine`-Bucket. Alert bei Überschreitung eines Schwellwerts.
-* [ ] **Grafana Dashboard Provisioning:** Erstellung eines vorgefertigten JSON-Dashboards (`infra/observability/grafana-dashboards/`) mit Panels für: Pipeline-Durchsatz, DLQ-Rate, ClickHouse Query-Latenz, NATS Consumer Lag. Automatisches Provisioning via `grafana.ini` / Provisioning-Volume.
-* [ ] **Alerting Rules:** Definition von Prometheus Alerting Rules (`alert.rules.yml`): Worker-Down, DLQ-Overflow, ClickHouse-Latenz > Schwellwert, NATS-Consumer-Lag > Schwellwert.
 
 ## Phase 19: Testing Expansion & Contract Safety
 *Erhöhung der Testabdeckung auf alle kritischen Pfade. Jetzt sinnvoll, weil der reale Datenfluss existiert und getestet werden kann.*

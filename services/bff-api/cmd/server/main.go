@@ -13,8 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/frogfromlake/aer/pkg/logger"
+	"github.com/frogfromlake/aer/pkg/telemetry"
 	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/handler"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
@@ -35,7 +37,19 @@ func main() {
 	logger.Init(cfg.Environment, cfg.LogLevel)
 	slog.Info("Bootstrapping AĒR BFF API...", "environment", cfg.Environment)
 
-	// 4. Initialize Storage (Passing Context for Backoff)
+	// 4. Initialize OpenTelemetry
+	shutdownTracer, err := telemetry.InitProvider("aer-bff-api", cfg.OTelEndpoint)
+	if err != nil {
+		slog.Error("Failed to initialize OpenTelemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := shutdownTracer(context.Background()); err != nil {
+			slog.Error("Error during OpenTelemetry shutdown", "error", err)
+		}
+	}()
+
+	// 5. Initialize Storage (Passing Context for Backoff)
 	chAddr := cfg.ClickHouseHost + ":" + cfg.ClickHousePort
 	chStore, err := storage.NewClickHouseStorage(
 		ctx,
@@ -50,7 +64,7 @@ func main() {
 	}
 	slog.Info("ClickHouse connected successfully")
 
-	// 5. Setup Handlers and Router
+	// 6. Setup Handlers and Router
 	serverLogic := handler.NewServer(chStore)
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
@@ -73,6 +87,11 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+
+	// OTel: wraps each request in a span and propagates the trace context
+	r.Use(func(next http.Handler) http.Handler {
+		return otelhttp.NewHandler(next, "bff-api")
+	})
 
 	// Request Logging: structured access log for every request via slog
 	r.Use(requestLogger)

@@ -5,6 +5,12 @@ from datetime import datetime
 from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverRecord, ValidationError
+from internal.metrics import (
+    events_processed_total,
+    events_quarantined_total,
+    event_processing_duration_seconds,
+    dlq_size,
+)
 
 logger = structlog.get_logger()
 
@@ -19,6 +25,10 @@ class DataProcessor:
         self.pg = pg_pool
 
     def process_event(self, obj_key: str, event_time_str: str, span):
+        with event_processing_duration_seconds.time():
+            self._process_event_inner(obj_key, event_time_str, span)
+
+    def _process_event_inner(self, obj_key: str, event_time_str: str, span):
         # --- 1. IDEMPOTENCY CHECK (Fast PG Lookup) ---
         status = self._get_document_status(obj_key)
 
@@ -63,6 +73,8 @@ class DataProcessor:
             logger.warning("Harmonization failed. Moving to DLQ.", object=obj_key, error=str(e))
             self._move_to_quarantine(obj_key, raw_content)
             self._update_document_status(obj_key, "quarantined")
+            events_quarantined_total.inc()
+            dlq_size.inc()
             span.set_attribute("aer.status", "quarantined")
             return
 
@@ -88,6 +100,7 @@ class DataProcessor:
 
         # --- 7. Commit Success (Solve Partial Failures) ---
         self._update_document_status(obj_key, "processed")
+        events_processed_total.inc()
 
         span.set_attribute("aer.word_count", record.word_count)
         span.set_attribute("aer.metric_value", record.metric_value)

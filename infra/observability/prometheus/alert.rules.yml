@@ -1,0 +1,29 @@
+groups:
+  - name: aer_pipeline
+    rules:
+      - alert: WorkerDown
+        expr: up{job="analysis-worker"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Analysis Worker is down"
+          description: "The analysis-worker Prometheus scrape target has been unreachable for more than 1 minute."
+
+      - alert: DLQOverflow
+        expr: dlq_size > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead Letter Queue overflow detected"
+          description: "bronze-quarantine bucket contains {{ $value }} objects, exceeding the threshold of 50."
+
+      - alert: HighEventProcessingLatency
+        expr: histogram_quantile(0.95, rate(event_processing_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High event processing latency (p95)"
+          description: "95th percentile processing duration is {{ $value }}s, exceeding the 5s threshold."

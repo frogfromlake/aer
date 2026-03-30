@@ -16,6 +16,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 # Internal application imports
+from prometheus_client import start_http_server
 from internal.storage import init_minio, init_clickhouse, init_postgres
 from internal.processor import DataProcessor
 
@@ -91,6 +92,10 @@ async def main(config: WorkerConfig | None = None):
         config = WorkerConfig()
 
     tracer = init_telemetry(config.otel_endpoint)
+
+    metrics_port = int(os.getenv("METRICS_PORT", "8001"))
+    start_http_server(metrics_port)
+    logger.info("Prometheus metrics server started", port=metrics_port)
 
     minio_client = init_minio()
     ch_client = init_clickhouse()

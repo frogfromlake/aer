@@ -156,6 +156,7 @@ services:
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
     volumes:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infra/observability/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
     networks:
       - aer-network
 
@@ -169,6 +170,7 @@ services:
       - "3000:3000"
     volumes:
       - ./infra/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./infra/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
     depends_on:
       - tempo
       - prometheus
