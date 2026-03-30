@@ -14,10 +14,9 @@ These tests validate two concerns:
 Requirements: Docker must be available. Run via `make test-python`.
 """
 
-import os
 import pytest
 import psycopg2
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 from tenacity import RetryError
 from testcontainers.postgres import PostgresContainer
