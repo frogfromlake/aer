@@ -3,22 +3,29 @@ services:
   # 1. DOCUMENTATION
   # ----------------------------------------------------
   docs:
-    image: squidfunk/mkdocs-material:latest
+    image: squidfunk/mkdocs-material:9.5.49
     container_name: aer_docs
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - .:/docs
     command: serve --dev-addr=0.0.0.0:8000 --livereload --watch /docs --dirty
     networks:
-      - aer-network
+      - aer-backend
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
 
   # ----------------------------------------------------
   # 2. DATA LAKE (BRONZE LAYER / RAW DATA)
   # ----------------------------------------------------
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
     container_name: aer_minio
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -33,7 +40,7 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     networks:
-      - aer-network
+      - aer-backend
     depends_on:
       - nats
     healthcheck:
@@ -41,10 +48,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.50"
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-01-17T23-25-50Z
     container_name: aer_minio_init
+    restart: "no"
     depends_on:
       minio:
         condition: service_healthy
@@ -56,25 +69,31 @@ services:
       - ./infra/minio/setup.sh:/setup.sh
     entrypoint: /bin/sh /setup.sh
     networks:
-      - aer-network
+      - aer-backend
 
   # ----------------------------------------------------
   # 2.2 MESSAGE BROKER (EVENT PIPELINE)
   # ----------------------------------------------------
   nats:
-    image: nats:latest
+    image: nats:2.10.26-alpine
     container_name: aer_nats
+    restart: unless-stopped
     ports:
       - "4222:4222"
       - "8222:8222"
     command: "-js"
     networks:
-      - aer-network
+      - aer-backend
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "4222"]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
 
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)
@@ -82,6 +101,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: aer_postgres
+    restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
@@ -92,19 +112,25 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - aer-network
+      - aer-backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
 
   # ----------------------------------------------------
   # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
   # ----------------------------------------------------
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:24.12.3.47
     container_name: aer_clickhouse
+    restart: unless-stopped
     ports:
       - "8123:8123"
       - "9002:9000"
@@ -117,19 +143,25 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - aer-network
+      - aer-backend
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.00"
 
   # ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
   # ----------------------------------------------------
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    image: otel/opentelemetry-collector:0.120.0
     container_name: aer_otel_collector
+    restart: unless-stopped
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./infra/observability/otel-collector.yaml:/etc/otel-collector-config.yaml
@@ -137,32 +169,50 @@ services:
       - "4317:4317"
       - "4318:4318"
     networks:
-      - aer-network
+      - aer-backend
     depends_on:
       - nats
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
 
   tempo:
     image: grafana/tempo:2.6.1
     container_name: aer_tempo
+    restart: unless-stopped
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./infra/observability/tempo.yaml:/etc/tempo.yaml
     networks:
-      - aer-network
+      - aer-backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.2.1
     container_name: aer_prometheus
+    restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
     volumes:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./infra/observability/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
     networks:
-      - aer-network
+      - aer-backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.2
     container_name: aer_grafana
+    restart: unless-stopped
     environment:
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
@@ -175,13 +225,21 @@ services:
       - tempo
       - prometheus
     networks:
-      - aer-network
-      
+      - aer-frontend
+      - aer-backend
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
 volumes:
   minio_data:
   postgres_data:
   clickhouse_data:
 
 networks:
-  aer-network:
+  aer-frontend:
+    driver: bridge
+  aer-backend:
     driver: bridge

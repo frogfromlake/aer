@@ -55,8 +55,39 @@ jobs:
             services/bff-api/go.sum
             pkg/go.sum
 
-      # Manual installation is required because the pre-built action binary 
+      - name: Cache Testcontainers Docker images
+        uses: actions/cache@v4
+        id: docker-cache
+        with:
+          path: /tmp/docker-images
+          key: docker-tc-v1-minio-latest-postgres-16alpine-ch-23.8
+
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: |
+          for f in /tmp/docker-images/*.tar; do
+            [ -f "$f" ] && docker load -i "$f"
+          done
+
+      - name: Pull and cache Testcontainers images
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/docker-images
+          docker pull minio/minio:latest
+          docker pull postgres:16-alpine
+          docker pull clickhouse/clickhouse-server:23.8
+          docker save minio/minio:latest -o /tmp/docker-images/minio.tar
+          docker save postgres:16-alpine -o /tmp/docker-images/postgres.tar
+          docker save clickhouse/clickhouse-server:23.8 -o /tmp/docker-images/clickhouse.tar
+
+      # Manual installation is required because the pre-built action binary
       # does not yet support Go 1.26.1 features.
+      - name: Cache Go tools (golangci-lint, oapi-codegen)
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
@@ -68,9 +99,11 @@ jobs:
         working-directory: ./services/bff-api
         run: golangci-lint run
 
+      - name: Install oapi-codegen
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
       - name: OpenAPI Contract Test (codegen sync check)
         run: |
-          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
           make codegen
           git diff --exit-code services/bff-api/internal/handler/generated.go
 

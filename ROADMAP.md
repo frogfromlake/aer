@@ -148,22 +148,6 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 
 *Die folgenden Phasen wurden aus einem professionellen Code-Review abgeleitet und in eine Reihenfolge gebracht, die den Abhängigkeitsgraph des Systems respektiert. Die zentrale Achse lautet: Config aufräumen → Ingestion zum echten Service machen → erster Crawler → beobachten & absichern → skalieren.*
 
-```
-Phase 15 (Config) ✔
-  → Phase 17 (Ingestion Redesign) ✔
-    → Phase 14 (First Crawler) ← nächster Schritt, erster echter Datenfluss
-      → Phase 16 (BFF Hardening)  ┐
-      → Phase 18 (Observability)  ├ parallel möglich
-      → Phase 19 (Testing)       ┘
-        → Phase 20 (Infra Hardening)
-          → Phase 23 (Security)
-            → Phase 22 (Docs)
-
-Phase 21 (Code Quality) ✔
-```
-
----
-
 ### Tier 1: Fundament legen (bevor echte Daten fließen)
 Currently Empty
 ---
@@ -182,18 +166,18 @@ Currently Empty
 
 ### Tier 4: Produktionsreife & Skalierung
 
-## Phase 20: Infrastructure Hardening & Container Security
+## Phase 20: Infrastructure Hardening & Container Security - [x] DONE
 *Absicherung der Docker-Infrastruktur für Langzeitbetrieb und Vorbereitung auf Skalierung mit hunderten Crawlern.*
 
-* [ ] **Image-Versionen pinnen:** Alle `latest`-Tags in `compose.yaml` durch spezifische Versionen ersetzen (z.B. `minio/minio:RELEASE.2026-03-01`, `nats:2.10.x`, `postgres:16.x-alpine`, `clickhouse/clickhouse-server:24.x`). Dokumentation der Upgrade-Policy.
-* [ ] **Resource Limits:** `deploy.resources.limits` (Memory, CPU) für jeden Container in der `compose.yaml` setzen. Besonders kritisch: ClickHouse (OLAP kann unbegrenzt Speicher konsumieren).
-* [ ] **Restart Policies:** `restart: unless-stopped` für alle persistenten Services (Datenbanken, NATS, Grafana).
-* [ ] **Netzwerk-Segmentierung:** Aufteilung des flachen `aer-network` in mindestens zwei Subnetze: `aer-frontend` (BFF, Grafana, Docs) und `aer-backend` (Datenbanken, NATS, Worker). Nur die BFF-API verbindet beide Netze.
-* [ ] **Service Dockerfiles:** Erstellung von Multi-Stage Dockerfiles für `ingestion-api`, `bff-api` und `analysis-worker`, damit die Services selbst containerisiert und unabhängig vom Host deployed werden können.
-* [ ] **CI Docker-Layer-Caching:** Einführung von `docker/build-push-action` oder manuellem Layer-Caching in der GitHub Actions Pipeline, um Testcontainers-Pulls zu beschleunigen.
+* [x] **Image-Versionen pinnen:** Alle `latest`-Tags in `compose.yaml` durch spezifische Versionen ersetzt. **Upgrade-Policy:** Image-Versionen werden manuell und bewusst angehoben — kein automatisches Upgrade. Vor jedem Upgrade wird die Changelog/Release-Notes des jeweiligen Images geprüft und der Stack lokal mit `make up` getestet. Die gepinnten Versionen werden im Git-Log versioniert, sodass ein Rollback jederzeit via `git revert` möglich ist.
+* [x] **Resource Limits:** `deploy.resources.limits` (Memory, CPU) für jeden Container in der `compose.yaml` gesetzt. Besonders kritisch: ClickHouse (OLAP kann unbegrenzt Speicher konsumieren).
+* [x] **Restart Policies:** `restart: unless-stopped` für alle persistenten Services (Datenbanken, NATS, Grafana).
+* [x] **Netzwerk-Segmentierung:** Aufteilung des flachen `aer-network` in mindestens zwei Subnetze: `aer-frontend` (BFF, Grafana, Docs) und `aer-backend` (Datenbanken, NATS, Worker). Nur die BFF-API verbindet beide Netze.
+* [x] **Service Dockerfiles:** Multi-Stage Dockerfiles für `ingestion-api`, `bff-api` und `analysis-worker` erstellt.
+* [x] **CI Docker-Layer-Caching:** Manuelles Layer-Caching via `actions/cache@v4` in der GitHub Actions Pipeline eingeführt. Testcontainers-Images (`minio/minio:latest`, `postgres:16-alpine`, `clickhouse/clickhouse-server:23.8`) werden als Tarballs gecacht und bei Cache-Hit direkt geladen, ohne erneut zu pullen. Zusätzlich: `~/go/bin` gecacht, um Reinstallation von `golangci-lint` und `oapi-codegen` bei unveränderter CI-Config zu vermeiden.
 
 ## Phase 23: Security Foundations
-*Einführung grundlegender Sicherheitsmechanismen vor dem Deployment mit echten Daten. Setzt Container-Hardening (Phase 20) voraus.*
+*Einführung grundlegender Sicherheitsmechanismen vor dem Deployment mit echten Daten.*
 
 * [ ] **API Authentication:** Einführung eines API-Key oder JWT-basierten Auth-Mechanismus auf der BFF-API. Mindestens ein statischer API-Key als Middleware-Gate für die erste Iteration.
 * [ ] **TLS für externe Endpoints:** HTTPS-Terminierung für BFF-API und Grafana (z.B. via Traefik oder Caddy als Reverse Proxy in der Compose-Stack).
