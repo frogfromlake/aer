@@ -51,6 +51,11 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string) 
 	return &ClickHouseStorage{conn: conn}, nil
 }
 
+// Ping checks if the ClickHouse connection is alive.
+func (s *ClickHouseStorage) Ping(ctx context.Context) error {
+	return s.conn.Ping(ctx)
+}
+
 // GetMetrics retrieves aggregated time-series data from the gold layer.
 // It downsamples the data to 5-minute intervals to prevent OOM errors on large time ranges.
 func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time) ([]struct {

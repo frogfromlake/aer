@@ -7,6 +7,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/frogfromlake/aer/pkg v0.0.0-20260328174849-985d236f4fd7
 	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/cors v1.2.2
 	github.com/oapi-codegen/runtime v1.3.1
 	github.com/spf13/viper v1.21.0
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.41.0

@@ -26,18 +26,36 @@ type GetMetricsParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Liveness probe
+	// (GET /healthz)
+	GetHealthz(w http.ResponseWriter, r *http.Request)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams)
+	// Readiness probe
+	// (GET /readyz)
+	GetReadyz(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
 
+// Liveness probe
+// (GET /healthz)
+func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Retrieve aggregated time-series metrics
 // (GET /metrics)
 func (_ Unimplemented) GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Readiness probe
+// (GET /readyz)
+func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -49,6 +67,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetHealthz operation middleware
+func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetMetrics operation middleware
 func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +108,20 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetrics(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetReadyz operation middleware
+func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetReadyz(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -199,10 +245,32 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics", wrapper.GetMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
 	})
 
 	return r
+}
+
+type GetHealthzRequestObject struct {
+}
+
+type GetHealthzResponseObject interface {
+	VisitGetHealthzResponse(w http.ResponseWriter) error
+}
+
+type GetHealthz200JSONResponse map[string]string
+
+func (response GetHealthz200JSONResponse) VisitGetHealthzResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type GetMetricsRequestObject struct {
@@ -240,11 +308,42 @@ func (response GetMetrics500JSONResponse) VisitGetMetricsResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetReadyzRequestObject struct {
+}
+
+type GetReadyzResponseObject interface {
+	VisitGetReadyzResponse(w http.ResponseWriter) error
+}
+
+type GetReadyz200JSONResponse map[string]string
+
+func (response GetReadyz200JSONResponse) VisitGetReadyzResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetReadyz503JSONResponse map[string]string
+
+func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Liveness probe
+	// (GET /healthz)
+	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error)
+	// Readiness probe
+	// (GET /readyz)
+	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -276,6 +375,30 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// GetHealthz operation middleware
+func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	var request GetHealthzRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHealthz(ctx, request.(GetHealthzRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHealthz")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
+		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMetrics operation middleware
 func (sh *strictHandler) GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams) {
 	var request GetMetricsRequestObject
@@ -295,6 +418,30 @@ func (sh *strictHandler) GetMetrics(w http.ResponseWriter, r *http.Request, para
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricsResponseObject); ok {
 		if err := validResponse.VisitGetMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetReadyz operation middleware
+func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
+	var request GetReadyzRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetReadyz(ctx, request.(GetReadyzRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetReadyz")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetReadyzResponseObject); ok {
+		if err := validResponse.VisitGetReadyzResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

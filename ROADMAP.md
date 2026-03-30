@@ -113,6 +113,16 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 
 * [x] **Standalone Go Crawler:** Erstellung eines eigenständigen Go-Programms unter `crawlers/wikipedia-scraper/`, das die öffentliche Wikipedia JSON-API (z.B. Artikel des Tages) abruft und das JSON per POST an `http://localhost:8081/api/v1/ingest` sendet.
 * [x] **Worker Adaptation (Python):** Anpassung von `models.py`, `processor.py` und `test_processor.py` im `analysis-worker` an das neue Wikipedia-Format. Logik: Text bereinigen, rudimentäre N-Gramme/Wortzähler extrahieren und als Metrik an ClickHouse senden.
+
+## Phase 16: API Hardening & HTTP Middleware Stack - [x] DONE
+*Absicherung und Professionalisierung der HTTP-Schicht der BFF-API für den Produktionseinsatz. Mit echten Daten im System wird die BFF-API von außen erreichbar — sie muss abgesichert sein.*
+
+* [x] **Recovery Middleware:** `chi` Recovery-Middleware einbauen, um Panics in Handlern abzufangen und als `500 Internal Server Error` zurückzugeben statt den Prozess zu crashen.
+* [x] **Request-Logging Middleware:** Structured Access-Logging (`slog`) für jede eingehende HTTP-Request (Method, Path, Status, Duration, Trace-ID).
+* [x] **CORS Middleware:** Konfigurierbare Cross-Origin-Freigabe für das spätere Frontend (erlaubte Origins via `.env`, `CORS_ALLOWED_ORIGINS`).
+* [ ] **Rate Limiting:** Token-Bucket oder Sliding-Window Rate Limiter als Middleware, konfigurierbar via Umgebungsvariablen.
+* [x] **Health Check Endpoint:** `GET /api/v1/healthz` (Liveness) und `GET /api/v1/readyz` (Readiness, prüft ClickHouse-Verbindung) als standardisierte Kubernetes-kompatible Endpunkte.
+* [x] **Request Timeout Middleware:** Globaler Context-Timeout pro Request (30s), um hängende ClickHouse-Queries zu begrenzen.
 ---
 
 # Open Phases (14–23) — Priorisierte Implementierungsreihenfolge
@@ -144,18 +154,10 @@ Currently Empty
 ---
 
 ### Tier 3: Härtung für Dauerbetrieb mit echten Daten
-
-*Die Phasen 16, 18 und 19 können parallel bearbeitet werden, da sie unterschiedliche Systemschichten betreffen.*
-
 ## Phase 16: API Hardening & HTTP Middleware Stack
 *Absicherung und Professionalisierung der HTTP-Schicht der BFF-API für den Produktionseinsatz. Mit echten Daten im System wird die BFF-API von außen erreichbar — sie muss abgesichert sein.*
 
-* [ ] **Recovery Middleware:** `chi` Recovery-Middleware einbauen, um Panics in Handlern abzufangen und als `500 Internal Server Error` zurückzugeben statt den Prozess zu crashen.
-* [ ] **Request-Logging Middleware:** Structured Access-Logging (`slog`) für jede eingehende HTTP-Request (Method, Path, Status, Duration, Trace-ID).
-* [ ] **CORS Middleware:** Konfigurierbare Cross-Origin-Freigabe für das spätere Frontend (erlaubte Origins via `.env`).
-* [ ] **Rate Limiting:** Token-Bucket oder Sliding-Window Rate Limiter als Middleware, konfigurierbar via Umgebungsvariablen.
-* [ ] **Health Check Endpoint:** `GET /healthz` (Liveness) und `GET /readyz` (Readiness, prüft ClickHouse-Verbindung) als standardisierte Kubernetes-kompatible Endpunkte.
-* [ ] **Request Timeout Middleware:** Globaler Context-Timeout pro Request (z.B. 30s), um hängende ClickHouse-Queries zu begrenzen.
+* [ ] **Rate Limiting:** (Distributed Cache): Wir nutzen eine schnelle, zentrale In-Memory-Datenbank wie Redis. Jede API-Instanz fragt bei jedem Request kurz bei Redis an.
 
 ## Phase 18: Observability Completion
 *Schließen aller Lücken im Monitoring- und Tracing-Stack. Jetzt gibt es echte Daten zum Beobachten — ohne Observability sind Probleme mit echten Crawlern unsichtbar.*

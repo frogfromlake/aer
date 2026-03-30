@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 
 	"github.com/frogfromlake/aer/pkg/logger"
 	"github.com/frogfromlake/aer/services/bff-api/internal/config"
@@ -52,6 +55,29 @@ func main() {
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
 	r := chi.NewRouter()
+
+	// --- MIDDLEWARE STACK ---
+
+	// Recovery: catches panics in handlers and returns 500 instead of crashing
+	r.Use(middleware.Recoverer)
+
+	// Request Timeout: limits each request to 30s to prevent hanging ClickHouse queries
+	r.Use(middleware.Timeout(30 * time.Second))
+
+	// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var
+	allowedOrigins := strings.Split(cfg.CORSOrigins, ",")
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{"GET", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Content-Type"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
+	// Request Logging: structured access log for every request via slog
+	r.Use(requestLogger)
+
+	// --- ROUTES ---
 	handler.HandlerFromMuxWithBaseURL(strictHandler, r, "/api/v1")
 
 	// --- GRACEFUL SHUTDOWN LOGIC ---
@@ -82,4 +108,20 @@ func main() {
 	} else {
 		slog.Info("BFF API stopped cleanly.")
 	}
+}
+
+// requestLogger is a structured access log middleware using slog.
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+		slog.Info("http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.Status(),
+			"duration_ms", time.Since(start).Milliseconds(),
+			"trace_id", r.Header.Get("Traceparent"),
+		)
+	})
 }

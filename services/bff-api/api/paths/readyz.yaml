@@ -1,0 +1,17 @@
+get:
+  summary: Readiness probe
+  description: Returns 200 if all dependencies (ClickHouse) are reachable. Used by Kubernetes readiness probes.
+  operationId: getReadyz
+  responses:
+    '200':
+      description: Service is ready to serve traffic.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/HealthStatus.yaml'
+    '503':
+      description: Service is not ready — one or more dependencies are unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/HealthStatus.yaml'

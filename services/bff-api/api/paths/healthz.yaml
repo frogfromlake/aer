@@ -1,0 +1,11 @@
+get:
+  summary: Liveness probe
+  description: Returns 200 if the service process is alive. Used by Kubernetes liveness probes.
+  operationId: getHealthz
+  responses:
+    '200':
+      description: Service is alive.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/HealthStatus.yaml'

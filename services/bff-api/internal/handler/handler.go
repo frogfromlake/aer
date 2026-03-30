@@ -17,6 +17,19 @@ func NewServer(db *storage.ClickHouseStorage) *Server {
 	return &Server{db: db}
 }
 
+// GetHealthz handles GET /healthz — liveness probe, always returns 200 if the process is alive.
+func (s *Server) GetHealthz(_ context.Context, _ GetHealthzRequestObject) (GetHealthzResponseObject, error) {
+	return GetHealthz200JSONResponse{"status": "alive"}, nil
+}
+
+// GetReadyz handles GET /readyz — readiness probe, returns 200 only if ClickHouse is reachable.
+func (s *Server) GetReadyz(ctx context.Context, _ GetReadyzRequestObject) (GetReadyzResponseObject, error) {
+	if err := s.db.Ping(ctx); err != nil {
+		return GetReadyz503JSONResponse{"clickhouse": err.Error()}, nil
+	}
+	return GetReadyz200JSONResponse{"clickhouse": "ok"}, nil
+}
+
 // GetMetrics handles the GET /metrics request and fetches time-series data.
 func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error) {
 	// Fallback time range: Last 24 hours if no query parameters are provided
