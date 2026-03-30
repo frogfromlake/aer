@@ -133,6 +133,15 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Grafana Dashboard Provisioning:** Erstellung eines vorgefertigten JSON-Dashboards (`infra/observability/grafana-dashboards/`) mit Panels für: Pipeline-Durchsatz, DLQ-Rate, ClickHouse Query-Latenz, NATS Consumer Lag. Automatisches Provisioning via `grafana.ini` / Provisioning-Volume.
 * [x] **Alerting Rules:** Definition von Prometheus Alerting Rules (`alert.rules.yml`): Worker-Down, DLQ-Overflow, ClickHouse-Latenz > Schwellwert, NATS-Consumer-Lag > Schwellwert.
 
+## Phase 19: Testing Expansion & Contract Safety - [x] DONE
+*Erhöhung der Testabdeckung auf alle kritischen Pfade. Jetzt sinnvoll, weil der reale Datenfluss existiert und getestet werden kann.*
+
+* [x] **BFF Handler Tests:** Unit-Tests für die Handler-Logik in `handler.go` (Zeitraum-Fallback, Fehlerbehandlung) mit gemocktem Storage-Interface.
+* [x] **OpenAPI Contract Tests:** Automatisierter Abgleich, dass die generierte `generated.go` mit der `openapi.yaml` synchron ist. Integration in CI (z.B. `oapi-codegen` erneut ausführen und `git diff` prüfen).
+* [x] **Python Edge-Case Tests:** Erweiterung der `test_processor.py` um: leere Strings nach `.lower()`, verschachtelte/unerwartete JSON-Strukturen, simulierte Netzwerkfehler (MinIO `ConnectionError`, ClickHouse Timeout), `_move_to_quarantine` in Isolation.
+* [x] **Python Storage Tests:** Integration-Tests für `storage.py` mit Testcontainers (Postgres, MinIO, ClickHouse) analog zur Go-Strategie, um die `@retry`-Logik und Verbindungsaufbau zu validieren.
+* [x] **End-to-End Smoke Test:** Ein einzelner automatisierter Test, der den gesamten Flow testet: JSON → Ingestion → MinIO → NATS → Worker → ClickHouse → BFF API Response. Kann als separater CI-Job mit `docker compose up` laufen.
+
 ---
 
 # Open Phases (14–23) — Priorisierte Implementierungsreihenfolge
@@ -168,15 +177,6 @@ Currently Empty
 *Absicherung und Professionalisierung der HTTP-Schicht der BFF-API für den Produktionseinsatz. Mit echten Daten im System wird die BFF-API von außen erreichbar — sie muss abgesichert sein.*
 
 * [ ] **Rate Limiting:** (Distributed Cache): Wir nutzen eine schnelle, zentrale In-Memory-Datenbank wie Redis. Jede API-Instanz fragt bei jedem Request kurz bei Redis an.
-
-## Phase 19: Testing Expansion & Contract Safety
-*Erhöhung der Testabdeckung auf alle kritischen Pfade. Jetzt sinnvoll, weil der reale Datenfluss existiert und getestet werden kann.*
-
-* [ ] **BFF Handler Tests:** Unit-Tests für die Handler-Logik in `handler.go` (Zeitraum-Fallback, Fehlerbehandlung) mit gemocktem Storage-Interface.
-* [ ] **OpenAPI Contract Tests:** Automatisierter Abgleich, dass die generierte `generated.go` mit der `openapi.yaml` synchron ist. Integration in CI (z.B. `oapi-codegen` erneut ausführen und `git diff` prüfen).
-* [ ] **Python Edge-Case Tests:** Erweiterung der `test_processor.py` um: leere Strings nach `.lower()`, verschachtelte/unerwartete JSON-Strukturen, simulierte Netzwerkfehler (MinIO `ConnectionError`, ClickHouse Timeout), `_move_to_quarantine` in Isolation.
-* [ ] **Python Storage Tests:** Integration-Tests für `storage.py` mit Testcontainers (Postgres, MinIO, ClickHouse) analog zur Go-Strategie, um die `@retry`-Logik und Verbindungsaufbau zu validieren.
-* [ ] **End-to-End Smoke Test:** Ein einzelner automatisierter Test, der den gesamten Flow testet: JSON → Ingestion → MinIO → NATS → Worker → ClickHouse → BFF API Response. Kann als separater CI-Job mit `docker compose up` laufen.
 
 ---
 

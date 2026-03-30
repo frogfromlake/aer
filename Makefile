@@ -4,7 +4,7 @@
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
-.PHONY: logs tidy codegen test test-go test-python lint build-services
+.PHONY: logs tidy codegen test test-go test-python test-e2e lint build-services
 
 SHELL := /bin/bash
 
@@ -150,6 +150,10 @@ build-services:
 
 test: test-go test-python
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
+
+test-e2e:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running End-to-End Smoke Test (full Docker Compose stack)...$(RESET)"
+	@./scripts/e2e_smoke_test.sh
 
 test-go:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"

@@ -3,17 +3,24 @@ package handler
 import (
 	"context"
 	"time"
-
-	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
+
+// MetricsStore abstracts the data access layer for testability.
+type MetricsStore interface {
+	Ping(ctx context.Context) error
+	GetMetrics(ctx context.Context, start, end time.Time) ([]struct {
+		TS    time.Time
+		Value float64
+	}, error)
+}
 
 // Server implements the generated StrictServerInterface.
 type Server struct {
-	db *storage.ClickHouseStorage
+	db MetricsStore
 }
 
 // NewServer creates a new API server instance.
-func NewServer(db *storage.ClickHouseStorage) *Server {
+func NewServer(db MetricsStore) *Server {
 	return &Server{db: db}
 }
 

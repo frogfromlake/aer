@@ -199,3 +199,152 @@ def test_idempotency_skip_duplicate(processor, mock_minio, mock_clickhouse, dumm
     mock_minio.get_object.assert_not_called()
     mock_minio.put_object.assert_not_called()
     mock_clickhouse.insert.assert_not_called()
+
+
+def test_idempotency_skip_quarantined(processor, mock_minio, mock_clickhouse, dummy_span):
+    """
+    Tests that an event already in 'quarantined' state is also skipped,
+    preventing the DLQ from growing unboundedly on redelivery.
+    """
+    processor._get_document_status = MagicMock(return_value="quarantined")
+
+    processor.process_event("test-source/quarantined/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_minio.get_object.assert_not_called()
+    mock_minio.put_object.assert_not_called()
+    mock_clickhouse.insert.assert_not_called()
+
+
+def test_raw_text_only_whitespace_quarantined(processor, mock_minio, mock_clickhouse, dummy_span):
+    """
+    Tests that a document whose 'raw_text' is only whitespace is routed to the DLQ.
+    After normalization (' '.join('   '.split())) the text becomes '' — an invalid Silver record.
+    """
+    bronze_data = json.dumps({
+        "source": "test-source",
+        "title": "Empty Content Article",
+        "raw_text": "   \t  \n  ",
+        "url": "https://example.com/empty",
+        "timestamp": "2023-10-25T12:34:56Z",
+    }).encode('utf-8')
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = bronze_data
+    mock_minio.get_object.return_value = mock_response
+
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
+
+    processor.process_event("test-source/empty/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # Must be routed to DLQ
+    mock_minio.put_object.assert_called_once()
+    args, _ = mock_minio.put_object.call_args
+    assert args[0] == "bronze-quarantine"
+    mock_clickhouse.insert.assert_not_called()
+    processor._update_document_status.assert_called_with(
+        "test-source/empty/2023-10-25.json", "quarantined"
+    )
+
+
+def test_nested_raw_text_raises_unhandled_exception(processor, mock_minio, mock_clickhouse, dummy_span):
+    """
+    Tests that a document where 'raw_text' is a nested JSON object (not a string) raises
+    an AttributeError that propagates out of process_event uncaught.
+
+    Design intent: the Silver Contract only catches ValidationError and ValueError.
+    An unexpected type signals a structural schema break — the message must be NAK'd
+    by NATS and retried, not silently quarantined.
+    """
+    nested_bronze_data = json.dumps({
+        "source": "test-source",
+        "title": "Nested Article",
+        "raw_text": {"nested": "object", "depth": 1},
+        "url": "https://example.com/nested",
+        "timestamp": "2023-10-25T12:34:56Z",
+    }).encode('utf-8')
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = nested_bronze_data
+    mock_minio.get_object.return_value = mock_response
+
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
+
+    # dict.split() raises AttributeError — must NOT be silently swallowed
+    with pytest.raises(AttributeError):
+        processor.process_event("test-source/nested/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # Neither silver nor quarantine must be written — the data is structurally broken
+    mock_minio.put_object.assert_not_called()
+    mock_clickhouse.insert.assert_not_called()
+    processor._update_document_status.assert_not_called()
+
+
+def test_silver_upload_failure_propagates(processor, mock_minio, mock_clickhouse, dummy_span):
+    """
+    Tests that a transient network error during the Silver MinIO upload propagates
+    as an unhandled exception, allowing NATS to NAK and retry the message.
+
+    The PG status must NOT be updated to 'processed' so the idempotency check
+    correctly retries the full pipeline on the next delivery.
+    """
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    mock_minio.put_object.side_effect = Exception("MinIO: connection timeout")
+
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
+
+    with pytest.raises(Exception, match="MinIO: connection timeout"):
+        processor.process_event("test-source/upload-fail/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # ClickHouse must NOT have been called — Silver is a prerequisite
+    mock_clickhouse.insert.assert_not_called()
+    # DB status must remain untouched — the next retry needs to re-process
+    processor._update_document_status.assert_not_called()
+
+
+def test_move_to_quarantine_payload_encoding(processor, mock_minio):
+    """
+    Unit-tests _move_to_quarantine in isolation.
+    Verifies: correct target bucket, unchanged key, and exact JSON serialization of raw_content.
+    """
+    obj_key = "test-source/broken/2023-10-25.json"
+    raw_content = {"source": "test-source", "title": "Broken", "raw_text": None}
+
+    processor._move_to_quarantine(obj_key, raw_content)
+
+    mock_minio.put_object.assert_called_once()
+    args, kwargs = mock_minio.put_object.call_args
+
+    assert args[0] == "bronze-quarantine"
+    assert args[1] == obj_key
+    assert kwargs.get("content_type") == "application/json"
+
+    # Verify the uploaded payload is a valid JSON that matches raw_content
+    import io as _io
+    uploaded_buffer = args[2]
+    assert isinstance(uploaded_buffer, _io.BytesIO)
+    uploaded_buffer.seek(0)
+    assert json.loads(uploaded_buffer.read().decode('utf-8')) == raw_content
+
+
+def test_move_to_quarantine_length_matches_payload(processor, mock_minio):
+    """
+    Verifies that the 'length' argument passed to put_object exactly matches
+    the byte length of the serialized payload — a common source of MinIO errors.
+    """
+    obj_key = "test-source/length-check/2023-10-25.json"
+    raw_content = {"source": "unicode-test", "raw_text": "Ünïcödé chäräctérs 日本語"}
+
+    processor._move_to_quarantine(obj_key, raw_content)
+
+    args, _ = mock_minio.put_object.call_args
+    payload_buffer = args[2]
+    declared_length = args[3]
+
+    payload_buffer.seek(0)
+    actual_length = len(payload_buffer.read())
+    assert declared_length == actual_length

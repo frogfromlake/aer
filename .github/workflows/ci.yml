@@ -68,6 +68,12 @@ jobs:
         working-directory: ./services/bff-api
         run: golangci-lint run
 
+      - name: OpenAPI Contract Test (codegen sync check)
+        run: |
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+          make codegen
+          git diff --exit-code services/bff-api/internal/handler/generated.go
+
       - name: Run Go Integration Tests (Testcontainers)
         run: |
           cd services/ingestion-api && go test -v ./...
