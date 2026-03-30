@@ -20,6 +20,37 @@ services:
           cpus: "0.25"
 
   # ----------------------------------------------------
+  # 0. REVERSE PROXY / TLS TERMINATION
+  # ----------------------------------------------------
+  traefik:
+    image: traefik:v3
+    container_name: aer_traefik
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/letsencrypt
+    networks:
+      - aer-frontend
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ----------------------------------------------------
   # 2. DATA LAKE (BRONZE LAYER / RAW DATA)
   # ----------------------------------------------------
   minio:
@@ -156,6 +187,44 @@ services:
           cpus: "1.00"
 
   # ----------------------------------------------------
+  # 3.2 BFF API (PUBLIC-FACING, BEHIND TRAEFIK)
+  # ----------------------------------------------------
+  bff-api:
+    build:
+      context: .
+      dockerfile: services/bff-api/Dockerfile
+    container_name: aer_bff_api
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - BFF_PORT=8080
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=9000
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      - BFF_API_KEY=${BFF_API_KEY}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bff-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.bff-api.entrypoints=websecure"
+      - "traefik.http.routers.bff-api.tls.certresolver=myresolver"
+      - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
+    networks:
+      - aer-frontend
+      - aer-backend
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
   # ----------------------------------------------------
   otel-collector:
@@ -237,6 +306,7 @@ volumes:
   minio_data:
   postgres_data:
   clickhouse_data:
+  traefik-certs:
 
 networks:
   aer-frontend:

@@ -111,3 +111,87 @@ jobs:
         run: |
           cd services/ingestion-api && go test -v ./...
           cd ../bff-api && go test -v ./...
+
+  dependency-audit:
+    name: Dependency Auditing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          cache: true
+          cache-dependency-path: |
+            services/ingestion-api/go.sum
+            services/bff-api/go.sum
+            pkg/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck (ingestion-api)
+        working-directory: ./services/ingestion-api
+        run: govulncheck ./...
+
+      - name: Run govulncheck (bff-api)
+        working-directory: ./services/bff-api
+        run: govulncheck ./...
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit (analysis-worker)
+        working-directory: ./services/analysis-worker
+        run: pip-audit -r requirements.txt
+
+  container-security-scan:
+    name: Container Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build ingestion-api image
+        run: docker build -t aer/ingestion-api:ci ./services/ingestion-api
+
+      - name: Build bff-api image
+        run: docker build -t aer/bff-api:ci ./services/bff-api
+
+      - name: Build analysis-worker image
+        run: docker build -t aer/analysis-worker:ci ./services/analysis-worker
+
+      - name: Trivy scan — ingestion-api
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: 'aer/ingestion-api:ci'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+
+      - name: Trivy scan — bff-api
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: 'aer/bff-api:ci'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+
+      - name: Trivy scan — analysis-worker
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: 'aer/analysis-worker:ci'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'

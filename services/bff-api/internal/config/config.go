@@ -19,6 +19,7 @@ type Config struct {
 	ClickHouseDB       string `mapstructure:"CLICKHOUSE_DB"`
 	OTelEndpoint       string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	CORSOrigins        string `mapstructure:"CORS_ALLOWED_ORIGINS"`
+	APIKey             string `mapstructure:"BFF_API_KEY"`
 }
 
 // Load reads configuration from environment variables and the local .env file.

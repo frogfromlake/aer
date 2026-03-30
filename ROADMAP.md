@@ -142,6 +142,25 @@ Diese Roadmap definiert die Schritte, um die AĒR-Grundarchitektur in ein skalie
 * [x] **Python Storage Tests:** Integration-Tests für `storage.py` mit Testcontainers (Postgres, MinIO, ClickHouse) analog zur Go-Strategie, um die `@retry`-Logik und Verbindungsaufbau zu validieren.
 * [x] **End-to-End Smoke Test:** Ein einzelner automatisierter Test, der den gesamten Flow testet: JSON → Ingestion → MinIO → NATS → Worker → ClickHouse → BFF API Response. Kann als separater CI-Job mit `docker compose up` laufen.
 
+
+## Phase 20: Infrastructure Hardening & Container Security - [x] DONE
+*Absicherung der Docker-Infrastruktur für Langzeitbetrieb und Vorbereitung auf Skalierung mit hunderten Crawlern.*
+
+* [x] **Image-Versionen pinnen:** Alle `latest`-Tags in `compose.yaml` durch spezifische Versionen ersetzt. **Upgrade-Policy:** Image-Versionen werden manuell und bewusst angehoben — kein automatisches Upgrade. Vor jedem Upgrade wird die Changelog/Release-Notes des jeweiligen Images geprüft und der Stack lokal mit `make up` getestet. Die gepinnten Versionen werden im Git-Log versioniert, sodass ein Rollback jederzeit via `git revert` möglich ist.
+* [x] **Resource Limits:** `deploy.resources.limits` (Memory, CPU) für jeden Container in der `compose.yaml` gesetzt. Besonders kritisch: ClickHouse (OLAP kann unbegrenzt Speicher konsumieren).
+* [x] **Restart Policies:** `restart: unless-stopped` für alle persistenten Services (Datenbanken, NATS, Grafana).
+* [x] **Netzwerk-Segmentierung:** Aufteilung des flachen `aer-network` in mindestens zwei Subnetze: `aer-frontend` (BFF, Grafana, Docs) und `aer-backend` (Datenbanken, NATS, Worker). Nur die BFF-API verbindet beide Netze.
+* [x] **Service Dockerfiles:** Multi-Stage Dockerfiles für `ingestion-api`, `bff-api` und `analysis-worker` erstellt.
+* [x] **CI Docker-Layer-Caching:** Manuelles Layer-Caching via `actions/cache@v4` in der GitHub Actions Pipeline eingeführt. Testcontainers-Images (`minio/minio:latest`, `postgres:16-alpine`, `clickhouse/clickhouse-server:23.8`) werden als Tarballs gecacht und bei Cache-Hit direkt geladen, ohne erneut zu pullen. Zusätzlich: `~/go/bin` gecacht, um Reinstallation von `golangci-lint` und `oapi-codegen` bei unveränderter CI-Config zu vermeiden.
+
+## Phase 23: Security Foundations - [x] DONE (Partially)
+*Einführung grundlegender Sicherheitsmechanismen vor dem Deployment mit echten Daten.*
+
+* [x] **API Authentication:** Einführung eines API-Key oder JWT-basierten Auth-Mechanismus auf der BFF-API. Mindestens ein statischer API-Key als Middleware-Gate für die erste Iteration.
+* [x] **TLS für externe Endpoints:** HTTPS-Terminierung für BFF-API und Grafana (z.B. via Traefik oder Caddy als Reverse Proxy in der Compose-Stack).
+* [~] **Secrets Management:** PARTIALLY DONE — `.env` ist sicher genug für VPS/Homelab-Betrieb. Eine vollständige Lösung (Docker Secrets, HashiCorp Vault, SOPS) bleibt offen für zukünftige Multi-User- oder Cloud-Deployments.
+* [x] **Container Security Scanning:** `aquasecurity/trivy-action` in CI-Pipeline integriert. Scannt alle drei Dockerfiles auf HIGH/CRITICAL CVEs, bricht den Build bei unfixed Findings ab.
+* [x] **Dependency Auditing:** `govulncheck ./...` für beide Go-Services und `pip-audit -r requirements.txt` für den Python-Worker als dedizierter CI-Job (`dependency-audit`).
 ---
 
 # Open Phases (14–23) — Priorisierte Implementierungsreihenfolge
@@ -166,24 +185,10 @@ Currently Empty
 
 ### Tier 4: Produktionsreife & Skalierung
 
-## Phase 20: Infrastructure Hardening & Container Security - [x] DONE
-*Absicherung der Docker-Infrastruktur für Langzeitbetrieb und Vorbereitung auf Skalierung mit hunderten Crawlern.*
-
-* [x] **Image-Versionen pinnen:** Alle `latest`-Tags in `compose.yaml` durch spezifische Versionen ersetzt. **Upgrade-Policy:** Image-Versionen werden manuell und bewusst angehoben — kein automatisches Upgrade. Vor jedem Upgrade wird die Changelog/Release-Notes des jeweiligen Images geprüft und der Stack lokal mit `make up` getestet. Die gepinnten Versionen werden im Git-Log versioniert, sodass ein Rollback jederzeit via `git revert` möglich ist.
-* [x] **Resource Limits:** `deploy.resources.limits` (Memory, CPU) für jeden Container in der `compose.yaml` gesetzt. Besonders kritisch: ClickHouse (OLAP kann unbegrenzt Speicher konsumieren).
-* [x] **Restart Policies:** `restart: unless-stopped` für alle persistenten Services (Datenbanken, NATS, Grafana).
-* [x] **Netzwerk-Segmentierung:** Aufteilung des flachen `aer-network` in mindestens zwei Subnetze: `aer-frontend` (BFF, Grafana, Docs) und `aer-backend` (Datenbanken, NATS, Worker). Nur die BFF-API verbindet beide Netze.
-* [x] **Service Dockerfiles:** Multi-Stage Dockerfiles für `ingestion-api`, `bff-api` und `analysis-worker` erstellt.
-* [x] **CI Docker-Layer-Caching:** Manuelles Layer-Caching via `actions/cache@v4` in der GitHub Actions Pipeline eingeführt. Testcontainers-Images (`minio/minio:latest`, `postgres:16-alpine`, `clickhouse/clickhouse-server:23.8`) werden als Tarballs gecacht und bei Cache-Hit direkt geladen, ohne erneut zu pullen. Zusätzlich: `~/go/bin` gecacht, um Reinstallation von `golangci-lint` und `oapi-codegen` bei unveränderter CI-Config zu vermeiden.
-
-## Phase 23: Security Foundations
+## Phase 23: Security Foundations - [x] DONE (Partially)
 *Einführung grundlegender Sicherheitsmechanismen vor dem Deployment mit echten Daten.*
 
-* [ ] **API Authentication:** Einführung eines API-Key oder JWT-basierten Auth-Mechanismus auf der BFF-API. Mindestens ein statischer API-Key als Middleware-Gate für die erste Iteration.
-* [ ] **TLS für externe Endpoints:** HTTPS-Terminierung für BFF-API und Grafana (z.B. via Traefik oder Caddy als Reverse Proxy in der Compose-Stack).
-* [ ] **Secrets Management:** Evaluierung und Einführung eines Secrets-Management-Ansatzes (Docker Secrets, HashiCorp Vault, oder SOPS-verschlüsselte `.env`-Dateien) statt Klartext-Credentials in `.env`.
-* [ ] **Container Security Scanning:** Integration eines Image-Scanners (Trivy, Grype) in die CI-Pipeline, um bekannte CVEs in den Base-Images und Dependencies zu erkennen.
-* [ ] **Dependency Auditing:** `go vuln check` für Go-Module und `pip-audit` / `safety` für Python-Dependencies als CI-Step.
+* [~] **Secrets Management:** Partially DONE — `.env` ist sicher genug für VPS/Homelab-Betrieb. Eine vollständige Lösung (Docker Secrets, HashiCorp Vault, SOPS) bleibt offen für zukünftige Multi-User- oder Cloud-Deployments.
 
 ## Phase 22: Arc42 Dokumentation vervollständigen
 *Zuletzt, weil die Doku den finalen Zustand der Architektur reflektieren soll. Vorher ändert sich die Architektur noch zu stark.*
