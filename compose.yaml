@@ -3,7 +3,7 @@ services:
   # 1. DOCUMENTATION
   # ----------------------------------------------------
   docs:
-    image: squidfunk/mkdocs-material:9.5.49
+    image: squidfunk/mkdocs-material:9.7.6
     container_name: aer_docs
     restart: unless-stopped
     ports:
@@ -23,7 +23,7 @@ services:
   # 0. REVERSE PROXY / TLS TERMINATION
   # ----------------------------------------------------
   traefik:
-    image: traefik:v3
+    image: traefik:v3.6.12
     container_name: aer_traefik
     restart: unless-stopped
     command:
@@ -54,7 +54,7 @@ services:
   # 2. DATA LAKE (BRONZE LAYER / RAW DATA)
   # ----------------------------------------------------
   minio:
-    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: aer_minio
     restart: unless-stopped
     ports:
@@ -87,7 +87,7 @@ services:
           cpus: "0.50"
 
   minio-init:
-    image: minio/mc:RELEASE.2025-01-17T23-25-50Z
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: aer_minio_init
     restart: "no"
     depends_on:
@@ -107,7 +107,7 @@ services:
   # 2.2 MESSAGE BROKER (EVENT PIPELINE)
   # ----------------------------------------------------
   nats:
-    image: nats:2.10.26-alpine
+    image: nats:2.12.6-alpine3.22
     container_name: aer_nats
     restart: unless-stopped
     ports:
@@ -145,7 +145,7 @@ services:
   # 3. METADATA (INDEX FOR THE DATA LAKE)
   # ----------------------------------------------------
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.3-alpine3.23
     container_name: aer_postgres
     restart: unless-stopped
     ports:
@@ -174,7 +174,7 @@ services:
   # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
   # ----------------------------------------------------
   clickhouse:
-    image: clickhouse/clickhouse-server:24.12.3.47
+    image: clickhouse/clickhouse-server:26.3.3-alpine
     container_name: aer_clickhouse
     restart: unless-stopped
     ports:
@@ -191,7 +191,7 @@ services:
     networks:
       - aer-backend
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -344,7 +344,7 @@ services:
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
   # ----------------------------------------------------
   otel-collector:
-    image: otel/opentelemetry-collector:0.120.0
+    image: otel/opentelemetry-collector:0.149.0
     container_name: aer_otel_collector
     restart: unless-stopped
     command: ["--config=/etc/otel-collector-config.yaml"]
@@ -364,7 +364,7 @@ services:
           cpus: "0.25"
 
   tempo:
-    image: grafana/tempo:2.6.1
+    image: grafana/tempo:2.10.1
     container_name: aer_tempo
     restart: unless-stopped
     command: ["-config.file=/etc/tempo.yaml"]
@@ -379,7 +379,7 @@ services:
           cpus: "0.25"
 
   prometheus:
-    image: prom/prometheus:v3.2.1
+    image: prom/prometheus:v3
     container_name: aer_prometheus
     restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
@@ -395,7 +395,7 @@ services:
           cpus: "0.25"
 
   grafana:
-    image: grafana/grafana:11.5.2
+    image: grafana/grafana:12.4
     container_name: aer_grafana
     restart: unless-stopped
     environment:
