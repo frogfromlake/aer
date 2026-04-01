@@ -19,15 +19,53 @@ import urllib.request
 import urllib.error
 import pytest
 import psycopg2
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from tenacity import RetryError
 from testcontainers.postgres import PostgresContainer
 from testcontainers.core.container import DockerContainer
-from testcontainers.core.waiting_utils import wait_for_logs
 
 from internal.storage import init_postgres, init_minio, init_clickhouse
 
+# ---------------------------------------------------------------------------
+# SSoT: Dynamic Compose Parsing
+# ---------------------------------------------------------------------------
+
+def get_compose_image(service_name: str) -> str:
+    """Parses the compose.yaml at the repo root to find the image for a service."""
+    # Moves through the directory hierarchy to find the compose.yaml at the root of the repo
+    compose_path = Path(__file__).resolve().parents[3] / "compose.yaml"
+    
+    with open(compose_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        
+    in_service = False
+    service_indent = 0
+    
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+            
+        indent = len(line) - len(line.lstrip())
+        
+        # Search for the start of the service block (e.g., "postgres:") with exact match
+        if stripped == f"{service_name}:":
+            in_service = True
+            service_indent = indent
+            continue
+            
+        if in_service:
+            # If indent is less than or equal to service_indent, we've exited the service block
+            if indent <= service_indent:
+                in_service = False
+                continue
+            if stripped.startswith("image:"):
+                # "image: postgres:18.3-alpine3.23" -> "postgres:18.3-alpine3.23"
+                return stripped.split("image:")[1].strip()
+                
+    raise ValueError(f"Image for service '{service_name}' not found in compose.yaml")
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -49,7 +87,7 @@ def _make_cursor_mock():
 def pg_container():
     """Starts an isolated PostgreSQL container for the duration of this module."""
     with PostgresContainer(
-        image="postgres:16-alpine",
+        image=get_compose_image("postgres"),
         username="aer_admin",
         password="aer_secret",
         dbname="aer_metadata",
@@ -61,14 +99,33 @@ def pg_container():
 def minio_container():
     """Starts an isolated MinIO container for the duration of this module."""
     container = (
-        DockerContainer("minio/minio:latest")
+        DockerContainer(get_compose_image("minio"))
         .with_env("MINIO_ROOT_USER", "minioadmin")
         .with_env("MINIO_ROOT_PASSWORD", "minioadmin")
         .with_command("server /data")
         .with_exposed_ports(9000)
     )
     with container:
-        wait_for_logs(container, "API", timeout=30)
+        # Robust HTTP wait strategy instead of brittle log parsing
+        start_time = time.time()
+        is_ready = False
+        
+        while time.time() - start_time < 30:
+            try:
+                host = container.get_container_host_ip()
+                port = container.get_exposed_port(9000)
+                # MinIO native healthcheck endpoint
+                response = urllib.request.urlopen(f"http://{host}:{port}/minio/health/live", timeout=1)
+                
+                if response.getcode() == 200:
+                    is_ready = True
+                    break
+            except (urllib.error.URLError, ConnectionError, TimeoutError):
+                time.sleep(1)
+                
+        if not is_ready:
+            raise TimeoutError("MinIO container did not become ready within 30 seconds.")
+            
         yield container
 
 
@@ -76,7 +133,7 @@ def minio_container():
 def ch_container():
     """Starts an isolated ClickHouse container for the duration of this module."""
     container = (
-        DockerContainer("clickhouse/clickhouse-server:24.12.3.47") # Synchronized with compose.yaml
+        DockerContainer(get_compose_image("clickhouse"))
         .with_exposed_ports(8123)
     )
     with container:
@@ -113,7 +170,7 @@ class TestInitPostgres:
         when pointed at a real PostgreSQL instance.
         """
         monkeypatch.setenv("POSTGRES_HOST", pg_container.get_container_host_ip())
-        monkeypatch.setenv("POSTGRES_PORT", pg_container.get_exposed_port(5432))
+        monkeypatch.setenv("POSTGRES_PORT", str(pg_container.get_exposed_port(5432)))
         monkeypatch.setenv("POSTGRES_USER", "aer_admin")
         monkeypatch.setenv("POSTGRES_PASSWORD", "aer_secret")
         monkeypatch.setenv("POSTGRES_DB", "aer_metadata")
@@ -239,7 +296,7 @@ class TestInitClickhouse:
         a real ClickHouse instance and can execute a simple query.
         """
         monkeypatch.setenv("CLICKHOUSE_HOST", ch_container.get_container_host_ip())
-        monkeypatch.setenv("CLICKHOUSE_PORT", ch_container.get_exposed_port(8123))
+        monkeypatch.setenv("CLICKHOUSE_PORT", str(ch_container.get_exposed_port(8123)))
         monkeypatch.setenv("CLICKHOUSE_USER", "default")
         monkeypatch.setenv("CLICKHOUSE_PASSWORD", "")
         monkeypatch.setenv("CLICKHOUSE_DB", "default")

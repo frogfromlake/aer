@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frogfromlake/aer/pkg/testutils"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -13,9 +14,14 @@ import (
 func TestPostgresStorage(t *testing.T) {
 	ctx := context.Background()
 
+	pgImage, err := testutils.GetImageFromCompose("postgres")
+	if err != nil {
+		t.Fatalf("failed to get postgres image from compose: %v", err)
+	}
+
 	// 1. Start ephemeral PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:16-alpine",
+		pgImage,
 		postgres.WithDatabase("aer_test"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),

@@ -5,14 +5,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frogfromlake/aer/pkg/testutils"
 	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
 
 func TestClickHouseStorage(t *testing.T) {
 	ctx := context.Background()
 
+	chImage, err := testutils.GetImageFromCompose("clickhouse")
+	if err != nil {
+		t.Fatalf("failed to get clickhouse image from compose: %v", err)
+	}
+
 	// 1. Start ephemeral ClickHouse container
-	chContainer, err := tcclickhouse.Run(ctx, "clickhouse/clickhouse-server:23.8",
+	chContainer, err := tcclickhouse.Run(ctx, chImage,
 		tcclickhouse.WithDatabase("aer_gold"),
 		tcclickhouse.WithUsername("default"),
 		tcclickhouse.WithPassword(""),

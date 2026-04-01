@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/frogfromlake/aer/pkg/testutils"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
@@ -12,9 +13,14 @@ import (
 func TestMinioStorage(t *testing.T) {
 	ctx := context.Background()
 
+	minioImage, err := testutils.GetImageFromCompose("minio")
+	if err != nil {
+		t.Fatalf("failed to get minio image from compose: %v", err)
+	}
+
 	// 1. Start ephemeral MinIO container
 	minioContainer, err := tcminio.Run(ctx,
-		"minio/minio:latest",
+		minioImage,
 		tcminio.WithUsername("minioadmin"),
 		tcminio.WithPassword("minioadmin"),
 	)
