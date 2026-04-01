@@ -1,145 +1,310 @@
-# AĒR — The Societal Discourse Macroscope
+# AĒR — Societal Discourse Macroscope
 
-AĒR is a highly resilient, polyglot data ingestion and analysis pipeline. Designed as a "macroscope," it serves as an externalized, orbital sensor to observe large-scale patterns in the hopes, fears, conflicts, and aspirations of the connected civilization via the global digital discourse.
+A modular system for the real-time analysis and long-term observation of societal discourses. AĒR aggregates global digital data streams and extracts meaningful patterns from the collective output of connected civilization — functioning as an atmospheric sensor for human discourse rather than a surveillance instrument for individuals.
 
-Built with **Go**, **Python**, and **ClickHouse**, AĒR implements a robust Medallion Architecture (Bronze, Silver, Gold) with self-healing mechanisms and automated data lifecycle management.
-
----
-
-## 🏗 Architecture Overview
-
-AĒR is built on an event-driven microservice architecture:
-
-1. **Ingestion API (Go):** Receives raw data, stores it in the **MinIO Bronze Bucket**, and indexes metadata in **PostgreSQL**.
-2. **Analysis Worker (Python):** Reacts to events via the **NATS** message broker, harmonizes data, moves it to the **Silver Layer**, and extracts final metrics into **ClickHouse (Gold Layer)**.
-3. **BFF API (Go):** A high-speed, OpenAPI-compliant Backend-for-Frontend that serves time-series analytics from ClickHouse.
-4. **Observability Stack:** Comprehensive tracing, logging, and metrics using OpenTelemetry, Prometheus, Tempo, and Grafana.
+The name derives from ancient Greek ἀήρ: the lower atmosphere, the surrounding climate.
 
 ---
 
-## 📋 Prerequisites
+## Architecture Overview
 
-To run and develop AĒR locally, you need the following tools installed:
+AĒR implements a polyglot microservice pipeline based on the Medallion Architecture (Bronze / Silver / Gold). Data flows strictly from left to right through deterministic, independently testable stages. No microservice communicates with another via direct HTTP — all inter-service coordination is mediated through shared object storage (MinIO) and the NATS JetStream message broker.
 
-- **OS:** Linux, macOS, or Windows 11 with WSL2 (Ubuntu 22.04+ recommended)
-- **Docker:** Docker Engine / Docker Desktop (with Compose plugin)
-- **Go:** `1.26.1` or higher
-- **Python:** `3.12` or higher (with the standard `venv` module)
-- **Make:** GNU Make
+```
+Crawler  →  Ingestion API (Go)  →  MinIO Bronze  →  NATS JetStream
+                                                          ↓
+                                                  Analysis Worker (Python)
+                                                    ↓           ↓
+                                             MinIO Silver   ClickHouse Gold
+                                                                  ↓
+                                                           BFF API (Go)
+                                                                  ↓
+                                                      Dashboard / Analyst
+```
+
+**Ingestion API (Go):** Source-agnostic HTTP receiver. Stores raw documents verbatim in MinIO (write-once, immutable). Logs metadata and trace IDs to PostgreSQL.
+
+**Analysis Worker (Python):** Validates documents against the Silver Contract (Pydantic), extracts deterministic metrics, inserts into ClickHouse. Malformed data is routed to a Dead Letter Queue without crashing the pipeline.
+
+**BFF API (Go):** Contract-first REST API generated from OpenAPI 3.0. Queries ClickHouse with server-side downsampling and hard row limits. The only service exposed to the internet, authenticated via API key, TLS-terminated by Traefik.
+
+**Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service.
+
+Full architectural documentation (arc42) is available at `http://localhost:8000` when the stack is running.
 
 ---
 
-## 🚀 Quick Start & Installation
+## Technology Stack
 
-### 1. Clone & Configure
-Clone the repository and set up your local environment variables:
+| Layer | Technology | Rationale |
+| :--- | :--- | :--- |
+| Ingestion / BFF / Crawlers | Go 1.26.1+ | High-concurrency I/O, minimal memory footprint |
+| Analysis / Processing | Python 3.12+ | Deterministic data science ecosystem (spaCy, Pydantic) |
+| Object Storage / Event Publisher | MinIO | S3-compatible data lake with native JetStream notification |
+| Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling |
+| Analytics Database | ClickHouse | Column-oriented OLAP; mandatory for sub-second time-series queries |
+| Metadata Index | PostgreSQL | Relational tracking of ingestion jobs, document lifecycle, trace IDs |
+| Reverse Proxy / TLS | Traefik | Automatic ACME/Let's Encrypt; zero TLS code in application services |
+| Observability | OpenTelemetry + Grafana LGTM | End-to-end distributed tracing across the NATS boundary |
+| Containerization | Docker + Compose | `compose.yaml` is the Single Source of Truth for the entire stack |
+
+---
+
+## Prerequisites
+
+The only required host installations are:
+
+- Docker with Compose plugin
+- Go 1.26.1 or higher
+- Python 3.12 or higher
+- GNU Make
+
+No databases or runtimes are installed directly on the host. All services run in containers.
+
+---
+
+## Getting Started
+
+**1. Clone the repository and configure environment variables:**
+
 ```bash
-git clone [https://github.com/frogfromlake/aer.git](https://github.com/frogfromlake/aer.git)
+git clone <repository-url>
 cd aer
 cp .env.example .env
-````
-
-*(You can adjust the passwords in the `.env` file if desired, but the defaults work out-of-the-box for local development).*
-
-### 2\. Boot the Infrastructure
-
-AĒR completely decouples stateful infrastructure from the application services. Start the databases and observability tools first:
-
-```bash
-make infra-up
+# Edit .env — all credentials and endpoints are configured here
 ```
 
-*This starts MinIO, PostgreSQL, ClickHouse, NATS, and the Grafana/Prometheus/Tempo stack.*
-
-### 3\. Start the Application Services
-
-AĒR uses a sophisticated background-process manager (via local bash scripts) to run the Go and Python services locally without blocking your terminal or creating zombie processes.
+**2. Install Git hooks:**
 
 ```bash
-make services-up
+cp scripts/hooks/pre-commit .git/hooks/pre-commit
+cp scripts/hooks/pre-push   .git/hooks/pre-push
+chmod +x .git/hooks/pre-commit .git/hooks/pre-push
 ```
 
-*This will automatically setup Python virtual environments, build the Go binaries, and run the Ingestion API, Analysis Worker, and BFF API in the background.*
+The pre-commit hook runs `make lint`. The pre-push hook runs `make lint` followed by `make test`. Both block on failure.
 
-### 4\. Monitor the Stack
-
-You can view the live, combined logs of all background services at any time:
+**3. Start the full stack:**
 
 ```bash
-make logs
+make up
 ```
 
-*(Press `Ctrl+C` to exit the log viewer; the services will continue running in the background).*
+This starts infrastructure (databases, NATS, observability, documentation server) and all three application services. The first run builds application images from source.
 
------
-
-## 🛑 Stopping & Cleaning Up
-
-AĒR provides granular control over shutting down and resetting the environment:
-
-**Stop Services gracefully:**
+**4. Verify the pipeline:**
 
 ```bash
-make services-down
+# Run the end-to-end smoke test
+bash scripts/e2e_smoke_test.sh
 ```
 
-**Stop Infrastructure:**
+The smoke test ingests a test document, waits for pipeline processing, and queries the BFF API to verify end-to-end data flow.
 
-```bash
-make infra-down
-```
+---
 
-**⚠️ Hard Resets (Data Wipes):**
-If you need a completely clean state (e.g., during testing), you can wipe the database volumes. **These commands will prompt for confirmation:**
+## Make Targets
 
-```bash
-make infra-clean             # Wipes ALL databases (Postgres, MinIO, ClickHouse)
-make infra-clean-postgres    # Wipes ONLY PostgreSQL
-make infra-clean-minio       # Wipes ONLY the MinIO Data Lake
-make infra-clean-clickhouse  # Wipes ONLY the ClickHouse Analytics DB
-```
-
------
-
-## 🛠 Developer Workflow
-
-AĒR enforces strict quality standards via Linters and automated testing (using Testcontainers).
-
-| Command | Description |
+| Target | Description |
 | :--- | :--- |
-| `make test` | Runs the full test suite (Go integration tests & Python unit tests). |
-| `make lint` | Runs `golangci-lint` (Go) and `ruff` (Python) to check code quality. |
-| `make codegen` | Regenerates Go types and server stubs from the OpenAPI spec (`api/openapi.yaml`). |
-| `make build-services` | Compiles the Go binaries into the `./bin/` directory. |
-| `make tidy` | Cleans up Go modules and removes Python `__pycache__` directories. |
+| `make up` | Start the entire stack (infrastructure + all application services) |
+| `make down` | Stop everything |
+| `make infra-up` | Start infrastructure only (databases, NATS, observability, docs) |
+| `make services-up` | Start all three application services in the background |
+| `make logs` | Tail combined logs of all background services (Ctrl+C safe) |
+| `make test` | Run full test suite (Go integration tests + Python unit tests) |
+| `make lint` | Run `golangci-lint` (Go) and `ruff` (Python) |
+| `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
+| `make build-services` | Compile Go binaries into `./bin/` |
+| `make tidy` | Run `go mod tidy` across all modules |
+| `make infra-clean` | Wipe all persistent volumes (requires interactive confirmation) |
 
-**Individual Service Control:**
-If you are only working on one specific service, you can start/stop it individually:
+Individual services can be controlled independently:
 
-  - `make ingestion-up` / `make ingestion-down`
-  - `make worker-up` / `make worker-down`
-  - `make bff-up` / `make bff-down`
+```bash
+make ingestion-up    make ingestion-down    make ingestion-restart
+make worker-up       make worker-down       make worker-restart
+make bff-up          make bff-down          make bff-restart
+```
 
------
+---
 
-## 🌐 UIs & Access Points (Localhost)
+## Exposed Ports
 
-Once the stack is fully operational, you can access the following interfaces:
+| Port | Service | Purpose |
+| :--- | :--- | :--- |
+| `443` | Traefik | HTTPS — routes to BFF API |
+| `80` | Traefik | HTTP — redirects to HTTPS |
+| `3000` | Grafana | Monitoring dashboards, trace exploration |
+| `8000` | MkDocs | Arc42 architecture documentation |
+| `8080` | BFF API | `GET /api/v1/metrics`, `/healthz`, `/readyz` |
+| `8081` | Ingestion API | `POST /api/v1/ingest`, `/healthz`, `/readyz` |
+| `8123` | ClickHouse | HTTP interface and query playground (`/play`) |
+| `8222` | NATS | Monitoring dashboard |
+| `9000` | MinIO | S3-compatible API |
+| `9001` | MinIO | Web console |
+| `9002` | ClickHouse | Native protocol (mapped from container port `9000`) |
+| `4222` | NATS | Client connections |
+| `4317` | OTel Collector | OpenTelemetry gRPC receiver |
+| `5432` | PostgreSQL | Direct database access |
 
-  - **BFF API Endpoint:** [http://localhost:8080/api/v1/metrics](https://www.google.com/search?q=http://localhost:8080/api/v1/metrics)
-  - **Grafana Dashboards:** [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) *(User: admin, Pass: check .env)*
-  - **MinIO Console:** [http://localhost:9001](https://www.google.com/search?q=http://localhost:9001) *(User/Pass: check .env)*
-  - **NATS Monitoring:** [http://localhost:8222](https://www.google.com/search?q=http://localhost:8222)
-  - **Architecture Docs:** [http://localhost:8000](https://www.google.com/search?q=http://localhost:8000) *(Requires `make infra-up` to start the MkDocs container)*
+All credentials are sourced from `.env`. See `.env.example` for defaults.
 
------
+---
 
-## 📖 Documentation
+## API Reference
 
-This project uses the **arc42** framework for architecture documentation. You can read the detailed design decisions, context bounds, and the foundational **AĒR Manifesto** directly by navigating to the `/docs/arc42` directory, or by viewing them through the local documentation server (`http://localhost:8000`).
+The BFF API contract is defined in `services/bff-api/api/openapi.yaml`. The OpenAPI spec is the Single Source of Truth — Go server stubs are generated from it via `oapi-codegen` and must never be edited manually.
 
------
+All endpoints except `/healthz` and `/readyz` require authentication:
 
-## 📄 License
+```
+X-API-Key: <your-key>
+# or
+Authorization: Bearer <your-key>
+```
 
-This project is licensed under the MIT License - see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
+**Retrieve aggregated metrics:**
+
+```
+GET /api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
+```
+
+Results are downsampled to 5-minute intervals. A hard row limit is applied server-side to prevent OOM on large time ranges.
+
+---
+
+## Ingestion Contract
+
+Every crawler — regardless of upstream source — must submit data in this format:
+
+```json
+{
+  "source_id": 1,
+  "documents": [
+    {
+      "key": "wikipedia/article-slug/2026-03-28.json",
+      "data": {
+        "source": "wikipedia",
+        "title": "Example Article",
+        "raw_text": "The full unstructured text content...",
+        "url": "https://en.wikipedia.org/wiki/Example",
+        "timestamp": "2026-03-28T12:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+The `key` determines the MinIO object path in the Bronze bucket. The `data` field is stored verbatim and never modified. `source_id` references a registered entry in the PostgreSQL `sources` table.
+
+---
+
+## Testing
+
+```bash
+# Full test suite
+make test
+
+# Go integration tests only (uses Testcontainers — requires Docker)
+cd services/ingestion-api && go test ./...
+cd services/bff-api       && go test ./...
+
+# Python unit tests only
+cd services/analysis-worker && python -m pytest
+```
+
+**Testcontainers SSoT enforcement:** Both Go (`pkg/testutils/compose.go`) and Python (`get_compose_image()`) parse image tags dynamically from `compose.yaml` at test time. No image tag is hardcoded in any test file. Tests run against the exact same database versions as development and production.
+
+**OpenAPI contract check:**
+
+```bash
+make codegen
+git diff --exit-code services/bff-api/internal/handler/generated.go
+```
+
+This is enforced automatically in CI on every push to `main`.
+
+---
+
+## CI/CD Pipeline
+
+The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs four parallel jobs on every push and pull request to `main`:
+
+| Job | Steps |
+| :--- | :--- |
+| `python-pipeline` | Ruff lint → pytest (unit + integration) |
+| `go-pipeline` | golangci-lint → OpenAPI contract check → Testcontainers integration tests |
+| `dependency-audit` | govulncheck (Go) → pip-audit (Python) |
+| `container-security-scan` | Docker build → Trivy scan (HIGH/CRITICAL CVEs, `exit-code: 1`) |
+
+Testcontainers images are cached as tarballs via `actions/cache@v4` to avoid registry pulls on cache hits.
+
+---
+
+## Image Pinning Policy
+
+All Docker images in `compose.yaml` use hard-pinned, immutable patch-level version tags. The use of `latest`, release-candidate, or major/minor-only tags is prohibited. Upgrades are performed manually after changelog review and full local stack validation.
+
+`compose.yaml` is the Single Source of Truth for all image versions. Testcontainers in both Go and Python resolve their images from this file at test time.
+
+---
+
+## Data Lifecycle
+
+| Layer | Storage | Retention | Mechanism |
+| :--- | :--- | :--- | :--- |
+| Bronze (raw) | MinIO `bronze` | 90 days | MinIO ILM |
+| Quarantine (DLQ) | MinIO `bronze-quarantine` | 30 days | MinIO ILM |
+| Silver (harmonized) | MinIO `silver` | Unlimited | — |
+| Gold (metrics) | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL |
+| Metadata | PostgreSQL | Unlimited | — |
+
+All retention policies are defined in infrastructure scripts (`infra/`). No application code manages data expiration.
+
+---
+
+## Network Segmentation
+
+The stack is split into two isolated Docker bridge networks:
+
+- **`aer-frontend`:** Traefik, BFF API, Grafana — internet-facing services.
+- **`aer-backend`:** All databases, NATS, the analysis worker, init containers, and the observability stack — unreachable from the internet.
+
+Only the BFF API and Grafana bridge both networks. Databases and internal services are inaccessible from the `aer-frontend` network. A compromised Traefik instance cannot reach PostgreSQL, MinIO, or NATS.
+
+---
+
+## Observability
+
+**Grafana** is available at `http://localhost:3000`. Pre-provisioned datasources (Tempo, Prometheus) and dashboards load automatically on startup — no manual configuration required.
+
+**Distributed Tracing:** Every document is traceable end-to-end from the crawler's HTTP POST through ingestion, NATS delivery, worker processing, and ClickHouse insertion. Trace context propagates across the NATS boundary via message headers.
+
+**Prometheus Alerting Rules:**
+
+| Alert | Condition | Severity |
+| :--- | :--- | :--- |
+| `WorkerDown` | Worker scrape target unreachable for > 1 minute | Critical |
+| `DLQOverflow` | DLQ size > 50 objects for > 5 minutes | Warning |
+| `HighEventProcessingLatency` | p95 processing duration > 5 seconds for > 5 minutes | Warning |
+
+---
+
+## Philosophical Foundation
+
+AĒR's analytical framework rests on three structural pillars reflected in its name:
+
+**A — Aleph** (Borges): The single point containing all other points. AĒR aggregates fragmented global data streams into one coherent view of human interaction.
+
+**E — Episteme** (Foucault): The underlying rule-set of an epoch defining what can be thought and expressed. AĒR tracks discourse shifts to measure how the boundaries of the expressible form and change across cultures.
+
+**R — Rhizome** (Deleuze / Guattari): A decentralized, proliferating network. AĒR models how information and cultural patterns spread non-linearly through global networks.
+
+The system operates as a phenomenological instrument — observation and understanding, not surveillance or manipulation. Raw data is never altered. Algorithms are deterministic, simple, and fully traceable (Ockham's Razor).
+
+---
+
+## License
+
+See `LICENSE` for terms.
