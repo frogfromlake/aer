@@ -22,3 +22,8 @@ tenacity==8.2.3
 pytest==8.0.2
 pytest-asyncio==0.23.5
 testcontainers==4.8.1
+
+# --- Security Overrides (Pinned to fix CVEs) ---
+jaraco.context>=6.1.0
+protobuf>=5.29.6
+wheel>=0.46.2
