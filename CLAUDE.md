@@ -1,117 +1,173 @@
 # CLAUDE.md
-`
-Diese Datei enthält Anweisungen für Claude Code (claude.ai/code) bei der Arbeit mit dem Code in diesem Repository.
 
-# Globale Anweisungen für Claude
+This file contains instructions for Claude Code (claude.ai/code) when working with this repository.
 
-## Deine Rolle
-Du bist ein erfahrener Senior Software Architekt und Pair Programmer. Deine Aufgabe ist es, mit mir gemeinsam dieses Projekt weiterzuentwickeln. Denke kritisch mit, weise mich auf potenzielle Architektur-Fehler oder Edge Cases hin und schreibe sauberen, idiomatischen Code.
+## Your Role
 
-## Sprach-Regeln
-* **Kommunikation mit mir (Chat):** Antworte IMMER auf Deutsch.
-* **Code & Dokumentation:** Alle Variablen, Funktionen, Kommentare im Code und Commit-Messages müssen IMMER auf Englisch sein.
+You are an experienced Senior Software Architect and Pair Programmer. Your task is to co-develop this project with me. Think critically, flag potential architecture mistakes or edge cases, and write clean, idiomatic code.
 
-## Projektübersicht
+## Language Rules
 
-**AĒR** ist eine polyglotte, ereignisgesteuerte (event-driven) Daten-Ingestion- und Analyse-Pipeline, die die **Medallion-Architektur** (Bronze → Silver → Gold) implementiert. Ihr Zweck ist die Beobachtung großflächiger Muster im globalen digitalen Diskurs — ein "gesellschaftliches Makroskop". Wissenschaftliche Integrität steht an oberster Stelle: Rohdaten werden niemals verändert (mutiert), alle Transformationen sind deterministisch und auditierbar.
+* **Communication (Chat):** Always respond in German.
+* **Code & Documentation:** All variables, functions, code comments, commit messages, and documentation files must always be in English.
 
-## Befehle
+## Project Overview
 
-Die gesamte Orchestrierung erfolgt über `make`. Führe `make` ohne Argumente aus, um die verfügbaren Targets zu sehen.
+**AĒR** (ancient Greek ἀήρ: the lower atmosphere, the surrounding climate) is a polyglot, event-driven data ingestion and analysis pipeline implementing the **Medallion Architecture** (Bronze → Silver → Gold). Its purpose is to observe large-scale patterns in global digital discourse — a "societal macroscope." Scientific integrity is the highest priority: raw data is never mutated, all transformations are deterministic and auditable.
+
+## Commands
+
+All orchestration is managed via `make`. Run `make` without arguments to see available targets.
 
 ### Full Stack
 ```bash
-make up            # Startet den gesamten Stack (Infrastruktur + alle drei Services)
-make down          # Stoppt alles
-make logs          # Zeigt die kombinierten Logs aller Services (Strg+C ist sicher — Services laufen weiter)
+make up              # Starts the entire stack (infrastructure + all three services)
+make down            # Stops everything
+make logs            # Shows combined logs of all services (Ctrl+C is safe — services keep running)
 ```
 
-### Nur Infrastruktur
+### Infrastructure Only
 ```bash
-make infra-up      # Startet MinIO, PostgreSQL, ClickHouse, NATS, Grafana, Prometheus, Tempo
-make infra-down    # Stoppt die Infrastruktur
-make infra-clean   # Löscht alle Volumes (erfordert Bestätigung)
+make infra-up        # Starts MinIO, PostgreSQL, ClickHouse, NATS, Grafana, Prometheus, Tempo, Docs
+make infra-down      # Stops infrastructure
+make infra-clean     # Deletes all volumes (requires confirmation)
 ```
 
-### Einzelne Services
+### Individual Services
 ```bash
 make ingestion-up / make ingestion-down
 make worker-up    / make worker-down
 make bff-up       / make bff-down
 ```
 
-### Entwicklung
+### Development
 ```bash
-make test          # Alle Tests (Go Integration + Python Unit)
-make test-go       # Go Integrationstests via Testcontainers (benötigt Docker)
-make test-python   # Python Unittests via pytest
-make lint          # golangci-lint (Go) + ruff (Python)
-make codegen       # Generiert Go-Typen aus services/bff-api/api/openapi.yaml neu
-make build-services  # Kompiliert Go-Binaries nach ./bin/
-make tidy          # Bereinigt Go-Module und den Python-Cache
+make test            # All tests (Go integration + Python unit)
+make test-go         # Go integration tests via Testcontainers (requires Docker)
+make test-python     # Python unit tests via pytest
+make test-e2e        # End-to-end smoke test (full Docker Compose stack, with teardown)
+make lint            # golangci-lint (Go) + ruff (Python)
+make codegen         # Regenerates Go types from services/bff-api/api/openapi.yaml
+make build-services  # Compiles Go binaries into ./bin/
+make tidy            # Cleans Go modules and Python __pycache__
 ```
 
-Um einen einzelnen Python-Test auszuführen: `cd services/analysis-worker && python -m pytest tests/test_processor.py::TestName -v`
+Run a single Python test: `cd services/analysis-worker && python -m pytest tests/test_processor.py::TestName -v`
 
-Um einen einzelnen Go-Test auszuführen: `cd services/ingestion-api && go test ./... -run TestName`
+Run a single Go test: `cd services/ingestion-api && go test ./... -run TestName`
 
-## Architektur
+## Architecture
 
-Drei Microservices kommunizieren **ausschließlich** über gemeinsamen Speicher (Shared Storage) und NATS — es gibt keine direkten HTTP-Aufrufe zwischen den Services.
+Three microservices communicate **exclusively** via shared storage and NATS — there are no direct HTTP calls between services.
 
 ```
 [ingestion-api (Go, :8081)]
-    → lädt rohes JSON hoch → MinIO Bronze-Bucket
-    → protokolliert Metadaten → PostgreSQL (trace_id, object_key, job status)
-    → MinIO sendet NATS-Event bei Bucket PUT → Topic: aer.lake.bronze
+    → uploads raw JSON → MinIO bronze bucket
+    → logs metadata → PostgreSQL (trace_id, object_key, job status)
+    → MinIO emits NATS event on bucket PUT → topic: aer.lake.bronze
 
 [analysis-worker (Python, NATS Consumer)]
-    ← abonniert aer.lake.bronze (JetStream, durable, at-least-once)
-    → validiert mit Pydantic, harmonisiert Bronze → Silver in MinIO
-    → extrahiert Metriken → ClickHouse aer_gold.metrics
-    → fehlerhafte Daten → MinIO bronze-quarantine (DLQ, 30-Tage TTL)
-    → manuelles NATS-Ack nach der Verarbeitung
+    ← subscribes to aer.lake.bronze (JetStream, durable, at-least-once)
+    → validates with Pydantic, harmonizes Bronze → Silver in MinIO
+    → extracts metrics → ClickHouse aer_gold.metrics
+    → malformed data → MinIO bronze-quarantine (DLQ, 30-day TTL)
+    → manual NATS Ack after processing
 
 [bff-api (Go, :8080)]
     ← REST GET /api/v1/metrics?startDate=...&endDate=...
-    → fragt ClickHouse nach Zeitreihen-Aggregationen ab
+    ← Protected by API key (X-API-Key header or Authorization: Bearer <key>)
+    → queries ClickHouse for time-series aggregations (5-min downsampling, LIMIT 10000)
+
+[traefik (Reverse Proxy, :80/:443)]
+    → TLS termination via Let's Encrypt for BFF-API and Grafana
+    → Only public-facing ingress point in production
 ```
 
-**Alle drei Services** senden OpenTelemetry-Traces, wobei der Kontext über NATS-Message-Header propagiert wird. Sichtbar in Grafana Tempo.
+**All three services** emit OpenTelemetry traces with context propagation via NATS message headers. Visible in Grafana Tempo.
+
+### Crawlers
+
+Crawlers are **not** integrated into the ingestion-api. They run as standalone external programs that POST data to `http://<ingestion-api>/api/v1/ingest`. This follows the "Dumb Pipes, Smart Endpoints" pattern. Long-term vision: hundreds of specialized crawlers deliver data via the HTTP interface.
+
+Current crawlers:
+- `crawlers/wikipedia-scraper/` — Go program fetching random Wikipedia article summaries.
+
+### Network Segmentation
+
+Docker Compose defines two networks:
+- `aer-frontend` — BFF-API, Grafana, Traefik (public-facing)
+- `aer-backend` — all databases, NATS, workers, OTel (internal only)
+
+Only the BFF-API and Grafana bridge both networks.
 
 ## Storage Layer
 
-| Speicher | Rolle | TTL (Lebensdauer) |
-|-------|------|-----|
-| MinIO `bronze` | Unveränderliche Rohdaten | 90 Tage |
-| MinIO `silver` | Harmonisierte Daten | — |
-| MinIO `bronze-quarantine` | Dead Letter Queue | 30 Tage |
-| PostgreSQL | Dokumenten-Metadaten + Lineage (trace_id ↔ object_key) | — |
-| ClickHouse `aer_gold.metrics` | Aggregierte Zeitreihen | 365 Tage |
+| Storage | Role | TTL |
+|---------|------|-----|
+| MinIO `bronze` | Immutable raw data | 90 days |
+| MinIO `silver` | Harmonized data | — |
+| MinIO `bronze-quarantine` | Dead Letter Queue | 30 days |
+| PostgreSQL | Document metadata + lineage (trace_id ↔ object_key) | — |
+| ClickHouse `aer_gold.metrics` | Aggregated time-series | 365 days |
 
-Das PostgreSQL-Schema befindet sich in `infra/postgres/init.sql`. Das ClickHouse-Schema in `infra/clickhouse/init.sql`. Das MinIO-Bucket-Setup (inklusive ILM-Richtlinien und NATS-Event-Routing) ist in `infra/minio/setup.sh`.
+The PostgreSQL schema is in `infra/postgres/init.sql`. The ClickHouse schema is in `infra/clickhouse/init.sql`. The MinIO bucket setup (including ILM policies and NATS event routing) is in `infra/minio/setup.sh`.
 
-## Code-Struktur
+## Code Structure
 
-- `pkg/` — Gemeinsame Go-Bibliotheken (Config, Logger, Telemetry), die von beiden Go-Services über `go.work` genutzt werden.
-- `services/ingestion-api/` — Go; Einstiegspunkt: `cmd/api/main.go`; Geschäftslogik: `internal/core/service.go`; Adapter: `internal/storage/`
-- `services/analysis-worker/` — Python; Einstiegspunkt: `main.py`; Verarbeitung: `internal/processor.py`; Verträge (Contracts): `internal/models.py`
-- `services/bff-api/` — Go; Einstiegspunkt: `cmd/server/main.go`; OpenAPI-Spezifikation: `api/openapi.yaml` (Contract-First, Typen werden automatisch über `make codegen` generiert)
-- `infra/` — IaC-Skripte für die gesamte Infrastruktur (werden von Init-Containern in `compose.yaml` ausgeführt)
-- `docs/arc42/` — Architektur-Dokumentation im Arc42-Format; erreichbar unter `http://localhost:8000` via MkDocs
+- `pkg/` — Shared Go libraries (Logger, Telemetry, Testutils) used by both Go services via `go.work`.
+- `services/ingestion-api/` — Go; entry point: `cmd/api/main.go`; business logic: `internal/core/service.go`; adapters: `internal/storage/`
+- `services/analysis-worker/` — Python; entry point: `main.py`; processing: `internal/processor.py`; contracts: `internal/models.py`
+- `services/bff-api/` — Go; entry point: `cmd/server/main.go`; OpenAPI spec: `api/openapi.yaml` (contract-first, types auto-generated via `make codegen`)
+- `crawlers/` — Standalone crawler programs (currently: `wikipedia-scraper/`). Each crawler is an independent Go module.
+- `infra/` — IaC scripts for all infrastructure (executed by init containers in `compose.yaml`)
+- `docs/arc42/` — Architecture documentation in Arc42 format; accessible at `http://localhost:8000` via MkDocs
 
-## Wichtige Design-Regeln
+## Non-Negotiable Rules
 
-1. **Zeitstempel sind deterministisch:** Verwende Metadaten aus MinIO-Events, niemals `datetime.now()` oder `time.Now()` in den Datenverarbeitungspfaden.
-2. **Idempotenz:** Die Ingestion verwendet den `bronze_object_key` als eindeutigen Schlüssel; das erneute Verarbeiten desselben Events darf keine Duplikate erzeugen.
-3. **Keine Mutation von Bronze:** Rohdaten im MinIO `bronze`-Bucket sind 'write-once' (einmal beschreibbar). Transformationen erzeugen neue Objekte im `silver`-Bucket.
-4. **BFF API ist Contract-First:** Bearbeite `services/bff-api/api/openapi.yaml` und führe dann `make codegen` aus — generierte Dateien dürfen niemals manuell bearbeitet werden.
-5. **Gemeinsamer Go-Code gehört in `pkg/`:** Beide Go-Services hängen über den Go-Workspace davon ab.
+### Docker Compose is the Single Source of Truth (SSoT)
 
-## Lokale Service URLs
+- `compose.yaml` is the SSoT for **all** container image tags.
+- **Hard-pinning only** — no `latest`, no floating major/minor tags (e.g. `v3`), no `rc`/`alpha`/`beta` versions.
+- When upgrading an image version: check the changelog, test locally with `make up`, and commit the pinned tag.
+
+### Testcontainers Must Parse Tags from Compose
+
+- Go tests use `pkg/testutils.GetImageFromCompose()` to read the image tag dynamically from `compose.yaml`.
+- Python tests use `tests/test_storage.py::get_compose_image()` for the same purpose.
+- **Never hardcode image tags** in test files — always read from the SSoT.
+
+### Healthchecks: HTTP Probes Only
+
+- Healthchecks in `compose.yaml` and Testcontainers must always use **HTTP probes** (or native commands like `pg_isready`).
+- **Never use log-parsing** (`wait.ForLog(...)`) as a readiness strategy.
+
+### Git Hooks Are Mandatory
+
+Pre-commit and pre-push hooks live in `scripts/hooks/`:
+- **Pre-commit:** Runs `make lint` — blocks commit on lint failure.
+- **Pre-push:** Runs `make lint` + `make test` — blocks push on lint or test failure.
+
+Install them via: `git config core.hooksPath scripts/hooks`
+
+### Go Workspace (`go.work`)
+
+`go.work` and `go.work.sum` are **intentionally versioned** in the repository. They serve as the SSoT for Docker multi-stage builds and CI to deterministically resolve the shared `pkg/` module within the monorepo. Do not add them to `.gitignore`.
+
+## Design Rules
+
+1. **Timestamps are deterministic:** Use metadata from MinIO events, never `datetime.now()` or `time.Now()` in data processing paths.
+2. **Idempotency:** Ingestion uses the `bronze_object_key` as unique key; reprocessing the same event must never create duplicates. The worker checks PostgreSQL document status before processing.
+3. **No mutation of Bronze:** Raw data in the MinIO `bronze` bucket is write-once. Transformations create new objects in the `silver` bucket.
+4. **BFF API is contract-first:** Edit `services/bff-api/api/openapi.yaml`, then run `make codegen` — never manually edit generated files.
+5. **Shared Go code belongs in `pkg/`:** Both Go services depend on it via the Go workspace.
+6. **Crawlers are external:** They POST to the ingestion-api HTTP endpoint. They are never embedded in or coupled to the ingestion service.
+7. **Infrastructure is provisioned by IaC:** Microservices must never create databases, tables, or buckets on startup. They assume infrastructure is already present (provisioned by init containers or IaC scripts).
+
+## Local Service URLs
 
 | Service | URL |
 |---------|-----|
+| Ingestion API | `http://localhost:8081/api/v1/ingest` |
 | BFF API | `http://localhost:8080/api/v1/metrics` |
 | Grafana | `http://localhost:3000` |
 | MinIO Console | `http://localhost:9001` |
@@ -119,4 +175,4 @@ Das PostgreSQL-Schema befindet sich in `infra/postgres/init.sql`. Das ClickHouse
 | NATS Monitor | `http://localhost:8222` |
 | Docs (MkDocs) | `http://localhost:8000` |
 
-Zugangsdaten befinden sich in der `.env` (aus `.env.example` kopieren).
+Credentials are in `.env` (copy from `.env.example`). The BFF API requires an `X-API-Key` header for all routes except `/api/v1/healthz` and `/api/v1/readyz`.

@@ -1,5 +1,9 @@
 # 9. Architecture Decisions
 
+This chapter records all significant architectural decisions using the Architecture Decision Record (ADR) format. Each ADR captures the context, the decision, and its consequences. ADRs are immutable once accepted — if a decision is superseded, the original ADR is marked as such and a new one is created.
+
+> **Note:** ADR-001 was an informal, undocumented decision made during project inception (selection of the Monorepo structure). It is retroactively captured in Chapter 2 (Architecture Constraints) and not repeated here.
+
 ## ADR-002: Data Governance, Resiliency, and The Silver Contract
 
 **Date:** 2026-03-28  
@@ -20,6 +24,8 @@ To guarantee deterministic execution and scientific integrity, we implemented th
 * **Positive:** The processing pipeline is highly robust. Corrupt data is isolated for manual inspection without halting the system. Metric duplication is structurally prevented.
 * **Negative:** Checking MinIO for existing object keys adds a slight latency overhead (one HTTP HEAD request per event) before processing. Given the system's asynchronous nature, this tradeoff is acceptable.
 
+---
+
 ## ADR-003: The Metadata Index and Progressive Disclosure
 
 **Date:** 2026-03-28  
@@ -37,6 +43,8 @@ We introduce a dedicated Metadata Index using **PostgreSQL**.
 ### Consequences
 * **Positive:** Clear separation of concerns. ClickHouse remains extremely fast and lean because it only holds numerical time-series data. PostgreSQL securely handles relational mapping and audit trails.
 * **Negative:** The `ingestion-api` has to manage a distributed transaction span (writing to MinIO and PostgreSQL sequentially). If MinIO succeeds but PostgreSQL fails, there is an unindexed file in the data lake (an acceptable edge case handled by eventual consistency sweeps later).
+
+---
 
 ## ADR-004: Contract-First Backend-for-Frontend (BFF)
 
@@ -56,6 +64,8 @@ We implemented a dedicated Backend-for-Frontend (BFF) service in Go, strictly fo
 * **Positive:** The API documentation is the single source of truth and is guaranteed to match the implementation. Type safety prevents runtime JSON marshaling errors. The modular OpenAPI structure ensures long-term maintainability as the API grows.
 * **Negative:** Developers must learn the `oapi-codegen` workflow and remember to run `make codegen` whenever the API contract is modified.
 
+---
+
 ## ADR-005: Hybrid Testing Strategy (Mocks vs. Testcontainers)
 
 **Date:** 2026-03-28  
@@ -72,6 +82,8 @@ We adopt a hybrid testing strategy tailored to the responsibilities of each laye
 ### Consequences
 * **Positive:** High test reliability. Python logic is tested fast and in isolation. Go storage adapters are tested against real database engines, preventing schema drift bugs.
 * **Negative:** The Go integration tests will take slightly longer to execute in the CI pipeline because they require pulling and starting Docker images.
+
+---
 
 ## ADR-006: Graceful Degradation & Exponential Backoff
 
@@ -91,6 +103,8 @@ We implement a **Context-Aware Exponential Backoff Strategy** using `github.com/
 * **Positive:** The system becomes self-healing. Services can be started in any order. Temporary network partitions do not require manual intervention. The use of `v5` generics allows returning initialized connections directly.
 * **Negative:** Service startup might be intentionally delayed if infrastructure is down, meaning immediate failure feedback is suppressed in favor of resilience.
 
+---
+
 ## ADR-007: Data Lifecycle & Retention Strategy (Graceful Degradation)
 
 **Date:** 2026-03-28  
@@ -107,3 +121,108 @@ We implement automated, infrastructure-level Data Lifecycle Management (DLM):
 ### Consequences
 * **Positive:** Predictable storage costs. Protection against storage-related crashes. Zero application-level cron jobs required.
 * **Negative:** Raw Bronze data is permanently lost after 90 days, meaning we cannot retroactively re-parse the original HTML/JSON for those specific records if a bug is found in the parser later (unless we re-crawl).
+
+---
+
+## ADR-008: Docker Network Segmentation
+
+**Date:** 2026-04-02  
+**Status:** Accepted
+
+### Context
+The initial AĒR deployment used a single flat Docker bridge network (`aer-network`) for all containers. As the system matured and TLS termination via Traefik was introduced (see ADR-012), a security review identified that any container on the network could reach any other container — including databases. If the BFF API or Traefik were compromised, an attacker would have direct network access to PostgreSQL, ClickHouse, MinIO, and NATS.
+
+### Decision
+We split the flat `aer-network` into two isolated Docker bridge networks:
+1. **`aer-frontend`:** Contains only internet-facing services — Traefik (reverse proxy/TLS termination). Services that need to be reachable from the internet are also attached to this network.
+2. **`aer-backend`:** Contains all databases (PostgreSQL, ClickHouse, MinIO), the message broker (NATS), the analysis worker, init containers, the observability stack (OTel Collector, Tempo, Prometheus), and the documentation server.
+
+Only two services bridge both networks: the `bff-api` (must be routable from Traefik and must reach ClickHouse) and `grafana` (must serve dashboards externally and must reach Tempo/Prometheus internally). All other services are exclusively on `aer-backend`.
+
+### Consequences
+* **Positive:** Databases are unreachable from the internet-facing network. A compromised Traefik container cannot directly access PostgreSQL or MinIO. The blast radius of a frontend compromise is significantly reduced.
+* **Negative:** Services that need to bridge both networks must be explicitly configured with two `networks:` entries. Debugging network issues requires awareness of which network a container belongs to.
+
+---
+
+## ADR-009: Hard-Pinning Policy & Compose as SSoT for Image Versions
+
+**Date:** 2026-04-02  
+**Status:** Accepted
+
+### Context
+Docker's `latest` tag and rolling minor-version tags (e.g., `postgres:16`) are convenient but non-deterministic — they resolve to different binaries at different points in time. This breaks reproducibility: two developers running `docker compose pull` on different days could end up with different database versions, causing "works on my machine" bugs. Additionally, Testcontainers in both Go and Python must use the same image versions as the compose stack to ensure test fidelity.
+
+### Decision
+We adopt a strict hard-pinning policy with `compose.yaml` as the Single Source of Truth:
+1. **All infrastructure images** in `compose.yaml` must use immutable, patch-level tags (e.g., `postgres:18.3-alpine3.23`, `nats:2.12.6-alpine3.22`). The use of `latest`, `rc`, `alpha`, or major/minor-only tags is prohibited.
+2. **Testcontainers** (both Go and Python) must dynamically parse their image tags from `compose.yaml` at test time via dedicated SSoT parsers (`pkg/testutils/compose.go` and the Python `get_compose_image()` function). No image tag may be hardcoded in test files.
+3. **Upgrades** are performed manually and deliberately. Before upgrading, the changelog/release notes of the image are reviewed, the full stack is validated locally via `make up`, and the pinned version is committed to Git — enabling rollback via `git revert`.
+
+### Consequences
+* **Positive:** Fully reproducible environments. Tests always run against the exact same database versions as development and production. Upgrade decisions are explicit and auditable via Git history.
+* **Negative:** Slightly higher maintenance overhead — version bumps require manual intervention instead of automatic pulls. Two images currently violate this policy (`prom/prometheus:v3`, `grafana/grafana:12.4`) and are tracked as technical debt (see Chapter 11, D-1).
+
+---
+
+## ADR-010: External Crawler Architecture ("Dumb Pipes, Smart Endpoints")
+
+**Date:** 2026-04-02  
+**Status:** Accepted
+
+### Context
+AĒR's long-term vision is to ingest data from hundreds of diverse sources — Wikipedia, news APIs, social media feeds, RSS aggregators, government databases. The initial approach of embedding data-fetching logic directly into the `ingestion-api` microservice would create a monolithic, tightly coupled service that grows linearly with every new data source. Each source has unique authentication, pagination, rate limiting, and data format requirements.
+
+### Decision
+We adopt a **"Dumb Pipes, Smart Endpoints"** architecture where crawlers are strictly external to the AĒR system boundary:
+1. **Crawlers** are standalone programs (typically Go binaries) that live under `crawlers/` in the monorepo. Each crawler is a self-contained executable responsible for fetching data from one specific external source, transforming it into the generic AĒR Ingestion Contract format, and submitting it via `HTTP POST` to the Ingestion API (`POST /api/v1/ingest`).
+2. **The Ingestion API** is source-agnostic. It accepts a `source_id` and an array of opaque JSON documents. It stores them verbatim in MinIO (Bronze layer) without inspecting the content. The crawlers are the adapters that translate source-specific formats into the generic contract.
+3. **Crawlers are not orchestrated by `compose.yaml`.** They run ad-hoc (manually, via cron, or via external schedulers) and communicate with AĒR exclusively over HTTP.
+
+### Consequences
+* **Positive:** Adding a new data source requires only writing a new standalone crawler — zero changes to any AĒR microservice. Crawlers can be written in any language. They can run on different machines, on different schedules, and can be independently tested. The Ingestion API remains small and stable.
+* **Negative:** There is no centralized orchestration or monitoring of crawler execution within AĒR itself. Crawler failures are invisible to the system unless the crawlers implement their own logging/alerting.
+
+---
+
+## ADR-011: BFF API Authentication via Static API Key
+
+**Date:** 2026-04-02  
+**Status:** Accepted
+
+### Context
+The BFF API is the only application service exposed to the internet via Traefik. Without authentication, any client with network access could read aggregated metrics from ClickHouse or probe internal system state via health endpoints. A full OAuth2/JWT setup was considered but deemed overengineered for the current single-operator deployment model.
+
+### Decision
+We implement a lightweight API-key authentication middleware on the BFF API:
+1. All routes except `/healthz` and `/readyz` require a valid API key.
+2. The key is accepted via the `X-API-Key` request header or the `Authorization: Bearer <key>` header.
+3. The key value is configured via the `BFF_API_KEY` environment variable (sourced from `.env`).
+4. Requests with missing or invalid keys receive a `401 Unauthorized` JSON response.
+
+Health and readiness probes remain unauthenticated to support Docker healthchecks and future Kubernetes liveness/readiness probes.
+
+### Consequences
+* **Positive:** Minimal implementation complexity (a single `chi` middleware function). Blocks unauthorized access without introducing external dependencies (no OAuth provider, no JWT library, no session store). Easy to rotate by changing the `.env` value and restarting.
+* **Negative:** A static API key provides authentication but not authorization — there is no concept of user roles, scopes, or per-user rate limiting. Sufficient for the current single-operator model but must be replaced with a proper identity solution (e.g., OAuth2, OIDC) if multi-user access is introduced.
+
+---
+
+## ADR-012: TLS Termination via Traefik Reverse Proxy
+
+**Date:** 2026-04-02  
+**Status:** Accepted
+
+### Context
+When deploying AĒR on a VPS for production use, the BFF API must be accessible over HTTPS. Implementing TLS directly in the Go `bff-api` binary would require certificate management logic, renewal automation, and key file handling — concerns that do not belong in application code. Additionally, other services (e.g., Grafana) may need TLS in the future.
+
+### Decision
+We introduce Traefik as a dedicated reverse proxy for TLS termination:
+1. **Traefik** (`traefik:v3.6.12`) runs on the `aer-frontend` network and listens on ports `80` (HTTP, redirects to HTTPS) and `443` (HTTPS).
+2. **Automatic TLS** is provided via ACME/Let's Encrypt using the TLS challenge (`tlschallenge`). Certificates are persisted in a Docker volume (`traefik-certs`).
+3. **Service discovery** uses Docker labels. Only the `bff-api` is explicitly exposed (`traefik.enable=true`) with the routing rule `PathPrefix(/api)`. All other services have `exposedbydefault=false`.
+4. **Application services remain HTTP-only internally.** TLS is terminated at Traefik — internal container-to-container communication on `aer-backend` uses plain HTTP.
+
+### Consequences
+* **Positive:** Zero TLS code in application services. Automatic certificate renewal. Centralized routing and TLS configuration. Adding TLS to additional services (e.g., Grafana) requires only Docker labels — no code changes.
+* **Negative:** Traefik becomes a single point of entry and therefore a single point of failure for all external traffic. Internal traffic is unencrypted (acceptable within a Docker bridge network on a single host, but would need mTLS in a multi-host deployment).
