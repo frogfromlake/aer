@@ -17,6 +17,8 @@ RUN go mod download && \
 
 FROM alpine:3.23.3
 
+RUN apk upgrade --no-cache zlib
+
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /bin/ingestion-api /ingestion-api
 

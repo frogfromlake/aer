@@ -60,7 +60,7 @@ jobs:
         id: docker-cache
         with:
           path: /tmp/docker-images
-          key: docker-tc-v1-minio-latest-postgres-16alpine-ch-23.8
+          key: docker-tc-v2-minio-latest-postgres-16alpine-ch-24.12.3.47
 
       - name: Load cached Docker images
         if: steps.docker-cache.outputs.cache-hit == 'true'
@@ -75,10 +75,11 @@ jobs:
           mkdir -p /tmp/docker-images
           docker pull minio/minio:latest
           docker pull postgres:16-alpine
-          docker pull clickhouse/clickhouse-server:23.8
+          docker pull clickhouse/clickhouse-server:24.12.3.47
+          
           docker save minio/minio:latest -o /tmp/docker-images/minio.tar
           docker save postgres:16-alpine -o /tmp/docker-images/postgres.tar
-          docker save clickhouse/clickhouse-server:23.8 -o /tmp/docker-images/clickhouse.tar
+          docker save clickhouse/clickhouse-server:24.12.3.47 -o /tmp/docker-images/clickhouse.tar
 
       # Manual installation is required because the pre-built action binary
       # does not yet support Go 1.26.1 features.

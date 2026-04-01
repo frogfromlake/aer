@@ -14,6 +14,9 @@ These tests validate two concerns:
 Requirements: Docker must be available. Run via `make test-python`.
 """
 
+import time
+import urllib.request
+import urllib.error
 import pytest
 import psycopg2
 from unittest.mock import patch, MagicMock
@@ -46,7 +49,7 @@ def _make_cursor_mock():
 def pg_container():
     """Starts an isolated PostgreSQL container for the duration of this module."""
     with PostgresContainer(
-        image="postgres:15-alpine",
+        image="postgres:16-alpine",
         username="aer_admin",
         password="aer_secret",
         dbname="aer_metadata",
@@ -73,11 +76,29 @@ def minio_container():
 def ch_container():
     """Starts an isolated ClickHouse container for the duration of this module."""
     container = (
-        DockerContainer("clickhouse/clickhouse-server:24-alpine")
+        DockerContainer("clickhouse/clickhouse-server:24.12.3.47") # Synchronized with compose.yaml
         .with_exposed_ports(8123)
     )
     with container:
-        wait_for_logs(container, "Ready for connections", timeout=60)
+        # Robust HTTP wait strategy instead of brittle log parsing
+        start_time = time.time()
+        is_ready = False
+        
+        while time.time() - start_time < 60:
+            try:
+                host = container.get_container_host_ip()
+                port = container.get_exposed_port(8123)
+                response = urllib.request.urlopen(f"http://{host}:{port}/ping", timeout=1)
+                
+                if response.getcode() == 200:
+                    is_ready = True
+                    break
+            except (urllib.error.URLError, ConnectionError, TimeoutError):
+                time.sleep(1)
+                
+        if not is_ready:
+            raise TimeoutError("ClickHouse container did not become ready within 60 seconds.")
+            
         yield container
 
 
