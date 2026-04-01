@@ -20,8 +20,8 @@ func TestClickHouseStorage(t *testing.T) {
 	// 1. Start ephemeral ClickHouse container
 	chContainer, err := tcclickhouse.Run(ctx, chImage,
 		tcclickhouse.WithDatabase("aer_gold"),
-		tcclickhouse.WithUsername("default"),
-		tcclickhouse.WithPassword(""),
+		tcclickhouse.WithUsername("aer_admin"),
+		tcclickhouse.WithPassword("aer_secret"),
 	)
 	if err != nil {
 		t.Fatalf("failed to start clickhouse container: %v", err)
@@ -45,7 +45,7 @@ func TestClickHouseStorage(t *testing.T) {
 	addr := host + ":" + port.Port()
 
 	// 2. Initialize our Adapter
-	store, err := NewClickHouseStorage(ctx, addr, "default", "", "aer_gold")
+	store, err := NewClickHouseStorage(ctx, addr, "aer_admin", "aer_secret", "aer_gold")
 	if err != nil {
 		t.Fatalf("failed to initialize clickhouse storage: %v", err)
 	}
