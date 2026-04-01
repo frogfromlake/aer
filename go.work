@@ -1,0 +1,8 @@
+go 1.26.1
+
+use (
+	./pkg
+	./services/bff-api
+	./services/ingestion-api
+	./crawlers/wikipedia-scraper
+)
