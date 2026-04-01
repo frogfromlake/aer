@@ -134,6 +134,9 @@ def ch_container():
     """Starts an isolated ClickHouse container for the duration of this module."""
     container = (
         DockerContainer(get_compose_image("clickhouse"))
+        .with_env("CLICKHOUSE_USER", "aer_admin")
+        .with_env("CLICKHOUSE_PASSWORD", "aer_secret")
+        .with_env("CLICKHOUSE_DB", "aer_gold")
         .with_exposed_ports(8123)
     )
     with container:
@@ -297,9 +300,9 @@ class TestInitClickhouse:
         """
         monkeypatch.setenv("CLICKHOUSE_HOST", ch_container.get_container_host_ip())
         monkeypatch.setenv("CLICKHOUSE_PORT", str(ch_container.get_exposed_port(8123)))
-        monkeypatch.setenv("CLICKHOUSE_USER", "default")
-        monkeypatch.setenv("CLICKHOUSE_PASSWORD", "")
-        monkeypatch.setenv("CLICKHOUSE_DB", "default")
+        monkeypatch.setenv("CLICKHOUSE_USER", "aer_admin")
+        monkeypatch.setenv("CLICKHOUSE_PASSWORD", "aer_secret")
+        monkeypatch.setenv("CLICKHOUSE_DB", "aer_gold")
 
         client = init_clickhouse()
         assert client is not None

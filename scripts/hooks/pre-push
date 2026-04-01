@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# ==============================================================================
+# AĒR PRE-PUSH HOOK
+# Ensures code quality before pushing to the remote repository.
+# ==============================================================================
+
+echo "🛑 [Pre-Push Hook] Running Linters..."
+
+# 1. Run Linters
+make lint
+
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-Push Hook] Linting failed! Please fix the errors before pushing."
+  exit 1
+fi
+
+echo "✅ [Pre-Push Hook] Linting passed."
+echo "🛑 [Pre-Push Hook] Running Tests..."
+
+# 2. Run Tests
+make test
+
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-Push Hook] Tests failed! Please fix the failing tests before pushing."
+  exit 1
+fi
+
+echo "✅ [Pre-Push Hook] Linting and Tests passed. Proceeding with push..."
+exit 0

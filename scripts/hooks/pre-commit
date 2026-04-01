@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# ==============================================================================
+# AĒR PRE-COMMIT HOOK
+# Ensures code quality before committing to the local repository.
+# ==============================================================================
+
+echo "🛑 [Pre-Commit Hook] Running Linters..."
+
+# 1. Run Linters
+make lint
+
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-Commit Hook] Linting failed! Please fix the errors before committing."
+  exit 1
+fi
+
+echo "✅ [Pre-Commit Hook] Linting passed. Proceeding with commit..."
+exit 0
