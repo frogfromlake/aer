@@ -73,7 +73,8 @@ services:
     networks:
       - aer-backend
     depends_on:
-      - nats
+      nats-init:
+        condition: service_completed_successfully # MinIO waits for JetStream
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -126,6 +127,20 @@ services:
           memory: 256M
           cpus: "0.25"
 
+  nats-init:
+    image: natsio/nats-box:0.19.3
+    container_name: aer_nats_init
+    restart: "no"
+    depends_on:
+      nats:
+        condition: service_healthy
+    networks:
+      - aer-backend
+    command: >
+      sh -c "
+        nats stream add AER_LAKE --subjects 'aer.lake.>' --storage file --server nats:4222 --defaults &&
+        echo 'JetStream AER_LAKE created successfully.'
+      "
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)
   # ----------------------------------------------------
@@ -187,6 +202,99 @@ services:
           cpus: "1.00"
 
   # ----------------------------------------------------
+  # 3.1b INGESTION API (INTERNAL WRITE PATH)
+  # ----------------------------------------------------
+  ingestion-api:
+    build:
+      context: .
+      dockerfile: services/ingestion-api/Dockerfile
+    container_name: aer_ingestion_api
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - APP_ENV=${APP_ENV}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - INGESTION_PORT=8081
+      - DB_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_USE_SSL=false
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+    networks:
+      - aer-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ----------------------------------------------------
+  # 3.1c ANALYSIS WORKER (BRONZE → SILVER → GOLD)
+  # ----------------------------------------------------
+  analysis-worker:
+    build:
+      context: .
+      dockerfile: services/analysis-worker/Dockerfile
+    container_name: aer_analysis_worker
+    restart: unless-stopped
+    environment:
+      - NATS_URL=nats://nats:4222
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+      - WORKER_COUNT=${WORKER_COUNT:-5}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    networks:
+      - aer-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      nats-init:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/metrics')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
+
+  # ----------------------------------------------------
   # 3.2 BFF API (PUBLIC-FACING, BEHIND TRAEFIK)
   # ----------------------------------------------------
   bff-api:
@@ -195,6 +303,8 @@ services:
       dockerfile: services/bff-api/Dockerfile
     container_name: aer_bff_api
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     environment:
       - APP_ENV=${APP_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
@@ -218,6 +328,12 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:

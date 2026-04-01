@@ -161,16 +161,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build ingestion-api image
-        run: docker build -t aer/ingestion-api:ci ./services/ingestion-api
+        run: docker build -t aer/ingestion-api:ci -f services/ingestion-api/Dockerfile .
 
       - name: Build bff-api image
-        run: docker build -t aer/bff-api:ci ./services/bff-api
+        run: docker build -t aer/bff-api:ci -f services/bff-api/Dockerfile .
 
       - name: Build analysis-worker image
-        run: docker build -t aer/analysis-worker:ci ./services/analysis-worker
+        run: docker build -t aer/analysis-worker:ci -f services/analysis-worker/Dockerfile .
 
       - name: Trivy scan — ingestion-api
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: 'aer/ingestion-api:ci'
           format: 'table'
@@ -179,7 +179,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — bff-api
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: 'aer/bff-api:ci'
           format: 'table'
@@ -188,7 +188,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — analysis-worker
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: 'aer/analysis-worker:ci'
           format: 'table'

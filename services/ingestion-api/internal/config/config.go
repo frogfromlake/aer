@@ -27,6 +27,10 @@ func Load() (*Config, error) {
 	v.SetDefault("APP_ENV", "development")
 	v.SetDefault("LOG_LEVEL", "INFO")
 	v.SetDefault("INGESTION_PORT", "8081")
+	v.SetDefault("DB_URL", "")
+	v.SetDefault("MINIO_ENDPOINT", "")
+	v.SetDefault("MINIO_ACCESS_KEY", "")
+	v.SetDefault("MINIO_SECRET_KEY", "")
 	v.SetDefault("MINIO_USE_SSL", false)
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 

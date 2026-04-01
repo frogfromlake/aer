@@ -31,4 +31,6 @@ go.work.sum
 # services ingestion-api
 services/ingestion-api/.env
 # Logs
-.pids/
+logs/
+*.log
+.pids

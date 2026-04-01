@@ -31,7 +31,10 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_PORT", "8080")
 	v.SetDefault("CLICKHOUSE_HOST", "localhost")
 	v.SetDefault("CLICKHOUSE_PORT", "9002")
+	v.SetDefault("CLICKHOUSE_USER", "")
+	v.SetDefault("CLICKHOUSE_PASSWORD", "")
 	v.SetDefault("CLICKHOUSE_DB", "aer_gold")
+	v.SetDefault("BFF_API_KEY", "")
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	v.SetDefault("CORS_ALLOWED_ORIGINS", "*")
 
