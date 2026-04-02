@@ -1,4 +1,4 @@
-.PHONY: up down stop restart
+.PHONY: help up down stop restart
 .PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
@@ -200,3 +200,37 @@ lint-go-pkg:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running golangci-lint for pkg/...$(RESET)"
 	@cd pkg && golangci-lint run
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
+
+# ==========================================
+# HELP MENU
+# ==========================================
+help:
+	@echo -e "$(BOLD)$(CYAN)AĒR Stack - Makefile Commands$(RESET)"
+	@echo -e "$(GRAY)================================================================================$(RESET)"
+	@echo -e "$(BOLD)Global Commands:$(RESET)"
+	@echo -e "  $(GREEN)up$(RESET)              $(GRAY)Start the entire stack (infrastructure + services)$(RESET)"
+	@echo -e "  $(GOLD)down$(RESET)            $(GRAY)Stop the entire stack$(RESET)"
+	@echo -e "  $(CYAN)restart$(RESET)         $(GRAY)Restart the entire stack$(RESET)"
+	@echo -e ""
+	@echo -e "$(BOLD)Infrastructure:$(RESET)"
+	@echo -e "  $(GREEN)infra-up$(RESET)        $(GRAY)Start backend infra (DBs, Queues, Observability)$(RESET)"
+	@echo -e "  $(GOLD)infra-down$(RESET)      $(GRAY)Stop backend infra$(RESET)"
+	@echo -e "  $(CYAN)debug-up$(RESET)        $(GRAY)Expose internal infra ports to host for debugging$(RESET)"
+	@echo -e "  $(CYAN)infra-clean$(RESET)     $(GRAY)Wipe all infra data (append -postgres, -minio, etc. for specific)$(RESET)"
+	@echo -e ""
+	@echo -e "$(BOLD)Services:$(RESET)"
+	@echo -e "  $(GREEN)services-up$(RESET)     $(GRAY)Start ingestion, worker, and bff services$(RESET)"
+	@echo -e "  $(GOLD)services-down$(RESET)   $(GRAY)Stop all application services$(RESET)"
+	@echo -e "  $(CYAN)<svc>-up/down$(RESET)   $(GRAY)Manage individual services (e.g., worker-up, bff-down)$(RESET)"
+	@echo -e ""
+	@echo -e "$(BOLD)Development & Utils:$(RESET)"
+	@echo -e "  $(CYAN)logs$(RESET)            $(GRAY)Tail live logs for all application services$(RESET)"
+	@echo -e "  $(CYAN)build-services$(RESET)  $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
+	@echo -e "  $(CYAN)codegen$(RESET)         $(GRAY)Generate Go code from OpenAPI contracts$(RESET)"
+	@echo -e "  $(CYAN)tidy$(RESET)            $(GRAY)Run 'go mod tidy' across all modules$(RESET)"
+	@echo -e ""
+	@echo -e "$(BOLD)Testing & Linting:$(RESET)"
+	@echo -e "  $(GREEN)test$(RESET)            $(GRAY)Run all unit/integration tests (Go & Python)$(RESET)"
+	@echo -e "  $(GREEN)test-e2e$(RESET)        $(GRAY)Run Docker Compose end-to-end smoke test$(RESET)"
+	@echo -e "  $(CYAN)lint$(RESET)            $(GRAY)Run linters across all Go and Python code$(RESET)"
+	@echo -e "$(GRAY)================================================================================$(RESET)"

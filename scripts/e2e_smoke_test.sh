@@ -16,7 +16,6 @@ if [[ -f .env ]]; then
 fi
 
 # --- Config ---
-INGESTION_URL="http://localhost:8081"
 BFF_URL="http://localhost:8080/api/v1"
 BFF_API_KEY="${BFF_API_KEY:-}"
 PROCESSING_WAIT=15    # seconds to give NATS + worker time to process
@@ -33,23 +32,23 @@ log_step()  { echo -e "\n${GOLD}══ $* ${RESET}"; }
 # --- Teardown (always runs) ---
 cleanup() {
     # Save exit code of the last command in case of unexpected script crash
-    local exit_code=$? 
-    
+    local exit_code=$?
+
     log_step "Teardown"
     echo -e "${GOLD}══ Result ══════════════════════════════════${RESET}"
     echo -e "   ${GREEN}PASSED: $PASS${RESET}   ${RED}FAILED: $FAIL${RESET}"
-    
+
     # If FAIL > 0, or the script crashed hard (exit_code != 0)
     if [[ $FAIL -gt 0 || $exit_code -ne 0 ]]; then
         LOG_DIR="logs/e2e"
         mkdir -p "$LOG_DIR"
         TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
         LOG_FILE="${LOG_DIR}/e2e_fail_${TIMESTAMP}.log"
-        
+
         echo -e "   ${RED}Smoke test FAILED. Dumping full stack logs to ${LOG_FILE}...${RESET}"
         # Dump ALL logs to the file
         docker compose logs > "$LOG_FILE" 2>&1
-        
+
         FINAL_EXIT=1
     else
         echo -e "   ${GREEN}Smoke test PASSED.${RESET}"
@@ -72,8 +71,7 @@ log_ok "Stack started. All services are healthy!"
 # ── Step 2: Ingest a test document ───────────────────────────────────────────
 log_step "Step 2: POST test document to Ingestion API"
 
-PAYLOAD=$(cat <<'EOF'
-{
+PAYLOAD='{
   "source_id": 1,
   "documents": [
     {
@@ -86,21 +84,21 @@ PAYLOAD=$(cat <<'EOF'
       }
     }
   ]
-}
-EOF
-)
+}'
 
-HTTP_STATUS=$(curl -sf -o /tmp/aer_ingest_response.json -w "%{http_code}" \
-    -X POST "${INGESTION_URL}/api/v1/ingest" \
-    -H "Content-Type: application/json" \
-    -d "$PAYLOAD" 2>/dev/null) || HTTP_STATUS="000"
+# Ingestion API has no host port — exec into the container and use wget (Alpine).
+INGEST_RESPONSE=$(docker compose exec -T ingestion-api \
+    wget -q -O - \
+    --header="Content-Type: application/json" \
+    --post-data="$PAYLOAD" \
+    "http://localhost:8081/api/v1/ingest" 2>/dev/null) && INGEST_OK=true || INGEST_OK=false
 
-if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "207" ]]; then
-    log_ok "Ingestion returned HTTP $HTTP_STATUS."
-    log_info "Response: $(cat /tmp/aer_ingest_response.json)"
+if $INGEST_OK; then
+    log_ok "Ingestion returned HTTP 2xx."
+    log_info "Response: $INGEST_RESPONSE"
 else
-    log_fail "Ingestion returned unexpected HTTP $HTTP_STATUS."
-    log_info "Response body: $(cat /tmp/aer_ingest_response.json 2>/dev/null || echo '<empty>')"
+    log_fail "Ingestion request failed."
+    log_info "Response body: ${INGEST_RESPONSE:-<empty>}"
 fi
 
 # ── Step 3: Wait for pipeline processing ─────────────────────────────────────
