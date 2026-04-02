@@ -226,3 +226,39 @@ We introduce Traefik as a dedicated reverse proxy for TLS termination:
 ### Consequences
 * **Positive:** Zero TLS code in application services. Automatic certificate renewal. Centralized routing and TLS configuration. Adding TLS to additional services (e.g., Grafana) requires only Docker labels — no code changes.
 * **Negative:** Traefik becomes a single point of entry and therefore a single point of failure for all external traffic. Internal traffic is unencrypted (acceptable within a Docker bridge network on a single host, but would need mTLS in a multi-host deployment).
+
+---
+
+## ADR-013: Network Zero-Trust & Port Hardening
+
+**Date:** 2026-04-02  
+**Status:** Accepted  
+**Supersedes:** Extends ADR-008 (Docker Network Segmentation)
+
+### Context
+ADR-008 introduced network segmentation (`aer-frontend` / `aer-backend`), isolating databases from internet-facing containers at the Docker network level. However, all backend services still exposed their ports directly to the host via `ports:` directives in `compose.yaml` — PostgreSQL (5432), ClickHouse (8123, 9002), NATS (4222, 8222), MinIO (9000, 9001), OTel Collector (4317, 4318), and the Ingestion API (8081). Additionally, Grafana (3000) and the MinIO Console (9001) were accessible directly without TLS.
+
+This undermined the segmentation: any process on the host machine — or any attacker with host access — could bypass Traefik entirely and connect to databases, the message broker, or internal APIs directly over `localhost`. On a shared VPS, this represents a significant attack surface for lateral movement.
+
+### Decision
+We adopt a **Zero-Trust network posture** where Traefik is the sole ingress point for all external traffic:
+
+1. **Remove all host port bindings from backend services.** PostgreSQL, ClickHouse, NATS, MinIO (API + Console), OTel Collector, Tempo, and the Ingestion API no longer expose ports to the host. They communicate exclusively over the `aer-backend` Docker bridge network.
+
+2. **Route UI services through Traefik.** Grafana and the MinIO Console are now served through Traefik with TLS termination and Host-based routing (`GRAFANA_HOST`, `MINIO_CONSOLE_HOST` environment variables). Their direct `ports:` bindings have been removed. MinIO is added to the `aer-frontend` network so Traefik can reach it.
+
+3. **Introduce a `debug` Compose profile for developer access.** A single `debug-ports` service (based on `alpine/socat`) acts as a TCP proxy that re-exposes all removed ports to `localhost` — but only when explicitly opted in via `docker compose --profile debug up` (or `make debug-up`). The default `docker compose up` / `make up` does not expose any backend ports.
+
+4. **Traefik remains the only service with host-bound ports** (80/443). The BFF API retains its direct port (8080) for local development but is also routed through Traefik for production TLS. The documentation server (MkDocs, 8000) keeps its host port as a dev-only convenience.
+
+### Threat Model Addressed
+| Threat | Mitigation |
+|--------|------------|
+| Lateral movement from compromised host process to database | No host ports — `localhost` connections to PostgreSQL/ClickHouse are refused |
+| Accidental exposure of databases on a public VPS | Default compose profile binds zero backend ports |
+| Unencrypted access to Grafana/MinIO Console | Both routed through Traefik with automatic TLS |
+| Developer friction from locked-down ports | `make debug-up` provides explicit, reversible opt-in |
+
+### Consequences
+* **Positive:** The default deployment posture is production-hardened. Databases and internal APIs are unreachable from outside the Docker network. UI services benefit from automatic TLS. The attack surface on a shared VPS is reduced to Traefik ports 80/443.
+* **Negative:** Developers must run `make debug-up` (or `docker compose --profile debug up`) for direct database access during debugging. The `debug-ports` socat proxy adds a minor TCP forwarding hop (~0.1ms latency). Host-based Traefik routing for Grafana and MinIO Console requires DNS configuration (subdomain records pointing to the VPS).

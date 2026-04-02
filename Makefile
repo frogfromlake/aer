@@ -4,6 +4,7 @@
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
+.PHONY: debug-up debug-down
 .PHONY: logs tidy codegen test test-go test-go-pkg test-python test-e2e lint lint-go-pkg build-services
 
 SHELL := /bin/bash
@@ -46,12 +47,10 @@ restart: down up
 infra-up:
 	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ---$(RESET)"
 	@docker compose up -d nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana docs
-	@echo -e "$(SYMBOL_SUCCESS) MinIO:      $(CYAN)http://localhost:9001$(RESET)"
-	@echo -e "$(SYMBOL_SUCCESS) Postgres:   $(CYAN)localhost:5432$(RESET)"
-	@echo -e "$(SYMBOL_SUCCESS) ClickHouse: $(CYAN)http://localhost:8123/play$(RESET)"
-	@echo -e "$(SYMBOL_SUCCESS) NATS:       $(CYAN)http://localhost:8222$(RESET)"
-	@echo -e "$(SYMBOL_SUCCESS) Grafana:    $(CYAN)http://localhost:3000$(RESET)"
 	@echo -e "$(SYMBOL_SUCCESS) Docs:       $(CYAN)http://localhost:8000$(RESET)"
+	@echo -e "$(GRAY)  Backend services (PostgreSQL, ClickHouse, NATS, MinIO, OTel, Grafana) are internal only.$(RESET)"
+	@echo -e "$(GRAY)  Grafana and MinIO Console are routed through Traefik (HTTPS).$(RESET)"
+	@echo -e "$(GRAY)  Run '$(BOLD)make debug-up$(RESET)$(GRAY)' to expose all ports to the host for debugging.$(RESET)"
 
 infra-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING INFRASTRUCTURE ---$(RESET)"
@@ -59,6 +58,22 @@ infra-down:
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Infrastructure stopped.$(RESET)"
 
 infra-restart: infra-down infra-up
+
+debug-up:
+	@echo -e "$(BOLD)$(GRAY)--- STARTING DEBUG PORT FORWARDER ---$(RESET)"
+	@docker compose --profile debug up -d debug-ports
+	@echo -e "$(SYMBOL_SUCCESS) PostgreSQL: $(CYAN)localhost:5432$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) ClickHouse: $(CYAN)http://localhost:8123/play$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) NATS:       $(CYAN)localhost:4222$(RESET)  Monitor: $(CYAN)http://localhost:8222$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) MinIO API:  $(CYAN)http://localhost:9000$(RESET)  Console: $(CYAN)http://localhost:9001$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) OTel:       $(CYAN)localhost:4317$(RESET) (gRPC)  $(CYAN)localhost:4318$(RESET) (HTTP)"
+	@echo -e "$(SYMBOL_SUCCESS) Ingestion:  $(CYAN)http://localhost:8081$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) Grafana:    $(CYAN)http://localhost:3000$(RESET)"
+
+debug-down:
+	@echo -e "$(BOLD)$(GRAY)--- STOPPING DEBUG PORT FORWARDER ---$(RESET)"
+	@docker compose --profile debug stop debug-ports
+	@echo -e "$(SYMBOL_STOP) $(GRAY)Debug ports closed. Backend services still running internally.$(RESET)"
 
 infra-clean:
 	@./scripts/clean_infra.sh all
