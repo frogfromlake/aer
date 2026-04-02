@@ -4,17 +4,15 @@ This chapter documents known architectural risks and consciously accepted techni
 
 ## 11.1 Architectural Risks
 
-### R-1: No Rate Limiting on the BFF API
+### R-1: ~~No Rate Limiting on the BFF API~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | High |
 | **Affected Component** | `bff-api` |
-| **Status** | Open |
+| **Status** | Resolved (Phase 16) |
 
-The BFF API is the only application service exposed to the internet (via Traefik). While it is protected by API-key authentication and a 30-second request timeout, there is no rate limiting middleware. A malicious or misconfigured client could saturate ClickHouse with expensive aggregation queries, causing resource exhaustion across the backend network. This is explicitly tracked as an open item in the roadmap (Phase 16).
-
-**Mitigation plan:** Implement a token-bucket or sliding-window rate limiter as `chi` middleware, configurable via environment variables. For multi-instance deployments, a centralized approach (e.g., Redis-backed) would be required.
+A token-bucket rate limiter (`golang.org/x/time/rate`) has been implemented as `chi` middleware on the BFF API, configurable via environment variables. A distributed (Redis-backed) rate limiter is deferred until horizontal scaling requires it — adding Redis for a single-instance deployment would violate Occam's Razor.
 
 ---
 
@@ -104,17 +102,15 @@ Tempo stores trace data under `/tmp/tempo/` inside the container with a 1-hour b
 
 ## 11.2 Technical Debts
 
-### D-1: Image Pinning Violations (Prometheus, Grafana)
+### D-1: ~~Image Pinning Violations (Prometheus, Grafana)~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | High |
 | **Affected Component** | `compose.yaml` |
-| **Status** | Open |
+| **Status** | Resolved (Phase 24) |
 
-The project enforces a strict hard-pinning policy for all Docker images (no `latest`, no rolling tags). Two images violate this rule: `prom/prometheus:v3` (major-version tag, not immutable — could resolve to any `3.x.y` release) and `grafana/grafana:12.4` (minor-version tag — could resolve to any `12.4.x` patch). Both tags may silently pull different binaries on different machines or at different times, breaking reproducibility.
-
-**Fix:** Pin both images to exact patch-level releases (e.g., `prom/prometheus:v3.4.2`, `grafana/grafana:12.4.0`).
+Both images have been pinned to exact patch-level releases in `compose.yaml`. All images in the stack now comply with the hard-pinning policy (ADR-009).
 
 ---
 
@@ -146,17 +142,15 @@ Database schemas are initialized via `init.sql` scripts mounted into the `docker
 
 ---
 
-### D-4: E2E Smoke Test Not Integrated Into CI
+### D-4: ~~E2E Smoke Test Not Integrated Into CI~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low |
 | **Affected Component** | `scripts/e2e_smoke_test.sh`, CI pipeline |
-| **Status** | Open |
+| **Status** | Resolved (Phase 27) |
 
-A comprehensive end-to-end smoke test exists (`scripts/e2e_smoke_test.sh`) that validates the full pipeline: Ingestion → MinIO → NATS → Worker → ClickHouse → BFF API. However, it runs via `docker compose up --build --wait` and is not integrated into the GitHub Actions CI pipeline. It can only be executed manually. This means regressions in the integration between services may go undetected until manual testing.
-
-**Fix:** Add a dedicated CI job that runs the E2E smoke test. This requires a `docker compose`-capable CI runner (GitHub Actions supports this via `services` or a self-hosted runner).
+A dedicated `e2e-smoke` CI job has been added to `ci.yml`. It runs on pushes to `main` (not on PRs to avoid long CI times) using `docker compose up --build --wait` and executes the full smoke test script.
 
 ---
 
@@ -174,17 +168,15 @@ The PostgreSQL init script inserts a dummy source record (`'AER Dummy Generator'
 
 ---
 
-### D-6: Missing Architecture Decision Records
+### D-6: ~~Missing Architecture Decision Records~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low |
 | **Affected Component** | `docs/arc42/09_architecture_decisions.md` |
-| **Status** | Open |
+| **Status** | Resolved (Phase 22) |
 
-Several architectural decisions are implemented in the codebase but lack formal ADR documentation. These include: Docker network segmentation into `aer-frontend` / `aer-backend` (planned as ADR-008), the hard-pinning policy for container images, the "Dumb Pipes, Smart Endpoints" crawler architecture (crawlers external to the system boundary), API-key authentication on the BFF, and the Traefik TLS termination strategy.
-
-**Fix:** Write and add ADRs 008–012 to `docs/arc42/09_architecture_decisions.md`.
+ADRs 008–013 have been written and added to `docs/arc42/09_architecture_decisions.md`: Docker Network Segmentation (008), Hard-Pinning Policy & SSoT (009), External Crawler Architecture (010), BFF API Authentication (011), TLS Termination via Traefik (012), Network Zero-Trust & Port Hardening (013).
 
 ---
 
@@ -206,19 +198,17 @@ The Gold layer table (`aer_gold.metrics`) has only two columns: `timestamp` and 
 
 ```mermaid
 quadrantChart
-    title Risk Severity vs. Likelihood
+    title Risk Severity vs. Likelihood (open items only)
     x-axis "Low Likelihood" --> "High Likelihood"
     y-axis "Low Impact" --> "High Impact"
     quadrant-1 "Monitor Closely"
     quadrant-2 "Act Now"
     quadrant-3 "Accept"
     quadrant-4 "Plan Mitigation"
-    "R-1 No Rate Limiting": [0.7, 0.75]
     "R-2 Plaintext Secrets": [0.4, 0.6]
     "R-3 Silver Unbounded": [0.6, 0.45]
     "R-5 Ingestion No Auth": [0.25, 0.55]
     "R-6 Single Worker": [0.5, 0.35]
-    "D-1 Pinning Violations": [0.8, 0.5]
     "D-2 psycopg2-binary": [0.3, 0.3]
     "D-3 No Migrations": [0.55, 0.55]
 ```

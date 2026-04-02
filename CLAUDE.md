@@ -23,33 +23,50 @@ All orchestration is managed via `make`. Run `make` without arguments to see ava
 ```bash
 make up              # Starts the entire stack (infrastructure + all three services)
 make down            # Stops everything
+make restart         # Stops and restarts the entire stack
+make stop            # Alias for make down
 make logs            # Shows combined logs of all services (Ctrl+C is safe — services keep running)
 ```
 
 ### Infrastructure Only
 ```bash
-make infra-up        # Starts MinIO, PostgreSQL, ClickHouse, NATS, Grafana, Prometheus, Tempo, Docs
-make infra-down      # Stops infrastructure
-make infra-clean     # Deletes all volumes (requires confirmation)
+make infra-up             # Starts MinIO, PostgreSQL, ClickHouse, NATS, Grafana, Prometheus, Tempo, Docs
+make infra-down           # Stops infrastructure
+make infra-restart        # Restarts infrastructure
+make infra-clean          # Deletes all volumes (requires confirmation)
+make infra-clean-postgres # Wipes PostgreSQL volume only
+make infra-clean-minio    # Wipes MinIO volume only
+make infra-clean-clickhouse # Wipes ClickHouse volume only
 ```
 
-### Individual Services
+### Debug Port Access
 ```bash
-make ingestion-up / make ingestion-down
-make worker-up    / make worker-down
-make bff-up       / make bff-down
+make debug-up        # Forwards all backend ports to localhost (opt-in, Zero-Trust default hides them)
+make debug-down      # Closes debug port forwarding (backend services keep running internally)
+```
+
+### Application Services
+```bash
+make services-up     / make services-down    / make services-restart
+make ingestion-up    / make ingestion-down   / make ingestion-restart
+make worker-up       / make worker-down      / make worker-restart
+make bff-up          / make bff-down         / make bff-restart
+make services-clean  # Stops services and removes PID/log files
 ```
 
 ### Development
 ```bash
 make test            # All tests (Go integration + Python unit)
 make test-go         # Go integration tests via Testcontainers (requires Docker)
+make test-go-pkg     # Go tests for the shared pkg/ module
 make test-python     # Python unit tests via pytest
 make test-e2e        # End-to-end smoke test (full Docker Compose stack, with teardown)
-make lint            # golangci-lint (Go) + ruff (Python)
+make lint            # golangci-lint (all Go modules) + ruff (Python)
+make lint-go-pkg     # golangci-lint for pkg/ only
 make codegen         # Regenerates Go types from services/bff-api/api/openapi.yaml
 make build-services  # Compiles Go binaries into ./bin/
-make tidy            # Cleans Go modules and Python __pycache__
+make tidy            # Runs go mod tidy across all modules
+make help            # Prints a formatted overview of all available targets
 ```
 
 Run a single Python test: `cd services/analysis-worker && python -m pytest tests/test_processor.py::TestName -v`

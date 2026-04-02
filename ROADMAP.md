@@ -164,6 +164,10 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 ## Phase 24: SSoT Enforcement & Deterministic Builds
 *The compose.yaml is defined as SSoT for all container tags. Two images violate this rule, CI hardcodes tags instead of reading from compose, and a silent OTel port mismatch creates latent failures. These are foundational trust issues — every other phase builds on deterministic infrastructure.*
 
+# Phases — Derived from Architecture Review (2026-04-01)
+
+*The following phases were derived from a comprehensive code review against the project's own constraints (CLAUDE.md, Arc42 ADRs, Phase 20 Pinning Policy). The central axis: SSoT enforcement → DRY & hygiene → architecture alignment → network hardening → documentation. Existing open items (Phase 16, 22, 23) are integrated into their correct tiers.*
+
 ### Not documented in arc42, README.md and CLAUDE.md
 
 * [x] **Hard-Pin Floating Tags:** Replace `prom/prometheus:v3` and `grafana/grafana:12.4` in `compose.yaml` with fully qualified, immutable versions (e.g. `prom/prometheus:v3.4.2`, `grafana/grafana:12.4.0`). Floating major/minor tags violate Phase 20 policy and produce non-reproducible builds.
@@ -221,10 +225,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Route MinIO Console and Grafana Through Traefik:** MinIO Console (9001) and Grafana (3000) are UI-facing services that currently bypass Traefik. Add Traefik labels and route them through the reverse proxy with TLS, consistent with the BFF-API pattern. Remove their direct `ports:` bindings from the default profile.
 * [x] **ADR-008: Network Zero-Trust Architecture:** Document the decision in `docs/arc42/09_architecture_decisions.md`. Content: rationale for removing host ports, the `debug` profile pattern, Traefik as the sole ingress point, and the threat model this addresses (lateral movement from host, accidental exposure on VPS).
 ---
-
-# Open Phases (24–28) — Derived from Architecture Review (2026-04-01)
-
-*The following phases were derived from a comprehensive code review against the project's own constraints (CLAUDE.md, Arc42 ADRs, Phase 20 Pinning Policy). The central axis: SSoT enforcement → DRY & hygiene → architecture alignment → network hardening → documentation. Existing open items (Phase 16, 22, 23) are integrated into their correct tiers.*
 
 ---
 

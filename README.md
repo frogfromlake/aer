@@ -105,19 +105,45 @@ The smoke test ingests a test document, waits for pipeline processing, and queri
 
 ## Make Targets
 
+### Global Stack
+
 | Target | Description |
 | :--- | :--- |
 | `make up` | Start the entire stack (infrastructure + all application services) |
 | `make down` | Stop everything |
+| `make restart` | Stop and restart the entire stack |
+| `make stop` | Alias for `make down` |
+
+### Infrastructure
+
+| Target | Description |
+| :--- | :--- |
 | `make infra-up` | Start infrastructure only (databases, NATS, observability, docs) |
-| `make services-up` | Start all three application services in the background |
-| `make logs` | Tail combined logs of all background services (Ctrl+C safe) |
-| `make test` | Run full test suite (Go integration tests + Python unit tests) |
-| `make lint` | Run `golangci-lint` (Go) and `ruff` (Python) |
-| `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
-| `make build-services` | Compile Go binaries into `./bin/` |
-| `make tidy` | Run `go mod tidy` across all modules |
+| `make infra-down` | Stop infrastructure |
+| `make infra-restart` | Restart infrastructure |
 | `make infra-clean` | Wipe all persistent volumes (requires interactive confirmation) |
+| `make infra-clean-postgres` | Wipe PostgreSQL volume only |
+| `make infra-clean-minio` | Wipe MinIO volume only |
+| `make infra-clean-clickhouse` | Wipe ClickHouse volume only |
+
+### Debug Port Access
+
+| Target | Description |
+| :--- | :--- |
+| `make debug-up` | Expose all backend ports to `localhost` for debugging (opt-in) |
+| `make debug-down` | Close debug port forwarding (backend services keep running) |
+
+By default, all backend ports (databases, NATS, OTel, Ingestion API) are accessible only within the Docker network. `make debug-up` forwards them to localhost via the `debug` Compose profile. See [Network Segmentation](#network-segmentation) and [Exposed Ports](#exposed-ports).
+
+### Application Services
+
+| Target | Description |
+| :--- | :--- |
+| `make services-up` | Start all three application services in the background |
+| `make services-down` | Stop all application services |
+| `make services-restart` | Restart all application services |
+| `make services-clean` | Stop services and remove PID/log files |
+| `make logs` | Tail combined logs of all background services (Ctrl+C safe) |
 
 Individual services can be controlled independently:
 
@@ -127,26 +153,58 @@ make worker-up       make worker-down       make worker-restart
 make bff-up          make bff-down          make bff-restart
 ```
 
+### Help
+
+```bash
+make        # or: make help — prints a formatted overview of all available targets
+```
+
+### Development & Utilities
+
+| Target | Description |
+| :--- | :--- |
+| `make test` | Run full test suite (Go integration tests + Python unit tests) |
+| `make test-go` | Run Go integration tests (Testcontainers — requires Docker) |
+| `make test-go-pkg` | Run Go tests for the shared `pkg/` module |
+| `make test-e2e` | Run Docker Compose end-to-end smoke test |
+| `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
+| `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
+| `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
+| `make build-services` | Compile Go binaries into `./bin/` |
+| `make tidy` | Run `go mod tidy` across all modules |
+
 ---
 
 ## Exposed Ports
 
+AĒR uses a Zero-Trust network posture. Only Traefik, the BFF API, and the documentation server expose ports to the host by default. All backend services communicate exclusively over the internal Docker network.
+
+### Default (always exposed)
+
 | Port | Service | Purpose |
 | :--- | :--- | :--- |
-| `443` | Traefik | HTTPS — routes to BFF API |
 | `80` | Traefik | HTTP — redirects to HTTPS |
-| `3000` | Grafana | Monitoring dashboards, trace exploration |
+| `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
 | `8000` | MkDocs | Arc42 architecture documentation |
-| `8080` | BFF API | `GET /api/v1/metrics`, `/healthz`, `/readyz` |
-| `8081` | Ingestion API | `POST /api/v1/ingest`, `/healthz`, `/readyz` |
+| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/healthz`, `/api/v1/readyz` |
+
+### Debug profile only (`make debug-up`)
+
+These ports are not exposed in the default stack. Run `make debug-up` to forward them to localhost for local debugging. They are closed again with `make debug-down`.
+
+| Port | Service | Purpose |
+| :--- | :--- | :--- |
+| `3000` | Grafana | Monitoring dashboards (also accessible via Traefik HTTPS) |
+| `4222` | NATS | Client connections |
+| `4317` | OTel Collector | OpenTelemetry gRPC receiver |
+| `4318` | OTel Collector | OpenTelemetry HTTP receiver |
+| `5432` | PostgreSQL | Direct database access |
+| `8081` | Ingestion API | `POST /api/v1/ingest`, `/api/v1/healthz`, `/api/v1/readyz` |
 | `8123` | ClickHouse | HTTP interface and query playground (`/play`) |
 | `8222` | NATS | Monitoring dashboard |
 | `9000` | MinIO | S3-compatible API |
-| `9001` | MinIO | Web console |
-| `9002` | ClickHouse | Native protocol (mapped from container port `9000`) |
-| `4222` | NATS | Client connections |
-| `4317` | OTel Collector | OpenTelemetry gRPC receiver |
-| `5432` | PostgreSQL | Direct database access |
+| `9001` | MinIO | Web console (also accessible via Traefik HTTPS) |
+| `9002` | ClickHouse | Native protocol |
 
 All credentials are sourced from `.env`. See `.env.example` for defaults.
 

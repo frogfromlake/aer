@@ -59,8 +59,6 @@ All infrastructure images in `compose.yaml` use **hard-pinned, immutable version
 
 **Upgrade policy:** Image versions are upgraded manually and deliberately. Before any upgrade, the changelog of the respective image is reviewed, and the full stack is validated locally via `make up`. Pinned versions are tracked in Git, enabling rollback via `git revert` at any time.
 
-> **Known debt:** `prom/prometheus:v3` and `grafana/grafana:12.4` use major/minor-level tags that are not fully immutable. These should be pinned to patch-level releases (see Chapter 11).
-
 ## 7.4 Container Inventory
 
 ### 7.4.1 Reverse Proxy & TLS Termination
@@ -117,7 +115,7 @@ All three application services are built from multi-stage Dockerfiles. Go servic
 
 | Service | Dockerfile Base | Port | Network(s) | Memory | CPU | Healthcheck |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `ingestion-api` | `golang:1.26.1-alpine3.23` → `alpine:3.23.3` | `8081` | backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8081/healthz` |
+| `ingestion-api` | `golang:1.26.1-alpine3.23` → `alpine:3.23.3` | `8081` | backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8081/api/v1/healthz` |
 | `analysis-worker` | `python:3.14.3-slim-bookworm` | — (no port exposed) | backend | 512 MB | 0.50 | `python -c "urllib.request.urlopen('http://localhost:8001/metrics')"` |
 | `bff-api` | `golang:1.26.1-alpine3.23` → `alpine:3.23.3` | `8080` | frontend + backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8080/api/v1/healthz` |
 
@@ -187,15 +185,27 @@ All dependent services use `depends_on` with `condition: service_healthy` or `co
 
 The central `Makefile` at the repository root is the single entry point for all developer operations. It abstracts Docker Compose commands and local process management into intuitive targets.
 
+Running `make` (or `make help`) without arguments prints a formatted overview of all available targets.
+
 | Target | Description |
 | :--- | :--- |
 | `make up` | Starts the entire stack (infrastructure + all three services). |
 | `make down` | Stops everything. |
+| `make restart` | Stops and restarts the entire stack. |
 | `make infra-up` | Starts only infrastructure (databases, NATS, observability, docs). |
+| `make infra-restart` | Restarts infrastructure. |
+| `make infra-clean[-postgres\|-minio\|-clickhouse]` | Wipes persistent volumes (all or selectively, with confirmation). |
+| `make debug-up` | Forwards all backend ports to `localhost` (Zero-Trust opt-in). |
+| `make debug-down` | Closes debug port forwarding; backend services keep running. |
 | `make services-up` | Starts all three application services in the background. |
+| `make services-restart` | Restarts all application services. |
+| `make services-clean` | Stops services and removes PID/log files. |
 | `make logs` | Tails combined logs of all background services (Ctrl+C is safe). |
 | `make test` | Runs the full test suite (Go integration + Python unit tests). |
-| `make lint` | Runs `golangci-lint` (Go) and `ruff` (Python). |
+| `make test-go-pkg` | Runs Go tests for the shared `pkg/` module. |
+| `make test-e2e` | Runs the Docker Compose end-to-end smoke test. |
+| `make lint` | Runs `golangci-lint` (all Go modules) and `ruff` (Python). |
+| `make lint-go-pkg` | Runs `golangci-lint` for `pkg/` only. |
 | `make codegen` | Regenerates Go types/stubs from `openapi.yaml` via `oapi-codegen`. |
 | `make build-services` | Compiles Go binaries into `./bin/`. |
 
@@ -213,23 +223,34 @@ For full-stack containerized deployment (e.g., on a VPS), all three application 
 
 ## 7.8 Exposed Ports (Localhost)
 
+AĒR follows the Zero-Trust posture established in ADR-013. Only Traefik, the BFF API, and the documentation server bind ports to the host by default. All backend services are reachable exclusively over the internal Docker network.
+
+### Default profile (`make up`)
+
 | Port | Service | Purpose |
 | :--- | :--- | :--- |
 | `80` | Traefik | HTTP (redirects to HTTPS) |
-| `443` | Traefik | HTTPS (TLS termination, routes to BFF) |
-| `3000` | Grafana | Monitoring dashboards |
+| `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
+| `8000` | MkDocs | Architecture documentation (dev convenience) |
+| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/healthz`, `/api/v1/readyz` |
+
+### Debug profile (`make debug-up`)
+
+These ports are not exposed in the default stack. `make debug-up` starts a `socat`-based TCP proxy (`debug-ports` service, `profiles: ["debug"]`) that forwards them to `localhost`. Use `make debug-down` to close the forwarding without stopping the stack.
+
+| Port | Service | Purpose |
+| :--- | :--- | :--- |
+| `3000` | Grafana | Monitoring dashboards (also accessible via Traefik HTTPS) |
 | `4222` | NATS | Client connections |
 | `4317` | OTel Collector | OpenTelemetry gRPC receiver |
 | `4318` | OTel Collector | OpenTelemetry HTTP receiver |
 | `5432` | PostgreSQL | Database connections |
-| `8000` | MkDocs | Architecture documentation |
-| `8080` | BFF API | `GET /api/v1/metrics`, `/healthz`, `/readyz` |
-| `8081` | Ingestion API | `POST /api/v1/ingest`, `/healthz`, `/readyz` |
+| `8081` | Ingestion API | `POST /api/v1/ingest`, `/api/v1/healthz`, `/api/v1/readyz` |
 | `8123` | ClickHouse | HTTP interface and playground (`/play`) |
 | `8222` | NATS | Monitoring dashboard |
 | `9000` | MinIO | S3-compatible API |
-| `9001` | MinIO | Web console |
-| `9002` | ClickHouse | Native protocol (mapped from container port `9000`) |
+| `9001` | MinIO | Web console (also accessible via Traefik HTTPS) |
+| `9002` | ClickHouse | Native protocol |
 
 Credentials for all services are defined in the `.env` file (see `.env.example` for defaults).
 
