@@ -55,12 +55,19 @@ jobs:
             services/bff-api/go.sum
             pkg/go.sum
 
+      - name: Extract Testcontainer image tags from compose.yaml
+        id: tc-images
+        run: |
+          echo "minio=$(yq '.services.minio.image' compose.yaml)" >> $GITHUB_OUTPUT
+          echo "postgres=$(yq '.services.postgres.image' compose.yaml)" >> $GITHUB_OUTPUT
+          echo "clickhouse=$(yq '.services.clickhouse.image' compose.yaml)" >> $GITHUB_OUTPUT
+
       - name: Cache Testcontainers Docker images
         uses: actions/cache@v4
         id: docker-cache
         with:
           path: /tmp/docker-images
-          key: docker-tc-v3-minio-20250907-postgres-18.3-ch-26.3.3
+          key: docker-tc-${{ hashFiles('compose.yaml') }}
 
       - name: Load cached Docker images
         if: steps.docker-cache.outputs.cache-hit == 'true'
@@ -73,13 +80,13 @@ jobs:
         if: steps.docker-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p /tmp/docker-images
-          docker pull minio/minio:RELEASE.2025-09-07T16-13-09Z
-          docker pull postgres:18.3-alpine3.23
-          docker pull clickhouse/clickhouse-server:26.3.3-alpine
-          
-          docker save minio/minio:RELEASE.2025-09-07T16-13-09Z -o /tmp/docker-images/minio.tar
-          docker save postgres:18.3-alpine3.23 -o /tmp/docker-images/postgres.tar
-          docker save clickhouse/clickhouse-server:26.3.3-alpine -o /tmp/docker-images/clickhouse.tar
+          docker pull ${{ steps.tc-images.outputs.minio }}
+          docker pull ${{ steps.tc-images.outputs.postgres }}
+          docker pull ${{ steps.tc-images.outputs.clickhouse }}
+
+          docker save ${{ steps.tc-images.outputs.minio }} -o /tmp/docker-images/minio.tar
+          docker save ${{ steps.tc-images.outputs.postgres }} -o /tmp/docker-images/postgres.tar
+          docker save ${{ steps.tc-images.outputs.clickhouse }} -o /tmp/docker-images/clickhouse.tar
 
       # Manual installation is required because the pre-built action binary
       # does not yet support Go 1.26.1 features.
@@ -90,7 +97,7 @@ jobs:
           key: go-tools-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 
       - name: Lint Ingestion API
         working-directory: ./services/ingestion-api

@@ -32,7 +32,7 @@ func Load() (*Config, error) {
 	v.SetDefault("MINIO_ACCESS_KEY", "")
 	v.SetDefault("MINIO_SECRET_KEY", "")
 	v.SetDefault("MINIO_USE_SSL", false)
-	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

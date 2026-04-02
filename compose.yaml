@@ -379,7 +379,7 @@ services:
           cpus: "0.25"
 
   prometheus:
-    image: prom/prometheus:v3
+    image: prom/prometheus:v3.4.2
     container_name: aer_prometheus
     restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
@@ -395,7 +395,7 @@ services:
           cpus: "0.25"
 
   grafana:
-    image: grafana/grafana:12.4
+    image: grafana/grafana:12.4.0
     container_name: aer_grafana
     restart: unless-stopped
     environment:

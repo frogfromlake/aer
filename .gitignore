@@ -27,6 +27,9 @@ site/
 
 # services ingestion-api
 services/ingestion-api/.env
+
+# Crawler binaries
+crawlers/wikipedia-scraper/wikipedia-scraper
 # Logs
 logs/
 *.log
