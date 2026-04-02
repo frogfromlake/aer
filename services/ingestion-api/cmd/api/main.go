@@ -82,8 +82,8 @@ func main() {
 	})
 
 	r.Post("/api/v1/ingest", h.Ingest)
-	r.Get("/healthz", h.Healthz)
-	r.Get("/readyz", h.Readyz)
+	r.Get("/api/v1/healthz", h.Healthz)
+	r.Get("/api/v1/readyz", h.Readyz)
 
 	// 6. Start HTTP server
 	server := &http.Server{

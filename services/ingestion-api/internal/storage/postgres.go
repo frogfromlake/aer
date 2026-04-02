@@ -94,3 +94,8 @@ func (p *PostgresDB) UpdateDocumentStatus(ctx context.Context, bronzeKey string,
 	}
 	return nil
 }
+
+// Ping verifies the PostgreSQL connection is alive.
+func (p *PostgresDB) Ping(ctx context.Context) error {
+	return p.DB.PingContext(ctx)
+}

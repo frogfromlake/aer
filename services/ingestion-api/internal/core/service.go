@@ -6,9 +6,23 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/frogfromlake/aer/services/ingestion-api/internal/storage"
 	"go.opentelemetry.io/otel"
 )
+
+// MetadataStore abstracts the PostgreSQL operations needed by IngestionService.
+type MetadataStore interface {
+	CreateIngestionJob(ctx context.Context, sourceID int) (int, error)
+	UpdateJobStatus(ctx context.Context, jobID int, status string) error
+	LogDocument(ctx context.Context, jobID int, key, traceID string) error
+	UpdateDocumentStatus(ctx context.Context, key, status string) error
+	Ping(ctx context.Context) error
+}
+
+// ObjectStore abstracts the MinIO operations needed by IngestionService.
+type ObjectStore interface {
+	UploadJSON(ctx context.Context, bucket, key, data string) error
+	BucketExists(ctx context.Context, bucket string) (bool, error)
+}
 
 // Document represents a single document to be ingested into the bronze layer.
 type Document struct {
@@ -26,12 +40,12 @@ type IngestResult struct {
 
 // IngestionService orchestrates the data collection and storage processes.
 type IngestionService struct {
-	db    *storage.PostgresDB
-	minio *storage.MinioClient
+	db    MetadataStore
+	minio ObjectStore
 }
 
 // NewIngestionService creates a new core service via Dependency Injection.
-func NewIngestionService(db *storage.PostgresDB, minio *storage.MinioClient) *IngestionService {
+func NewIngestionService(db MetadataStore, minio ObjectStore) *IngestionService {
 	return &IngestionService{
 		db:    db,
 		minio: minio,
@@ -118,14 +132,14 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 func (s *IngestionService) CheckPostgres(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	return s.db.DB.PingContext(ctx)
+	return s.db.Ping(ctx)
 }
 
 // CheckMinio verifies the MinIO connection by checking if the bronze bucket exists.
 func (s *IngestionService) CheckMinio(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	exists, err := s.minio.Client.BucketExists(ctx, "bronze")
+	exists, err := s.minio.BucketExists(ctx, "bronze")
 	if err != nil {
 		return err
 	}

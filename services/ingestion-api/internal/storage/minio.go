@@ -61,6 +61,11 @@ func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, 
 	return &MinioClient{Client: client}, nil
 }
 
+// BucketExists reports whether the named bucket exists and is accessible.
+func (m *MinioClient) BucketExists(ctx context.Context, bucket string) (bool, error) {
+	return m.Client.BucketExists(ctx, bucket)
+}
+
 // UploadJSON uploads a string to MinIO and injects the OTel Trace-ID into the object's metadata.
 func (m *MinioClient) UploadJSON(ctx context.Context, bucketName, objectName, jsonData string) error {
 	metadata := make(map[string]string)
