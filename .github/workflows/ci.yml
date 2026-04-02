@@ -106,6 +106,10 @@ jobs:
         working-directory: ./services/bff-api
         run: golangci-lint run
 
+      - name: Lint pkg/
+        working-directory: ./pkg
+        run: golangci-lint run
+
       - name: Install oapi-codegen
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
@@ -202,3 +206,17 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
+
+  e2e-smoke:
+    name: E2E Smoke Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create .env for smoke test
+        run: echo "BFF_API_KEY=${{ secrets.BFF_API_KEY }}" > .env
+
+      - name: Run E2E Smoke Test
+        run: bash scripts/e2e_smoke_test.sh

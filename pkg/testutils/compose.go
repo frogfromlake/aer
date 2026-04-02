@@ -26,6 +26,10 @@ func GetImageFromCompose(serviceName string) (string, error) {
 	repoRoot := filepath.Join(filepath.Dir(b), "..", "..")
 	composePath := filepath.Join(repoRoot, "compose.yaml")
 
+	return getImageFromFile(composePath, serviceName)
+}
+
+func getImageFromFile(composePath, serviceName string) (string, error) {
 	data, err := os.ReadFile(composePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open compose.yaml: %w", err)

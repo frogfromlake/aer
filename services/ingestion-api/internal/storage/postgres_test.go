@@ -2,10 +2,13 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/docker/go-connections/nat"
 	"github.com/frogfromlake/aer/pkg/testutils"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -26,9 +29,9 @@ func TestPostgresStorage(t *testing.T) {
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),
 		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(10*time.Second),
+			wait.ForSQL("5432/tcp", "pgx/v5", func(host string, port nat.Port) string {
+				return fmt.Sprintf("host=%s port=%s user=testuser password=testpass dbname=aer_test sslmode=disable", host, port.Port())
+			}).WithStartupTimeout(30*time.Second),
 		),
 	)
 	if err != nil {

@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/docker/go-connections v0.6.0
 	github.com/frogfromlake/aer/pkg v0.0.0-20260401175103-bdfb018eb1ce
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/jackc/pgx/v5 v5.9.1
@@ -30,7 +31,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/docker v28.5.2+incompatible // indirect
-	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect

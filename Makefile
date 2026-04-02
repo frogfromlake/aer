@@ -4,7 +4,7 @@
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
-.PHONY: logs tidy codegen test test-go test-python test-e2e lint build-services
+.PHONY: logs tidy codegen test test-go test-go-pkg test-python test-e2e lint lint-go-pkg build-services
 
 SHELL := /bin/bash
 
@@ -148,7 +148,7 @@ build-services:
 # 5. TESTING & LINTING
 # ==========================================
 
-test: test-go test-python
+test: test-go test-go-pkg test-python
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
 
 test-e2e:
@@ -159,6 +159,11 @@ test-go:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"
 	@cd services/ingestion-api && go test -v ./...
 	@cd services/bff-api && go test -v ./...
+
+test-go-pkg:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Tests (pkg/)...$(RESET)"
+	@cd pkg && go test -v ./...
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) tests passed!$(RESET)"
 
 test-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
@@ -174,3 +179,9 @@ lint:
 	@cd services/analysis-worker && ./venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"
 	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
+	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
+
+lint-go-pkg:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running golangci-lint for pkg/...$(RESET)"
+	@cd pkg && golangci-lint run
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
