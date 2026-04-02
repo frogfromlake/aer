@@ -162,7 +162,12 @@ test-go:
 
 test-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
-	@cd services/analysis-worker && ./venv/bin/python -m pytest tests/ -v
+	@cd services/analysis-worker && \
+		if [ -f ./venv/bin/python ]; then \
+			./venv/bin/python -m pytest tests/ -v; \
+		else \
+			python -m pytest tests/ -v; \
+		fi
 
 lint:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"

@@ -19,6 +19,7 @@ import urllib.request
 import urllib.error
 import pytest
 import psycopg2
+import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -34,38 +35,15 @@ from internal.storage import init_postgres, init_minio, init_clickhouse
 
 def get_compose_image(service_name: str) -> str:
     """Parses the compose.yaml at the repo root to find the image for a service."""
-    # Moves through the directory hierarchy to find the compose.yaml at the root of the repo
     compose_path = Path(__file__).resolve().parents[3] / "compose.yaml"
-    
+
     with open(compose_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-        
-    in_service = False
-    service_indent = 0
-    
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-            
-        indent = len(line) - len(line.lstrip())
-        
-        # Search for the start of the service block (e.g., "postgres:") with exact match
-        if stripped == f"{service_name}:":
-            in_service = True
-            service_indent = indent
-            continue
-            
-        if in_service:
-            # If indent is less than or equal to service_indent, we've exited the service block
-            if indent <= service_indent:
-                in_service = False
-                continue
-            if stripped.startswith("image:"):
-                # "image: postgres:18.3-alpine3.23" -> "postgres:18.3-alpine3.23"
-                return stripped.split("image:")[1].strip()
-                
-    raise ValueError(f"Image for service '{service_name}' not found in compose.yaml")
+        compose = yaml.safe_load(f)
+
+    try:
+        return compose["services"][service_name]["image"]
+    except KeyError:
+        raise ValueError(f"Image for service '{service_name}' not found in compose.yaml")
 
 # ---------------------------------------------------------------------------
 # Shared helpers

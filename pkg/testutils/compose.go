@@ -1,13 +1,21 @@
 package testutils
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
+
+	"gopkg.in/yaml.v3"
 )
+
+type composeFile struct {
+	Services map[string]composeService `yaml:"services"`
+}
+
+type composeService struct {
+	Image string `yaml:"image"`
+}
 
 // GetImageFromCompose parses the compose.yaml at the repo root and extracts the image string.
 func GetImageFromCompose(serviceName string) (string, error) {
@@ -18,51 +26,19 @@ func GetImageFromCompose(serviceName string) (string, error) {
 	repoRoot := filepath.Join(filepath.Dir(b), "..", "..")
 	composePath := filepath.Join(repoRoot, "compose.yaml")
 
-	file, err := os.Open(composePath)
+	data, err := os.ReadFile(composePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open compose.yaml: %w", err)
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	inService := false
-	serviceIndent := 0
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
-
-		// Skip empty lines and comments
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-
-		// Calculate indentation by comparing length before and after stripping leading whitespace
-		indent := len(line) - len(strings.TrimLeft(line, " \t"))
-
-		// Check if we reached the desired service block
-		if trimmed == serviceName+":" {
-			inService = true
-			serviceIndent = indent
-			continue
-		}
-
-		if inService {
-			// If indentation returns to the same level or higher, we exited the service block
-			if indent <= serviceIndent {
-				inService = false
-				continue
-			}
-			// Extract the image string
-			if strings.HasPrefix(trimmed, "image:") {
-				return strings.TrimSpace(strings.TrimPrefix(trimmed, "image:")), nil
-			}
-		}
+	var compose composeFile
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		return "", fmt.Errorf("failed to parse compose.yaml: %w", err)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return "", err
+	svc, ok := compose.Services[serviceName]
+	if !ok || svc.Image == "" {
+		return "", fmt.Errorf("image for service '%s' not found", serviceName)
 	}
-
-	return "", fmt.Errorf("image for service '%s' not found", serviceName)
+	return svc.Image, nil
 }
