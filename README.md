@@ -4,6 +4,8 @@ A modular system for the real-time analysis and long-term observation of societa
 
 The name derives from ancient Greek ἀήρ: the lower atmosphere, the surrounding climate.
 
+⚠️ Project Status: Under Construction & Research Phase > AĒR is currently in active development. While the underlying microservice architecture is nearing its final state—designed to be secure, resilient, and horizontally scalable—the core analytical business logic is pending ongoing scientific research. At present, the system operates with a proof-of-concept crawler limited to Wikipedia articles, and the Python analysis workers are focused solely on harmonizing this specific dataset. Development of comprehensive sociological metrics and integration of additional data sources will commence once the foundational research is complete.
+
 ---
 
 ## Architecture Overview
