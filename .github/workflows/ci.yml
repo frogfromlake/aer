@@ -216,7 +216,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create .env for smoke test
-        run: echo "BFF_API_KEY=${{ secrets.BFF_API_KEY }}" > .env
+        run: |
+          cp .env.example .env
+          # Override secrets from GitHub — add future secrets here
+          sed -i "s|^BFF_API_KEY=.*|BFF_API_KEY=${{ secrets.BFF_API_KEY }}|" .env
 
       - name: Run E2E Smoke Test
         run: bash scripts/e2e_smoke_test.sh
