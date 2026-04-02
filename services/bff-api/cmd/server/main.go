@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/time/rate"
 
 	"github.com/frogfromlake/aer/pkg/logger"
 	"github.com/frogfromlake/aer/pkg/telemetry"
@@ -96,6 +97,10 @@ func main() {
 	// Request Logging: structured access log for every request via slog
 	r.Use(requestLogger)
 
+	// Rate Limiting: token-bucket limiter; rejects excess requests with 429
+	limiter := rate.NewLimiter(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
+	r.Use(rateLimiter(limiter))
+
 	// API Key Auth: protects all routes except /healthz and /readyz
 	r.Use(apiKeyAuth(cfg.APIKey))
 
@@ -156,6 +161,22 @@ func apiKeyAuth(apiKey string) func(http.Handler) http.Handler {
 				return
 			}
 
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// rateLimiter returns a middleware that enforces a token-bucket rate limit.
+// Requests exceeding the limit are rejected immediately with 429 Too Many Requests.
+func rateLimiter(limiter *rate.Limiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !limiter.Allow() {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = w.Write([]byte(`{"error":"rate limit exceeded"}`))
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}

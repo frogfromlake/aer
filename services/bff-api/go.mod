@@ -12,6 +12,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.41.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
+	golang.org/x/time v0.15.0
 )
 
 require (

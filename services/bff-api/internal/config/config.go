@@ -18,8 +18,10 @@ type Config struct {
 	ClickHousePassword string `mapstructure:"CLICKHOUSE_PASSWORD"`
 	ClickHouseDB       string `mapstructure:"CLICKHOUSE_DB"`
 	OTelEndpoint       string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	CORSOrigins        string `mapstructure:"CORS_ALLOWED_ORIGINS"`
-	APIKey             string `mapstructure:"BFF_API_KEY"`
+	CORSOrigins        string  `mapstructure:"CORS_ALLOWED_ORIGINS"`
+	APIKey             string  `mapstructure:"BFF_API_KEY"`
+	RateLimitRPS       float64 `mapstructure:"RATE_LIMIT_RPS"`
+	RateLimitBurst     int     `mapstructure:"RATE_LIMIT_BURST"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -37,6 +39,8 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_API_KEY", "")
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	v.SetDefault("CORS_ALLOWED_ORIGINS", "*")
+	v.SetDefault("RATE_LIMIT_RPS", 100)
+	v.SetDefault("RATE_LIMIT_BURST", 200)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
