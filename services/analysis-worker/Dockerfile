@@ -2,6 +2,12 @@ FROM python:3.14.3-slim-bookworm AS builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY services/analysis-worker/requirements.txt .
 
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt

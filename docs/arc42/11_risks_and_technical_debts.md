@@ -114,17 +114,17 @@ Both images have been pinned to exact patch-level releases in `compose.yaml`. Al
 
 ---
 
-### D-2: `psycopg2-binary` Used in Production Dockerfile
+### D-2: ~~`psycopg2-binary` Used in Production Dockerfile~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Medium |
 | **Affected Component** | `analysis-worker`, `requirements.txt` |
-| **Status** | Documented |
+| **Status** | Resolved (Phase 31) |
 
-The Python worker uses `psycopg2-binary` for PostgreSQL connectivity. This package bundles a statically linked `libpq` and is explicitly not recommended for production by the `psycopg2` maintainers — it may have SSL/TLS incompatibilities and is not built against the system's OpenSSL. The `requirements.txt` contains a comment documenting this tradeoff.
+The Python worker used `psycopg2-binary` for PostgreSQL connectivity. This package bundles a statically linked `libpq` and is explicitly not recommended for production by the `psycopg2` maintainers — it may have SSL/TLS incompatibilities and is not built against the system's OpenSSL.
 
-**Fix:** Switch to `psycopg2` (source build) in the production Dockerfile and install `libpq-dev` in the builder stage. Keep `psycopg2-binary` for local development and CI to avoid native compilation overhead.
+**Resolution:** The production `Dockerfile` builder stage now installs `gcc`, `libpq-dev`, and `python3-dev` to compile `psycopg2` from source against the system `libpq`. `requirements.txt` references `psycopg2==2.9.11`; `requirements-dev.txt` overrides with `psycopg2-binary==2.9.11` to avoid native compilation overhead in local and CI environments.
 
 ---
 
