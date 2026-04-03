@@ -83,7 +83,7 @@ Microservices must never create infrastructure at startup. They assume all requi
 | Init Container | Image | Provisions | Depends On |
 | :--- | :--- | :--- | :--- |
 | `nats-init` | `natsio/nats-box:0.19.3` | JetStream stream `AER_LAKE` (subjects: `aer.lake.>`, file-backed storage). | `nats` (healthy) |
-| `minio-init` | `minio/mc:RELEASE.2025-08-13T08-35-41Z` | Buckets (`bronze`, `silver`, `bronze-quarantine`), ILM retention policies (Bronze: 90d, Quarantine: 30d), NATS event notification on `bronze` bucket. | `minio` (healthy) |
+| `minio-init` | `minio/mc:RELEASE.2025-08-13T08-35-41Z` | Buckets (`bronze`, `silver`, `bronze-quarantine`), ILM retention policies (Bronze: 90d, Silver: 365d, Quarantine: 30d), NATS event notification on `bronze` bucket. | `minio` (healthy) |
 | PostgreSQL | Self-initializing | Tables (`sources`, `ingestion_jobs`, `documents`) via `init.sql` mounted into `docker-entrypoint-initdb.d/`. | — |
 | ClickHouse | Self-initializing | Database `aer_gold` and table `metrics` with 365-day TTL via `init.sql` mounted into `docker-entrypoint-initdb.d/`. | — |
 
@@ -176,11 +176,13 @@ AĒR implements automated, infrastructure-level data retention to prevent unboun
 | :--- | :--- | :--- | :--- |
 | Bronze | MinIO `bronze` | 90 days | MinIO ILM (`infra/minio/setup.sh`) |
 | Quarantine (DLQ) | MinIO `bronze-quarantine` | 30 days | MinIO ILM (`infra/minio/setup.sh`) |
-| Silver | MinIO `silver` | Unlimited | No ILM policy (see Chapter 11, R-3) |
+| Silver | MinIO `silver` | 365 days | MinIO ILM (`infra/minio/setup.sh`) |
 | Gold | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL on `MergeTree` (`infra/clickhouse/init.sql`) |
 | Metadata | PostgreSQL | Unlimited | No automated cleanup |
 
 All retention policies are defined in IaC scripts — no application code manages data expiration.
+
+**Silver TTL rationale (Phase 32 / R-3):** A 365-day TTL was adopted as a conservative default before long-term Silver growth data was available. The Gold layer (ClickHouse `aer_gold.metrics`) retains all derived metrics independently under its own 365-day TTL, making Silver objects safe to expire after one year. The Silver bucket acts as a re-evaluation baseline: any re-analysis of data older than 365 days would require a fresh crawl from the source, which is acceptable under the project's data availability guarantees. This value should be revisited once at least one full quarter of production crawl data is available and measured Silver growth significantly exceeds Bronze volume.
 
 ## 8.9 Developer Tooling
 

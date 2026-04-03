@@ -43,6 +43,23 @@ EOF
 }
 EOF
 
+# Import JSON policy for the silver bucket (365-day retention)
+# The Gold layer (ClickHouse) retains all derived metrics independently, so Silver
+# objects are safe to expire after one year. This conservative TTL was adopted in
+# Phase 32 (R-3) before long-term growth data was available; revisit if measured
+# Silver growth materially exceeds Bronze volume over a sustained period.
+/usr/bin/mc ilm import myminio/silver <<EOF
+{
+    "Rules": [
+        {
+            "ID": "ExpireOldSilverData",
+            "Status": "Enabled",
+            "Expiration": { "Days": 365 }
+        }
+    ]
+}
+EOF
+
 # Enable Event Notifications
 echo "Linking bucket events to NATS..."
 # Force the event addition. We use '|| true' to ensure the script continues 

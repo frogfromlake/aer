@@ -36,11 +36,11 @@ All credentials (database passwords, API keys, MinIO secrets, Grafana admin cred
 | :--- | :--- |
 | **Severity** | Medium |
 | **Affected Component** | MinIO (`silver` bucket) |
-| **Status** | Open |
+| **Status** | Resolved (Phase 32) |
 
 The Bronze layer expires after 90 days and the Quarantine after 30 days (via MinIO ILM). However, the Silver bucket has no expiration policy. By design, it serves as the persistent re-evaluation baseline — but this means it will grow unboundedly over time. With hundreds of crawlers active, this could become a storage concern.
 
-**Mitigation plan:** Define a Silver ILM policy once the actual growth rate is measurable. A conservative 180-day or 365-day TTL could be appropriate, since the Gold layer (ClickHouse) retains the derived metrics independently.
+**Resolution (Phase 32):** A 365-day ILM expiration rule (`ExpireOldSilverData`) was applied to the `silver` bucket in `infra/minio/setup.sh`. The Gold layer (ClickHouse `aer_gold.metrics`) retains all derived metrics independently under its own 365-day TTL, making this safe. The TTL was set as a conservative default prior to long-term growth measurement; it should be revisited once a full quarter of production crawl data is available. See `docs/arc42/08_concepts.md` §8.8 for the full rationale.
 
 ---
 
@@ -204,7 +204,6 @@ quadrantChart
     quadrant-3 "Accept"
     quadrant-4 "Plan Mitigation"
     "R-2 Plaintext Secrets": [0.4, 0.6]
-    "R-3 Silver Unbounded": [0.6, 0.45]
     "R-5 Ingestion No Auth": [0.25, 0.55]
     "R-6 Single Worker": [0.5, 0.35]
     "D-2 psycopg2-binary": [0.3, 0.3]
