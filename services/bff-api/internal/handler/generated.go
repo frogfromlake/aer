@@ -22,6 +22,12 @@ type GetMetricsParams struct {
 
 	// EndDate End date for the metrics time range (ISO 8601)
 	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// Source Filter metrics by data source (e.g., "wikipedia")
+	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// MetricName Filter metrics by metric name (e.g., "word_count")
+	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
 }
 
 // ServerInterface represents all server handlers.
@@ -103,6 +109,22 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metricName" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metricName", r.URL.Query(), &params.MetricName, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metricName", Err: err})
 		return
 	}
 

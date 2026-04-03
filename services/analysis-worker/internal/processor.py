@@ -91,12 +91,16 @@ class DataProcessor:
         # --- 6. Extract and load to Gold Layer (ClickHouse) ---
         # If this fails, an exception is thrown, the NATS message is NAK'd,
         # and the PG status remains 'pending'/'uploaded' for retry!
+        # Derive article_id from the object key (e.g. "wikipedia/article-slug/2026-03-28.json")
+        key_parts = obj_key.split("/")
+        article_id = key_parts[1] if len(key_parts) >= 3 else None
+
         self.ch.insert(
             'aer_gold.metrics',
-            [[record.timestamp, record.metric_value]],  # <-- DETERMINISTIC INSERT
-            column_names=['timestamp', 'value']
+            [[record.timestamp, record.metric_value, record.source, "word_count", article_id]],
+            column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id']
         )
-        logger.info("Gold layer updated", metric=record.metric_value, timestamp=str(record.timestamp))
+        logger.info("Gold layer updated", metric=record.metric_value, timestamp=str(record.timestamp), source=record.source, article_id=article_id)
 
         # --- 7. Commit Success (Solve Partial Failures) ---
         self._update_document_status(obj_key, "processed")

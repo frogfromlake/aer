@@ -185,12 +185,10 @@ ADRs 008–013 have been written and added to `docs/arc42/09_architecture_decisi
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low |
-| **Affected Component** | `infra/clickhouse/init.sql`, `aer_gold.metrics` |
-| **Status** | Accepted (for current phase) |
+| **Affected Component** | `infra/clickhouse/migrations/`, `aer_gold.metrics` |
+| **Status** | Resolved (Phase 30) |
 
-The Gold layer table (`aer_gold.metrics`) has only two columns: `timestamp` and `value`. There are no dimensions (e.g., `source`, `metric_type`, `article_id`). This was sufficient for the initial PoC but will need to evolve as more crawlers and diverse metric types are introduced. Adding dimensions later requires a schema migration (see D-3).
-
-**Fix:** Extend the schema with dimension columns when the second metric type or second crawler is introduced. Coordinate with the migration tooling effort (D-3).
+Migration `000002_extend_metrics_schema.sql` added `source String`, `metric_name String`, and `article_id Nullable(String)` columns to `aer_gold.metrics`. The analysis worker now populates all dimensions on insert, and the BFF API supports optional `source` and `metricName` query filters. Integration tests cover the extended schema in both Go and Python.
 
 ---
 

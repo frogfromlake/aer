@@ -8,7 +8,7 @@ import (
 // MetricsStore abstracts the data access layer for testability.
 type MetricsStore interface {
 	Ping(ctx context.Context) error
-	GetMetrics(ctx context.Context, start, end time.Time) ([]struct {
+	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]struct {
 		TS    time.Time
 		Value float64
 	}, error)
@@ -50,7 +50,7 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		end = *request.Params.EndDate
 	}
 
-	data, err := s.db.GetMetrics(ctx, start, end)
+	data, err := s.db.GetMetrics(ctx, start, end, request.Params.Source, request.Params.MetricName)
 	if err != nil {
 		return GetMetrics500JSONResponse{Message: err.Error()}, nil
 	}

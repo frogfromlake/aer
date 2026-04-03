@@ -1,0 +1,6 @@
+name: metricName
+in: query
+description: Filter metrics by metric name (e.g., "word_count")
+required: false
+schema:
+  type: string

@@ -1,0 +1,6 @@
+name: source
+in: query
+description: Filter metrics by data source (e.g., "wikipedia")
+required: false
+schema:
+  type: string

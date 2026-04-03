@@ -58,7 +58,8 @@ func (s *ClickHouseStorage) Ping(ctx context.Context) error {
 
 // GetMetrics retrieves aggregated time-series data from the gold layer.
 // It downsamples the data to 5-minute intervals to prevent OOM errors on large time ranges.
-func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time) ([]struct {
+// Optional source and metricName filters narrow results to specific dimensions.
+func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]struct {
 	TS    time.Time
 	Value float64
 }, error) {
@@ -69,18 +70,34 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 
 	// Use toStartOfFiveMinute and avg() to aggregate data on the DB level.
 	// We also apply a hard limit to guarantee memory safety.
+	// Build dynamic WHERE clause based on optional dimension filters.
 	query := `
-		SELECT 
-			toStartOfFiveMinute(timestamp) as TS, 
-			avg(value) as Value 
-		FROM aer_gold.metrics 
-		WHERE timestamp >= $1 AND timestamp <= $2 
+		SELECT
+			toStartOfFiveMinute(timestamp) as TS,
+			avg(value) as Value
+		FROM aer_gold.metrics
+		WHERE timestamp >= $1 AND timestamp <= $2
+	`
+	args := []any{start, end}
+	argIdx := 3
+
+	if source != nil {
+		query += fmt.Sprintf(" AND source = $%d", argIdx)
+		args = append(args, *source)
+		argIdx++
+	}
+	if metricName != nil {
+		query += fmt.Sprintf(" AND metric_name = $%d", argIdx)
+		args = append(args, *metricName)
+	}
+
+	query += `
 		GROUP BY TS
 		ORDER BY TS ASC
 		LIMIT 10000
 	`
 
-	err := s.conn.Select(ctx, &results, query, start, end)
+	err := s.conn.Select(ctx, &results, query, args...)
 	if err != nil {
 		slog.Error("Failed to query metrics from ClickHouse", "error", err)
 		return nil, err

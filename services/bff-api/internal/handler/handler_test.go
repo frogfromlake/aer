@@ -16,20 +16,24 @@ type mockStore struct {
 	}
 	metricsErr error
 	// captured args
-	capturedStart time.Time
-	capturedEnd   time.Time
+	capturedStart      time.Time
+	capturedEnd        time.Time
+	capturedSource     *string
+	capturedMetricName *string
 }
 
 func (m *mockStore) Ping(_ context.Context) error {
 	return m.pingErr
 }
 
-func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time) ([]struct {
+func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, source, metricName *string) ([]struct {
 	TS    time.Time
 	Value float64
 }, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
+	m.capturedSource = source
+	m.capturedMetricName = metricName
 	return m.metrics, m.metricsErr
 }
 

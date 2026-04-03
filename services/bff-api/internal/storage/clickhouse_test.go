@@ -54,7 +54,10 @@ func TestClickHouseStorage(t *testing.T) {
 	err = store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
 			timestamp DateTime,
-			value Float64
+			value Float64,
+			source String DEFAULT '',
+			metric_name String DEFAULT '',
+			article_id Nullable(String)
 		) ENGINE = Memory
 	`)
 	if err != nil {
@@ -65,32 +68,71 @@ func TestClickHouseStorage(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second) // ClickHouse DateTime resolution is in seconds
 
 	// Insert one point outside of our test range (2 hours ago)
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value) VALUES (?, ?)", now.Add(-2*time.Hour), 10.5)
+	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-2*time.Hour), 10.5, "wikipedia", "word_count", "outside-article")
 	if err != nil {
 		t.Fatalf("failed to insert data: %v", err)
 	}
 
-	// Insert one point INSIDE our test range (1 hour ago)
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value) VALUES (?, ?)", now.Add(-1*time.Hour), 42.0)
+	// Insert one point INSIDE our test range (1 hour ago) — wikipedia source
+	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), 42.0, "wikipedia", "word_count", "test-article")
 	if err != nil {
 		t.Fatalf("failed to insert data: %v", err)
 	}
 
-	// 5. TEST: GetMetrics (Time range filtering)
-	// We query the last 90 minutes. It should only return the 42.0 value.
+	// Insert another point INSIDE our test range — different source
+	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-30*time.Minute), 99.0, "newsapi", "word_count", "news-article")
+	if err != nil {
+		t.Fatalf("failed to insert data: %v", err)
+	}
+
 	start := now.Add(-90 * time.Minute)
 	end := now
 
-	results, err := store.GetMetrics(ctx, start, end)
+	// 5a. TEST: GetMetrics without dimension filters (returns all in-range rows)
+	results, err := store.GetMetrics(ctx, start, end, nil, nil)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics, got: %v", err)
 	}
 
-	if len(results) != 1 {
-		t.Fatalf("expected exactly 1 result inside time range, got %d", len(results))
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results inside time range (no filters), got %d", len(results))
 	}
 
+	// 5b. TEST: GetMetrics filtered by source
+	wikiSource := "wikipedia"
+	results, err = store.GetMetrics(ctx, start, end, &wikiSource, nil)
+	if err != nil {
+		t.Fatalf("expected no error from GetMetrics with source filter, got: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for source=wikipedia, got %d", len(results))
+	}
 	if results[0].Value != 42.0 {
 		t.Errorf("expected value 42.0, got %f", results[0].Value)
+	}
+
+	// 5c. TEST: GetMetrics filtered by metricName
+	metricName := "word_count"
+	results, err = store.GetMetrics(ctx, start, end, nil, &metricName)
+	if err != nil {
+		t.Fatalf("expected no error from GetMetrics with metricName filter, got: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results for metric_name=word_count, got %d", len(results))
+	}
+
+	// 5d. TEST: GetMetrics filtered by both source and metricName
+	results, err = store.GetMetrics(ctx, start, end, &wikiSource, &metricName)
+	if err != nil {
+		t.Fatalf("expected no error from GetMetrics with both filters, got: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for source=wikipedia AND metric_name=word_count, got %d", len(results))
 	}
 }

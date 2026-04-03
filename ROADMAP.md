@@ -219,6 +219,8 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Route MinIO Console and Grafana Through Traefik:** MinIO Console (9001) and Grafana (3000) are UI-facing services that currently bypass Traefik. Add Traefik labels and route them through the reverse proxy with TLS, consistent with the BFF-API pattern. Remove their direct `ports:` bindings from the default profile.
 * [x] **ADR-008: Network Zero-Trust Architecture:** Document the decision in `docs/arc42/09_architecture_decisions.md`. Content: rationale for removing host ports, the `debug` profile pattern, Traefik as the sole ingress point, and the threat model this addresses (lateral movement from host, accidental exposure on VPS).
 
+### Not documented in arc42 or README.md
+
 ## Phase 29: Database Migration Tooling & Source Registry (D-3 + D-5) - [x] DONE
 *The current schema-via-init.sql approach has no migration path. Any schema change requires a full volume wipe — this is a structural risk that blocks all future schema evolution. D-5 (hardcoded dummy source) is resolved in the same phase because both share the same root cause: the absence of a proper seeding/migration layer. This phase is a hard prerequisite before Phase 30 (Gold schema extension).*
 
@@ -231,19 +233,18 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-### Open Phases - Not documented in arc42 or README.md
+## Phase 30: Gold Schema Extension & ClickHouse Migration (D-7) - [x] DONE
+*The `aer_gold.metrics` table has only `timestamp` and `value`. With migration tooling now in place (Phase 29), this schema debt can be resolved safely. This phase is blocked by Phase 29 — do not start before migrations are operational.*
+
+* [x] **Define Migration 002 for ClickHouse:** Created `infra/clickhouse/migrations/000002_extend_metrics_schema.sql`. Added `source String`, `metric_name String`, and `article_id Nullable(String)` columns to `aer_gold.metrics` via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for safe idempotency.
+* [x] **Update Python Worker Insert Logic:** Extended the `INSERT INTO aer_gold.metrics` statement in `services/analysis-worker/internal/processor.py` to populate `source` (from `SilverRecord.source`), `metric_name` (`"word_count"`), and `article_id` (derived from the MinIO object key).
+* [x] **Update BFF-API Query Layer:** Extended the ClickHouse query in `services/bff-api/internal/storage/clickhouse.go` to filter by `source` and `metric_name` via optional query parameters. Updated `openapi.yaml` with new parameters (`source`, `metricName`). Regenerated Go code via `oapi-codegen`.
+* [x] **Update Testcontainers & Integration Tests:** Updated the Go Testcontainer for ClickHouse and the Python unit tests to validate the extended schema. The `get_compose_image()` / `pkg/testutils` SSoT pattern is maintained.
+* [x] **Update `11_risks_and_technical_debts.md`:** Marked D-7 as `Resolved (Phase 30)`.
 
 ---
 
-## Phase 30: Gold Schema Extension & ClickHouse Migration (D-7)
-*The `aer_gold.metrics` table has only `timestamp` and `value`. With migration tooling now in place (Phase 29), this schema debt can be resolved safely. This phase is blocked by Phase 29 — do not start before migrations are operational.*
-
-* [ ] **Define Migration 001 for ClickHouse:** Create `infra/clickhouse/migrations/000001_extend_metrics_schema.sql`. Add `source String`, `metric_name String`, and `article_id String` (nullable) columns to `aer_gold.metrics`. Use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for safe idempotency.
-* [ ] **Update Python Worker Insert Logic:** Extend the `INSERT INTO aer_gold.metrics` statement in `services/analysis-worker/` to populate `source` (from `SilverRecord.source`), `metric_name` (e.g., `"word_count"`), and `article_id` (from `SilverRecord.url` or document key).
-* [ ] **Update BFF-API Query Layer:** Extend the ClickHouse query in `services/bff-api/` to filter by `source` and `metric_name` via optional query parameters. Update `openapi.yaml` with the new parameters (`source`, `metricName`). Re-run `oapi-codegen`.
-* [ ] **Update Testcontainers & Integration Tests:** Update the Go Testcontainer for ClickHouse and the Python integration tests to validate the extended schema. Ensure the `get_compose_image()` / `pkg/testutils` SSoT pattern is maintained.
-* [ ] **Update `11_risks_and_technical_debts.md`:** Mark D-7 as `Resolved (Phase 30)`.
-
+### Open Phases
 ---
 
 ## Phase 31: Production Dependency Hardening — `psycopg2` Source Build (D-2)

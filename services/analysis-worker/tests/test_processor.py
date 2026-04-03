@@ -72,12 +72,17 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     assert args[0] == "silver"
     assert args[1] == "test-source/test-article/2023-10-25.json"
 
-    # 4. Assert ClickHouse: deterministic timestamp + word count as metric value
+    # 4. Assert ClickHouse: deterministic timestamp + word count as metric value + dimensions
     mock_clickhouse.insert.assert_called_once()
     ch_args, ch_kwargs = mock_clickhouse.insert.call_args
     assert ch_args[0] == "aer_gold.metrics"
-    assert ch_args[1][0][0] == EXPECTED_DATETIME          # Must NOT be datetime.now()
-    assert ch_args[1][0][1] == float(EXPECTED_WORD_COUNT) # word_count as metric
+    row = ch_args[1][0]
+    assert row[0] == EXPECTED_DATETIME          # Must NOT be datetime.now()
+    assert row[1] == float(EXPECTED_WORD_COUNT) # word_count as metric
+    assert row[2] == "test-source"              # source dimension
+    assert row[3] == "word_count"               # metric_name dimension
+    assert row[4] == "test-article"             # article_id derived from obj_key
+    assert ch_kwargs['column_names'] == ['timestamp', 'value', 'source', 'metric_name', 'article_id']
 
     # 5. Assert DB Update (Commit Success)
     processor._update_document_status.assert_called_with(
@@ -181,8 +186,12 @@ def test_whitespace_normalization(processor, mock_minio, mock_clickhouse, dummy_
 
     # 3. Assert: word_count must equal 5 (same as the clean version)
     mock_clickhouse.insert.assert_called_once()
-    ch_args, _ = mock_clickhouse.insert.call_args
-    assert ch_args[1][0][1] == float(EXPECTED_WORD_COUNT)
+    ch_args, ch_kwargs = mock_clickhouse.insert.call_args
+    row = ch_args[1][0]
+    assert row[1] == float(EXPECTED_WORD_COUNT)
+    assert row[2] == "test-source"              # source dimension
+    assert row[3] == "word_count"               # metric_name dimension
+    assert row[4] == "whitespace-article"       # article_id from obj_key
 
 
 def test_idempotency_skip_duplicate(processor, mock_minio, mock_clickhouse, dummy_span):
