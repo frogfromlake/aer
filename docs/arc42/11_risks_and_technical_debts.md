@@ -128,17 +128,17 @@ The Python worker uses `psycopg2-binary` for PostgreSQL connectivity. This packa
 
 ---
 
-### D-3: No Database Migration Tooling
+### D-3: ~~No Database Migration Tooling~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Medium |
 | **Affected Component** | PostgreSQL, ClickHouse |
-| **Status** | Open |
+| **Status** | Resolved (Phase 29) |
 
-Database schemas are initialized via `init.sql` scripts mounted into the `docker-entrypoint-initdb.d/` directories of PostgreSQL and ClickHouse. These scripts run only on first container creation (empty volume). There is no migration framework — schema changes require either manually altering the running database or wiping the volume and re-initializing. This becomes increasingly risky as the system accumulates real production data.
+Database schemas were initialized via `init.sql` scripts mounted into the `docker-entrypoint-initdb.d/` directories of PostgreSQL and ClickHouse. These scripts ran only on first container creation (empty volume). There was no migration framework — schema changes required either manually altering the running database or wiping the volume and re-initializing.
 
-**Fix:** Introduce a migration tool (e.g., `golang-migrate` for PostgreSQL, versioned SQL scripts for ClickHouse) and integrate it into the init-container workflow or a dedicated migration container.
+**Resolution:** `golang-migrate` runs on ingestion-api startup for PostgreSQL. ClickHouse uses a shell-based migration runner in a dedicated `clickhouse-init` container. Versioned migration files live in `infra/postgres/migrations/` and `infra/clickhouse/migrations/`. See ADR-014 for details.
 
 ---
 
@@ -154,17 +154,17 @@ A dedicated `e2e-smoke` CI job has been added to `ci.yml`. It runs on pushes to 
 
 ---
 
-### D-5: Hardcoded Dummy Source in PostgreSQL Init Script
+### D-5: ~~Hardcoded Dummy Source in PostgreSQL Init Script~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low |
 | **Affected Component** | `infra/postgres/init.sql` |
-| **Status** | Open |
+| **Status** | Resolved (Phase 29) |
 
-The PostgreSQL init script inserts a dummy source record (`'AER Dummy Generator', 'internal_test'`) via `ON CONFLICT DO NOTHING`. This was necessary for the initial PoC but should be removed or replaced with a proper seeding mechanism. The Wikipedia crawler currently assumes `source_id=1` by default, coupling it to this hardcoded entry.
+The PostgreSQL init script inserted a dummy source record (`'AER Dummy Generator', 'internal_test'`) via `ON CONFLICT DO NOTHING`. The Wikipedia crawler assumed `source_id=1` by default, coupling it to this hardcoded entry.
 
-**Fix:** Remove the dummy insert from `init.sql`. Implement a source registration mechanism (e.g., an admin endpoint on the Ingestion API, or a dedicated seed script).
+**Resolution:** The dummy insert was replaced by a proper seed migration (`000002_seed_wikipedia_source.up.sql`) that registers the `wikipedia` source with its actual API URL. The Wikipedia crawler now resolves its `source_id` dynamically via `GET /api/v1/sources?name=wikipedia`. The explicit `-source-id` flag is retained for backward compatibility.
 
 ---
 
@@ -210,5 +210,4 @@ quadrantChart
     "R-5 Ingestion No Auth": [0.25, 0.55]
     "R-6 Single Worker": [0.5, 0.35]
     "D-2 psycopg2-binary": [0.3, 0.3]
-    "D-3 No Migrations": [0.55, 0.55]
 ```

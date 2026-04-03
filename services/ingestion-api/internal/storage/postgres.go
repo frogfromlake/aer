@@ -95,6 +95,19 @@ func (p *PostgresDB) UpdateDocumentStatus(ctx context.Context, bronzeKey string,
 	return nil
 }
 
+// GetSourceByName returns the ID and name of a source matching the given name.
+func (p *PostgresDB) GetSourceByName(ctx context.Context, name string) (int, string, error) {
+	var id int
+	var sourceName string
+	query := `SELECT id, name FROM sources WHERE name = $1`
+
+	err := p.DB.QueryRowContext(ctx, query, name).Scan(&id, &sourceName)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to find source by name: %w", err)
+	}
+	return id, sourceName, nil
+}
+
 // Ping verifies the PostgreSQL connection is alive.
 func (p *PostgresDB) Ping(ctx context.Context) error {
 	return p.DB.PingContext(ctx)

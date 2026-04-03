@@ -46,7 +46,7 @@ restart: down up
 
 infra-up:
 	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ---$(RESET)"
-	@docker compose up -d nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana docs
+	@docker compose up -d nats minio postgres clickhouse minio-init clickhouse-init otel-collector tempo prometheus grafana docs
 	@echo -e "$(SYMBOL_SUCCESS) Docs:       $(CYAN)http://localhost:8000$(RESET)"
 	@echo -e "$(GRAY)  Backend services (PostgreSQL, ClickHouse, NATS, MinIO, OTel, Grafana) are internal only.$(RESET)"
 	@echo -e "$(GRAY)  Grafana and MinIO Console are routed through Traefik (HTTPS).$(RESET)"
@@ -54,7 +54,7 @@ infra-up:
 
 infra-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING INFRASTRUCTURE ---$(RESET)"
-	@docker compose stop nats minio postgres clickhouse minio-init otel-collector tempo prometheus grafana docs
+	@docker compose stop nats minio postgres clickhouse minio-init clickhouse-init otel-collector tempo prometheus grafana docs
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Infrastructure stopped.$(RESET)"
 
 infra-restart: infra-down infra-up

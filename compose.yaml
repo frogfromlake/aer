@@ -184,7 +184,6 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - aer-backend
     healthcheck:
@@ -197,6 +196,22 @@ services:
         limits:
           memory: 2G
           cpus: "1.00"
+
+  clickhouse-init:
+    image: clickhouse/clickhouse-server:26.3.3-alpine
+    container_name: aer_clickhouse_init
+    restart: "no"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - ./infra/clickhouse/migrations:/migrations:ro
+      - ./infra/clickhouse/migrate.sh:/migrate.sh:ro
+    entrypoint: /bin/sh /migrate.sh
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+    networks:
+      - aer-backend
 
   # ----------------------------------------------------
   # 3.1b INGESTION API (INTERNAL WRITE PATH)
@@ -217,6 +232,7 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - MINIO_USE_SSL=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+      - MIGRATIONS_PATH=/migrations
     networks:
       - aer-backend
     depends_on:
@@ -275,6 +291,8 @@ services:
         condition: service_completed_successfully
       clickhouse:
         condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
     healthcheck:

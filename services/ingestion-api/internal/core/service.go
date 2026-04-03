@@ -15,6 +15,7 @@ type MetadataStore interface {
 	UpdateJobStatus(ctx context.Context, jobID int, status string) error
 	LogDocument(ctx context.Context, jobID int, key, traceID string) error
 	UpdateDocumentStatus(ctx context.Context, key, status string) error
+	GetSourceByName(ctx context.Context, name string) (int, string, error)
 	Ping(ctx context.Context) error
 }
 
@@ -126,6 +127,11 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 		Failed:   errorCount,
 		Status:   finalStatus,
 	}, nil
+}
+
+// LookupSource returns the ID and name of a source by its name.
+func (s *IngestionService) LookupSource(ctx context.Context, name string) (int, string, error) {
+	return s.db.GetSourceByName(ctx, name)
 }
 
 // CheckPostgres verifies the PostgreSQL connection is alive.

@@ -10,11 +10,12 @@ import (
 // --- Mock implementations ---
 
 type mockMetadataStore struct {
-	createJobFn       func(ctx context.Context, sourceID int) (int, error)
-	updateJobStatusFn func(ctx context.Context, jobID int, status string) error
-	logDocumentFn     func(ctx context.Context, jobID int, key, traceID string) error
-	updateDocStatusFn func(ctx context.Context, key, status string) error
-	pingFn            func(ctx context.Context) error
+	createJobFn        func(ctx context.Context, sourceID int) (int, error)
+	updateJobStatusFn  func(ctx context.Context, jobID int, status string) error
+	logDocumentFn      func(ctx context.Context, jobID int, key, traceID string) error
+	updateDocStatusFn  func(ctx context.Context, key, status string) error
+	getSourceByNameFn  func(ctx context.Context, name string) (int, string, error)
+	pingFn             func(ctx context.Context) error
 
 	// recorded calls
 	jobStatuses  []string
@@ -33,6 +34,7 @@ func newMockDB() *mockMetadataStore {
 		m.docStatuses[key] = status
 		return nil
 	}
+	m.getSourceByNameFn = func(_ context.Context, _ string) (int, string, error) { return 1, "test", nil }
 	m.pingFn = func(_ context.Context) error { return nil }
 	return m
 }
@@ -48,6 +50,9 @@ func (m *mockMetadataStore) LogDocument(ctx context.Context, jobID int, key, tra
 }
 func (m *mockMetadataStore) UpdateDocumentStatus(ctx context.Context, key, status string) error {
 	return m.updateDocStatusFn(ctx, key, status)
+}
+func (m *mockMetadataStore) GetSourceByName(ctx context.Context, name string) (int, string, error) {
+	return m.getSourceByNameFn(ctx, name)
 }
 func (m *mockMetadataStore) Ping(ctx context.Context) error { return m.pingFn(ctx) }
 

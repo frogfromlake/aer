@@ -48,10 +48,28 @@ type ingestRequest struct {
 	Documents []ingestDocument `json:"documents"`
 }
 
+// sourceResponse is the JSON returned by GET /api/v1/sources?name=<name>.
+type sourceResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 func main() {
 	ingestionURL := flag.String("ingestion-url", getEnv("INGESTION_URL", "http://localhost:8081/api/v1/ingest"), "URL of the ingestion API endpoint")
-	sourceID := flag.Int("source-id", 1, "Source ID registered in PostgreSQL for the Wikipedia source")
+	sourcesURL := flag.String("sources-url", getEnv("SOURCES_URL", "http://localhost:8081/api/v1/sources"), "URL of the sources lookup endpoint")
+	sourceID := flag.Int("source-id", 0, "Source ID registered in PostgreSQL (0 = resolve dynamically via sources API)")
 	flag.Parse()
+
+	// Resolve source_id dynamically if not explicitly provided
+	if *sourceID == 0 {
+		resolved, err := resolveSourceID(*sourcesURL, "wikipedia")
+		if err != nil {
+			slog.Error("Failed to resolve source ID dynamically", "error", err)
+			os.Exit(1)
+		}
+		*sourceID = resolved
+		slog.Info("Resolved source ID dynamically", "source_id", *sourceID)
+	}
 
 	slog.Info("Fetching random Wikipedia article summary...")
 	article, err := fetchRandomArticle()
@@ -88,6 +106,32 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Successfully submitted article to ingestion pipeline", "key", docKey)
+}
+
+// resolveSourceID queries the ingestion API to look up a source ID by name.
+func resolveSourceID(sourcesURL, name string) (int, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	resp, err := client.Get(sourcesURL + "?name=" + name)
+	if err != nil {
+		return 0, fmt.Errorf("HTTP GET failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("sources API returned %s for name=%q", resp.Status, name)
+	}
+
+	var src sourceResponse
+	if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
+		return 0, fmt.Errorf("failed to decode sources response: %w", err)
+	}
+
+	if src.ID <= 0 {
+		return 0, fmt.Errorf("invalid source ID %d for name=%q", src.ID, name)
+	}
+
+	return src.ID, nil
 }
 
 // fetchRandomArticle fetches a random article summary from the Wikipedia REST API.

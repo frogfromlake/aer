@@ -1,9 +1,8 @@
-CREATE DATABASE IF NOT EXISTS aer_gold;
-
--- Create the metrics table with a 365-day Time-To-Live (TTL)
-CREATE TABLE IF NOT EXISTS aer_gold.metrics (
-    timestamp DateTime,
-    value Float64
-) ENGINE = MergeTree()
-ORDER BY timestamp
-TTL timestamp + INTERVAL 365 DAY;
+-- AĒR ClickHouse Initialization Stub
+--
+-- Schema creation is now managed by the clickhouse-init container
+-- using versioned SQL migrations in infra/clickhouse/migrations/.
+-- See infra/clickhouse/migrate.sh for the migration runner.
+--
+-- This file is retained for backward compatibility with the Docker
+-- entrypoint convention but is intentionally a no-op.

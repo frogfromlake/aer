@@ -123,4 +123,22 @@ func TestPostgresStorage(t *testing.T) {
 	if status != "uploaded" {
 		t.Errorf("expected status 'uploaded', got %s", status)
 	}
+
+	// 8. TEST: GetSourceByName (Happy Path)
+	sourceID, sourceName, err := db.GetSourceByName(ctx, "Test Source")
+	if err != nil {
+		t.Errorf("expected no error looking up source, got %v", err)
+	}
+	if sourceID <= 0 {
+		t.Errorf("expected positive source ID, got %d", sourceID)
+	}
+	if sourceName != "Test Source" {
+		t.Errorf("expected source name 'Test Source', got %q", sourceName)
+	}
+
+	// 9. TEST: GetSourceByName (Not Found)
+	_, _, err = db.GetSourceByName(ctx, "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent source, got nil")
+	}
 }

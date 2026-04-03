@@ -34,3 +34,7 @@ crawlers/wikipedia-scraper/wikipedia-scraper
 logs/
 *.log
 .pids
+
+# Misc
+CLAUDE.md
+repomix-output.xml

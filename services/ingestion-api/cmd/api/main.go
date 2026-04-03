@@ -57,6 +57,13 @@ func main() {
 	}()
 	slog.Info("PostgreSQL connected successfully")
 
+	// 2b. Run database migrations
+	if err := storage.RunMigrations(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+		slog.Error("Failed to run database migrations", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Database migrations applied successfully")
+
 	// 3. Initialize MinIO adapter
 	minioClient, err := storage.NewMinioClient(
 		ctx,
@@ -82,6 +89,7 @@ func main() {
 	})
 
 	r.Post("/api/v1/ingest", h.Ingest)
+	r.Get("/api/v1/sources", h.GetSources)
 	r.Get("/api/v1/healthz", h.Healthz)
 	r.Get("/api/v1/readyz", h.Readyz)
 

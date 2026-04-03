@@ -262,3 +262,54 @@ We adopt a **Zero-Trust network posture** where Traefik is the sole ingress poin
 ### Consequences
 * **Positive:** The default deployment posture is production-hardened. Databases and internal APIs are unreachable from outside the Docker network. UI services benefit from automatic TLS. The attack surface on a shared VPS is reduced to Traefik ports 80/443.
 * **Negative:** Developers must run `make debug-up` (or `docker compose --profile debug up`) for direct database access during debugging. The `debug-ports` socat proxy adds a minor TCP forwarding hop (~0.1ms latency). Host-based Traefik routing for Grafana and MinIO Console requires DNS configuration (subdomain records pointing to the VPS).
+
+---
+
+## ADR-014: Database Migration Strategy
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-04-03 |
+| **Status** | Accepted |
+| **Resolves** | D-3 (No Database Migration Tooling), D-5 (Hardcoded Dummy Source) |
+
+### Context
+
+Database schemas were initialized via `init.sql` scripts mounted into Docker's `/docker-entrypoint-initdb.d/` directory. These scripts execute only on first container creation (empty volume). Any schema change required either manually altering the running database or wiping the volume entirely — an unacceptable risk for production data. Additionally, a hardcoded dummy source (`source_id=1`) in the PostgreSQL init script created an implicit coupling between the Wikipedia crawler and the database seeding order.
+
+### Decision
+
+We adopt a **two-tier migration strategy** tailored to each database engine:
+
+**PostgreSQL — `golang-migrate` (startup runner)**
+
+1. Versioned SQL migration files live in `infra/postgres/migrations/` following the `NNNNNN_description.up.sql` / `.down.sql` naming convention.
+2. The `ingestion-api` runs `golang-migrate` on startup, before the HTTP server begins accepting traffic. This ensures the schema is always current without requiring a separate migration container.
+3. `golang-migrate` uses PostgreSQL advisory locks, making concurrent startups safe if the service is later scaled horizontally.
+4. The original `infra/postgres/init.sql` is reduced to a no-op stub. It remains mounted for Docker convention compatibility but performs no schema operations.
+
+**ClickHouse — Shell-based versioned scripts (init container)**
+
+1. ClickHouse lacks a native migration framework. Versioned SQL files live in `infra/clickhouse/migrations/` with the naming convention `NNNNNN_description.sql`.
+2. A `clickhouse-init` container (using the same ClickHouse image) runs `infra/clickhouse/migrate.sh` on startup. The script maintains a `aer_gold.schema_migrations` tracking table and skips already-applied versions.
+3. Services depending on ClickHouse (e.g., `analysis-worker`) declare `clickhouse-init` as a dependency with `condition: service_completed_successfully`.
+
+**Source Registry — Dynamic resolution replaces hardcoded IDs**
+
+1. The hardcoded dummy source insert is replaced by a proper seed migration (`000002_seed_wikipedia_source.up.sql`) that inserts a `wikipedia` source with its actual API URL.
+2. A new `GET /api/v1/sources?name=<name>` endpoint on the ingestion-api allows crawlers to resolve their `source_id` dynamically by name instead of assuming `source_id=1`.
+3. The Wikipedia crawler defaults to dynamic resolution (`-source-id=0`) but retains the explicit flag for backward compatibility.
+
+### Alternatives Considered
+
+| Alternative | Reason for Rejection |
+|-------------|---------------------|
+| **Flyway / Liquibase** | JVM-based — introduces a ~200MB runtime dependency for a task achievable with a 5MB Go binary. Violates Occam's Razor. |
+| **Atlas (ariga.io)** | Declarative schema diffing is powerful but adds complexity for sequential migrations. `golang-migrate` is simpler and more widely adopted. |
+| **Embed migrations in Go binary** | Would couple migration files to the Go build. Keeping them in `infra/` maintains the IaC convention and allows the files to be used independently (e.g., by CI or manual psql sessions). |
+| **Dedicated migration init container** | Adds container coordination overhead. Running migrations in-process is simpler and provides clearer startup error reporting. |
+
+### Consequences
+
+* **Positive:** Schema evolution is now possible without volume wipes. All changes are versioned, auditable, and reversible. Crawlers are decoupled from database seeding order. The migration contract (`CREATE IF NOT EXISTS`, `ALTER ... IF NOT EXISTS`) enables no-downtime schema changes.
+* **Negative:** The ingestion-api startup time increases slightly (~50-100ms) due to migration version checks. The ClickHouse migration runner is a custom shell script rather than a battle-tested framework — it must be kept simple and idempotent.

@@ -4,7 +4,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-# Completed Phases (1–13)
+# Completed Phases
 
 ## Phase 1: Base Foundation & DRY Principle (Go Workspace & Tooling) - [x] DONE
 * [x] **Set up Go Workspace:** `pkg/` folder for shared logic.
@@ -164,12 +164,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 ## Phase 24: SSoT Enforcement & Deterministic Builds
 *The compose.yaml is defined as SSoT for all container tags. Two images violate this rule, CI hardcodes tags instead of reading from compose, and a silent OTel port mismatch creates latent failures. These are foundational trust issues — every other phase builds on deterministic infrastructure.*
 
-# Phases — Derived from Architecture Review (2026-04-01)
-
-*The following phases were derived from a comprehensive code review against the project's own constraints (CLAUDE.md, Arc42 ADRs, Phase 20 Pinning Policy). The central axis: SSoT enforcement → DRY & hygiene → architecture alignment → network hardening → documentation. Existing open items (Phase 16, 22, 23) are integrated into their correct tiers.*
-
-### Not documented in arc42, README.md and CLAUDE.md
-
 * [x] **Hard-Pin Floating Tags:** Replace `prom/prometheus:v3` and `grafana/grafana:12.4` in `compose.yaml` with fully qualified, immutable versions (e.g. `prom/prometheus:v3.4.2`, `grafana/grafana:12.4.0`). Floating major/minor tags violate Phase 20 policy and produce non-reproducible builds.
 * [x] **CI Tag Extraction from Compose (SSoT):** The `ci.yml` workflow hardcodes image tags for Testcontainers cache (`minio/minio:RELEASE.2025-09-07T16-13-09Z`, `postgres:18.3-alpine3.23`, `clickhouse/clickhouse-server:26.3.3-alpine`). Replace with a `yq`-based extraction step that reads tags from `compose.yaml` at pipeline runtime. This eliminates silent drift when compose tags are updated but CI is not.
 * [x] **Pin `golangci-lint` Version in CI:** `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` uses an unpinned floating version. Pin to a specific release (e.g. `@v1.64.8`) to prevent CI breakage from upstream lint rule changes.
@@ -224,21 +218,70 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Introduce Docker Compose Profiles for Dev Access:** To preserve developer ergonomics (direct DB access for debugging), introduce a `debug` profile. Services that need host-port exposure for development get `profiles: ["debug"]`. Running `docker compose --profile debug up` exposes them; the default `docker compose up` does not. This gives developers explicit opt-in without weakening the production posture.
 * [x] **Route MinIO Console and Grafana Through Traefik:** MinIO Console (9001) and Grafana (3000) are UI-facing services that currently bypass Traefik. Add Traefik labels and route them through the reverse proxy with TLS, consistent with the BFF-API pattern. Remove their direct `ports:` bindings from the default profile.
 * [x] **ADR-008: Network Zero-Trust Architecture:** Document the decision in `docs/arc42/09_architecture_decisions.md`. Content: rationale for removing host ports, the `debug` profile pattern, Traefik as the sole ingress point, and the threat model this addresses (lateral movement from host, accidental exposure on VPS).
----
+
+## Phase 29: Database Migration Tooling & Source Registry (D-3 + D-5) - [x] DONE
+*The current schema-via-init.sql approach has no migration path. Any schema change requires a full volume wipe — this is a structural risk that blocks all future schema evolution. D-5 (hardcoded dummy source) is resolved in the same phase because both share the same root cause: the absence of a proper seeding/migration layer. This phase is a hard prerequisite before Phase 30 (Gold schema extension).*
+
+* [x] **Introduce `golang-migrate` for PostgreSQL:** Add `golang-migrate/migrate/v4` to `services/ingestion-api/go.mod`. Implement a migration runner that executes on service startup (or as a dedicated init container). Versioned SQL files live in `infra/postgres/migrations/` (e.g., `000001_initial_schema.up.sql`, `000001_initial_schema.down.sql`).
+* [x] **Migrate existing `init.sql` to Migration 001:** Move the current table definitions (`sources`, `ingestion_jobs`, `documents`) into `000001_initial_schema.up.sql`. The `init.sql` becomes a no-op stub that only creates the `migrate` user and the schema namespace — it no longer creates tables.
+* [x] **Remove Hardcoded Dummy Source (D-5):** Delete the `INSERT INTO sources ... 'AER Dummy Generator'` from `init.sql`. Replace it with a dedicated seed migration (`000002_seed_wikipedia_source.up.sql`) that is clearly marked as a dev-only seed. The Wikipedia crawler must resolve its `source_id` dynamically via a `GET /api/v1/sources?name=wikipedia` lookup (or a new admin endpoint), not by assuming `source_id=1`.
+* [x] **Introduce Versioned ClickHouse Init Scripts:** ClickHouse has no native migration framework. Implement a convention: `infra/clickhouse/migrations/` with sequentially numbered `.sql` files, executed by the `clickhouse-init` container on startup via a simple idempotent shell runner (`clickhouse-client --multiline < migration.sql`).
+* [x] **Add ADR-014: Database Migration Strategy:** Document the decision in `docs/arc42/09_architecture_decisions.md`. Content: rationale for `golang-migrate` over alternatives (Flyway, Liquibase — JVM overhead violates Occam's Razor), the ClickHouse convention, and the no-downtime migration contract.
+* [x] **Update `11_risks_and_technical_debts.md`:** Mark D-3 and D-5 as `Resolved (Phase 29)`.
 
 ---
 
-### Tier 1: SSoT & Determinism (fix before any new feature work)
-
-
----
-
-### Tier 2: Code Quality & Architecture Alignment
+### Open Phases - Not documented in arc42 or README.md
 
 ---
 
-### Tier 3: Hardening for Production
+## Phase 30: Gold Schema Extension & ClickHouse Migration (D-7)
+*The `aer_gold.metrics` table has only `timestamp` and `value`. With migration tooling now in place (Phase 29), this schema debt can be resolved safely. This phase is blocked by Phase 29 — do not start before migrations are operational.*
+
+* [ ] **Define Migration 001 for ClickHouse:** Create `infra/clickhouse/migrations/000001_extend_metrics_schema.sql`. Add `source String`, `metric_name String`, and `article_id String` (nullable) columns to `aer_gold.metrics`. Use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for safe idempotency.
+* [ ] **Update Python Worker Insert Logic:** Extend the `INSERT INTO aer_gold.metrics` statement in `services/analysis-worker/` to populate `source` (from `SilverRecord.source`), `metric_name` (e.g., `"word_count"`), and `article_id` (from `SilverRecord.url` or document key).
+* [ ] **Update BFF-API Query Layer:** Extend the ClickHouse query in `services/bff-api/` to filter by `source` and `metric_name` via optional query parameters. Update `openapi.yaml` with the new parameters (`source`, `metricName`). Re-run `oapi-codegen`.
+* [ ] **Update Testcontainers & Integration Tests:** Update the Go Testcontainer for ClickHouse and the Python integration tests to validate the extended schema. Ensure the `get_compose_image()` / `pkg/testutils` SSoT pattern is maintained.
+* [ ] **Update `11_risks_and_technical_debts.md`:** Mark D-7 as `Resolved (Phase 30)`.
 
 ---
 
-### Tier 4: Documentation & Schema Evolution
+## Phase 31: Production Dependency Hardening — `psycopg2` Source Build (D-2)
+*`psycopg2-binary` is explicitly not recommended for production by its maintainers due to bundled, potentially outdated `libpq` and SSL/TLS incompatibilities. This is a single-file change with low risk and immediate impact on Trivy scan surface and production correctness.*
+
+* [ ] **Switch Production Dockerfile to `psycopg2` (source build):** In `services/analysis-worker/Dockerfile`, add `libpq-dev gcc python3-dev` to the builder stage's `apt-get install`. Replace `psycopg2-binary` with `psycopg2` in `requirements.txt` (production). Keep `psycopg2-binary` in `requirements-dev.txt` for local development and CI to avoid native compilation overhead in test environments.
+* [ ] **Verify Trivy Scan Passes:** Confirm that the rebuilt image passes the `trivy-scan` CI job without new HIGH/CRITICAL findings. The goal is to eliminate the statically linked `libpq` from the image.
+* [ ] **Update `11_risks_and_technical_debts.md`:** Mark D-2 as `Resolved (Phase 31)`.
+
+---
+
+## Phase 32: Silver Layer Retention Policy (R-3)
+*The Silver bucket grows unboundedly. Bronze expires after 90 days, Quarantine after 30 — but Silver has no ILM policy. At current scale this is a low-urgency item, but it must be addressed before the second crawler ships to prevent unbounded storage costs. This phase should be executed once actual Silver growth is measurable (i.e., after Phase 30 and at least one full week of real crawl data).*
+
+* [ ] **Measure Silver Bucket Growth Rate:** Before setting a TTL, observe actual Silver object counts over one week of production-like ingestion. Use `mc du minio/silver` or the MinIO Console metrics to establish a baseline.
+* [ ] **Define and Apply Silver ILM Policy:** Based on measured growth, apply a MinIO ILM expiration rule to the `silver` bucket. A conservative starting value of 365 days is recommended — the Gold layer (ClickHouse) retains all derived metrics independently. Add the policy to `infra/minio/setup.sh` alongside the existing Bronze and Quarantine rules.
+* [ ] **Document Retention Decision:** Add the chosen TTL and its rationale to `docs/arc42/08_concepts.md` under Data Lifecycle Management (§8.8). Reference the observation period and growth data that informed the decision.
+* [ ] **Update `11_risks_and_technical_debts.md`:** Mark R-3 as `Resolved (Phase 32)`.
+
+---
+
+## Phase 33: Ingestion API Authentication (R-5)
+*The Ingestion API has no authentication. This is currently mitigated by network segmentation (it is not exposed via Traefik). However, the moment a remote crawler is introduced, this changes from `Low` to `High` severity. This phase is intentionally deferred until remote crawlers are planned — implementing auth for a purely localhost service would violate Occam's Razor.*
+
+**Trigger condition:** Execute this phase when the first crawler is deployed outside the `aer-backend` Docker network (e.g., a remote VPS, a GitHub Actions runner making ingest calls).
+
+* [ ] **Add API-Key Middleware to Ingestion API:** Port the existing `apiKeyAuth()` middleware from `services/bff-api/cmd/server/main.go` to `services/ingestion-api/`. The implementation is identical — extract it into `pkg/middleware/apikey.go` to satisfy DRY. Apply to all routes except `/api/v1/healthz` and `/api/v1/readyz`.
+* [ ] **Add `INGESTION_API_KEY` to `.env.example` and Config:** Add the new environment variable to `services/ingestion-api/internal/config/config.go`, `.env.example`, and `compose.yaml`.
+* [ ] **Update E2E Smoke Test:** `scripts/e2e_smoke_test.sh` injects test documents via `wget` into the Ingestion API. Add the `X-API-Key` header to the smoke test request.
+* [ ] **Update `11_risks_and_technical_debts.md`:** Mark R-5 as `Resolved (Phase 33)`.
+
+---
+
+## Phase 34: Persistent Tempo Trace Storage (R-7)
+*Tempo currently stores traces under `/tmp/tempo/` with no persistent volume. Restarting the container loses all traces. For development this is acceptable, but for production audit trails it is not. This phase is deferred until long-term tracing is a stated operational requirement.*
+
+**Trigger condition:** Execute this phase when operational SLAs require trace retention beyond a single container lifecycle (e.g., post-incident analysis, audit requirements).
+
+* [ ] **Mount a Named Docker Volume for Tempo:** Add a `tempo_data` named volume to `compose.yaml`. Mount it at `/var/tempo` inside the Tempo container. Update `infra/observability/tempo.yaml` to point `wal.path` and `local.path` to `/var/tempo/wal` and `/var/tempo/blocks`.
+* [ ] **Increase Block Retention:** Increase `block_retention` in `tempo.yaml` from `1h` to a value appropriate for the use case (e.g., `72h` for development, `720h` for production). Document the chosen value and its rationale.
+* [ ] **Update `11_risks_and_technical_debts.md`:** Mark R-7 as `Resolved (Phase 34)`.

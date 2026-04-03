@@ -99,6 +99,23 @@ func (h *Handler) Readyz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, checks)
 }
 
+// GetSources handles GET /api/v1/sources?name=<name> — looks up a source by name.
+func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "query parameter 'name' is required"})
+		return
+	}
+
+	id, sourceName, err := h.svc.LookupSource(r.Context(), name)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "source not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "name": sourceName})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

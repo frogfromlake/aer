@@ -21,6 +21,7 @@ RUN apk upgrade --no-cache zlib
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /bin/ingestion-api /ingestion-api
+COPY infra/postgres/migrations/ /migrations/
 
 EXPOSE 8081
 
