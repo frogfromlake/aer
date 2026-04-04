@@ -383,6 +383,7 @@ services:
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./infra/observability/tempo.yaml:/etc/tempo.yaml
+      - tempo_data:/var/tempo
     networks:
       - aer-backend
     deploy:
@@ -497,6 +498,7 @@ volumes:
   postgres_data:
   clickhouse_data:
   traefik-certs:
+  tempo_data:
 
 networks:
   aer-frontend:
