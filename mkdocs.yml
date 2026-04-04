@@ -19,6 +19,7 @@ theme:
 
 nav:
   - "Home": index.md
+  - "Operations Playbook": operations_playbook.md
   - "0. Manifesto": arc42/00_manifesto.md
   - "1. Introduction and Goals": arc42/01_introduction_and_goals.md
   - "2. Architecture Constraints": arc42/02_architecture_constraints.md
