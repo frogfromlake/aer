@@ -84,17 +84,17 @@ The `compose.yaml` defines a single `analysis-worker` container. While the worke
 
 ---
 
-### R-7: Tempo Trace Storage Is Ephemeral
+### ~~R-7: Tempo Trace Storage Is Ephemeral~~ — Resolved (Phase 34)
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low |
 | **Affected Component** | Grafana Tempo |
-| **Status** | Accepted |
+| **Status** | Resolved (Phase 34) |
 
 Tempo stores trace data under `/tmp/tempo/` inside the container with a 1-hour block retention (`block_retention: 1h`). There is no persistent Docker volume mounted. Restarting the Tempo container permanently loses all stored traces. This is acceptable for development and short-term debugging but insufficient for long-term audit trails.
 
-**Mitigation plan:** Mount a persistent volume for Tempo's WAL and block storage when long-term trace retention becomes a requirement.
+**Resolution:** A named Docker volume `tempo_data` is now mounted at `/var/tempo` inside the Tempo container. WAL and block paths in `infra/observability/tempo.yaml` were updated accordingly (`/var/tempo/wal`, `/var/tempo/blocks`). Block retention was increased to `72h` (development baseline; raise to `720h` for production audit requirements).
 
 ---
 

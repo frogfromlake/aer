@@ -54,6 +54,8 @@ The `pkg/` module is a central, local Go module at the repository root. It encap
 
 **`pkg/telemetry/`** — OpenTelemetry tracer initialization. Configures the OTLP gRPC exporter pointing to the OTel Collector endpoint (configurable via `OTEL_EXPORTER_OTLP_ENDPOINT`). The tracer provider is bound to the application context for clean shutdown.
 
+**`pkg/middleware/`** — Shared HTTP middleware. Currently provides `APIKeyAuth` (`apikey.go`), a `chi`-compatible middleware that validates API keys from the `X-API-Key` header or `Authorization: Bearer` header. Used by both the BFF API and the Ingestion API (DRY).
+
 **`pkg/testutils/`** — The SSoT compose parser (`compose.go`) used by all Go integration tests to dynamically resolve Docker image tags from `compose.yaml`.
 
 Microservices import `pkg/` as a local module via `go.work`. Changes to shared code propagate instantly across all services without versioning or publishing.
@@ -84,10 +86,10 @@ Microservices must never create infrastructure at startup. They assume all requi
 | :--- | :--- | :--- | :--- |
 | `nats-init` | `natsio/nats-box:0.19.3` | JetStream stream `AER_LAKE` (subjects: `aer.lake.>`, file-backed storage). | `nats` (healthy) |
 | `minio-init` | `minio/mc:RELEASE.2025-08-13T08-35-41Z` | Buckets (`bronze`, `silver`, `bronze-quarantine`), ILM retention policies (Bronze: 90d, Silver: 365d, Quarantine: 30d), NATS event notification on `bronze` bucket. | `minio` (healthy) |
-| PostgreSQL | Self-initializing | Tables (`sources`, `ingestion_jobs`, `documents`) via `init.sql` mounted into `docker-entrypoint-initdb.d/`. | — |
-| ClickHouse | Self-initializing | Database `aer_gold` and table `metrics` with 365-day TTL via `init.sql` mounted into `docker-entrypoint-initdb.d/`. | — |
+| PostgreSQL | `golang-migrate` (in-process) | Versioned SQL migrations in `infra/postgres/migrations/` executed by the `ingestion-api` on startup. The original `init.sql` is a no-op stub — schema operations are handled entirely by the migration runner. See ADR-014. | `postgres` (healthy) |
+| `clickhouse-init` | Same ClickHouse image | Shell-based migration runner (`infra/clickhouse/migrate.sh`) executes versioned SQL files from `infra/clickhouse/migrations/`. Tracks applied versions in `aer_gold.schema_migrations`. | `clickhouse` (healthy) |
 
-The boot order is deterministic: `nats` → `nats-init` → `minio` (waits for JetStream) → `minio-init` → application services. All dependencies use `condition: service_healthy` or `condition: service_completed_successfully`.
+The boot order is deterministic: `nats` → `nats-init` → `minio` (waits for JetStream) → `minio-init` → application services. ClickHouse migrations run via `clickhouse-init` before the `analysis-worker` starts (`condition: service_completed_successfully`). PostgreSQL migrations run in-process when the `ingestion-api` starts (via `golang-migrate`). All infrastructure dependencies use `condition: service_healthy` or `condition: service_completed_successfully`.
 
 ## 8.5 CI/CD Pipeline
 
@@ -123,7 +125,7 @@ Every dataset entering AĒR is fully traceable from the Gold layer back to the o
 
 ### 8.6.1 Distributed Tracing
 
-All three services emit OpenTelemetry traces via OTLP gRPC to the OTel Collector (`:4317`). The Collector exports traces to Grafana Tempo. Trace context is propagated across the NATS message boundary via message headers, enabling end-to-end correlation from the crawler's HTTP POST through ingestion, NATS delivery, worker processing, and ClickHouse insertion.
+All three services emit OpenTelemetry traces via OTLP gRPC to the OTel Collector (`:4317`). The Collector exports traces to Grafana Tempo. Trace data is persisted to a named Docker volume (`tempo_data` mounted at `/var/tempo`) with a block retention of 72h (development) or 720h (production), ensuring traces survive container restarts. Trace context is propagated across the NATS message boundary via message headers, enabling end-to-end correlation from the crawler's HTTP POST through ingestion, NATS delivery, worker processing, and ClickHouse insertion.
 
 ### 8.6.2 Prometheus Metrics
 
@@ -154,7 +156,14 @@ Grafana dashboards are provisioned automatically from JSON files mounted via `in
 
 ### 8.7.1 API Authentication
 
-The BFF API requires an API key on all routes except health probes (`/healthz`, `/readyz`). The key is accepted via the `X-API-Key` header or `Authorization: Bearer <key>`. The key value is configured via `BFF_API_KEY` in the `.env` file. Requests with missing or invalid keys receive a `401 Unauthorized` response.
+Both the BFF API and the Ingestion API require an API key on all routes except health probes (`/healthz`, `/readyz`). The key is accepted via the `X-API-Key` header or `Authorization: Bearer <key>`. Requests with missing or invalid keys receive a `401 Unauthorized` response.
+
+| Service | Environment Variable | Purpose |
+| :--- | :--- | :--- |
+| BFF API | `BFF_API_KEY` | Protects metric queries from unauthorized consumers |
+| Ingestion API | `INGESTION_API_KEY` | Protects data submission from unauthorized crawlers |
+
+The authentication middleware is shared between both services via `pkg/middleware/apikey.go` (`APIKeyAuth` function), satisfying the DRY principle. See §8.2 for the shared library structure.
 
 ### 8.7.2 TLS Termination
 

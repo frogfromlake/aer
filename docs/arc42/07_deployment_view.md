@@ -92,18 +92,20 @@ Init containers run once at startup (`restart: "no"`) to provision infrastructur
 | Service | Image | Purpose | Depends On |
 | :--- | :--- | :--- | :--- |
 | `nats-init` | `natsio/nats-box:0.19.3` | Creates the JetStream stream `AER_LAKE` with subject filter `aer.lake.>` and file-backed storage. | `nats` (healthy) |
-| `minio-init` | `minio/mc:RELEASE.2025-08-13T08-35-41Z` | Creates buckets (`bronze`, `silver`, `bronze-quarantine`), applies ILM retention policies (Bronze: 90d, Quarantine: 30d), and registers the NATS event notification on the `bronze` bucket. | `minio` (healthy) |
+| `minio-init` | `minio/mc:RELEASE.2025-08-13T08-35-41Z` | Creates buckets (`bronze`, `silver`, `bronze-quarantine`), applies ILM retention policies (Bronze: 90d, Silver: 365d, Quarantine: 30d), and registers the NATS event notification on the `bronze` bucket. | `minio` (healthy) |
+| `clickhouse-init` | Same ClickHouse image | Runs `infra/clickhouse/migrate.sh` — a shell-based migration runner that executes versioned SQL files from `infra/clickhouse/migrations/` and tracks applied versions in `aer_gold.schema_migrations`. See ADR-014. | `clickhouse` (healthy) |
 
 ```mermaid
 graph TD
     NATS[nats] -->|healthy| NATSInit[nats-init<br/>Create JetStream Stream]
     NATSInit -->|completed| MinIO[minio<br/>Waits for JetStream]
     MinIO -->|healthy| MinIOInit[minio-init<br/>Buckets + ILM + Events]
-    Postgres[postgres] -->|healthy| IngestionAPI[ingestion-api]
+    Postgres[postgres] -->|healthy| IngestionAPI["ingestion-api<br/>(runs golang-migrate on startup)"]
     MinIO -->|healthy| IngestionAPI
+    ClickHouse[clickhouse] -->|healthy| CHInit[clickhouse-init<br/>Run migrate.sh]
     NATSInit -->|completed| Worker[analysis-worker]
     MinIOInit -->|completed| Worker
-    ClickHouse[clickhouse] -->|healthy| Worker
+    CHInit -->|completed| Worker
     Postgres -->|healthy| Worker
     MinIO -->|healthy| Worker
     ClickHouse -->|healthy| BFF[bff-api]
@@ -111,7 +113,7 @@ graph TD
 
 ### 7.4.4 Application Services
 
-All three application services are built from multi-stage Dockerfiles. Go services use a `golang:1.26.1-alpine3.23` builder stage and produce a statically linked binary (`CGO_ENABLED=0`) copied into a minimal `alpine:3.23.3` runtime image. The Python worker uses `python:3.14.3-slim-bookworm` for both build and runtime stages, separating dependency installation from application code via `--prefix=/install`.
+All three application services are built from multi-stage Dockerfiles. Go services use a `golang:1.26.1-alpine3.23` builder stage and produce a statically linked binary (`CGO_ENABLED=0`) copied into a minimal `alpine:3.23.3` runtime image. The Python worker uses `python:3.14.3-slim-bookworm` for both build and runtime stages, separating dependency installation from application code via `--prefix=/install`. The builder stage installs `gcc`, `libpq-dev`, and `python3-dev` to compile `psycopg2` from source against the system `libpq` — the `psycopg2-binary` package is used only in development/CI environments (`requirements-dev.txt`) to avoid native compilation overhead.
 
 | Service | Dockerfile Base | Port | Network(s) | Memory | CPU | Healthcheck |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -153,6 +155,7 @@ The repository root is mounted at `/docs` inside the container. MkDocs runs in l
 | `minio_data` | `minio` | Bronze, Silver, and Quarantine buckets (the Data Lake). |
 | `postgres_data` | `postgres` | Metadata index (sources, ingestion jobs, documents, trace IDs). |
 | `clickhouse_data` | `clickhouse` | Gold layer time-series metrics (`aer_gold.metrics`). |
+| `tempo_data` | `tempo` | Trace WAL and block storage (`/var/tempo`). Retains traces for 72h (development) or 720h (production). |
 | `traefik-certs` | `traefik` | ACME/Let's Encrypt certificates persisted across restarts. |
 
 Volumes can be selectively wiped via `make infra-clean-{postgres,minio,clickhouse}` or entirely via `make infra-clean`. All wipe commands require interactive confirmation.

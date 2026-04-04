@@ -230,6 +230,8 @@ Authorization: Bearer <your-key>
 GET /api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
 ```
 
+Optional filters: `source` (e.g., `wikipedia`) and `metricName` (e.g., `word_count`) narrow results by data source and metric dimension.
+
 Results are downsampled to 5-minute intervals. A hard row limit is applied server-side to prevent OOM on large time ranges.
 
 ---
@@ -326,7 +328,7 @@ All Docker images in `compose.yaml` use hard-pinned, immutable patch-level versi
 | :--- | :--- | :--- | :--- |
 | Bronze (raw) | MinIO `bronze` | 90 days | MinIO ILM |
 | Quarantine (DLQ) | MinIO `bronze-quarantine` | 30 days | MinIO ILM |
-| Silver (harmonized) | MinIO `silver` | Unlimited | — |
+| Silver (harmonized) | MinIO `silver` | 365 days | MinIO ILM |
 | Gold (metrics) | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL |
 | Metadata | PostgreSQL | Unlimited | — |
 

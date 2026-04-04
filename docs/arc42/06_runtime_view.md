@@ -30,7 +30,7 @@ sequenceDiagram
     W->>W: Validate against Silver Contract (Pydantic)
     W->>W: Extract deterministic timestamp from event metadata
     W->>MS: PUT harmonized data (silver/{key}.json)
-    W->>CH: INSERT metric (timestamp, value)
+    W->>CH: INSERT metric (timestamp, value, source, metric_name, article_id)
     W->>PG: UPDATE document (status: processed)
     W->>N: msg.ack()
     I->>PG: UPDATE job (status: completed)
@@ -52,7 +52,7 @@ The flow in detail:
 
 7. **Silver Upload (Python → MinIO):** The validated, harmonized record is uploaded to the `silver` bucket at the same object key. This operation is idempotent — if a previous attempt partially failed after Silver but before Gold, the Silver object is safely overwritten on retry.
 
-8. **Gold Insert (Python → ClickHouse):** The extracted metric (word count as `value`, deterministic `timestamp`) is inserted into `aer_gold.metrics`. If this step fails, an exception propagates, the NATS event is NAK'd for redelivery, and the PostgreSQL status remains `uploaded` — ensuring the metric is retried.
+8. **Gold Insert (Python → ClickHouse):** The extracted metric is inserted into `aer_gold.metrics` with all dimensions: `timestamp` (deterministic, from event metadata), `value` (word count), `source` (from `SilverRecord.source`), `metric_name` (`"word_count"`), and `article_id` (derived from the MinIO object key). If this step fails, an exception propagates, the NATS event is NAK'd for redelivery, and the PostgreSQL status remains `uploaded` — ensuring the metric is retried.
 
 9. **Commit (Python → PostgreSQL + NATS):** After both Silver and Gold writes succeed, the document status is updated to `processed`, Prometheus counters are incremented (`events_processed_total`), and the NATS event is manually acknowledged (`msg.ack()`). Only after this explicit ack does JetStream consider the event fully consumed.
 
@@ -97,9 +97,9 @@ Key behaviors:
 
 This sequence describes how consumers retrieve data and trace it back to the original source for qualitative verification.
 
-1. **Dashboard Request:** The consumer (or future frontend) sends `GET /api/v1/metrics?startDate=...&endDate=...` to the BFF API with a valid API key.
+1. **Dashboard Request:** The consumer (or future frontend) sends `GET /api/v1/metrics?startDate=...&endDate=...` to the BFF API with a valid API key. Optional `source` and `metricName` query parameters allow filtering by data source and metric dimension.
 
-2. **OLAP Query:** The BFF queries ClickHouse with server-side downsampling (`toStartOfFiveMinute()`, `avg()`) and a hard row limit. The result is returned as strictly typed JSON conforming to the OpenAPI `MetricDataPoint` schema.
+2. **OLAP Query:** The BFF queries ClickHouse with server-side downsampling (`toStartOfFiveMinute()`, `avg()`) and a hard row limit. If `source` or `metricName` filters are provided, they are applied as `WHERE` clauses. The result is returned as strictly typed JSON conforming to the OpenAPI `MetricDataPoint` schema.
 
 3. **Drill-Down:** An analyst identifies an anomaly in the time-series data and wants to inspect the original source document.
 
