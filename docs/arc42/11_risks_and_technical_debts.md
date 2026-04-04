@@ -178,6 +178,20 @@ ADRs 008–013 have been written and added to `docs/arc42/09_architecture_decisi
 
 ---
 
+### ~~D-8: CI/Production Python Version Mismatch~~ — Resolved (Phase 35)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Medium |
+| **Affected Component** | `.github/workflows/ci.yml`, `services/analysis-worker/Dockerfile` |
+| **Status** | Resolved (Phase 35) |
+
+The `python-pipeline` and `dependency-audit` CI jobs used `python-version: '3.12'` while the production Dockerfile is based on `python:3.14.3-slim-bookworm`. This violated the SSoT principle — a test passing on 3.12 does not guarantee correctness on 3.14, particularly for the async-heavy analysis worker.
+
+**Resolution:** Both CI jobs now set `python-version: '3.14'` to match the production base image. All dependencies in `requirements.txt` and `requirements-dev.txt` were verified to install cleanly on Python 3.14.
+
+---
+
 ### D-7: ClickHouse Metrics Schema Is Minimal
 
 | Property | Value |
