@@ -210,6 +210,8 @@ services:
     entrypoint: /bin/sh /migrate.sh
     environment:
       - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
     networks:
       - aer-backend
 

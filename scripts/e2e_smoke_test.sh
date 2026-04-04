@@ -42,12 +42,12 @@ cleanup() {
     if [[ $FAIL -gt 0 || $exit_code -ne 0 ]]; then
         LOG_DIR="logs/e2e"
         mkdir -p "$LOG_DIR"
-        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
         LOG_FILE="${LOG_DIR}/e2e_fail_${TIMESTAMP}.log"
 
         echo -e "   ${RED}Smoke test FAILED. Dumping full stack logs to ${LOG_FILE}...${RESET}"
         # Dump ALL logs to the file
-        docker compose logs > "$LOG_FILE" 2>&1
+        docker compose logs --timestamps --no-color | sort > "$LOG_FILE" 2>&1
 
         FINAL_EXIT=1
     else
