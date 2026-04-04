@@ -208,7 +208,7 @@ These ports are not exposed in the default stack. Run `make debug-up` to forward
 | `9001` | MinIO | Web console (also accessible via Traefik HTTPS) |
 | `9002` | ClickHouse | Native protocol |
 
-All credentials are sourced from `.env`. See `.env.example` for defaults.
+All credentials are sourced from `.env`. See `.env.example` for defaults. Both APIs require an API key — set `BFF_API_KEY` and `INGESTION_API_KEY` to strong secrets in production.
 
 ---
 
@@ -235,6 +235,16 @@ Results are downsampled to 5-minute intervals. A hard row limit is applied serve
 ---
 
 ## Ingestion Contract
+
+All endpoints except `/api/v1/healthz` and `/api/v1/readyz` require authentication:
+
+```
+X-API-Key: <your-ingestion-key>
+# or
+Authorization: Bearer <your-ingestion-key>
+```
+
+The key is configured via the `INGESTION_API_KEY` environment variable.
 
 Every crawler — regardless of upstream source — must submit data in this format:
 

@@ -257,21 +257,19 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Document Retention Decision:** Add the chosen TTL and its rationale to `docs/arc42/08_concepts.md` under Data Lifecycle Management (§8.8). Reference the observation period and growth data that informed the decision.
 * [x] **Update `11_risks_and_technical_debts.md`:** Mark R-3 as `Resolved (Phase 32)`.
 
----
-
-### Open Phases
-
-## Phase 33: Ingestion API Authentication (R-5)
+## Phase 33: Ingestion API Authentication (R-5) - [x] DONE
 *The Ingestion API has no authentication. This is currently mitigated by network segmentation (it is not exposed via Traefik). However, the moment a remote crawler is introduced, this changes from `Low` to `High` severity. This phase is intentionally deferred until remote crawlers are planned — implementing auth for a purely localhost service would violate Occam's Razor.*
 
 **Trigger condition:** Execute this phase when the first crawler is deployed outside the `aer-backend` Docker network (e.g., a remote VPS, a GitHub Actions runner making ingest calls).
 
-* [ ] **Add API-Key Middleware to Ingestion API:** Port the existing `apiKeyAuth()` middleware from `services/bff-api/cmd/server/main.go` to `services/ingestion-api/`. The implementation is identical — extract it into `pkg/middleware/apikey.go` to satisfy DRY. Apply to all routes except `/api/v1/healthz` and `/api/v1/readyz`.
-* [ ] **Add `INGESTION_API_KEY` to `.env.example` and Config:** Add the new environment variable to `services/ingestion-api/internal/config/config.go`, `.env.example`, and `compose.yaml`.
-* [ ] **Update E2E Smoke Test:** `scripts/e2e_smoke_test.sh` injects test documents via `wget` into the Ingestion API. Add the `X-API-Key` header to the smoke test request.
-* [ ] **Update `11_risks_and_technical_debts.md`:** Mark R-5 as `Resolved (Phase 33)`.
+* [x] **Add API-Key Middleware to Ingestion API:** Extracted `apiKeyAuth()` from `services/bff-api/cmd/server/main.go` into `pkg/middleware/apikey.go` (exported as `APIKeyAuth`) to satisfy DRY. Both BFF and Ingestion API now import from the shared package. Applied to all routes except `/api/v1/healthz` and `/api/v1/readyz`.
+* [x] **Add `INGESTION_API_KEY` to `.env.example` and Config:** Added the new environment variable to `services/ingestion-api/internal/config/config.go`, `.env.example`, and `compose.yaml`.
+* [x] **Update E2E Smoke Test:** `scripts/e2e_smoke_test.sh` now sends the `X-API-Key` header via the `INGESTION_API_KEY` environment variable in the `wget` call to the Ingestion API.
+* [x] **Update `11_risks_and_technical_debts.md`:** Marked R-5 as `Resolved (Phase 33)`. Removed stale entries (R-5, D-2) from the risk quadrant chart.
 
 ---
+
+### Open Phases
 
 ## Phase 34: Persistent Tempo Trace Storage (R-7)
 *Tempo currently stores traces under `/tmp/tempo/` with no persistent volume. Restarting the container loses all traces. For development this is acceptable, but for production audit trails it is not. This phase is deferred until long-term tracing is a stated operational requirement.*

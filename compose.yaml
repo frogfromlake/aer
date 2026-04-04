@@ -235,6 +235,7 @@ services:
       - MINIO_USE_SSL=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - MIGRATIONS_PATH=/migrations
+      - INGESTION_API_KEY=${INGESTION_API_KEY}
     networks:
       - aer-backend
     depends_on:

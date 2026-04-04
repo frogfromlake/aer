@@ -58,17 +58,15 @@ The Bronze ILM policy permanently deletes raw data after 90 days. If a bug in th
 
 ---
 
-### R-5: Ingestion API Has No Authentication
+### R-5: ~~Ingestion API Has No Authentication~~ — Resolved
 
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low (current deployment) / High (if exposed) |
 | **Affected Component** | `ingestion-api` |
-| **Status** | Accepted (mitigated by network segmentation) |
+| **Status** | Resolved (Phase 33) |
 
-The Ingestion API (`POST /api/v1/ingest`) does not require authentication. Any client with network access to port `8081` can inject arbitrary data into the Bronze layer. This is currently mitigated by network segmentation: the `ingestion-api` exists exclusively on the `aer-backend` Docker network and is not exposed through Traefik. Crawlers access it via the host network on `localhost:8081` during local development.
-
-**Mitigation plan:** If the Ingestion API is ever exposed beyond localhost (e.g., for remote crawlers), an API-key middleware identical to the BFF's must be added.
+The Ingestion API now requires a valid API key on all routes except `/api/v1/healthz` and `/api/v1/readyz`. The middleware is shared with the BFF API via `pkg/middleware/apikey.go` (DRY). The key is configured via the `INGESTION_API_KEY` environment variable and accepted via the `X-API-Key` header or `Authorization: Bearer <key>`.
 
 ---
 
@@ -204,7 +202,5 @@ quadrantChart
     quadrant-3 "Accept"
     quadrant-4 "Plan Mitigation"
     "R-2 Plaintext Secrets": [0.4, 0.6]
-    "R-5 Ingestion No Auth": [0.25, 0.55]
     "R-6 Single Worker": [0.5, 0.35]
-    "D-2 psycopg2-binary": [0.3, 0.3]
 ```

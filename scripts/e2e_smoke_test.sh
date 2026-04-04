@@ -18,6 +18,7 @@ fi
 # --- Config ---
 BFF_URL="http://localhost:8080/api/v1"
 BFF_API_KEY="${BFF_API_KEY:-}"
+INGESTION_API_KEY="${INGESTION_API_KEY:-}"
 PROCESSING_WAIT=15    # seconds to give NATS + worker time to process
 
 PASS=0
@@ -90,6 +91,7 @@ PAYLOAD='{
 INGEST_RESPONSE=$(docker compose exec -T ingestion-api \
     wget -q -O - \
     --header="Content-Type: application/json" \
+    --header="X-API-Key: ${INGESTION_API_KEY}" \
     --post-data="$PAYLOAD" \
     "http://localhost:8081/api/v1/ingest" 2>/dev/null) && INGEST_OK=true || INGEST_OK=false
 

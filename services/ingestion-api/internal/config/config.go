@@ -19,6 +19,7 @@ type Config struct {
 	MinioUseSSL    bool   `mapstructure:"MINIO_USE_SSL"`
 	OTelEndpoint   string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	MigrationsPath string `mapstructure:"MIGRATIONS_PATH"`
+	APIKey         string `mapstructure:"INGESTION_API_KEY"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -35,6 +36,7 @@ func Load() (*Config, error) {
 	v.SetDefault("MINIO_USE_SSL", false)
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
 	v.SetDefault("MIGRATIONS_PATH", "/migrations")
+	v.SetDefault("INGESTION_API_KEY", "")
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

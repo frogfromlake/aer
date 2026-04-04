@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/frogfromlake/aer/pkg/logger"
+	mw "github.com/frogfromlake/aer/pkg/middleware"
 	"github.com/frogfromlake/aer/pkg/telemetry"
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/config"
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/core"
@@ -87,6 +88,9 @@ func main() {
 	r.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "ingestion-api")
 	})
+
+	// API Key Auth: protects all routes except /healthz and /readyz
+	r.Use(mw.APIKeyAuth(cfg.APIKey))
 
 	r.Post("/api/v1/ingest", h.Ingest)
 	r.Get("/api/v1/sources", h.GetSources)
