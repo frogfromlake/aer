@@ -16,7 +16,11 @@ import (
 // InitProvider configures the global OpenTelemetry Tracer using HTTP.
 // The endpoint parameter accepts a full URL (e.g. "http://localhost:4318")
 // or a bare host:port (e.g. "localhost:4318").
-func InitProvider(serviceName, endpoint string) (func(context.Context) error, error) {
+// sampleRate controls what fraction of traces are sampled (0.0–1.0). Use 1.0
+// for development (AlwaysSample equivalent) and 0.1 in production. ParentBased
+// wrapping ensures child spans inherit the parent's sampling decision, preventing
+// orphaned trace fragments.
+func InitProvider(serviceName, endpoint string, sampleRate float64) (func(context.Context) error, error) {
 	ctx := context.Background()
 
 	// otlptracehttp.WithEndpoint expects host:port without scheme.
@@ -38,7 +42,7 @@ func InitProvider(serviceName, endpoint string) (func(context.Context) error, er
 	}
 
 	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampleRate))),
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
 	)

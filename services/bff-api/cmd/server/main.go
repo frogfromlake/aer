@@ -40,7 +40,7 @@ func main() {
 	slog.Info("Bootstrapping AĒR BFF API...", "environment", cfg.Environment)
 
 	// 4. Initialize OpenTelemetry
-	shutdownTracer, err := telemetry.InitProvider("aer-bff-api", cfg.OTelEndpoint)
+	shutdownTracer, err := telemetry.InitProvider("aer-bff-api", cfg.OTelEndpoint, cfg.OTelSampleRate)
 	if err != nil {
 		slog.Error("Failed to initialize OpenTelemetry", "error", err)
 		os.Exit(1)

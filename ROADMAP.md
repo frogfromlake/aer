@@ -275,8 +275,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update `11_risks_and_technical_debts.md`:** Mark R-7 as `Resolved (Phase 34)`.
 ---
 
-### Open Phases
-
 ## Phase 35: CI/Runtime Parity & Dependency Hygiene - [x] DONE
 *The CI pipeline tests Python code against a different runtime version than the production Dockerfile. This violates the SSoT principle and undermines scientific reproducibility — a test passing on 3.12 does not guarantee correctness on 3.14. Additionally, an outdated `pytest-asyncio` pin creates latent risk for the async-heavy analysis worker.*
 
@@ -295,6 +293,8 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Update `docs/arc42/08_concepts.md` §8.4 (Observability):** Document the sampling strategy, the environment variable, and the rationale for `ParentBased` (ensures child spans inherit the parent's sampling decision, preventing orphaned trace fragments).
 
 ---
+
+### Open Phases
 
 ## Phase 37: Architecture Review Documentation & Hardening - [ ] TODO
 *Final documentation pass before entering the scientific/crawler implementation phase. Ensures all architecture review findings are captured in the canonical documentation, and minor hardening items are addressed.*

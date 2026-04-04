@@ -234,6 +234,7 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - MINIO_USE_SSL=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+      - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
       - MIGRATIONS_PATH=/migrations
       - INGESTION_API_KEY=${INGESTION_API_KEY}
     networks:
@@ -332,6 +333,7 @@ services:
       - CLICKHOUSE_DB=${CLICKHOUSE_DB}
       - BFF_API_KEY=${BFF_API_KEY}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+      - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bff-api.rule=PathPrefix(`/api`)"

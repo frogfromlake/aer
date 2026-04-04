@@ -17,7 +17,8 @@ type Config struct {
 	MinioAccessKey string `mapstructure:"MINIO_ACCESS_KEY"`
 	MinioSecretKey string `mapstructure:"MINIO_SECRET_KEY"`
 	MinioUseSSL    bool   `mapstructure:"MINIO_USE_SSL"`
-	OTelEndpoint   string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelEndpoint      string  `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelSampleRate    float64 `mapstructure:"OTEL_TRACE_SAMPLE_RATE"`
 	MigrationsPath string `mapstructure:"MIGRATIONS_PATH"`
 	APIKey         string `mapstructure:"INGESTION_API_KEY"`
 }
@@ -35,6 +36,7 @@ func Load() (*Config, error) {
 	v.SetDefault("MINIO_SECRET_KEY", "")
 	v.SetDefault("MINIO_USE_SSL", false)
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+	v.SetDefault("OTEL_TRACE_SAMPLE_RATE", 1.0)
 	v.SetDefault("MIGRATIONS_PATH", "/migrations")
 	v.SetDefault("INGESTION_API_KEY", "")
 

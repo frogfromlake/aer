@@ -84,6 +84,20 @@ The `compose.yaml` defines a single `analysis-worker` container. While the worke
 
 ---
 
+### ~~R-8: 100% Trace Sampling Does Not Scale~~ — Resolved (Phase 36)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | `pkg/telemetry`, `ingestion-api`, `bff-api` |
+| **Status** | Resolved (Phase 36) |
+
+`sdktrace.AlwaysSample()` emits a span for every request. At single-crawler development throughput this is fine, but with many concurrent crawlers it creates unbounded storage growth in Tempo and processing overhead in the OTel Collector.
+
+**Resolution:** `InitProvider` in `pkg/telemetry/otel.go` now accepts a `sampleRate float64` parameter. The sampler is `sdktrace.ParentBased(sdktrace.TraceIDRatioBased(rate))` — `ParentBased` ensures child spans inherit the parent's sampling decision, preventing orphaned trace fragments. The rate is read from `OTEL_TRACE_SAMPLE_RATE` (default `1.0`, preserving current development behavior). Set to `0.1` in production for 10% sampling.
+
+---
+
 ### ~~R-7: Tempo Trace Storage Is Ephemeral~~ — Resolved (Phase 34)
 
 | Property | Value |

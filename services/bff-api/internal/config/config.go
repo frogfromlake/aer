@@ -17,7 +17,8 @@ type Config struct {
 	ClickHouseUser     string `mapstructure:"CLICKHOUSE_USER"`
 	ClickHousePassword string `mapstructure:"CLICKHOUSE_PASSWORD"`
 	ClickHouseDB       string `mapstructure:"CLICKHOUSE_DB"`
-	OTelEndpoint       string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelEndpoint       string  `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelSampleRate     float64 `mapstructure:"OTEL_TRACE_SAMPLE_RATE"`
 	CORSOrigins        string  `mapstructure:"CORS_ALLOWED_ORIGINS"`
 	APIKey             string  `mapstructure:"BFF_API_KEY"`
 	RateLimitRPS       float64 `mapstructure:"RATE_LIMIT_RPS"`
@@ -38,6 +39,7 @@ func Load() (*Config, error) {
 	v.SetDefault("CLICKHOUSE_DB", "aer_gold")
 	v.SetDefault("BFF_API_KEY", "")
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	v.SetDefault("OTEL_TRACE_SAMPLE_RATE", 1.0)
 	v.SetDefault("CORS_ALLOWED_ORIGINS", "*")
 	v.SetDefault("RATE_LIMIT_RPS", 100)
 	v.SetDefault("RATE_LIMIT_BURST", 200)

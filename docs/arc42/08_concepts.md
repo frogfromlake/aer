@@ -127,7 +127,21 @@ Every dataset entering AĒR is fully traceable from the Gold layer back to the o
 
 All three services emit OpenTelemetry traces via OTLP gRPC to the OTel Collector (`:4317`). The Collector exports traces to Grafana Tempo. Trace data is persisted to a named Docker volume (`tempo_data` mounted at `/var/tempo`) with a block retention of 72h (development) or 720h (production), ensuring traces survive container restarts. Trace context is propagated across the NATS message boundary via message headers, enabling end-to-end correlation from the crawler's HTTP POST through ingestion, NATS delivery, worker processing, and ClickHouse insertion.
 
-### 8.6.2 Prometheus Metrics
+### 8.6.2 Trace Sampling Strategy
+
+Trace sampling is configured via the `OTEL_TRACE_SAMPLE_RATE` environment variable (default: `1.0` — 100% sampling). The sampler is `ParentBased(TraceIDRatioBased(rate))`:
+
+- **`TraceIDRatioBased`** deterministically samples a fraction of root spans based on the trace ID. At `1.0` this is equivalent to `AlwaysSample()`; at `0.1` exactly 10% of root spans are recorded.
+- **`ParentBased`** wrapper ensures that child spans always inherit the sampling decision of their parent. This prevents orphaned trace fragments where a child span is recorded but its parent root span is not, which would break trace continuity in Tempo.
+
+| Environment | Recommended `OTEL_TRACE_SAMPLE_RATE` | Rationale |
+| :--- | :--- | :--- |
+| Development | `1.0` | Full fidelity for debugging; low request volume |
+| Production | `0.1` | 10% sampling prevents storage growth at crawler scale |
+
+The sampler is initialized in `pkg/telemetry/otel.go` (`InitProvider`) and the rate is passed from each service's config struct (`OTelSampleRate`). This is implemented as part of R-8 resolution (Phase 36).
+
+### 8.6.3 Prometheus Metrics
 
 The Python analysis worker exposes business metrics on `:8001/metrics` via the `prometheus_client` library. Prometheus scrapes this endpoint (and the OTel Collector's metrics exporter on `:8889`) every 5 seconds.
 
@@ -138,7 +152,7 @@ The Python analysis worker exposes business metrics on `:8001/metrics` via the `
 | `event_processing_duration_seconds` | Histogram | End-to-end processing duration per event (buckets: 50ms–10s). |
 | `dlq_size` | Gauge | Current number of objects in the `bronze-quarantine` bucket. |
 
-### 8.6.3 Alerting
+### 8.6.4 Alerting
 
 Prometheus alerting rules are defined in `infra/observability/prometheus/alert.rules.yml` and evaluate continuously:
 
@@ -148,7 +162,7 @@ Prometheus alerting rules are defined in `infra/observability/prometheus/alert.r
 | `DLQOverflow` | `dlq_size > 50` for > 5 minutes. | Warning |
 | `HighEventProcessingLatency` | p95 processing duration > 5 seconds for > 5 minutes. | Warning |
 
-### 8.6.4 Dashboards
+### 8.6.5 Dashboards
 
 Grafana dashboards are provisioned automatically from JSON files mounted via `infra/observability/grafana/provisioning/dashboards/`. Datasources (Tempo, Prometheus) are pre-configured via `grafana-datasources.yaml`. No manual Grafana setup is required after `make infra-up`.
 
