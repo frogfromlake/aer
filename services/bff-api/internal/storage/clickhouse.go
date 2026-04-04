@@ -11,10 +11,11 @@ import (
 )
 
 type ClickHouseStorage struct {
-	conn clickhouse.Conn
+	conn      clickhouse.Conn
+	rowLimit  int
 }
 
-func NewClickHouseStorage(ctx context.Context, addr, user, password, db string) (*ClickHouseStorage, error) {
+func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, rowLimit int) (*ClickHouseStorage, error) {
 	operation := func() (clickhouse.Conn, error) {
 		conn, err := clickhouse.Open(&clickhouse.Options{
 			Addr: []string{addr},
@@ -48,7 +49,10 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string) 
 		return nil, fmt.Errorf("failed to connect to clickhouse after retries: %w", err)
 	}
 
-	return &ClickHouseStorage{conn: conn}, nil
+	if rowLimit <= 0 {
+		rowLimit = 10000
+	}
+	return &ClickHouseStorage{conn: conn, rowLimit: rowLimit}, nil
 }
 
 // Ping checks if the ClickHouse connection is alive.
@@ -91,11 +95,11 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 		args = append(args, *metricName)
 	}
 
-	query += `
+	query += fmt.Sprintf(`
 		GROUP BY TS
 		ORDER BY TS ASC
-		LIMIT 10000
-	`
+		LIMIT %d
+	`, s.rowLimit)
 
 	err := s.conn.Select(ctx, &results, query, args...)
 	if err != nil {

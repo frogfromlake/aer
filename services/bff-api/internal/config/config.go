@@ -23,6 +23,7 @@ type Config struct {
 	APIKey             string  `mapstructure:"BFF_API_KEY"`
 	RateLimitRPS       float64 `mapstructure:"RATE_LIMIT_RPS"`
 	RateLimitBurst     int     `mapstructure:"RATE_LIMIT_BURST"`
+	QueryRowLimit      int     `mapstructure:"BFF_QUERY_ROW_LIMIT"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -43,6 +44,7 @@ func Load() (*Config, error) {
 	v.SetDefault("CORS_ALLOWED_ORIGINS", "*")
 	v.SetDefault("RATE_LIMIT_RPS", 100)
 	v.SetDefault("RATE_LIMIT_BURST", 200)
+	v.SetDefault("BFF_QUERY_ROW_LIMIT", 10000)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

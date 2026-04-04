@@ -59,6 +59,7 @@ func main() {
 		cfg.ClickHouseUser,
 		cfg.ClickHousePassword,
 		cfg.ClickHouseDB,
+		cfg.QueryRowLimit,
 	)
 	if err != nil {
 		slog.Error("Failed to connect to ClickHouse", "error", err)

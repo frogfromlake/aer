@@ -206,6 +206,20 @@ The `python-pipeline` and `dependency-audit` CI jobs used `python-version: '3.12
 
 ---
 
+### D-9: ~~Ingestion API Source Lookup Endpoint Unverified~~ — Resolved (Phase 37)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | `ingestion-api`, Crawler Development |
+| **Status** | Resolved (Phase 37) |
+
+ADR-014 and Phase 29 specified a `GET /api/v1/sources?name=<n>` endpoint for dynamic `source_id` resolution by crawlers. The PostgreSQL adapter (`GetSourceByName`) existed, but the HTTP route had not been explicitly verified.
+
+**Resolution:** The handler (`GetSources`), route registration (`r.Get("/api/v1/sources", h.GetSources)`), and core service method (`LookupSource`) were verified to be fully implemented and wired. The endpoint returns `{"id": <int>, "name": "<string>"}` on success and `404` when the source is not found. The BFF ClickHouse query row limit was also made configurable via `BFF_QUERY_ROW_LIMIT` (default `10000`) during this verification pass.
+
+---
+
 ### D-7: ClickHouse Metrics Schema Is Minimal
 
 | Property | Value |

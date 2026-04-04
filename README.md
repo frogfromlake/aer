@@ -272,6 +272,31 @@ The `key` determines the MinIO object path in the Bronze bucket. The `data` fiel
 
 ---
 
+## Developing a Crawler
+
+Crawlers are standalone programs under `crawlers/`. Each crawler fetches data from one upstream source and submits it to the Ingestion API using the contract above. Adding a new data source requires no changes to any AĒR service.
+
+**1. Dynamic Source Resolution**
+
+Every crawler must resolve its `source_id` at startup by querying the Ingestion API:
+
+```
+GET /api/v1/sources?name=wikipedia
+→ {"id": 1, "name": "wikipedia"}
+```
+
+The returned `id` is used as `source_id` in all subsequent ingest calls. Hard-coding source IDs is discouraged — the lookup ensures correctness across environments. Sources are registered via PostgreSQL seed migrations in `infra/postgres/migrations/`.
+
+**2. Ingestion Contract Format**
+
+Documents are submitted as JSON batches to `POST /api/v1/ingest`. See the [Ingestion Contract](#ingestion-contract) section above for the full schema. The `key` field determines the Bronze bucket object path and should follow the pattern `<source>/<identifier>/<date>.json`.
+
+**3. Authentication**
+
+All Ingestion API endpoints (except `/api/v1/healthz` and `/api/v1/readyz`) require the `X-API-Key` header (or `Authorization: Bearer <key>`). The key is configured via the `INGESTION_API_KEY` environment variable in `.env`.
+
+---
+
 ## Testing
 
 ```bash
