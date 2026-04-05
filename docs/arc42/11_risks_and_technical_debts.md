@@ -126,6 +126,34 @@ The `CorpusExtractor` protocol is defined in `extractors/base.py` for future met
 
 ---
 
+### R-10: spaCy Model Dependency (~500MB Download)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | `analysis-worker`, Docker image, `requirements.txt` |
+| **Status** | Accepted (Phase 42) |
+
+The Named Entity Extractor depends on `de_core_news_lg` (~500MB), a statistical NLP model downloaded from GitHub Releases during `pip install` in the Docker build stage. This introduces three risks: (1) Docker images are significantly larger (~700MB+ total), increasing pull times and storage costs. (2) The model URL on `github.com/explosion/spacy-models` may become unavailable or rate-limited during builds. (3) The model is pinned to version `3.8.0` — spaCy major version upgrades may require model migration.
+
+**Mitigation plan:** Consider caching the model in a named Docker volume or a private artifact registry. Pin the exact model version in `requirements.txt` (currently `de_core_news_lg-3.8.0`). If the GitHub URL becomes unreliable, mirror the wheel to the project's own infrastructure. The model is loaded with `disable=["tagger", "parser", "lemmatizer"]` to minimize memory footprint (NER pipeline only).
+
+---
+
+### R-11: Provisional NLP Methods Require Scientific Validation
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Medium |
+| **Affected Component** | `analysis-worker`, Extractor Pipeline |
+| **Status** | Accepted (Phase 42 — PoC) |
+
+All Phase 42 NLP extractors (language detection, SentiWS sentiment, spaCy NER) are explicitly provisional. The specific lexicons, models, and parameters are engineering defaults, not scientifically validated choices. Results from these extractors should not be interpreted as validated measurements of sentiment, language, or entity presence. They serve as proof-of-concept implementations that validate the extractor pipeline architecture with real NLP operations. Scientific validation requires interdisciplinary collaboration (§13.5).
+
+**Mitigation plan:** Each extractor documents its provisional status and limitations in its docstring and in Chapter 13 (§13.3.1). The extractors will be revisited, replaced, or recalibrated when CSS/NLP researchers provide methodological grounding.
+
+---
+
 ## 11.2 Technical Debts
 
 ### D-1: ~~Image Pinning Violations (Prometheus, Grafana)~~ — Resolved
@@ -260,4 +288,6 @@ quadrantChart
     "R-2 Plaintext Secrets": [0.4, 0.6]
     "R-6 Single Worker": [0.5, 0.35]
     "R-9 Corpus Scheduling": [0.3, 0.25]
+    "R-10 spaCy Model Dep": [0.35, 0.2]
+    "R-11 Provisional NLP": [0.6, 0.5]
 ```

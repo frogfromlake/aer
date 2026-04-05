@@ -6,7 +6,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverEnvelope, ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, GoldMetric
+from internal.extractors.base import MetricExtractor, GoldMetric, GoldEntity
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -112,10 +112,13 @@ class DataProcessor:
         article_id = key_parts[1] if len(key_parts) >= 3 else None
 
         all_metrics: list[GoldMetric] = []
+        all_entities: list[GoldEntity] = []
         for extractor in self.extractors:
+            extract_ok = False
             try:
                 metrics = extractor.extract(core, article_id)
                 all_metrics.extend(metrics)
+                extract_ok = True
             except Exception as e:
                 logger.error(
                     "Extractor failed. Skipping this extractor; other extractors continue.",
@@ -123,6 +126,20 @@ class DataProcessor:
                     object=obj_key,
                     error=str(e),
                 )
+
+            # Collect entities from extractors that produce them (e.g., NER).
+            # Only attempt if extract() succeeded — the cached doc depends on it.
+            if extract_ok and hasattr(extractor, "extract_entities"):
+                try:
+                    entities = extractor.extract_entities(core, article_id)
+                    all_entities.extend(entities)
+                except Exception as e:
+                    logger.error(
+                        "Entity extraction failed. Skipping; metrics still inserted.",
+                        extractor=extractor.name,
+                        object=obj_key,
+                        error=str(e),
+                    )
 
         if all_metrics:
             rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id] for m in all_metrics]
@@ -135,6 +152,24 @@ class DataProcessor:
                 "Gold layer updated",
                 metrics_count=len(all_metrics),
                 extractors=[m.metric_name for m in all_metrics],
+                timestamp=str(core.timestamp),
+                source=core.source,
+                article_id=article_id,
+            )
+
+        if all_entities:
+            entity_rows = [
+                [e.timestamp, e.source, e.article_id, e.entity_text, e.entity_label, e.start_char, e.end_char]
+                for e in all_entities
+            ]
+            self.ch.insert(
+                'aer_gold.entities',
+                entity_rows,
+                column_names=['timestamp', 'source', 'article_id', 'entity_text', 'entity_label', 'start_char', 'end_char']
+            )
+            logger.info(
+                "Gold entities updated",
+                entity_count=len(all_entities),
                 timestamp=str(core.timestamp),
                 source=core.source,
                 article_id=article_id,

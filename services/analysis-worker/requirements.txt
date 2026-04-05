@@ -38,3 +38,7 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 wrapt==2.1.2
 zstandard==0.25.0
+# --- Phase 42: Provisional Tier 1 NLP Extractors ---
+spacy==3.8.14
+langdetect==1.0.9
+https://github.com/explosion/spacy-models/releases/download/de_core_news_lg-3.8.0/de_core_news_lg-3.8.0-py3-none-any.whl

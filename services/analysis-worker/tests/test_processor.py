@@ -6,7 +6,11 @@ from opentelemetry import trace
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
 from internal.models import generate_document_id
-from internal.extractors import WordCountExtractor, GoldMetric, MetricExtractor
+from internal.extractors import (
+    WordCountExtractor, GoldMetric, GoldEntity, MetricExtractor,
+    TemporalDistributionExtractor, LanguageDetectionExtractor,
+    SentimentExtractor, NamedEntityExtractor,
+)
 
 @pytest.fixture
 def mock_minio():
@@ -834,3 +838,574 @@ def test_stub_extractor_protocol_conformance():
     """Tests that the test StubExtractor satisfies the MetricExtractor protocol."""
     extractor = StubExtractor()
     assert isinstance(extractor, MetricExtractor)
+
+
+# ==================== Phase 42: Tier 1 Extractor Tests ====================
+
+
+# --- Temporal Distribution Extractor ---
+
+
+def test_temporal_extractor_protocol_conformance():
+    """Tests that TemporalDistributionExtractor satisfies the MetricExtractor protocol."""
+    extractor = TemporalDistributionExtractor()
+    assert isinstance(extractor, MetricExtractor)
+    assert extractor.name == "temporal_distribution"
+
+
+def test_temporal_extractor_produces_hour_and_weekday():
+    """Tests that temporal extractor produces both publication_hour and publication_weekday."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = TemporalDistributionExtractor()
+    # Wednesday 2026-04-01 at 14:30 UTC
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Test text",
+        cleaned_text="Test text",
+        timestamp=datetime(2026, 4, 1, 14, 30, 0, tzinfo=timezone.utc),
+        word_count=2,
+    )
+
+    metrics = extractor.extract(core, "article-1")
+    assert len(metrics) == 2
+
+    hour_metric = next(m for m in metrics if m.metric_name == "publication_hour")
+    weekday_metric = next(m for m in metrics if m.metric_name == "publication_weekday")
+
+    assert hour_metric.value == 14.0
+    assert 0.0 <= hour_metric.value <= 23.0
+
+    # 2026-04-01 is a Wednesday → weekday() = 2
+    assert weekday_metric.value == 2.0
+    assert 0.0 <= weekday_metric.value <= 6.0
+
+    assert hour_metric.source == "test"
+    assert hour_metric.article_id == "article-1"
+
+
+def test_temporal_extractor_midnight_sunday():
+    """Tests boundary values: midnight (hour=0) and Sunday (weekday=6)."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = TemporalDistributionExtractor()
+    # Sunday 2026-04-05 at 00:00 UTC
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Test",
+        cleaned_text="Test",
+        timestamp=datetime(2026, 4, 5, 0, 0, 0, tzinfo=timezone.utc),
+        word_count=1,
+    )
+
+    metrics = extractor.extract(core, None)
+    hour_metric = next(m for m in metrics if m.metric_name == "publication_hour")
+    weekday_metric = next(m for m in metrics if m.metric_name == "publication_weekday")
+
+    assert hour_metric.value == 0.0
+    assert weekday_metric.value == 6.0  # Sunday
+
+
+# --- Language Detection Extractor ---
+
+
+def test_language_extractor_protocol_conformance():
+    """Tests that LanguageDetectionExtractor satisfies the MetricExtractor protocol."""
+    extractor = LanguageDetectionExtractor()
+    assert isinstance(extractor, MetricExtractor)
+    assert extractor.name == "language_detection"
+
+
+def test_language_extractor_german_text():
+    """Tests that German text produces a language_confidence metric in [0, 1]."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="tagesschau",
+        source_type="rss",
+        raw_text="Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet.",
+        cleaned_text="Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet.",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=11,
+    )
+
+    metrics = extractor.extract(core, "article-1")
+    assert len(metrics) == 1
+    assert metrics[0].metric_name == "language_confidence"
+    assert 0.0 <= metrics[0].value <= 1.0
+    assert metrics[0].source == "tagesschau"
+
+
+def test_language_extractor_short_text_returns_empty():
+    """Tests that very short text (<10 chars) returns no metrics."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Hi",
+        cleaned_text="Hi",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=1,
+    )
+
+    metrics = extractor.extract(core, None)
+    assert metrics == []
+
+
+def test_language_extractor_empty_text_returns_empty():
+    """Tests that empty cleaned_text returns no metrics."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="placeholder",
+        cleaned_text="",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=0,
+    )
+
+    metrics = extractor.extract(core, None)
+    assert metrics == []
+
+
+def test_language_extractor_deterministic():
+    """Tests that the same input produces the same confidence score (fixed seed)."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Die Bundesregierung hat ein neues Gesetz beschlossen über den Klimaschutz.",
+        cleaned_text="Die Bundesregierung hat ein neues Gesetz beschlossen über den Klimaschutz.",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=11,
+    )
+
+    results = [extractor.extract(core, None)[0].value for _ in range(5)]
+    assert len(set(results)) == 1  # all identical
+
+
+# --- Sentiment Extractor (SentiWS) ---
+
+
+def test_sentiment_extractor_protocol_conformance():
+    """Tests that SentimentExtractor satisfies the MetricExtractor protocol."""
+    from pathlib import Path
+    # Use a temp dir with no lexicon files — extractor loads empty
+    extractor = SentimentExtractor(sentiws_dir=Path("/nonexistent"))
+    assert isinstance(extractor, MetricExtractor)
+    assert extractor.name == "sentiment"
+
+
+def test_sentiment_extractor_no_lexicon_returns_empty():
+    """Tests that an extractor with no loaded lexicon produces no metrics."""
+    from pathlib import Path
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = SentimentExtractor(sentiws_dir=Path("/nonexistent"))
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Positive text here",
+        cleaned_text="Positive text here",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=3,
+    )
+
+    metrics = extractor.extract(core, None)
+    assert metrics == []
+
+
+def test_sentiment_extractor_with_inline_lexicon(tmp_path):
+    """
+    Tests sentiment extraction with a minimal inline SentiWS lexicon.
+    Creates temporary lexicon files to test the scoring algorithm.
+    """
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    # Create minimal SentiWS-format lexicon files
+    pos_file = tmp_path / "SentiWS_v2.0_Positive.txt"
+    neg_file = tmp_path / "SentiWS_v2.0_Negative.txt"
+
+    pos_file.write_text("Glück|NN\t0.5765\tGlücks,Glückes\ngut|ADJX\t0.5040\tguten,guter,gutes\n", encoding="utf-8")
+    neg_file.write_text("schlecht|ADJX\t-0.4771\tschlechten,schlechter\nKrise|NN\t-0.3544\tKrisen\n", encoding="utf-8")
+
+    extractor = SentimentExtractor(sentiws_dir=tmp_path)
+    assert len(extractor._lexicon) > 0
+
+    # Positive text
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Das ist gut und bringt Glück",
+        cleaned_text="Das ist gut und bringt Glück",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=6,
+    )
+
+    metrics = extractor.extract(core, "article-1")
+    assert len(metrics) == 2
+
+    sentiment_metric = next(m for m in metrics if m.metric_name == "sentiment_score")
+    lexicon_metric = next(m for m in metrics if m.metric_name == "lexicon_version")
+
+    # "gut" (0.504) + "glück" (0.5765) → mean = ~0.54
+    assert -1.0 <= sentiment_metric.value <= 1.0
+    assert sentiment_metric.value > 0  # positive text → positive score
+
+    assert lexicon_metric.value > 0  # hash as numeric
+
+
+def test_sentiment_extractor_negative_text(tmp_path):
+    """Tests that negative text produces a negative sentiment score."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    pos_file = tmp_path / "SentiWS_v2.0_Positive.txt"
+    neg_file = tmp_path / "SentiWS_v2.0_Negative.txt"
+
+    pos_file.write_text("gut|ADJX\t0.5040\n", encoding="utf-8")
+    neg_file.write_text("schlecht|ADJX\t-0.4771\tschlechten,schlechter\nKrise|NN\t-0.3544\tKrisen\n", encoding="utf-8")
+
+    extractor = SentimentExtractor(sentiws_dir=tmp_path)
+
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Die Krise ist schlecht",
+        cleaned_text="Die Krise ist schlecht",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=4,
+    )
+
+    metrics = extractor.extract(core, None)
+    sentiment = next(m for m in metrics if m.metric_name == "sentiment_score")
+    assert sentiment.value < 0  # negative text → negative score
+    assert -1.0 <= sentiment.value <= 1.0
+
+
+def test_sentiment_extractor_no_matches_returns_zero(tmp_path):
+    """Tests that text with no lexicon matches returns sentiment_score = 0."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    pos_file = tmp_path / "SentiWS_v2.0_Positive.txt"
+    neg_file = tmp_path / "SentiWS_v2.0_Negative.txt"
+
+    pos_file.write_text("gut|ADJX\t0.5040\n", encoding="utf-8")
+    neg_file.write_text("schlecht|ADJX\t-0.4771\n", encoding="utf-8")
+
+    extractor = SentimentExtractor(sentiws_dir=tmp_path)
+
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Ein neutraler Satz ohne Wertung",
+        cleaned_text="Ein neutraler Satz ohne Wertung",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=5,
+    )
+
+    metrics = extractor.extract(core, None)
+    sentiment = next(m for m in metrics if m.metric_name == "sentiment_score")
+    assert sentiment.value == 0.0
+
+
+def test_sentiment_lexicon_hash_deterministic(tmp_path):
+    """Tests that the lexicon hash is deterministic across loads."""
+    pos_file = tmp_path / "SentiWS_v2.0_Positive.txt"
+    neg_file = tmp_path / "SentiWS_v2.0_Negative.txt"
+    pos_file.write_text("gut|ADJX\t0.5040\n", encoding="utf-8")
+    neg_file.write_text("schlecht|ADJX\t-0.4771\n", encoding="utf-8")
+
+    e1 = SentimentExtractor(sentiws_dir=tmp_path)
+    e2 = SentimentExtractor(sentiws_dir=tmp_path)
+    assert e1.lexicon_hash == e2.lexicon_hash
+    assert e1.lexicon_hash != "empty"
+
+
+# --- Named Entity Extractor ---
+
+
+def test_named_entity_extractor_protocol_conformance():
+    """Tests that NamedEntityExtractor satisfies the MetricExtractor protocol."""
+    extractor = NamedEntityExtractor()
+    assert isinstance(extractor, MetricExtractor)
+    assert extractor.name == "named_entity"
+
+
+def test_named_entity_extractor_german_text():
+    """
+    Tests NER on a German sentence with known entities.
+    Note: exact entities depend on the spaCy model version.
+    """
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = NamedEntityExtractor()
+    if extractor._nlp is None:
+        pytest.skip("spaCy de_core_news_lg not installed")
+
+    core = SilverCore(
+        document_id="abc123",
+        source="tagesschau",
+        source_type="rss",
+        raw_text="Bundeskanzler Olaf Scholz traf sich in Berlin mit dem französischen Präsidenten Emmanuel Macron.",
+        cleaned_text="Bundeskanzler Olaf Scholz traf sich in Berlin mit dem französischen Präsidenten Emmanuel Macron.",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=13,
+    )
+
+    # Test metric output
+    metrics = extractor.extract(core, "article-1")
+    assert len(metrics) == 1
+    assert metrics[0].metric_name == "entity_count"
+    assert metrics[0].value >= 1  # at least some entities found
+    assert metrics[0].source == "tagesschau"
+
+    # Test entity output
+    entities = extractor.extract_entities(core, "article-1")
+    assert len(entities) >= 1
+    assert all(isinstance(e, GoldEntity) for e in entities)
+
+    # Verify entity structure
+    for entity in entities:
+        assert entity.entity_text  # non-empty
+        assert entity.entity_label in ("PER", "ORG", "LOC", "MISC")
+        assert entity.start_char >= 0
+        assert entity.end_char > entity.start_char
+        assert entity.source == "tagesschau"
+        assert entity.article_id == "article-1"
+
+
+def test_named_entity_extractor_empty_text():
+    """Tests that empty text returns no entities and no metrics."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = NamedEntityExtractor()
+    if extractor._nlp is None:
+        pytest.skip("spaCy de_core_news_lg not installed")
+
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="placeholder",
+        cleaned_text="",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=0,
+    )
+
+    assert extractor.extract(core, None) == []
+    assert extractor.extract_entities(core, None) == []
+
+
+def test_named_entity_extractor_entity_count_matches():
+    """Tests that entity_count metric matches the number of extracted entities."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = NamedEntityExtractor()
+    if extractor._nlp is None:
+        pytest.skip("spaCy de_core_news_lg not installed")
+
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Angela Merkel und Emmanuel Macron trafen sich in Paris.",
+        cleaned_text="Angela Merkel und Emmanuel Macron trafen sich in Paris.",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=8,
+    )
+
+    metrics = extractor.extract(core, None)
+    entities = extractor.extract_entities(core, None)
+
+    entity_count_metric = metrics[0]
+    assert entity_count_metric.value == float(len(entities))
+
+
+# --- Entity Insertion in Processor ---
+
+
+class StubEntityExtractor:
+    """A test extractor that produces both metrics and entities."""
+
+    @property
+    def name(self) -> str:
+        return "stub_entity"
+
+    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+        return [
+            GoldMetric(
+                timestamp=core.timestamp,
+                value=2.0,
+                source=core.source,
+                metric_name="entity_count",
+                article_id=article_id,
+            )
+        ]
+
+    def extract_entities(self, core, article_id: str | None) -> list[GoldEntity]:
+        return [
+            GoldEntity(
+                timestamp=core.timestamp,
+                source=core.source,
+                article_id=article_id,
+                entity_text="Berlin",
+                entity_label="LOC",
+                start_char=0,
+                end_char=6,
+            ),
+            GoldEntity(
+                timestamp=core.timestamp,
+                source=core.source,
+                article_id=article_id,
+                entity_text="Merkel",
+                entity_label="PER",
+                start_char=10,
+                end_char=16,
+            ),
+        ]
+
+
+def test_processor_inserts_entities(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Tests that the processor inserts entities into aer_gold.entities
+    when an extractor provides extract_entities().
+    """
+    extractors = [WordCountExtractor(), StubEntityExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # Two inserts: one for metrics, one for entities
+    assert mock_clickhouse.insert.call_count == 2
+
+    # First call: metrics
+    metrics_call = mock_clickhouse.insert.call_args_list[0]
+    assert metrics_call[0][0] == "aer_gold.metrics"
+    assert len(metrics_call[0][1]) == 2  # word_count + entity_count
+
+    # Second call: entities
+    entities_call = mock_clickhouse.insert.call_args_list[1]
+    assert entities_call[0][0] == "aer_gold.entities"
+    entity_rows = entities_call[0][1]
+    assert len(entity_rows) == 2
+    assert entity_rows[0][3] == "Berlin"   # entity_text
+    assert entity_rows[0][4] == "LOC"      # entity_label
+    assert entity_rows[1][3] == "Merkel"
+    assert entity_rows[1][4] == "PER"
+    assert entities_call[1]["column_names"] == [
+        "timestamp", "source", "article_id", "entity_text", "entity_label", "start_char", "end_char"
+    ]
+
+
+def test_processor_no_entity_insert_without_entity_extractor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Tests that extractors without extract_entities() do not trigger
+    entity insertion — only the metrics insert happens.
+    """
+    extractors = [WordCountExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # Only one insert (metrics), no entity insert
+    mock_clickhouse.insert.assert_called_once()
+    assert mock_clickhouse.insert.call_args[0][0] == "aer_gold.metrics"
+
+
+# --- Full Pipeline Integration Test ---
+
+
+def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Integration test: process a German RSS document through the full extractor
+    pipeline with all Tier 1 extractors (word_count, temporal, language, sentiment).
+    Entity extractor excluded (requires spaCy model).
+    Sentiment uses empty lexicon (no SentiWS files in test env).
+    """
+    from pathlib import Path
+
+    extractors = [
+        WordCountExtractor(),
+        TemporalDistributionExtractor(),
+        LanguageDetectionExtractor(),
+        SentimentExtractor(sentiws_dir=Path("/nonexistent")),  # no lexicon → no metrics
+    ]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_RSS_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
+
+    mock_clickhouse.insert.assert_called_once()
+    ch_args, _ = mock_clickhouse.insert.call_args
+    rows = ch_args[1]
+
+    metric_names = [row[3] for row in rows]
+    assert "word_count" in metric_names
+    assert "publication_hour" in metric_names
+    assert "publication_weekday" in metric_names
+    assert "language_confidence" in metric_names
+    # sentiment_score not present (no lexicon loaded)
+    assert "sentiment_score" not in metric_names
+
+    # Verify value ranges
+    for row in rows:
+        name, value = row[3], row[1]
+        if name == "publication_hour":
+            assert 0.0 <= value <= 23.0
+        elif name == "publication_weekday":
+            assert 0.0 <= value <= 6.0
+        elif name == "language_confidence":
+            assert 0.0 <= value <= 1.0
+
+    proc._update_document_status.assert_called_with(
+        "rss/tagesschau/abc123/2026-04-05.json", "processed"
+    )
