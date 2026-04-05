@@ -126,6 +126,8 @@ This section maps scientific methods to concrete implementation steps in the Pyt
 
 **Data Contract:** All Tier 1, Tier 2, and Tier 3 metrics operate on `SilverCore.cleaned_text` — the whitespace-normalized text produced by the source adapter during harmonization. The original `SilverCore.raw_text` is preserved for provenance but is not used as input to metric extraction. `SilverMeta` (source-specific context) is available for source-specific enrichment tasks but is excluded from core metrics. This ensures that metrics are comparable across data sources regardless of source-specific metadata structure. See ADR-015 for the Silver schema evolution strategy.
 
+**Implementation Status (Phase 41):** The extensible extractor pipeline is operational. Per-document extractors implement the `MetricExtractor` protocol and are registered in `main.py` via dependency injection (see §8.10 in Chapter 8). The first extractor (word count) is live. Corpus-level extractors (TF-IDF, LDA, co-occurrence networks) are architecturally anticipated via the `CorpusExtractor` protocol but not yet implemented — they require a batch scheduling mechanism not yet built (see Chapter 11, R-9). The Tier 1 methods below marked as per-document (sentiment, NER, temporal distribution) will be implemented as `MetricExtractor` instances. Corpus-level Tier 1 methods (TF-IDF) and all Tier 2 methods will require the `CorpusExtractor` path.
+
 ### 13.3.1 Tier 1 — Deterministic Core Metrics
 
 These methods are fully deterministic, transparent, and auditable. They form the foundation of AĒR's Gold layer and should be implemented first.

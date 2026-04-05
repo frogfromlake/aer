@@ -6,6 +6,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverEnvelope, ValidationError
 from internal.adapters.registry import AdapterRegistry
+from internal.extractors.base import MetricExtractor, GoldMetric
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -21,13 +22,15 @@ class DataProcessor:
 
     Fetches Bronze data, delegates harmonization to source-specific adapters
     via the AdapterRegistry, validates the SilverCore contract, writes Silver,
-    extracts Gold metrics, and manages the Dead Letter Queue (DLQ).
+    extracts Gold metrics via the extractor pipeline, and manages the Dead
+    Letter Queue (DLQ).
     """
-    def __init__(self, minio_client: Minio, ch_client, pg_pool: ThreadedConnectionPool, adapter_registry: AdapterRegistry):
+    def __init__(self, minio_client: Minio, ch_client, pg_pool: ThreadedConnectionPool, adapter_registry: AdapterRegistry, extractors: list[MetricExtractor] | None = None):
         self.minio = minio_client
         self.ch = ch_client
         self.pg = pg_pool
         self.adapter_registry = adapter_registry
+        self.extractors: list[MetricExtractor] = extractors or []
 
     def process_event(self, obj_key: str, event_time_str: str, span):
         with event_processing_duration_seconds.time():
@@ -104,16 +107,38 @@ class DataProcessor:
         )
         logger.info("Silver layer updated", object=obj_key, source=core.source, word_count=core.word_count, schema_version=core.schema_version)
 
-        # --- 7. Extract and load to Gold Layer (ClickHouse) ---
+        # --- 7. Extract and load to Gold Layer (ClickHouse) via Extractor Pipeline ---
         key_parts = obj_key.split("/")
         article_id = key_parts[1] if len(key_parts) >= 3 else None
 
-        self.ch.insert(
-            'aer_gold.metrics',
-            [[core.timestamp, float(core.word_count), core.source, "word_count", article_id]],
-            column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id']
-        )
-        logger.info("Gold layer updated", metric=core.word_count, timestamp=str(core.timestamp), source=core.source, article_id=article_id)
+        all_metrics: list[GoldMetric] = []
+        for extractor in self.extractors:
+            try:
+                metrics = extractor.extract(core, article_id)
+                all_metrics.extend(metrics)
+            except Exception as e:
+                logger.error(
+                    "Extractor failed. Skipping this extractor; other extractors continue.",
+                    extractor=extractor.name,
+                    object=obj_key,
+                    error=str(e),
+                )
+
+        if all_metrics:
+            rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id] for m in all_metrics]
+            self.ch.insert(
+                'aer_gold.metrics',
+                rows,
+                column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id']
+            )
+            logger.info(
+                "Gold layer updated",
+                metrics_count=len(all_metrics),
+                extractors=[m.metric_name for m in all_metrics],
+                timestamp=str(core.timestamp),
+                source=core.source,
+                article_id=article_id,
+            )
 
         # --- 8. Commit Success ---
         self._update_document_status(obj_key, "processed")

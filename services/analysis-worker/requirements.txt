@@ -23,7 +23,7 @@ opentelemetry-semantic-conventions==0.61b0
 packaging==26.0
 prometheus_client==0.24.1
 protobuf==6.33.6
-psycopg2==2.9.11
+psycopg2-binary==2.9.11
 pycparser==3.0
 pycryptodome==3.23.0
 pydantic==2.12.5

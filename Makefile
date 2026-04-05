@@ -190,15 +190,15 @@ test-go-crawlers:
 test-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
 	@cd services/analysis-worker && \
-		if [ -f ./venv/bin/python ]; then \
-			./venv/bin/python -m pytest tests/ -v; \
+		if [ -f ./.venv/bin/python ]; then \
+			./.venv/bin/python -m pytest tests/ -v; \
 		else \
 			python -m pytest tests/ -v; \
 		fi
 
 lint:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"
-	@cd services/analysis-worker && ./venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"
+	@cd services/analysis-worker && ./.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"
 	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"

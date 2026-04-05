@@ -112,6 +112,20 @@ Tempo stores trace data under `/tmp/tempo/` inside the container with a 1-hour b
 
 ---
 
+### R-9: Corpus-Level Extraction Requires Scheduling Mechanism
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low (no corpus extractors exist yet) |
+| **Affected Component** | `analysis-worker`, Extractor Pipeline |
+| **Status** | Accepted (architecturally anticipated) |
+
+The `CorpusExtractor` protocol is defined in `extractors/base.py` for future methods that operate on accumulated Silver data across time windows (TF-IDF, LDA, co-occurrence networks). These cannot run in the current per-document NATS event loop — they require a batch scheduling mechanism (cron job, NATS-triggered batch, or a dedicated batch worker). Until this mechanism is built, only per-document `MetricExtractor` implementations can be registered. The protocol exists to ensure the per-document pipeline does not architecturally preclude corpus-level analysis.
+
+**Mitigation plan:** Implement a lightweight cron or NATS-triggered batch job that queries Silver data from MinIO within a time window, deserializes `SilverCore` records, and passes them to registered `CorpusExtractor` instances. This is a scheduling concern, not an extraction concern — the extraction logic itself is ready to be implemented against the existing protocol.
+
+---
+
 ## 11.2 Technical Debts
 
 ### D-1: ~~Image Pinning Violations (Prometheus, Grafana)~~ — Resolved
@@ -245,4 +259,5 @@ quadrantChart
     quadrant-4 "Plan Mitigation"
     "R-2 Plaintext Secrets": [0.4, 0.6]
     "R-6 Single Worker": [0.5, 0.35]
+    "R-9 Corpus Scheduling": [0.3, 0.25]
 ```

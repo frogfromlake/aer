@@ -221,6 +221,21 @@ AĒR enforces code quality at the Git level via hooks in `scripts/hooks/`:
 
 The central `Makefile` is the single interface for all developer operations. It abstracts Docker Compose commands, local process management (via `scripts/start.sh` / `scripts/stop.sh`), and build tooling into memorable targets. Key targets: `make up` (full stack), `make infra-up` (infrastructure only), `make services-up` (application services), `make test`, `make lint`, `make codegen`, `make build-services`, `make tidy`. Individual services are controllable via `make {ingestion,worker,bff}-{up,down,restart}`.
 
+## 8.10 Extractor Registration Pattern
+
+The analysis worker uses a pipeline architecture for Gold metric extraction. New metrics are added by implementing the `MetricExtractor` protocol and registering the instance in `main.py` — no changes to the processor or existing extractors are required.
+
+**Adding a new per-document metric extractor:**
+
+1. Create `services/analysis-worker/internal/extractors/<name>.py`.
+2. Implement the `MetricExtractor` protocol: a `name` property (used in logging) and an `extract(core: SilverCore, article_id: str | None) -> list[GoldMetric]` method.
+3. Export from `extractors/__init__.py`.
+4. Register the instance in the `extractors` list in `main.py`.
+
+The processor iterates all registered extractors after Silver validation. Each extractor receives the same `SilverCore` and independently produces `GoldMetric` results. A failing extractor is logged and skipped — other extractors' results are still inserted. All metrics from all extractors are batch-inserted into ClickHouse in a single round-trip.
+
+**Architectural boundary — corpus-level extractors:** Methods like TF-IDF, topic modeling (LDA), and co-occurrence networks require statistics across multiple documents and cannot run per-document. The `CorpusExtractor` protocol (`extract_batch(cores, window)`) is defined in `extractors/base.py` as an interface placeholder. No corpus extractors are implemented — they require a scheduling mechanism (cron or NATS-triggered batch jobs) that is not yet built. See Chapter 11 (R-9) and Chapter 13 (§13.3).
+
 ### 8.9.3 Configuration Management
 
 All runtime configuration flows through environment variables, sourced from a single `.env` file (copied from `.env.example`). Go services load it via `viper` with `AutomaticEnv()` and `.env` file fallback. Python services use `python-dotenv` and `os.getenv()` with sensible defaults. Docker Compose interpolates the same `.env` file for container environment variables. This guarantees a single source of truth for all configuration across all runtimes.

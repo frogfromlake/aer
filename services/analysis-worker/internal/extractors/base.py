@@ -1,0 +1,110 @@
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from dataclasses import dataclass
+from datetime import datetime
+
+
+@dataclass(frozen=True, slots=True)
+class GoldMetric:
+    """
+    A single metric extracted from a SilverCore document.
+    Maps 1:1 to the aer_gold.metrics ClickHouse schema.
+    """
+    timestamp: datetime
+    value: float
+    source: str
+    metric_name: str
+    article_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class GoldEntity:
+    """
+    A structured entity extracted from a SilverCore document.
+    Maps to the future aer_gold.entities ClickHouse table (Phase 42).
+    """
+    timestamp: datetime
+    source: str
+    article_id: str | None
+    entity_text: str
+    entity_label: str
+    start_char: int
+    end_char: int
+
+
+@dataclass(frozen=True, slots=True)
+class TimeWindow:
+    """Defines a time range for corpus-level batch extraction."""
+    start: datetime
+    end: datetime
+
+
+@runtime_checkable
+class MetricExtractor(Protocol):
+    """
+    Protocol for per-document metric extraction.
+
+    Each implementation extracts one or more Gold metrics from a single
+    SilverCore record. Extractors are registered in the DataProcessor
+    pipeline and executed sequentially after Silver validation.
+
+    One extractor can produce multiple metrics per document (e.g.,
+    sentiment produces sentiment_score + sentiment_subjectivity).
+    """
+
+    @property
+    def name(self) -> str:
+        """Human-readable identifier for this extractor (used in logging)."""
+        ...
+
+    def extract(self, core: "SilverCore", article_id: str | None) -> list[GoldMetric]:
+        """
+        Extract metrics from a single harmonized document.
+
+        Args:
+            core: The validated SilverCore record.
+            article_id: Document identifier derived from the MinIO object key.
+
+        Returns:
+            A list of GoldMetric instances. May be empty if the extractor
+            determines no meaningful metric can be derived.
+        """
+        ...
+
+
+@runtime_checkable
+class CorpusExtractor(Protocol):
+    """
+    Protocol for corpus-level batch extraction (interface only).
+
+    Methods like TF-IDF, topic modeling (LDA), and co-occurrence networks
+    require statistics across the entire corpus or time windows. These cannot
+    run per-document -- they need batch processing on accumulated Silver data.
+
+    This protocol exists to ensure the per-document extractor pipeline does
+    not architecturally preclude corpus-level analysis. No implementations
+    exist in this phase.
+
+    Future scheduling mechanism: cron or NATS-triggered batch jobs (see
+    Chapter 11, Risks).
+    """
+
+    @property
+    def name(self) -> str:
+        """Human-readable identifier for this corpus extractor."""
+        ...
+
+    def extract_batch(self, cores: list["SilverCore"], window: TimeWindow) -> list[GoldMetric]:
+        """
+        Extract metrics from a batch of documents within a time window.
+
+        Args:
+            cores: A list of SilverCore records within the window.
+            window: The time range defining the batch.
+
+        Returns:
+            A list of GoldMetric instances derived from corpus-level analysis.
+        """
+        ...
+
+if TYPE_CHECKING:
+    from internal.models import SilverCore

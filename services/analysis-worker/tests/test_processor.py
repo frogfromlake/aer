@@ -6,6 +6,7 @@ from opentelemetry import trace
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
 from internal.models import generate_document_id
+from internal.extractors import WordCountExtractor, GoldMetric, MetricExtractor
 
 @pytest.fixture
 def mock_minio():
@@ -28,9 +29,14 @@ def adapter_registry():
     return AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter()})
 
 @pytest.fixture
-def processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry):
+def extractors():
+    """Provides the default extractor pipeline."""
+    return [WordCountExtractor()]
+
+@pytest.fixture
+def processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors):
     """Provides a DataProcessor instance with mocked infrastructure."""
-    return DataProcessor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry)
+    return DataProcessor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
 
 @pytest.fixture
 def dummy_span():
@@ -654,3 +660,177 @@ def test_rss_adapter_empty_categories():
     assert meta.categories == []
     assert meta.author == ""
     assert meta.feed_url == ""
+
+
+# ==================== Phase 41: Extractor Pipeline Tests ====================
+
+
+class StubExtractor:
+    """A test extractor that produces a fixed metric."""
+    def __init__(self, metric_name: str = "stub_metric", value: float = 42.0):
+        self._name = metric_name
+        self._value = value
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+        return [
+            GoldMetric(
+                timestamp=core.timestamp,
+                value=self._value,
+                source=core.source,
+                metric_name=self._name,
+                article_id=article_id,
+            )
+        ]
+
+
+class FailingExtractor:
+    """A test extractor that always raises an exception."""
+    @property
+    def name(self) -> str:
+        return "failing_extractor"
+
+    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+        raise RuntimeError("Simulated extractor failure")
+
+
+def _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors):
+    """Helper to create a processor with custom extractors."""
+    return DataProcessor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+
+def test_extractor_pipeline_multiple_extractors(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Tests that multiple extractors each contribute metrics and all are
+    batch-inserted into ClickHouse in a single round-trip.
+    """
+    extractors = [WordCountExtractor(), StubExtractor("sentiment_score", 0.85)]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # Single batch insert with 2 rows
+    mock_clickhouse.insert.assert_called_once()
+    ch_args, ch_kwargs = mock_clickhouse.insert.call_args
+    rows = ch_args[1]
+    assert len(rows) == 2
+    assert rows[0][3] == "word_count"
+    assert rows[0][1] == float(EXPECTED_WORD_COUNT)
+    assert rows[1][3] == "sentiment_score"
+    assert rows[1][1] == 0.85
+
+
+def test_extractor_pipeline_failing_extractor_does_not_block_others(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Tests that a failing extractor is skipped while other extractors still
+    produce their metrics. The document is NOT sent to the DLQ.
+    """
+    extractors = [FailingExtractor(), WordCountExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # word_count still inserted despite failing_extractor
+    mock_clickhouse.insert.assert_called_once()
+    ch_args, _ = mock_clickhouse.insert.call_args
+    rows = ch_args[1]
+    assert len(rows) == 1
+    assert rows[0][3] == "word_count"
+
+    # Document is marked processed, not quarantined
+    proc._update_document_status.assert_called_with(
+        "test-source/test-article/2023-10-25.json", "processed"
+    )
+
+
+def test_extractor_pipeline_no_extractors(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Tests that the processor works with an empty extractor list.
+    No ClickHouse insert occurs but the document is still processed.
+    """
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, [])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # No metrics → no ClickHouse insert
+    mock_clickhouse.insert.assert_not_called()
+
+    # Still processed successfully (Silver was uploaded)
+    proc._update_document_status.assert_called_with(
+        "test-source/test-article/2023-10-25.json", "processed"
+    )
+
+
+def test_extractor_pipeline_all_extractors_fail(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
+    """
+    Tests that if all extractors fail, no ClickHouse insert occurs but the
+    document is still marked as processed (partial extraction is acceptable).
+    """
+    extractors = [FailingExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_clickhouse.insert.assert_not_called()
+    proc._update_document_status.assert_called_with(
+        "test-source/test-article/2023-10-25.json", "processed"
+    )
+
+
+def test_extractor_registration_add_remove():
+    """
+    Tests that adding or removing an extractor from the list does not affect
+    other extractors. Extractors are independent.
+    """
+    e1 = WordCountExtractor()
+    e2 = StubExtractor("test_metric")
+
+    pipeline = [e1, e2]
+    assert len(pipeline) == 2
+    assert pipeline[0].name == "word_count"
+    assert pipeline[1].name == "test_metric"
+
+    # Remove one — the other is unaffected
+    pipeline.remove(e2)
+    assert len(pipeline) == 1
+    assert pipeline[0].name == "word_count"
+
+
+def test_word_count_extractor_protocol_conformance():
+    """Tests that WordCountExtractor satisfies the MetricExtractor protocol."""
+    extractor = WordCountExtractor()
+    assert isinstance(extractor, MetricExtractor)
+    assert extractor.name == "word_count"
+
+
+def test_stub_extractor_protocol_conformance():
+    """Tests that the test StubExtractor satisfies the MetricExtractor protocol."""
+    extractor = StubExtractor()
+    assert isinstance(extractor, MetricExtractor)

@@ -21,6 +21,7 @@ __pycache__/
 venv/
 env/
 .env
+services/analysis-worker/.venv
 
 # Docker / MkDocs
 site/

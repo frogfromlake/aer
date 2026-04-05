@@ -20,6 +20,7 @@ from prometheus_client import start_http_server
 from internal.storage import init_minio, init_clickhouse, init_postgres
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
+from internal.extractors import WordCountExtractor
 
 load_dotenv()
 
@@ -103,7 +104,8 @@ async def main(config: WorkerConfig | None = None):
     pg_pool = init_postgres()
 
     adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter()})
-    data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry)
+    extractors = [WordCountExtractor()]
+    data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry, extractors)
     nc = NATS()
     task_queue = asyncio.Queue()
 
