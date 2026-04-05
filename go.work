@@ -2,7 +2,6 @@ go 1.26.1
 
 use (
 	./crawlers/rss-crawler
-	./crawlers/wikipedia-scraper
 	./pkg
 	./services/bff-api
 	./services/ingestion-api

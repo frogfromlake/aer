@@ -2,6 +2,8 @@ type: object
 required:
   - timestamp
   - value
+  - source
+  - metricName
 properties:
   timestamp:
     type: string
@@ -11,3 +13,9 @@ properties:
     type: number
     format: double
     description: The aggregated sociological metric value.
+  source:
+    type: string
+    description: The data source that produced this metric (e.g., "tagesschau", "bundesregierung").
+  metricName:
+    type: string
+    description: The name of the metric (e.g., "word_count", "sentiment_score").

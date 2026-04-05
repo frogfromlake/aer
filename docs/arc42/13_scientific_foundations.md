@@ -245,8 +245,8 @@ The following questions must be answered through interdisciplinary collaboration
 
 ## 13.8 Probe 0: Pipeline Calibration (German Institutional RSS)
 
-> **Status:** Active — engineering calibration probe.
-> **Date:** 2026-04-05
+> **Status:** Operational — pipeline validated end-to-end (Phase 43).
+> **Date:** 2026-04-06
 
 This section documents AĒR's first real data source. The source selection is explicitly **provisional** — it is driven by pragmatic engineering criteria, not by scientific probe methodology. The Manifesto's Probe Principle (§IV) requires interdisciplinary dialogue for valid probe selection; this dialogue has not yet occurred. The RSS feeds selected here serve as **calibration data** for the pipeline, not as a scientifically representative sample of German discourse.
 
@@ -258,7 +258,7 @@ Engineering calibration of the AĒR pipeline. This probe validates:
 - The Silver Contract evolution (SilverCore + SilverMeta, ADR-015) with real-world data.
 - Source Adapter pattern correctness (RSSAdapter producing valid SilverCore records).
 - Metric extraction on non-synthetic text (German-language editorial content).
-- BFF API serving of multi-source aggregated data.
+- BFF API serving of multi-source aggregated data (metrics, entities, and metric discovery endpoints — validated in Phase 43 E2E test).
 
 ### Source Selection Criteria (Engineering, Not Scientific)
 

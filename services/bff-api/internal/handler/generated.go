@@ -15,6 +15,24 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
+// GetEntitiesParams defines parameters for GetEntities.
+type GetEntitiesParams struct {
+	// StartDate Start date for the metrics time range (ISO 8601)
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate End date for the metrics time range (ISO 8601)
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// Source Filter metrics by data source (e.g., "wikipedia")
+	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// Label Filter entities by NER label (e.g., "PER", "ORG", "LOC", "MISC")
+	Label *string `form:"label,omitempty" json:"label,omitempty"`
+
+	// Limit Maximum number of results to return (default 100, max 1000)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetMetricsParams defines parameters for GetMetrics.
 type GetMetricsParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
@@ -32,12 +50,18 @@ type GetMetricsParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Retrieve aggregated named entities
+	// (GET /entities)
+	GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams)
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams)
+	// List available metric names
+	// (GET /metrics/available)
+	GetMetricsAvailable(w http.ResponseWriter, r *http.Request)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
@@ -46,6 +70,12 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Retrieve aggregated named entities
+// (GET /entities)
+func (_ Unimplemented) GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Liveness probe
 // (GET /healthz)
@@ -56,6 +86,12 @@ func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 // Retrieve aggregated time-series metrics
 // (GET /metrics)
 func (_ Unimplemented) GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List available metric names
+// (GET /metrics/available)
+func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -73,6 +109,65 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetEntities operation middleware
+func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEntitiesParams
+
+	// ------------- Optional query parameter "startDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "label" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label", r.URL.Query(), &params.Label, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEntities(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetHealthz operation middleware
 func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +225,20 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetrics(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetricsAvailable operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricsAvailable(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -267,16 +376,75 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/entities", wrapper.GetEntities)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics", wrapper.GetMetrics)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/available", wrapper.GetMetricsAvailable)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
 	})
 
 	return r
+}
+
+type GetEntitiesRequestObject struct {
+	Params GetEntitiesParams
+}
+
+type GetEntitiesResponseObject interface {
+	VisitGetEntitiesResponse(w http.ResponseWriter) error
+}
+
+type GetEntities200JSONResponse []struct {
+	// Count Number of occurrences within the queried time range.
+	Count int64 `json:"count"`
+
+	// EntityLabel The NER label (PER, ORG, LOC, MISC).
+	EntityLabel string `json:"entityLabel"`
+
+	// EntityText The extracted entity text (e.g., "Bundesregierung", "Berlin").
+	EntityText string `json:"entityText"`
+
+	// Sources Distinct data sources that produced this entity.
+	Sources []string `json:"sources"`
+}
+
+func (response GetEntities200JSONResponse) VisitGetEntitiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEntities400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetEntities400JSONResponse) VisitGetEntitiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEntities500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetEntities500JSONResponse) VisitGetEntitiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type GetHealthzRequestObject struct {
@@ -304,6 +472,12 @@ type GetMetricsResponseObject interface {
 }
 
 type GetMetrics200JSONResponse []struct {
+	// MetricName The name of the metric (e.g., "word_count", "sentiment_score").
+	MetricName string `json:"metricName"`
+
+	// Source The data source that produced this metric (e.g., "tagesschau", "bundesregierung").
+	Source string `json:"source"`
+
 	// Timestamp The UTC timestamp of the aggregation interval.
 	Timestamp time.Time `json:"timestamp"`
 
@@ -324,6 +498,34 @@ type GetMetrics500JSONResponse struct {
 }
 
 func (response GetMetrics500JSONResponse) VisitGetMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricsAvailableRequestObject struct {
+}
+
+type GetMetricsAvailableResponseObject interface {
+	VisitGetMetricsAvailableResponse(w http.ResponseWriter) error
+}
+
+type GetMetricsAvailable200JSONResponse []string
+
+func (response GetMetricsAvailable200JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricsAvailable500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricsAvailable500JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -357,12 +559,18 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Retrieve aggregated named entities
+	// (GET /entities)
+	GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error)
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error)
+	// List available metric names
+	// (GET /metrics/available)
+	GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
@@ -395,6 +603,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetEntities operation middleware
+func (sh *strictHandler) GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams) {
+	var request GetEntitiesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEntities(ctx, request.(GetEntitiesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEntities")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEntitiesResponseObject); ok {
+		if err := validResponse.VisitGetEntitiesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetHealthz operation middleware
@@ -440,6 +674,30 @@ func (sh *strictHandler) GetMetrics(w http.ResponseWriter, r *http.Request, para
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricsResponseObject); ok {
 		if err := validResponse.VisitGetMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetricsAvailable operation middleware
+func (sh *strictHandler) GetMetricsAvailable(w http.ResponseWriter, r *http.Request) {
+	var request GetMetricsAvailableRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricsAvailable(ctx, request.(GetMetricsAvailableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricsAvailable")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricsAvailableResponseObject); ok {
+		if err := validResponse.VisitGetMetricsAvailableResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

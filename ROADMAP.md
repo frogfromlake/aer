@@ -433,32 +433,32 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - Doc caching — NER extractor caches spaCy doc between extract() and extract_entities() to avoid processing text twice.                                                                                    
   - SentiWS not bundled — Lexicon files must be downloaded separately (CC-BY-SA license). Extractor produces empty results without them.
 
-### Open Phases
-
-## Phase 43: BFF API Extension & End-to-End Pipeline Validation - [ ] OPEN
+## Phase 43: BFF API Extension & End-to-End Pipeline Validation - [x] DONE
 *The BFF API currently serves one endpoint returning flat time-series data. With multiple metric types and entities, the API needs targeted extensions. This phase also validates the complete pipeline end-to-end — from RSS crawl through Gold metrics to API response — and retires the Wikipedia PoC.*
 
-* [ ] **Extend `MetricDataPoint` Response Schema.** The current response `{timestamp, value}` is insufficient for multi-metric queries. Extend to `{timestamp, value, source, metric_name}`. Update the ClickHouse query to include `source` and `metric_name` in `SELECT` and `GROUP BY`. Regenerate stubs via `make codegen`.
+* [x] **Extend `MetricDataPoint` Response Schema.** Extended from `{timestamp, value}` to `{timestamp, value, source, metricName}`. Updated ClickHouse query to include `source` and `metric_name` in `SELECT` and `GROUP BY`. Storage layer returns named `MetricRow` struct. Regenerated stubs via `make codegen`.
 
-* [ ] **Add `GET /api/v1/entities` Endpoint.** Query `aer_gold.entities` with aggregation: `SELECT entity_text, entity_label, count() as count, groupArray(DISTINCT source) as sources ... GROUP BY entity_text, entity_label ORDER BY count DESC`. Parameters: `startDate`, `endDate` (required), `source`, `label` (optional), `limit` (default 100, max 1000). OpenAPI spec, codegen, handler, ClickHouse query, integration test.
+* [x] **Add `GET /api/v1/entities` Endpoint.** Queries `aer_gold.entities` with aggregation: `SELECT entity_text, entity_label, count() as count, groupArray(DISTINCT source) as sources ... GROUP BY entity_text, entity_label ORDER BY count DESC`. Parameters: `startDate`, `endDate` (required via handler validation), `source`, `label` (optional), `limit` (default 100, max 1000). Full OpenAPI spec, codegen, handler, ClickHouse query, handler unit tests, and storage integration tests.
 
-* [ ] **Add `GET /api/v1/metrics/available` Endpoint.** Returns `SELECT DISTINCT metric_name FROM aer_gold.metrics`. Enables future frontends to discover metrics dynamically. Trivial endpoint but important for decoupling.
+* [x] **Add `GET /api/v1/metrics/available` Endpoint.** Returns `SELECT DISTINCT metric_name FROM aer_gold.metrics ORDER BY metric_name`. Simple JSON string array response. Enables future frontends to discover metrics dynamically.
 
-* [ ] **Update OpenAPI Specification.** Add new endpoints and schemas. Run `make codegen`. Implement handlers and storage layer. Add integration tests for all new endpoints.
+* [x] **Update OpenAPI Specification.** Added `/entities` and `/metrics/available` paths with schemas (`EntityResult.yaml`) and parameters (`label.yaml`, `limit.yaml`). Extended `MetricDataPoint.yaml` with `source` and `metricName` fields. Ran `make codegen`. Implemented handlers and storage layer. Added integration tests for all new endpoints.
 
-* [ ] **End-to-End Validation Script.** Extend `scripts/e2e_smoke_test.sh`:
-  1. Start the full stack.
-  2. Run the RSS crawler against a test fixture (static RSS XML served by a local HTTP server within the Docker network, avoiding external network dependency).
-  3. Wait for pipeline processing.
-  4. Assert `GET /api/v1/metrics?metricName=word_count` returns data.
-  5. Assert `GET /api/v1/metrics?metricName=sentiment_score` returns values within expected range.
-  6. Assert `GET /api/v1/entities?label=ORG` returns results.
-  7. Assert `GET /api/v1/metrics/available` lists all expected metric names.
-  The test uses a deterministic RSS fixture with known content, so expected values are predictable.
+* [x] **End-to-End Validation Script.** Rewrote `scripts/e2e_smoke_test.sh`:
+  1. Starts full stack via `docker compose up --build --wait`.
+  2. Runs a Python HTTP fixture server on `aer-backend` serving deterministic RSS XML (`scripts/e2e_fixtures/test_feed.xml`).
+  3. Runs the RSS crawler binary inside a temporary Alpine container on the Docker network, pointed at the fixture server and the ingestion API.
+  4. Waits for pipeline processing.
+  5. Asserts `GET /api/v1/metrics?metricName=word_count` returns data.
+  6. Asserts `GET /api/v1/metrics?metricName=sentiment_score` returns values within `[-1, 1]`.
+  7. Asserts `GET /api/v1/entities` returns results.
+  8. Asserts `GET /api/v1/metrics/available` lists all expected metric names.
 
-* [ ] **Retire Wikipedia PoC Crawler.** Remove `crawlers/wikipedia-scraper/`. Remove `go.work` entry. The `wikipedia` source in PostgreSQL seeds is kept for backward compatibility with existing test data and Silver objects. Document the retirement in the ROADMAP.
+* [x] **Retire Wikipedia PoC Crawler.** Removed `crawlers/wikipedia-scraper/`. Removed `go.work` entry. The `wikipedia` source in PostgreSQL seeds (`000002_seed_wikipedia_source.sql`) is kept for backward compatibility with existing test data and Silver objects.
 
-* [ ] **Update Arc42 Documentation.** Chapter 3 (§3.2.1: new BFF endpoints). Chapter 5 (§5.1.3: extended API contract). Chapter 10 (add quality scenarios for entity queries and multi-metric filtering). Chapter 7 (port table update if needed). Chapter 13 (§13.8: update Probe 0 status to "operational").
+* [x] **Update Arc42 Documentation.** Chapter 3 (§3.2.1: new BFF endpoints in External Interfaces table and business context diagram). Chapter 5 (§5.1.3: extended API contract with three data endpoints; §5.1.7: documented Wikipedia scraper retirement). Chapter 10 (added QS-R5 for entity label filtering, QS-P4 for multi-metric filtering). Chapter 7 (§7.8: port table updated with new endpoints). Chapter 13 (§13.8: Probe 0 status updated to "operational").
+
+### Open Phases
 
 
 ---

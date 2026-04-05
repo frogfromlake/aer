@@ -1,0 +1,7 @@
+## E2E Test Feed Configuration
+## Points at a local fixture server running inside the Docker network.
+## The 'name' must match a source registered in PostgreSQL seeds.
+
+feeds:
+  - name: bundesregierung
+    url: http://e2e-fixture-server:8888/test_feed.xml

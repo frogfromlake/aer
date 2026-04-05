@@ -10,6 +10,10 @@ servers:
 paths:
   /metrics:
     $ref: './paths/metrics.yaml'
+  /metrics/available:
+    $ref: './paths/metrics_available.yaml'
+  /entities:
+    $ref: './paths/entities.yaml'
   /healthz:
     $ref: './paths/healthz.yaml'
   /readyz:

@@ -243,7 +243,7 @@ AĒR follows the Zero-Trust posture established in ADR-013. Only Traefik, the BF
 | `80` | Traefik | HTTP (redirects to HTTPS) |
 | `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
 | `8000` | MkDocs | Architecture documentation (dev convenience) |
-| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/healthz`, `/api/v1/readyz` |
+| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/entities`, `/api/v1/metrics/available`, `/api/v1/healthz`, `/api/v1/readyz` |
 
 ### Debug profile (`make debug-up`)
 

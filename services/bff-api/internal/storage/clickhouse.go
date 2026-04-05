@@ -63,14 +63,16 @@ func (s *ClickHouseStorage) Ping(ctx context.Context) error {
 // GetMetrics retrieves aggregated time-series data from the gold layer.
 // It downsamples the data to 5-minute intervals to prevent OOM errors on large time ranges.
 // Optional source and metricName filters narrow results to specific dimensions.
-func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]struct {
-	TS    time.Time
-	Value float64
-}, error) {
-	var results []struct {
-		TS    time.Time
-		Value float64
-	}
+// MetricRow represents a single aggregated metric data point from ClickHouse.
+type MetricRow struct {
+	TS         time.Time
+	Value      float64
+	Source     string
+	MetricName string
+}
+
+func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]MetricRow, error) {
+	var results []MetricRow
 
 	// Use toStartOfFiveMinute and avg() to aggregate data on the DB level.
 	// We also apply a hard limit to guarantee memory safety.
@@ -78,7 +80,9 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	query := `
 		SELECT
 			toStartOfFiveMinute(timestamp) as TS,
-			avg(value) as Value
+			avg(value) as Value,
+			source as Source,
+			metric_name as MetricName
 		FROM aer_gold.metrics
 		WHERE timestamp >= $1 AND timestamp <= $2
 	`
@@ -96,7 +100,7 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	}
 
 	query += fmt.Sprintf(`
-		GROUP BY TS
+		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
 	`, s.rowLimit)
@@ -108,4 +112,79 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	}
 
 	return results, nil
+}
+
+// EntityRow represents an aggregated entity result from ClickHouse.
+type EntityRow struct {
+	EntityText  string
+	EntityLabel string
+	Count       uint64
+	Sources     []string
+}
+
+// GetEntities retrieves aggregated named entities from the gold layer.
+func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]EntityRow, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+
+	query := `
+		SELECT
+			entity_text as EntityText,
+			entity_label as EntityLabel,
+			count() as Count,
+			groupArray(DISTINCT source) as Sources
+		FROM aer_gold.entities
+		WHERE timestamp >= $1 AND timestamp <= $2
+	`
+	args := []any{start, end}
+	argIdx := 3
+
+	if source != nil {
+		query += fmt.Sprintf(" AND source = $%d", argIdx)
+		args = append(args, *source)
+		argIdx++
+	}
+	if label != nil {
+		query += fmt.Sprintf(" AND entity_label = $%d", argIdx)
+		args = append(args, *label)
+	}
+
+	query += fmt.Sprintf(`
+		GROUP BY EntityText, EntityLabel
+		ORDER BY Count DESC
+		LIMIT %d
+	`, limit)
+
+	var results []EntityRow
+	err := s.conn.Select(ctx, &results, query, args...)
+	if err != nil {
+		slog.Error("Failed to query entities from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// GetAvailableMetrics returns the distinct metric names present in the gold layer.
+func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context) ([]string, error) {
+	var results []struct {
+		MetricName string
+	}
+
+	err := s.conn.Select(ctx, &results, `
+		SELECT DISTINCT metric_name as MetricName
+		FROM aer_gold.metrics
+		ORDER BY MetricName
+	`)
+	if err != nil {
+		slog.Error("Failed to query available metrics from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	names := make([]string, len(results))
+	for i, r := range results {
+		names[i] = r.MetricName
+	}
+	return names, nil
 }

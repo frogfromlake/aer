@@ -85,9 +85,15 @@ graph LR
 
 **Responsibility:** Provides a contract-first, authenticated REST API to the frontend. Decouples consumers from direct database queries and protects the analytical layer from uncontrolled access.
 
-**Implementation:** A Go microservice (`services/bff-api/`) with server stubs and types auto-generated from a modular OpenAPI 3.0 specification via `oapi-codegen` (`make codegen`). Queries ClickHouse for aggregated time-series data with 5-minute downsampling and hard row limits to prevent OOM. Supports optional `source` and `metricName` query parameters to filter by data source and metric dimension (added in Phase 30). Protected by an API-key middleware on all routes except health probes. Exposed to the internet through Traefik via Docker labels (`PathPrefix(/api)`). Provides `/api/v1/healthz` (liveness) and `/api/v1/readyz` (readiness, checks ClickHouse) endpoints.
+**Implementation:** A Go microservice (`services/bff-api/`) with server stubs and types auto-generated from a modular OpenAPI 3.0 specification via `oapi-codegen` (`make codegen`). Provides three data endpoints:
 
-**Key interfaces:** ClickHouse (native protocol SELECT), Traefik (HTTP routing via labels), OTel Collector (gRPC traces).
+- `GET /api/v1/metrics` — Aggregated time-series data with 5-minute downsampling and hard row limits to prevent OOM. Supports optional `source` and `metricName` query parameters to filter by data source and metric dimension. Response includes `{timestamp, value, source, metricName}` per data point (extended in Phase 43).
+- `GET /api/v1/entities` — Aggregated named entities from the NER pipeline. Requires `startDate`/`endDate`, supports optional `source`, `label`, and `limit` filters. Response includes `{entityText, entityLabel, count, sources}` per entity (added in Phase 43).
+- `GET /api/v1/metrics/available` — Dynamic discovery of available metric names in the Gold layer. Returns a simple JSON array of metric name strings (added in Phase 43).
+
+Protected by an API-key middleware on all routes except health probes. Exposed to the internet through Traefik via Docker labels (`PathPrefix(/api)`). Provides `/api/v1/healthz` (liveness) and `/api/v1/readyz` (readiness, checks ClickHouse) endpoints.
+
+**Key interfaces:** ClickHouse (native protocol SELECT on `aer_gold.metrics` and `aer_gold.entities`), Traefik (HTTP routing via labels), OTel Collector (gRPC traces).
 
 ### 5.1.4 Storage & Event Core
 
@@ -127,8 +133,10 @@ A central Go module providing cross-cutting functionality imported by all Go ser
 
 **Responsibility:** Fetch data from public APIs and translate it into the generic AĒR Ingestion Contract before submitting it to the Ingestion API.
 
-**Implementation:** Standalone Go programs under `crawlers/` (e.g., `crawlers/wikipedia-scraper/`, `crawlers/rss-crawler/`). Each crawler is a self-contained binary with its own `go.mod`. Crawlers are deliberately external to the AĒR system boundary — they follow the "Dumb Pipes, Smart Endpoints" pattern (see ADR-010). They communicate with AĒR exclusively via `HTTP POST /api/v1/ingest` and are not orchestrated by `compose.yaml`.
+**Implementation:** Standalone Go programs under `crawlers/`. Each crawler is a self-contained binary with its own `go.mod`. Crawlers are deliberately external to the AĒR system boundary — they follow the "Dumb Pipes, Smart Endpoints" pattern (see ADR-010). They communicate with AĒR exclusively via `HTTP POST /api/v1/ingest` and are not orchestrated by `compose.yaml`.
 
-The **RSS Crawler** (`crawlers/rss-crawler/`) is AĒR's first real data source, configured via `feeds.yaml`. It parses RSS/Atom feeds using `gofeed`, translates items to the Ingestion Contract with `source_type: "rss"`, and maintains a local JSON state file for dedup across runs. Each feed's `source_id` is resolved dynamically via `GET /api/v1/sources?name=<name>`. See Chapter 13, §13.8 for the probe rationale.
+The **RSS Crawler** (`crawlers/rss-crawler/`) is AĒR's primary data source, configured via `feeds.yaml`. It parses RSS/Atom feeds using `gofeed`, translates items to the Ingestion Contract with `source_type: "rss"`, and maintains a local JSON state file for dedup across runs. Each feed's `source_id` is resolved dynamically via `GET /api/v1/sources?name=<name>`. See Chapter 13, §13.8 for the probe rationale.
+
+The **Wikipedia Scraper** (`crawlers/wikipedia-scraper/`) was AĒR's initial PoC crawler, fetching random article summaries from the Wikipedia REST API. It was retired in Phase 43 after the RSS Crawler provided real, structured data for pipeline validation. The `wikipedia` source seed in PostgreSQL is preserved for backward compatibility with existing test data and Silver objects.
 
 **Key interfaces:** External data source APIs (HTTP GET), Ingestion API (HTTP POST with JSON payload conforming to the Ingestion Contract defined in Chapter 3.2.3, `GET /api/v1/sources?name=<name>` for dynamic `source_id` resolution).

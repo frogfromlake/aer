@@ -3,24 +3,25 @@ package handler
 import (
 	"context"
 	"time"
+
+	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
-// MetricsStore abstracts the data access layer for testability.
-type MetricsStore interface {
+// Store abstracts the data access layer for testability.
+type Store interface {
 	Ping(ctx context.Context) error
-	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]struct {
-		TS    time.Time
-		Value float64
-	}, error)
+	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
+	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
+	GetAvailableMetrics(ctx context.Context) ([]string, error)
 }
 
 // Server implements the generated StrictServerInterface.
 type Server struct {
-	db MetricsStore
+	db Store
 }
 
 // NewServer creates a new API server instance.
-func NewServer(db MetricsStore) *Server {
+func NewServer(db Store) *Server {
 	return &Server{db: db}
 }
 
@@ -57,15 +58,62 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 
 	var response GetMetrics200JSONResponse
 	for _, d := range data {
-		// Append using the generated anonymous struct type
 		response = append(response, struct {
-			Timestamp time.Time `json:"timestamp"`
-			Value     float64   `json:"value"`
+			MetricName string    `json:"metricName"`
+			Source     string    `json:"source"`
+			Timestamp  time.Time `json:"timestamp"`
+			Value      float64   `json:"value"`
 		}{
-			Timestamp: d.TS,
-			Value:     d.Value,
+			Timestamp:  d.TS,
+			Value:      d.Value,
+			Source:     d.Source,
+			MetricName: d.MetricName,
 		})
 	}
 
 	return response, nil
+}
+
+// GetEntities handles GET /entities — returns aggregated named entities.
+func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error) {
+	if request.Params.StartDate == nil || request.Params.EndDate == nil {
+		return GetEntities400JSONResponse{Message: "startDate and endDate are required"}, nil
+	}
+
+	limit := 100
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	data, err := s.db.GetEntities(ctx, *request.Params.StartDate, *request.Params.EndDate, request.Params.Source, request.Params.Label, limit)
+	if err != nil {
+		return GetEntities500JSONResponse{Message: err.Error()}, nil
+	}
+
+	var response GetEntities200JSONResponse
+	for _, d := range data {
+		response = append(response, struct {
+			Count       int64    `json:"count"`
+			EntityLabel string   `json:"entityLabel"`
+			EntityText  string   `json:"entityText"`
+			Sources     []string `json:"sources"`
+		}{
+			EntityText:  d.EntityText,
+			EntityLabel: d.EntityLabel,
+			Count:       int64(d.Count),
+			Sources:     d.Sources,
+		})
+	}
+
+	return response, nil
+}
+
+// GetMetricsAvailable handles GET /metrics/available — returns distinct metric names.
+func (s *Server) GetMetricsAvailable(ctx context.Context, _ GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error) {
+	names, err := s.db.GetAvailableMetrics(ctx)
+	if err != nil {
+		return GetMetricsAvailable500JSONResponse{Message: err.Error()}, nil
+	}
+
+	return GetMetricsAvailable200JSONResponse(names), nil
 }

@@ -1,0 +1,6 @@
+name: label
+in: query
+description: Filter entities by NER label (e.g., "PER", "ORG", "LOC", "MISC")
+required: false
+schema:
+  type: string

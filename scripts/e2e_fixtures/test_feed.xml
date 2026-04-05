@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>E2E Test Feed — AĒR Pipeline Validation</title>
+    <link>https://www.example.gov.de</link>
+    <description>Deterministic test feed for end-to-end pipeline validation.</description>
+    <language>de</language>
+    <item>
+      <title>Bundesregierung beschließt neues Klimaschutzpaket für Deutschland</title>
+      <link>https://www.example.gov.de/artikel/klimaschutz-2026</link>
+      <description>Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet. Das Paket sieht unter anderem eine Ausweitung des Emissionshandels vor. Bundeskanzler Friedrich Merz betonte die Bedeutung des Klimaschutzes für die Zukunft Deutschlands. Das Bundesministerium für Umwelt in Berlin koordiniert die Umsetzung der Maßnahmen.</description>
+      <pubDate>Sat, 05 Apr 2026 10:00:00 +0200</pubDate>
+      <guid>https://www.example.gov.de/artikel/klimaschutz-2026</guid>
+      <category>Klimaschutz</category>
+      <category>Umwelt</category>
+      <author>Bundespresseamt</author>
+    </item>
+    <item>
+      <title>Arbeitsmarktbericht März 2026 zeigt positive Entwicklung</title>
+      <link>https://www.example.gov.de/artikel/arbeitsmarkt-maerz-2026</link>
+      <description>Die Zahl der Erwerbstätigen in Deutschland ist im März 2026 leicht gestiegen. Die Arbeitslosenquote liegt bei 5,2 Prozent. Das Bundesministerium für Arbeit und Soziales in Berlin sieht die Entwicklung positiv. Die Bundesagentur für Arbeit in Nürnberg bestätigt den Trend.</description>
+      <pubDate>Fri, 04 Apr 2026 08:30:00 +0200</pubDate>
+      <guid>https://www.example.gov.de/artikel/arbeitsmarkt-maerz-2026</guid>
+      <category>Wirtschaft</category>
+      <author>Bundespresseamt</author>
+    </item>
+  </channel>
+</rss>

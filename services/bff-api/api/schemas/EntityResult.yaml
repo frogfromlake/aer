@@ -1,0 +1,22 @@
+type: object
+required:
+  - entityText
+  - entityLabel
+  - count
+  - sources
+properties:
+  entityText:
+    type: string
+    description: The extracted entity text (e.g., "Bundesregierung", "Berlin").
+  entityLabel:
+    type: string
+    description: The NER label (PER, ORG, LOC, MISC).
+  count:
+    type: integer
+    format: int64
+    description: Number of occurrences within the queried time range.
+  sources:
+    type: array
+    items:
+      type: string
+    description: Distinct data sources that produced this entity.

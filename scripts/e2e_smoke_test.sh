@@ -1,6 +1,6 @@
 #!/bin/bash
 # End-to-End Smoke Test for the AĒR pipeline.
-# Flow: docker compose up --wait → ingest → wait → metrics → docker compose down
+# Flow: docker compose up → fixture server → RSS crawler → wait → assert all endpoints → teardown
 set -euo pipefail
 
 # --- Colors ---
@@ -19,7 +19,9 @@ fi
 BFF_URL="http://localhost:8080/api/v1"
 BFF_API_KEY="${BFF_API_KEY:-}"
 INGESTION_API_KEY="${INGESTION_API_KEY:-}"
-PROCESSING_WAIT=15    # seconds to give NATS + worker time to process
+PROCESSING_WAIT=25    # seconds to give NATS + worker time to process
+FIXTURE_DIR="$(cd "$(dirname "$0")/e2e_fixtures" && pwd)"
+FIXTURE_CONTAINER="e2e-fixture-server"
 
 PASS=0
 FAIL=0
@@ -32,14 +34,16 @@ log_step()  { echo -e "\n${GOLD}══ $* ${RESET}"; }
 
 # --- Teardown (always runs) ---
 cleanup() {
-    # Save exit code of the last command in case of unexpected script crash
     local exit_code=$?
 
     log_step "Teardown"
+
+    # Stop fixture server
+    docker rm -f "$FIXTURE_CONTAINER" 2>/dev/null || true
+
     echo -e "${GOLD}══ Result ══════════════════════════════════${RESET}"
     echo -e "   ${GREEN}PASSED: $PASS${RESET}   ${RED}FAILED: $FAIL${RESET}"
 
-    # If FAIL > 0, or the script crashed hard (exit_code != 0)
     if [[ $FAIL -gt 0 || $exit_code -ne 0 ]]; then
         LOG_DIR="logs/e2e"
         mkdir -p "$LOG_DIR"
@@ -47,7 +51,6 @@ cleanup() {
         LOG_FILE="${LOG_DIR}/e2e_fail_${TIMESTAMP}.log"
 
         echo -e "   ${RED}Smoke test FAILED. Dumping full stack logs to ${LOG_FILE}...${RESET}"
-        # Dump ALL logs to the file
         docker compose logs --timestamps --no-color | sort > "$LOG_FILE" 2>&1
 
         FINAL_EXIT=1
@@ -56,7 +59,6 @@ cleanup() {
         FINAL_EXIT=0
     fi
 
-    # Unconditional teardown! This runs always, regardless of success or failure.
     log_info "Running docker compose down -v ..."
     docker compose down -v --remove-orphans 2>/dev/null || true
 
@@ -69,66 +71,181 @@ log_step "Step 1: Starting full Docker Compose stack (waiting for health)"
 docker compose up --build --wait -d
 log_ok "Stack started. All services are healthy!"
 
-# ── Step 2: Ingest a test document ───────────────────────────────────────────
-log_step "Step 2: POST test document to Ingestion API"
+# ── Step 2: Start fixture HTTP server ────────────────────────────────────
+log_step "Step 2: Starting fixture HTTP server on Docker network"
 
-PAYLOAD='{
-  "source_id": 1,
-  "documents": [
-    {
-      "key": "e2e-smoke-test-doc-001",
-      "data": {
-        "title": "E2E Smoke Test Article",
-        "raw_text": "This is an automated end-to-end smoke test document for the AER pipeline. It validates the full flow from ingestion through the NATS broker, the analysis worker, ClickHouse, and finally the BFF API.",
-        "url": "https://example.com/smoke-test",
-        "source": "e2e-smoke-test"
-      }
-    }
-  ]
-}'
+docker run -d \
+    --name "$FIXTURE_CONTAINER" \
+    --network aer-backend \
+    -v "$FIXTURE_DIR":/srv:ro \
+    -w /srv \
+    python:3.14-slim \
+    python -m http.server 8888
 
-# Ingestion API has no host port — exec into the container and use wget (Alpine).
-INGEST_RESPONSE=$(docker compose exec -T ingestion-api \
-    wget -q -O - \
-    --header="Content-Type: application/json" \
-    --header="X-API-Key: ${INGESTION_API_KEY}" \
-    --post-data="$PAYLOAD" \
-    "http://localhost:8081/api/v1/ingest" 2>/dev/null) && INGEST_OK=true || INGEST_OK=false
+# Wait for fixture server to start
+sleep 2
+log_ok "Fixture server running at http://${FIXTURE_CONTAINER}:8888/"
 
-if $INGEST_OK; then
-    log_ok "Ingestion returned HTTP 2xx."
-    log_info "Response: $INGEST_RESPONSE"
+# ── Step 3: Run RSS crawler against the fixture ─────────────────────────
+log_step "Step 3: Running RSS crawler against test fixture"
+
+# Build the RSS crawler
+(cd crawlers/rss-crawler && go build -o ../../bin/rss-crawler . 2>&1) || {
+    log_fail "Failed to build RSS crawler"
+    exit 1
+}
+
+# The crawler runs on the host but submits to ingestion-api inside Docker.
+# We use docker compose exec to POST via the ingestion-api container (wget).
+# Instead, we run the crawler binary and point it at the fixture server
+# accessible via the Docker network. The ingestion API is on localhost:8081
+# only in debug mode. So we exec the crawler inside a container.
+
+# Copy the crawler binary and config into a temporary container on the network
+docker run -d \
+    --name e2e-crawler-runner \
+    --network aer-backend \
+    -v "$FIXTURE_DIR/feeds.yaml":/feeds.yaml:ro \
+    -v "$(pwd)/bin/rss-crawler":/rss-crawler:ro \
+    alpine:3.23.3 \
+    sleep 300
+
+# Run the crawler inside the Docker network
+CRAWLER_OUTPUT=$(docker exec e2e-crawler-runner \
+    /rss-crawler \
+    --config /feeds.yaml \
+    --api-url "http://ingestion-api:8081/api/v1/ingest" \
+    --sources-url "http://ingestion-api:8081/api/v1/sources" \
+    --api-key "${INGESTION_API_KEY}" \
+    --state /tmp/e2e-state.json \
+    --delay 0 2>&1) && CRAWLER_OK=true || CRAWLER_OK=false
+
+# Clean up crawler runner
+docker rm -f e2e-crawler-runner 2>/dev/null || true
+
+if $CRAWLER_OK; then
+    log_ok "RSS crawler completed successfully."
+    log_info "Crawler output: $CRAWLER_OUTPUT"
 else
-    log_fail "Ingestion request failed."
-    log_info "Response body: ${INGEST_RESPONSE:-<empty>}"
+    log_fail "RSS crawler failed."
+    log_info "Crawler output: ${CRAWLER_OUTPUT:-<empty>}"
 fi
 
-# ── Step 3: Wait for pipeline processing ─────────────────────────────────────
-log_step "Step 3: Waiting ${PROCESSING_WAIT}s for NATS + worker processing"
+# ── Step 4: Wait for pipeline processing ─────────────────────────────────
+log_step "Step 4: Waiting ${PROCESSING_WAIT}s for NATS + worker processing"
 sleep "$PROCESSING_WAIT"
 
-# ── Step 4: Query BFF metrics ─────────────────────────────────────────────────
-log_step "Step 4: GET /api/v1/metrics (last 5 minutes)"
+# ── Step 5: Assert GET /api/v1/metrics?metricName=word_count ─────────────
+log_step "Step 5: GET /api/v1/metrics?metricName=word_count"
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FIVE_MIN_AGO=$(date -u -d "5 minutes ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
-    || date -u -v-5M +"%Y-%m-%dT%H:%M:%SZ")  # GNU date / BSD date fallback
+ONE_HOUR_AGO=$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
+    || date -u -v-1H +"%Y-%m-%dT%H:%M:%SZ")
 
 METRICS_STATUS=$(curl -sf \
-    -o /tmp/aer_metrics_response.json \
+    -o /tmp/aer_e2e_wc.json \
     -w "%{http_code}" \
     -H "X-API-Key: ${BFF_API_KEY}" \
-    "${BFF_URL}/metrics?startDate=${FIVE_MIN_AGO}&endDate=${NOW}" 2>/dev/null) || METRICS_STATUS="000"
+    "${BFF_URL}/metrics?metricName=word_count&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || METRICS_STATUS="000"
 
 if [[ "$METRICS_STATUS" == "200" ]]; then
-    METRIC_COUNT=$(python3 -c "import json,sys; d=json.load(open('/tmp/aer_metrics_response.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
-    if [[ "$METRIC_COUNT" -gt 0 ]]; then
-        log_ok "BFF API returned $METRIC_COUNT metric data point(s) — pipeline is end-to-end healthy."
+    WC_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_wc.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    if [[ "$WC_COUNT" -gt 0 ]]; then
+        log_ok "word_count metrics: $WC_COUNT data point(s)."
     else
-        log_fail "BFF API returned HTTP 200 but 0 metric data points. Worker may not have processed the document yet."
-        log_info "Raw response: $(cat /tmp/aer_metrics_response.json)"
+        log_fail "word_count returned 200 but 0 data points."
+        log_info "Response: $(cat /tmp/aer_e2e_wc.json)"
     fi
 else
-    log_fail "BFF API /metrics returned HTTP $METRICS_STATUS."
-    log_info "Raw response: $(cat /tmp/aer_metrics_response.json 2>/dev/null || echo '<empty>')"
+    log_fail "word_count endpoint returned HTTP $METRICS_STATUS."
+    log_info "Response: $(cat /tmp/aer_e2e_wc.json 2>/dev/null || echo '<empty>')"
+fi
+
+# ── Step 6: Assert GET /api/v1/metrics?metricName=sentiment_score ────────
+log_step "Step 6: GET /api/v1/metrics?metricName=sentiment_score"
+
+SENTIMENT_STATUS=$(curl -sf \
+    -o /tmp/aer_e2e_sent.json \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/metrics?metricName=sentiment_score&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || SENTIMENT_STATUS="000"
+
+if [[ "$SENTIMENT_STATUS" == "200" ]]; then
+    SENT_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_sent.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    if [[ "$SENT_COUNT" -gt 0 ]]; then
+        # Verify values are within expected range [-1, 1]
+        SENT_VALID=$(python3 -c "
+import json
+d = json.load(open('/tmp/aer_e2e_sent.json'))
+print('ok' if all(-1.0 <= p['value'] <= 1.0 for p in d) else 'out_of_range')
+" 2>/dev/null || echo "error")
+        if [[ "$SENT_VALID" == "ok" ]]; then
+            log_ok "sentiment_score metrics: $SENT_COUNT data point(s), all within [-1, 1]."
+        else
+            log_fail "sentiment_score values out of expected range [-1, 1]."
+            log_info "Response: $(cat /tmp/aer_e2e_sent.json)"
+        fi
+    else
+        log_fail "sentiment_score returned 200 but 0 data points."
+        log_info "Response: $(cat /tmp/aer_e2e_sent.json)"
+    fi
+else
+    log_fail "sentiment_score endpoint returned HTTP $SENTIMENT_STATUS."
+fi
+
+# ── Step 7: Assert GET /api/v1/entities ──────────────────────────────────
+log_step "Step 7: GET /api/v1/entities"
+
+ENTITIES_STATUS=$(curl -sf \
+    -o /tmp/aer_e2e_entities.json \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/entities?startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || ENTITIES_STATUS="000"
+
+if [[ "$ENTITIES_STATUS" == "200" ]]; then
+    ENT_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_entities.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    if [[ "$ENT_COUNT" -gt 0 ]]; then
+        log_ok "entities endpoint: $ENT_COUNT distinct entities."
+    else
+        log_fail "entities returned 200 but 0 results."
+        log_info "Response: $(cat /tmp/aer_e2e_entities.json)"
+    fi
+else
+    log_fail "entities endpoint returned HTTP $ENTITIES_STATUS."
+    log_info "Response: $(cat /tmp/aer_e2e_entities.json 2>/dev/null || echo '<empty>')"
+fi
+
+# ── Step 8: Assert GET /api/v1/metrics/available ─────────────────────────
+log_step "Step 8: GET /api/v1/metrics/available"
+
+AVAILABLE_STATUS=$(curl -sf \
+    -o /tmp/aer_e2e_available.json \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/metrics/available" 2>/dev/null) || AVAILABLE_STATUS="000"
+
+if [[ "$AVAILABLE_STATUS" == "200" ]]; then
+    # Check that expected metric names are present
+    EXPECTED_METRICS=("word_count" "sentiment_score" "entity_count" "language_confidence" "publication_hour" "publication_weekday")
+    MISSING=""
+    for m in "${EXPECTED_METRICS[@]}"; do
+        HAS=$(python3 -c "
+import json
+d = json.load(open('/tmp/aer_e2e_available.json'))
+print('yes' if '$m' in d else 'no')
+" 2>/dev/null || echo "error")
+        if [[ "$HAS" != "yes" ]]; then
+            MISSING="${MISSING} ${m}"
+        fi
+    done
+
+    if [[ -z "$MISSING" ]]; then
+        log_ok "metrics/available lists all expected metric names."
+    else
+        log_fail "metrics/available is missing:${MISSING}"
+        log_info "Response: $(cat /tmp/aer_e2e_available.json)"
+    fi
+else
+    log_fail "metrics/available endpoint returned HTTP $AVAILABLE_STATUS."
+    log_info "Response: $(cat /tmp/aer_e2e_available.json 2>/dev/null || echo '<empty>')"
 fi

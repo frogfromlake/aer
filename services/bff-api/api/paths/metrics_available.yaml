@@ -1,0 +1,15 @@
+get:
+  summary: List available metric names
+  description: Returns the distinct metric names present in the gold layer. Enables frontends to discover metrics dynamically.
+  operationId: getMetricsAvailable
+  responses:
+    '200':
+      description: A list of available metric names.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: string
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
