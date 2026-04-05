@@ -4,7 +4,7 @@ A modular system for the real-time analysis and long-term observation of societa
 
 The name derives from ancient Greek ἀήρ: the lower atmosphere, the surrounding climate.
 
-⚠️ Project Status: Under Construction & Research Phase > AĒR is currently in active development. While the underlying microservice architecture is nearing its final state—designed to be secure, resilient, and horizontally scalable—the core analytical business logic is pending ongoing scientific research. At present, the system operates with a proof-of-concept crawler limited to Wikipedia articles, and the Python analysis workers are focused solely on harmonizing this specific dataset. Development of comprehensive sociological metrics and integration of additional data sources will commence once the foundational research is complete.
+⚠️ Project Status: Under Construction & Research Phase > AĒR is currently in active development. The microservice architecture is nearing its final state—designed to be secure, resilient, and horizontally scalable. The system now ingests German institutional RSS feeds (bundesregierung.de, tagesschau.de) via a dedicated RSS crawler, and the Python analysis worker runs a provisional NLP extractor pipeline (word count, sentiment analysis via SentiWS, language detection, temporal distribution, and named entity recognition via spaCy). These extractors are marked as provisional — the underlying scientific methodology is subject to ongoing research. Development of comprehensive sociological metrics and integration of additional data sources will commence once the foundational research is complete.
 
 ---
 
@@ -30,7 +30,7 @@ Crawler  →  Ingestion API (Go)  →  MinIO Bronze  →  NATS JetStream
 
 **BFF API (Go):** Contract-first REST API generated from OpenAPI 3.0. Queries ClickHouse with server-side downsampling and hard row limits. The only service exposed to the internet, authenticated via API key, TLS-terminated by Traefik.
 
-**Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service. Currently includes the Wikipedia scraper (PoC) and the RSS crawler (German institutional feeds for pipeline calibration).
+**Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service. Currently includes the RSS crawler (German institutional feeds for pipeline calibration).
 
 Full architectural documentation (arc42) is available at `http://localhost:8000` when the stack is running.
 
@@ -173,6 +173,7 @@ make        # or: make help — prints a formatted overview of all available tar
 | `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
 | `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
 | `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
+| `make crawl` | Build and run the RSS crawler (requires stack + `make debug-up`) |
 | `make build-services` | Compile Go binaries into `./bin/` |
 | `make tidy` | Run `go mod tidy` across all modules |
 
@@ -189,7 +190,7 @@ AĒR uses a Zero-Trust network posture. Only Traefik, the BFF API, and the docum
 | `80` | Traefik | HTTP — redirects to HTTPS |
 | `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
 | `8000` | MkDocs | Arc42 architecture documentation |
-| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/healthz`, `/api/v1/readyz` |
+| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/entities`, `/api/v1/metrics/available`, `/api/v1/healthz`, `/api/v1/readyz` |
 
 ### Debug profile only (`make debug-up`)
 
@@ -231,9 +232,25 @@ Authorization: Bearer <your-key>
 GET /api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
 ```
 
-Optional filters: `source` (e.g., `wikipedia`) and `metricName` (e.g., `word_count`) narrow results by data source and metric dimension.
+Optional filters: `source` (e.g., `tagesschau`) and `metricName` (e.g., `word_count`) narrow results by data source and metric dimension.
 
 Results are downsampled to 5-minute intervals. A hard row limit is applied server-side to prevent OOM on large time ranges.
+
+**Retrieve aggregated named entities:**
+
+```
+GET /api/v1/entities?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
+```
+
+Optional filters: `source`, `label` (spaCy NER label: `PER`, `ORG`, `LOC`, `MISC`), `limit` (default 100, max 1000). Returns entities aggregated by text and label with occurrence counts.
+
+**Discover available metric names:**
+
+```
+GET /api/v1/metrics/available
+```
+
+Returns all distinct `metric_name` values present in the Gold layer (e.g., `word_count`, `sentiment_score`, `language_confidence`, `publication_hour`, `publication_weekday`, `entity_count`).
 
 ---
 
@@ -282,8 +299,8 @@ Crawlers are standalone programs under `crawlers/`. Each crawler fetches data fr
 Every crawler must resolve its `source_id` at startup by querying the Ingestion API:
 
 ```
-GET /api/v1/sources?name=wikipedia
-→ {"id": 1, "name": "wikipedia"}
+GET /api/v1/sources?name=tagesschau
+→ {"id": 2, "name": "tagesschau"}
 ```
 
 The returned `id` is used as `source_id` in all subsequent ingest calls. Hard-coding source IDs is discouraged — the lookup ensures correctness across environments. Sources are registered via PostgreSQL seed migrations in `infra/postgres/migrations/`.
@@ -384,6 +401,7 @@ All Docker images in `compose.yaml` use hard-pinned, immutable patch-level versi
 | Quarantine (DLQ) | MinIO `bronze-quarantine` | 30 days | MinIO ILM |
 | Silver (harmonized) | MinIO `silver` | 365 days | MinIO ILM |
 | Gold (metrics) | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL |
+| Gold (entities) | ClickHouse `aer_gold.entities` | 365 days | ClickHouse TTL |
 | Metadata | PostgreSQL | Unlimited | — |
 
 All retention policies are defined in infrastructure scripts (`infra/`). No application code manages data expiration.

@@ -5,7 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
-.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg build-services
+.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg build-services crawl
 
 SHELL := /bin/bash
 
@@ -161,6 +161,13 @@ build-services:
 	@go build -o bin/rss-crawler ./crawlers/rss-crawler
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete. Binaries in ./bin/$(RESET)"
 
+crawl:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Building RSS crawler...$(RESET)"
+	@go build -o bin/rss-crawler ./crawlers/rss-crawler
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running RSS crawler (feeds: crawlers/rss-crawler/feeds.yaml)...$(RESET)"
+	@./bin/rss-crawler -config crawlers/rss-crawler/feeds.yaml
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Crawl complete.$(RESET)"
+
 # ==========================================
 # 5. TESTING & LINTING
 # ==========================================
@@ -233,6 +240,7 @@ help:
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
 	@echo -e "  $(CYAN)logs$(RESET)            $(GRAY)Tail live logs for all application services$(RESET)"
+	@echo -e "  $(GREEN)crawl$(RESET)           $(GRAY)Build and run the RSS crawler (requires stack + debug-up)$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)  $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)         $(GRAY)Generate Go code from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)tidy$(RESET)            $(GRAY)Run 'go mod tidy' across all modules$(RESET)"

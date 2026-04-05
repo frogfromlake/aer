@@ -66,7 +66,7 @@ psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT id, sourc
 
 **Key tables:**
 
-- `sources` — Registered data sources (e.g., `wikipedia`). Crawlers resolve their `source_id` via `GET /api/v1/sources?name=<n>`.
+- `sources` — Registered data sources (e.g., `bundesregierung`, `tagesschau`). Crawlers resolve their `source_id` via `GET /api/v1/sources?name=<n>`.
 - `ingestion_jobs` — Batch job tracking with status (`running`, `completed`, `completed_with_errors`, `failed`).
 - `documents` — Per-document lifecycle (`pending` → `uploaded` → `processed`), including `bronze_object_key` and `trace_id`.
 
@@ -106,10 +106,19 @@ docker exec -it aer_clickhouse clickhouse-client
 SELECT count() FROM aer_gold.metrics;
 SELECT source, metric_name, count() FROM aer_gold.metrics GROUP BY source, metric_name;
 SELECT * FROM aer_gold.metrics ORDER BY timestamp DESC LIMIT 20;
+
+-- Entities queries
+SELECT count() FROM aer_gold.entities;
+SELECT entity_label, count() FROM aer_gold.entities GROUP BY entity_label ORDER BY count() DESC;
+SELECT entity_text, entity_label, count() AS mentions FROM aer_gold.entities GROUP BY entity_text, entity_label ORDER BY mentions DESC LIMIT 20;
+
 SELECT * FROM aer_gold.schema_migrations ORDER BY version;
 ```
 
-**Schema:** `aer_gold.metrics` table with columns `timestamp`, `value`, `source`, `metric_name`, `article_id`. MergeTree engine, ordered by `timestamp`, 365-day TTL.
+**Schema:**
+
+- `aer_gold.metrics` — columns: `timestamp`, `value`, `source`, `metric_name`, `article_id`. MergeTree engine, ordered by `timestamp`, 365-day TTL.
+- `aer_gold.entities` — columns: `timestamp`, `source`, `article_id`, `entity_text`, `entity_label`, `start_char`, `end_char`. MergeTree engine, ordered by `timestamp`, 365-day TTL. Entity labels follow spaCy German NER taxonomy: `PER`, `ORG`, `LOC`, `MISC`.
 
 **Migrations** are in `infra/clickhouse/migrations/` and run via the `clickhouse-init` container (`infra/clickhouse/migrate.sh`) on startup. Applied versions are tracked in `aer_gold.schema_migrations`.
 
@@ -148,8 +157,8 @@ mc ls aer/bronze/             # List Bronze layer objects
 mc ls aer/silver/             # List Silver layer objects
 mc ls aer/bronze-quarantine/  # List DLQ (malformed data)
 
-mc cat aer/bronze/wikipedia/some-article/2026-04-01.json   # Read a raw document
-mc cat aer/silver/wikipedia/some-article/2026-04-01.json   # Read harmonized version
+mc cat aer/bronze/tagesschau/some-article/2026-04-01.json   # Read a raw document
+mc cat aer/silver/tagesschau/some-article/2026-04-01.json   # Read harmonized version
 ```
 
 **Buckets** (provisioned by `minio-init` container on startup):
@@ -262,7 +271,7 @@ curl http://localhost:8081/api/v1/healthz
 curl http://localhost:8081/api/v1/readyz
 
 # Resolve a source ID
-curl -H "X-API-Key: $INGESTION_API_KEY" "http://localhost:8081/api/v1/sources?name=wikipedia"
+curl -H "X-API-Key: $INGESTION_API_KEY" "http://localhost:8081/api/v1/sources?name=tagesschau"
 
 # Ingest a test document
 curl -X POST http://localhost:8081/api/v1/ingest \
@@ -303,7 +312,19 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 
 # Filter by source and metric name
 curl -H "X-API-Key: $BFF_API_KEY" \
-  "http://localhost:8080/api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&source=wikipedia&metricName=word_count"
+  "http://localhost:8080/api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&source=tagesschau&metricName=word_count"
+
+# Discover available metric names
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/metrics/available"
+
+# Query named entities (aggregated by text and label)
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/entities?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z"
+
+# Filter entities by source and NER label (PER, ORG, LOC, MISC)
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/entities?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&source=bundesregierung&label=ORG&limit=50"
 ```
 
 **OpenAPI spec:** `services/bff-api/api/openapi.yaml`. Regenerate server stubs: `make codegen`.
@@ -315,7 +336,28 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 | Prometheus       | `http://localhost:8001/metrics` (internal)|
 | Internal only    | No HTTP API — event-driven via NATS      |
 
-The worker subscribes to NATS subject `aer.lake.bronze`, downloads raw documents from MinIO, validates against the Silver Contract (Pydantic), extracts metrics, writes harmonized data to Silver bucket, and inserts metrics into ClickHouse Gold layer.
+The worker subscribes to NATS subject `aer.lake.bronze`, downloads raw documents from MinIO, validates against the Silver Contract (Pydantic), runs the extractor pipeline, writes harmonized data to the Silver bucket, and inserts metrics/entities into ClickHouse Gold layer.
+
+**Concurrency:** Controlled by `WORKER_COUNT` in `.env` (default: `5`). Sets the number of concurrent event processing coroutines.
+
+**Metric extractors** (registered in `main.py`, all provisional except Temporal):
+
+| Extractor | Metric Name(s) | Description |
+| :--- | :--- | :--- |
+| `WordCountExtractor` | `word_count` | Token count of cleaned text |
+| `TemporalDistributionExtractor` | `publication_hour`, `publication_weekday` | Publication time metadata |
+| `LanguageDetectionExtractor` | `language_confidence` | Confidence score via `langdetect` |
+| `SentimentExtractor` | `sentiment_score`, `lexicon_version` | German lexicon polarity via SentiWS |
+| `NamedEntityExtractor` | `entity_count` | spaCy `de_core_news_lg` NER; raw spans stored in `aer_gold.entities` |
+
+Extractors are independent — one failing extractor does not crash others or route the document to the DLQ. Extractor source code is in `services/analysis-worker/internal/extractors/`.
+
+**Source adapters** select the harmonization strategy based on `source_type` in the Bronze document:
+
+| Source Type | Adapter | Silver Output |
+| :--- | :--- | :--- |
+| `rss` | `RSSAdapter` | `SilverCore` + `RSSMeta` (feed_url, categories, author, feed_title) |
+| *(missing/unknown)* | `LegacyAdapter` | Backward-compatible mapping for pre-Phase 39 documents |
 
 ```bash
 # Check worker logs
@@ -324,6 +366,50 @@ make logs   # Combined logs of all services
 # Or directly
 tail -f .pids/worker.log
 ```
+
+### RSS Crawler
+
+The RSS crawler is a standalone Go binary under `crawlers/rss-crawler/`. It fetches German institutional RSS feeds and submits documents to the Ingestion API. It is **not** part of the Docker Compose stack — you run it manually or via a cron job.
+
+```bash
+# Quick start (builds and runs with defaults from .env)
+make crawl
+
+# Or manually: build + run with explicit flags
+go build -o bin/rss-crawler ./crawlers/rss-crawler
+./bin/rss-crawler \
+  -config crawlers/rss-crawler/feeds.yaml \
+  -api-url http://localhost:8081/api/v1/ingest \
+  -sources-url http://localhost:8081/api/v1/sources \
+  -api-key $INGESTION_API_KEY
+```
+
+`make crawl` requires `make debug-up` (so the Ingestion API is reachable on `localhost:8081`) and `INGESTION_API_KEY` set in `.env`.
+
+**CLI flags:**
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `-config` | Path to `feeds.yaml` | *(required)* |
+| `-api-url` | Ingestion API ingest endpoint | *(required)* |
+| `-sources-url` | Ingestion API sources endpoint | *(required)* |
+| `-api-key` | `INGESTION_API_KEY` value | *(required)* |
+
+**Feed configuration** (`crawlers/rss-crawler/feeds.yaml`):
+
+```yaml
+feeds:
+  - name: bundesregierung   # Must match a source registered in PostgreSQL
+    url: https://www.bundesregierung.de/breg-de/feed
+  - name: tagesschau
+    url: https://www.tagesschau.de/index~rss2.xml
+```
+
+Adding a new RSS feed requires:
+1. A new entry in `feeds.yaml`.
+2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
+
+**Deduplication:** The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs.
 
 ---
 
@@ -355,7 +441,7 @@ make codegen         # Regenerate OpenAPI stubs, then check for drift
 
 **Testcontainers:** Go and Python tests spin up real database containers using image tags parsed from `compose.yaml` (SSoT enforcement). No hardcoded tags in test files.
 
-**E2E smoke test** (`scripts/e2e_smoke_test.sh`): Ingests a test document → waits for pipeline processing → queries BFF API → validates end-to-end data flow.
+**E2E smoke test** (`scripts/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics) → validates end-to-end data flow → teardown.
 
 ---
 
