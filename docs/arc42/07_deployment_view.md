@@ -69,10 +69,12 @@ All infrastructure images in `compose.yaml` use **hard-pinned, immutable version
 | **Image** | `traefik:v3.6.12` |
 | **Network** | `aer-frontend` |
 | **Ports** | `80` (HTTP → redirect to HTTPS), `443` (HTTPS) |
-| **TLS** | Automatic via ACME / Let's Encrypt (`tlschallenge`) |
+| **TLS** | Self-signed (dev default); ACME / Let's Encrypt via `compose.prod.yaml` overlay |
 | **Resources** | 128 MB RAM, 0.25 CPU |
 
 Traefik discovers backend services via Docker labels. Only `bff-api` is explicitly exposed (`traefik.enable=true`) with the routing rule `PathPrefix(/api)`. All other services remain unexposed to the internet.
+
+**Dev vs. Production TLS:** The base `compose.yaml` uses Traefik's default self-signed certificate (`tls=true`) — no ACME provider is contacted, avoiding certificate errors for `*.example.com` hosts in development and CI. For production with real domains, apply the overlay: `docker compose -f compose.yaml -f compose.prod.yaml up -d`. The overlay adds the ACME certificate resolver and switches all routers to `tls.certresolver=myresolver` for automatic Let's Encrypt certificates.
 
 ### 7.4.2 Data Layer
 
@@ -156,7 +158,7 @@ The repository root is mounted at `/docs` inside the container. MkDocs runs in l
 | `postgres_data` | `postgres` | Metadata index (sources, ingestion jobs, documents, trace IDs). |
 | `clickhouse_data` | `clickhouse` | Gold layer time-series metrics (`aer_gold.metrics`). |
 | `tempo_data` | `tempo` | Trace WAL and block storage (`/var/tempo`). Retains traces for 72h (development) or 720h (production). |
-| `traefik-certs` | `traefik` | ACME/Let's Encrypt certificates persisted across restarts. |
+| `traefik-certs` | `traefik` | ACME/Let's Encrypt certificates persisted across restarts (production only, via `compose.prod.yaml`). |
 
 Volumes can be selectively wiped via `make infra-clean-{postgres,minio,clickhouse}` or entirely via `make infra-clean`. All wipe commands require interactive confirmation.
 
@@ -222,7 +224,13 @@ The `.env` file (copied from `.env.example`) serves as the central configuration
 
 ### 7.7.3 Containerized Mode
 
-For full-stack containerized deployment (e.g., on a VPS), all three application services also have Dockerfile definitions and compose entries. Running `docker compose up -d` brings up the entire stack including application services built from source.
+For full-stack containerized deployment (e.g., on a VPS), all three application services also have Dockerfile definitions and compose entries. Running `docker compose up -d` brings up the entire stack with self-signed TLS (suitable for internal/staging use). For production with real domains and Let's Encrypt:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml up -d
+```
+
+Ensure `GRAFANA_HOST`, `MINIO_CONSOLE_HOST`, and `ACME_EMAIL` are set to real values in `.env`.
 
 ## 7.8 Exposed Ports (Localhost)
 

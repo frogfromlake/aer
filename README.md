@@ -46,7 +46,7 @@ Full architectural documentation (arc42) is available at `http://localhost:8000`
 | Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling |
 | Analytics Database | ClickHouse | Column-oriented OLAP; mandatory for sub-second time-series queries |
 | Metadata Index | PostgreSQL | Relational tracking of ingestion jobs, document lifecycle, trace IDs |
-| Reverse Proxy / TLS | Traefik | Automatic ACME/Let's Encrypt; zero TLS code in application services |
+| Reverse Proxy / TLS | Traefik | Self-signed TLS in dev; ACME/Let's Encrypt in production via `compose.prod.yaml` overlay |
 | Observability | OpenTelemetry + Grafana LGTM | End-to-end distributed tracing across the NATS boundary |
 | Containerization | Docker + Compose | `compose.yaml` is the Single Source of Truth for the entire stack |
 
@@ -387,6 +387,20 @@ All Docker images in `compose.yaml` use hard-pinned, immutable patch-level versi
 | Metadata | PostgreSQL | Unlimited | — |
 
 All retention policies are defined in infrastructure scripts (`infra/`). No application code manages data expiration.
+
+---
+
+## TLS Configuration
+
+By default, `compose.yaml` configures Traefik with a **self-signed TLS certificate** — suitable for local development and CI where real domains are not available. No ACME provider is contacted, so there are no certificate errors for `*.example.com` hosts.
+
+For **production** deployments with real domains and automatic Let's Encrypt certificates, use the production overlay:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml up -d
+```
+
+`compose.prod.yaml` adds the ACME certificate resolver to Traefik and switches all routers from self-signed TLS to Let's Encrypt. Make sure to set real domain names for `GRAFANA_HOST` and `MINIO_CONSOLE_HOST` in `.env`, and provide a valid `ACME_EMAIL`.
 
 ---
 

@@ -33,15 +33,11 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-certs:/letsencrypt
     networks:
       - aer-frontend
     deploy:
@@ -71,7 +67,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.minio-console.rule=Host(`${MINIO_CONSOLE_HOST}`)"
       - "traefik.http.routers.minio-console.entrypoints=websecure"
-      - "traefik.http.routers.minio-console.tls.certresolver=myresolver"
+      - "traefik.http.routers.minio-console.tls=true"
       - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
     networks:
       - aer-frontend
@@ -338,7 +334,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.bff-api.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.bff-api.entrypoints=websecure"
-      - "traefik.http.routers.bff-api.tls.certresolver=myresolver"
+      - "traefik.http.routers.bff-api.tls=true"
       - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
     networks:
       - aer-frontend
@@ -421,7 +417,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOST}`)"
       - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.routers.grafana.tls=true"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
     volumes:
       - ./infra/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
@@ -499,7 +495,6 @@ volumes:
   minio_data:
   postgres_data:
   clickhouse_data:
-  traefik-certs:
   tempo_data:
 
 networks:
