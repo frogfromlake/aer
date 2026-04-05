@@ -9,7 +9,6 @@ COPY services/ingestion-api/ services/ingestion-api/
 # Workspace stubs: go.mod required for all modules listed in go.work
 COPY services/bff-api/go.mod services/bff-api/go.mod
 COPY crawlers/rss-crawler/go.mod crawlers/rss-crawler/go.mod
-COPY crawlers/wikipedia-scraper/go.mod crawlers/wikipedia-scraper/go.mod
 
 WORKDIR /workspace/services/ingestion-api
 
