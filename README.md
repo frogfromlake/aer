@@ -30,7 +30,7 @@ Crawler  →  Ingestion API (Go)  →  MinIO Bronze  →  NATS JetStream
 
 **BFF API (Go):** Contract-first REST API generated from OpenAPI 3.0. Queries ClickHouse with server-side downsampling and hard row limits. The only service exposed to the internet, authenticated via API key, TLS-terminated by Traefik.
 
-**Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service.
+**Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service. Currently includes the Wikipedia scraper (PoC) and the RSS crawler (German institutional feeds for pipeline calibration).
 
 Full architectural documentation (arc42) is available at `http://localhost:8000` when the stack is running.
 
@@ -165,9 +165,10 @@ make        # or: make help — prints a formatted overview of all available tar
 
 | Target | Description |
 | :--- | :--- |
-| `make test` | Run full test suite (Go integration tests + Python unit tests) |
+| `make test` | Run full test suite (Go integration tests + Go crawler tests + Python unit tests) |
 | `make test-go` | Run Go integration tests (Testcontainers — requires Docker) |
 | `make test-go-pkg` | Run Go tests for the shared `pkg/` module |
+| `make test-go-crawlers` | Run Go crawler tests (RSS parser, translator, dedup) |
 | `make test-e2e` | Run Docker Compose end-to-end smoke test |
 | `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
 | `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
@@ -291,9 +292,37 @@ The returned `id` is used as `source_id` in all subsequent ingest calls. Hard-co
 
 Documents are submitted as JSON batches to `POST /api/v1/ingest`. See the [Ingestion Contract](#ingestion-contract) section above for the full schema. The `key` field determines the Bronze bucket object path and should follow the pattern `<source>/<identifier>/<date>.json`.
 
-**3. Authentication**
+**3. Source Type (Phase 39+)**
+
+Crawlers for new data sources should include a `source_type` field in the `data` payload (e.g., `"rss"`, `"forum"`, `"social"`). This field is used by the analysis worker to select the correct Source Adapter for harmonization. Documents without a `source_type` are handled by the legacy adapter. See ADR-015 in the architecture documentation.
+
+**4. Authentication**
 
 All Ingestion API endpoints (except `/api/v1/healthz` and `/api/v1/readyz`) require the `X-API-Key` header (or `Authorization: Bearer <key>`). The key is configured via the `INGESTION_API_KEY` environment variable in `.env`.
+
+### RSS Crawler
+
+The RSS crawler (`crawlers/rss-crawler/`) is AĒR's first real data source. It fetches German institutional RSS feeds for pipeline calibration (see architecture documentation, Chapter 13, §13.8).
+
+**Usage:**
+
+```bash
+# Build
+go build -o bin/rss-crawler ./crawlers/rss-crawler
+
+# Run (requires the AĒR stack to be running)
+./bin/rss-crawler \
+  -config crawlers/rss-crawler/feeds.yaml \
+  -api-url http://localhost:8081/api/v1/ingest \
+  -sources-url http://localhost:8081/api/v1/sources \
+  -api-key <your-ingestion-key>
+```
+
+**Feed configuration** is defined in `feeds.yaml`. Adding a new RSS feed requires:
+1. A new entry in `feeds.yaml` (`name` + `url`).
+2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
+
+The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs.
 
 ---
 

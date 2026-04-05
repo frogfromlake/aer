@@ -4,7 +4,8 @@ import structlog
 from datetime import datetime
 from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
-from internal.models import SilverRecord, ValidationError
+from internal.models import SilverEnvelope, ValidationError
+from internal.adapters.registry import AdapterRegistry
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -16,13 +17,17 @@ logger = structlog.get_logger()
 
 class DataProcessor:
     """
-    Handles the transformation of raw Bronze data into harmonized Silver data,
-    calculates Gold metrics, and manages the Dead Letter Queue (DLQ).
+    Source-agnostic data processor for the AĒR Medallion Architecture.
+
+    Fetches Bronze data, delegates harmonization to source-specific adapters
+    via the AdapterRegistry, validates the SilverCore contract, writes Silver,
+    extracts Gold metrics, and manages the Dead Letter Queue (DLQ).
     """
-    def __init__(self, minio_client: Minio, ch_client, pg_pool: ThreadedConnectionPool):
+    def __init__(self, minio_client: Minio, ch_client, pg_pool: ThreadedConnectionPool, adapter_registry: AdapterRegistry):
         self.minio = minio_client
         self.ch = ch_client
         self.pg = pg_pool
+        self.adapter_registry = adapter_registry
 
     def process_event(self, obj_key: str, event_time_str: str, span):
         with event_processing_duration_seconds.time():
@@ -32,8 +37,6 @@ class DataProcessor:
         # --- 1. IDEMPOTENCY CHECK (Fast PG Lookup) ---
         status = self._get_document_status(obj_key)
 
-        # If status is None, the Go Ingestion API hasn't written the metadata yet.
-        # If it's processed/quarantined, we skip.
         if status in ("processed", "quarantined"):
             logger.info("Event already processed. Skipping duplicate.", object=obj_key)
             span.set_attribute("aer.status", "skipped_duplicate")
@@ -46,29 +49,27 @@ class DataProcessor:
         response = self.minio.get_object("bronze", obj_key)
         raw_content = json.loads(response.read().decode('utf-8'))
 
-        # --- 3. Harmonization (Bronze → Silver, source-agnostic) ---
-        raw_text = raw_content.get("raw_text", "")
-        cleaned_text = " ".join(raw_text.split())  # normalize whitespace
-        title = raw_content.get("title", "").strip()
-        word_count = len(cleaned_text.split()) if cleaned_text else 0
+        # --- 3. Resolve source adapter ---
+        source_type = raw_content.get("source_type", "legacy")
+        adapter = self.adapter_registry.get(source_type)
 
-        harmonized_data = {
-            "title": title,
-            "raw_text": cleaned_text,
-            "word_count": word_count,
-            "source": raw_content.get("source", ""),
-            "status": "harmonized",
-            "metric_value": float(word_count),  # word count as the primary Gold metric
-            "timestamp": event_time,             # <-- Injected deterministic timestamp
-        }
+        if adapter is None:
+            logger.warning(
+                "Unknown source_type. No adapter registered. Moving to DLQ.",
+                object=obj_key,
+                source_type=source_type,
+            )
+            self._move_to_quarantine(obj_key, raw_content)
+            self._update_document_status(obj_key, "quarantined")
+            events_quarantined_total.inc()
+            dlq_size.inc()
+            span.set_attribute("aer.status", "quarantined")
+            span.set_attribute("aer.quarantine_reason", f"unknown_source_type:{source_type}")
+            return
 
-        # --- 4. Validation (The Silver Contract) ---
+        # --- 4. Harmonization (Bronze → Silver, via adapter) ---
         try:
-            record = SilverRecord(**harmonized_data)
-            if not record.raw_text:
-                raise ValueError("raw_text field cannot be empty after harmonization.")
-            if not record.title:
-                raise ValueError("Title field cannot be empty after harmonization.")
+            core, meta = adapter.harmonize(raw_content, event_time, obj_key)
         except (ValidationError, ValueError) as e:
             logger.warning("Harmonization failed. Moving to DLQ.", object=obj_key, error=str(e))
             self._move_to_quarantine(obj_key, raw_content)
@@ -78,36 +79,49 @@ class DataProcessor:
             span.set_attribute("aer.status", "quarantined")
             return
 
-        # --- 5. Upload to Silver Layer ---
-        # This is idempotent! If ClickHouse failed previously, we safely overwrite Silver.
-        silver_payload = record.model_dump_json().encode('utf-8')
+        # --- 5. Validation (The Silver Contract) ---
+        try:
+            if not core.cleaned_text:
+                raise ValueError("cleaned_text field cannot be empty after harmonization.")
+            if not core.raw_text:
+                raise ValueError("raw_text field cannot be empty after harmonization.")
+        except ValueError as e:
+            logger.warning("Silver contract validation failed. Moving to DLQ.", object=obj_key, error=str(e))
+            self._move_to_quarantine(obj_key, raw_content)
+            self._update_document_status(obj_key, "quarantined")
+            events_quarantined_total.inc()
+            dlq_size.inc()
+            span.set_attribute("aer.status", "quarantined")
+            return
+
+        # --- 6. Upload to Silver Layer ---
+        envelope = SilverEnvelope(core=core, meta=meta)
+        silver_payload = envelope.model_dump_json().encode('utf-8')
         self.minio.put_object(
             "silver", obj_key,
             io.BytesIO(silver_payload), len(silver_payload),
             content_type="application/json"
         )
-        logger.info("Silver layer updated", object=obj_key, source=record.source, word_count=record.word_count)
+        logger.info("Silver layer updated", object=obj_key, source=core.source, word_count=core.word_count, schema_version=core.schema_version)
 
-        # --- 6. Extract and load to Gold Layer (ClickHouse) ---
-        # If this fails, an exception is thrown, the NATS message is NAK'd,
-        # and the PG status remains 'pending'/'uploaded' for retry!
-        # Derive article_id from the object key (e.g. "wikipedia/article-slug/2026-03-28.json")
+        # --- 7. Extract and load to Gold Layer (ClickHouse) ---
         key_parts = obj_key.split("/")
         article_id = key_parts[1] if len(key_parts) >= 3 else None
 
         self.ch.insert(
             'aer_gold.metrics',
-            [[record.timestamp, record.metric_value, record.source, "word_count", article_id]],
+            [[core.timestamp, float(core.word_count), core.source, "word_count", article_id]],
             column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id']
         )
-        logger.info("Gold layer updated", metric=record.metric_value, timestamp=str(record.timestamp), source=record.source, article_id=article_id)
+        logger.info("Gold layer updated", metric=core.word_count, timestamp=str(core.timestamp), source=core.source, article_id=article_id)
 
-        # --- 7. Commit Success (Solve Partial Failures) ---
+        # --- 8. Commit Success ---
         self._update_document_status(obj_key, "processed")
         events_processed_total.inc()
 
-        span.set_attribute("aer.word_count", record.word_count)
-        span.set_attribute("aer.metric_value", record.metric_value)
+        span.set_attribute("aer.word_count", core.word_count)
+        span.set_attribute("aer.source_type", core.source_type)
+        span.set_attribute("aer.schema_version", core.schema_version)
         span.set_attribute("aer.status", "processed")
 
     def _get_document_status(self, obj_key: str) -> str | None:

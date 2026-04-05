@@ -124,6 +124,8 @@ The following institutions represent potential collaboration partners, ordered b
 
 This section maps scientific methods to concrete implementation steps in the Python analysis worker. Each method is evaluated against AĒR's architectural constraints: determinism, transparency, and Ockham's Razor.
 
+**Data Contract:** All Tier 1, Tier 2, and Tier 3 metrics operate on `SilverCore.cleaned_text` — the whitespace-normalized text produced by the source adapter during harmonization. The original `SilverCore.raw_text` is preserved for provenance but is not used as input to metric extraction. `SilverMeta` (source-specific context) is available for source-specific enrichment tasks but is excluded from core metrics. This ensures that metrics are comparable across data sources regardless of source-specific metadata structure. See ADR-015 for the Silver schema evolution strategy.
+
 ### 13.3.1 Tier 1 — Deterministic Core Metrics
 
 These methods are fully deterministic, transparent, and auditable. They form the foundation of AĒR's Gold layer and should be implemented first.
@@ -233,3 +235,67 @@ The following questions must be answered through interdisciplinary collaboration
 - King, G., Lam, P., & Roberts, M. E. (2017). "Computer-Assisted Keyword and Document Set Discovery from Unstructured Text." *American Journal of Political Science*, 61(4), 971–988.
 - Blei, D. M., Ng, A. Y., & Jordan, M. I. (2003). "Latent Dirichlet Allocation." *Journal of Machine Learning Research*, 3, 993–1022.
 - Grootendorst, M. (2022). "BERTopic: Neural Topic Modeling with a Class-Based TF-IDF Procedure." arXiv:2203.05794.
+
+---
+
+## 13.8 Probe 0: Pipeline Calibration (German Institutional RSS)
+
+> **Status:** Active — engineering calibration probe.
+> **Date:** 2026-04-05
+
+This section documents AĒR's first real data source. The source selection is explicitly **provisional** — it is driven by pragmatic engineering criteria, not by scientific probe methodology. The Manifesto's Probe Principle (§IV) requires interdisciplinary dialogue for valid probe selection; this dialogue has not yet occurred. The RSS feeds selected here serve as **calibration data** for the pipeline, not as a scientifically representative sample of German discourse.
+
+### Purpose
+
+Engineering calibration of the AĒR pipeline. This probe validates:
+
+- End-to-end data flow from external source through Bronze → Silver → Gold.
+- The Silver Contract evolution (SilverCore + SilverMeta, ADR-015) with real-world data.
+- Source Adapter pattern correctness (RSSAdapter producing valid SilverCore records).
+- Metric extraction on non-synthetic text (German-language editorial content).
+- BFF API serving of multi-source aggregated data.
+
+### Source Selection Criteria (Engineering, Not Scientific)
+
+The following criteria are purely pragmatic — they optimize for pipeline validation, not for societal representativeness:
+
+- **Publicly available:** No authentication, no API keys, no paid subscriptions.
+- **Structured format:** RSS/Atom feeds with predictable XML structure. Parseable via standard libraries (`gofeed`).
+- **No Terms of Service restrictions:** Government and public broadcasting feeds are explicitly intended for public consumption.
+- **No personal data:** Editorial content only — no user profiles, comments, or engagement data.
+- **Predictable document volume:** Institutional feeds publish 5–30 items per day, enabling controlled pipeline load testing.
+- **German-language:** Provides a homogeneous linguistic corpus for validating NLP model behavior (tokenization, whitespace normalization, character encoding) before introducing multilingual complexity.
+
+### Milieu Bias Acknowledgment (Per Manifesto §III)
+
+This probe captures exclusively **institutional and editorial voice**. It does not represent:
+
+- "The German public" or public opinion in any statistical sense.
+- Grassroots discourse, citizen journalism, or independent media.
+- Social media dynamics, virality, or engagement patterns.
+- Any specific demographic, age group, or socioeconomic milieu.
+- Regional variation within Germany (federal government perspective is structurally national).
+
+This bias is a **documented parameter of the observation**, not a defect. Every dataset carries selection bias — the scientific integrity lies in documenting it explicitly rather than pretending it doesn't exist.
+
+### Selected Sources (Provisional, Subject to Change Without ADR)
+
+| Source | Feed URL | Type | Expected Volume |
+| :--- | :--- | :--- | :--- |
+| **bundesregierung.de** | `https://www.bundesregierung.de/breg-de/aktuelles.rss` | Government press releases | ~5–15 items/day |
+| **tagesschau.de** | `https://www.tagesschau.de/index~rss2.xml` | Public broadcasting news (ARD) | ~20–40 items/day |
+
+Additional quality press feeds may be added as the pipeline matures. Each addition requires only a new entry in `feeds.yaml` and a PostgreSQL seed migration — no code changes to any AĒR service.
+
+### Limitations
+
+- **Editorial content only.** No user-generated content, no comments, no forum threads.
+- **No engagement metrics.** RSS feeds do not expose view counts, shares, or reactions.
+- **No threading or reply structure.** Each item is an independent document with no relational context.
+- **Limited to German language.** Multilingual processing is deferred until cross-cultural comparability methodology is established (§13.6, Question 4).
+- **RSS feeds may be incomplete.** Many feeds provide truncated descriptions rather than full article text. The `raw_text` field may contain summaries, not complete articles. This limitation is inherent to the RSS format and must be documented in any analysis derived from this probe.
+- **Feed URLs may change without notice.** Government and public broadcasting feed endpoints are not contractually stable. The crawler must handle HTTP 301/404 gracefully.
+
+### Exit Criteria
+
+This probe is **superseded** — not retired — when a scientifically motivated probe selection is made through the research process (§13.5). The RSS crawler remains operational as one data source among many. The engineering calibration data it has collected retains its value for pipeline regression testing and baseline comparisons, even after scientifically selected probes are introduced.

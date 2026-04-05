@@ -313,3 +313,70 @@ We adopt a **two-tier migration strategy** tailored to each database engine:
 
 * **Positive:** Schema evolution is now possible without volume wipes. All changes are versioned, auditable, and reversible. Crawlers are decoupled from database seeding order. The migration contract (`CREATE IF NOT EXISTS`, `ALTER ... IF NOT EXISTS`) enables no-downtime schema changes.
 * **Negative:** The ingestion-api startup time increases slightly (~50-100ms) due to migration version checks. The ClickHouse migration runner is a custom shell script rather than a battle-tested framework — it must be kept simple and idempotent.
+
+---
+
+## ADR-015: Evolvable Silver Contract
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-04-05 |
+| **Status** | Accepted |
+| **Supersedes** | Extends ADR-002 (Silver Contract) |
+
+### Context
+
+The current `SilverRecord` is a flat, monolithic Pydantic model hardwired to one data shape. Every field — `title`, `raw_text`, `word_count`, `source`, `status`, `metric_value`, `timestamp` — lives in a single model shared by all sources. This creates three structural problems:
+
+1. **Schema Rigidity:** Adding a new data source (e.g., RSS feeds, forum threads, social media posts) requires modifying the shared `SilverRecord`, risking regressions across the entire pipeline. Fields specific to one source pollute the contract for all others.
+2. **Provenance Destruction:** The current processor overwrites `raw_text` with cleaned text during harmonization. The original text is lost at the Silver level, violating the principle that each Medallion layer should preserve the fidelity of the layer below.
+3. **Layer Violation:** `metric_value` and `status` are embedded in the Silver model, but metric extraction belongs in the Gold layer and processing status belongs in PostgreSQL. Their presence in Silver conflates harmonization with analytics and lifecycle management.
+
+AĒR is a research instrument, not a product. The Silver schema, Gold metrics, and analysis pipeline will undergo radical changes as interdisciplinary collaboration matures (Chapter 13, §13.6 Open Research Questions). The architecture must treat schema evolution as the normal case, not the exception.
+
+### Decision
+
+We split the Silver layer into two tiers and introduce a Source Adapter pattern:
+
+**1. `SilverCore` — Universal Minimum Contract**
+
+`SilverCore` defines the absolute minimum a document must have for *any* NLP pipeline to operate. These fields are instrumentally motivated (the pipeline needs them), not scientifically motivated (they don't represent analytical conclusions):
+
+| Field | Type | Purpose |
+| :--- | :--- | :--- |
+| `document_id` | `str` | Deterministic SHA-256 hash of `source + bronze_object_key`. Enables idempotency checks without MinIO HEAD requests. |
+| `source` | `str` | Origin identifier (e.g., `"wikipedia"`, `"tagesschau"`). |
+| `source_type` | `str` | Discriminator for `SilverMeta` lookup (e.g., `"rss"`, `"forum"`, `"legacy"`). |
+| `raw_text` | `str` | Original text as received from Bronze, unmodified. |
+| `cleaned_text` | `str` | Whitespace-normalized text for downstream NLP processing. |
+| `language` | `str` | ISO 639-1 code. Default `"und"` (undetermined). |
+| `timestamp` | `datetime` | Deterministic event timestamp from MinIO event metadata. |
+| `url` | `str` | Source URL for provenance and Progressive Disclosure. Default empty string. |
+| `schema_version` | `int` | Starts at `2`. Version `1` represents the legacy `SilverRecord` format. |
+| `word_count` | `int` | Word count of `cleaned_text`. Retained in Silver as a basic document descriptor. |
+
+Fields removed from Silver: `metric_value` (belongs in Gold), `status` (belongs in PostgreSQL).
+
+**2. `SilverMeta` — Source-Specific Context**
+
+`SilverMeta` is a discriminated union that preserves source-specific richness without polluting the core. Each source type defines its own Pydantic model (e.g., `RssMeta` with `feed_url`, `author`, `categories`). The meta envelope is explicitly marked as **unstable** — source adapters may add, rename, or restructure meta fields without a formal ADR. Only `SilverCore` changes require an ADR.
+
+**3. Source Adapter Protocol**
+
+A `SourceAdapter` protocol defines a single method: `harmonize(raw: dict, event_time: datetime) -> tuple[SilverCore, SilverMeta | None]`. Each data source provides an adapter that maps its raw Bronze data to the universal `SilverCore` plus an optional source-specific `SilverMeta`. The processor looks up the adapter via a registry keyed by `source_type`. Unknown source types are routed to the DLQ.
+
+A `LegacyAdapter` provides backward compatibility for existing Bronze objects (Wikipedia-era) that lack a `source_type` field. It maps old-format documents to `SilverCore` with `source_type = "legacy"` and `schema_version = 1`.
+
+**4. Schema Evolution Strategy**
+
+- New fields are added as `Optional` with defaults.
+- Removed fields are deprecated (kept with a deprecation marker) for one release cycle, then dropped.
+- The Silver bucket is append-only — existing objects are never re-processed to match a new schema version.
+- The `schema_version` field enables the worker to handle multiple schema generations simultaneously.
+
+**Both `SilverCore` and `SilverMeta` are provisional.** They represent the current best understanding of what the pipeline needs. As interdisciplinary research (Chapter 13) produces new requirements — new metadata fields, new normalization steps, new language-specific processing — the schema will evolve. The architecture supports this without pipeline-wide regressions.
+
+### Consequences
+
+* **Positive:** Adding a new data source requires only a new adapter and (optionally) a new `SilverMeta` model — zero changes to the processor, validator, or existing tests. Schema evolution is routine. Provenance is preserved (`raw_text` vs. `cleaned_text`). Layer responsibilities are clean (Silver = harmonization, Gold = analytics, PostgreSQL = lifecycle).
+* **Negative:** The adapter registry adds one lookup per event (O(1) dict access — negligible). The `SilverCore` model is slightly larger than the old `SilverRecord` due to the addition of `document_id`, `cleaned_text`, `language`, `source_type`, and `schema_version`. The `LegacyAdapter` must be maintained until all pre-Phase 39 Bronze objects have expired from the 90-day ILM window.

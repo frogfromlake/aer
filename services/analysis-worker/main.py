@@ -19,6 +19,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from prometheus_client import start_http_server
 from internal.storage import init_minio, init_clickhouse, init_postgres
 from internal.processor import DataProcessor
+from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
 
 load_dotenv()
 
@@ -101,7 +102,8 @@ async def main(config: WorkerConfig | None = None):
     ch_client = init_clickhouse()
     pg_pool = init_postgres()
 
-    data_processor = DataProcessor(minio_client, ch_client, pg_pool)
+    adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter()})
+    data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry)
     nc = NATS()
     task_queue = asyncio.Queue()
 

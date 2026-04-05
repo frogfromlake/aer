@@ -5,7 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
-.PHONY: logs tidy codegen test test-go test-go-pkg test-python test-e2e lint lint-go-pkg build-services
+.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg build-services
 
 SHELL := /bin/bash
 
@@ -145,6 +145,7 @@ logs:
 tidy:
 	@cd services/ingestion-api && go mod tidy
 	@cd services/bff-api && go mod tidy
+	@cd crawlers/rss-crawler && go mod tidy
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
 
 codegen:
@@ -157,13 +158,14 @@ build-services:
 	@mkdir -p bin
 	@go build -o bin/ingestion-api ./services/ingestion-api/cmd/api
 	@go build -o bin/bff-api ./services/bff-api/cmd/server
+	@go build -o bin/rss-crawler ./crawlers/rss-crawler
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete. Binaries in ./bin/$(RESET)"
 
 # ==========================================
 # 5. TESTING & LINTING
 # ==========================================
 
-test: test-go test-go-pkg test-python
+test: test-go test-go-pkg test-go-crawlers test-python
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
 
 test-e2e:
@@ -180,6 +182,11 @@ test-go-pkg:
 	@cd pkg && go test -v ./...
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) tests passed!$(RESET)"
 
+test-go-crawlers:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Crawler Tests...$(RESET)"
+	@cd crawlers/rss-crawler && go test -v ./...
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (crawlers) tests passed!$(RESET)"
+
 test-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
 	@cd services/analysis-worker && \
@@ -195,6 +202,7 @@ lint:
 	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
+	@cd crawlers/rss-crawler && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (RSS Crawler) lint passed!$(RESET)"
 
 lint-go-pkg:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running golangci-lint for pkg/...$(RESET)"

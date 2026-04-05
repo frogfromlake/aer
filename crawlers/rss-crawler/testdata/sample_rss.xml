@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed — Bundespresseamt</title>
+    <link>https://www.example.gov.de</link>
+    <description>Offizielle Pressemitteilungen der Bundesregierung</description>
+    <language>de</language>
+    <item>
+      <title>Bundesregierung beschließt neues Klimaschutzpaket</title>
+      <link>https://www.example.gov.de/artikel/klimaschutz-2026</link>
+      <description>Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet. Das Paket sieht unter anderem eine Ausweitung des Emissionshandels vor.</description>
+      <pubDate>Sat, 05 Apr 2026 10:00:00 +0200</pubDate>
+      <guid>https://www.example.gov.de/artikel/klimaschutz-2026</guid>
+      <category>Klimaschutz</category>
+      <category>Umwelt</category>
+      <author>Bundespresseamt</author>
+    </item>
+    <item>
+      <title>Arbeitsmarktbericht März 2026</title>
+      <link>https://www.example.gov.de/artikel/arbeitsmarkt-maerz-2026</link>
+      <description>Die Zahl der Erwerbstätigen ist im März 2026 leicht gestiegen. Die Arbeitslosenquote liegt bei 5,2 Prozent.</description>
+      <pubDate>Fri, 04 Apr 2026 08:30:00 +0200</pubDate>
+      <guid>https://www.example.gov.de/artikel/arbeitsmarkt-maerz-2026</guid>
+      <category>Wirtschaft</category>
+    </item>
+    <item>
+      <title></title>
+      <link>https://www.example.gov.de/artikel/empty-title</link>
+      <description>This item has an empty title and should be skipped by the translator.</description>
+      <pubDate>Thu, 03 Apr 2026 12:00:00 +0200</pubDate>
+      <guid>https://www.example.gov.de/artikel/empty-title</guid>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,12 @@
+## AĒR RSS Feed Configuration — Probe 0 (German Institutional)
+##
+## Each entry registers a feed for crawling. The 'name' must match
+## a source registered in PostgreSQL (see infra/postgres/migrations/000003).
+## Adding a new feed = one entry here + one PG seed migration.
+
+feeds:
+  - name: bundesregierung
+    url: https://www.bundesregierung.de/breg-de/aktuelles.rss
+
+  - name: tagesschau
+    url: https://www.tagesschau.de/index~rss2.xml

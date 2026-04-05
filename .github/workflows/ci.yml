@@ -53,6 +53,7 @@ jobs:
             services/ingestion-api/go.sum
             services/bff-api/go.sum
             pkg/go.sum
+            crawlers/rss-crawler/go.sum
 
       - name: Extract Testcontainer image tags from compose.yaml
         id: tc-images
@@ -110,6 +111,10 @@ jobs:
         working-directory: ./pkg
         run: golangci-lint run
 
+      - name: Lint RSS Crawler
+        working-directory: ./crawlers/rss-crawler
+        run: golangci-lint run
+
       - name: Install oapi-codegen
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
@@ -117,6 +122,9 @@ jobs:
         run: |
           make codegen
           git diff --exit-code services/bff-api/internal/handler/generated.go
+
+      - name: Run Go Crawler Tests
+        run: cd crawlers/rss-crawler && go test -v ./...
 
       - name: Run Go Integration Tests (Testcontainers)
         run: |
@@ -149,6 +157,10 @@ jobs:
 
       - name: Run govulncheck (bff-api)
         working-directory: ./services/bff-api
+        run: govulncheck ./...
+
+      - name: Run govulncheck (rss-crawler)
+        working-directory: ./crawlers/rss-crawler
         run: govulncheck ./...
 
       - name: Set up Python
