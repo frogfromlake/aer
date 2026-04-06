@@ -222,7 +222,7 @@ AVAILABLE_STATUS=$(curl -sf \
     -o /tmp/aer_e2e_available.json \
     -w "%{http_code}" \
     -H "X-API-Key: ${BFF_API_KEY}" \
-    "${BFF_URL}/metrics/available" 2>/dev/null) || AVAILABLE_STATUS="000"
+    "${BFF_URL}/metrics/available?startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || AVAILABLE_STATUS="000"
 
 if [[ "$AVAILABLE_STATUS" == "200" ]]; then
     # Check that expected metric names are present
