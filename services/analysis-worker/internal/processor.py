@@ -6,7 +6,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverEnvelope, ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, EntityExtractor, LanguageDetectionPersistExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
+from internal.extractors.base import MetricExtractor, EntityExtractor, LanguageDetectionPersistExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -31,6 +31,11 @@ class DataProcessor:
         self.pg = pg_pool
         self.adapter_registry = adapter_registry
         self.extractors: list[MetricExtractor] = extractors or []
+        self._extraction_provenance: dict[str, str] = {
+            e.name: e.version_hash
+            for e in self.extractors
+            if isinstance(e, ProvenanceExtractor)
+        }
 
     def process_event(self, obj_key: str, event_time_str: str, span):
         with event_processing_duration_seconds.time():
@@ -85,7 +90,7 @@ class DataProcessor:
             return
 
         # --- 6. Upload to Silver Layer ---
-        envelope = SilverEnvelope(core=core, meta=meta)
+        envelope = SilverEnvelope(core=core, meta=meta, extraction_provenance=self._extraction_provenance)
         silver_payload = envelope.model_dump_json().encode('utf-8')
         self.minio.put_object(
             "silver", obj_key,

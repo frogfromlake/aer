@@ -166,6 +166,25 @@ class LanguageDetectionPersistExtractor(MetricExtractor, Protocol):
 
 
 @runtime_checkable
+class ProvenanceExtractor(MetricExtractor, Protocol):
+    """
+    Protocol for extractors that expose a version hash for provenance tracking.
+
+    Extractors implementing this protocol contribute a ``(name, version_hash)``
+    entry to the Silver envelope's ``extraction_provenance`` field. This keeps
+    provenance in the metadata layer (Silver) rather than polluting the
+    time-series Gold layer with non-analytical values.
+
+    Currently implemented by ``SentimentExtractor`` (SentiWS lexicon hash).
+    """
+
+    @property
+    def version_hash(self) -> str:
+        """Deterministic version identifier for the extractor's resource (e.g. lexicon hash)."""
+        ...
+
+
+@runtime_checkable
 class CorpusExtractor(Protocol):
     """
     Protocol for corpus-level batch extraction (interface only).

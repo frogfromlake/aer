@@ -245,6 +245,18 @@ print('yes' if '$m' in d else 'no')
         log_fail "metrics/available is missing:${MISSING}"
         log_info "Response: $(cat /tmp/aer_e2e_available.json)"
     fi
+
+    # Assert that lexicon_version is NOT present (Phase 46: provenance removed from Gold layer)
+    HAS_LEXICON_VERSION=$(python3 -c "
+import json
+d = json.load(open('/tmp/aer_e2e_available.json'))
+print('yes' if 'lexicon_version' in d else 'no')
+" 2>/dev/null || echo "error")
+    if [[ "$HAS_LEXICON_VERSION" == "no" ]]; then
+        log_ok "metrics/available correctly excludes lexicon_version (provenance in Silver envelope)."
+    else
+        log_fail "metrics/available must not contain lexicon_version — provenance belongs in the Silver envelope, not the Gold metrics table."
+    fi
 else
     log_fail "metrics/available endpoint returned HTTP $AVAILABLE_STATUS."
     log_info "Response: $(cat /tmp/aer_e2e_available.json 2>/dev/null || echo '<empty>')"

@@ -41,9 +41,14 @@ class SilverEnvelope(BaseModel):
     """
     Complete Silver record combining the universal core with optional source-specific metadata.
     This is the structure written to the Silver MinIO bucket.
+
+    ``extraction_provenance`` maps extractor name to a version identifier (e.g. lexicon hash)
+    for any extractor that implements the ``ProvenanceExtractor`` protocol. This keeps
+    provenance at the metadata layer rather than polluting the ClickHouse time-series table.
     """
     core: SilverCore
     meta: Optional[SerializeAsAny[SilverMeta]] = None
+    extraction_provenance: dict[str, str] = Field(default_factory=dict)
 
 
 def generate_document_id(source: str, bronze_object_key: str) -> str:

@@ -1068,16 +1068,17 @@ def test_sentiment_extractor_with_inline_lexicon(tmp_path):
     )
 
     metrics = extractor.extract(core, "article-1")
-    assert len(metrics) == 2
-
-    sentiment_metric = next(m for m in metrics if m.metric_name == "sentiment_score")
-    lexicon_metric = next(m for m in metrics if m.metric_name == "lexicon_version")
+    assert len(metrics) == 1
+    assert metrics[0].metric_name == "sentiment_score"
+    assert all(m.metric_name != "lexicon_version" for m in metrics)
 
     # "gut" (0.504) + "glück" (0.5765) → mean = ~0.54
-    assert -1.0 <= sentiment_metric.value <= 1.0
-    assert sentiment_metric.value > 0  # positive text → positive score
+    assert -1.0 <= metrics[0].value <= 1.0
+    assert metrics[0].value > 0  # positive text → positive score
 
-    assert lexicon_metric.value > 0  # hash as numeric
+    # Provenance is exposed via version_hash, not as a metric
+    assert extractor.version_hash != "empty"
+    assert len(extractor.version_hash) == 16
 
 
 def test_sentiment_extractor_negative_text(tmp_path):

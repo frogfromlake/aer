@@ -80,7 +80,10 @@ class SentimentExtractor:
 
     Produces:
     - metric_name = "sentiment_score": Mean word-level polarity.
-    - metric_name = "lexicon_version": SHA-256 hash of loaded lexicon (for auditability).
+
+    Lexicon version provenance is exposed via the ``lexicon_hash`` property and
+    recorded in the Silver envelope's ``extraction_provenance`` field — not as a
+    ClickHouse metric.
 
     Limitations (to be addressed with interdisciplinary collaboration, §13.5):
     - SentiWS is a word-level polarity lexicon. It assigns fixed sentiment
@@ -118,6 +121,10 @@ class SentimentExtractor:
     def lexicon_hash(self) -> str:
         return self._lexicon_hash
 
+    @property
+    def version_hash(self) -> str:
+        return self._lexicon_hash
+
     def extract(self, core, article_id: str | None) -> list[GoldMetric]:
         if not self._lexicon:
             return []
@@ -150,13 +157,6 @@ class SentimentExtractor:
                 value=round(sentiment, 4),
                 source=core.source,
                 metric_name="sentiment_score",
-                article_id=article_id,
-            ),
-            GoldMetric(
-                timestamp=core.timestamp,
-                value=float(int(self._lexicon_hash[:8], 16)),
-                source=core.source,
-                metric_name="lexicon_version",
                 article_id=article_id,
             ),
         ]

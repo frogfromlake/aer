@@ -1,4 +1,4 @@
-from internal.extractors.base import MetricExtractor, EntityExtractor, LanguageDetectionPersistExtractor, CorpusExtractor, GoldMetric, GoldEntity, GoldLanguageDetection, TimeWindow
+from internal.extractors.base import MetricExtractor, EntityExtractor, LanguageDetectionPersistExtractor, ProvenanceExtractor, CorpusExtractor, GoldMetric, GoldEntity, GoldLanguageDetection, TimeWindow
 from internal.extractors.word_count import WordCountExtractor
 from internal.extractors.temporal import TemporalDistributionExtractor
 from internal.extractors.language import LanguageDetectionExtractor
@@ -9,6 +9,7 @@ __all__ = [
     "MetricExtractor",
     "EntityExtractor",
     "LanguageDetectionPersistExtractor",
+    "ProvenanceExtractor",
     "CorpusExtractor",
     "GoldMetric",
     "GoldEntity",
