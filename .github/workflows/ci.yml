@@ -116,7 +116,7 @@ jobs:
         run: golangci-lint run
 
       - name: Install oapi-codegen
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
 
       - name: OpenAPI Contract Test (codegen sync check)
         run: |
@@ -149,7 +149,7 @@ jobs:
             pkg/go.sum
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: Run govulncheck (ingestion-api)
         working-directory: ./services/ingestion-api
@@ -170,7 +170,7 @@ jobs:
           cache: 'pip'
 
       - name: Install pip-audit
-        run: pip install pip-audit
+        run: pip install pip-audit==2.10.0
 
       - name: Run pip-audit (analysis-worker)
         working-directory: ./services/analysis-worker

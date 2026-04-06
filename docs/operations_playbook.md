@@ -384,7 +384,7 @@ go build -o bin/rss-crawler ./crawlers/rss-crawler
   -api-key $INGESTION_API_KEY
 ```
 
-`make crawl` requires `make debug-up` (so the Ingestion API is reachable on `localhost:8081`) and `INGESTION_API_KEY` set in `.env`.
+`make crawl` requires `make debug-up` (so the Ingestion API is reachable on `localhost:8081`). It automatically sources `.env` to load `INGESTION_API_KEY` and any other configured values — if `.env` is missing, the target exits with an error before running the binary.
 
 **CLI flags:**
 
@@ -435,7 +435,7 @@ make test            # Full suite: Go integration + Python unit tests
 make test-go         # Go integration tests (requires Docker for Testcontainers)
 make test-go-pkg     # Shared pkg/ module tests
 make test-e2e        # Docker Compose end-to-end smoke test
-make lint            # golangci-lint (Go) + ruff (Python)
+make lint            # golangci-lint (Go) + ruff (Python, with .venv fallback)
 make codegen         # Regenerate OpenAPI stubs, then check for drift
 ```
 

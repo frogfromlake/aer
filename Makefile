@@ -165,7 +165,11 @@ crawl:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Building RSS crawler...$(RESET)"
 	@go build -o bin/rss-crawler ./crawlers/rss-crawler
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running RSS crawler (feeds: crawlers/rss-crawler/feeds.yaml)...$(RESET)"
-	@./bin/rss-crawler -config crawlers/rss-crawler/feeds.yaml
+	@if [ ! -f .env ]; then \
+		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env file not found. Copy .env.example to .env and set INGESTION_API_KEY before running make crawl."; \
+		exit 1; \
+	fi
+	@set -a; source .env; set +a; ./bin/rss-crawler -config crawlers/rss-crawler/feeds.yaml
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Crawl complete.$(RESET)"
 
 # ==========================================
@@ -205,7 +209,12 @@ test-python:
 
 lint:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"
-	@cd services/analysis-worker && ./.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"
+	@cd services/analysis-worker && \
+		if [ -f ./.venv/bin/python ]; then \
+			./.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"; \
+		else \
+			python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"; \
+		fi
 	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"

@@ -517,8 +517,44 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update Tests.** Add test: two consecutive calls within TTL result in only one ClickHouse query. Add test: call after TTL expiry triggers a fresh query. Verify thread safety under concurrent access.
 * [x] **Update Arc42 Documentation.** Chapter 8 (§8.4 or new §8.11): document the caching strategy and its rationale (Occam's Razor — no Redis, no distributed cache, just in-process TTL).
 
+## Phase 50: CI Pinning Compliance & Makefile Portability (Findings 1, 2, 3, 4, 9) - [x] DONE
+*These findings represent violations of the project's internal SSoT/Pinning policy and portability gaps that could block new contributors. Addressing them ensures consistent builds across environments.*
+
+* [x] **Pin CI Tooling Versions.** Hard-pin `oapi-codegen`, `govulncheck`, and `pip-audit` to exact versions in the GitHub Actions workflow or Makefile to prevent silent breakages from upstream updates.
+* [x] **Add .venv Fallback for `make lint`.** Update the `lint` target in the Makefile to include a virtual environment fallback for the Python analysis worker, mirroring the existing `if/else` logic used in the `test-python` target.
+* [x] **Enforce Environment Variables for `make crawl`.** Ensure the `make crawl` target explicitly loads the `.env` file, or update the Makefile to document/enforce the required flags so the crawler doesn't fail due to missing credentials.
+* [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh** — No changes required; the script already sources `.env` at startup.
+* [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
+
 ---
 
 ### Open Phases
+
+---
+
+## Phase 51: Cache Correctness & Crawler Resilience (Findings 7, 8, 10) - [ ] TODO
+*Finding 7 is a functional bug in the newly introduced metrics cache, while findings 8 and 10 pose liveness risks as the system scales. Fixing these improves data accuracy and crawler stability.*
+
+* [ ] **Fix `GetAvailableMetrics` Cache Keying.** The current cache does not account for date ranges. Update the cache to use `(startDate, endDate)` as part of the key, or invalidate the cached data when a query with a different date range is received.
+* [ ] **Configure HTTP Timeouts in RSS Crawler.** Enforce a strict HTTP timeout (e.g., 30 seconds) in the RSS crawler's HTTP client to prevent indefinite hangs on unresponsive upstream feeds.
+* [ ] **Propagate `context.Context` and Delay State Writes.** Thread `context.Context` through the crawler for proper cancellation handling. Ensure the deduplication state file (`.rss-crawler-state.json`) is only written to disk *after* a successful batch ingestion to prevent data loss on intermediate failures.
+* [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
+* [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
+
+## Phase 52: Metadata Lifecycle & Extractor Dispatch Refactoring (Findings 11, 12) - [ ] TODO
+*These represent accepted technical debt. Addressing them now creates a cleaner and more scalable foundation before onboarding additional uncoupled data sources.*
+
+* [ ] **Implement PostgreSQL Retention Policy.** Define and implement a data lifecycle strategy for the `documents` and `ingestion_jobs` tables in PostgreSQL. Decide between table partitioning (`PARTITION BY month`), `pg_cron` jobs, or an application-level cleanup routine.
+* [ ] **Unify Extractor Protocol.** Refactor the extractor base interface to define a single `extract_all()` method returning a standardized structure (e.g., a tuple or dataclass containing `metrics`, `entities`, and `language_detections`). This eliminates brittle `isinstance()` chains in the dispatch layer.
+* [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
+* [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
+
+## Phase 53: Infrastructure Startup Consistency (Findings 5, 6) - [ ] TODO
+*The `make infra-up` command must deterministically boot the complete backend stack to avoid developer confusion and manual interventions.*
+
+* [ ] **Include `traefik` and `nats-init` in `infra-up`.** Explicitly add Traefik and `nats-init` to the `docker compose up` command within the `infra-up` Makefile target (or cleanly document them as non-dev defaults if deliberately excluded).
+* [ ] **Update Operations Playbook.** Revise the startup sequence and troubleshooting steps in the Operations Playbook (`docs/operations_playbook.md`) to accurately reflect the updated, deterministic infrastructure boot process.
+* [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
+* [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
 
 ---
