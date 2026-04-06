@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/frogfromlake/aer/crawlers/rss-crawler/internal/feed"
@@ -40,6 +43,9 @@ func main() {
 	statePath := flag.String("state", getEnv("STATE_FILE", ".rss-crawler-state.json"), "Path to the dedup state file")
 	delayMs := flag.Int("delay", 1000, "Delay in milliseconds between feed fetches")
 	flag.Parse()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	// Load feed configuration
 	configData, err := os.ReadFile(*configPath)
@@ -79,7 +85,7 @@ func main() {
 		slog.Info("Processing feed", "name", fc.Name, "url", fc.URL)
 
 		// Resolve source_id dynamically
-		sourceID, err := resolveSourceID(*sourcesURL, fc.Name, *apiKey)
+		sourceID, err := resolveSourceID(ctx, *sourcesURL, fc.Name, *apiKey)
 		if err != nil {
 			slog.Error("Failed to resolve source ID", "name", fc.Name, "error", err)
 			continue
@@ -87,7 +93,7 @@ func main() {
 		slog.Info("Resolved source ID", "name", fc.Name, "source_id", sourceID)
 
 		// Parse feed
-		feedTitle, items, err := feed.Parse(fc.URL)
+		feedTitle, items, err := feed.Parse(ctx, fc.URL)
 		if err != nil {
 			slog.Error("Failed to parse feed", "name", fc.Name, "url", fc.URL, "error", err)
 			continue
@@ -123,16 +129,22 @@ func main() {
 			Documents: documents,
 		}
 
-		if err := postToIngestionAPI(*apiURL, *apiKey, req); err != nil {
+		if err := postToIngestionAPI(ctx, *apiURL, *apiKey, req); err != nil {
 			slog.Error("Failed to submit to ingestion API", "name", fc.Name, "error", err)
 			continue
 		}
 
-		// Mark all submitted items as seen
+		// Mark all submitted items as seen and immediately persist state so that
+		// a crash or interruption on a later feed does not cause re-ingestion of
+		// already-submitted items.
 		for _, item := range items {
 			if !store.HasSeen(fc.Name, item.GUID) {
 				store.MarkSeen(fc.Name, item.GUID)
 			}
+		}
+		if err := store.Save(); err != nil {
+			slog.Error("Failed to save dedup state", "name", fc.Name, "error", err)
+			os.Exit(1)
 		}
 
 		slog.Info("Submitted items", "name", fc.Name, "submitted", len(documents), "skipped", skipped)
@@ -140,20 +152,14 @@ func main() {
 		totalSkipped += skipped
 	}
 
-	// Persist dedup state
-	if err := store.Save(); err != nil {
-		slog.Error("Failed to save dedup state", "error", err)
-		os.Exit(1)
-	}
-
 	slog.Info("RSS Crawler finished", "total_submitted", totalSubmitted, "total_skipped", totalSkipped)
 }
 
 // resolveSourceID queries the ingestion API to look up a source ID by name.
-func resolveSourceID(sourcesURL, name, apiKey string) (int, error) {
+func resolveSourceID(ctx context.Context, sourcesURL, name, apiKey string) (int, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	req, err := http.NewRequest(http.MethodGet, sourcesURL+"?name="+name, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourcesURL+"?name="+name, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build request: %w", err)
 	}
@@ -184,14 +190,14 @@ func resolveSourceID(sourcesURL, name, apiKey string) (int, error) {
 }
 
 // postToIngestionAPI sends the ingestion request to the API.
-func postToIngestionAPI(url, apiKey string, req feed.IngestRequest) error {
+func postToIngestionAPI(ctx context.Context, url, apiKey string, req feed.IngestRequest) error {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}

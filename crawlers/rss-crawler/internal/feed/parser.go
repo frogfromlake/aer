@@ -1,7 +1,9 @@
 package feed
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -19,12 +21,15 @@ type ParsedItem struct {
 }
 
 // Parse fetches and parses an RSS/Atom feed from the given URL.
+// The context is forwarded to the underlying HTTP request for cancellation.
+// A 30-second client timeout guards against indefinite hangs on unresponsive feeds.
 // Returns the feed title and the parsed items.
-func Parse(feedURL string) (string, []ParsedItem, error) {
+func Parse(ctx context.Context, feedURL string) (string, []ParsedItem, error) {
 	parser := gofeed.NewParser()
 	parser.UserAgent = "aer-rss-crawler/1.0 (github.com/frogfromlake/aer)"
+	parser.Client = &http.Client{Timeout: 30 * time.Second}
 
-	f, err := parser.ParseURL(feedURL)
+	f, err := parser.ParseURLWithContext(feedURL, ctx)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to parse feed %s: %w", feedURL, err)
 	}

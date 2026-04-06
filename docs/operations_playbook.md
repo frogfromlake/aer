@@ -409,7 +409,11 @@ Adding a new RSS feed requires:
 1. A new entry in `feeds.yaml`.
 2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
 
-**Deduplication:** The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs.
+**Deduplication:** The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs. State is written to disk immediately after each feed's batch is successfully submitted — not once at the end — so a crash or interruption mid-run does not cause re-ingestion of already-processed feeds.
+
+**HTTP timeouts:** All outbound HTTP clients enforce strict timeouts — 10 s for source ID lookup, 30 s for ingestion API posts, and 30 s for RSS feed fetches — to prevent the crawler from hanging indefinitely on unresponsive upstreams.
+
+**Graceful shutdown:** The crawler respects `SIGINT`/`SIGTERM` via `signal.NotifyContext`. Cancelling mid-run will abort in-flight HTTP requests cleanly; any feeds processed before the signal will have their state already persisted.
 
 ---
 

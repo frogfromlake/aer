@@ -554,6 +554,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [ ] **Include `traefik` and `nats-init` in `infra-up`.** Explicitly add Traefik and `nats-init` to the `docker compose up` command within the `infra-up` Makefile target (or cleanly document them as non-dev defaults if deliberately excluded).
 * [ ] **Update Operations Playbook.** Revise the startup sequence and troubleshooting steps in the Operations Playbook (`docs/operations_playbook.md`) to accurately reflect the updated, deterministic infrastructure boot process.
+* [ ] **Check if make debug-up is working**
 * [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
 * [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
 

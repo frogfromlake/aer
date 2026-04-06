@@ -248,22 +248,19 @@ All runtime configuration flows through environment variables, sourced from a si
 
 ## 8.11 BFF Query Performance — Available Metrics Caching
 
-`GET /api/v1/metrics/available` historically executed `SELECT DISTINCT metric_name FROM aer_gold.metrics` on every request — a full table scan whose cost grows linearly with the metrics table. The set of distinct metric names changes only when new extractors are deployed, making repeated scans wasteful.
+`GET /api/v1/metrics/available` executes `SELECT DISTINCT metric_name FROM aer_gold.metrics WHERE timestamp >= $1 AND timestamp <= $2` — a table scan whose cost grows linearly with the metrics table. The endpoint accepts `startDate`/`endDate` to scope results to a specific time window, returning only metric names that have data in that range.
 
-**Strategy:** an in-process TTL cache inside `ClickHouseStorage`. The struct holds a `sync.RWMutex`-protected pair of `([]string, time.Time)`. On a cache hit (age < TTL), the cached slice is returned immediately without touching ClickHouse. On a miss or expiry, the query runs, the result is stored, and the timestamp is reset.
+**Strategy:** an in-process TTL cache inside `ClickHouseStorage`. The struct holds a `sync.RWMutex`-protected tuple of `([]string, time.Time, startKey time.Time, endKey time.Time)`. The cache key is `(start, end)`: a hit is valid only when both the TTL has not expired *and* the requested date range matches the cached range. A request with a different range bypasses and replaces the cached entry.
 
 ```
-Request → GetAvailableMetrics()
+Request → GetAvailableMetrics(start, end)
               │
-              ├─ RLock → cache valid? ──YES──▶ return cached names
+              ├─ RLock → cache valid AND key matches? ──YES──▶ return cached names
               │
-              └─ NO → query ClickHouse → WLock → update cache → return names
+              └─ NO → query ClickHouse(start, end) → WLock → update cache → return names
 ```
 
-**Rationale (Occam's Razor):** no Redis, no distributed cache, no pub/sub invalidation. A single in-process struct is sufficient because:
-- The BFF API runs as a single container instance.
-- Metric names are deployment-time constants, not user data.
-- 60 s of staleness is operationally invisible (new extractors require a rolling restart anyway).
+**Rationale (Occam's Razor):** no Redis, no distributed cache, no pub/sub invalidation. A single in-process struct is sufficient because the BFF API runs as a single container instance. The date-range key ensures correctness when dashboards query different time windows.
 
 **Configuration:** `BFF_METRICS_CACHE_TTL_SECONDS` (default `60`). Set to `0` to disable caching (the constructor treats `≤ 0` as the default 60 s; to effectively bypass, set a very low value like `1`).
 

@@ -12,9 +12,11 @@ import (
 )
 
 type metricsCache struct {
-	mu        sync.RWMutex
-	names     []string
-	cachedAt  time.Time
+	mu          sync.RWMutex
+	names       []string
+	cachedAt    time.Time
+	cachedStart time.Time
+	cachedEnd   time.Time
 }
 
 type ClickHouseStorage struct {
@@ -233,29 +235,32 @@ func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, en
 	return results, nil
 }
 
-// GetAvailableMetrics returns the distinct metric names present in the gold layer.
-// The start/end params are accepted to satisfy the Store interface but are not used
-// in the query — metric names change only when new extractors are deployed, making
-// time-range scoping unnecessary. Results are served from an in-process TTL cache
-// (default 60 s) to avoid a full table scan on every call.
-func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, _, _ time.Time) ([]string, error) {
+// GetAvailableMetrics returns the distinct metric names that have data in the given
+// time range. Results are served from an in-process TTL cache (default 60 s) keyed
+// on (start, end) to avoid a full table scan on every call. A request with a
+// different date range bypasses and replaces the cached entry.
+func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]string, error) {
 	s.metricsCache.mu.RLock()
-	if s.metricsCache.names != nil && time.Since(s.metricsCache.cachedAt) < s.metricsCacheTTL {
+	if s.metricsCache.names != nil &&
+		time.Since(s.metricsCache.cachedAt) < s.metricsCacheTTL &&
+		s.metricsCache.cachedStart.Equal(start) &&
+		s.metricsCache.cachedEnd.Equal(end) {
 		cached := s.metricsCache.names
 		s.metricsCache.mu.RUnlock()
 		return cached, nil
 	}
 	s.metricsCache.mu.RUnlock()
 
-	// Cache miss or expired — fetch from ClickHouse.
+	// Cache miss, expired, or different date range — fetch from ClickHouse.
 	var results []struct {
 		MetricName string
 	}
 	err := s.conn.Select(ctx, &results, `
 		SELECT DISTINCT metric_name as MetricName
 		FROM aer_gold.metrics
+		WHERE timestamp >= $1 AND timestamp <= $2
 		ORDER BY MetricName
-	`)
+	`, start, end)
 	if err != nil {
 		slog.Error("Failed to query available metrics from ClickHouse", "error", err)
 		return nil, err
@@ -269,6 +274,8 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, _, _ time.T
 	s.metricsCache.mu.Lock()
 	s.metricsCache.names = names
 	s.metricsCache.cachedAt = time.Now()
+	s.metricsCache.cachedStart = start
+	s.metricsCache.cachedEnd = end
 	s.metricsCache.mu.Unlock()
 
 	return names, nil
