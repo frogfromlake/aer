@@ -197,7 +197,7 @@ Running `make` (or `make help`) without arguments prints a formatted overview of
 | `make up` | Starts the entire stack (infrastructure + all three services). |
 | `make down` | Stops everything. |
 | `make restart` | Stops and restarts the entire stack. |
-| `make infra-up` | Starts only infrastructure (databases, NATS, observability, docs). |
+| `make infra-up` | Starts only infrastructure (Traefik, databases, NATS, observability, docs). |
 | `make infra-restart` | Restarts infrastructure. |
 | `make infra-clean[-postgres\|-minio\|-clickhouse]` | Wipes persistent volumes (all or selectively, with confirmation). |
 | `make debug-up` | Forwards all backend ports to `localhost` (Zero-Trust opt-in). |

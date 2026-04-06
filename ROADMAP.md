@@ -549,13 +549,13 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-## Phase 53: Infrastructure Startup Consistency (Findings 5, 6) - [ ] TODO
+## Phase 53: Infrastructure Startup Consistency (Findings 5, 6) - [x] DONE
 *The `make infra-up` command must deterministically boot the complete backend stack to avoid developer confusion and manual interventions.*
 
-* [ ] **Include `traefik` and `nats-init` in `infra-up`.** Explicitly add Traefik and `nats-init` to the `docker compose up` command within the `infra-up` Makefile target (or cleanly document them as non-dev defaults if deliberately excluded).
-* [ ] **Update Operations Playbook.** Revise the startup sequence and troubleshooting steps in the Operations Playbook (`docs/operations_playbook.md`) to accurately reflect the updated, deterministic infrastructure boot process.
-* [ ] **Check if make debug-up is working**
-* [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
-* [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
+* [x] **Include `traefik` and `nats-init` in `infra-up`.** Explicitly added `traefik` and `nats-init` to the `docker compose up` command in `infra-up`; `traefik` also added to `infra-down`.
+* [x] **Update Operations Playbook.** Updated `make infra-up` description to reflect Traefik inclusion.
+* [x] **Check if make debug-up is working.** `debug-up` is correct: uses `--profile debug` to start the `debug-ports` socat proxy. Requires `make up` first (enforced by `depends_on: ingestion-api`), which is correctly documented in the ops playbook.
+* [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh.** No changes needed — e2e test uses `docker compose up --build --wait -d` which starts the full stack.
+* [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary).** Updated `README.md`, `docs/operations_playbook.md`, `docs/arc42/07_deployment_view.md`, and `Makefile`.
 
 ---

@@ -28,7 +28,7 @@ make up                  # Start everything (infra + services)
 make down                # Stop everything
 make restart             # Full restart
 
-make infra-up            # Infrastructure only (databases, NATS, observability)
+make infra-up            # Infrastructure only (Traefik, databases, NATS, observability)
 make services-up         # Application services only (requires infra running)
 
 make debug-up            # Expose backend ports to localhost

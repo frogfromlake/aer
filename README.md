@@ -120,7 +120,7 @@ The smoke test ingests a test document, waits for pipeline processing, and queri
 
 | Target | Description |
 | :--- | :--- |
-| `make infra-up` | Start infrastructure only (databases, NATS, observability, docs) |
+| `make infra-up` | Start infrastructure only (Traefik, databases, NATS, observability, docs) |
 | `make infra-down` | Stop infrastructure |
 | `make infra-restart` | Restart infrastructure |
 | `make infra-clean` | Wipe all persistent volumes (requires interactive confirmation) |
