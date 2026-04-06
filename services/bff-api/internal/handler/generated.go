@@ -18,10 +18,10 @@ import (
 // GetEntitiesParams defines parameters for GetEntities.
 type GetEntitiesParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+	StartDate time.Time `form:"startDate" json:"startDate"`
 
 	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+	EndDate time.Time `form:"endDate" json:"endDate"`
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
@@ -36,10 +36,10 @@ type GetEntitiesParams struct {
 // GetLanguagesParams defines parameters for GetLanguages.
 type GetLanguagesParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+	StartDate time.Time `form:"startDate" json:"startDate"`
 
 	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+	EndDate time.Time `form:"endDate" json:"endDate"`
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
@@ -54,16 +54,25 @@ type GetLanguagesParams struct {
 // GetMetricsParams defines parameters for GetMetrics.
 type GetMetricsParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+	StartDate time.Time `form:"startDate" json:"startDate"`
 
 	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+	EndDate time.Time `form:"endDate" json:"endDate"`
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
 	// MetricName Filter metrics by metric name (e.g., "word_count")
 	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
+}
+
+// GetMetricsAvailableParams defines parameters for GetMetricsAvailable.
+type GetMetricsAvailableParams struct {
+	// StartDate Start date for the metrics time range (ISO 8601)
+	StartDate time.Time `form:"startDate" json:"startDate"`
+
+	// EndDate End date for the metrics time range (ISO 8601)
+	EndDate time.Time `form:"endDate" json:"endDate"`
 }
 
 // ServerInterface represents all server handlers.
@@ -82,7 +91,7 @@ type ServerInterface interface {
 	GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams)
 	// List available metric names
 	// (GET /metrics/available)
-	GetMetricsAvailable(w http.ResponseWriter, r *http.Request)
+	GetMetricsAvailable(w http.ResponseWriter, r *http.Request, params GetMetricsAvailableParams)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
@@ -118,7 +127,7 @@ func (_ Unimplemented) GetMetrics(w http.ResponseWriter, r *http.Request, params
 
 // List available metric names
 // (GET /metrics/available)
-func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Request, params GetMetricsAvailableParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -145,17 +154,31 @@ func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Re
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetEntitiesParams
 
-	// ------------- Optional query parameter "startDate" -------------
+	// ------------- Required query parameter "startDate" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Optional query parameter "endDate" -------------
+	// ------------- Required query parameter "endDate" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -218,17 +241,31 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetLanguagesParams
 
-	// ------------- Optional query parameter "startDate" -------------
+	// ------------- Required query parameter "startDate" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Optional query parameter "endDate" -------------
+	// ------------- Required query parameter "endDate" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -277,17 +314,31 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetMetricsParams
 
-	// ------------- Optional query parameter "startDate" -------------
+	// ------------- Required query parameter "startDate" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Optional query parameter "endDate" -------------
+	// ------------- Required query parameter "endDate" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -323,8 +374,43 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 // GetMetricsAvailable operation middleware
 func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricsAvailableParams
+
+	// ------------- Required query parameter "startDate" -------------
+
+	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "endDate" -------------
+
+	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMetricsAvailable(w, r)
+		siw.Handler.GetMetricsAvailable(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -634,6 +720,18 @@ func (response GetMetrics200JSONResponse) VisitGetMetricsResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetMetrics400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetrics400JSONResponse) VisitGetMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetMetrics500JSONResponse struct {
 	// Message A human-readable error message.
 	Message string `json:"message"`
@@ -647,6 +745,7 @@ func (response GetMetrics500JSONResponse) VisitGetMetricsResponse(w http.Respons
 }
 
 type GetMetricsAvailableRequestObject struct {
+	Params GetMetricsAvailableParams
 }
 
 type GetMetricsAvailableResponseObject interface {
@@ -658,6 +757,18 @@ type GetMetricsAvailable200JSONResponse []string
 func (response GetMetricsAvailable200JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricsAvailable400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricsAvailable400JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -853,8 +964,10 @@ func (sh *strictHandler) GetMetrics(w http.ResponseWriter, r *http.Request, para
 }
 
 // GetMetricsAvailable operation middleware
-func (sh *strictHandler) GetMetricsAvailable(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetMetricsAvailable(w http.ResponseWriter, r *http.Request, params GetMetricsAvailableParams) {
 	var request GetMetricsAvailableRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetMetricsAvailable(ctx, request.(GetMetricsAvailableRequestObject))

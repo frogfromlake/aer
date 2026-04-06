@@ -16,5 +16,11 @@ get:
             type: array
             items:
               $ref: '../schemas/MetricDataPoint.yaml'
+    '400':
+      description: Missing required parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
     '500':
       $ref: '../responses/InternalServerError.yaml'

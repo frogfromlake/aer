@@ -99,6 +99,9 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 		args = append(args, *metricName)
 	}
 
+	// The ClickHouse Go driver (clickhouse-go/v2) does not support parameterized
+	// LIMIT clauses via the $N positional syntax. rowLimit is validated at
+	// initialization (NewClickHouseStorage) and is never negative.
 	query += fmt.Sprintf(`
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
@@ -124,10 +127,6 @@ type EntityRow struct {
 
 // GetEntities retrieves aggregated named entities from the gold layer.
 func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]EntityRow, error) {
-	if limit <= 0 || limit > 1000 {
-		limit = 100
-	}
-
 	query := `
 		SELECT
 			entity_text as EntityText,
@@ -150,6 +149,9 @@ func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Tim
 		args = append(args, *label)
 	}
 
+	// The ClickHouse Go driver (clickhouse-go/v2) does not support parameterized
+	// LIMIT clauses via the $N positional syntax. limit is validated in the handler
+	// layer (1–1000) before reaching this function.
 	query += fmt.Sprintf(`
 		GROUP BY EntityText, EntityLabel
 		ORDER BY Count DESC
@@ -177,10 +179,6 @@ type LanguageDetectionRow struct {
 // GetLanguageDetections retrieves aggregated language detections from the gold layer.
 // Only rank=1 (top candidate per document) detections are included.
 func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]LanguageDetectionRow, error) {
-	if limit <= 0 || limit > 1000 {
-		limit = 100
-	}
-
 	query := `
 		SELECT
 			detected_language as DetectedLanguage,
@@ -204,6 +202,9 @@ func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, en
 		args = append(args, *language)
 	}
 
+	// The ClickHouse Go driver (clickhouse-go/v2) does not support parameterized
+	// LIMIT clauses via the $N positional syntax. limit is validated in the handler
+	// layer (1–1000) before reaching this function.
 	query += fmt.Sprintf(`
 		GROUP BY DetectedLanguage
 		ORDER BY Count DESC
@@ -220,8 +221,9 @@ func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, en
 	return results, nil
 }
 
-// GetAvailableMetrics returns the distinct metric names present in the gold layer.
-func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context) ([]string, error) {
+// GetAvailableMetrics returns the distinct metric names present in the gold layer
+// within the given time range.
+func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]string, error) {
 	var results []struct {
 		MetricName string
 	}
@@ -229,8 +231,9 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context) ([]string, 
 	err := s.conn.Select(ctx, &results, `
 		SELECT DISTINCT metric_name as MetricName
 		FROM aer_gold.metrics
+		WHERE timestamp >= $1 AND timestamp <= $2
 		ORDER BY MetricName
-	`)
+	`, start, end)
 	if err != nil {
 		slog.Error("Failed to query available metrics from ClickHouse", "error", err)
 		return nil, err

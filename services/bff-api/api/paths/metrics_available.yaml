@@ -1,7 +1,10 @@
 get:
   summary: List available metric names
-  description: Returns the distinct metric names present in the gold layer. Enables frontends to discover metrics dynamically.
+  description: Returns the distinct metric names present in the gold layer for the given time range. Enables frontends to discover metrics dynamically.
   operationId: getMetricsAvailable
+  parameters:
+    - $ref: '../parameters/startDate.yaml'
+    - $ref: '../parameters/endDate.yaml'
   responses:
     '200':
       description: A list of available metric names.
@@ -11,5 +14,11 @@ get:
             type: array
             items:
               type: string
+    '400':
+      description: Missing required parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
     '500':
       $ref: '../responses/InternalServerError.yaml'

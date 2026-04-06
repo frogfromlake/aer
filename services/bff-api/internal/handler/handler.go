@@ -13,7 +13,7 @@ type Store interface {
 	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
 	GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error)
-	GetAvailableMetrics(ctx context.Context) ([]string, error)
+	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]string, error)
 }
 
 // Server implements the generated StrictServerInterface.
@@ -40,19 +40,10 @@ func (s *Server) GetReadyz(ctx context.Context, _ GetReadyzRequestObject) (GetRe
 }
 
 // GetMetrics handles the GET /metrics request and fetches time-series data.
+// startDate and endDate are required — the framework returns 400 before this handler
+// is called if either is absent.
 func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error) {
-	// Fallback time range: Last 24 hours if no query parameters are provided
-	end := time.Now()
-	start := end.Add(-24 * time.Hour)
-
-	if request.Params.StartDate != nil {
-		start = *request.Params.StartDate
-	}
-	if request.Params.EndDate != nil {
-		end = *request.Params.EndDate
-	}
-
-	data, err := s.db.GetMetrics(ctx, start, end, request.Params.Source, request.Params.MetricName)
+	data, err := s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName)
 	if err != nil {
 		return GetMetrics500JSONResponse{Message: err.Error()}, nil
 	}
@@ -76,17 +67,18 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 }
 
 // GetEntities handles GET /entities — returns aggregated named entities.
+// startDate and endDate are required — the framework returns 400 before this handler
+// is called if either is absent.
 func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error) {
-	if request.Params.StartDate == nil || request.Params.EndDate == nil {
-		return GetEntities400JSONResponse{Message: "startDate and endDate are required"}, nil
-	}
-
 	limit := 100
 	if request.Params.Limit != nil {
 		limit = *request.Params.Limit
 	}
+	if limit < 1 || limit > 1000 {
+		return GetEntities400JSONResponse{Message: "limit must be between 1 and 1000"}, nil
+	}
 
-	data, err := s.db.GetEntities(ctx, *request.Params.StartDate, *request.Params.EndDate, request.Params.Source, request.Params.Label, limit)
+	data, err := s.db.GetEntities(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.Label, limit)
 	if err != nil {
 		return GetEntities500JSONResponse{Message: err.Error()}, nil
 	}
@@ -110,17 +102,18 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 }
 
 // GetLanguages handles GET /languages — returns aggregated language detections.
+// startDate and endDate are required — the framework returns 400 before this handler
+// is called if either is absent.
 func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error) {
-	if request.Params.StartDate == nil || request.Params.EndDate == nil {
-		return GetLanguages400JSONResponse{Message: "startDate and endDate are required"}, nil
-	}
-
 	limit := 100
 	if request.Params.Limit != nil {
 		limit = *request.Params.Limit
 	}
+	if limit < 1 || limit > 1000 {
+		return GetLanguages400JSONResponse{Message: "limit must be between 1 and 1000"}, nil
+	}
 
-	data, err := s.db.GetLanguageDetections(ctx, *request.Params.StartDate, *request.Params.EndDate, request.Params.Source, request.Params.Language, limit)
+	data, err := s.db.GetLanguageDetections(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.Language, limit)
 	if err != nil {
 		return GetLanguages500JSONResponse{Message: err.Error()}, nil
 	}
@@ -143,9 +136,11 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 	return response, nil
 }
 
-// GetMetricsAvailable handles GET /metrics/available — returns distinct metric names.
-func (s *Server) GetMetricsAvailable(ctx context.Context, _ GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error) {
-	names, err := s.db.GetAvailableMetrics(ctx)
+// GetMetricsAvailable handles GET /metrics/available — returns distinct metric names for a time range.
+// startDate and endDate are required — the framework returns 400 before this handler
+// is called if either is absent.
+func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error) {
+	names, err := s.db.GetAvailableMetrics(ctx, request.Params.StartDate, request.Params.EndDate)
 	if err != nil {
 		return GetMetricsAvailable500JSONResponse{Message: err.Error()}, nil
 	}

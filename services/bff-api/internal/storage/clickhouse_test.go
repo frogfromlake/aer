@@ -268,7 +268,9 @@ func TestGetAvailableMetrics(t *testing.T) {
 		}
 	}
 
-	results, err := store.GetAvailableMetrics(ctx)
+	start := now.Add(-time.Hour)
+	end := now.Add(time.Hour)
+	results, err := store.GetAvailableMetrics(ctx, start, end)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
