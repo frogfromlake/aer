@@ -41,7 +41,7 @@ Full architectural documentation (arc42) is available at `http://localhost:8000`
 | Layer | Technology | Rationale |
 | :--- | :--- | :--- |
 | Ingestion / BFF / Crawlers | Go 1.26.1+ | High-concurrency I/O, minimal memory footprint |
-| Analysis / Processing | Python 3.12+ | Deterministic data science ecosystem (spaCy, Pydantic) |
+| Analysis / Processing | Python 3.14+ | Deterministic data science ecosystem (spaCy, Pydantic) |
 | Object Storage / Event Publisher | MinIO | S3-compatible data lake with native JetStream notification |
 | Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling |
 | Analytics Database | ClickHouse | Column-oriented OLAP; mandatory for sub-second time-series queries |
@@ -58,7 +58,7 @@ The only required host installations are:
 
 - Docker with Compose plugin
 - Go 1.26.1 or higher
-- Python 3.12 or higher
+- Python 3.14 or higher
 - GNU Make
 
 No databases or runtimes are installed directly on the host. All services run in containers.
@@ -190,7 +190,7 @@ AĒR uses a Zero-Trust network posture. Only Traefik, the BFF API, and the docum
 | `80` | Traefik | HTTP — redirects to HTTPS |
 | `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
 | `8000` | MkDocs | Arc42 architecture documentation |
-| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/entities`, `/api/v1/metrics/available`, `/api/v1/healthz`, `/api/v1/readyz` |
+| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/entities`, `/api/v1/languages`, `/api/v1/metrics/available`, `/api/v1/healthz`, `/api/v1/readyz` |
 
 ### Debug profile only (`make debug-up`)
 
@@ -243,6 +243,14 @@ GET /api/v1/entities?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
 ```
 
 Optional filters: `source`, `label` (spaCy NER label: `PER`, `ORG`, `LOC`, `MISC`), `limit` (default 100, max 1000). Returns entities aggregated by text and label with occurrence counts.
+
+**Retrieve aggregated language detections:**
+
+```
+GET /api/v1/languages?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
+```
+
+Optional filters: `source`, `language` (ISO 639-1 code, e.g., `de`), `limit` (default 100, max 1000). Returns language candidates ranked by detection confidence, aggregated across the requested time window.
 
 **Discover available metric names:**
 
@@ -402,7 +410,8 @@ All Docker images in `compose.yaml` use hard-pinned, immutable patch-level versi
 | Silver (harmonized) | MinIO `silver` | 365 days | MinIO ILM |
 | Gold (metrics) | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL |
 | Gold (entities) | ClickHouse `aer_gold.entities` | 365 days | ClickHouse TTL |
-| Metadata | PostgreSQL | Unlimited | — |
+| Gold (language detections) | ClickHouse `aer_gold.language_detections` | 365 days | ClickHouse TTL |
+| Metadata | PostgreSQL (`documents`, `ingestion_jobs`) | 90 days | Ingestion API background goroutine |
 
 All retention policies are defined in infrastructure scripts (`infra/`). No application code manages data expiration.
 
