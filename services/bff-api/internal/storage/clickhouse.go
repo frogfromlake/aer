@@ -4,18 +4,27 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/cenkalti/backoff/v5"
 )
 
-type ClickHouseStorage struct {
-	conn      clickhouse.Conn
-	rowLimit  int
+type metricsCache struct {
+	mu        sync.RWMutex
+	names     []string
+	cachedAt  time.Time
 }
 
-func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, rowLimit int) (*ClickHouseStorage, error) {
+type ClickHouseStorage struct {
+	conn           clickhouse.Conn
+	rowLimit       int
+	metricsCacheTTL time.Duration
+	metricsCache   metricsCache
+}
+
+func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, rowLimit int, metricsCacheTTL time.Duration) (*ClickHouseStorage, error) {
 	operation := func() (clickhouse.Conn, error) {
 		conn, err := clickhouse.Open(&clickhouse.Options{
 			Addr: []string{addr},
@@ -52,7 +61,10 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, 
 	if rowLimit <= 0 {
 		rowLimit = 10000
 	}
-	return &ClickHouseStorage{conn: conn, rowLimit: rowLimit}, nil
+	if metricsCacheTTL <= 0 {
+		metricsCacheTTL = 60 * time.Second
+	}
+	return &ClickHouseStorage{conn: conn, rowLimit: rowLimit, metricsCacheTTL: metricsCacheTTL}, nil
 }
 
 // Ping checks if the ClickHouse connection is alive.
@@ -221,19 +233,29 @@ func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, en
 	return results, nil
 }
 
-// GetAvailableMetrics returns the distinct metric names present in the gold layer
-// within the given time range.
-func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]string, error) {
+// GetAvailableMetrics returns the distinct metric names present in the gold layer.
+// The start/end params are accepted to satisfy the Store interface but are not used
+// in the query — metric names change only when new extractors are deployed, making
+// time-range scoping unnecessary. Results are served from an in-process TTL cache
+// (default 60 s) to avoid a full table scan on every call.
+func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, _, _ time.Time) ([]string, error) {
+	s.metricsCache.mu.RLock()
+	if s.metricsCache.names != nil && time.Since(s.metricsCache.cachedAt) < s.metricsCacheTTL {
+		cached := s.metricsCache.names
+		s.metricsCache.mu.RUnlock()
+		return cached, nil
+	}
+	s.metricsCache.mu.RUnlock()
+
+	// Cache miss or expired — fetch from ClickHouse.
 	var results []struct {
 		MetricName string
 	}
-
 	err := s.conn.Select(ctx, &results, `
 		SELECT DISTINCT metric_name as MetricName
 		FROM aer_gold.metrics
-		WHERE timestamp >= $1 AND timestamp <= $2
 		ORDER BY MetricName
-	`, start, end)
+	`)
 	if err != nil {
 		slog.Error("Failed to query available metrics from ClickHouse", "error", err)
 		return nil, err
@@ -243,5 +265,11 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 	for i, r := range results {
 		names[i] = r.MetricName
 	}
+
+	s.metricsCache.mu.Lock()
+	s.metricsCache.names = names
+	s.metricsCache.cachedAt = time.Now()
+	s.metricsCache.mu.Unlock()
+
 	return names, nil
 }

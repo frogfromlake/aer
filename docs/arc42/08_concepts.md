@@ -243,3 +243,26 @@ The processor iterates all registered extractors after Silver validation. Each e
 ### 8.9.3 Configuration Management
 
 All runtime configuration flows through environment variables, sourced from a single `.env` file (copied from `.env.example`). Go services load it via `viper` with `AutomaticEnv()` and `.env` file fallback. Python services use `python-dotenv` and `os.getenv()` with sensible defaults. Docker Compose interpolates the same `.env` file for container environment variables. This guarantees a single source of truth for all configuration across all runtimes.
+
+## 8.11 BFF Query Performance — Available Metrics Caching
+
+`GET /api/v1/metrics/available` historically executed `SELECT DISTINCT metric_name FROM aer_gold.metrics` on every request — a full table scan whose cost grows linearly with the metrics table. The set of distinct metric names changes only when new extractors are deployed, making repeated scans wasteful.
+
+**Strategy:** an in-process TTL cache inside `ClickHouseStorage`. The struct holds a `sync.RWMutex`-protected pair of `([]string, time.Time)`. On a cache hit (age < TTL), the cached slice is returned immediately without touching ClickHouse. On a miss or expiry, the query runs, the result is stored, and the timestamp is reset.
+
+```
+Request → GetAvailableMetrics()
+              │
+              ├─ RLock → cache valid? ──YES──▶ return cached names
+              │
+              └─ NO → query ClickHouse → WLock → update cache → return names
+```
+
+**Rationale (Occam's Razor):** no Redis, no distributed cache, no pub/sub invalidation. A single in-process struct is sufficient because:
+- The BFF API runs as a single container instance.
+- Metric names are deployment-time constants, not user data.
+- 60 s of staleness is operationally invisible (new extractors require a rolling restart anyway).
+
+**Configuration:** `BFF_METRICS_CACHE_TTL_SECONDS` (default `60`). Set to `0` to disable caching (the constructor treats `≤ 0` as the default 60 s; to effectively bypass, set a very low value like `1`).
+
+**Thread safety:** reads hold a read-lock; the write path acquires a write-lock only after the ClickHouse query completes, minimising lock contention under concurrent load.

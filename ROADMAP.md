@@ -509,32 +509,16 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update Tests.** Add test: `TemporalDistributionExtractor` with naive datetime returns empty list. Add test: `SilverCore` with naive timestamp raises `ValidationError`. Ensure all existing test fixtures use `tzinfo=timezone.utc` (they already do — verify no regressions).
 * [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.2): document UTC enforcement at the Silver contract level.
 
+## Phase 49: BFF Query Performance — Available Metrics Caching (Finding 11) - [x] DONE
+*`GET /api/v1/metrics/available` executes `SELECT DISTINCT metric_name` on every call — a full table scan on a growing table. With only a handful of distinct metric names that change infrequently (only when new extractors are deployed), this is wasteful. This phase adds a minimal in-process cache.*
+
+* [x] **Implement TTL Cache for `GetAvailableMetrics`.** Add a simple in-process cache in `clickhouse.go`: a `sync.RWMutex`-protected struct holding `([]string, time.Time)`. Cache TTL: 60 seconds (configurable via `BFF_METRICS_CACHE_TTL_SECONDS`, default `60`). On cache miss or expiry, execute the query and refresh. The cache is invalidated on TTL expiry only — no event-driven invalidation needed at this scale.
+* [x] **Add Cache TTL to Config.** Add `BFF_METRICS_CACHE_TTL_SECONDS` to `.env.example`, `compose.yaml`, and `services/bff-api/internal/config/config.go`.
+* [x] **Update Tests.** Add test: two consecutive calls within TTL result in only one ClickHouse query. Add test: call after TTL expiry triggers a fresh query. Verify thread safety under concurrent access.
+* [x] **Update Arc42 Documentation.** Chapter 8 (§8.4 or new §8.11): document the caching strategy and its rationale (Occam's Razor — no Redis, no distributed cache, just in-process TTL).
+
 ---
 
 ### Open Phases
 
 ---
-
-## Phase 49: BFF Query Performance — Available Metrics Caching (Finding 11)
-*`GET /api/v1/metrics/available` executes `SELECT DISTINCT metric_name` on every call — a full table scan on a growing table. With only a handful of distinct metric names that change infrequently (only when new extractors are deployed), this is wasteful. This phase adds a minimal in-process cache.*
-
-* [ ] **Implement TTL Cache for `GetAvailableMetrics`.** Add a simple in-process cache in `clickhouse.go`: a `sync.RWMutex`-protected struct holding `([]string, time.Time)`. Cache TTL: 60 seconds (configurable via `BFF_METRICS_CACHE_TTL_SECONDS`, default `60`). On cache miss or expiry, execute the query and refresh. The cache is invalidated on TTL expiry only — no event-driven invalidation needed at this scale.
-* [ ] **Add Cache TTL to Config.** Add `BFF_METRICS_CACHE_TTL_SECONDS` to `.env.example`, `compose.yaml`, and `services/bff-api/internal/config/config.go`.
-* [ ] **Update Tests.** Add test: two consecutive calls within TTL result in only one ClickHouse query. Add test: call after TTL expiry triggers a fresh query. Verify thread safety under concurrent access.
-* [ ] **Update Arc42 Documentation.** Chapter 8 (§8.4 or new §8.11): document the caching strategy and its rationale (Occam's Razor — no Redis, no distributed cache, just in-process TTL).
-
----
-
-### Architectural Notes for Future Phases (Not Scheduled)
-
-The following concerns are deliberately **not** addressed in Phases 39–43 but are architecturally anticipated. They are listed here to ensure the current design does not preclude them.
-
-**Corpus-Level Extraction (TF-IDF, LDA, Co-occurrence Networks):** Requires a batch processing mechanism. The `CorpusExtractor` protocol (Phase 41) defines the interface but no scheduler. Options: a NATS-triggered cron job that periodically reads from the Silver bucket, or a dedicated batch worker container. Decision deferred until Tier 2 methods are scientifically validated (Chapter 13, §13.3.2).
-
-**Multi-Language Support:** The current probe is German-only. Adding a second language requires: a language-specific spaCy model, a language-specific sentiment lexicon, language detection at the adapter level, and language-aware tokenization. The `SilverCore.language` field (Phase 39) and the extractor pipeline (Phase 41) are designed to support this — extractors can dispatch to language-specific logic based on `core.language`.
-
-**Silver Schema Migration Tooling:** Phase 39 introduces `schema_version` but does not implement automatic migration of existing Silver objects. If a schema change requires reprocessing historical data, a one-off migration script (reading from Silver, re-harmonizing, writing back) will be needed. This is a data engineering task, not an architectural one.
-
-**Gold Schema Evolution Beyond Metrics + Entities:** Future analytical outputs (topic distributions, co-occurrence graphs, narrative frames) may not fit the `(timestamp, value, source, metric_name)` shape of `aer_gold.metrics`. New ClickHouse tables will be needed. The BFF API's `GET /api/v1/metrics/available` pattern (Phase 43) is designed to be extensible — a `GET /api/v1/data-types/available` meta-endpoint could discover all available analytical outputs across tables.
-
-**Scientific Probe Selection:** The RSS probe (Phase 40) is an engineering decision. The first *scientifically motivated* probe selection requires answering Open Research Questions 1–3 from Chapter 13 (§13.6). This is a research milestone, not an engineering phase, and will be documented as a separate research deliverable.

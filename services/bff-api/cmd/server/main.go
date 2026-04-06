@@ -53,6 +53,7 @@ func main() {
 
 	// 5. Initialize Storage (Passing Context for Backoff)
 	chAddr := cfg.ClickHouseHost + ":" + cfg.ClickHousePort
+	cacheTTL := time.Duration(cfg.MetricsCacheTTLSecs) * time.Second
 	chStore, err := storage.NewClickHouseStorage(
 		ctx,
 		chAddr,
@@ -60,6 +61,7 @@ func main() {
 		cfg.ClickHousePassword,
 		cfg.ClickHouseDB,
 		cfg.QueryRowLimit,
+		cacheTTL,
 	)
 	if err != nil {
 		slog.Error("Failed to connect to ClickHouse", "error", err)
