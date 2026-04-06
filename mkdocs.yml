@@ -1,36 +1,78 @@
-site_name: AĒR Architecture
-site_description: Documentation and arc42 structure for Project AĒR
+site_name: AĒR Architecture & Methodology
+site_description: Documentation, arc42 structure, and scientific methodology for Project AĒR
+
 theme:
   name: material
+  
+  # 1. Logo & Icon (A telescope perfectly represents the "Macroscope" concept)
+  icon:
+    logo: material/telescope
+
+  # 2. Modern Fonts (automatically loaded via Google Fonts)
+  font:
+    text: Inter
+    code: Fira Code
+
+  # 3. Enable UI/UX Features
+  features:
+    - navigation.tabs # Converts main navigation items into top-level tabs
+    - navigation.tabs.sticky # Keeps tabs sticky when scrolling down
+    - navigation.sections # Improves sidebar grouping and visual hierarchy
+    - navigation.top # Adds a "Back to top" button
+    - toc.follow # Table of Contents (right side) follows scrolling intelligently
+    - search.suggest # Provides search suggestions while typing
+    - search.highlight # Highlights search terms in the results
+    - content.code.copy # Adds a copy button to code blocks
+    - content.tabs.link # Enables deep linking to content tabs
+
+  # 4. Dark Theme as Default (Slate) with High-Contrast Accent Color
   palette:
-    # This section enables the dark mode
-    - scheme: slate
+    # Dark mode (preferred if OS is in dark mode)
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: black
-      accent: indigo
+      accent: cyan # Cyan provides a modern, high-contrast look on dark backgrounds
       toggle:
-        icon: material/brightness-4
+        icon: material/weather-sunny
         name: Switch to light mode
-    - scheme: default
+    # Light mode (fallback)
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: black
-      accent: indigo
+      accent: cyan
       toggle:
-        icon: material/brightness-7
+        icon: material/weather-night
         name: Switch to dark mode
 
+# 5. Markdown Extensions (For Admonitions, Tabs, Tasklists)
+markdown_extensions:
+  - admonition # Enables '!!! info' admonition blocks
+  - pymdownx.details # Makes admonitions collapsible ('??? info')
+  - pymdownx.superfences # Advanced code blocks formatting
+  - pymdownx.tabbed: # Enables tabs within markdown content
+      alternate_style: true 
+  - pymdownx.tasklist: # Enables [x] task lists
+      custom_checkbox: true
+  - attr_list
+
+# Navigation Hierarchy
 nav:
   - "Home": index.md
+  - "Architecture (arc42)":
+      - "0. Manifesto": arc42/00_manifesto.md
+      - "1. Introduction and Goals": arc42/01_introduction_and_goals.md
+      - "2. Architecture Constraints": arc42/02_architecture_constraints.md
+      - "3. System Scope and Context": arc42/03_system_scope_and_context.md
+      - "4. Solution Strategy": arc42/04_solution_strategy.md
+      - "5. Building Block View": arc42/05_building_block_view.md
+      - "6. Runtime View": arc42/06_runtime_view.md
+      - "7. Deployment View": arc42/07_deployment_view.md
+      - "8. Cross-cutting Concepts": arc42/08_concepts.md
+      - "9. Architecture Decisions (ADRs)": arc42/09_architecture_decisions.md
+      - "10. Quality Requirements": arc42/10_quality_requirements.md
+      - "11. Risks and Technical Debts": arc42/11_risks_and_technical_debts.md
+      - "12. Glossary": arc42/12_glossary.md
+      - "13. Scientific Foundations": arc42/13_scientific_foundations.md
+  - "Scientific Methodology":
+      - "WP-001: Functional Probe Taxonomy": methodology/WP-001-functional-probe-taxonomy.md
   - "Operations Playbook": operations_playbook.md
-  - "0. Manifesto": arc42/00_manifesto.md
-  - "1. Introduction and Goals": arc42/01_introduction_and_goals.md
-  - "2. Architecture Constraints": arc42/02_architecture_constraints.md
-  - "3. System Scope and Context": arc42/03_system_scope_and_context.md
-  - "4. Solution Strategy": arc42/04_solution_strategy.md
-  - "5. Building Block View": arc42/05_building_block_view.md
-  - "6. Runtime View": arc42/06_runtime_view.md
-  - "7. Deployment View": arc42/07_deployment_view.md
-  - "8. Cross-cutting Concepts": arc42/08_concepts.md
-  - "9. Architecture Decisions": arc42/09_architecture_decisions.md
-  - "10. Quality Requirements": arc42/10_quality_requirements.md
-  - "11. Risks and Technical Debts": arc42/11_risks_and_technical_debts.md
-  - "12. Glossary": arc42/12_glossary.md
-  - "13. Scientific Foundations": arc42/13_scientific_foundations.md
