@@ -110,13 +110,17 @@ async def main(config: WorkerConfig | None = None):
     pg_pool = init_postgres()
 
     adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter()})
-    extractors = [
-        WordCountExtractor(),
-        TemporalDistributionExtractor(),
-        LanguageDetectionExtractor(),
-        SentimentExtractor(),
-        NamedEntityExtractor(),
-    ]
+    try:
+        extractors = [
+            WordCountExtractor(),
+            TemporalDistributionExtractor(),
+            LanguageDetectionExtractor(),
+            SentimentExtractor(),
+            NamedEntityExtractor(),
+        ]
+    except Exception as e:
+        logger.error("Failed to initialize extractors", error=str(e), error_type=type(e).__name__)
+        raise
     data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry, extractors)
     nc = NATS()
     task_queue = asyncio.Queue()

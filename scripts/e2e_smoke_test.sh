@@ -90,7 +90,7 @@ log_ok "Fixture server running at http://${FIXTURE_CONTAINER}:8888/"
 log_step "Step 3: Running RSS crawler against test fixture"
 
 # Build the RSS crawler
-(cd crawlers/rss-crawler && go build -o ../../bin/rss-crawler . 2>&1) || {
+(cd crawlers/rss-crawler && CGO_ENABLED=0 GOOS=linux go build -o ../../bin/rss-crawler . 2>&1) || {
     log_fail "Failed to build RSS crawler"
     exit 1
 }

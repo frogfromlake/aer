@@ -304,8 +304,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.50"
+          memory: 2048M
+          cpus: "1.00"
 
   # ----------------------------------------------------
   # 3.2 BFF API (PUBLIC-FACING, BEHIND TRAEFIK)
@@ -499,6 +499,8 @@ volumes:
 
 networks:
   aer-frontend:
+    name: aer-frontend
     driver: bridge
   aer-backend:
+    name: aer-backend
     driver: bridge
