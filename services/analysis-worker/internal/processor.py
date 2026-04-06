@@ -6,7 +6,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverEnvelope, ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, EntityExtractor, LanguageDetectionPersistExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
+from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -108,17 +108,10 @@ class DataProcessor:
         all_language_detections: list[GoldLanguageDetection] = []
         for extractor in self.extractors:
             try:
-                if isinstance(extractor, LanguageDetectionPersistExtractor):
-                    metrics, lang_detections = extractor.extract_all(core, article_id)
-                    all_metrics.extend(metrics)
-                    all_language_detections.extend(lang_detections)
-                elif isinstance(extractor, EntityExtractor):
-                    metrics, entities = extractor.extract_all(core, article_id)
-                    all_metrics.extend(metrics)
-                    all_entities.extend(entities)
-                else:
-                    metrics = extractor.extract(core, article_id)
-                    all_metrics.extend(metrics)
+                result = extractor.extract_all(core, article_id)
+                all_metrics.extend(result.metrics)
+                all_entities.extend(result.entities)
+                all_language_detections.extend(result.language_detections)
             except Exception as e:
                 logger.error(
                     "Extractor failed. Skipping this extractor; other extractors continue.",

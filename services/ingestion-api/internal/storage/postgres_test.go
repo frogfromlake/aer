@@ -141,4 +141,46 @@ func TestPostgresStorage(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nonexistent source, got nil")
 	}
+
+	// 10. TEST: DeleteOldDocuments — does not delete recent records
+	recentKey := "recent-doc.json"
+	err = db.LogDocument(ctx, jobID, recentKey, "trace-recent")
+	if err != nil {
+		t.Errorf("expected no error logging recent document, got %v", err)
+	}
+
+	// Cutoff in the past — no document should be deleted
+	pastCutoff := time.Now().Add(-30 * 24 * time.Hour)
+	deleted, err := db.DeleteOldDocuments(ctx, pastCutoff)
+	if err != nil {
+		t.Errorf("expected no error deleting old documents, got %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("expected 0 documents deleted with past cutoff, got %d", deleted)
+	}
+
+	// Cutoff in the future — all documents should be deleted
+	futureCutoff := time.Now().Add(24 * time.Hour)
+	deleted, err = db.DeleteOldDocuments(ctx, futureCutoff)
+	if err != nil {
+		t.Errorf("expected no error deleting old documents, got %v", err)
+	}
+	if deleted < 1 {
+		t.Errorf("expected at least 1 document deleted with future cutoff, got %d", deleted)
+	}
+
+	// 11. TEST: DeleteOldIngestionJobs — removes orphaned completed jobs
+	err = db.UpdateJobStatus(ctx, jobID, "completed")
+	if err != nil {
+		t.Errorf("expected no error updating job status, got %v", err)
+	}
+
+	// Job should now be deletable: completed, old enough, no remaining child documents
+	jobsDeleted, err := db.DeleteOldIngestionJobs(ctx, futureCutoff)
+	if err != nil {
+		t.Errorf("expected no error deleting old jobs, got %v", err)
+	}
+	if jobsDeleted < 1 {
+		t.Errorf("expected at least 1 job deleted, got %d", jobsDeleted)
+	}
 }

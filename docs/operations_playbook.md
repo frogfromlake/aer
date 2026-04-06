@@ -72,6 +72,25 @@ psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT id, sourc
 
 **Migrations** are in `infra/postgres/migrations/` and run automatically on `ingestion-api` startup via `golang-migrate`.
 
+**Retention policy (Phase 52):**
+
+Records older than 90 days are automatically removed by the `ingestion-api` background goroutine (`startRetentionCleanup`). Documents are deleted first (FK constraint), then orphaned completed/failed ingestion jobs. The 90-day window matches the MinIO bronze ILM policy — after 90 days the underlying object is gone, making the PostgreSQL record an orphan regardless.
+
+```bash
+# Inspect current table sizes
+psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB \
+  -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;"
+
+# Manually check oldest document record
+psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB \
+  -c "SELECT MIN(ingested_at), MAX(ingested_at), COUNT(*) FROM documents;"
+
+# Retention cleanup is logged by the ingestion-api at INFO level:
+#   "PostgreSQL retention: deleted old documents" count=N cutoff=...
+#   "PostgreSQL retention: deleted old ingestion jobs" count=N cutoff=...
+make logs | grep "PostgreSQL retention"
+```
+
 **Volume management:**
 
 ```bash

@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -20,7 +20,7 @@ class GoldMetric:
 class GoldEntity:
     """
     A structured entity extracted from a SilverCore document.
-    Maps to the future aer_gold.entities ClickHouse table (Phase 42).
+    Maps to the aer_gold.entities ClickHouse table (Phase 42).
     """
     timestamp: datetime
     source: str
@@ -45,6 +45,21 @@ class GoldLanguageDetection:
     rank: int
 
 
+@dataclass(slots=True)
+class ExtractionResult:
+    """
+    Unified result from a single-pass document extraction (Phase 52).
+
+    All extractors return this structure from extract_all(). The processor
+    accumulates metrics, entities, and language_detections from each extractor
+    without requiring isinstance() dispatch — any extractor may populate any
+    subset of the three result lists; empty lists are the default.
+    """
+    metrics: list[GoldMetric] = field(default_factory=list)
+    entities: list[GoldEntity] = field(default_factory=list)
+    language_detections: list[GoldLanguageDetection] = field(default_factory=list)
+
+
 @dataclass(frozen=True, slots=True)
 class TimeWindow:
     """Defines a time range for corpus-level batch extraction."""
@@ -55,14 +70,17 @@ class TimeWindow:
 @runtime_checkable
 class MetricExtractor(Protocol):
     """
-    Protocol for per-document metric extraction.
+    Protocol for per-document extraction (Phase 52 unified interface).
 
-    Each implementation extracts one or more Gold metrics from a single
-    SilverCore record. Extractors are registered in the DataProcessor
-    pipeline and executed sequentially after Silver validation.
+    All extractors implement a single extract_all() method returning an
+    ExtractionResult. This eliminates the isinstance() dispatch chains that
+    previously routed LanguageDetectionPersistExtractor and EntityExtractor
+    separately. Extractors populate whichever result fields they produce;
+    the processor unconditionally accumulates all three.
 
-    One extractor can produce multiple metrics per document (e.g.,
-    sentiment produces sentiment_score + sentiment_subjectivity).
+    One extractor can produce multiple metrics per document and any number
+    of entities or language detections. Graceful degradation is handled by
+    the processor — a failing extractor is skipped, others continue.
     """
 
     @property
@@ -70,97 +88,17 @@ class MetricExtractor(Protocol):
         """Human-readable identifier for this extractor (used in logging)."""
         ...
 
-    def extract(self, core: "SilverCore", article_id: str | None) -> list[GoldMetric]:
+    def extract_all(self, core: "SilverCore", article_id: str | None) -> ExtractionResult:
         """
-        Extract metrics from a single harmonized document.
+        Single-pass extraction returning all results for this document.
 
         Args:
             core: The validated SilverCore record.
             article_id: Document identifier derived from the MinIO object key.
 
         Returns:
-            A list of GoldMetric instances. May be empty if the extractor
-            determines no meaningful metric can be derived.
-        """
-        ...
-
-
-@runtime_checkable
-class EntityExtractor(MetricExtractor, Protocol):
-    """
-    Protocol for extractors that produce both GoldMetric and GoldEntity results.
-
-    Extends MetricExtractor with an additional extract_entities() method.
-    The processor checks isinstance(extractor, EntityExtractor) to determine
-    whether to call extract_entities() — no hasattr() required.
-
-    Implementations should process the document once and return both metrics
-    and entities from a single pass (see extract_all()).
-
-    Extractors must be stateless between documents — no mutable instance-level
-    caching of intermediate results (e.g., spaCy docs).
-    """
-
-    def extract_entities(self, core: "SilverCore", article_id: str | None) -> list[GoldEntity]:
-        """
-        Extract structured entities from a single harmonized document.
-
-        Args:
-            core: The validated SilverCore record.
-            article_id: Document identifier derived from the MinIO object key.
-
-        Returns:
-            A list of GoldEntity instances. May be empty if the extractor
-            determines no meaningful entities can be derived.
-        """
-        ...
-
-    def extract_all(self, core: "SilverCore", article_id: str | None) -> tuple[list[GoldMetric], list[GoldEntity]]:
-        """
-        Single-pass extraction returning both metrics and entities.
-
-        This is the preferred entry point for EntityExtractor instances.
-        The processor calls this instead of calling extract() and
-        extract_entities() separately, avoiding redundant document processing.
-
-        Args:
-            core: The validated SilverCore record.
-            article_id: Document identifier derived from the MinIO object key.
-
-        Returns:
-            A tuple of (metrics, entities).
-        """
-        ...
-
-
-@runtime_checkable
-class LanguageDetectionPersistExtractor(MetricExtractor, Protocol):
-    """
-    Protocol for extractors that produce both GoldMetric and GoldLanguageDetection results.
-
-    Extends MetricExtractor with extract_language_detections() and extract_all().
-    The processor checks isinstance(extractor, LanguageDetectionPersistExtractor)
-    to determine whether to call extract_all() — following the EntityExtractor pattern.
-
-    Implementations should process the document once and return both metrics
-    and language detections from a single pass (see extract_all()).
-    """
-
-    def extract_language_detections(self, core: "SilverCore", article_id: str | None) -> list[GoldLanguageDetection]:
-        """
-        Extract structured language detection records from a single document.
-
-        Returns:
-            A list of GoldLanguageDetection instances, ranked by confidence.
-        """
-        ...
-
-    def extract_all(self, core: "SilverCore", article_id: str | None) -> tuple[list[GoldMetric], list[GoldLanguageDetection]]:
-        """
-        Single-pass extraction returning both metrics and language detections.
-
-        Returns:
-            A tuple of (metrics, language_detections).
+            An ExtractionResult with metrics, entities, and language_detections.
+            Unpopulated fields default to empty lists.
         """
         ...
 

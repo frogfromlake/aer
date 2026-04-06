@@ -1,6 +1,6 @@
 import logging
 
-from internal.extractors.base import GoldMetric
+from internal.extractors.base import GoldMetric, ExtractionResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class TemporalDistributionExtractor:
     def name(self) -> str:
         return "temporal_distribution"
 
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         ts = core.timestamp
         if ts.tzinfo is None or ts.utcoffset().total_seconds() != 0:
             logger.warning(
@@ -37,20 +37,22 @@ class TemporalDistributionExtractor:
                 ts.utcoffset(),
                 article_id,
             )
-            return []
-        return [
-            GoldMetric(
-                timestamp=ts,
-                value=float(ts.hour),
-                source=core.source,
-                metric_name="publication_hour",
-                article_id=article_id,
-            ),
-            GoldMetric(
-                timestamp=ts,
-                value=float(ts.weekday()),
-                source=core.source,
-                metric_name="publication_weekday",
-                article_id=article_id,
-            ),
-        ]
+            return ExtractionResult()
+        return ExtractionResult(
+            metrics=[
+                GoldMetric(
+                    timestamp=ts,
+                    value=float(ts.hour),
+                    source=core.source,
+                    metric_name="publication_hour",
+                    article_id=article_id,
+                ),
+                GoldMetric(
+                    timestamp=ts,
+                    value=float(ts.weekday()),
+                    source=core.source,
+                    metric_name="publication_weekday",
+                    article_id=article_id,
+                ),
+            ]
+        )

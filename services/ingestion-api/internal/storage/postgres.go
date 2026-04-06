@@ -108,6 +108,47 @@ func (p *PostgresDB) GetSourceByName(ctx context.Context, name string) (int, str
 	return id, sourceName, nil
 }
 
+// DeleteOldDocuments removes documents older than cutoff. Documents must be
+// deleted before their parent ingestion_jobs (FK constraint). Returns the
+// number of rows deleted.
+func (p *PostgresDB) DeleteOldDocuments(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := p.DB.ExecContext(ctx,
+		`DELETE FROM documents WHERE ingested_at < $1`,
+		cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete old documents: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read rows affected for document deletion: %w", err)
+	}
+	return n, nil
+}
+
+// DeleteOldIngestionJobs removes completed or failed ingestion jobs older than
+// cutoff that have no remaining child documents. Call after DeleteOldDocuments
+// to respect the FK constraint. Returns the number of rows deleted.
+func (p *PostgresDB) DeleteOldIngestionJobs(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := p.DB.ExecContext(ctx,
+		`DELETE FROM ingestion_jobs
+		 WHERE started_at < $1
+		   AND status IN ('completed', 'failed')
+		   AND id NOT IN (
+		       SELECT DISTINCT job_id FROM documents WHERE job_id IS NOT NULL
+		   )`,
+		cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete old ingestion jobs: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read rows affected for job deletion: %w", err)
+	}
+	return n, nil
+}
+
 // Ping verifies the PostgreSQL connection is alive.
 func (p *PostgresDB) Ping(ctx context.Context) error {
 	return p.DB.PingContext(ctx)

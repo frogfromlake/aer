@@ -535,19 +535,19 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
 * [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
 
+## Phase 52: Metadata Lifecycle & Extractor Dispatch Refactoring (Findings 11, 12) - [x] DONE
+*These represent accepted technical debt. Addressing them now creates a cleaner and more scalable foundation before onboarding additional uncoupled data sources.*
+
+* [x] **Implement PostgreSQL Retention Policy.** Application-level cleanup routine chosen over `pg_cron` (requires external extension) and table partitioning (over-engineering at current scale). Migration `000004` adds `idx_documents_ingested_at` and `idx_ingestion_jobs_started_at` indexes. `startRetentionCleanup` goroutine in `ingestion-api/cmd/api/main.go` runs every 24h, deleting records older than 90 days (matching MinIO bronze ILM). Documents deleted first (FK constraint), then orphaned completed/failed jobs.
+* [x] **Unify Extractor Protocol.** `ExtractionResult` dataclass introduced in `extractors/base.py`. `MetricExtractor` protocol now requires a single `extract_all() -> ExtractionResult`. `EntityExtractor` and `LanguageDetectionPersistExtractor` sub-protocols removed. Processor dispatch loop reduced to three lines — no isinstance checks. All five extractors updated. 76 Python tests pass.
+* [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
+* [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
+
 ---
 
 ### Open Phases
 
 ---
-
-## Phase 52: Metadata Lifecycle & Extractor Dispatch Refactoring (Findings 11, 12) - [ ] TODO
-*These represent accepted technical debt. Addressing them now creates a cleaner and more scalable foundation before onboarding additional uncoupled data sources.*
-
-* [ ] **Implement PostgreSQL Retention Policy.** Define and implement a data lifecycle strategy for the `documents` and `ingestion_jobs` tables in PostgreSQL. Decide between table partitioning (`PARTITION BY month`), `pg_cron` jobs, or an application-level cleanup routine.
-* [ ] **Unify Extractor Protocol.** Refactor the extractor base interface to define a single `extract_all()` method returning a standardized structure (e.g., a tuple or dataclass containing `metrics`, `entities`, and `language_detections`). This eliminates brittle `isinstance()` chains in the dispatch layer.
-* [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
-* [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
 
 ## Phase 53: Infrastructure Startup Consistency (Findings 5, 6) - [ ] TODO
 *The `make infra-up` command must deterministically boot the complete backend stack to avoid developer confusion and manual interventions.*

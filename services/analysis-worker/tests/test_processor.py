@@ -7,7 +7,7 @@ from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
 from internal.models import generate_document_id
 from internal.extractors import (
-    WordCountExtractor, GoldMetric, GoldEntity, MetricExtractor, EntityExtractor,
+    WordCountExtractor, GoldMetric, GoldEntity, MetricExtractor, ExtractionResult,
     TemporalDistributionExtractor, LanguageDetectionExtractor,
     SentimentExtractor, NamedEntityExtractor,
 )
@@ -679,16 +679,18 @@ class StubExtractor:
     def name(self) -> str:
         return self._name
 
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
-        return [
-            GoldMetric(
-                timestamp=core.timestamp,
-                value=self._value,
-                source=core.source,
-                metric_name=self._name,
-                article_id=article_id,
-            )
-        ]
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
+        return ExtractionResult(
+            metrics=[
+                GoldMetric(
+                    timestamp=core.timestamp,
+                    value=self._value,
+                    source=core.source,
+                    metric_name=self._name,
+                    article_id=article_id,
+                )
+            ]
+        )
 
 
 class FailingExtractor:
@@ -697,7 +699,7 @@ class FailingExtractor:
     def name(self) -> str:
         return "failing_extractor"
 
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         raise RuntimeError("Simulated extractor failure")
 
 
@@ -870,7 +872,8 @@ def test_temporal_extractor_produces_hour_and_weekday():
         word_count=2,
     )
 
-    metrics = extractor.extract(core, "article-1")
+    result = extractor.extract_all(core, "article-1")
+    metrics = result.metrics
     assert len(metrics) == 2
 
     hour_metric = next(m for m in metrics if m.metric_name == "publication_hour")
@@ -904,7 +907,8 @@ def test_temporal_extractor_midnight_sunday():
         word_count=1,
     )
 
-    metrics = extractor.extract(core, None)
+    result = extractor.extract_all(core, None)
+    metrics = result.metrics
     hour_metric = next(m for m in metrics if m.metric_name == "publication_hour")
     weekday_metric = next(m for m in metrics if m.metric_name == "publication_weekday")
 
@@ -932,8 +936,8 @@ def test_temporal_extractor_naive_datetime_returns_empty():
     # Replace the timestamp with a naive one to exercise the extractor guard
     object.__setattr__(core, "timestamp", datetime(2026, 4, 5, 10, 0, 0))
 
-    metrics = extractor.extract(core, "article-naive")
-    assert metrics == []
+    result = extractor.extract_all(core, "article-naive")
+    assert result.metrics == []
 
 
 def test_silver_core_naive_timestamp_raises_validation_error():
@@ -978,7 +982,8 @@ def test_language_extractor_german_text():
         word_count=11,
     )
 
-    metrics = extractor.extract(core, "article-1")
+    result = extractor.extract_all(core, "article-1")
+    metrics = result.metrics
     assert len(metrics) == 1
     assert metrics[0].metric_name == "language_confidence"
     assert 0.0 <= metrics[0].value <= 1.0
@@ -1001,8 +1006,8 @@ def test_language_extractor_short_text_returns_empty():
         word_count=1,
     )
 
-    metrics = extractor.extract(core, None)
-    assert metrics == []
+    result = extractor.extract_all(core, None)
+    assert result.metrics == []
 
 
 def test_language_extractor_empty_text_returns_empty():
@@ -1021,8 +1026,8 @@ def test_language_extractor_empty_text_returns_empty():
         word_count=0,
     )
 
-    metrics = extractor.extract(core, None)
-    assert metrics == []
+    result = extractor.extract_all(core, None)
+    assert result.metrics == []
 
 
 def test_language_extractor_deterministic():
@@ -1041,7 +1046,7 @@ def test_language_extractor_deterministic():
         word_count=11,
     )
 
-    results = [extractor.extract(core, None)[0].value for _ in range(5)]
+    results = [extractor.extract_all(core, None).metrics[0].value for _ in range(5)]
     assert len(set(results)) == 1  # all identical
 
 
@@ -1074,8 +1079,8 @@ def test_sentiment_extractor_no_lexicon_returns_empty():
         word_count=3,
     )
 
-    metrics = extractor.extract(core, None)
-    assert metrics == []
+    result = extractor.extract_all(core, None)
+    assert result.metrics == []
 
 
 def test_sentiment_extractor_with_inline_lexicon(tmp_path):
@@ -1107,7 +1112,8 @@ def test_sentiment_extractor_with_inline_lexicon(tmp_path):
         word_count=6,
     )
 
-    metrics = extractor.extract(core, "article-1")
+    result = extractor.extract_all(core, "article-1")
+    metrics = result.metrics
     assert len(metrics) == 1
     assert metrics[0].metric_name == "sentiment_score"
     assert all(m.metric_name != "lexicon_version" for m in metrics)
@@ -1144,8 +1150,8 @@ def test_sentiment_extractor_negative_text(tmp_path):
         word_count=4,
     )
 
-    metrics = extractor.extract(core, None)
-    sentiment = next(m for m in metrics if m.metric_name == "sentiment_score")
+    result = extractor.extract_all(core, None)
+    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score")
     assert sentiment.value < 0  # negative text → negative score
     assert -1.0 <= sentiment.value <= 1.0
 
@@ -1173,8 +1179,8 @@ def test_sentiment_extractor_no_matches_returns_zero(tmp_path):
         word_count=5,
     )
 
-    metrics = extractor.extract(core, None)
-    sentiment = next(m for m in metrics if m.metric_name == "sentiment_score")
+    result = extractor.extract_all(core, None)
+    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score")
     assert sentiment.value == 0.0
 
 
@@ -1223,15 +1229,15 @@ def test_named_entity_extractor_german_text():
         word_count=13,
     )
 
-    # Test metric output
-    metrics = extractor.extract(core, "article-1")
+    result = extractor.extract_all(core, "article-1")
+    metrics = result.metrics
+    entities = result.entities
+
     assert len(metrics) == 1
     assert metrics[0].metric_name == "entity_count"
     assert metrics[0].value >= 1  # at least some entities found
     assert metrics[0].source == "tagesschau"
 
-    # Test entity output
-    entities = extractor.extract_entities(core, "article-1")
     assert len(entities) >= 1
     assert all(isinstance(e, GoldEntity) for e in entities)
 
@@ -1264,8 +1270,9 @@ def test_named_entity_extractor_empty_text():
         word_count=0,
     )
 
-    assert extractor.extract(core, None) == []
-    assert extractor.extract_entities(core, None) == []
+    result = extractor.extract_all(core, None)
+    assert result.metrics == []
+    assert result.entities == []
 
 
 def test_named_entity_extractor_entity_count_matches():
@@ -1287,8 +1294,9 @@ def test_named_entity_extractor_entity_count_matches():
         word_count=8,
     )
 
-    metrics = extractor.extract(core, None)
-    entities = extractor.extract_entities(core, None)
+    result = extractor.extract_all(core, None)
+    metrics = result.metrics
+    entities = result.entities
 
     entity_count_metric = metrics[0]
     assert entity_count_metric.value == float(len(entities))
@@ -1298,53 +1306,50 @@ def test_named_entity_extractor_entity_count_matches():
 
 
 class StubEntityExtractor:
-    """A test extractor that produces both metrics and entities (EntityExtractor protocol)."""
+    """A test extractor that produces both metrics and entities."""
 
     @property
     def name(self) -> str:
         return "stub_entity"
 
-    def extract_all(self, core, article_id: str | None) -> tuple[list[GoldMetric], list[GoldEntity]]:
-        return self.extract(core, article_id), self.extract_entities(core, article_id)
-
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
-        return [
-            GoldMetric(
-                timestamp=core.timestamp,
-                value=2.0,
-                source=core.source,
-                metric_name="entity_count",
-                article_id=article_id,
-            )
-        ]
-
-    def extract_entities(self, core, article_id: str | None) -> list[GoldEntity]:
-        return [
-            GoldEntity(
-                timestamp=core.timestamp,
-                source=core.source,
-                article_id=article_id,
-                entity_text="Berlin",
-                entity_label="LOC",
-                start_char=0,
-                end_char=6,
-            ),
-            GoldEntity(
-                timestamp=core.timestamp,
-                source=core.source,
-                article_id=article_id,
-                entity_text="Merkel",
-                entity_label="PER",
-                start_char=10,
-                end_char=16,
-            ),
-        ]
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
+        return ExtractionResult(
+            metrics=[
+                GoldMetric(
+                    timestamp=core.timestamp,
+                    value=2.0,
+                    source=core.source,
+                    metric_name="entity_count",
+                    article_id=article_id,
+                )
+            ],
+            entities=[
+                GoldEntity(
+                    timestamp=core.timestamp,
+                    source=core.source,
+                    article_id=article_id,
+                    entity_text="Berlin",
+                    entity_label="LOC",
+                    start_char=0,
+                    end_char=6,
+                ),
+                GoldEntity(
+                    timestamp=core.timestamp,
+                    source=core.source,
+                    article_id=article_id,
+                    entity_text="Merkel",
+                    entity_label="PER",
+                    start_char=10,
+                    end_char=16,
+                ),
+            ],
+        )
 
 
 def test_processor_inserts_entities(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
     """
     Tests that the processor inserts entities into aer_gold.entities
-    when an extractor provides extract_entities().
+    when an extractor returns non-empty entities in its ExtractionResult.
     """
     extractors = [WordCountExtractor(), StubEntityExtractor()]
     proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
@@ -1381,8 +1386,8 @@ def test_processor_inserts_entities(mock_minio, mock_clickhouse, mock_pg_pool, a
 
 def test_processor_no_entity_insert_without_entity_extractor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
     """
-    Tests that extractors without extract_entities() do not trigger
-    entity insertion — only the metrics insert happens.
+    Tests that extractors returning empty entities in their ExtractionResult
+    do not trigger entity insertion — only the metrics insert happens.
     """
     extractors = [WordCountExtractor()]
     proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
@@ -1465,46 +1470,42 @@ def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, moc
 # ==================== Phase 44: Protocol Correctness & DRY Tests ====================
 
 
-def test_named_entity_extractor_is_entity_extractor():
-    """Tests that NamedEntityExtractor satisfies the EntityExtractor protocol."""
+def test_named_entity_extractor_satisfies_metric_extractor():
+    """Tests that NamedEntityExtractor satisfies the unified MetricExtractor protocol."""
     extractor = NamedEntityExtractor(model_name="nonexistent_model_for_test")
-    assert isinstance(extractor, EntityExtractor)
-
-
-def test_entity_extractor_protocol_not_satisfied_by_metric_only():
-    """Tests that a plain MetricExtractor does NOT satisfy EntityExtractor."""
-    extractor = WordCountExtractor()
     assert isinstance(extractor, MetricExtractor)
-    assert not isinstance(extractor, EntityExtractor)
+    assert extractor.name == "named_entity"
 
 
-def test_non_callable_extract_entities_does_not_crash_processor(
+def test_all_extractors_satisfy_metric_extractor_protocol():
+    """Tests that all registered extractors satisfy the unified MetricExtractor protocol."""
+    from pathlib import Path
+    extractors = [
+        WordCountExtractor(),
+        TemporalDistributionExtractor(),
+        LanguageDetectionExtractor(),
+        SentimentExtractor(sentiws_dir=Path("/nonexistent")),
+        NamedEntityExtractor(model_name="nonexistent_model_for_test"),
+    ]
+    for extractor in extractors:
+        assert isinstance(extractor, MetricExtractor), f"{extractor.name} does not satisfy MetricExtractor"
+
+
+def test_extractor_missing_extract_all_is_skipped_gracefully(
     mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
 ):
     """
-    Tests that an extractor with a non-callable extract_entities attribute
-    does not crash the processor — isinstance(EntityExtractor) returns False
-    because the protocol requires callable methods.
+    Tests that an extractor not implementing extract_all() is skipped gracefully.
+    The AttributeError is caught by the per-extractor exception handler.
+    Other extractors in the pipeline continue normally.
     """
-    class BadExtractor:
-        extract_entities = "not a callable"
-
+    class MalformedExtractor:
         @property
         def name(self) -> str:
-            return "bad_extractor"
+            return "malformed_extractor"
+        # No extract_all() method — AttributeError at dispatch time
 
-        def extract(self, core, article_id):
-            return [
-                GoldMetric(
-                    timestamp=core.timestamp,
-                    value=1.0,
-                    source=core.source,
-                    metric_name="bad_metric",
-                    article_id=article_id,
-                )
-            ]
-
-    extractors = [BadExtractor()]
+    extractors = [MalformedExtractor(), WordCountExtractor()]
     proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
 
     mock_response = MagicMock()
@@ -1513,14 +1514,14 @@ def test_non_callable_extract_entities_does_not_crash_processor(
     proc._get_document_status = MagicMock(return_value=None)
     proc._update_document_status = MagicMock()
 
-    # Must not raise — bad extractor is treated as a plain MetricExtractor
+    # Must not raise — malformed extractor failure is caught, others continue
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
     mock_clickhouse.insert.assert_called_once()
     ch_args, _ = mock_clickhouse.insert.call_args
     rows = ch_args[1]
     assert len(rows) == 1
-    assert rows[0][3] == "bad_metric"
+    assert rows[0][3] == "word_count"
 
     proc._update_document_status.assert_called_with(
         "test-source/test-article/2023-10-25.json", "processed"
@@ -1620,21 +1621,15 @@ def test_quarantine_helper_from_validation_failure(
 # ==================== Phase 45: Language Detection Persistence Tests ====================
 
 
-def test_language_extractor_is_language_detection_persist_extractor():
-    """Tests that LanguageDetectionExtractor satisfies the LanguageDetectionPersistExtractor protocol."""
-    from internal.extractors import LanguageDetectionPersistExtractor
+def test_language_extractor_satisfies_metric_extractor():
+    """Tests that LanguageDetectionExtractor satisfies the unified MetricExtractor protocol."""
     extractor = LanguageDetectionExtractor()
-    assert isinstance(extractor, LanguageDetectionPersistExtractor)
-
-
-def test_language_extractor_not_entity_extractor():
-    """Tests that LanguageDetectionExtractor does NOT satisfy EntityExtractor."""
-    extractor = LanguageDetectionExtractor()
-    assert not isinstance(extractor, EntityExtractor)
+    assert isinstance(extractor, MetricExtractor)
+    assert extractor.name == "language_detection"
 
 
 def test_language_extractor_extract_all_german_text():
-    """Tests that extract_all() returns both metrics and language detections."""
+    """Tests that extract_all() returns an ExtractionResult with metrics and language_detections."""
     from datetime import timezone
     from internal.models import SilverCore
     from internal.extractors import GoldLanguageDetection
@@ -1650,9 +1645,11 @@ def test_language_extractor_extract_all_german_text():
         word_count=11,
     )
 
-    metrics, detections = extractor.extract_all(core, "article-1")
+    result = extractor.extract_all(core, "article-1")
+    metrics = result.metrics
+    detections = result.language_detections
 
-    # Metrics: language_confidence as before
+    # Metrics: language_confidence
     assert len(metrics) == 1
     assert metrics[0].metric_name == "language_confidence"
     assert 0.0 <= metrics[0].value <= 1.0
@@ -1674,7 +1671,7 @@ def test_language_extractor_extract_all_german_text():
 
 
 def test_language_extractor_extract_all_short_text():
-    """Tests that extract_all() returns empty lists for short text."""
+    """Tests that extract_all() returns empty ExtractionResult for short text."""
     from datetime import timezone
     from internal.models import SilverCore
 
@@ -1689,13 +1686,13 @@ def test_language_extractor_extract_all_short_text():
         word_count=1,
     )
 
-    metrics, detections = extractor.extract_all(core, None)
-    assert metrics == []
-    assert detections == []
+    result = extractor.extract_all(core, None)
+    assert result.metrics == []
+    assert result.language_detections == []
 
 
-def test_language_extractor_extract_language_detections():
-    """Tests that extract_language_detections() returns only detections."""
+def test_language_extractor_language_detections_via_extract_all():
+    """Tests that language_detections are accessible via extract_all().language_detections."""
     from datetime import timezone
     from internal.models import SilverCore
     from internal.extractors import GoldLanguageDetection
@@ -1711,7 +1708,8 @@ def test_language_extractor_extract_language_detections():
         word_count=11,
     )
 
-    detections = extractor.extract_language_detections(core, "article-1")
+    result = extractor.extract_all(core, "article-1")
+    detections = result.language_detections
     assert len(detections) >= 1
     assert all(isinstance(d, GoldLanguageDetection) for d in detections)
 
@@ -1752,12 +1750,12 @@ def test_processor_language_detections_insert(
     assert lang_rows[0][5] == 1  # rank column
 
 
-def test_processor_no_language_detection_insert_without_persist_extractor(
+def test_processor_no_language_detection_insert_without_language_extractor(
     mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
 ):
     """
-    Tests that extractors without LanguageDetectionPersistExtractor protocol
-    do not trigger language_detections insertion.
+    Tests that extractors not producing language_detections (empty list in
+    ExtractionResult) do not trigger a language_detections ClickHouse insert.
     """
     extractors = [WordCountExtractor()]
     proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)

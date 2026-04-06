@@ -2,7 +2,7 @@ import structlog
 from langdetect import detect_langs, LangDetectException
 from langdetect import DetectorFactory
 
-from internal.extractors.base import GoldMetric, GoldLanguageDetection
+from internal.extractors.base import GoldMetric, GoldLanguageDetection, ExtractionResult
 
 # Fixed seed for deterministic language detection across runs.
 # langdetect uses a probabilistic model internally; without a fixed seed,
@@ -19,9 +19,9 @@ class LanguageDetectionExtractor:
     **Provisional (Phase 42)** — This is a proof-of-concept, not a
     scientifically validated implementation.
 
-    Implements the LanguageDetectionPersistExtractor protocol (Phase 45):
-    produces both GoldMetric (language_confidence) and GoldLanguageDetection
-    records in a single pass via extract_all(). Stateless between documents.
+    Implements the unified MetricExtractor protocol (Phase 52): a single
+    extract_all() call returns both the language_confidence GoldMetric and
+    GoldLanguageDetection records in one pass. Stateless between documents.
 
     Produces:
     - metric_name = "language_confidence": The probability score (0.0-1.0)
@@ -54,14 +54,14 @@ class LanguageDetectionExtractor:
     def name(self) -> str:
         return "language_detection"
 
-    def extract_all(self, core, article_id: str | None) -> tuple[list[GoldMetric], list[GoldLanguageDetection]]:
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         """
-        Single-pass extraction returning both the language_confidence metric
-        and ranked GoldLanguageDetection records for aer_gold.language_detections.
+        Single-pass extraction returning the language_confidence metric and
+        ranked GoldLanguageDetection records for aer_gold.language_detections.
         """
         text = core.cleaned_text
         if not text or len(text.strip()) < 10:
-            return [], []
+            return ExtractionResult()
 
         try:
             results = detect_langs(text)
@@ -72,10 +72,10 @@ class LanguageDetectionExtractor:
                 article_id=article_id,
                 text_length=len(text),
             )
-            return [], []
+            return ExtractionResult()
 
         if not results:
-            return [], []
+            return ExtractionResult()
 
         top = results[0]
         metrics = [
@@ -88,7 +88,7 @@ class LanguageDetectionExtractor:
             ),
         ]
 
-        detections = [
+        language_detections = [
             GoldLanguageDetection(
                 timestamp=core.timestamp,
                 source=core.source,
@@ -100,12 +100,4 @@ class LanguageDetectionExtractor:
             for idx, r in enumerate(results)
         ]
 
-        return metrics, detections
-
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
-        metrics, _ = self.extract_all(core, article_id)
-        return metrics
-
-    def extract_language_detections(self, core, article_id: str | None) -> list[GoldLanguageDetection]:
-        _, detections = self.extract_all(core, article_id)
-        return detections
+        return ExtractionResult(metrics=metrics, language_detections=language_detections)

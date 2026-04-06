@@ -1,4 +1,4 @@
-from internal.extractors.base import GoldMetric
+from internal.extractors.base import GoldMetric, ExtractionResult
 
 
 class WordCountExtractor:
@@ -14,13 +14,15 @@ class WordCountExtractor:
     def name(self) -> str:
         return "word_count"
 
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
-        return [
-            GoldMetric(
-                timestamp=core.timestamp,
-                value=float(core.word_count),
-                source=core.source,
-                metric_name="word_count",
-                article_id=article_id,
-            )
-        ]
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
+        return ExtractionResult(
+            metrics=[
+                GoldMetric(
+                    timestamp=core.timestamp,
+                    value=float(core.word_count),
+                    source=core.source,
+                    metric_name="word_count",
+                    article_id=article_id,
+                )
+            ]
+        )

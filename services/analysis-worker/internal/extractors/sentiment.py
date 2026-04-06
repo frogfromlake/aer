@@ -2,7 +2,7 @@ import hashlib
 import structlog
 from pathlib import Path
 
-from internal.extractors.base import GoldMetric
+from internal.extractors.base import GoldMetric, ExtractionResult
 
 logger = structlog.get_logger()
 
@@ -125,13 +125,13 @@ class SentimentExtractor:
     def version_hash(self) -> str:
         return self._lexicon_hash
 
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         if not self._lexicon:
-            return []
+            return ExtractionResult()
 
         text = core.cleaned_text
         if not text:
-            return []
+            return ExtractionResult()
 
         # Naive whitespace tokenization + lowercase + punctuation strip
         tokens = text.lower().split()
@@ -151,12 +151,14 @@ class SentimentExtractor:
         # Clamp to [-1, 1]
         sentiment = max(-1.0, min(1.0, sentiment))
 
-        return [
-            GoldMetric(
-                timestamp=core.timestamp,
-                value=round(sentiment, 4),
-                source=core.source,
-                metric_name="sentiment_score",
-                article_id=article_id,
-            ),
-        ]
+        return ExtractionResult(
+            metrics=[
+                GoldMetric(
+                    timestamp=core.timestamp,
+                    value=round(sentiment, 4),
+                    source=core.source,
+                    metric_name="sentiment_score",
+                    article_id=article_id,
+                ),
+            ]
+        )

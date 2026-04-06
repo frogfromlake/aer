@@ -21,6 +21,46 @@ import (
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/storage"
 )
 
+// startRetentionCleanup runs a daily PostgreSQL retention sweep in the background.
+// Documents older than 90 days are deleted first, then orphaned completed/failed
+// ingestion jobs older than 90 days. The 90-day window matches the MinIO bronze
+// ILM policy, preventing accumulation of orphan metadata records.
+func startRetentionCleanup(ctx context.Context, db *storage.PostgresDB) {
+	const retentionDays = 90
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	runCleanup := func() {
+		cutoff := time.Now().AddDate(0, 0, -retentionDays)
+
+		docsDeleted, err := db.DeleteOldDocuments(ctx, cutoff)
+		if err != nil {
+			slog.Error("PostgreSQL document retention cleanup failed", "error", err)
+		} else if docsDeleted > 0 {
+			slog.Info("PostgreSQL retention: deleted old documents", "count", docsDeleted, "cutoff", cutoff.Format(time.RFC3339))
+		}
+
+		jobsDeleted, err := db.DeleteOldIngestionJobs(ctx, cutoff)
+		if err != nil {
+			slog.Error("PostgreSQL job retention cleanup failed", "error", err)
+		} else if jobsDeleted > 0 {
+			slog.Info("PostgreSQL retention: deleted old ingestion jobs", "count", jobsDeleted, "cutoff", cutoff.Format(time.RFC3339))
+		}
+	}
+
+	runCleanup() // run once immediately on startup
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("PostgreSQL retention cleanup goroutine stopped.")
+			return
+		case <-ticker.C:
+			runCleanup()
+		}
+	}
+}
+
 func main() {
 	// 1. Setup context for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -97,7 +137,10 @@ func main() {
 	r.Get("/api/v1/healthz", h.Healthz)
 	r.Get("/api/v1/readyz", h.Readyz)
 
-	// 6. Start HTTP server
+	// 6. Start background PostgreSQL retention cleanup (runs every 24h)
+	go startRetentionCleanup(ctx, db)
+
+	// 7. Start HTTP server
 	server := &http.Server{
 		Addr:    ":" + cfg.IngestionPort,
 		Handler: r,
@@ -111,7 +154,7 @@ func main() {
 		}
 	}()
 
-	// 7. Block until shutdown signal, then drain with 5s timeout
+	// 8. Block until shutdown signal, then drain with 5s timeout
 	<-ctx.Done()
 	slog.Info("Shutdown signal received. Shutting down Ingestion API gracefully...")
 

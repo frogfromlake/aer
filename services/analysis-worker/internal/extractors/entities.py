@@ -1,7 +1,7 @@
 import structlog
 import spacy
 
-from internal.extractors.base import GoldMetric, GoldEntity
+from internal.extractors.base import GoldMetric, GoldEntity, ExtractionResult
 
 logger = structlog.get_logger()
 
@@ -13,9 +13,9 @@ class NamedEntityExtractor:
     **Provisional (Phase 42)** — This is a proof-of-concept, not a
     scientifically validated implementation.
 
-    Implements the EntityExtractor protocol (Phase 44): produces both
-    GoldMetric (entity_count) and GoldEntity records in a single pass
-    via extract_all(). Stateless between documents — no mutable caching.
+    Implements the unified MetricExtractor protocol (Phase 52): a single
+    extract_all() call returns both entity_count GoldMetric and GoldEntity
+    records in one pass. Stateless between documents — no mutable caching.
 
     Produces:
     - metric_name = "entity_count": Total number of entities found in the text.
@@ -66,14 +66,14 @@ class NamedEntityExtractor:
             return None
         return self._nlp(text)
 
-    def extract_all(self, core, article_id: str | None) -> tuple[list[GoldMetric], list[GoldEntity]]:
+    def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         """
-        Single-pass extraction returning both entity_count metric and
-        GoldEntity records. Processes the spaCy doc exactly once.
+        Single-pass extraction returning entity_count metric and GoldEntity
+        records. Processes the spaCy doc exactly once.
         """
         doc = self._process(core)
         if doc is None:
-            return [], []
+            return ExtractionResult()
 
         metrics = [
             GoldMetric(
@@ -98,14 +98,4 @@ class NamedEntityExtractor:
             for ent in doc.ents
         ]
 
-        return metrics, entities
-
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
-        """Returns entity_count as a Gold metric."""
-        metrics, _ = self.extract_all(core, article_id)
-        return metrics
-
-    def extract_entities(self, core, article_id: str | None) -> list[GoldEntity]:
-        """Returns structured GoldEntity records for aer_gold.entities."""
-        _, entities = self.extract_all(core, article_id)
-        return entities
+        return ExtractionResult(metrics=metrics, entities=entities)

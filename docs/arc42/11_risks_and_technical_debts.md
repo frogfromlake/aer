@@ -274,6 +274,34 @@ Migration `000002_extend_metrics_schema.sql` added `source String`, `metric_name
 
 ---
 
+### ~~D-10: PostgreSQL Metadata Tables Have No Retention Policy~~ — Resolved (Phase 52)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Medium |
+| **Affected Component** | PostgreSQL (`documents`, `ingestion_jobs`), `ingestion-api` |
+| **Status** | Resolved (Phase 52) |
+
+The `documents` and `ingestion_jobs` tables in PostgreSQL had no retention policy and would grow indefinitely. Unlike ClickHouse (365-day TTL) and MinIO (90-day ILM), PostgreSQL metadata accumulated without bound.
+
+**Resolution (Phase 52):** An application-level retention goroutine (`startRetentionCleanup` in `cmd/api/main.go`) runs every 24 hours, deleting records older than 90 days — matching the MinIO bronze bucket ILM policy. Documents are deleted first (respecting the FK constraint), then orphaned completed/failed ingestion jobs. Migration `000004` adds indexes on `ingested_at` and `started_at` to support efficient time-based DELETE queries. `pg_cron` and table partitioning were evaluated and rejected: `pg_cron` requires an external extension; partitioning would require retroactive table recreation for marginal benefit at current scale. See `docs/operations_playbook.md` for monitoring guidance.
+
+---
+
+### ~~D-11: isinstance() Chains in Extractor Dispatch Layer~~ — Resolved (Phase 52)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | `analysis-worker`, Extractor Pipeline |
+| **Status** | Resolved (Phase 52) |
+
+The `DataProcessor` dispatch loop used `isinstance()` checks against `LanguageDetectionPersistExtractor` and `EntityExtractor` sub-protocols to route to different `extract_all()` return types. Each new extractor type producing novel output (future: relations, provenance records, corpus annotations) would have required adding a new protocol and a new isinstance branch.
+
+**Resolution (Phase 52):** The `ExtractionResult` dataclass unifies all extractor outputs into a single structure (`metrics`, `entities`, `language_detections`). The `MetricExtractor` protocol now requires a single `extract_all() -> ExtractionResult` method. The `EntityExtractor` and `LanguageDetectionPersistExtractor` sub-protocols are removed. The processor dispatch loop is now three lines — no isinstance checks. New extractor types that produce novel output simply populate the relevant `ExtractionResult` field without touching the dispatch layer.
+
+---
+
 ## 11.3 Risk Matrix Overview
 
 ```mermaid
