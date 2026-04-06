@@ -526,20 +526,20 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh** — No changes required; the script already sources `.env` at startup.
 * [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
 
+## Phase 51: Cache Correctness & Crawler Resilience (Findings 7, 8, 10) - [x] DONE
+*Finding 7 is a functional bug in the newly introduced metrics cache, while findings 8 and 10 pose liveness risks as the system scales. Fixing these improves data accuracy and crawler stability.*
+
+* [x] **Fix `GetAvailableMetrics` Cache Keying.** The current cache does not account for date ranges. Update the cache to use `(startDate, endDate)` as part of the key, or invalidate the cached data when a query with a different date range is received.
+* [x] **Configure HTTP Timeouts in RSS Crawler.** Enforce a strict HTTP timeout (e.g., 30 seconds) in the RSS crawler's HTTP client to prevent indefinite hangs on unresponsive upstream feeds.
+* [x] **Propagate `context.Context` and Delay State Writes.** Thread `context.Context` through the crawler for proper cancellation handling. Ensure the deduplication state file (`.rss-crawler-state.json`) is only written to disk *after* a successful batch ingestion to prevent data loss on intermediate failures.
+* [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
+* [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
+
 ---
 
 ### Open Phases
 
 ---
-
-## Phase 51: Cache Correctness & Crawler Resilience (Findings 7, 8, 10) - [ ] TODO
-*Finding 7 is a functional bug in the newly introduced metrics cache, while findings 8 and 10 pose liveness risks as the system scales. Fixing these improves data accuracy and crawler stability.*
-
-* [ ] **Fix `GetAvailableMetrics` Cache Keying.** The current cache does not account for date ranges. Update the cache to use `(startDate, endDate)` as part of the key, or invalidate the cached data when a query with a different date range is received.
-* [ ] **Configure HTTP Timeouts in RSS Crawler.** Enforce a strict HTTP timeout (e.g., 30 seconds) in the RSS crawler's HTTP client to prevent indefinite hangs on unresponsive upstream feeds.
-* [ ] **Propagate `context.Context` and Delay State Writes.** Thread `context.Context` through the crawler for proper cancellation handling. Ensure the deduplication state file (`.rss-crawler-state.json`) is only written to disk *after* a successful batch ingestion to prevent data loss on intermediate failures.
-* [ ] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh**
-* [ ] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary)**
 
 ## Phase 52: Metadata Lifecycle & Extractor Dispatch Refactoring (Findings 11, 12) - [ ] TODO
 *These represent accepted technical debt. Addressing them now creates a cleaner and more scalable foundation before onboarding additional uncoupled data sources.*
