@@ -273,8 +273,8 @@ class TestInitMinio:
 class TestInitClickhouse:
     def test_connects_successfully(self, ch_container, monkeypatch):
         """
-        Verifies that init_clickhouse() returns a live client against
-        a real ClickHouse instance and can execute a simple query.
+        Verifies that init_clickhouse() returns a ClickHousePool against
+        a real ClickHouse instance and can execute inserts.
         """
         monkeypatch.setenv("CLICKHOUSE_HOST", ch_container.get_container_host_ip())
         monkeypatch.setenv("CLICKHOUSE_PORT", str(ch_container.get_exposed_port(8123)))
@@ -282,12 +282,16 @@ class TestInitClickhouse:
         monkeypatch.setenv("CLICKHOUSE_PASSWORD", "aer_secret")
         monkeypatch.setenv("CLICKHOUSE_DB", "aer_gold")
 
-        client = init_clickhouse()
-        assert client is not None
+        pool = init_clickhouse(pool_size=2)
+        assert pool is not None
 
-        # Verify the connection is functional
-        result = client.query("SELECT 1")
-        assert result.result_rows == [(1,)]
+        # Verify connections are functional via getconn/putconn
+        client = pool.getconn()
+        try:
+            result = client.query("SELECT 1")
+            assert result.result_rows == [(1,)]
+        finally:
+            pool.putconn(client)
 
     def test_retries_on_transient_failure(self):
         """
@@ -306,9 +310,9 @@ class TestInitClickhouse:
         with patch("internal.storage.clickhouse_connect.get_client",
                    side_effect=flaky_get_client), \
              patch("time.sleep"):
-            client = init_clickhouse()
+            pool = init_clickhouse(pool_size=1)
 
-        assert client is not None
+        assert pool is not None
         assert attempt_count == 3
 
     def test_raises_after_stop_delay_exceeded(self):
@@ -321,4 +325,4 @@ class TestInitClickhouse:
              patch("time.sleep"), \
              patch("time.monotonic", side_effect=[0.0, 0.5, 1.0, 31.0]):
             with pytest.raises(RetryError):
-                init_clickhouse()
+                init_clickhouse(pool_size=1)

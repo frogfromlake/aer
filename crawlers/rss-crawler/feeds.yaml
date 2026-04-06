@@ -6,7 +6,7 @@
 
 feeds:
   - name: bundesregierung
-    url: https://www.bundesregierung.de/breg-de/aktuelles.rss
+    url: https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml
 
   - name: tagesschau
     url: https://www.tagesschau.de/index~rss2.xml

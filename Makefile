@@ -27,13 +27,13 @@ SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
 # 0. GLOBAL STACK COMMANDS
 # ==========================================
 
-up: infra-up
+up: infra-up debug-up
 	@echo -e "$(BOLD)$(CYAN)Waiting a moment for infrastructure to settle...$(RESET)"
 	@sleep 3
 	@$(MAKE) services-up
 	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack is up and running!$(RESET)"
 
-down: services-down infra-down
+down: services-down debug-down infra-down
 	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack has been shut down.$(RESET)"
 
 stop: down
@@ -60,6 +60,13 @@ infra-down:
 infra-restart: infra-down infra-up
 
 debug-up:
+	@if [ -f .env ]; then \
+		APP_ENV=$$(grep -E '^APP_ENV=' .env | cut -d'=' -f2); \
+		if [ "$$APP_ENV" = "production" ]; then \
+			echo -e "\033[1m\033[38;5;196mERROR:\033[0m debug-up is forbidden when APP_ENV=production. Exposing internal ports in production is a security risk."; \
+			exit 1; \
+		fi; \
+	fi
 	@echo -e "$(BOLD)$(GRAY)--- STARTING DEBUG PORT FORWARDER ---$(RESET)"
 	@docker compose --profile debug up -d debug-ports
 	@echo -e "$(SYMBOL_SUCCESS) PostgreSQL: $(CYAN)localhost:5432$(RESET)"
@@ -169,7 +176,7 @@ crawl:
 		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env file not found. Copy .env.example to .env and set INGESTION_API_KEY before running make crawl."; \
 		exit 1; \
 	fi
-	@set -a; source .env; set +a; ./bin/rss-crawler -config crawlers/rss-crawler/feeds.yaml
+	@set -a; source .env; set +a; ./bin/rss-crawler -config crawlers/rss-crawler/feeds.yaml -state crawlers/rss-crawler/.rss-crawler-state.json
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Crawl complete.$(RESET)"
 
 # ==========================================

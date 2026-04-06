@@ -76,7 +76,7 @@ services/{service-name}/
 └── go.mod                   # Module definition with replace directive for local pkg/.
 ```
 
-The Python analysis worker follows an analogous pattern: `main.py` (entry point, DI wiring), `internal/processor.py` (business logic), `internal/models.py` (Pydantic contracts), `internal/storage.py` (infrastructure initialization with retry logic), and `internal/metrics.py` (Prometheus metric definitions).
+The Python analysis worker follows an analogous pattern: `main.py` (entry point, DI wiring), `internal/processor.py` (business logic), `internal/models.py` (Pydantic contracts), `internal/storage.py` (infrastructure initialization with retry logic and connection pooling), and `internal/metrics.py` (Prometheus metric definitions). PostgreSQL uses `psycopg2.ThreadedConnectionPool` (maxconn=10). ClickHouse uses a custom `ClickHousePool` backed by `queue.Queue`, sized to `WORKER_COUNT` — one `clickhouse_connect` client per concurrent worker thread, since the library does not support concurrent queries within a single session.
 
 ## 8.4 Infrastructure as Code (IaC)
 

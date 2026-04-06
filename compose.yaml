@@ -396,6 +396,8 @@ services:
     container_name: aer_prometheus
     restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./infra/observability/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
@@ -456,7 +458,6 @@ services:
       - "9001:9001"     # MinIO Console
       - "4317:4317"     # OTel Collector gRPC
       - "4318:4318"     # OTel Collector HTTP
-      - "8081:8081"     # Ingestion API
       - "3000:3000"     # Grafana
     entrypoint: ["sh", "-c"]
     command:
@@ -470,7 +471,6 @@ services:
         socat TCP-LISTEN:9001,fork,reuseaddr TCP-CONNECT:minio:9001 &
         socat TCP-LISTEN:4317,fork,reuseaddr TCP-CONNECT:otel-collector:4317 &
         socat TCP-LISTEN:4318,fork,reuseaddr TCP-CONNECT:otel-collector:4318 &
-        socat TCP-LISTEN:8081,fork,reuseaddr TCP-CONNECT:ingestion-api:8081 &
         socat TCP-LISTEN:3000,fork,reuseaddr TCP-CONNECT:grafana:3000 &
         wait
     networks:
@@ -483,8 +483,6 @@ services:
       nats:
         condition: service_healthy
       minio:
-        condition: service_healthy
-      ingestion-api:
         condition: service_healthy
     deploy:
       resources:

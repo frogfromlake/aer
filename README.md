@@ -92,7 +92,7 @@ The pre-commit hook runs `make lint`. The pre-push hook runs `make lint` followe
 make up
 ```
 
-This starts infrastructure (databases, NATS, observability, documentation server) and all three application services. The first run builds application images from source.
+This starts infrastructure (databases, NATS, observability, documentation server), opens debug ports so local processes can reach the Docker network, and starts all three application services as background processes. The first run compiles Go binaries and creates the Python virtual environment for the analysis worker.
 
 **4. Verify the pipeline:**
 
@@ -111,8 +111,8 @@ The smoke test ingests a test document, waits for pipeline processing, and queri
 
 | Target | Description |
 | :--- | :--- |
-| `make up` | Start the entire stack (infrastructure + all application services) |
-| `make down` | Stop everything |
+| `make up` | Start the entire stack (infrastructure + debug ports + all application services) |
+| `make down` | Stop everything (services + debug ports + infrastructure) |
 | `make restart` | Stop and restart the entire stack |
 | `make stop` | Alias for `make down` |
 
@@ -132,10 +132,10 @@ The smoke test ingests a test document, waits for pipeline processing, and queri
 
 | Target | Description |
 | :--- | :--- |
-| `make debug-up` | Expose all backend ports to `localhost` for debugging (opt-in) |
+| `make debug-up` | Expose all backend ports to `localhost` for debugging |
 | `make debug-down` | Close debug port forwarding (backend services keep running) |
 
-By default, all backend ports (databases, NATS, OTel, Ingestion API) are accessible only within the Docker network. `make debug-up` forwards them to localhost via the `debug` Compose profile. See [Network Segmentation](#network-segmentation) and [Exposed Ports](#exposed-ports).
+By default, all backend ports (databases, NATS, OTel) are accessible only within the Docker network. `make up` automatically runs `debug-up` to forward them to localhost, since local service processes need these ports. `make debug-up` can also be used standalone after `make infra-up` for manual debugging. `debug-up` is blocked when `APP_ENV=production`. See [Network Segmentation](#network-segmentation) and [Exposed Ports](#exposed-ports).
 
 ### Application Services
 

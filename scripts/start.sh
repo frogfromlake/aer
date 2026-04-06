@@ -29,11 +29,12 @@ elif [ "$SERVICE" == "worker" ]; then
         cd services/analysis-worker || exit
         if [ ! -d ".venv" ]; then
             echo -e "${GRAY}Creating virtual environment...${RESET}"
-            python3 -m venv venv
+            python3 -m venv .venv
         fi
         ./.venv/bin/python -m pip install -r requirements.txt -q
-        # Python processes start directly, no compilation step needed
-        ./.venv/bin/python main.py > ../../.pids/worker.log 2>&1 &
+        # Worker uses ClickHouse HTTP (8123), not native protocol (9002 in .env for BFF).
+        # The debug-ports socat proxy forwards localhost:8123 → clickhouse:8123.
+        CLICKHOUSE_PORT=8123 ./.venv/bin/python main.py > ../../.pids/worker.log 2>&1 &
         echo $! > ../../.pids/worker.pid
         echo -e "${GREEN}✔ Analysis Worker running in background (PID: $(cat ../../.pids/worker.pid))${RESET}"
     fi

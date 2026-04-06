@@ -106,7 +106,7 @@ async def main(config: WorkerConfig | None = None):
     logger.info("Prometheus metrics server started", port=metrics_port)
 
     minio_client = init_minio()
-    ch_client = init_clickhouse()
+    ch_client = init_clickhouse(pool_size=config.worker_count)
     pg_pool = init_postgres()
 
     adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter()})

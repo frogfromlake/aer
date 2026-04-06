@@ -31,6 +31,9 @@ services/ingestion-api/.env
 
 # Crawler binaries
 crawlers/wikipedia-scraper/wikipedia-scraper
+
+# Crawler state
+*.rss-crawler-state.json
 # Logs
 logs/
 *.log

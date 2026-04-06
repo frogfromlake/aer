@@ -11,4 +11,4 @@ scrape_configs:
 
   - job_name: 'analysis-worker'
     static_configs:
-      - targets: ['analysis-worker:8001']
+      - targets: ['host.docker.internal:8001']
