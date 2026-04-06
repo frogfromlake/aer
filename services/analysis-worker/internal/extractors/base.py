@@ -72,6 +72,54 @@ class MetricExtractor(Protocol):
 
 
 @runtime_checkable
+class EntityExtractor(MetricExtractor, Protocol):
+    """
+    Protocol for extractors that produce both GoldMetric and GoldEntity results.
+
+    Extends MetricExtractor with an additional extract_entities() method.
+    The processor checks isinstance(extractor, EntityExtractor) to determine
+    whether to call extract_entities() — no hasattr() required.
+
+    Implementations should process the document once and return both metrics
+    and entities from a single pass (see extract_all()).
+
+    Extractors must be stateless between documents — no mutable instance-level
+    caching of intermediate results (e.g., spaCy docs).
+    """
+
+    def extract_entities(self, core: "SilverCore", article_id: str | None) -> list[GoldEntity]:
+        """
+        Extract structured entities from a single harmonized document.
+
+        Args:
+            core: The validated SilverCore record.
+            article_id: Document identifier derived from the MinIO object key.
+
+        Returns:
+            A list of GoldEntity instances. May be empty if the extractor
+            determines no meaningful entities can be derived.
+        """
+        ...
+
+    def extract_all(self, core: "SilverCore", article_id: str | None) -> tuple[list[GoldMetric], list[GoldEntity]]:
+        """
+        Single-pass extraction returning both metrics and entities.
+
+        This is the preferred entry point for EntityExtractor instances.
+        The processor calls this instead of calling extract() and
+        extract_entities() separately, avoiding redundant document processing.
+
+        Args:
+            core: The validated SilverCore record.
+            article_id: Document identifier derived from the MinIO object key.
+
+        Returns:
+            A tuple of (metrics, entities).
+        """
+        ...
+
+
+@runtime_checkable
 class CorpusExtractor(Protocol):
     """
     Protocol for corpus-level batch extraction (interface only).

@@ -13,13 +13,13 @@ class NamedEntityExtractor:
     **Provisional (Phase 42)** — This is a proof-of-concept, not a
     scientifically validated implementation.
 
+    Implements the EntityExtractor protocol (Phase 44): produces both
+    GoldMetric (entity_count) and GoldEntity records in a single pass
+    via extract_all(). Stateless between documents — no mutable caching.
+
     Produces:
     - metric_name = "entity_count": Total number of entities found in the text.
     - GoldEntity records: Raw entity spans stored in aer_gold.entities.
-
-    The extract() method returns entity_count as a GoldMetric.
-    The extract_entities() method returns GoldEntity records for separate
-    insertion into aer_gold.entities by the DataProcessor.
 
     Limitations (to be addressed with interdisciplinary collaboration, §13.5):
     - spaCy NER on RSS feed descriptions (short, truncated summaries) will
@@ -66,17 +66,16 @@ class NamedEntityExtractor:
             return None
         return self._nlp(text)
 
-    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
-        """Returns entity_count as a Gold metric."""
+    def extract_all(self, core, article_id: str | None) -> tuple[list[GoldMetric], list[GoldEntity]]:
+        """
+        Single-pass extraction returning both entity_count metric and
+        GoldEntity records. Processes the spaCy doc exactly once.
+        """
         doc = self._process(core)
         if doc is None:
-            return []
+            return [], []
 
-        # Cache doc for extract_entities() to avoid double processing.
-        self._last_doc = doc
-        self._last_core_id = id(core)
-
-        return [
+        metrics = [
             GoldMetric(
                 timestamp=core.timestamp,
                 value=float(len(doc.ents)),
@@ -86,23 +85,7 @@ class NamedEntityExtractor:
             ),
         ]
 
-    def extract_entities(self, core, article_id: str | None) -> list[GoldEntity]:
-        """
-        Returns structured GoldEntity records for aer_gold.entities.
-
-        Called by the DataProcessor after extract(). Reuses the cached
-        spaCy doc from extract() to avoid double processing.
-        """
-        # Reuse cached doc if extract() was called on the same core object.
-        if hasattr(self, "_last_doc") and self._last_core_id == id(core):
-            doc = self._last_doc
-        else:
-            doc = self._process(core)
-
-        if doc is None:
-            return []
-
-        return [
+        entities = [
             GoldEntity(
                 timestamp=core.timestamp,
                 source=core.source,
@@ -114,3 +97,15 @@ class NamedEntityExtractor:
             )
             for ent in doc.ents
         ]
+
+        return metrics, entities
+
+    def extract(self, core, article_id: str | None) -> list[GoldMetric]:
+        """Returns entity_count as a Gold metric."""
+        metrics, _ = self.extract_all(core, article_id)
+        return metrics
+
+    def extract_entities(self, core, article_id: str | None) -> list[GoldEntity]:
+        """Returns structured GoldEntity records for aer_gold.entities."""
+        _, entities = self.extract_all(core, article_id)
+        return entities

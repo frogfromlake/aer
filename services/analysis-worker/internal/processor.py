@@ -6,7 +6,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverEnvelope, ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, GoldMetric, GoldEntity
+from internal.extractors.base import MetricExtractor, EntityExtractor, GoldMetric, GoldEntity
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -62,12 +62,7 @@ class DataProcessor:
                 object=obj_key,
                 source_type=source_type,
             )
-            self._move_to_quarantine(obj_key, raw_content)
-            self._update_document_status(obj_key, "quarantined")
-            events_quarantined_total.inc()
-            dlq_size.inc()
-            span.set_attribute("aer.status", "quarantined")
-            span.set_attribute("aer.quarantine_reason", f"unknown_source_type:{source_type}")
+            self._quarantine(obj_key, raw_content, f"unknown_source_type:{source_type}", span)
             return
 
         # --- 4. Harmonization (Bronze → Silver, via adapter) ---
@@ -75,11 +70,7 @@ class DataProcessor:
             core, meta = adapter.harmonize(raw_content, event_time, obj_key)
         except (ValidationError, ValueError) as e:
             logger.warning("Harmonization failed. Moving to DLQ.", object=obj_key, error=str(e))
-            self._move_to_quarantine(obj_key, raw_content)
-            self._update_document_status(obj_key, "quarantined")
-            events_quarantined_total.inc()
-            dlq_size.inc()
-            span.set_attribute("aer.status", "quarantined")
+            self._quarantine(obj_key, raw_content, "harmonization_failed", span)
             return
 
         # --- 5. Validation (The Silver Contract) ---
@@ -90,11 +81,7 @@ class DataProcessor:
                 raise ValueError("raw_text field cannot be empty after harmonization.")
         except ValueError as e:
             logger.warning("Silver contract validation failed. Moving to DLQ.", object=obj_key, error=str(e))
-            self._move_to_quarantine(obj_key, raw_content)
-            self._update_document_status(obj_key, "quarantined")
-            events_quarantined_total.inc()
-            dlq_size.inc()
-            span.set_attribute("aer.status", "quarantined")
+            self._quarantine(obj_key, raw_content, "silver_validation_failed", span)
             return
 
         # --- 6. Upload to Silver Layer ---
@@ -114,11 +101,14 @@ class DataProcessor:
         all_metrics: list[GoldMetric] = []
         all_entities: list[GoldEntity] = []
         for extractor in self.extractors:
-            extract_ok = False
             try:
-                metrics = extractor.extract(core, article_id)
-                all_metrics.extend(metrics)
-                extract_ok = True
+                if isinstance(extractor, EntityExtractor):
+                    metrics, entities = extractor.extract_all(core, article_id)
+                    all_metrics.extend(metrics)
+                    all_entities.extend(entities)
+                else:
+                    metrics = extractor.extract(core, article_id)
+                    all_metrics.extend(metrics)
             except Exception as e:
                 logger.error(
                     "Extractor failed. Skipping this extractor; other extractors continue.",
@@ -126,20 +116,6 @@ class DataProcessor:
                     object=obj_key,
                     error=str(e),
                 )
-
-            # Collect entities from extractors that produce them (e.g., NER).
-            # Only attempt if extract() succeeded — the cached doc depends on it.
-            if extract_ok and hasattr(extractor, "extract_entities"):
-                try:
-                    entities = extractor.extract_entities(core, article_id)
-                    all_entities.extend(entities)
-                except Exception as e:
-                    logger.error(
-                        "Entity extraction failed. Skipping; metrics still inserted.",
-                        extractor=extractor.name,
-                        object=obj_key,
-                        error=str(e),
-                    )
 
         if all_metrics:
             rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id] for m in all_metrics]
@@ -204,6 +180,15 @@ class DataProcessor:
             conn.commit()
         finally:
             self.pg.putconn(conn)
+
+    def _quarantine(self, obj_key: str, raw_content: dict, reason: str, span):
+        """Routes a document to the DLQ with standard bookkeeping."""
+        self._move_to_quarantine(obj_key, raw_content)
+        self._update_document_status(obj_key, "quarantined")
+        events_quarantined_total.inc()
+        dlq_size.inc()
+        span.set_attribute("aer.status", "quarantined")
+        span.set_attribute("aer.quarantine_reason", reason)
 
     def _move_to_quarantine(self, obj_key: str, raw_content: dict):
         """Moves unprocessable raw data to the quarantine bucket."""

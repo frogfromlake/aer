@@ -7,7 +7,7 @@ from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
 from internal.models import generate_document_id
 from internal.extractors import (
-    WordCountExtractor, GoldMetric, GoldEntity, MetricExtractor,
+    WordCountExtractor, GoldMetric, GoldEntity, MetricExtractor, EntityExtractor,
     TemporalDistributionExtractor, LanguageDetectionExtractor,
     SentimentExtractor, NamedEntityExtractor,
 )
@@ -1257,11 +1257,14 @@ def test_named_entity_extractor_entity_count_matches():
 
 
 class StubEntityExtractor:
-    """A test extractor that produces both metrics and entities."""
+    """A test extractor that produces both metrics and entities (EntityExtractor protocol)."""
 
     @property
     def name(self) -> str:
         return "stub_entity"
+
+    def extract_all(self, core, article_id: str | None) -> tuple[list[GoldMetric], list[GoldEntity]]:
+        return self.extract(core, article_id), self.extract_entities(core, article_id)
 
     def extract(self, core, article_id: str | None) -> list[GoldMetric]:
         return [
@@ -1408,4 +1411,159 @@ def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, moc
 
     proc._update_document_status.assert_called_with(
         "rss/tagesschau/abc123/2026-04-05.json", "processed"
+    )
+
+
+# ==================== Phase 44: Protocol Correctness & DRY Tests ====================
+
+
+def test_named_entity_extractor_is_entity_extractor():
+    """Tests that NamedEntityExtractor satisfies the EntityExtractor protocol."""
+    extractor = NamedEntityExtractor(model_name="nonexistent_model_for_test")
+    assert isinstance(extractor, EntityExtractor)
+
+
+def test_entity_extractor_protocol_not_satisfied_by_metric_only():
+    """Tests that a plain MetricExtractor does NOT satisfy EntityExtractor."""
+    extractor = WordCountExtractor()
+    assert isinstance(extractor, MetricExtractor)
+    assert not isinstance(extractor, EntityExtractor)
+
+
+def test_non_callable_extract_entities_does_not_crash_processor(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Tests that an extractor with a non-callable extract_entities attribute
+    does not crash the processor — isinstance(EntityExtractor) returns False
+    because the protocol requires callable methods.
+    """
+    class BadExtractor:
+        extract_entities = "not a callable"
+
+        @property
+        def name(self) -> str:
+            return "bad_extractor"
+
+        def extract(self, core, article_id):
+            return [
+                GoldMetric(
+                    timestamp=core.timestamp,
+                    value=1.0,
+                    source=core.source,
+                    metric_name="bad_metric",
+                    article_id=article_id,
+                )
+            ]
+
+    extractors = [BadExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    # Must not raise — bad extractor is treated as a plain MetricExtractor
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_clickhouse.insert.assert_called_once()
+    ch_args, _ = mock_clickhouse.insert.call_args
+    rows = ch_args[1]
+    assert len(rows) == 1
+    assert rows[0][3] == "bad_metric"
+
+    proc._update_document_status.assert_called_with(
+        "test-source/test-article/2023-10-25.json", "processed"
+    )
+
+
+def test_quarantine_helper_sets_span_attributes(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Tests that the _quarantine helper sets all expected span attributes
+    and increments the correct Prometheus metrics.
+    """
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, [])
+    proc._update_document_status = MagicMock()
+
+    raw_content = {"source": "test", "raw_text": "broken"}
+    proc._quarantine("test-key", raw_content, "test_reason", dummy_span)
+
+    # Verify MinIO quarantine upload
+    mock_minio.put_object.assert_called_once()
+    args, _ = mock_minio.put_object.call_args
+    assert args[0] == "bronze-quarantine"
+    assert args[1] == "test-key"
+
+    # Verify DB update
+    proc._update_document_status.assert_called_with("test-key", "quarantined")
+
+
+def test_quarantine_helper_from_unknown_source_type(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Tests that quarantine via unknown source_type uses the _quarantine helper
+    and produces the correct quarantine_reason span attribute.
+    """
+    bronze_data = json.dumps({
+        "source": "forum-feed",
+        "source_type": "forum",
+        "raw_text": "Some forum post",
+        "url": "https://example.com/forum",
+        "timestamp": "2023-10-25T12:34:56Z",
+    }).encode('utf-8')
+
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, [])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = bronze_data
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("forum-feed/post/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_minio.put_object.assert_called_once()
+    args, _ = mock_minio.put_object.call_args
+    assert args[0] == "bronze-quarantine"
+    proc._update_document_status.assert_called_with(
+        "forum-feed/post/2023-10-25.json", "quarantined"
+    )
+
+
+def test_quarantine_helper_from_validation_failure(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Tests that quarantine via Silver contract validation failure uses
+    the _quarantine helper correctly.
+    """
+    bronze_data = json.dumps({
+        "source": "test-source",
+        "title": "Empty Content",
+        "raw_text": "   \t  \n  ",
+        "url": "https://example.com/empty",
+        "timestamp": "2023-10-25T12:34:56Z",
+    }).encode('utf-8')
+
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, [])
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = bronze_data
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/empty/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_minio.put_object.assert_called_once()
+    args, _ = mock_minio.put_object.call_args
+    assert args[0] == "bronze-quarantine"
+    mock_clickhouse.insert.assert_not_called()
+    proc._update_document_status.assert_called_with(
+        "test-source/empty/2023-10-25.json", "quarantined"
     )
