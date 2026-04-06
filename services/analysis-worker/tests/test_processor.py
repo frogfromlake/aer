@@ -912,6 +912,46 @@ def test_temporal_extractor_midnight_sunday():
     assert weekday_metric.value == 6.0  # Sunday
 
 
+def test_temporal_extractor_naive_datetime_returns_empty():
+    """Defense-in-depth: naive datetime must produce an empty list, not wrong metrics."""
+    from internal.models import SilverCore
+    from datetime import timezone
+
+    extractor = TemporalDistributionExtractor()
+    # Construct with a UTC-aware timestamp, then swap it for a naive one directly
+    # (bypassing the SilverCore validator) to test the extractor guard independently.
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Test",
+        cleaned_text="Test",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=1,
+    )
+    # Replace the timestamp with a naive one to exercise the extractor guard
+    object.__setattr__(core, "timestamp", datetime(2026, 4, 5, 10, 0, 0))
+
+    metrics = extractor.extract(core, "article-naive")
+    assert metrics == []
+
+
+def test_silver_core_naive_timestamp_raises_validation_error():
+    """SilverCore must reject naive datetimes at the Silver contract level."""
+    from internal.models import SilverCore, ValidationError
+
+    with pytest.raises(ValidationError):
+        SilverCore(
+            document_id="abc123",
+            source="test",
+            source_type="rss",
+            raw_text="Test",
+            cleaned_text="Test",
+            timestamp=datetime(2026, 4, 5, 10, 0, 0),  # naive — no tzinfo
+            word_count=1,
+        )
+
+
 # --- Language Detection Extractor ---
 
 

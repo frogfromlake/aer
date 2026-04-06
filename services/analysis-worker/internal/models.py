@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, SerializeAsAny, ValidationError
+from pydantic import BaseModel, Field, SerializeAsAny, ValidationError, field_validator
 from datetime import datetime
 from typing import Optional
 import hashlib
@@ -12,6 +12,10 @@ class SilverCore(BaseModel):
     structure before promotion to Silver. Fields are instrumentally motivated
     (the pipeline needs them), not scientifically motivated.
 
+    The ``timestamp`` field is required to be timezone-aware (UTC enforcement).
+    Naive datetimes are rejected at the Silver contract level so that downstream
+    extractors can assume UTC without per-extractor guards.
+
     See ADR-015 for the architectural decision and schema evolution strategy.
     """
     document_id: str
@@ -24,6 +28,13 @@ class SilverCore(BaseModel):
     url: str = Field(default="")
     schema_version: int = Field(default=2)
     word_count: int = Field(default=0, ge=0)
+
+    @field_validator("timestamp")
+    @classmethod
+    def timestamp_must_be_timezone_aware(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware; naive datetimes are not permitted in SilverCore")
+        return v
 
 
 class SilverMeta(BaseModel):
