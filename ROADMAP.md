@@ -469,19 +469,24 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Extract Quarantine Helper in Processor.** Refactor the three identical quarantine blocks in `processor.py` into a single `_quarantine(self, obj_key, raw_content, reason, span)` method. Each call site passes only the reason string. Reduces ~30 lines of duplication to ~3 call sites.
 * [x] **Update Tests.** Add test for `isinstance(NamedEntityExtractor, EntityExtractor)`. Add test that an extractor with a non-callable `extract_entities` attribute does not crash the processor. Verify quarantine helper produces identical span attributes and metric increments.
 * [x] **Update Arc42 Documentation.** Chapter 8 (§8.10): document the `EntityExtractor` sub-protocol. Chapter 5 (§5.1.2): note stateless extractor requirement.
+
+
+## Phase 45: Language Detection — Persist Detected Language (Finding 3) - [x] DONE
+*The `LanguageDetectionExtractor` stores `language_confidence` but discards the detected language code itself. A confidence score without the corresponding classification is analytically useless — one cannot answer "what percentage of documents are German?" from the Gold layer alone.*
+
+> **Inline ADR — Phase 45 Decision: Dedicated Table vs. Metric Encoding.**
+> Option (a) — a dedicated `aer_gold.language_detections` table — was chosen over option (b) — encoding language codes as metric values via hash/enum mapping. Rationale: (1) language codes are categorical, not numerical; forcing them into the `float64` `value` column of `aer_gold.metrics` would require a lossy encoding and a separate lookup table to decode, violating the transparency principle. (2) A dedicated table allows storing ranked candidates (rank 1–N from `detect_langs()`), preserving the full probabilistic output for downstream analysis. (3) The pattern is consistent with `aer_gold.entities` (Phase 42) — structured extraction output gets its own table. The table schema includes a `rank UInt8` column not in the original specification, enabling storage of all language candidates per document rather than just the top-1.
+
+* [x] **Add `detected_language` String Metric.** Chose option (a): dedicated `aer_gold.language_detections` table (see inline ADR above).
+* [x] **Create ClickHouse Migration 004.** `aer_gold.language_detections` table: `(timestamp DateTime, source String, article_id Nullable(String), detected_language String, confidence Float64, rank UInt8)`. MergeTree, ordered by `(timestamp, source)`, 365-day TTL.
+* [x] **Extend `LanguageDetectionExtractor`.** Implements `LanguageDetectionPersistExtractor` protocol (following the `EntityExtractor` pattern from Phase 44). Single-pass `extract_all()` returns both `GoldMetric` (language_confidence) and `GoldLanguageDetection` records. Processor dispatches via `isinstance()`.
+* [x] **Add BFF Endpoint `GET /api/v1/languages`.** Returns aggregated language distribution per source: `SELECT detected_language, count() as count, avg(confidence) as avg_confidence ... GROUP BY detected_language ORDER BY count DESC`. Added to OpenAPI spec, codegen, handler, storage, and tests.
+* [x] **Update E2E Smoke Test.** Assert that `GET /api/v1/languages` returns at least one entry with `detected_language = "de"`.
+* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: new BFF endpoint). Chapter 5 (§5.1.4: new ClickHouse table). Chapter 13 (§13.3.1: update language detection status).
+
 ---
 
 ### Open Phases
-
-## Phase 45: Language Detection — Persist Detected Language (Finding 3)
-*The `LanguageDetectionExtractor` stores `language_confidence` but discards the detected language code itself. A confidence score without the corresponding classification is analytically useless — one cannot answer "what percentage of documents are German?" from the Gold layer alone.*
-
-* [ ] **Add `detected_language` String Metric.** The Gold metrics table stores `float64` values — a language code is not a metric. Two options: (a) encode the ISO 639-1 language code as a new column in a dedicated ClickHouse table (`aer_gold.language_detections`), or (b) store the language code as a `metric_name = "detected_language"` with the value being a hash/enum mapping. Option (a) is architecturally cleaner — evaluate and decide via an inline ADR comment in the ROADMAP, not a full ADR.
-* [ ] **Create ClickHouse Migration 004.** `aer_gold.language_detections` table: `(timestamp DateTime, source String, article_id Nullable(String), detected_language String, confidence Float64)`. MergeTree, ordered by `(timestamp, source)`, 365-day TTL.
-* [ ] **Extend `LanguageDetectionExtractor`.** Return both the `GoldMetric` (confidence) and the new structured output. The processor must be extended to handle this new output type — reuse the `EntityExtractor` pattern from Phase 44 or introduce a generic `StructuredOutputExtractor` protocol.
-* [ ] **Add BFF Endpoint `GET /api/v1/languages`.** Returns aggregated language distribution per source: `SELECT detected_language, count() as count, avg(confidence) as avg_confidence ... GROUP BY detected_language ORDER BY count DESC`. Add to OpenAPI spec, codegen, handler, storage, and tests.
-* [ ] **Update E2E Smoke Test.** Assert that `GET /api/v1/languages` returns at least one entry with `detected_language = "de"`.
-* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: new BFF endpoint). Chapter 5 (§5.1.4: new ClickHouse table). Chapter 13 (§13.3.1: update language detection status).
 
 ---
 

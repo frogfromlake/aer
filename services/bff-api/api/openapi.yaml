@@ -14,6 +14,8 @@ paths:
     $ref: './paths/metrics_available.yaml'
   /entities:
     $ref: './paths/entities.yaml'
+  /languages:
+    $ref: './paths/languages.yaml'
   /healthz:
     $ref: './paths/healthz.yaml'
   /readyz:

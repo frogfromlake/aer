@@ -32,6 +32,20 @@ class GoldEntity:
 
 
 @dataclass(frozen=True, slots=True)
+class GoldLanguageDetection:
+    """
+    A detected language for a SilverCore document.
+    Maps to the aer_gold.language_detections ClickHouse table (Phase 45).
+    """
+    timestamp: datetime
+    source: str
+    article_id: str | None
+    detected_language: str
+    confidence: float
+    rank: int
+
+
+@dataclass(frozen=True, slots=True)
 class TimeWindow:
     """Defines a time range for corpus-level batch extraction."""
     start: datetime
@@ -115,6 +129,38 @@ class EntityExtractor(MetricExtractor, Protocol):
 
         Returns:
             A tuple of (metrics, entities).
+        """
+        ...
+
+
+@runtime_checkable
+class LanguageDetectionPersistExtractor(MetricExtractor, Protocol):
+    """
+    Protocol for extractors that produce both GoldMetric and GoldLanguageDetection results.
+
+    Extends MetricExtractor with extract_language_detections() and extract_all().
+    The processor checks isinstance(extractor, LanguageDetectionPersistExtractor)
+    to determine whether to call extract_all() — following the EntityExtractor pattern.
+
+    Implementations should process the document once and return both metrics
+    and language detections from a single pass (see extract_all()).
+    """
+
+    def extract_language_detections(self, core: "SilverCore", article_id: str | None) -> list[GoldLanguageDetection]:
+        """
+        Extract structured language detection records from a single document.
+
+        Returns:
+            A list of GoldLanguageDetection instances, ranked by confidence.
+        """
+        ...
+
+    def extract_all(self, core: "SilverCore", article_id: str | None) -> tuple[list[GoldMetric], list[GoldLanguageDetection]]:
+        """
+        Single-pass extraction returning both metrics and language detections.
+
+        Returns:
+            A tuple of (metrics, language_detections).
         """
         ...
 

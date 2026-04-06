@@ -166,6 +166,60 @@ func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Tim
 	return results, nil
 }
 
+// LanguageDetectionRow represents an aggregated language detection result from ClickHouse.
+type LanguageDetectionRow struct {
+	DetectedLanguage string
+	Count            uint64
+	AvgConfidence    float64
+	Sources          []string
+}
+
+// GetLanguageDetections retrieves aggregated language detections from the gold layer.
+// Only rank=1 (top candidate per document) detections are included.
+func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]LanguageDetectionRow, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+
+	query := `
+		SELECT
+			detected_language as DetectedLanguage,
+			count() as Count,
+			avg(confidence) as AvgConfidence,
+			groupArray(DISTINCT source) as Sources
+		FROM aer_gold.language_detections
+		WHERE timestamp >= $1 AND timestamp <= $2
+		  AND rank = 1
+	`
+	args := []any{start, end}
+	argIdx := 3
+
+	if source != nil {
+		query += fmt.Sprintf(" AND source = $%d", argIdx)
+		args = append(args, *source)
+		argIdx++
+	}
+	if language != nil {
+		query += fmt.Sprintf(" AND detected_language = $%d", argIdx)
+		args = append(args, *language)
+	}
+
+	query += fmt.Sprintf(`
+		GROUP BY DetectedLanguage
+		ORDER BY Count DESC
+		LIMIT %d
+	`, limit)
+
+	var results []LanguageDetectionRow
+	err := s.conn.Select(ctx, &results, query, args...)
+	if err != nil {
+		slog.Error("Failed to query language detections from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	return results, nil
+}
+
 // GetAvailableMetrics returns the distinct metric names present in the gold layer.
 func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context) ([]string, error) {
 	var results []struct {

@@ -77,6 +77,20 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create entities table: %v", err)
 	}
 
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.language_detections (
+			timestamp DateTime,
+			source String,
+			article_id Nullable(String),
+			detected_language String,
+			confidence Float64,
+			rank UInt8
+		) ENGINE = Memory
+	`)
+	if err != nil {
+		t.Fatalf("failed to create language_detections table: %v", err)
+	}
+
 	return store, ctx
 }
 
@@ -267,5 +281,83 @@ func TestGetAvailableMetrics(t *testing.T) {
 		if results[i] != name {
 			t.Errorf("expected results[%d]=%q, got %q", i, name, results[i])
 		}
+	}
+}
+
+func TestGetLanguageDetections(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// Insert test language detections (rank 1 = top candidate)
+	for _, d := range []struct {
+		ts     time.Time
+		source string
+		lang   string
+		conf   float64
+		rank   uint8
+	}{
+		{now.Add(-1 * time.Hour), "tagesschau", "de", 0.9999, 1},
+		{now.Add(-1 * time.Hour), "tagesschau", "en", 0.0001, 2},    // rank 2, should be excluded from aggregation
+		{now.Add(-30 * time.Minute), "bundesregierung", "de", 0.985, 1},
+		{now.Add(-30 * time.Minute), "tagesschau", "en", 0.92, 1},
+		{now.Add(-3 * time.Hour), "tagesschau", "de", 0.99, 1},      // outside range
+	} {
+		err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
+			d.ts, d.source, nil, d.lang, d.conf, d.rank)
+		if err != nil {
+			t.Fatalf("failed to insert language detection: %v", err)
+		}
+	}
+
+	start := now.Add(-90 * time.Minute)
+	end := now
+
+	// TEST: GetLanguageDetections without filters (rank=1 only)
+	results, err := store.GetLanguageDetections(ctx, start, end, nil, nil, 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 distinct languages, got %d", len(results))
+	}
+	// Ordered by count DESC — de (2) then en (1)
+	if results[0].DetectedLanguage != "de" {
+		t.Errorf("expected first language de, got %q", results[0].DetectedLanguage)
+	}
+	if results[0].Count != 2 {
+		t.Errorf("expected count 2, got %d", results[0].Count)
+	}
+	if len(results[0].Sources) != 2 {
+		t.Errorf("expected 2 distinct sources for de, got %d", len(results[0].Sources))
+	}
+
+	// TEST: GetLanguageDetections filtered by language
+	deLang := "de"
+	results, err = store.GetLanguageDetections(ctx, start, end, nil, &deLang, 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 language for language=de, got %d", len(results))
+	}
+
+	// TEST: GetLanguageDetections filtered by source
+	tagesschauSrc := "tagesschau"
+	results, err = store.GetLanguageDetections(ctx, start, end, &tagesschauSrc, nil, 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 languages for source=tagesschau, got %d", len(results))
+	}
+
+	// TEST: GetLanguageDetections respects limit
+	results, err = store.GetLanguageDetections(ctx, start, end, nil, nil, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 language with limit=1, got %d", len(results))
 	}
 }

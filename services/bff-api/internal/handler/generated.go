@@ -33,6 +33,24 @@ type GetEntitiesParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetLanguagesParams defines parameters for GetLanguages.
+type GetLanguagesParams struct {
+	// StartDate Start date for the metrics time range (ISO 8601)
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate End date for the metrics time range (ISO 8601)
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// Source Filter metrics by data source (e.g., "wikipedia")
+	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// Language Filter by ISO 639-1 language code (e.g., "de", "en").
+	Language *string `form:"language,omitempty" json:"language,omitempty"`
+
+	// Limit Maximum number of results to return (default 100, max 1000)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetMetricsParams defines parameters for GetMetrics.
 type GetMetricsParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
@@ -56,6 +74,9 @@ type ServerInterface interface {
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// Retrieve aggregated language detections
+	// (GET /languages)
+	GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams)
@@ -80,6 +101,12 @@ func (_ Unimplemented) GetEntities(w http.ResponseWriter, r *http.Request, param
 // Liveness probe
 // (GET /healthz)
 func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Retrieve aggregated language detections
+// (GET /languages)
+func (_ Unimplemented) GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -174,6 +201,65 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLanguages operation middleware
+func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLanguagesParams
+
+	// ------------- Optional query parameter "startDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "language" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "language", r.URL.Query(), &params.Language, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "language", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLanguages(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -382,6 +468,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/languages", wrapper.GetLanguages)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics", wrapper.GetMetrics)
 	})
 	r.Group(func(r chi.Router) {
@@ -459,6 +548,59 @@ type GetHealthz200JSONResponse map[string]string
 func (response GetHealthz200JSONResponse) VisitGetHealthzResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLanguagesRequestObject struct {
+	Params GetLanguagesParams
+}
+
+type GetLanguagesResponseObject interface {
+	VisitGetLanguagesResponse(w http.ResponseWriter) error
+}
+
+type GetLanguages200JSONResponse []struct {
+	// AvgConfidence Average confidence score for this language across matched documents.
+	AvgConfidence float64 `json:"avgConfidence"`
+
+	// Count Number of documents where this language was detected as the top candidate.
+	Count int64 `json:"count"`
+
+	// DetectedLanguage ISO 639-1 language code (e.g., "de", "en").
+	DetectedLanguage string `json:"detectedLanguage"`
+
+	// Sources Distinct data sources that produced this language detection.
+	Sources []string `json:"sources"`
+}
+
+func (response GetLanguages200JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLanguages400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetLanguages400JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLanguages500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetLanguages500JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -565,6 +707,9 @@ type StrictServerInterface interface {
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// Retrieve aggregated language detections
+	// (GET /languages)
+	GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error)
@@ -648,6 +793,32 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
 		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLanguages operation middleware
+func (sh *strictHandler) GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams) {
+	var request GetLanguagesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLanguages(ctx, request.(GetLanguagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLanguages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLanguagesResponseObject); ok {
+		if err := validResponse.VisitGetLanguagesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

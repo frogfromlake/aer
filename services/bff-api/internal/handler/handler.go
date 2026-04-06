@@ -12,6 +12,7 @@ type Store interface {
 	Ping(ctx context.Context) error
 	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
+	GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error)
 	GetAvailableMetrics(ctx context.Context) ([]string, error)
 }
 
@@ -102,6 +103,40 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 			EntityLabel: d.EntityLabel,
 			Count:       int64(d.Count),
 			Sources:     d.Sources,
+		})
+	}
+
+	return response, nil
+}
+
+// GetLanguages handles GET /languages — returns aggregated language detections.
+func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error) {
+	if request.Params.StartDate == nil || request.Params.EndDate == nil {
+		return GetLanguages400JSONResponse{Message: "startDate and endDate are required"}, nil
+	}
+
+	limit := 100
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	data, err := s.db.GetLanguageDetections(ctx, *request.Params.StartDate, *request.Params.EndDate, request.Params.Source, request.Params.Language, limit)
+	if err != nil {
+		return GetLanguages500JSONResponse{Message: err.Error()}, nil
+	}
+
+	var response GetLanguages200JSONResponse
+	for _, d := range data {
+		response = append(response, struct {
+			AvgConfidence    float64  `json:"avgConfidence"`
+			Count            int64    `json:"count"`
+			DetectedLanguage string   `json:"detectedLanguage"`
+			Sources          []string `json:"sources"`
+		}{
+			DetectedLanguage: d.DetectedLanguage,
+			Count:            int64(d.Count),
+			AvgConfidence:    d.AvgConfidence,
+			Sources:          d.Sources,
 		})
 	}
 

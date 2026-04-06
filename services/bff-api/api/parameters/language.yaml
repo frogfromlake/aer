@@ -1,0 +1,6 @@
+name: language
+in: query
+description: Filter by ISO 639-1 language code (e.g., "de", "en").
+required: false
+schema:
+  type: string

@@ -6,7 +6,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverEnvelope, ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, EntityExtractor, GoldMetric, GoldEntity
+from internal.extractors.base import MetricExtractor, EntityExtractor, LanguageDetectionPersistExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
 from internal.metrics import (
     events_processed_total,
     events_quarantined_total,
@@ -100,9 +100,14 @@ class DataProcessor:
 
         all_metrics: list[GoldMetric] = []
         all_entities: list[GoldEntity] = []
+        all_language_detections: list[GoldLanguageDetection] = []
         for extractor in self.extractors:
             try:
-                if isinstance(extractor, EntityExtractor):
+                if isinstance(extractor, LanguageDetectionPersistExtractor):
+                    metrics, lang_detections = extractor.extract_all(core, article_id)
+                    all_metrics.extend(metrics)
+                    all_language_detections.extend(lang_detections)
+                elif isinstance(extractor, EntityExtractor):
                     metrics, entities = extractor.extract_all(core, article_id)
                     all_metrics.extend(metrics)
                     all_entities.extend(entities)
@@ -146,6 +151,24 @@ class DataProcessor:
             logger.info(
                 "Gold entities updated",
                 entity_count=len(all_entities),
+                timestamp=str(core.timestamp),
+                source=core.source,
+                article_id=article_id,
+            )
+
+        if all_language_detections:
+            lang_rows = [
+                [d.timestamp, d.source, d.article_id, d.detected_language, d.confidence, d.rank]
+                for d in all_language_detections
+            ]
+            self.ch.insert(
+                'aer_gold.language_detections',
+                lang_rows,
+                column_names=['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank']
+            )
+            logger.info(
+                "Gold language detections updated",
+                detection_count=len(all_language_detections),
                 timestamp=str(core.timestamp),
                 source=core.source,
                 article_id=article_id,

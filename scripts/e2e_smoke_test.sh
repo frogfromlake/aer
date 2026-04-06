@@ -249,3 +249,36 @@ else
     log_fail "metrics/available endpoint returned HTTP $AVAILABLE_STATUS."
     log_info "Response: $(cat /tmp/aer_e2e_available.json 2>/dev/null || echo '<empty>')"
 fi
+
+# ── Step 9: Assert GET /api/v1/languages ────────────────────────────────
+log_step "Step 9: GET /api/v1/languages"
+
+LANG_STATUS=$(curl -sf \
+    -o /tmp/aer_e2e_lang.json \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/languages?startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || LANG_STATUS="000"
+
+if [[ "$LANG_STATUS" == "200" ]]; then
+    LANG_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_lang.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    if [[ "$LANG_COUNT" -gt 0 ]]; then
+        # Verify at least one entry has detected_language = "de"
+        HAS_DE=$(python3 -c "
+import json
+d = json.load(open('/tmp/aer_e2e_lang.json'))
+print('yes' if any(e.get('detectedLanguage') == 'de' for e in d) else 'no')
+" 2>/dev/null || echo "error")
+        if [[ "$HAS_DE" == "yes" ]]; then
+            log_ok "languages endpoint: $LANG_COUNT language(s), includes 'de'."
+        else
+            log_fail "languages returned $LANG_COUNT entries but none with detectedLanguage=de."
+            log_info "Response: $(cat /tmp/aer_e2e_lang.json)"
+        fi
+    else
+        log_fail "languages returned 200 but 0 results."
+        log_info "Response: $(cat /tmp/aer_e2e_lang.json)"
+    fi
+else
+    log_fail "languages endpoint returned HTTP $LANG_STATUS."
+    log_info "Response: $(cat /tmp/aer_e2e_lang.json 2>/dev/null || echo '<empty>')"
+fi

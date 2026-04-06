@@ -1387,9 +1387,12 @@ def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, moc
 
     proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, _ = mock_clickhouse.insert.call_args
-    rows = ch_args[1]
+    # Two inserts: metrics + language_detections (Phase 45)
+    assert mock_clickhouse.insert.call_count == 2
+
+    insert_calls = mock_clickhouse.insert.call_args_list
+    metrics_call = [c for c in insert_calls if c[0][0] == "aer_gold.metrics"][0]
+    rows = metrics_call[0][1]
 
     metric_names = [row[3] for row in rows]
     assert "word_count" in metric_names
@@ -1408,6 +1411,10 @@ def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, moc
             assert 0.0 <= value <= 6.0
         elif name == "language_confidence":
             assert 0.0 <= value <= 1.0
+
+    # Verify language_detections insert also happened
+    lang_tables = [c[0][0] for c in insert_calls]
+    assert "aer_gold.language_detections" in lang_tables
 
     proc._update_document_status.assert_called_with(
         "rss/tagesschau/abc123/2026-04-05.json", "processed"
@@ -1567,3 +1574,203 @@ def test_quarantine_helper_from_validation_failure(
     proc._update_document_status.assert_called_with(
         "test-source/empty/2023-10-25.json", "quarantined"
     )
+
+
+# ==================== Phase 45: Language Detection Persistence Tests ====================
+
+
+def test_language_extractor_is_language_detection_persist_extractor():
+    """Tests that LanguageDetectionExtractor satisfies the LanguageDetectionPersistExtractor protocol."""
+    from internal.extractors import LanguageDetectionPersistExtractor
+    extractor = LanguageDetectionExtractor()
+    assert isinstance(extractor, LanguageDetectionPersistExtractor)
+
+
+def test_language_extractor_not_entity_extractor():
+    """Tests that LanguageDetectionExtractor does NOT satisfy EntityExtractor."""
+    extractor = LanguageDetectionExtractor()
+    assert not isinstance(extractor, EntityExtractor)
+
+
+def test_language_extractor_extract_all_german_text():
+    """Tests that extract_all() returns both metrics and language detections."""
+    from datetime import timezone
+    from internal.models import SilverCore
+    from internal.extractors import GoldLanguageDetection
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="tagesschau",
+        source_type="rss",
+        raw_text="Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet.",
+        cleaned_text="Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet.",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=11,
+    )
+
+    metrics, detections = extractor.extract_all(core, "article-1")
+
+    # Metrics: language_confidence as before
+    assert len(metrics) == 1
+    assert metrics[0].metric_name == "language_confidence"
+    assert 0.0 <= metrics[0].value <= 1.0
+
+    # Detections: at least one ranked candidate
+    assert len(detections) >= 1
+    assert all(isinstance(d, GoldLanguageDetection) for d in detections)
+
+    # Rank 1 should be the top candidate
+    assert detections[0].rank == 1
+    assert detections[0].detected_language  # non-empty
+    assert 0.0 <= detections[0].confidence <= 1.0
+    assert detections[0].source == "tagesschau"
+    assert detections[0].article_id == "article-1"
+
+    # Ranks must be sequential
+    for i, d in enumerate(detections):
+        assert d.rank == i + 1
+
+
+def test_language_extractor_extract_all_short_text():
+    """Tests that extract_all() returns empty lists for short text."""
+    from datetime import timezone
+    from internal.models import SilverCore
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="test",
+        source_type="rss",
+        raw_text="Hi",
+        cleaned_text="Hi",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=1,
+    )
+
+    metrics, detections = extractor.extract_all(core, None)
+    assert metrics == []
+    assert detections == []
+
+
+def test_language_extractor_extract_language_detections():
+    """Tests that extract_language_detections() returns only detections."""
+    from datetime import timezone
+    from internal.models import SilverCore
+    from internal.extractors import GoldLanguageDetection
+
+    extractor = LanguageDetectionExtractor()
+    core = SilverCore(
+        document_id="abc123",
+        source="tagesschau",
+        source_type="rss",
+        raw_text="Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet.",
+        cleaned_text="Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet.",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=11,
+    )
+
+    detections = extractor.extract_language_detections(core, "article-1")
+    assert len(detections) >= 1
+    assert all(isinstance(d, GoldLanguageDetection) for d in detections)
+
+
+def test_processor_language_detections_insert(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Tests that the processor inserts language detections into
+    aer_gold.language_detections when LanguageDetectionExtractor is used.
+    """
+    extractors = [LanguageDetectionExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_RSS_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
+
+    # Should have two inserts: metrics + language_detections
+    assert mock_clickhouse.insert.call_count == 2
+
+    insert_calls = mock_clickhouse.insert.call_args_list
+    tables = [call[0][0] for call in insert_calls]
+    assert "aer_gold.metrics" in tables
+    assert "aer_gold.language_detections" in tables
+
+    # Verify language_detections insert structure
+    lang_call = [c for c in insert_calls if c[0][0] == "aer_gold.language_detections"][0]
+    lang_rows = lang_call[0][1]
+    assert len(lang_rows) >= 1
+    assert lang_call[1]['column_names'] == ['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank']
+
+    # First row should be rank 1
+    assert lang_rows[0][5] == 1  # rank column
+
+
+def test_processor_no_language_detection_insert_without_persist_extractor(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Tests that extractors without LanguageDetectionPersistExtractor protocol
+    do not trigger language_detections insertion.
+    """
+    extractors = [WordCountExtractor()]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    # Only one insert (metrics), no language_detections insert
+    mock_clickhouse.insert.assert_called_once()
+    assert mock_clickhouse.insert.call_args[0][0] == "aer_gold.metrics"
+
+
+def test_full_pipeline_with_language_detection_persistence(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span
+):
+    """
+    Integration test: process a German RSS document through the pipeline
+    with all Tier 1 extractors including language detection persistence.
+    Verifies both metrics and language_detections inserts happen.
+    """
+    from pathlib import Path
+
+    extractors = [
+        WordCountExtractor(),
+        TemporalDistributionExtractor(),
+        LanguageDetectionExtractor(),
+        SentimentExtractor(sentiws_dir=Path("/nonexistent")),
+    ]
+    proc = _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_RSS_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+    proc._get_document_status = MagicMock(return_value=None)
+    proc._update_document_status = MagicMock()
+
+    proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
+
+    # Two inserts: metrics + language_detections
+    assert mock_clickhouse.insert.call_count == 2
+
+    insert_calls = mock_clickhouse.insert.call_args_list
+    tables = [call[0][0] for call in insert_calls]
+    assert "aer_gold.metrics" in tables
+    assert "aer_gold.language_detections" in tables
+
+    # Verify metrics still include all expected names
+    metrics_call = [c for c in insert_calls if c[0][0] == "aer_gold.metrics"][0]
+    metric_names = [row[3] for row in metrics_call[0][1]]
+    assert "word_count" in metric_names
+    assert "publication_hour" in metric_names
+    assert "language_confidence" in metric_names

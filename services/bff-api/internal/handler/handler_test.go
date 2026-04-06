@@ -16,6 +16,8 @@ type mockStore struct {
 	metricsErr error
 	entities    []storage.EntityRow
 	entitiesErr error
+	languageDetections    []storage.LanguageDetectionRow
+	languageDetectionsErr error
 	availableMetrics    []string
 	availableMetricsErr error
 	// captured args
@@ -24,6 +26,7 @@ type mockStore struct {
 	capturedSource     *string
 	capturedMetricName *string
 	capturedLabel      *string
+	capturedLanguage   *string
 	capturedLimit      int
 }
 
@@ -46,6 +49,15 @@ func (m *mockStore) GetEntities(_ context.Context, start, end time.Time, source,
 	m.capturedLabel = label
 	m.capturedLimit = limit
 	return m.entities, m.entitiesErr
+}
+
+func (m *mockStore) GetLanguageDetections(_ context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error) {
+	m.capturedStart = start
+	m.capturedEnd = end
+	m.capturedSource = source
+	m.capturedLanguage = language
+	m.capturedLimit = limit
+	return m.languageDetections, m.languageDetectionsErr
 }
 
 func (m *mockStore) GetAvailableMetrics(_ context.Context) ([]string, error) {
@@ -373,5 +385,103 @@ func TestGetMetricsAvailable_Returns500OnError(t *testing.T) {
 	}
 	if _, ok := resp.(GetMetricsAvailable500JSONResponse); !ok {
 		t.Fatalf("expected GetMetricsAvailable500JSONResponse, got %T", resp)
+	}
+}
+
+// --- GetLanguages ---
+
+func TestGetLanguages_Returns400WhenMissingRequiredParams(t *testing.T) {
+	s := NewServer(&mockStore{})
+
+	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(GetLanguages400JSONResponse); !ok {
+		t.Fatalf("expected GetLanguages400JSONResponse, got %T", resp)
+	}
+}
+
+func TestGetLanguages_ReturnsDetections(t *testing.T) {
+	store := &mockStore{
+		languageDetections: []storage.LanguageDetectionRow{
+			{DetectedLanguage: "de", Count: 42, AvgConfidence: 0.9876, Sources: []string{"tagesschau"}},
+			{DetectedLanguage: "en", Count: 5, AvgConfidence: 0.8512, Sources: []string{"tagesschau", "bundesregierung"}},
+		},
+	}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	lang := "de"
+
+	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
+		Params: GetLanguagesParams{
+			StartDate: &start,
+			EndDate:   &end,
+			Language:  &lang,
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetLanguages200JSONResponse)
+	if !ok {
+		t.Fatalf("expected GetLanguages200JSONResponse, got %T", resp)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(got))
+	}
+	if got[0].DetectedLanguage != "de" {
+		t.Errorf("expected detectedLanguage de, got %q", got[0].DetectedLanguage)
+	}
+	if got[0].Count != 42 {
+		t.Errorf("expected count 42, got %d", got[0].Count)
+	}
+	if got[0].AvgConfidence != 0.9876 {
+		t.Errorf("expected avgConfidence 0.9876, got %v", got[0].AvgConfidence)
+	}
+	if store.capturedLanguage == nil || *store.capturedLanguage != "de" {
+		t.Errorf("expected language filter de to be passed to store")
+	}
+	if store.capturedLimit != 100 {
+		t.Errorf("expected default limit 100, got %d", store.capturedLimit)
+	}
+}
+
+func TestGetLanguages_Returns500OnStorageError(t *testing.T) {
+	store := &mockStore{languageDetectionsErr: errors.New("clickhouse timeout")}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
+		Params: GetLanguagesParams{StartDate: &start, EndDate: &end},
+	})
+	if err != nil {
+		t.Fatalf("unexpected Go error: %v", err)
+	}
+	if _, ok := resp.(GetLanguages500JSONResponse); !ok {
+		t.Fatalf("expected GetLanguages500JSONResponse, got %T", resp)
+	}
+}
+
+func TestGetLanguages_RespectsCustomLimit(t *testing.T) {
+	store := &mockStore{}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	limit := 25
+
+	_, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
+		Params: GetLanguagesParams{StartDate: &start, EndDate: &end, Limit: &limit},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.capturedLimit != 25 {
+		t.Errorf("expected limit 25, got %d", store.capturedLimit)
 	}
 }
