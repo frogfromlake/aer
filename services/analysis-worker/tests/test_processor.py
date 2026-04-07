@@ -99,7 +99,7 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     assert row[1] == float(EXPECTED_WORD_COUNT)  # word_count as metric
     assert row[2] == "test-source"               # source dimension
     assert row[3] == "word_count"                # metric_name dimension
-    assert row[4] == "test-article"              # article_id derived from obj_key
+    assert row[4] == generate_document_id("test-source", obj_key)  # article_id = core.document_id
     assert ch_kwargs['column_names'] == ['timestamp', 'value', 'source', 'metric_name', 'article_id']
 
     # 5. Assert DB Update (Commit Success)
@@ -164,8 +164,9 @@ def test_whitespace_normalization(processor, mock_minio, mock_clickhouse, dummy_
     processor._get_document_status = MagicMock(return_value=None)
     processor._update_document_status = MagicMock()
 
+    ws_obj_key = "test-source/whitespace-article/2023-10-25.json"
     # Execute
-    processor.process_event("test-source/whitespace-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+    processor.process_event(ws_obj_key, DUMMY_EVENT_TIME, dummy_span)
 
     # Assert: word_count must equal 5 (same as the clean version)
     mock_clickhouse.insert.assert_called_once()
@@ -174,7 +175,7 @@ def test_whitespace_normalization(processor, mock_minio, mock_clickhouse, dummy_
     assert row[1] == float(EXPECTED_WORD_COUNT)
     assert row[2] == "test-source"
     assert row[3] == "word_count"
-    assert row[4] == "whitespace-article"
+    assert row[4] == generate_document_id("test-source", ws_obj_key)  # article_id = core.document_id
 
 
 def test_idempotency_skip_duplicate(processor, mock_minio, mock_clickhouse, dummy_span):

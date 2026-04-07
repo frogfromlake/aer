@@ -100,8 +100,7 @@ class DataProcessor:
         logger.info("Silver layer updated", object=obj_key, source=core.source, word_count=core.word_count, schema_version=core.schema_version)
 
         # --- 7. Extract and load to Gold Layer (ClickHouse) via Extractor Pipeline ---
-        key_parts = obj_key.split("/")
-        article_id = key_parts[1] if len(key_parts) >= 3 else None
+        article_id = core.document_id
 
         all_metrics: list[GoldMetric] = []
         all_entities: list[GoldEntity] = []
