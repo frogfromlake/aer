@@ -1,11 +1,13 @@
 # 13. Scientific Research Foundations
 
 > **Status:** Living document — updated as interdisciplinary research progresses.
-> **Last updated:** 2026-04-03
+> **Last updated:** 2026-04-07
 
 This appendix documents the scientific disciplines, methodological frameworks, and institutional partners relevant to AĒR's core mission: the observation of large-scale patterns in global digital discourse. While Chapters 0–12 describe the *instrument* (architecture, constraints, runtime behavior), this chapter describes the *lens configuration* — the theoretical and methodological foundation that determines *what* AĒR observes and *how* it interprets the data.
 
 The technological infrastructure is deliberately decoupled from the analytical methodology (see ADR-002, Chapter 9). New metrics and analytical approaches are implemented as isolated processing steps in the Python analysis worker without affecting the ingestion pipeline or the serving layer. This chapter provides the scientific roadmap for those processing steps.
+
+The **Scientific Methodology Working Paper Series** (WP-001 through WP-006, located in `docs/methodology/`) operationalizes the open research questions identified in §13.6. Each working paper addresses one foundational methodological challenge, proposes frameworks and research questions for interdisciplinary collaboration, and documents architectural implications for the AĒR pipeline. The Working Papers are the bridge between this chapter's scientific roadmap and concrete methodological progress.
 
 ---
 
@@ -203,18 +205,59 @@ The following table maps each philosophical pillar (Chapter 1, Section 1.2) to c
 
 ## 13.6 Open Research Questions
 
-The following questions must be answered through interdisciplinary collaboration before the analysis worker can move beyond the current PoC state. They are ordered by dependency — later questions build on answers to earlier ones.
+The following questions must be answered through interdisciplinary collaboration before the analysis worker can move beyond the current PoC state. They are ordered by dependency — later questions build on answers to earlier ones. Each question is now addressed by a dedicated Working Paper (WP) in the Scientific Methodology series (`docs/methodology/`), which provides detailed analysis, proposed frameworks, and concrete research questions for interdisciplinary collaborators.
 
-1. **Probe Selection:** Which digital spaces (platforms, media, forums) constitute representative "probes" for observing societal discourse? How do we weight them against each other? (Manifesto, Section IV)
-2. **Bias Calibration:** How do we measure and correct for platform-specific algorithmic amplification, bot activity, and demographic skew in crawled data? (Manifesto, Section III)
-3. **Metric Validity:** Which computational metrics (sentiment, topic prevalence, narrative frames) have established validity as proxies for societal attitudes? Under what conditions do they fail?
-4. **Cross-Cultural Comparability:** Can the same metric be meaningfully compared across languages and cultural contexts? What normalization is required?
-5. **Temporal Granularity:** At what temporal resolution do discourse shifts become meaningful? Hours (breaking news), days (news cycles), weeks (policy debates), months (cultural shifts)?
-6. **Observer Effect:** Does the act of measuring and visualizing societal discourse alter the discourse itself? How does AĒR account for its own potential impact?
+1. **Probe Selection:** Which digital spaces (platforms, media, forums) constitute representative "probes" for observing societal discourse? How do we weight them against each other? (Manifesto, Section IV) — **Addressed in [WP-001](../methodology/WP-001-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md)**: proposes a functional taxonomy of four universal discourse functions (Epistemic Authority, Power Legitimation, Cohesion & Identity, Subversion & Friction) and an Etic/Emic Dual Tagging System that enables cross-cultural probe selection without imposing Western institutional categories.
+2. **Bias Calibration:** How do we measure and correct for platform-specific algorithmic amplification, bot activity, and demographic skew in crawled data? (Manifesto, Section III) — **Addressed in [WP-003](../methodology/WP-003-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md)**: maps the global platform landscape, analyzes algorithmic amplification effects, examines bot/synthetic content detection, documents the Digital Divide, and proposes a "document, don't filter" approach to non-human actors.
+3. **Metric Validity:** Which computational metrics (sentiment, topic prevalence, narrative frames) have established validity as proxies for societal attitudes? Under what conditions do they fail? — **Addressed in [WP-002](../methodology/WP-002-metric_validity_and_sentiment_calibration.md)**: analyzes the construct validity problem, documents limitations of SentiWS and NER implementations, proposes a five-step validation protocol (annotation study, baseline comparison, error taxonomy, cross-context transfer, longitudinal stability), and formulates concrete research questions per discipline.
+4. **Cross-Cultural Comparability:** Can the same metric be meaningfully compared across languages and cultural contexts? What normalization is required? — **Addressed in [WP-004](../methodology/WP-004-cross-cultural_comparability_of_discourse_metrics.md)**: introduces the comparability paradox, defines three levels of cross-cultural comparison (temporal patterns, baseline-normalized deviations, instrument-harmonized absolutes), extends the Etic/Emic framework to metrics via a proposed Metric Equivalence Registry, and addresses the ethical dimension of comparison.
+5. **Temporal Granularity:** At what temporal resolution do discourse shifts become meaningful? Hours (breaking news), days (news cycles), weeks (policy debates), months (cultural shifts)? — **Addressed in [WP-005](../methodology/WP-005-temporal_granularity_of_discourse_shifts.md)**: defines five temporal scales of discourse phenomena, proposes multi-scale temporal decomposition, analyzes cultural temporalities (calendars, news cycles, attention rhythms), and maps each AĒR pillar to its temporal signature (Aleph → synchronic, Episteme → diachronic, Rhizome → propagation dynamics).
+6. **Observer Effect:** Does the act of measuring and visualizing societal discourse alter the discourse itself? How does AĒR account for its own potential impact? — **Addressed in [WP-006](../methodology/WP-006-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md)**: examines performativity and Goodhart's Law, analyzes risks of metric gaming, reification, and weaponization, proposes five design principles for reflexive architecture (methodological transparency, non-prescriptive visualization, reflexive documentation, governed openness, interpretive humility), and addresses the ethics of making discourse visible.
 
 ---
 
-## 13.7 References and Further Reading
+## 13.7 Scientific Methodology Working Paper Series
+
+The Working Paper series constitutes AĒR's methodological research program. The papers are designed as interdisciplinary dialogue documents — they map the gap between AĒR's engineering pipeline and scientifically validated discourse observation, formulate concrete research questions per target discipline, and propose frameworks that respect AĒR's architectural constraints (determinism, transparency, Ockham's Razor).
+
+| Paper | Title | Core Question | Primary Disciplines | §13.6 Question |
+| :--- | :--- | :--- | :--- | :--- |
+| **[WP-001](../methodology/WP-001-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md)** | Toward a Culturally Agnostic Probe Catalog | How to select observation points without cultural bias? | Digital Anthropology, Comparative Political Science | 1. Probe Selection |
+| **[WP-002](../methodology/WP-002-metric_validity_and_sentiment_calibration.md)** | Metric Validity and Sentiment Calibration | When are computational metrics valid proxies for societal attitudes? | CSS, NLP, Cultural Anthropology | 3. Metric Validity |
+| **[WP-003](../methodology/WP-003-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md)** | Platform Bias, Algorithmic Amplification, and Non-Human Actors | How to account for platform distortion and synthetic content? | Internet Studies, CSS, Area Studies | 2. Bias Calibration |
+| **[WP-004](../methodology/WP-004-cross-cultural_comparability_of_discourse_metrics.md)** | Cross-Cultural Comparability of Discourse Metrics | Can metrics be compared across cultures? What normalization is required? | Comparative Methodology, Computational Linguistics | 4. Cross-Cultural Comparability |
+| **[WP-005](../methodology/WP-005-temporal_granularity_of_discourse_shifts.md)** | Temporal Granularity of Discourse Shifts | At what time scale do discourse shifts become meaningful? | Time Series Analysis, Communication Science | 5. Temporal Granularity |
+| **[WP-006](../methodology/WP-006-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md)** | Observer Effect, Reflexivity, and the Ethics of Discourse Measurement | What happens because we observe? | STS, Sociology, Ethics, Information Design | 6. Observer Effect |
+
+### Key Contributions Across the Series
+
+**WP-001** introduces the **Functional Probe Taxonomy** — four universal discourse functions (Epistemic Authority, Power Legitimation, Cohesion & Identity, Subversion & Friction) grounded in Foucault, Gramsci, Anderson, and Scott. It operationalizes cross-cultural comparison via the **Etic/Emic Dual Tagging System** embedded in `SilverMeta`, defines the **Minimum Viable Probe Set** concept, and proposes a formalized five-step probe classification process requiring area studies expertise. Probe 0 is formally classified as covering only Functions 1–2 (Epistemic Authority + Power Legitimation) in the German institutional sphere.
+
+**WP-002** maps the construct validity gap between computational metrics and sociological interpretation. It documents the known limitations of all Phase 42 extractors (SentiWS negation blindness, compound word failure, spaCy NER entity linking absence, language detection short-text degradation), proposes a **five-step validation protocol** (annotation study → baseline comparison → error taxonomy → cross-context transfer → longitudinal stability), and recommends a **hybrid tier architecture** (Option C: Tier 1 as immutable baseline, Tier 2/3 as validated enrichments via Progressive Disclosure). Proposes `aer_gold.metric_validity` table for storing validation results.
+
+**WP-003** analyzes upstream distortions — platform affordances, algorithmic amplification, and non-human actors — that affect data *before* it enters AĒR's pipeline. It maps the **global platform landscape** beyond the Western stack (East Asia, Russia, South Asia, MENA, Sub-Saharan Africa, Latin America), proposes **counterfactual strategies** for detecting algorithmic effects (cross-platform triangulation, temporal discontinuity detection), advocates a **"document, don't filter"** approach to bot/synthetic content (compute authenticity indicators as Gold metrics, expose via Progressive Disclosure), and proposes `BiasContext` fields for standardized bias documentation in `SilverMeta`.
+
+**WP-004** addresses the **comparability paradox**: comparison requires a common frame, but imposing a common frame risks erasing the differences being observed. It defines four types of equivalence (construct, measurement, scalar, temporal), proposes **three levels of cross-cultural comparison** (temporal patterns, baseline-normalized deviations, instrument-harmonized absolutes), extends the Etic/Emic framework to metrics via a proposed **Metric Equivalence Registry** (`aer_gold.metric_equivalence`), and proposes Gold layer extensions for baseline computation and z-score normalization.
+
+**WP-005** defines **five temporal scales** of discourse phenomena (event response, news cycle, agenda dynamics, policy discourse, cultural drift), maps each AĒR pillar to its temporal signature, analyzes cultural temporalities (religious calendars, political cycles, media rhythms), proposes multi-resolution ClickHouse aggregation and BFF API extensions, and introduces a tiered retention strategy for long-term cultural drift analysis.
+
+**WP-006** addresses reflexivity — the fact that AĒR is part of the system it observes. Drawing on Giddens' double hermeneutic, Bourdieu's epistemic reflexivity, and Callon/MacKenzie's performativity theory, it analyzes four concrete risks (metric gaming, reification, weaponization, normative visualization) and proposes five **design principles for reflexive architecture**: methodological transparency, non-prescriptive visualization, reflexive documentation, governed openness, and interpretive humility.
+
+### Interdisciplinary Research Questions
+
+The Working Papers collectively formulate **30+ concrete research questions** organized by target discipline, each specifying the gap in AĒR's current implementation and the form of contribution that would be most valuable. See WP-006 Appendix C for the consolidated index. The primary target disciplines are:
+
+- **Computational Social Science:** metric validation, bot detection, topic model stability, propagation dynamics
+- **Computational Linguistics / NLP:** compound word handling, multilingual NER/entity linking, code-switching, tokenization strategies
+- **Cultural Anthropology / Area Studies:** regional probe nominations, expressive norm calibration, entity ontology, observer effect assessments
+- **Methodology / Statistics:** baseline calibration, uncertainty propagation, temporal decomposition, change point detection
+- **Communication Science / Media Studies:** cross-cultural news cycles, seasonal pattern catalogs
+- **STS / Sociology / Ethics:** observer effect empirics, governance models, responsible disclosure
+- **Information Design:** non-prescriptive visualization, negative space representation
+
+---
+
+## 13.8 References and Further Reading
 
 ### Foundational Texts
 
@@ -241,14 +284,33 @@ The following questions must be answered through interdisciplinary collaboration
 - Blei, D. M., Ng, A. Y., & Jordan, M. I. (2003). "Latent Dirichlet Allocation." *Journal of Machine Learning Research*, 3, 993–1022.
 - Grootendorst, M. (2022). "BERTopic: Neural Topic Modeling with a Class-Based TF-IDF Procedure." arXiv:2203.05794.
 
+### Comparative Methodology and Reflexivity
+
+- Sartori, G. (1970). "Concept Misformation in Comparative Politics." *American Political Science Review*, 64(4), 1033–1053.
+- Santos, B. de S. (2014). *Epistemologies of the South: Justice Against Epistemicide*. Routledge.
+- Hallin, D. C. & Mancini, P. (2004). *Comparing Media Systems: Three Models of Media and Politics*. Cambridge University Press.
+- Scott, J. C. (1990). *Domination and the Arts of Resistance: Hidden Transcripts*. Yale University Press.
+- Giddens, A. (1984). *The Constitution of Society: Outline of the Theory of Structuration*. Polity.
+- MacKenzie, D. (2006). *An Engine, Not a Camera: How Financial Models Shape Markets*. MIT Press.
+- van de Vijver, F. J. R. & Leung, K. (1997). *Methods and Data Analysis for Cross-Cultural Research*. SAGE.
+
+### AĒR Scientific Methodology Working Papers (Internal)
+
+- WP-001: Toward a Culturally Agnostic Probe Catalog — A Functional Taxonomy for Global Discourse Observation (2026-04-07)
+- WP-002: Metric Validity and Sentiment Calibration (2026-04-07)
+- WP-003: Platform Bias, Algorithmic Amplification, and the Detection of Non-Human Actors (2026-04-07)
+- WP-004: Cross-Cultural Comparability of Discourse Metrics (2026-04-07)
+- WP-005: Temporal Granularity of Discourse Shifts (2026-04-07)
+- WP-006: Observer Effect, Reflexivity, and the Ethics of Discourse Measurement (2026-04-07)
+
 ---
 
-## 13.8 Probe 0: Pipeline Calibration (German Institutional RSS)
+## 13.9 Probe 0: Pipeline Calibration (German Institutional RSS)
 
 > **Status:** Operational — pipeline validated end-to-end (Phase 43).
 > **Date:** 2026-04-06
 
-This section documents AĒR's first real data source. The source selection is explicitly **provisional** — it is driven by pragmatic engineering criteria, not by scientific probe methodology. The Manifesto's Probe Principle (§IV) requires interdisciplinary dialogue for valid probe selection; this dialogue has not yet occurred. The RSS feeds selected here serve as **calibration data** for the pipeline, not as a scientifically representative sample of German discourse.
+This section documents AĒR's first real data source. The source selection is explicitly **provisional** — it is driven by pragmatic engineering criteria, not by scientific probe methodology. The Manifesto's Probe Principle (§IV) requires interdisciplinary dialogue for valid probe selection; this dialogue has not yet occurred. The RSS feeds selected here serve as **calibration data** for the pipeline, not as a scientifically representative sample of German discourse. WP-001 (§6) formally classifies Probe 0 under the Functional Probe Taxonomy: bundesregierung.de serves the **Power Legitimation** function (primary) and tagesschau.de serves the **Epistemic Authority** function (primary). Functions 3 (Cohesion & Identity) and 4 (Subversion & Friction) are entirely unrepresented.
 
 ### Purpose
 

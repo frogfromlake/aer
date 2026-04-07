@@ -74,5 +74,10 @@ nav:
       - "12. Glossary": arc42/12_glossary.md
       - "13. Scientific Foundations": arc42/13_scientific_foundations.md
   - "Scientific Methodology":
-      - "WP-001: Functional Probe Taxonomy": methodology/WP-001-functional-probe-taxonomy.md
+      - "WP-001: Toward a Culturally Agnostic Probe Catalog": methodology/WP-001-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md
+      - "WP-002: Metric Validity and Sentiment Calibration": methodology/WP-002-metric_validity_and_sentiment_calibration.md
+      - "WP-003: Platform Bias, Algorithmic Amplification and Detection of Non-Human Actors": methodology/WP-003-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md
+      - "WP-004: Cross-Cultural Comparability of Discourse Metrics": methodology/WP-004-cross-cultural_comparability_of_discourse_metrics.md
+      - "WP-005: Temporal Granularity of Discourse Shifts": methodology/WP-005-temporal_granularity_of_discourse_shifts.md
+      - "WP-006: Observer Effect, Reflexivity and the Ethics of Discourse Measurement": methodology/WP-006-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
   - "Operations Playbook": operations_playbook.md
