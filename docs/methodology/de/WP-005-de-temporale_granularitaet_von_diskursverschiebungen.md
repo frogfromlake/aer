@@ -5,6 +5,7 @@
 > **Datum:** 07.04.2026
 > **Abhängig von:** WP-002 (Metrik-Validität), WP-004 (Interkulturelle Vergleichbarkeit)
 > **Architekturkontext:** ClickHouse Gold Layer (§5.1.4), BFF API Downsampling (§8.6), TTL/ILM (Phase 11), Temporal Extractor (Phase 42)
+> **Lizenz:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
 
 ---
 

@@ -5,6 +5,7 @@
 > **Date:** 2026-04-07
 > **Depends on:** WP-001 (Functional Probe Taxonomy), Arc42 Chapter 13 (Scientific Foundations)
 > **Architectural context:** Analysis Worker Extractor Pipeline (§8.10), Tier 1–3 Metric Classification (§13.3)
+> **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
 
 ---
 

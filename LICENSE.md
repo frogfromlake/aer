@@ -1,6 +1,6 @@
 # AĒR PROPRIETARY AND SOURCE-AVAILABLE LICENSE
 
-**Copyright (c) 2026 [Your Name / frogfromlake]** **All Rights Reserved.**
+**Copyright (c) 2026 [Fabian Quist / frogfromlake]** **All Rights Reserved.**
 
 ## 1. PURPOSE
 The AĒR project ("the Software") is made source-available to promote transparency, academic discourse, and community contributions. However, it is a proprietary project. All copyrights, patents, trademarks, and other intellectual property rights are retained by the copyright holder.
@@ -27,5 +27,9 @@ We welcome feature requests, bug reports, and code contributions. By submitting 
 ## 5. REQUESTING PERMISSION
 If you wish to utilize the Software for academic research, collaboration, or any purpose outside the scope of this license, you must obtain explicit written consent from the copyright holder prior to doing so.
 
-## 6. DISCLAIMER OF WARRANTY
+## 6. SCIENTIFIC WORKING PAPERS
+
+The working papers under `docs/methodology/` are original scientific works by Fabian Quist and are licensed separately under **Creative Commons Attribution 4.0 International (CC BY 4.0)**. You are free to share and adapt them for any purpose, provided you give appropriate credit to **Fabian Quist**. See `docs/methodology/LICENSE.md` for details.
+
+## 7. DISCLAIMER OF WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

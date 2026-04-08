@@ -5,6 +5,7 @@
 > **Datum:** 07.04.2026
 > **Abhängig von:** WP-001 (Funktionale Sondentaxonomie), WP-002 (Metrik-Validität)
 > **Architekturkontext:** Crawler-Ökosystem (§5.2), Source Adapter Protocol (ADR-015), Manifest §III
+> **Lizenz:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
 
 ---
 

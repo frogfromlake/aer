@@ -5,6 +5,7 @@
 > **Date:** 2026-04-07
 > **Depends on:** WP-001 through WP-005 (entire series)
 > **Architectural context:** Manifesto §I–§V, Progressive Disclosure (ADR-003), Quality Goal 1 (Scientific Integrity)
+> **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
 
 ---
 
