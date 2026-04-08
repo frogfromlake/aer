@@ -47,7 +47,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.1'
+          go-version: '1.26.2'
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
@@ -89,7 +89,7 @@ jobs:
           docker save ${{ steps.tc-images.outputs.clickhouse }} -o /tmp/docker-images/clickhouse.tar
 
       # Manual installation is required because the pre-built action binary
-      # does not yet support Go 1.26.1 features.
+      # does not yet support Go 1.26.2 features.
       - name: Cache Go tools (golangci-lint, oapi-codegen)
         uses: actions/cache@v4
         with:
@@ -130,6 +130,7 @@ jobs:
         run: |
           cd services/ingestion-api && go test -v ./...
           cd ../bff-api && go test -v ./...
+          cd ../../pkg && go test -v ./...
 
   dependency-audit:
     name: Dependency Auditing
@@ -141,7 +142,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.1'
+          go-version: '1.26.2'
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
@@ -150,6 +151,10 @@ jobs:
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Run govulncheck (pkg/)
+        working-directory: ./pkg
+        run: govulncheck ./...
 
       - name: Run govulncheck (ingestion-api)
         working-directory: ./services/ingestion-api
