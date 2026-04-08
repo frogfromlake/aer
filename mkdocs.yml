@@ -148,7 +148,7 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/your-org/aer
+      link: https://github.com/frogfromlake/aer
       name: "AĒR on GitHub"
 
   generator: false
