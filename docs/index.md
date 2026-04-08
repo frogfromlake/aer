@@ -8,14 +8,23 @@ Functioning as a digital **"macroscope"**, AĒR is designed to capture large-sca
 
 ## Documentation Structure
 
-This documentation portal bridges the gap between software engineering and the humanities. It is divided into three main pillars, accessible via the **top navigation tabs**:
+This documentation portal bridges the gap between software engineering and the humanities. It is divided into four pillars, accessible via the **top navigation tabs**:
 
 ### Architecture (arc42)
 The complete technical blueprint of the AĒR pipeline. Following the established [arc42 framework](arc42/01_introduction_and_goals.md), this section details the system's modular microservice architecture, the strict Medallion data lake constraints (Bronze, Silver, Gold layers), and core engineering decisions (ADRs).
 
 ### Scientific Methodology
-The epistemological lens of the system. This section documents the anthropological, sociological, and linguistic frameworks used to interpret the data. It defines how we select representative observation points and measure cultural resonance without falling into the trap of Eurocentric bias.
-* **Read the latest working paper:** [WP-001: Functional Probe Taxonomy](methodology/WP-001-functional-probe-taxonomy.md)
+
+The epistemological lens of the system. A series of six interdisciplinary working papers documents the anthropological, sociological, and linguistic frameworks used to interpret the data. The papers are available in **English** and **German** to support outreach to both international and German-speaking research institutions.
+
+| Paper | Topic | EN | DE |
+| :--- | :--- | :---: | :---: |
+| **WP-001** | Functional Probe Taxonomy | [EN](methodology/en/WP-001-en-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md) | [DE](methodology/de/WP-001-de-auf_dem_weg_zu_einem_kulturell_agnostischen_sondenkatalog-eine_funktionale_taxonomie_fuer_die_globale_diskursbeobachtung.md) |
+| **WP-002** | Metric Validity & Sentiment Calibration | [EN](methodology/en/WP-002-en-metric_validity_and_sentiment_calibration.md) | [DE](methodology/de/WP-002-de-metrik_validitaet_und_sentiment_kalibrierung.md) |
+| **WP-003** | Platform Bias & Non-Human Actors | [EN](methodology/en/WP-003-en-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md) | [DE](methodology/de/WP-003-de-plattform_bias_algorithmische_verstaerkung_und_die_erkennung_nicht-menschlicher_akteure.md) |
+| **WP-004** | Cross-Cultural Comparability | [EN](methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md) | [DE](methodology/de/WP-004-de-interkulturelle_vergleichbarkeit_von_diskursmetriken.md) |
+| **WP-005** | Temporal Granularity | [EN](methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md) | [DE](methodology/de/WP-005-de-temporale_granularitaet_von_diskursverschiebungen.md) |
+| **WP-006** | Observer Effect & Reflexivity | [EN](methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md) | [DE](methodology/de/WP-006-de-beobachtereffekt_reflexivitaet_und_die_ethik_der_diskursmessung.md) |
 
 ### Operations Playbook
 The practical guide for system operators. It contains [runbooks](operations_playbook.md), infrastructure commands, and observability guidelines (Grafana, Tempo, Prometheus) for deploying and maintaining the stack.

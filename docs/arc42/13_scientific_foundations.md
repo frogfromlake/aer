@@ -182,6 +182,45 @@ The following table maps each philosophical pillar (Chapter 1, Section 1.2) to c
 
 ## 13.5 Recommended Outreach Strategy
 
+### 13.5.1 Working Paper Series (WP-001 through WP-006)
+
+> **Status:** Draft — all six papers complete, open for interdisciplinary review.
+> **Date:** 2026-04-07
+> **Languages:** English and German (bilingual, content-identical)
+
+The scientific methodology for AĒR's "lens configuration" is documented in a series of six interdisciplinary working papers. Each paper addresses one of the open research questions identified in §13.6 and formulates concrete deliverables for collaborators from specific disciplines. The papers are maintained under `docs/methodology/` in both English (`en/`) and German (`de/`) to support outreach to international and German-speaking research institutions alike.
+
+| Paper | Title | §13.6 Question | Primary Discipline |
+| :--- | :--- | :--- | :--- |
+| **WP-001** | Functional Probe Taxonomy | 1. Probe Selection | Digital Anthropology, Comparative Politics |
+| **WP-002** | Metric Validity & Sentiment Calibration | 3. Metric Validity | CSS, NLP |
+| **WP-003** | Platform Bias & Non-Human Actors | 2. Bias Calibration | Internet Studies, CSS |
+| **WP-004** | Cross-Cultural Comparability | 4. Cross-Cultural Comparability | Comparative Methodology |
+| **WP-005** | Temporal Granularity | 5. Temporal Granularity | Time Series Analysis, Communication Science |
+| **WP-006** | Observer Effect & Reflexivity | 6. Observer Effect | STS, Sociology, Ethics |
+
+**Key constructs introduced across the series:**
+
+- **Functional Probe Taxonomy** (WP-001): Four universal discourse functions (Epistemic Authority, Power Legitimation, Cohesion & Identity, Subversion & Friction) as the basis for culturally agnostic probe selection.
+- **Etic/Emic Dual Tagging System** (WP-001, extended in WP-004): Architectural mechanism for achieving cross-cultural comparability without cultural erasure, operationalized in `SilverMeta`.
+- **Validation Protocol** (WP-002): Five-step framework for validating computational metrics against human judgment, per metric-context pair.
+- **Metric Equivalence Registry** (WP-004): A curated Gold-layer table that documents which instrument-specific metrics are validated for cross-cultural comparison.
+- **Multi-Scale Temporal Framework** (WP-005): Five temporal scales (event response → cultural drift) with resolution-specific aggregation in ClickHouse.
+- **Reflexive Architecture Principles** (WP-006): Five design principles (Methodological Transparency, Non-Prescriptive Visualization, Reflexive Documentation, Governed Openness, Interpretive Humility).
+
+**Consolidated Research Question Index** (from WP-006, Appendix C):
+
+- Computational Social Science: WP-002 Q1–Q3, WP-003 Q3–Q5, WP-005 Q6–Q7
+- Computational Linguistics / NLP: WP-002 Q4–Q6, WP-004 Q4–Q5
+- Cultural Anthropology / Area Studies: WP-002 Q7–Q8, WP-003 Q6–Q7, WP-004 Q6–Q7, WP-006 Q7
+- Methodology / Statistics: WP-002 Q9–Q10, WP-003 Q8–Q9, WP-004 Q1–Q3, Q8–Q9, WP-005 Q1–Q3
+- Communication Science / Media Studies: WP-005 Q4–Q5
+- STS / Sociology / Ethics: WP-006 Q1–Q4
+- Information Design / Visualization: WP-006 Q5–Q6
+- Digital Humanities: WP-005 Q8
+
+The working papers are designed to be shared with potential collaborators as self-contained documents. Each paper identifies the relevant discipline, the specific gap in AĒR's current implementation, and the form of contribution that would be most valuable. The German translations ensure accessibility for German-speaking researchers at institutions such as GESIS, WZB, Weizenbaum Institute, and University of Stuttgart IMS (see §13.2.1).
+
 ### Phase 1 — Literature and Community (Immediate)
 
 1. Attend the **Computational Social Science Workshop** (Vienna, May 2026) as an observer or with a position paper describing AĒR's architecture.
@@ -205,7 +244,7 @@ The following table maps each philosophical pillar (Chapter 1, Section 1.2) to c
 
 ## 13.6 Open Research Questions
 
-The following questions must be answered through interdisciplinary collaboration before the analysis worker can move beyond the current PoC state. They are ordered by dependency — later questions build on answers to earlier ones. Each question is now addressed by a dedicated Working Paper (WP) in the Scientific Methodology series (`docs/methodology/`), which provides detailed analysis, proposed frameworks, and concrete research questions for interdisciplinary collaborators.
+The following questions must be answered through interdisciplinary collaboration before the analysis worker can move beyond the current PoC state. They are ordered by dependency — later questions build on answers to earlier ones. **Each question is now addressed in detail by the corresponding working paper** (see §13.5.1); the papers formulate concrete sub-questions, identify target disciplines, and specify deliverables.
 
 1. **Probe Selection:** Which digital spaces (platforms, media, forums) constitute representative "probes" for observing societal discourse? How do we weight them against each other? (Manifesto, Section IV) — **Addressed in [WP-001](../methodology/WP-001-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md)**: proposes a functional taxonomy of four universal discourse functions (Epistemic Authority, Power Legitimation, Cohesion & Identity, Subversion & Friction) and an Etic/Emic Dual Tagging System that enables cross-cultural probe selection without imposing Western institutional categories.
 2. **Bias Calibration:** How do we measure and correct for platform-specific algorithmic amplification, bot activity, and demographic skew in crawled data? (Manifesto, Section III) — **Addressed in [WP-003](../methodology/WP-003-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md)**: maps the global platform landscape, analyzes algorithmic amplification effects, examines bot/synthetic content detection, documents the Digital Divide, and proposes a "document, don't filter" approach to non-human actors.

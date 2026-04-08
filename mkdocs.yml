@@ -1,63 +1,182 @@
-site_name: AĒR Architecture & Methodology
-site_description: Documentation, arc42 structure, and scientific methodology for Project AĒR
+# =============================================================================
+# AĒR — The Societal Discourse Macroscope
+# Documentation Configuration (MkDocs Material)
+# =============================================================================
+# Docs-as-Code: This file is maintained alongside the source code to ensure
+# architectural design, scientific theory, and technical implementation remain
+# perfectly synchronized.
+# =============================================================================
 
+site_name: "AĒR — Architecture & Methodology"
+site_description: >-
+  The complete technical blueprint and scientific methodology for Project AĒR:
+  a modular system for the real-time analysis and long-term observation of
+  societal discourses — functioning as a digital macroscope.
+site_author: "AĒR Project"
+
+# =============================================================================
+# Theme Configuration
+# =============================================================================
 theme:
   name: material
+  language: en
   
-  # 1. Logo & Icon (A telescope perfectly represents the "Macroscope" concept)
   icon:
     logo: material/telescope
+    repo: fontawesome/brands/github
+    admonition:
+      note: fontawesome/solid/note-sticky
+      warning: fontawesome/solid/triangle-exclamation
+      info: fontawesome/solid/circle-info
+      tip: fontawesome/solid/lightbulb
+      abstract: fontawesome/solid/clipboard-list
 
-  # 2. Modern Fonts (automatically loaded via Google Fonts)
   font:
     text: Inter
     code: Fira Code
 
-  # 3. Enable UI/UX Features
   features:
-    - navigation.tabs # Converts main navigation items into top-level tabs
-    - navigation.tabs.sticky # Keeps tabs sticky when scrolling down
-    - navigation.sections # Improves sidebar grouping and visual hierarchy
-    - navigation.top # Adds a "Back to top" button
-    - toc.follow # Table of Contents (right side) follows scrolling intelligently
-    - search.suggest # Provides search suggestions while typing
-    - search.highlight # Highlights search terms in the results
-    - content.code.copy # Adds a copy button to code blocks
-    - content.tabs.link # Enables deep linking to content tabs
+    # Navigation
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.path
+    - navigation.footer
 
-  # 4. Dark Theme as Default (Slate) with High-Contrast Accent Color
+    # Table of Contents
+    - toc.follow
+
+    # Search
+    - search.suggest
+    - search.highlight
+    - search.share
+
+    # Content
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+
+    # Header
+    - header.autohide
+    - announce.dismiss
+
   palette:
-    # Dark mode (preferred if OS is in dark mode)
+    # --- Dark Mode (Default) ---
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: black
-      accent: cyan # Cyan provides a modern, high-contrast look on dark backgrounds
+      accent: cyan
       toggle:
         icon: material/weather-sunny
-        name: Switch to light mode
-    # Light mode (fallback)
+        name: "Switch to light mode"
+
+    # --- Light Mode ---
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: black
       accent: cyan
       toggle:
         icon: material/weather-night
-        name: Switch to dark mode
+        name: "Switch to dark mode"
 
-# 5. Markdown Extensions (For Admonitions, Tabs, Tasklists)
+# =============================================================================
+# Markdown Extensions
+# =============================================================================
 markdown_extensions:
-  - admonition # Enables '!!! info' admonition blocks
-  - pymdownx.details # Makes admonitions collapsible ('??? info')
-  - pymdownx.superfences # Advanced code blocks formatting
-  - pymdownx.tabbed: # Enables tabs within markdown content
-      alternate_style: true 
-  - pymdownx.tasklist: # Enables [x] task lists
-      custom_checkbox: true
+  # --- Standard ---
+  - abbr
   - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - md_in_html
 
+  # --- Admonitions ---
+  - admonition
+  - pymdownx.details
+
+  # --- Code & Syntax ---
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+  # --- Content Formatting ---
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.smartsymbols
+
+  # --- Table of Contents ---
+  - toc:
+      permalink: true
+      permalink_title: "Link to this section"
+      toc_depth: 3
+
+# =============================================================================
+# Plugins
+# =============================================================================
+plugins:
+  - search:
+      separator: '[\s\-\.]+'
+      lang:
+        - en
+        - de
+
+# =============================================================================
+# Extra Configuration
+# =============================================================================
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/your-org/aer
+      name: "AĒR on GitHub"
+
+  generator: false
+
+  status:
+    new: "Recently added"
+    deprecated: "Deprecated"
+
+extra_css: []
+extra_javascript: []
+
+# =============================================================================
 # Navigation Hierarchy
+# =============================================================================
+# Structure:
+#   1. Home            — Project overview and documentation map
+#   2. Architecture    — Arc42 technical blueprint (Chapters 0–13)
+#   3. Methodology EN  — Scientific Working Papers (English)
+#   4. Methodik DE     — Wissenschaftliche Arbeitspapiere (Deutsch)
+#   5. Operations      — Runbooks and infrastructure playbook
+# =============================================================================
+
 nav:
   - "Home": index.md
+
+  # ---------------------------------------------------------------------------
+  # Arc42 Architecture Documentation
+  # ---------------------------------------------------------------------------
   - "Architecture (arc42)":
       - "0. Manifesto": arc42/00_manifesto.md
       - "1. Introduction and Goals": arc42/01_introduction_and_goals.md
@@ -73,11 +192,30 @@ nav:
       - "11. Risks and Technical Debts": arc42/11_risks_and_technical_debts.md
       - "12. Glossary": arc42/12_glossary.md
       - "13. Scientific Foundations": arc42/13_scientific_foundations.md
-  - "Scientific Methodology":
-      - "WP-001: Toward a Culturally Agnostic Probe Catalog": methodology/WP-001-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md
-      - "WP-002: Metric Validity and Sentiment Calibration": methodology/WP-002-metric_validity_and_sentiment_calibration.md
-      - "WP-003: Platform Bias, Algorithmic Amplification and Detection of Non-Human Actors": methodology/WP-003-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md
-      - "WP-004: Cross-Cultural Comparability of Discourse Metrics": methodology/WP-004-cross-cultural_comparability_of_discourse_metrics.md
-      - "WP-005: Temporal Granularity of Discourse Shifts": methodology/WP-005-temporal_granularity_of_discourse_shifts.md
-      - "WP-006: Observer Effect, Reflexivity and the Ethics of Discourse Measurement": methodology/WP-006-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
+
+  # ---------------------------------------------------------------------------
+  # Scientific Methodology — English
+  # ---------------------------------------------------------------------------
+  - "Methodology (EN)":
+      - "WP-001: Functional Probe Taxonomy": methodology/en/WP-001-en-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md
+      - "WP-002: Metric Validity & Sentiment Calibration": methodology/en/WP-002-en-metric_validity_and_sentiment_calibration.md
+      - "WP-003: Platform Bias & Non-Human Actors": methodology/en/WP-003-en-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md
+      - "WP-004: Cross-Cultural Comparability": methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md
+      - "WP-005: Temporal Granularity": methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md
+      - "WP-006: Observer Effect & Reflexivity": methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
+
+  # ---------------------------------------------------------------------------
+  # Wissenschaftliche Methodik — Deutsch
+  # ---------------------------------------------------------------------------
+  - "Methodik (DE)":
+      - "WP-001: Funktionale Sondentaxonomie": methodology/de/WP-001-de-auf_dem_weg_zu_einem_kulturell_agnostischen_sondenkatalog-eine_funktionale_taxonomie_fuer_die_globale_diskursbeobachtung.md
+      - "WP-002: Metrik-Validität & Sentiment-Kalibrierung": methodology/de/WP-002-de-metrik_validitaet_und_sentiment_kalibrierung.md
+      - "WP-003: Plattform-Bias & nicht-menschliche Akteure": methodology/de/WP-003-de-plattform_bias_algorithmische_verstaerkung_und_die_erkennung_nicht-menschlicher_akteure.md
+      - "WP-004: Interkulturelle Vergleichbarkeit": methodology/de/WP-004-de-interkulturelle_vergleichbarkeit_von_diskursmetriken.md
+      - "WP-005: Temporale Granularität": methodology/de/WP-005-de-temporale_granularitaet_von_diskursverschiebungen.md
+      - "WP-006: Beobachtereffekt & Reflexivität": methodology/de/WP-006-de-beobachtereffekt_reflexivitaet_und_die_ethik_der_diskursmessung.md
+
+  # ---------------------------------------------------------------------------
+  # Operations
+  # ---------------------------------------------------------------------------
   - "Operations Playbook": operations_playbook.md
