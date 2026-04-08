@@ -44,6 +44,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Load tool versions from .tool-versions
+        run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -94,10 +97,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: go-tools-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: go-tools-${{ runner.os }}-${{ hashFiles('.tool-versions') }}
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
 
       - name: Lint Ingestion API
         working-directory: ./services/ingestion-api
@@ -116,7 +119,7 @@ jobs:
         run: golangci-lint run
 
       - name: Install oapi-codegen
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@${{ env.OAPI_CODEGEN_VERSION }}
 
       - name: OpenAPI Contract Test (codegen sync check)
         run: |
@@ -139,6 +142,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Load tool versions from .tool-versions
+        run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -150,7 +156,7 @@ jobs:
             pkg/go.sum
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
 
       - name: Run govulncheck (pkg/)
         working-directory: ./pkg
@@ -175,7 +181,7 @@ jobs:
           cache: 'pip'
 
       - name: Install pip-audit
-        run: pip install pip-audit==2.10.0
+        run: pip install pip-audit==${{ env.PIP_AUDIT_VERSION }}
 
       - name: Run pip-audit (analysis-worker)
         working-directory: ./services/analysis-worker

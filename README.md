@@ -82,7 +82,7 @@ cp .env.example .env
 make setup
 ```
 
-This installs pinned versions of all required tools (golangci-lint, oapi-codegen, govulncheck, pip-audit). Versions match the CI pipeline.
+This installs pinned versions of all required tools (golangci-lint, oapi-codegen, govulncheck, pip-audit). Versions are read from `.tool-versions` — the Single Source of Truth for developer tooling, shared between the Makefile and CI pipeline.
 
 **3. Install Git hooks:**
 
@@ -398,7 +398,7 @@ The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs four parallel jobs
 | `dependency-audit` | govulncheck (Go) → pip-audit (Python) |
 | `container-security-scan` | Docker build → Trivy scan (HIGH/CRITICAL CVEs, `exit-code: 1`) |
 
-Testcontainers images are cached as tarballs via `actions/cache@v4` to avoid registry pulls on cache hits.
+Testcontainers images are cached as tarballs via `actions/cache@v4` to avoid registry pulls on cache hits. Developer tool versions (golangci-lint, oapi-codegen, govulncheck, pip-audit) are pinned in `.tool-versions` and loaded into CI via `$GITHUB_ENV`.
 
 ---
 

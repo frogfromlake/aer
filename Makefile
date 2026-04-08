@@ -9,6 +9,8 @@
 
 SHELL := /bin/bash
 
+include .tool-versions
+
 # ==========================================
 # GLOBLAL COLORS & SYMBOLS (For Makefile Echoes)
 # ==========================================
@@ -260,39 +262,35 @@ audit-python:
 # ==========================================
 
 setup:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Installing developer tooling (versions from .github/workflows/ci.yml)...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Installing developer tooling (versions from .tool-versions)...$(RESET)"
 	@# golangci-lint
-	@GOLANGCI_VERSION=$$(grep -oP 'golangci-lint/cmd/golangci-lint@\K[v0-9.]+' .github/workflows/ci.yml | head -1) && \
-		if command -v golangci-lint >/dev/null 2>&1 && golangci-lint --version 2>&1 | grep -q "$$GOLANGCI_VERSION"; then \
-			echo -e "$(SYMBOL_SUCCESS) $(GREEN)golangci-lint $$GOLANGCI_VERSION already installed$(RESET)"; \
-		else \
-			echo -e "$(SYMBOL_INFO) Installing golangci-lint@$$GOLANGCI_VERSION..." && \
-			go install github.com/golangci/golangci-lint/cmd/golangci-lint@$$GOLANGCI_VERSION; \
-		fi
+	@if command -v golangci-lint >/dev/null 2>&1 && golangci-lint --version 2>&1 | grep -q "$(GOLANGCI_LINT_VERSION)"; then \
+		echo -e "$(SYMBOL_SUCCESS) $(GREEN)golangci-lint $(GOLANGCI_LINT_VERSION) already installed$(RESET)"; \
+	else \
+		echo -e "$(SYMBOL_INFO) Installing golangci-lint@$(GOLANGCI_LINT_VERSION)..." && \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	fi
 	@# oapi-codegen
-	@OAPIGEN_VERSION=$$(grep -oP 'oapi-codegen/v2/cmd/oapi-codegen@\K[v0-9.]+' .github/workflows/ci.yml | head -1) && \
-		if command -v oapi-codegen >/dev/null 2>&1 && oapi-codegen --version 2>&1 | grep -q "$$OAPIGEN_VERSION"; then \
-			echo -e "$(SYMBOL_SUCCESS) $(GREEN)oapi-codegen $$OAPIGEN_VERSION already installed$(RESET)"; \
-		else \
-			echo -e "$(SYMBOL_INFO) Installing oapi-codegen@$$OAPIGEN_VERSION..." && \
-			go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$$OAPIGEN_VERSION; \
-		fi
+	@if command -v oapi-codegen >/dev/null 2>&1 && oapi-codegen --version 2>&1 | grep -q "$(OAPI_CODEGEN_VERSION)"; then \
+		echo -e "$(SYMBOL_SUCCESS) $(GREEN)oapi-codegen $(OAPI_CODEGEN_VERSION) already installed$(RESET)"; \
+	else \
+		echo -e "$(SYMBOL_INFO) Installing oapi-codegen@$(OAPI_CODEGEN_VERSION)..." && \
+		go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION); \
+	fi
 	@# govulncheck
-	@GOVULN_VERSION=$$(grep -oP 'govulncheck@\K[v0-9.]+' .github/workflows/ci.yml | head -1) && \
-		if command -v govulncheck >/dev/null 2>&1 && govulncheck -version 2>&1 | grep -q "$$GOVULN_VERSION"; then \
-			echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck $$GOVULN_VERSION already installed$(RESET)"; \
-		else \
-			echo -e "$(SYMBOL_INFO) Installing govulncheck@$$GOVULN_VERSION..." && \
-			go install golang.org/x/vuln/cmd/govulncheck@$$GOVULN_VERSION; \
-		fi
+	@if command -v govulncheck >/dev/null 2>&1 && govulncheck -version 2>&1 | grep -q "$(GOVULNCHECK_VERSION)"; then \
+		echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck $(GOVULNCHECK_VERSION) already installed$(RESET)"; \
+	else \
+		echo -e "$(SYMBOL_INFO) Installing govulncheck@$(GOVULNCHECK_VERSION)..." && \
+		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
+	fi
 	@# pip-audit
-	@PIPAUDIT_VERSION=$$(grep -oP 'pip-audit==\K[0-9.]+' .github/workflows/ci.yml | head -1) && \
-		if [ -f services/analysis-worker/.venv/bin/pip-audit ] && services/analysis-worker/.venv/bin/pip-audit --version 2>&1 | grep -q "$$PIPAUDIT_VERSION"; then \
-			echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit $$PIPAUDIT_VERSION already installed$(RESET)"; \
-		else \
-			echo -e "$(SYMBOL_INFO) Installing pip-audit==$$PIPAUDIT_VERSION into worker venv..." && \
-			services/analysis-worker/.venv/bin/pip install pip-audit==$$PIPAUDIT_VERSION; \
-		fi
+	@if [ -f services/analysis-worker/.venv/bin/pip-audit ] && services/analysis-worker/.venv/bin/pip-audit --version 2>&1 | grep -q "$(PIP_AUDIT_VERSION)"; then \
+		echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit $(PIP_AUDIT_VERSION) already installed$(RESET)"; \
+	else \
+		echo -e "$(SYMBOL_INFO) Installing pip-audit==$(PIP_AUDIT_VERSION) into worker venv..." && \
+		services/analysis-worker/.venv/bin/pip install pip-audit==$(PIP_AUDIT_VERSION); \
+	fi
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All developer tools installed!$(RESET)"
 
 # ==========================================

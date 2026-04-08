@@ -553,6 +553,21 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Adjust tests / e2e-smoke test if necessary: scripts/e2e_smoke_test.sh.** No changes needed — e2e test uses `docker compose up --build --wait -d` which starts the full stack.
 * [x] **Document the changes in the necessary files (arc42, README.md, operational_playbook.md, Makefile if necessary).** Updated `README.md`, `docs/operations_playbook.md`, `docs/arc42/07_deployment_view.md`, and `Makefile`.
 
+## Phase 54: `.tool-versions` as SSoT for Developer Tooling Versions - [x] DONE
+*The CI workflow (`ci.yml`) previously served as the de-facto source of truth for developer tool versions (golangci-lint, oapi-codegen, govulncheck, pip-audit). The Makefile `setup` target extracted these versions via fragile `grep` patterns against YAML — a brittle coupling that breaks when the workflow format changes. A dedicated `.tool-versions` file provides a format that both Make (`include`) and CI (`$GITHUB_ENV`) can consume natively, without parsing YAML.*
+
+* [x] **Create `.tool-versions` SSoT file.** Plain `KEY=VALUE` format, compatible with Make `include` and shell `source`. Contains: `GOLANGCI_LINT_VERSION`, `OAPI_CODEGEN_VERSION`, `GOVULNCHECK_VERSION`, `PIP_AUDIT_VERSION`.
+* [x] **Update Makefile.** `include .tool-versions` at the top. Simplified `setup` target to use Make variables directly instead of grep-based extraction from `ci.yml`.
+* [x] **Update CI workflow (`.github/workflows/ci.yml`).** Load `.tool-versions` into `$GITHUB_ENV` via `grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV` (strict positive matching, no negation). Replaced hardcoded version strings with `${{ env.VAR }}` references. Updated Go tools cache key from `hashFiles('.github/workflows/ci.yml')` to `hashFiles('.tool-versions')`.
+* [x] **Update Arc42 documentation.** Migrated all tool version references from "versions declared in `ci.yml`" to "versions declared in `.tool-versions`":
+  - `02_architecture_constraints.md` — Removed hardcoded version strings from Local Dependency Auditing constraint, added `.tool-versions` as SSoT constraint row.
+  - `08_concepts.md` — Updated tooling version pinning paragraph and cache key description.
+  - `12_glossary.md` — Extended SSoT definition to include `.tool-versions` for developer tooling.
+* [x] **Update README.md.** Updated `make setup` description and CI pipeline section to reference `.tool-versions` as SSoT for tool versions.
+* [x] **Update CLAUDE.md.** Added `.tool-versions` to repository structure, added hard rule 1b, updated CI section.
+* [x] **Adjust tests / e2e-smoke test if necessary: `scripts/e2e_smoke_test.sh`.** No changes needed — e2e test does not reference tool versions.
+* [x] **Validate.** `make lint` passes. `make -n setup` dry-run confirms versions are correctly resolved from `.tool-versions`.
+
 ---
 
 ### Open Phases
