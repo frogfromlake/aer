@@ -572,4 +572,93 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ### Open Phases
 
+## Phase 54: Structural Decomposition — Analysis Worker Business Logic - [ ]
+*The Analysis Worker's `processor.py` and `storage.py` have accumulated multiple responsibilities in single files. This phase decomposes them along existing responsibility boundaries — no new abstractions, no new patterns. The architecture (Adapter Pattern, Extractor Protocol, Medallion flow) remains unchanged.*
+
+* [ ] **Split `internal/processor.py` into focused modules.** The processor currently handles orchestration, quarantine routing, and Silver envelope construction in one file. Decompose into:
+  - `internal/processor.py` — Orchestration only: fetch Bronze → lookup adapter → validate → extract → persist. Thin dispatcher delegating to the modules below. All public method signatures remain identical.
+  - `internal/quarantine.py` — `_quarantine()` helper, DLQ serialization logic, quarantine bucket constants. Extracted from the three formerly duplicated quarantine blocks (consolidated in Phase 48).
+  - `internal/silver.py` — Silver envelope construction, `SilverMeta` assembly, provenance metadata, MinIO Silver upload logic.
+* [ ] **Split `internal/storage.py` into one file per backend.** The current file initializes PostgreSQL, MinIO, and ClickHouse with connection pooling and retry logic in a single module. Decompose into:
+  - `internal/storage/__init__.py` — Re-exports all public symbols for backward compatibility. No external import path changes.
+  - `internal/storage/minio_client.py` — MinIO initialization, `tenacity` retry decorator, health check.
+  - `internal/storage/clickhouse_client.py` — `ClickHousePool` (backed by `queue.Queue`), batch insert, health check.
+  - `internal/storage/postgres_client.py` — `psycopg2.ThreadedConnectionPool`, document status queries, retention cleanup queries.
+* [ ] **Update `internal/main.py` imports.** Adjust dependency injection wiring to use the new module paths. No behavioral change.
+* [ ] **Validate.** `make test-python` (all 76+ unit tests pass), `make lint` (ruff clean), `make audit-python` (pip-audit clean). No test logic changes in this phase — tests are refactored separately in Phase 55.
+
+
+## Phase 55: Structural Decomposition — Analysis Worker Tests - [ ]
+*`tests/test_processor.py` exceeds 1000 lines and covers 7+ distinct concerns. This phase splits it into focused test modules organized by the aspect of the pipeline they validate. Shared fixtures move to `conftest.py`.*
+
+* [ ] **Extract shared test infrastructure into `tests/conftest.py`.** Move all shared fixtures, constants, and helper classes:
+  - Fixtures: `mock_minio`, `mock_clickhouse`, `mock_pg_pool`, `adapter_registry`, `dummy_span`, `processor`.
+  - Constants: `VALID_BRONZE_DATA`, `VALID_RSS_BRONZE_DATA`, `DUMMY_EVENT_TIME`, `EXPECTED_WORD_COUNT`.
+  - Helper classes: `StubExtractor`, `FailingExtractor`, `MalformedExtractor`.
+  - Helper function: `_make_processor()`.
+* [ ] **Split `tests/test_processor.py` into focused test modules:**
+  - `tests/test_bronze_fetch.py` — Bronze object retrieval, malformed JSON, missing objects, MinIO connection failures.
+  - `tests/test_silver_validation.py` — Silver Contract validation, DLQ/quarantine routing, quarantine payload encoding, quarantine payload length, quarantine span attributes.
+  - `tests/test_adapter_registry.py` — Adapter lookup for known/unknown `source_type`, `supported_types()`, legacy adapter backward compatibility.
+  - `tests/test_extractor_pipeline.py` — Multiple extractors, failing extractors, malformed extractors, empty extractor list, all-extractors-fail scenario, protocol compliance (`MetricExtractor` satisfaction).
+  - `tests/test_entity_extraction.py` — NER-specific tests, `NamedEntityExtractor` protocol compliance, entity count metrics.
+  - `tests/test_language_detection.py` — Language detection persistence, confidence values, `language_detections` ClickHouse insert, pipeline with/without language detection.
+  - `tests/test_idempotency.py` — Duplicate document detection, `_get_document_status` checks, skip-on-processed behavior.
+  - `tests/test_full_pipeline.py` — End-to-end integration tests: RSS document through all Tier 1 extractors, Silver upload verification, Gold insert verification, status transitions.
+* [ ] **Delete original `tests/test_processor.py`.** All tests now live in their respective modules. No test is removed — the total test count remains identical.
+* [ ] **Validate.** `make test-python` (identical test count, all green), `make lint`, `make audit-python`. CI pipeline (`python-pipeline` job) passes without modification.
+
+
+## Phase 56: Structural Decomposition — BFF API Business Logic - [ ]
+*The BFF API's `clickhouse.go` storage layer accumulates all query logic (metrics, entities, available metrics, caching) in a single file. This phase splits it by query domain. Handler logic is already cleanly separated from generated code via `oapi-codegen` — no handler changes needed.*
+
+* [ ] **Split `internal/storage/clickhouse.go` into domain-specific query modules:**
+  - `internal/storage/clickhouse.go` — Connection setup (`NewClickHouseStorage`), health check, shared types (`ClickHouseStorage` struct), interface definition (`MetricsStore`).
+  - `internal/storage/metrics_query.go` — `GetMetrics()`, `GetAvailableMetrics()`, metrics response cache logic.
+  - `internal/storage/entities_query.go` — `GetEntities()` with label/source filtering and aggregation.
+* [ ] **Verify interface compliance.** The `MetricsStore` interface in `internal/handler/` must remain satisfied. No signature changes.
+* [ ] **Validate.** `make test-go` (all integration tests pass), `make test-go-pkg`, `make lint`, `make audit-go`, `make codegen && git diff --exit-code` (no contract drift).
+
+
+## Phase 57: Structural Decomposition — BFF API Tests - [ ]
+*The BFF API's ClickHouse integration tests cover metrics queries, entity queries, and available-metrics queries in a single test file. This phase splits them to mirror the storage module decomposition from Phase 56.*
+
+* [ ] **Split `internal/storage/clickhouse_test.go` into domain-specific test files:**
+  - `internal/storage/clickhouse_test.go` — Shared test setup: Testcontainer initialization, schema bootstrapping, `TestMain` or `TestSuite` setup, shared helper functions.
+  - `internal/storage/metrics_query_test.go` — Integration tests for `GetMetrics()` and `GetAvailableMetrics()`: time-range queries, downsampling, source/metricName filtering, cache behavior, empty result sets.
+  - `internal/storage/entities_query_test.go` — Integration tests for `GetEntities()`: label filtering, source filtering, aggregation, limit enforcement, empty result sets.
+* [ ] **Split handler unit tests if applicable.** If `internal/handler/handler_test.go` exceeds 300 lines, split into `metrics_handler_test.go` and `entities_handler_test.go`. If under 300 lines, leave as-is.
+* [ ] **Validate.** `make test-go`, `make lint`, `make audit-go`. CI pipeline (`go-pipeline` job) passes without modification.
+
+
+## Phase 58: Structural Decomposition — Ingestion API - [ ]
+*The Ingestion API follows Clean Architecture (Phase 26) with interface-based DI. This phase evaluates whether any files exceed the complexity threshold and splits them if necessary. The scope is intentionally smaller — the Ingestion API has fewer responsibilities than the Analysis Worker or BFF.*
+
+* [ ] **Evaluate `internal/storage/postgres.go`.** If >250 lines, split into:
+  - `internal/storage/postgres.go` — Connection setup, pool initialization, health check.
+  - `internal/storage/postgres_documents.go` — Document CRUD: `LogDocument()`, `UpdateDocumentStatus()`, `GetDocumentStatus()`, `DeleteOldDocuments()`.
+  - `internal/storage/postgres_jobs.go` — Ingestion job lifecycle: `CreateIngestionJob()`, `UpdateIngestionJob()`, `DeleteOldIngestionJobs()`.
+  If ≤250 lines, document the decision to keep as-is and skip the split.
+* [ ] **Evaluate `internal/storage/minio.go`.** If >200 lines, split upload logic from initialization. If ≤200 lines, keep as-is.
+* [ ] **Evaluate `internal/core/service.go`.** If >300 lines, extract batch processing helpers. If ≤300 lines, keep as-is.
+* [ ] **Split test files if corresponding source files were split.** Mirror the source structure in test files. If no source split occurred, no test split is needed.
+* [ ] **Validate.** `make test-go`, `make test-go-pkg`, `make lint`, `make audit-go`. CI pipeline passes without modification.
+
+
+## Phase 59: Structural Decomposition — E2E & Cross-Cutting Cleanup - [ ]
+*Final cleanup phase. Addresses the E2E smoke test script, verifies all validation gates, and updates Arc42 documentation to reflect the new file structure.*
+
+* [ ] **Refactor `scripts/e2e_smoke_test.sh`.** Extract shared helper functions (`log_ok`, `log_fail`, `log_step`, `log_info`, color codes, timestamp formatting) into `scripts/e2e_helpers.sh`. Source it from the main script. No behavioral change — identical test assertions, identical exit codes.
+* [ ] **Run full validation suite:**
+  - `make test` (Go integration + Python unit tests — all green)
+  - `make test-go-pkg` (shared `pkg/` module tests — all green)
+  - `make test-e2e` (end-to-end smoke test — all green)
+  - `make lint` (golangci-lint + ruff — clean)
+  - `make audit` (govulncheck + pip-audit — clean)
+  - `make codegen && git diff --exit-code` (no OpenAPI contract drift)
+* [ ] **Update Arc42 Documentation:**
+  - `08_concepts.md` §8.3 (Clean Architecture): Update Python directory structure to reflect `internal/storage/` subpackage and `internal/quarantine.py` / `internal/silver.py` modules. Update Go directory structure if BFF storage was split.
+  - `08_concepts.md` §8.1 (Testing Strategy): Add a sentence noting that test files are organized by concern, mirroring the source module structure, with shared fixtures in `conftest.py` (Python) and shared Testcontainer setup in `_test.go` files (Go).
+  - No other Arc42 chapters affected — the architecture, patterns, and runtime behavior are unchanged.
+* [ ] **Update `README.md` if the project structure section references specific file paths** that changed during decomposition.
 ---
