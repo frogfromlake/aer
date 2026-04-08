@@ -40,7 +40,7 @@ Full architectural documentation (arc42) is available at `http://localhost:8000`
 
 | Layer | Technology | Rationale |
 | :--- | :--- | :--- |
-| Ingestion / BFF / Crawlers | Go 1.26.1+ | High-concurrency I/O, minimal memory footprint |
+| Ingestion / BFF / Crawlers | Go 1.26.2+ | High-concurrency I/O, minimal memory footprint |
 | Analysis / Processing | Python 3.14+ | Deterministic data science ecosystem (spaCy, Pydantic) |
 | Object Storage / Event Publisher | MinIO | S3-compatible data lake with native JetStream notification |
 | Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling |
@@ -57,7 +57,7 @@ Full architectural documentation (arc42) is available at `http://localhost:8000`
 The only required host installations are:
 
 - Docker with Compose plugin
-- Go 1.26.1 or higher
+- Go 1.26.2 or higher
 - Python 3.14 or higher
 - GNU Make
 
@@ -76,7 +76,15 @@ cp .env.example .env
 # Edit .env — all credentials and endpoints are configured here
 ```
 
-**2. Install Git hooks:**
+**2. Install developer tooling:**
+
+```bash
+make setup
+```
+
+This installs pinned versions of all required tools (golangci-lint, oapi-codegen, govulncheck, pip-audit). Versions match the CI pipeline.
+
+**3. Install Git hooks:**
 
 ```bash
 cp scripts/hooks/pre-commit .git/hooks/pre-commit
@@ -84,9 +92,9 @@ cp scripts/hooks/pre-push   .git/hooks/pre-push
 chmod +x .git/hooks/pre-commit .git/hooks/pre-push
 ```
 
-The pre-commit hook runs `make lint`. The pre-push hook runs `make lint` followed by `make test`. Both block on failure.
+The pre-commit hook runs `make lint`. The pre-push hook runs `make lint`, `make audit`, and `make test`. All block on failure.
 
-**3. Start the full stack:**
+**4. Start the full stack:**
 
 ```bash
 make up
@@ -94,7 +102,7 @@ make up
 
 This starts infrastructure (databases, NATS, observability, documentation server), opens debug ports so local processes can reach the Docker network, and starts all three application services as background processes. The first run compiles Go binaries and creates the Python virtual environment for the analysis worker.
 
-**4. Verify the pipeline:**
+**5. Verify the pipeline:**
 
 ```bash
 # Run the end-to-end smoke test
@@ -172,6 +180,7 @@ make        # or: make help — prints a formatted overview of all available tar
 | `make test-e2e` | Run Docker Compose end-to-end smoke test |
 | `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
 | `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
+| `make audit` | Run dependency vulnerability scanners (`govulncheck` for Go, `pip-audit` for Python) |
 | `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
 | `make crawl` | Build and run the RSS crawler (requires stack + `make debug-up`) |
 | `make build-services` | Compile Go binaries into `./bin/` |

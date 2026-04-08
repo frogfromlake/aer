@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # AĒR PRE-PUSH HOOK
-# Ensures code quality before pushing to the remote repository.
+# Ensures code quality and supply chain security before pushing to the remote.
 # ==============================================================================
 
 echo "🛑 [Pre-Push Hook] Running Linters..."
@@ -16,9 +16,21 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "✅ [Pre-Push Hook] Linting passed."
+echo "🛑 [Pre-Push Hook] Running Dependency Audit..."
+
+# 2. Run Dependency Audit (govulncheck + pip-audit)
+make audit
+
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-Push Hook] Dependency audit failed! Known vulnerabilities detected."
+  echo "   Update affected dependencies before pushing."
+  exit 1
+fi
+
+echo "✅ [Pre-Push Hook] Dependency audit passed."
 echo "🛑 [Pre-Push Hook] Running Tests..."
 
-# 2. Run Tests
+# 3. Run Tests
 make test
 
 if [ $? -ne 0 ]; then
@@ -26,5 +38,5 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ [Pre-Push Hook] Linting and Tests passed. Proceeding with push..."
+echo "✅ [Pre-Push Hook] Linting, Audit, and Tests passed. Proceeding with push..."
 exit 0

@@ -2,7 +2,7 @@
 
 ## 7.1 Overview
 
-AĒR runs as a fully containerized stack orchestrated by a single `compose.yaml` at the repository root. This file is the **Single Source of Truth (SSoT)** for all image versions, network topology, resource limits, and health probes. No service is installed directly on the host machine — the only host prerequisites are Docker (with Compose plugin), Go 1.26.1+, Python 3.12+, and GNU Make.
+AĒR runs as a fully containerized stack orchestrated by a single `compose.yaml` at the repository root. This file is the **Single Source of Truth (SSoT)** for all image versions, network topology, resource limits, and health probes. No service is installed directly on the host machine — the only host prerequisites are Docker (with Compose plugin), Go 1.26.2+, Python 3.12+, and GNU Make.
 
 The stack is managed exclusively through `make` targets, which abstract the underlying `docker compose` and local process management commands.
 
@@ -115,13 +115,13 @@ graph TD
 
 ### 7.4.4 Application Services
 
-All three application services are built from multi-stage Dockerfiles. Go services use a `golang:1.26.1-alpine3.23` builder stage and produce a statically linked binary (`CGO_ENABLED=0`) copied into a minimal `alpine:3.23.3` runtime image. The Python worker uses `python:3.14.3-slim-bookworm` for both build and runtime stages, separating dependency installation from application code via `--prefix=/install`. The builder stage installs `gcc`, `libpq-dev`, and `python3-dev` to compile `psycopg2` from source against the system `libpq` — the `psycopg2-binary` package is used only in development/CI environments (`requirements-dev.txt`) to avoid native compilation overhead.
+All three application services are built from multi-stage Dockerfiles. Go services use a `golang:1.26.2-alpine3.23` builder stage and produce a statically linked binary (`CGO_ENABLED=0`) copied into a minimal `alpine:3.23.3` runtime image. The Python worker uses `python:3.14.3-slim-bookworm` for both build and runtime stages, separating dependency installation from application code via `--prefix=/install`. The builder stage installs `gcc`, `libpq-dev`, and `python3-dev` to compile `psycopg2` from source against the system `libpq` — the `psycopg2-binary` package is used only in development/CI environments (`requirements-dev.txt`) to avoid native compilation overhead.
 
 | Service | Dockerfile Base | Port | Network(s) | Memory | CPU | Healthcheck |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `ingestion-api` | `golang:1.26.1-alpine3.23` → `alpine:3.23.3` | `8081` | backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8081/api/v1/healthz` |
+| `ingestion-api` | `golang:1.26.2-alpine3.23` → `alpine:3.23.3` | `8081` | backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8081/api/v1/healthz` |
 | `analysis-worker` | `python:3.14.3-slim-bookworm` | — (no port exposed) | backend | 512 MB | 0.50 | `python -c "urllib.request.urlopen('http://localhost:8001/metrics')"` |
-| `bff-api` | `golang:1.26.1-alpine3.23` → `alpine:3.23.3` | `8080` | frontend + backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8080/api/v1/healthz` |
+| `bff-api` | `golang:1.26.2-alpine3.23` → `alpine:3.23.3` | `8080` | frontend + backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8080/api/v1/healthz` |
 
 The `bff-api` is the only application service that bridges both networks. It is protected by an API-key middleware (`X-API-Key` header or `Authorization: Bearer`) on all routes except the unauthenticated probe endpoints `/healthz` and `/readyz`. Traefik labels route external HTTPS traffic on `PathPrefix(/api)` to this service.
 

@@ -5,7 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
-.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg build-services crawl
+.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup
 
 SHELL := /bin/bash
 
@@ -233,6 +233,69 @@ lint-go-pkg:
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
 
 # ==========================================
+# 6. DEPENDENCY AUDITING
+# ==========================================
+
+audit: audit-go audit-python
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All dependency audits passed!$(RESET)"
+
+audit-go:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running govulncheck (Go vulnerability scanner)...$(RESET)"
+	@cd services/ingestion-api && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (Ingestion API) passed!$(RESET)"
+	@cd services/bff-api && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (BFF API) passed!$(RESET)"
+	@cd crawlers/rss-crawler && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (RSS Crawler) passed!$(RESET)"
+	@cd pkg && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (pkg/) passed!$(RESET)"
+
+audit-python:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running pip-audit (Python vulnerability scanner)...$(RESET)"
+	@cd services/analysis-worker && \
+		if [ -f ./.venv/bin/pip-audit ]; then \
+			./.venv/bin/pip-audit -r requirements.txt && echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit (Analysis Worker) passed!$(RESET)"; \
+		else \
+			pip-audit -r requirements.txt && echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit (Analysis Worker) passed!$(RESET)"; \
+		fi
+
+# ==========================================
+# 7. DEVELOPER SETUP
+# ==========================================
+
+setup:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Installing developer tooling (versions from .github/workflows/ci.yml)...$(RESET)"
+	@# golangci-lint
+	@GOLANGCI_VERSION=$$(grep -oP 'golangci-lint/cmd/golangci-lint@\K[v0-9.]+' .github/workflows/ci.yml | head -1) && \
+		if command -v golangci-lint >/dev/null 2>&1 && golangci-lint --version 2>&1 | grep -q "$$GOLANGCI_VERSION"; then \
+			echo -e "$(SYMBOL_SUCCESS) $(GREEN)golangci-lint $$GOLANGCI_VERSION already installed$(RESET)"; \
+		else \
+			echo -e "$(SYMBOL_INFO) Installing golangci-lint@$$GOLANGCI_VERSION..." && \
+			go install github.com/golangci/golangci-lint/cmd/golangci-lint@$$GOLANGCI_VERSION; \
+		fi
+	@# oapi-codegen
+	@OAPIGEN_VERSION=$$(grep -oP 'oapi-codegen/v2/cmd/oapi-codegen@\K[v0-9.]+' .github/workflows/ci.yml | head -1) && \
+		if command -v oapi-codegen >/dev/null 2>&1 && oapi-codegen --version 2>&1 | grep -q "$$OAPIGEN_VERSION"; then \
+			echo -e "$(SYMBOL_SUCCESS) $(GREEN)oapi-codegen $$OAPIGEN_VERSION already installed$(RESET)"; \
+		else \
+			echo -e "$(SYMBOL_INFO) Installing oapi-codegen@$$OAPIGEN_VERSION..." && \
+			go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$$OAPIGEN_VERSION; \
+		fi
+	@# govulncheck
+	@GOVULN_VERSION=$$(grep -oP 'govulncheck@\K[v0-9.]+' .github/workflows/ci.yml | head -1) && \
+		if command -v govulncheck >/dev/null 2>&1 && govulncheck -version 2>&1 | grep -q "$$GOVULN_VERSION"; then \
+			echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck $$GOVULN_VERSION already installed$(RESET)"; \
+		else \
+			echo -e "$(SYMBOL_INFO) Installing govulncheck@$$GOVULN_VERSION..." && \
+			go install golang.org/x/vuln/cmd/govulncheck@$$GOVULN_VERSION; \
+		fi
+	@# pip-audit
+	@PIPAUDIT_VERSION=$$(grep -oP 'pip-audit==\K[0-9.]+' .github/workflows/ci.yml | head -1) && \
+		if [ -f services/analysis-worker/.venv/bin/pip-audit ] && services/analysis-worker/.venv/bin/pip-audit --version 2>&1 | grep -q "$$PIPAUDIT_VERSION"; then \
+			echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit $$PIPAUDIT_VERSION already installed$(RESET)"; \
+		else \
+			echo -e "$(SYMBOL_INFO) Installing pip-audit==$$PIPAUDIT_VERSION into worker venv..." && \
+			services/analysis-worker/.venv/bin/pip install pip-audit==$$PIPAUDIT_VERSION; \
+		fi
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All developer tools installed!$(RESET)"
+
+# ==========================================
 # HELP MENU
 # ==========================================
 help:
@@ -265,4 +328,6 @@ help:
 	@echo -e "  $(GREEN)test$(RESET)            $(GRAY)Run all unit/integration tests (Go & Python)$(RESET)"
 	@echo -e "  $(GREEN)test-e2e$(RESET)        $(GRAY)Run Docker Compose end-to-end smoke test$(RESET)"
 	@echo -e "  $(CYAN)lint$(RESET)            $(GRAY)Run linters across all Go and Python code$(RESET)"
+	@echo -e "  $(GREEN)audit$(RESET)           $(GRAY)Run dependency vulnerability scanners (govulncheck + pip-audit)$(RESET)"
+	@echo -e "  $(GREEN)setup$(RESET)           $(GRAY)Install all required developer tools (pinned to CI versions)$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"
