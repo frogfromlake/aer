@@ -5,7 +5,7 @@
 > **Datum:** 07.04.2026
 > **Abhängig von:** WP-001 bis WP-005 (gesamte Reihe)
 > **Architekturkontext:** Manifest §I–§V, Progressive Disclosure (ADR-003), Qualitätsziel 1 (Wissenschaftliche Integrität)
-> **Lizenz:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
+> **Lizenz:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
 
@@ -209,9 +209,76 @@ AĒR ist ein Makroskop — es sieht Muster im großen Maßstab. Es sieht keine U
 
 ---
 
-## 7. Offene Fragen für interdisziplinäre Kooperationspartner
+## 7. Datenschutz durch Technikgestaltung: Anonymisierung als architektonische Verpflichtung
 
-### 7.1 Für STS-Wissenschaftler und Wissenschaftssoziologen
+### 7.1 Das Datenschutzparadox der Diskursbeobachtung
+
+AĒRs Sondenprinzip (Manifest §IV) sieht ein vielfältiges Ökosystem von Datenquellen vor — institutionelle RSS-Feeds, Nachrichten-APIs, Social-Media-Plattformen, Forenarchive und potenziell nutzergenerierte Inhalte von Messaging-Plattformen. Mit der Expansion des Systems über Sonde 0 (institutionelles RSS) hinaus steigt das Risiko unbeabsichtigter Re-Identifikation. Selbst wenn AĒR keine personenbezogenen Daten *absichtlich* erhebt, können Diskursdaten aus sozialen Medien, Foren oder Community-Plattformen identifizierbare Informationen enthalten: Nutzernamen, Schreibstile (stilometrische Fingerabdrücke), geografische Referenzen, temporale Aktivitätsmuster oder einzigartige Meinungskombinationen, die als Quasi-Identifikatoren fungieren.
+
+Die Verpflichtung in Manifest §VI — „Wahrung der Anonymität des Kollektivs" — muss als architektonische Einschränkung operationalisiert werden, nicht lediglich als Grundsatzerklärung. AĒR muss Re-Identifikation technisch unmöglich machen, nicht nur verbieten.
+
+### 7.2 Anonymisierungsframework
+
+AĒR verfolgt einen Defense-in-Depth-Ansatz zum Datenschutz und wendet Anonymisierungstechniken auf mehreren Ebenen der Medallion-Architektur an. Die folgenden Methoden repräsentieren etablierte Best Practices aus den Bereichen datenschutzerhaltende Datenanalyse und statistische Offenlegungskontrolle.
+
+#### 7.2.1 Irreversible Identifikatorentfernung (Bronze → Silver Grenze)
+
+Der Source Adapter (Phase 39) ist der architektonische Durchsetzungspunkt. Bevor Daten in die Silver-Schicht gelangen, MUSS der Adapter:
+
+- **Alle direkten Identifikatoren entfernen.** Nutzernamen, Anzeigenamen, E-Mail-Adressen, Profil-URLs und plattformspezifische Nutzer-IDs werden während der Harmonisierung entfernt. Sie werden niemals in `SilverCore` oder `SilverMeta` geschrieben.
+- **Verbleibende Quasi-Identifikatoren hashen.** Falls ein quellenspezifischer Adapter eine Dokument-Autor-Verknüpfung zur Deduplizierung benötigt (z. B. Erkennung desselben Autors, der identische Inhalte über Plattformen hinweg postet), wird ein kryptografischer Einweg-Hash (SHA-256 mit einem deploymentspezifischen Salt) verwendet. Der Salt wird außerhalb der Datenpipeline gespeichert und periodisch rotiert. Der Rohidentifikator wird niemals persistiert.
+- **Temporale Präzision kürzen.** Zeitstempel in der Silver-Schicht werden für Quellen, bei denen minutengenaue Präzision Aktivitätsmuster-Fingerprinting ermöglichen könnte, auf Stundengenauigkeit gekürzt. Sonde 0 (institutionelles RSS) ist ausgenommen — Veröffentlichungszeitstempel von Pressemitteilungen sind öffentliche Informationen.
+
+#### 7.2.2 Aggregation-First-Analyse (Silver → Gold Grenze)
+
+Die Gold-Schicht speichert ausschließlich aggregierte Metriken, keine Einzeldokumente. Dies ist bereits eine architektonische Eigenschaft von AĒRs Medallion-Design, muss aber explizit beibehalten werden, während die Metrik-Pipeline sich weiterentwickelt:
+
+- **k-Anonymity als Mindeststandard.** Jede Gold-Schicht-Metrik, die theoretisch auf weniger als *k* = 10 Quelldokumente zurückführbar wäre, muss unterdrückt oder weiter aggregiert werden. Dies verhindert den „Unique Opinion"-Angriff — die Ableitung der Identität einer Person aus einer seltenen Kombination von Haltung, Thema und Zeitpunkt.
+- **l-Diversity für sensible Dimensionen.** Wenn Metriken kategoriale Attribute enthalten (z. B. erkannte Sprache, Entity-Labels), muss die Gold-Schicht sicherstellen, dass jede Aggregationsgruppe mindestens *l* = 3 verschiedene Werte für sensible Attribute enthält. Dies verhindert Homogenitätsangriffe, bei denen alle Dokumente in einem kleinen Cluster ein unterscheidendes Merkmal teilen.
+- **Minimale Aggregationsfenster.** Die BFF API erzwingt minimale Zeitfenstergrößen pro Quellentyp. Social-Media-Quellen erfordern breitere Aggregationsfenster als institutionelle Quellen, um temporales Fingerprinting zu verhindern.
+
+#### 7.2.3 Entity-Anonymisierung in der Gold-Schicht
+
+Die Tabelle `aer_gold.entities` speichert mittels NER extrahierte benannte Entitäten. Für institutionelle Quellen (Sonde 0) sind Entitäten öffentliche Personen und Organisationen, die in Pressemitteilungen erwähnt werden — Anonymisierung ist unnötig und würde den analytischen Wert zerstören. Für zukünftige Sonden mit nutzergenerierten Inhalten:
+
+- **Privatpersonenerkennung.** Entitäten, die als `PER` klassifiziert werden und nicht mit einem kuratierten Registar öffentlicher Personen übereinstimmen, müssen vor der Gold-Schicht-Einfügung durch einen kategorialen Platzhalter (z. B. `[PRIVATPERSON]`) ersetzt werden. Das Register ist quellenspezifisch und wird als Teil der Sondenkonfiguration gepflegt.
+- **Standortverallgemeinerung.** Feingranulare Standort-Entitäten (Straßenadressen, spezifische Orte) aus nutzergenerierten Inhalten werden auf Verwaltungsregionsebene (Stadt oder Bezirk) verallgemeinert.
+
+#### 7.2.4 Architektonische Durchsetzungspunkte
+
+| Schicht | Technik | Durchsetzung |
+| :--- | :--- | :--- |
+| Bronze → Silver | Identifikatorentfernung, Hash-Pseudonymisierung, temporale Kürzung | Source-Adapter-Protokoll (`adapters/base.py`). Adapter-Code-Review-Checkliste. |
+| Silver → Gold | k-Anonymity-Unterdrückung, l-Diversity-Prüfung, minimale Aggregationsfenster | Extractor-Pipeline und BFF API Query Layer. |
+| Gold → API | Row-Limit-Erzwingung, Downsampling, keine Rohtext-Exposition | BFF API (bestehend: ADR-003, harte Row-Limits). |
+| Gold → Dashboard | Nicht-präskriptive Visualisierung, kein Drill-Down zu Einzeldokumenten aus Social-Media-Quellen | Dashboard-Designprinzipien (§6.2). |
+
+### 7.3 Was AĒR NICHT erhebt
+
+Um Scope Creep und Missionsdrift zu verhindern, sind folgende Datenkategorien explizit vom Erhebungsumfang von AĒR ausgeschlossen, unabhängig von der technischen Machbarkeit:
+
+- **Keine Verhaltensmetadaten.** AĒR trackt keine Klicks, Views, Likes, Shares, Verweildauern oder jegliche Form von Engagement-Metriken, die an individuelle Nutzer gebunden sind.
+- **Keine sozialen Graphen.** AĒR rekonstruiert keine Follower/Following-Beziehungen, keine Einzelpersonen zuordenbaren Antwortketten und keine Form von Netzwerktopologie auf Individualebene.
+- **Keine Geräte- oder Session-Fingerabdrücke.** AĒR erhebt keine IP-Adressen, Gerätekennungen, Browser-Fingerabdrücke oder technische Metadaten, die ein Endgerät oder eine Sitzung eines Nutzers identifizieren könnten.
+- **Keine Inhalte aus privaten oder semi-privaten Räumen.** Direktnachrichten, private Gruppenchats, geschlossene Communities und jeder Plattformraum mit einer berechtigten Erwartung von Privatheit sind vom Beobachtungsumfang von AĒR ausgeschlossen — selbst wenn sie technisch zugänglich wären.
+
+### 7.4 Offene Forschungsfragen für Datenschutzforschende
+
+**F8 (für §8, umnummeriert): Was ist die minimale Aggregationsgranularität, die Re-Identifikation über AĒRs Sondentypen hinweg verhindert?**
+
+- Für jeden Sondentyp in WP-001s Funktionaler Taxonomie: Welche Kombination aus temporaler Aggregation, Entity-Unterdrückung und k-Anonymity-Schwellenwert reicht aus, um Re-Identifikation zu verhindern? Die Antwort wird sich zwischen institutionellen Sonden (niedriges Risiko) und Social-Media-Sonden (hohes Risiko) unterscheiden.
+- Ergebnis: Eine sondentyp-spezifische Datenschutz-Risikobewertung mit empfohlenen Anonymisierungsparametern, validiert gegen bekannte Re-Identifikationsangriffe (z. B. Netflix-Prize-Angriff, AOL-Suchprotokoll-Vorfall).
+
+**F9: Wie sollte AĒR das Risiko stilometrischen Fingerprintings in mehrsprachigen Diskursdaten handhaben?**
+
+- Stilometrische Analyse kann Autoren anhand von Schreibmustern identifizieren, selbst nach Pseudonymisierung. Für Sonden, die nutzergenerierte Texte aufnehmen: Welche textlichen Transformationen (Paraphrasierung, Satzmischung, Vokabelnormalisierung) sind notwendig, um stilometrische Re-Identifikation zu verhindern, ohne die für NLP-Analyse benötigten linguistischen Merkmale zu zerstören?
+- Ergebnis: Eine stilometrische Risikobewertung für AĒRs aktuelle NLP-Pipeline mit Empfehlungen für datenschutzerhaltende Textnormalisierung.
+
+---
+
+## 8. Offene Fragen für interdisziplinäre Kooperationspartner
+
+### 8.1 Für STS-Wissenschaftler und Wissenschaftssoziologen
 
 **F1: Wie sollte AĒRs Beobachtereffekt empirisch untersucht werden?**
 
@@ -223,7 +290,7 @@ AĒR ist ein Makroskop — es sieht Muster im großen Maßstab. Es sieht keine U
 - Wie sollte AĒR Offenheit (wissenschaftliche Integrität, Reproduzierbarkeit) mit Verantwortung (Verhinderung von Instrumentalisierung, Schutz verwundbarer Gemeinschaften) ausbalancieren?
 - Deliverable: Ein Governance-Modell-Vorschlag, gestützt auf Präzedenzfälle anderer Dual-Use-Forschungsinstrumente (Genomdatenbanken, Klimamodelle, Wahlbeobachtungssysteme).
 
-### 7.2 Für Ethiker und politische Theoretiker
+### 8.2 Für Ethiker und politische Theoretiker
 
 **F3: Unter welchen Bedingungen ist aggregierte Diskursbeobachtung ethisch zulässig?**
 
@@ -235,7 +302,7 @@ AĒR ist ein Makroskop — es sieht Muster im großen Maßstab. Es sieht keine U
 - Wenn AĒRs Metriken offenbaren, dass ein oppositionelles Narrativ in einem bestimmten Land an Zugkraft gewinnt, könnte die Veröffentlichung dieses Befunds die Menschen hinter dem Narrativ gefährden. Sollte AĒR die Veröffentlichung verzögern? Den Zugang einschränken? Veröffentlichen, aber kontextualisieren?
 - Deliverable: Eine Richtlinie zur verantwortungsvollen Offenlegung politisch sensibler Diskursbefunde.
 
-### 7.3 Für Informationsdesign- und Visualisierungsforscher
+### 8.3 Für Informationsdesign- und Visualisierungsforscher
 
 **F5: Wie sollte AĒRs Dashboard gestaltet werden, um Reifikation zu minimieren und kritisches Engagement zu maximieren?**
 
@@ -247,7 +314,7 @@ AĒR ist ein Makroskop — es sieht Muster im großen Maßstab. Es sieht keine U
 - Der Digital Divide (Manifest §II), die Plattform-Unzugänglichkeit (WP-003) und die demografische Verzerrung sind alles Formen systematischer Abwesenheit. Wie sollte ein Dashboard Abwesenheit sichtbar machen — nicht nur zeigen, was das Makroskop sieht, sondern auch, wofür es blind ist?
 - Deliverable: Visualisierungskonzepte für „Negativraum" — die Darstellung von Beobachtungslimitierungen als integraler Bestandteil des Dashboards.
 
-### 7.4 Für digitale Anthropologen und Area-Studies-Wissenschaftler
+### 8.4 Für digitale Anthropologen und Area-Studies-Wissenschaftler
 
 **F7: Welche Beobachtereffekte sind für spezifische kulturelle Kontexte wahrscheinlich, wenn AĒRs Metriken veröffentlicht werden?**
 
@@ -256,7 +323,7 @@ AĒR ist ein Makroskop — es sieht Muster im großen Maßstab. Es sieht keine U
 
 ---
 
-## 8. Schlussfolgerung: Das Instrument, das weiß, dass es ein Instrument ist
+## 9. Schlussfolgerung: Das Instrument, das weiß, dass es ein Instrument ist
 
 Die Arbeitspapier-Serie (WP-001 bis WP-006) zeichnet eine Trajektorie vom Konkreten zum Reflexiven:
 
@@ -275,7 +342,7 @@ Die architektonische Antwort auf dieses Commitment ist nicht, Beobachtung aufzug
 
 ---
 
-## 9. Referenzen
+## 10. Referenzen
 
 - Anderson, B. (1991). *Imagined Communities: Reflections on the Origin and Spread of Nationalism* (revised ed.). Verso.
 - Beck, U. (1992). *Risk Society: Towards a New Modernity*. SAGE.
@@ -325,5 +392,7 @@ Alle offenen Forschungsfragen aus WP-001 bis WP-006, organisiert nach Zieldiszip
 **STS / Soziologie / Ethik:** WP-006 F1–F4
 
 **Informationsdesign / Visualisierung:** WP-006 F5–F6
+
+**Privacy Engineering / Datenschutz:** WP-006 F8–F9
 
 **Digital Humanities:** WP-005 F8

@@ -6,7 +6,7 @@
 > **Abhängig von:** Manifest §III–§IV, Arc42 Kapitel 13 (Wissenschaftliche Grundlagen)
 > **Architekturkontext:** Source Adapter Protocol (ADR-015), SilverMeta (§5.1.2), Crawler-Ökosystem (§5.2)
 > **Nachgelagert:** WP-002 (Metrik-Validität), WP-003 (Plattform-Bias), WP-004 (Interkulturelle Vergleichbarkeit), WP-005 (Temporale Granularität), WP-006 (Beobachtereffekt)
-> **Lizenz:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
+> **Lizenz:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
 

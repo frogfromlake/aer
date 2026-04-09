@@ -5,7 +5,7 @@
 > **Date:** 2026-04-07
 > **Depends on:** WP-001 (Functional Probe Taxonomy), WP-002 (Metric Validity), WP-003 (Platform Bias)
 > **Architectural context:** Gold Layer Aggregation (§5.1.4), ClickHouse OLAP (§8.6), BFF API (§5.1.3), Manifesto §II–§IV
-> **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
+> **License:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
 

@@ -5,7 +5,7 @@
 > **Date:** 2026-04-07
 > **Depends on:** WP-001 through WP-005 (entire series)
 > **Architectural context:** Manifesto §I–§V, Progressive Disclosure (ADR-003), Quality Goal 1 (Scientific Integrity)
-> **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
+> **License:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
 
@@ -209,9 +209,76 @@ AĒR is a macroscope — it sees patterns at scale. It does not see causes, inte
 
 ---
 
-## 7. Open Questions for Interdisciplinary Collaborators
+## 7. Data Protection by Design: Anonymization as Architectural Commitment
 
-### 7.1 For STS Scholars and Sociologists of Science
+### 7.1 The Privacy Paradox of Discourse Observation
+
+AĒR's Probe Principle (Manifesto §IV) envisions a diverse ecosystem of data sources — institutional RSS feeds, news APIs, social media platforms, forum archives, and potentially user-generated content from messaging platforms. As the system expands beyond Probe 0 (institutional RSS), the risk of inadvertent re-identification increases. Even when AĒR does not collect personal data *intentionally*, discourse data from social media, forums, or community platforms may contain identifiable information: usernames, writing styles (stylometric fingerprints), geographic references, temporal patterns of activity, or unique opinion combinations that function as quasi-identifiers.
+
+The commitment in Manifesto §VI — "preservation of the collective's anonymity" — must be operationalized as an architectural constraint, not merely as a policy statement. AĒR must make re-identification technically infeasible, not merely prohibited.
+
+### 7.2 Anonymization Framework
+
+AĒR adopts a defense-in-depth approach to data protection, applying anonymization techniques at multiple layers of the Medallion Architecture. The following methods represent established best practices from the fields of privacy-preserving data analysis and statistical disclosure control.
+
+#### 7.2.1 Irreversible Identifier Removal (Bronze → Silver Boundary)
+
+The Source Adapter (Phase 39) is the architectural enforcement point. Before any data enters the Silver layer, the adapter MUST:
+
+- **Strip all direct identifiers.** Usernames, display names, email addresses, profile URLs, and any platform-specific user IDs are removed during harmonization. They are never written to `SilverCore` or `SilverMeta`.
+- **Hash residual quasi-identifiers.** If a source-specific adapter requires a document-author linkage for deduplication (e.g., detecting the same author posting identical content across platforms), a one-way cryptographic hash (SHA-256 with a per-deployment salt) is used. The salt is stored outside the data pipeline and rotated periodically. The raw identifier is never persisted.
+- **Truncate temporal precision.** Timestamps in the Silver layer are truncated to hour-level granularity for sources where minute-level precision could enable activity-pattern fingerprinting. Probe 0 (institutional RSS) is exempt — publication timestamps of press releases are public information.
+
+#### 7.2.2 Aggregation-First Analysis (Silver → Gold Boundary)
+
+The Gold layer stores only aggregate metrics, not individual documents. This is already an architectural property of AĒR's Medallion design, but it must be explicitly maintained as the metric pipeline evolves:
+
+- **k-Anonymity as minimum standard.** Any Gold-layer metric that could theoretically be traced to fewer than *k* = 10 source documents must be suppressed or aggregated further. This prevents the "unique opinion" attack — inferring an individual's identity from a rare combination of stance, topic, and timing.
+- **l-Diversity for sensitive dimensions.** When metrics include categorical attributes (e.g., detected language, entity labels), the Gold layer must ensure that each aggregation group contains at least *l* = 3 distinct values for sensitive attributes. This prevents homogeneity attacks where all documents in a small cluster share a distinguishing characteristic.
+- **Minimum aggregation windows.** The BFF API enforces minimum time-window sizes per source type. Social media sources require wider aggregation windows than institutional sources to prevent temporal fingerprinting.
+
+#### 7.2.3 Entity Anonymization in the Gold Layer
+
+The `aer_gold.entities` table stores named entities extracted via NER. For institutional sources (Probe 0), entities are public figures and organizations mentioned in press releases — anonymization is unnecessary and would destroy analytical value. For future probes involving user-generated content:
+
+- **Private person detection.** Entities classified as `PER` that do not match a curated public-figure registry must be replaced with a categorical placeholder (e.g., `[PRIVATE_PERSON]`) before Gold-layer insertion. The registry is source-specific and maintained as part of the probe configuration.
+- **Location generalization.** Fine-grained location entities (street addresses, specific venues) from user-generated content are generalized to administrative-region level (city or district).
+
+#### 7.2.4 Architectural Enforcement Points
+
+| Layer | Technique | Enforcement |
+| :--- | :--- | :--- |
+| Bronze → Silver | Identifier stripping, hash pseudonymization, temporal truncation | Source Adapter protocol (`adapters/base.py`). Adapter code review checklist. |
+| Silver → Gold | k-Anonymity suppression, l-Diversity check, minimum aggregation windows | Extractor pipeline and BFF API query layer. |
+| Gold → API | Row-limit enforcement, downsampling, no raw-text exposure | BFF API (existing: ADR-003, hard row limits). |
+| Gold → Dashboard | Non-prescriptive visualization, no drill-down to individual documents from social media sources | Dashboard design principles (§6.2). |
+
+### 7.3 What AĒR Does NOT Collect
+
+To prevent scope creep and mission drift, the following data categories are explicitly excluded from AĒR's collection scope, regardless of technical feasibility:
+
+- **No behavioral metadata.** AĒR does not track clicks, views, likes, shares, dwell times, or any form of engagement metric tied to individual users.
+- **No social graphs.** AĒR does not reconstruct follower/following relationships, reply chains attributable to individuals, or any form of social network topology at the individual level.
+- **No device or session fingerprints.** AĒR does not collect IP addresses, device identifiers, browser fingerprints, or any technical metadata that could identify a user's device or session.
+- **No content from private or semi-private spaces.** Direct messages, private group chats, gated communities, and any platform space with a reasonable expectation of privacy are excluded from AĒR's observation scope — even if technically accessible.
+
+### 7.4 Open Research Questions for Privacy Researchers
+
+**Q8 (for §8, renumbered): What is the minimum aggregation granularity that prevents re-identification across AĒR's probe types?**
+
+- For each probe type in WP-001's Functional Taxonomy, what combination of temporal aggregation, entity suppression, and k-anonymity threshold is sufficient to prevent re-identification? The answer will differ between institutional probes (low risk) and social media probes (high risk).
+- Deliverable: A probe-type-specific privacy risk assessment with recommended anonymization parameters, validated against known re-identification attacks (e.g., the Netflix Prize attack, the AOL search log incident).
+
+**Q9: How should AĒR handle stylometric fingerprinting risk in multilingual discourse data?**
+
+- Stylometric analysis can identify authors from writing patterns even after pseudonymization. For probes that ingest user-generated text, what text-level transformations (paraphrasing, sentence shuffling, vocabulary normalization) are necessary to prevent stylometric re-identification without destroying the linguistic features needed for NLP analysis?
+- Deliverable: A stylometric risk assessment for AĒR's current NLP pipeline, with recommendations for privacy-preserving text normalization.
+
+---
+
+## 8. Open Questions for Interdisciplinary Collaborators
+
+### 8.1 For STS Scholars and Sociologists of Science
 
 **Q1: How should AĒR's observer effect be empirically studied?**
 
@@ -223,7 +290,7 @@ AĒR is a macroscope — it sees patterns at scale. It does not see causes, inte
 - How should AĒR balance openness (scientific integrity, reproducibility) with responsibility (preventing weaponization, protecting vulnerable communities)?
 - Deliverable: A governance model proposal, drawing on precedents from other dual-use research instruments (genomic databases, climate models, election monitoring systems).
 
-### 7.2 For Ethicists and Political Theorists
+### 8.2 For Ethicists and Political Theorists
 
 **Q3: Under what conditions is aggregate discourse observation ethically permissible?**
 
@@ -235,7 +302,7 @@ AĒR is a macroscope — it sees patterns at scale. It does not see causes, inte
 - If AĒR's metrics reveal that an oppositional narrative is gaining traction in a specific country, publishing this finding could endanger the people behind the narrative. Should AĒR delay publication? Restrict access? Publish but contextualize?
 - Deliverable: A responsible disclosure policy for politically sensitive discourse findings.
 
-### 7.3 For Information Design and Visualization Researchers
+### 8.3 For Information Design and Visualization Researchers
 
 **Q5: How should AĒR's dashboard be designed to minimize reification and maximize critical engagement?**
 
@@ -247,7 +314,7 @@ AĒR is a macroscope — it sees patterns at scale. It does not see causes, inte
 - The Digital Divide (Manifesto §II), the platform inaccessibility (WP-003), and the demographic skew are all forms of systematic absence. How should a dashboard make absence visible — showing not just what the macroscope sees, but what it is blind to?
 - Deliverable: Visualization concepts for "negative space" — the representation of observational limitations as an integral part of the dashboard.
 
-### 7.4 For Digital Anthropologists and Area Studies Scholars
+### 8.4 For Digital Anthropologists and Area Studies Scholars
 
 **Q7: For specific cultural contexts, what are the likely observer effects if AĒR's metrics are published?**
 
@@ -256,7 +323,7 @@ AĒR is a macroscope — it sees patterns at scale. It does not see causes, inte
 
 ---
 
-## 8. Conclusion: The Instrument That Knows It Is an Instrument
+## 9. Conclusion: The Instrument That Knows It Is an Instrument
 
 The Working Paper series (WP-001 through WP-006) traces a trajectory from the concrete to the reflexive:
 
@@ -275,7 +342,7 @@ The architectural response to this commitment is not to abandon observation — 
 
 ---
 
-## 9. References
+## 10. References
 
 - Anderson, B. (1991). *Imagined Communities: Reflections on the Origin and Spread of Nationalism* (revised ed.). Verso.
 - Beck, U. (1992). *Risk Society: Towards a New Modernity*. SAGE.
@@ -325,5 +392,7 @@ All open research questions from WP-001 through WP-006, organized by target disc
 **STS / Sociology / Ethics:** WP-006 Q1–Q4
 
 **Information Design / Visualization:** WP-006 Q5–Q6
+
+**Privacy Engineering / Data Protection:** WP-006 Q8–Q9
 
 **Digital Humanities:** WP-005 Q8

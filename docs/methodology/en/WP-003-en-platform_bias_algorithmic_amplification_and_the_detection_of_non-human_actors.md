@@ -5,7 +5,7 @@
 > **Date:** 2026-04-07
 > **Depends on:** WP-001 (Functional Probe Taxonomy), WP-002 (Metric Validity)
 > **Architectural context:** Crawler Ecosystem (§5.2), Source Adapter Protocol (ADR-015), Manifesto §III
-> **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
+> **License:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
 

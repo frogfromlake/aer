@@ -5,7 +5,7 @@
 > **Datum:** 07.04.2026
 > **Abhängig von:** WP-001 (Funktionale Sondentaxonomie), Arc42 Kapitel 13 (Wissenschaftliche Grundlagen)
 > **Architekturkontext:** Analysis Worker Extractor Pipeline (§8.10), Tier-1–3-Metrikklassifikation (§13.3)
-> **Lizenz:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © 2026 Fabian Quist
+> **Lizenz:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
 
