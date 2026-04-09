@@ -344,7 +344,36 @@ The Working Papers collectively formulate **30+ concrete research questions** or
 
 ---
 
-## 13.9 Probe 0: Pipeline Calibration (German Institutional RSS)
+## 13.9 Data Protection Architecture
+
+AĒR's privacy commitment (Manifesto §VI) is operationalized through architectural constraints at each layer of the Medallion Architecture, not through post-hoc policy compliance. The system is designed to make re-identification technically infeasible.
+
+### Anonymization by Layer
+
+| Layer Boundary | Technique | Implementation |
+| :--- | :--- | :--- |
+| Bronze → Silver | Irreversible identifier stripping, SHA-256 hash pseudonymization with rotated salt, temporal truncation to hour-level for social media sources | Source Adapter protocol (`adapters/base.py`). Each adapter's `harmonize()` method is responsible for stripping identifiers before constructing `SilverCore`. |
+| Silver → Gold | k-Anonymity (k ≥ 10), l-Diversity (l ≥ 3), minimum aggregation windows per source type, private-person entity suppression | Extractor pipeline, BFF API query layer. |
+| Gold → API/Dashboard | Server-side downsampling, hard row limits (ADR-003), no raw-text endpoints, no drill-down to individual social-media documents | BFF API configuration. |
+
+### Explicit Data Exclusions
+
+AĒR does not collect, regardless of technical feasibility: behavioral metadata (clicks, likes, engagement), social graph topology, device/session fingerprints, or content from private/semi-private digital spaces.
+
+### Privacy Risk Classification by Probe Type
+
+| Probe Type (WP-001) | Privacy Risk | Required Anonymization |
+| :--- | :--- | :--- |
+| Institutional RSS/API (Probe 0) | Low — public press releases, no personal data | Identifier stripping only (standard adapter behavior). |
+| Public news/media | Low — editorial content, named public figures | Standard. Public-figure entities are not anonymized. |
+| Public social media | High — user-generated content, quasi-identifiers | Full anonymization: identifier removal, temporal truncation, k-anonymity, entity suppression for private persons, stylometric risk assessment. |
+| Forum/community archives | Medium–High — pseudonymous but potentially identifiable | Hash pseudonymization, temporal truncation, k-anonymity. |
+
+The detailed anonymization framework, including formal privacy models (k-Anonymity, l-Diversity, t-Closeness) and open research questions for privacy researchers, is documented in WP-006 §7.
+
+---
+
+## 14 Probe 0: Pipeline Calibration (German Institutional RSS)
 
 > **Status:** Operational — pipeline validated end-to-end (Phase 43).
 > **Date:** 2026-04-06

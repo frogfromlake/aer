@@ -27,4 +27,9 @@ The technological foundation of AĒR is built for resilience, yet the "lens conf
 * **Global Studies:** To contextualize regional discourses within a planetary framework.
 
 ### VI. Ethical Commitment
-AĒR is a purely observational, phenomenological instrument. It serves understanding, not surveillance or manipulation. The preservation of the collective's anonymity and the transparent disclosure of the observer's perspective are non-negotiable pillars of the project.
+AĒR is a purely observational, phenomenological instrument. It serves understanding, not surveillance or manipulation. The following principles are non-negotiable:
+
+* **Collective Anonymity:** AĒR observes discourse patterns, not individuals. The system is architecturally designed to prevent re-identification of individual persons through irreversible identifier removal, aggregation-first analysis, k-anonymity enforcement, and minimum aggregation windows (see WP-006 §7). No behavioral metadata, social graphs, or device fingerprints are collected — by design, not by policy.
+* **Methodological Transparency:** The observer's perspective, methods, limitations, and potential biases are disclosed openly through the Working Paper series, the Arc42 documentation, and the codebase itself.
+* **Prohibited Use:** AĒR must never be used for individual surveillance, micro-targeting, political manipulation, commercial profiling, or any purpose that subordinates human dignity to instrumental ends. This commitment is codified in the project license (§3, Responsible Use Restrictions).
+* **No Digital Twins:** AĒR's data pipeline is structurally incapable of constructing individual behavioral profiles. The Medallion Architecture enforces a one-way flow from raw data to aggregate metrics — there is no reverse path from a Gold-layer metric to an individual source document attributable to a specific person.
