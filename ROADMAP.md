@@ -568,11 +568,21 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Adjust tests / e2e-smoke test if necessary: `scripts/e2e_smoke_test.sh`.** No changes needed — e2e test does not reference tool versions.
 * [x] **Validate.** `make lint` passes. `make -n setup` dry-run confirms versions are correctly resolved from `.tool-versions`.
 
+## Phase 55: Privacy Architecture & Responsible Use License - [x] DONE
+*Created by feedback from Prof. Dr. Dirk Helbing (ETH Zürich COSS), this phase operationalizes AĒR's ethical commitment (Manifesto §VI) as architectural constraints and legal safeguards. The privacy framework addresses re-identification risks for future probes beyond Probe 0, while the license update codifies the absolute prohibition of surveillance, micro-targeting, and political manipulation.*
+
+* [x] **Add WP-006 §7: Data Protection by Design.** Insert new section after §6 (Reflexive Architecture) in both English and German versions. Content: anonymization framework (irreversible identifier removal at Bronze→Silver boundary, k-Anonymity/l-Diversity enforcement at Silver→Gold boundary, entity anonymization for private persons, explicit data exclusions). Add two new research questions (Q8: minimum aggregation granularity, Q9: stylometric fingerprinting risk). Renumber existing §7 (Open Questions) to §8.
+* [x] **Update Manifesto §VI.** Expand the ethical commitment from a two-sentence statement to a four-pillar framework: Collective Anonymity, Methodological Transparency, Prohibited Use, No Digital Twins. Reference the license §3 and WP-006 §7.
+* [x] **Add Arc42 §13.9: Data Protection Architecture.** New section documenting anonymization-by-layer, explicit data exclusions, and privacy risk classification by probe type (institutional: low, public media: low, social media: high, forums: medium-high).
+* [x] **Update LICENSE.md with Responsible Use Restrictions.** Replace existing license with expanded version containing §3 (Responsible Use Restrictions): eight absolute prohibitions (surveillance, micro-targeting, political manipulation, commercial profiling, military/intelligence use, disinformation, digital twin construction, discourse suppression). Add §3.2 (Permitted Scientific Use with ethics board requirement). Add §3.3 (Enforcement: automatic termination on violation).
+* [x] **Update Working Papers License to CC BY-NC 4.0.** Change from CC BY 4.0 to CC BY-NC 4.0 to prevent commercial exploitation of the methodological frameworks for purposes incompatible with AĒR's mission. Add Responsible Use clause referencing the main project license.
+* [x] **Update WP-006 Appendix C (Consolidated Research Question Index).** Add the new privacy-related questions (Q8, Q9) under a new target discipline category: "Privacy Engineering / Data Protection."
+* [x] **Validate documentation consistency.** Verify all cross-references between Manifesto §VI, WP-006 §7, Arc42 §13.9, and LICENSE.md §3 are correct. Verify the research question numbering is consistent across English and German versions.
 ---
 
 ### Open Phases
 
-## Phase 54: Structural Decomposition — Analysis Worker Business Logic - [ ]
+## Phase 56: Structural Decomposition — Analysis Worker Business Logic - [ ]
 *The Analysis Worker's `processor.py` and `storage.py` have accumulated multiple responsibilities in single files. This phase decomposes them along existing responsibility boundaries — no new abstractions, no new patterns. The architecture (Adapter Pattern, Extractor Protocol, Medallion flow) remains unchanged.*
 
 * [ ] **Split `internal/processor.py` into focused modules.** The processor currently handles orchestration, quarantine routing, and Silver envelope construction in one file. Decompose into:
@@ -588,7 +598,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Validate.** `make test-python` (all 76+ unit tests pass), `make lint` (ruff clean), `make audit-python` (pip-audit clean). No test logic changes in this phase — tests are refactored separately in Phase 55.
 
 
-## Phase 55: Structural Decomposition — Analysis Worker Tests - [ ]
+## Phase 57: Structural Decomposition — Analysis Worker Tests - [ ]
 *`tests/test_processor.py` exceeds 1000 lines and covers 7+ distinct concerns. This phase splits it into focused test modules organized by the aspect of the pipeline they validate. Shared fixtures move to `conftest.py`.*
 
 * [ ] **Extract shared test infrastructure into `tests/conftest.py`.** Move all shared fixtures, constants, and helper classes:
@@ -609,7 +619,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Validate.** `make test-python` (identical test count, all green), `make lint`, `make audit-python`. CI pipeline (`python-pipeline` job) passes without modification.
 
 
-## Phase 56: Structural Decomposition — BFF API Business Logic - [ ]
+## Phase 58: Structural Decomposition — BFF API Business Logic - [ ]
 *The BFF API's `clickhouse.go` storage layer accumulates all query logic (metrics, entities, available metrics, caching) in a single file. This phase splits it by query domain. Handler logic is already cleanly separated from generated code via `oapi-codegen` — no handler changes needed.*
 
 * [ ] **Split `internal/storage/clickhouse.go` into domain-specific query modules:**
@@ -620,7 +630,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Validate.** `make test-go` (all integration tests pass), `make test-go-pkg`, `make lint`, `make audit-go`, `make codegen && git diff --exit-code` (no contract drift).
 
 
-## Phase 57: Structural Decomposition — BFF API Tests - [ ]
+## Phase 59: Structural Decomposition — BFF API Tests - [ ]
 *The BFF API's ClickHouse integration tests cover metrics queries, entity queries, and available-metrics queries in a single test file. This phase splits them to mirror the storage module decomposition from Phase 56.*
 
 * [ ] **Split `internal/storage/clickhouse_test.go` into domain-specific test files:**
@@ -631,7 +641,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Validate.** `make test-go`, `make lint`, `make audit-go`. CI pipeline (`go-pipeline` job) passes without modification.
 
 
-## Phase 58: Structural Decomposition — Ingestion API - [ ]
+## Phase 60: Structural Decomposition — Ingestion API - [ ]
 *The Ingestion API follows Clean Architecture (Phase 26) with interface-based DI. This phase evaluates whether any files exceed the complexity threshold and splits them if necessary. The scope is intentionally smaller — the Ingestion API has fewer responsibilities than the Analysis Worker or BFF.*
 
 * [ ] **Evaluate `internal/storage/postgres.go`.** If >250 lines, split into:
@@ -645,7 +655,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Validate.** `make test-go`, `make test-go-pkg`, `make lint`, `make audit-go`. CI pipeline passes without modification.
 
 
-## Phase 59: Structural Decomposition — E2E & Cross-Cutting Cleanup - [ ]
+## Phase 61: Structural Decomposition — E2E & Cross-Cutting Cleanup - [ ]
 *Final cleanup phase. Addresses the E2E smoke test script, verifies all validation gates, and updates Arc42 documentation to reflect the new file structure.*
 
 * [ ] **Refactor `scripts/e2e_smoke_test.sh`.** Extract shared helper functions (`log_ok`, `log_fail`, `log_step`, `log_info`, color codes, timestamp formatting) into `scripts/e2e_helpers.sh`. Source it from the main script. No behavioral change — identical test assertions, identical exit codes.
