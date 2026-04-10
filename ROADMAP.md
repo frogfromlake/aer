@@ -626,20 +626,19 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Verify interface compliance.** The `MetricsStore` interface in `internal/handler/` must remain satisfied. No signature changes.
 * [x] **Validate.** `make test-go` (all integration tests pass), `make test-go-pkg`, `make lint`, `make audit-go`, `make codegen && git diff --exit-code` (no contract drift).
 
----
-
-### Open Phases
-
-## Phase 59: Structural Decomposition — BFF API Tests - [ ]
+## Phase 59: Structural Decomposition — BFF API Tests - [x] DONE
 *The BFF API's ClickHouse integration tests cover metrics queries, entity queries, and available-metrics queries in a single test file. This phase splits them to mirror the storage module decomposition from Phase 56.*
 
-* [ ] **Split `internal/storage/clickhouse_test.go` into domain-specific test files:**
+* [x] **Split `internal/storage/clickhouse_test.go` into domain-specific test files:**
   - `internal/storage/clickhouse_test.go` — Shared test setup: Testcontainer initialization, schema bootstrapping, `TestMain` or `TestSuite` setup, shared helper functions.
   - `internal/storage/metrics_query_test.go` — Integration tests for `GetMetrics()` and `GetAvailableMetrics()`: time-range queries, downsampling, source/metricName filtering, cache behavior, empty result sets.
   - `internal/storage/entities_query_test.go` — Integration tests for `GetEntities()`: label filtering, source filtering, aggregation, limit enforcement, empty result sets.
-* [ ] **Split handler unit tests if applicable.** If `internal/handler/handler_test.go` exceeds 300 lines, split into `metrics_handler_test.go` and `entities_handler_test.go`. If under 300 lines, leave as-is.
-* [ ] **Validate.** `make test-go`, `make lint`, `make audit-go`. CI pipeline (`go-pipeline` job) passes without modification.
+* [x] **Split handler unit tests if applicable.** If `internal/handler/handler_test.go` exceeds 300 lines, split into `metrics_handler_test.go` and `entities_handler_test.go`. If under 300 lines, leave as-is.
+* [x] **Validate.** `make test-go`, `make lint`, `make audit-go`. CI pipeline (`go-pipeline` job) passes without modification.
 
+---
+
+### Open Phases
 
 ## Phase 60: Structural Decomposition — Ingestion API - [ ]
 *The Ingestion API follows Clean Architecture (Phase 26) with interface-based DI. This phase evaluates whether any files exceed the complexity threshold and splits them if necessary. The scope is intentionally smaller — the Ingestion API has fewer responsibilities than the Analysis Worker or BFF.*
