@@ -187,7 +187,7 @@ class TestInitPostgres:
             mock_conn.cursor.return_value = _make_cursor_mock()
             return mock_pool
 
-        with patch("internal.storage.ThreadedConnectionPool", side_effect=flaky_pool_factory), \
+        with patch("internal.storage.postgres_client.ThreadedConnectionPool", side_effect=flaky_pool_factory), \
              patch("time.sleep"):
             pool = init_postgres()
 
@@ -202,7 +202,7 @@ class TestInitPostgres:
         monkeypatch.setenv("POSTGRES_HOST", "127.0.0.1")
         monkeypatch.setenv("POSTGRES_PORT", "19999")  # Unreachable port
 
-        with patch("internal.storage.ThreadedConnectionPool",
+        with patch("internal.storage.postgres_client.ThreadedConnectionPool",
                    side_effect=psycopg2.OperationalError("always failing")), \
              patch("time.sleep"), \
              patch("time.monotonic", side_effect=[0.0, 0.5, 1.0, 31.0]):

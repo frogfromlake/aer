@@ -2,11 +2,10 @@ import os
 import queue
 import structlog
 import clickhouse_connect
-from minio import Minio
-from psycopg2.pool import ThreadedConnectionPool
 from tenacity import retry, wait_exponential, stop_after_delay
 
 logger = structlog.get_logger()
+
 
 def _log_retry(retry_state):
     """Callback to log a warning when an infrastructure connection fails."""
@@ -17,25 +16,6 @@ def _log_retry(retry_state):
         wait=retry_state.idle_for
     )
 
-@retry(
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    stop=stop_after_delay(30),
-    before_sleep=_log_retry
-)
-def init_minio() -> Minio:
-    """
-    Initializes the MinIO client with an exponential backoff retry mechanism.
-    Forces a network call to ensure the service is actually reachable.
-    """
-    client = Minio(
-        endpoint=os.getenv("MINIO_ENDPOINT", "localhost:9000"),
-        access_key=os.getenv("MINIO_ROOT_USER", "minioadmin"),
-        secret_key=os.getenv("MINIO_ROOT_PASSWORD", "minioadmin"),
-        secure=False
-    )
-    # Force a network call to verify the connection
-    client.list_buckets()
-    return client
 
 class ClickHousePool:
     """Thread-safe pool of ClickHouse clients. One client per concurrent worker."""
@@ -80,31 +60,3 @@ def init_clickhouse(pool_size: int = 5) -> ClickHousePool:
     Each client gets its own session, avoiding concurrent-query errors.
     """
     return ClickHousePool(pool_size)
-
-@retry(
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    stop=stop_after_delay(30),
-    before_sleep=_log_retry
-)
-def init_postgres() -> ThreadedConnectionPool:
-    """
-    Initializes a thread-safe connection pool for PostgreSQL.
-    """
-    pool = ThreadedConnectionPool(
-        minconn=1,
-        maxconn=10,
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=os.getenv("POSTGRES_PORT", "5432"),
-        user=os.getenv("POSTGRES_USER", "aer_admin"), # Update with your .env defaults
-        password=os.getenv("POSTGRES_PASSWORD", "aer_secret"),
-        database=os.getenv("POSTGRES_DB", "aer_metadata")
-    )
-    # Ping the database
-    conn = pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1")
-    finally:
-        pool.putconn(conn)
-        
-    return pool

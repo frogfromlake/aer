@@ -1,20 +1,18 @@
 import json
-import io
 import structlog
 from datetime import datetime
 from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
-from internal.models import SilverEnvelope, ValidationError
+from internal.models import ValidationError
 from internal.adapters.registry import AdapterRegistry
 from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
-from internal.metrics import (
-    events_processed_total,
-    events_quarantined_total,
-    event_processing_duration_seconds,
-    dlq_size,
-)
+from internal.metrics import events_processed_total, event_processing_duration_seconds
+from internal.storage.postgres_client import get_document_status, update_document_status
+from internal import quarantine as _quarantine_module
+from internal import silver as _silver_module
 
 logger = structlog.get_logger()
+
 
 class DataProcessor:
     """
@@ -90,14 +88,7 @@ class DataProcessor:
             return
 
         # --- 6. Upload to Silver Layer ---
-        envelope = SilverEnvelope(core=core, meta=meta, extraction_provenance=self._extraction_provenance)
-        silver_payload = envelope.model_dump_json().encode('utf-8')
-        self.minio.put_object(
-            "silver", obj_key,
-            io.BytesIO(silver_payload), len(silver_payload),
-            content_type="application/json"
-        )
-        logger.info("Silver layer updated", object=obj_key, source=core.source, word_count=core.word_count, schema_version=core.schema_version)
+        _silver_module.upload_silver(self.minio, obj_key, core, meta, self._extraction_provenance)
 
         # --- 7. Extract and load to Gold Layer (ClickHouse) via Extractor Pipeline ---
         article_id = core.document_id
@@ -182,39 +173,19 @@ class DataProcessor:
 
     def _get_document_status(self, obj_key: str) -> str | None:
         """Fetches the current processing status from PostgreSQL."""
-        conn = self.pg.getconn()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT status FROM documents WHERE bronze_object_key = %s", (obj_key,))
-                res = cur.fetchone()
-                return res[0] if res else None
-        finally:
-            self.pg.putconn(conn)
+        return get_document_status(self.pg, obj_key)
 
-    def _update_document_status(self, obj_key: str, status: str):
+    def _update_document_status(self, obj_key: str, status: str) -> None:
         """Updates the document status in PostgreSQL."""
-        conn = self.pg.getconn()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("UPDATE documents SET status = %s WHERE bronze_object_key = %s", (status, obj_key))
-            conn.commit()
-        finally:
-            self.pg.putconn(conn)
+        update_document_status(self.pg, obj_key, status)
 
-    def _quarantine(self, obj_key: str, raw_content: dict, reason: str, span):
+    def _quarantine(self, obj_key: str, raw_content: dict, reason: str, span) -> None:
         """Routes a document to the DLQ with standard bookkeeping."""
-        self._move_to_quarantine(obj_key, raw_content)
-        self._update_document_status(obj_key, "quarantined")
-        events_quarantined_total.inc()
-        dlq_size.inc()
-        span.set_attribute("aer.status", "quarantined")
-        span.set_attribute("aer.quarantine_reason", reason)
-
-    def _move_to_quarantine(self, obj_key: str, raw_content: dict):
-        """Moves unprocessable raw data to the quarantine bucket."""
-        payload = json.dumps(raw_content).encode('utf-8')
-        self.minio.put_object(
-            "bronze-quarantine", obj_key,
-            io.BytesIO(payload), len(payload),
-            content_type="application/json"
+        _quarantine_module.quarantine(
+            self.minio, obj_key, raw_content, reason, span,
+            self._update_document_status,
         )
+
+    def _move_to_quarantine(self, obj_key: str, raw_content: dict) -> None:
+        """Moves unprocessable raw data to the quarantine bucket."""
+        _quarantine_module.move_to_quarantine(self.minio, obj_key, raw_content)

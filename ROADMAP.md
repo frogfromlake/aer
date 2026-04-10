@@ -578,25 +578,26 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update Working Papers License to CC BY-NC 4.0.** Change from CC BY 4.0 to CC BY-NC 4.0 to prevent commercial exploitation of the methodological frameworks for purposes incompatible with AĒR's mission. Add Responsible Use clause referencing the main project license.
 * [x] **Update WP-006 Appendix C (Consolidated Research Question Index).** Add the new privacy-related questions (Q8, Q9) under a new target discipline category: "Privacy Engineering / Data Protection."
 * [x] **Validate documentation consistency.** Verify all cross-references between Manifesto §VI, WP-006 §7, Arc42 §13.9, and LICENSE.md §3 are correct. Verify the research question numbering is consistent across English and German versions.
----
 
-### Open Phases
 
-## Phase 56: Structural Decomposition — Analysis Worker Business Logic - [ ]
+## Phase 56: Structural Decomposition — Analysis Worker Business Logic - [x] DONE
 *The Analysis Worker's `processor.py` and `storage.py` have accumulated multiple responsibilities in single files. This phase decomposes them along existing responsibility boundaries — no new abstractions, no new patterns. The architecture (Adapter Pattern, Extractor Protocol, Medallion flow) remains unchanged.*
 
-* [ ] **Split `internal/processor.py` into focused modules.** The processor currently handles orchestration, quarantine routing, and Silver envelope construction in one file. Decompose into:
+* [x] **Split `internal/processor.py` into focused modules.** The processor currently handles orchestration, quarantine routing, and Silver envelope construction in one file. Decompose into:
   - `internal/processor.py` — Orchestration only: fetch Bronze → lookup adapter → validate → extract → persist. Thin dispatcher delegating to the modules below. All public method signatures remain identical.
   - `internal/quarantine.py` — `_quarantine()` helper, DLQ serialization logic, quarantine bucket constants. Extracted from the three formerly duplicated quarantine blocks (consolidated in Phase 48).
   - `internal/silver.py` — Silver envelope construction, `SilverMeta` assembly, provenance metadata, MinIO Silver upload logic.
-* [ ] **Split `internal/storage.py` into one file per backend.** The current file initializes PostgreSQL, MinIO, and ClickHouse with connection pooling and retry logic in a single module. Decompose into:
+* [x] **Split `internal/storage.py` into one file per backend.** The current file initializes PostgreSQL, MinIO, and ClickHouse with connection pooling and retry logic in a single module. Decompose into:
   - `internal/storage/__init__.py` — Re-exports all public symbols for backward compatibility. No external import path changes.
   - `internal/storage/minio_client.py` — MinIO initialization, `tenacity` retry decorator, health check.
   - `internal/storage/clickhouse_client.py` — `ClickHousePool` (backed by `queue.Queue`), batch insert, health check.
   - `internal/storage/postgres_client.py` — `psycopg2.ThreadedConnectionPool`, document status queries, retention cleanup queries.
-* [ ] **Update `internal/main.py` imports.** Adjust dependency injection wiring to use the new module paths. No behavioral change.
-* [ ] **Validate.** `make test-python` (all 76+ unit tests pass), `make lint` (ruff clean), `make audit-python` (pip-audit clean). No test logic changes in this phase — tests are refactored separately in Phase 55.
+* [x] **Update `internal/main.py` imports.** Adjust dependency injection wiring to use the new module paths. No behavioral change.
+* [x] **Validate.** `make test-python` (all 76+ unit tests pass), `make lint` (ruff clean), `make audit-python` (pip-audit clean). No test logic changes in this phase — tests are refactored separately in Phase 55.
 
+---
+
+### Open Phases
 
 ## Phase 57: Structural Decomposition — Analysis Worker Tests - [ ]
 *`tests/test_processor.py` exceeds 1000 lines and covers 7+ distinct concerns. This phase splits it into focused test modules organized by the aspect of the pipeline they validate. Shared fixtures move to `conftest.py`.*
