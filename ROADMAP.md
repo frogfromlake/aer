@@ -616,20 +616,19 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Delete original `tests/test_processor.py`.** All tests now live in their respective modules. No test is removed — the total test count remains identical.
 * [x] **Validate.** `make test-python` (identical test count, all green), `make lint`, `make audit-python`. CI pipeline (`python-pipeline` job) passes without modification.
 
----
-
-### Open Phases
-
-## Phase 58: Structural Decomposition — BFF API Business Logic - [ ]
+## Phase 58: Structural Decomposition — BFF API Business Logic - [x] DONE
 *The BFF API's `clickhouse.go` storage layer accumulates all query logic (metrics, entities, available metrics, caching) in a single file. This phase splits it by query domain. Handler logic is already cleanly separated from generated code via `oapi-codegen` — no handler changes needed.*
 
-* [ ] **Split `internal/storage/clickhouse.go` into domain-specific query modules:**
+* [x] **Split `internal/storage/clickhouse.go` into domain-specific query modules:**
   - `internal/storage/clickhouse.go` — Connection setup (`NewClickHouseStorage`), health check, shared types (`ClickHouseStorage` struct), interface definition (`MetricsStore`).
   - `internal/storage/metrics_query.go` — `GetMetrics()`, `GetAvailableMetrics()`, metrics response cache logic.
   - `internal/storage/entities_query.go` — `GetEntities()` with label/source filtering and aggregation.
-* [ ] **Verify interface compliance.** The `MetricsStore` interface in `internal/handler/` must remain satisfied. No signature changes.
-* [ ] **Validate.** `make test-go` (all integration tests pass), `make test-go-pkg`, `make lint`, `make audit-go`, `make codegen && git diff --exit-code` (no contract drift).
+* [x] **Verify interface compliance.** The `MetricsStore` interface in `internal/handler/` must remain satisfied. No signature changes.
+* [x] **Validate.** `make test-go` (all integration tests pass), `make test-go-pkg`, `make lint`, `make audit-go`, `make codegen && git diff --exit-code` (no contract drift).
 
+---
+
+### Open Phases
 
 ## Phase 59: Structural Decomposition — BFF API Tests - [ ]
 *The BFF API's ClickHouse integration tests cover metrics queries, entity queries, and available-metrics queries in a single test file. This phase splits them to mirror the storage module decomposition from Phase 56.*
