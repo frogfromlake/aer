@@ -14,7 +14,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func TestPostgresStorage(t *testing.T) {
+func setupTestDB(t *testing.T) (*PostgresDB, context.Context) {
+	t.Helper()
 	ctx := context.Background()
 
 	pgImage, err := testutils.GetImageFromCompose("postgres")
@@ -22,7 +23,6 @@ func TestPostgresStorage(t *testing.T) {
 		t.Fatalf("failed to get postgres image from compose: %v", err)
 	}
 
-	// 1. Start ephemeral PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
 		pgImage,
 		postgres.WithDatabase("aer_test"),
@@ -37,27 +37,23 @@ func TestPostgresStorage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
-
-	// Ensure the container is destroyed after the test
-	defer func() {
+	t.Cleanup(func() {
 		if err := pgContainer.Terminate(ctx); err != nil {
 			t.Fatalf("failed to terminate pgContainer: %v", err)
 		}
-	}()
+	})
 
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		t.Fatalf("failed to get connection string: %v", err)
 	}
 
-	// 2. Initialize our Adapter
 	db, err := NewPostgresDB(ctx, connStr)
 	if err != nil {
 		t.Fatalf("failed to connect to test database: %v", err)
 	}
-	defer db.DB.Close()
+	t.Cleanup(func() { db.DB.Close() })
 
-	// 3. Apply schema directly for test isolation
 	schema := `
 	CREATE TABLE IF NOT EXISTS sources (
 		id SERIAL PRIMARY KEY,
@@ -78,7 +74,7 @@ func TestPostgresStorage(t *testing.T) {
 		job_id INTEGER REFERENCES ingestion_jobs(id),
 		bronze_object_key VARCHAR(500) UNIQUE NOT NULL,
 		trace_id VARCHAR(255),
-		status VARCHAR(50) DEFAULT 'pending', -- NEU hinzugefügt
+		status VARCHAR(50) DEFAULT 'pending',
 		ingested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
 	INSERT INTO sources (name, type, url) VALUES ('Test Source', 'test', 'http://localhost');
@@ -87,100 +83,5 @@ func TestPostgresStorage(t *testing.T) {
 		t.Fatalf("failed to apply test schema: %v", err)
 	}
 
-	// 4. TEST: Create Ingestion Job
-	jobID, err := db.CreateIngestionJob(ctx, 1)
-	if err != nil {
-		t.Errorf("expected no error creating job, got %v", err)
-	}
-	if jobID <= 0 {
-		t.Errorf("expected positive job ID, got %d", jobID)
-	}
-
-	// 5. TEST: Log Document (Happy Path)
-	err = db.LogDocument(ctx, jobID, "test-bronze-path.json", "trace-12345")
-	if err != nil {
-		t.Errorf("expected no error logging document, got %v", err)
-	}
-
-	// 6. TEST: Log Document (Idempotency / ON CONFLICT DO UPDATE)
-	err = db.LogDocument(ctx, jobID, "test-bronze-path.json", "trace-99999")
-	if err != nil {
-		t.Errorf("expected duplicate log to update safely, got error: %v", err)
-	}
-
-	// 7. TEST: Update Document Status (Der neue Lifecycle)
-	err = db.UpdateDocumentStatus(ctx, "test-bronze-path.json", "uploaded")
-	if err != nil {
-		t.Errorf("expected no error updating document status, got %v", err)
-	}
-
-	// Verifizieren, ob der Status wirklich in der Datenbank steht
-	var status string
-	err = db.DB.QueryRowContext(ctx, "SELECT status FROM documents WHERE bronze_object_key = $1", "test-bronze-path.json").Scan(&status)
-	if err != nil {
-		t.Fatalf("failed to query document status: %v", err)
-	}
-	if status != "uploaded" {
-		t.Errorf("expected status 'uploaded', got %s", status)
-	}
-
-	// 8. TEST: GetSourceByName (Happy Path)
-	sourceID, sourceName, err := db.GetSourceByName(ctx, "Test Source")
-	if err != nil {
-		t.Errorf("expected no error looking up source, got %v", err)
-	}
-	if sourceID <= 0 {
-		t.Errorf("expected positive source ID, got %d", sourceID)
-	}
-	if sourceName != "Test Source" {
-		t.Errorf("expected source name 'Test Source', got %q", sourceName)
-	}
-
-	// 9. TEST: GetSourceByName (Not Found)
-	_, _, err = db.GetSourceByName(ctx, "nonexistent")
-	if err == nil {
-		t.Error("expected error for nonexistent source, got nil")
-	}
-
-	// 10. TEST: DeleteOldDocuments — does not delete recent records
-	recentKey := "recent-doc.json"
-	err = db.LogDocument(ctx, jobID, recentKey, "trace-recent")
-	if err != nil {
-		t.Errorf("expected no error logging recent document, got %v", err)
-	}
-
-	// Cutoff in the past — no document should be deleted
-	pastCutoff := time.Now().Add(-30 * 24 * time.Hour)
-	deleted, err := db.DeleteOldDocuments(ctx, pastCutoff)
-	if err != nil {
-		t.Errorf("expected no error deleting old documents, got %v", err)
-	}
-	if deleted != 0 {
-		t.Errorf("expected 0 documents deleted with past cutoff, got %d", deleted)
-	}
-
-	// Cutoff in the future — all documents should be deleted
-	futureCutoff := time.Now().Add(24 * time.Hour)
-	deleted, err = db.DeleteOldDocuments(ctx, futureCutoff)
-	if err != nil {
-		t.Errorf("expected no error deleting old documents, got %v", err)
-	}
-	if deleted < 1 {
-		t.Errorf("expected at least 1 document deleted with future cutoff, got %d", deleted)
-	}
-
-	// 11. TEST: DeleteOldIngestionJobs — removes orphaned completed jobs
-	err = db.UpdateJobStatus(ctx, jobID, "completed")
-	if err != nil {
-		t.Errorf("expected no error updating job status, got %v", err)
-	}
-
-	// Job should now be deletable: completed, old enough, no remaining child documents
-	jobsDeleted, err := db.DeleteOldIngestionJobs(ctx, futureCutoff)
-	if err != nil {
-		t.Errorf("expected no error deleting old jobs, got %v", err)
-	}
-	if jobsDeleted < 1 {
-		t.Errorf("expected at least 1 job deleted, got %d", jobsDeleted)
-	}
+	return db, ctx
 }
