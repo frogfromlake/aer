@@ -595,19 +595,16 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update `internal/main.py` imports.** Adjust dependency injection wiring to use the new module paths. No behavioral change.
 * [x] **Validate.** `make test-python` (all 76+ unit tests pass), `make lint` (ruff clean), `make audit-python` (pip-audit clean). No test logic changes in this phase — tests are refactored separately in Phase 55.
 
----
 
-### Open Phases
-
-## Phase 57: Structural Decomposition — Analysis Worker Tests - [ ]
+## Phase 57: Structural Decomposition — Analysis Worker Tests - [x] DONE
 *`tests/test_processor.py` exceeds 1000 lines and covers 7+ distinct concerns. This phase splits it into focused test modules organized by the aspect of the pipeline they validate. Shared fixtures move to `conftest.py`.*
 
-* [ ] **Extract shared test infrastructure into `tests/conftest.py`.** Move all shared fixtures, constants, and helper classes:
+* [x] **Extract shared test infrastructure into `tests/conftest.py`.** Move all shared fixtures, constants, and helper classes:
   - Fixtures: `mock_minio`, `mock_clickhouse`, `mock_pg_pool`, `adapter_registry`, `dummy_span`, `processor`.
   - Constants: `VALID_BRONZE_DATA`, `VALID_RSS_BRONZE_DATA`, `DUMMY_EVENT_TIME`, `EXPECTED_WORD_COUNT`.
   - Helper classes: `StubExtractor`, `FailingExtractor`, `MalformedExtractor`.
   - Helper function: `_make_processor()`.
-* [ ] **Split `tests/test_processor.py` into focused test modules:**
+* [x] **Split `tests/test_processor.py` into focused test modules:**
   - `tests/test_bronze_fetch.py` — Bronze object retrieval, malformed JSON, missing objects, MinIO connection failures.
   - `tests/test_silver_validation.py` — Silver Contract validation, DLQ/quarantine routing, quarantine payload encoding, quarantine payload length, quarantine span attributes.
   - `tests/test_adapter_registry.py` — Adapter lookup for known/unknown `source_type`, `supported_types()`, legacy adapter backward compatibility.
@@ -616,9 +613,12 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - `tests/test_language_detection.py` — Language detection persistence, confidence values, `language_detections` ClickHouse insert, pipeline with/without language detection.
   - `tests/test_idempotency.py` — Duplicate document detection, `_get_document_status` checks, skip-on-processed behavior.
   - `tests/test_full_pipeline.py` — End-to-end integration tests: RSS document through all Tier 1 extractors, Silver upload verification, Gold insert verification, status transitions.
-* [ ] **Delete original `tests/test_processor.py`.** All tests now live in their respective modules. No test is removed — the total test count remains identical.
-* [ ] **Validate.** `make test-python` (identical test count, all green), `make lint`, `make audit-python`. CI pipeline (`python-pipeline` job) passes without modification.
+* [x] **Delete original `tests/test_processor.py`.** All tests now live in their respective modules. No test is removed — the total test count remains identical.
+* [x] **Validate.** `make test-python` (identical test count, all green), `make lint`, `make audit-python`. CI pipeline (`python-pipeline` job) passes without modification.
 
+---
+
+### Open Phases
 
 ## Phase 58: Structural Decomposition — BFF API Business Logic - [ ]
 *The BFF API's `clickhouse.go` storage layer accumulates all query logic (metrics, entities, available metrics, caching) in a single file. This phase splits it by query domain. Handler logic is already cleanly separated from generated code via `oapi-codegen` — no handler changes needed.*
