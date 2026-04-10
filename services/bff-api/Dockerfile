@@ -17,7 +17,7 @@ RUN go mod download && \
 
 FROM alpine:3.23.3
 
-RUN apk upgrade --no-cache zlib
+RUN apk upgrade --no-cache zlib libcrypto3 libssl3
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /bin/bff-api /bff-api
