@@ -648,24 +648,25 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Split test files to mirror source structure.** `postgres_test.go` → shared `setupTestDB` helper. `postgres_documents_test.go` → document tests. `postgres_jobs_test.go` → source lookup + job lifecycle tests.
 * [x] **Validate.** `make test-go`, `make test-go-pkg`, `make lint`, `make audit-go`. CI pipeline passes without modification.
 
----
-
-### Open Phases
-
-## Phase 61: Structural Decomposition — E2E & Cross-Cutting Cleanup - [ ]
+## Phase 61: Structural Decomposition — E2E & Cross-Cutting Cleanup - [x] DONE
 *Final cleanup phase. Addresses the E2E smoke test script, verifies all validation gates, and updates Arc42 documentation to reflect the new file structure.*
 
-* [ ] **Refactor `scripts/e2e_smoke_test.sh`.** Extract shared helper functions (`log_ok`, `log_fail`, `log_step`, `log_info`, color codes, timestamp formatting) into `scripts/e2e_helpers.sh`. Source it from the main script. No behavioral change — identical test assertions, identical exit codes.
-* [ ] **Run full validation suite:**
+* [x] **Refactor `scripts/e2e_smoke_test.sh`.** Extract shared helper functions (`log_ok`, `log_fail`, `log_step`, `log_info`, color codes, timestamp formatting) into `scripts/e2e_helpers.sh`. Source it from the main script. No behavioral change — identical test assertions, identical exit codes.
+* [x] **Run full validation suite:**
   - `make test` (Go integration + Python unit tests — all green)
   - `make test-go-pkg` (shared `pkg/` module tests — all green)
   - `make test-e2e` (end-to-end smoke test — all green)
   - `make lint` (golangci-lint + ruff — clean)
   - `make audit` (govulncheck + pip-audit — clean)
   - `make codegen && git diff --exit-code` (no OpenAPI contract drift)
-* [ ] **Update Arc42 Documentation:**
+* [x] **Update Arc42 Documentation:**
   - `08_concepts.md` §8.3 (Clean Architecture): Update Python directory structure to reflect `internal/storage/` subpackage and `internal/quarantine.py` / `internal/silver.py` modules. Update Go directory structure if BFF storage was split.
   - `08_concepts.md` §8.1 (Testing Strategy): Add a sentence noting that test files are organized by concern, mirroring the source module structure, with shared fixtures in `conftest.py` (Python) and shared Testcontainer setup in `_test.go` files (Go).
   - No other Arc42 chapters affected — the architecture, patterns, and runtime behavior are unchanged.
-* [ ] **Update `README.md` if the project structure section references specific file paths** that changed during decomposition.
+* [x] **Update `README.md` if the project structure section references specific file paths** that changed during decomposition.
+
+---
+
+### Open Phases
+
 ---

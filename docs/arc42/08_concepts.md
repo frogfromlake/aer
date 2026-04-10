@@ -32,6 +32,8 @@ graph TD
 
 **E2E Smoke Test:** A bash script (`scripts/e2e_smoke_test.sh`) boots the entire stack via `docker compose up --build --wait`, ingests a test document, waits for pipeline processing, and queries the BFF API to verify end-to-end data flow. Currently executed manually (see Chapter 11, D-4).
 
+**Test file organisation:** Test files are structured by concern, mirroring the source module structure — e.g., `postgres_documents_test.go` alongside `postgres_documents.go`, `test_extractor_pipeline.py` alongside the extractor modules. Shared infrastructure setup is centralised in `conftest.py` (Python) and in `_test.go` files providing `TestMain` or shared Testcontainer setup (Go), avoiding duplication across per-concern test files.
+
 ### 8.1.1 SSoT-Enforced Testcontainers
 
 Both Go and Python Testcontainers dynamically parse image tags from `compose.yaml` at test time — no image tags are hardcoded in test files. This enforces that tests always run against the exact same database versions used in development and production.
@@ -69,14 +71,37 @@ services/{service-name}/
 ├── cmd/api/main.go          # Entry point. Zero business logic. Loads config, injects deps, starts server.
 ├── internal/
 │   ├── config/config.go     # Maps .env variables to service-specific structs via viper.
-│   ├── storage/             # Infrastructure adapters (postgres.go, minio.go, clickhouse.go).
+│   ├── storage/             # Infrastructure adapters, split by concern (e.g., postgres.go,
+│   │                        #   postgres_documents.go, postgres_jobs.go, minio.go, clickhouse.go,
+│   │                        #   entities_query.go, metrics_query.go). One file per responsibility.
 │   ├── core/service.go      # Business logic and orchestration. Depends only on injected interfaces.
 │   └── handler/             # HTTP handlers (BFF) or request/response mapping (Ingestion).
 ├── Dockerfile               # Multi-stage build: golang:alpine builder → alpine runtime.
 └── go.mod                   # Module definition with replace directive for local pkg/.
 ```
 
-The Python analysis worker follows an analogous pattern: `main.py` (entry point, DI wiring), `internal/processor.py` (business logic), `internal/models.py` (Pydantic contracts), `internal/storage.py` (infrastructure initialization with retry logic and connection pooling), and `internal/metrics.py` (Prometheus metric definitions). PostgreSQL uses `psycopg2.ThreadedConnectionPool` (maxconn=10). ClickHouse uses a custom `ClickHousePool` backed by `queue.Queue`, sized to `WORKER_COUNT` — one `clickhouse_connect` client per concurrent worker thread, since the library does not support concurrent queries within a single session.
+The Python analysis worker follows an analogous pattern:
+
+```
+services/analysis-worker/
+├── main.py                       # Entry point, DI wiring, NATS consumer loop.
+├── internal/
+│   ├── processor.py              # Business logic and orchestration (Silver validation, extractor dispatch).
+│   ├── models.py                 # Pydantic contracts: SilverCore, SilverMeta, SilverEnvelope.
+│   ├── silver.py                 # Silver envelope construction and MinIO write.
+│   ├── quarantine.py             # DLQ serialization and MinIO quarantine write.
+│   ├── metrics.py                # Prometheus metric definitions.
+│   ├── storage/                  # Infrastructure adapters, split by concern:
+│   │   ├── postgres_client.py    #   PostgreSQL connection pool and document/job queries.
+│   │   ├── minio_client.py       #   MinIO client initialization and object read/write.
+│   │   └── clickhouse_client.py  #   ClickHouse pool and Gold-layer batch inserts.
+│   ├── adapters/                 # Source Adapter pattern (base, registry, legacy, rss).
+│   └── extractors/               # MetricExtractor pipeline (base, word_count, sentiment,
+│                                 #   language, temporal, entities).
+└── tests/                        # pytest test suite with shared fixtures in conftest.py.
+```
+
+PostgreSQL uses `psycopg2.ThreadedConnectionPool` (maxconn=10). ClickHouse uses a custom `ClickHousePool` backed by `queue.Queue`, sized to `WORKER_COUNT` — one `clickhouse_connect` client per concurrent worker thread, since the library does not support concurrent queries within a single session.
 
 ## 8.4 Infrastructure as Code (IaC)
 

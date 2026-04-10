@@ -3,12 +3,8 @@
 # Flow: docker compose up → fixture server → RSS crawler → wait → assert all endpoints → teardown
 set -euo pipefail
 
-# --- Colors ---
-GREEN='\033[38;5;76m'
-RED='\033[38;5;196m'
-CYAN='\033[38;5;39m'
-GOLD='\033[38;5;214m'
-RESET='\033[0m'
+# --- Load shared helpers (colors, log_info, log_ok, log_fail, log_step) ---
+source "$(dirname "$0")/e2e_helpers.sh"
 
 # --- Load .env (provides BFF_API_KEY and other secrets) ---
 if [[ -f .env ]]; then
@@ -25,12 +21,6 @@ FIXTURE_CONTAINER="e2e-fixture-server"
 
 PASS=0
 FAIL=0
-
-# --- Helpers ---
-log_info()  { echo -e "${CYAN}[INFO]${RESET}  $*"; }
-log_ok()    { echo -e "${GREEN}[PASS]${RESET}  $*"; PASS=$((PASS + 1)); }
-log_fail()  { echo -e "${RED}[FAIL]${RESET}  $*"; FAIL=$((FAIL + 1)); }
-log_step()  { echo -e "\n${GOLD}══ $* ${RESET}"; }
 
 # --- Teardown (always runs) ---
 cleanup() {
