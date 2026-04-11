@@ -154,6 +154,20 @@ All Phase 42 NLP extractors (language detection, SentiWS sentiment, spaCy NER) a
 
 ---
 
+### R-12: Authenticity Extractors Not Yet Implemented
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | `analysis-worker`, Extractor Pipeline |
+| **Status** | Accepted (Phase 64) |
+
+WP-003 section 8.2 proposes authenticity extractors (bot detection, coordination detection) for platforms where non-human actors are present. These are not implemented because (1) the current Probe 0 sources are editorially controlled RSS feeds where non-human actor detection is not applicable, and (2) coordination detection requires the `CorpusExtractor` path (R-9) which operates on accumulated data across time windows rather than individual documents. The `BiasContext` metadata model (Phase 64) documents the absence of this capability per source platform.
+
+**Mitigation plan:** Authenticity extractors will be implemented when social media or forum adapters are introduced, at which point the `CorpusExtractor` infrastructure will also be required. The "document, don't filter" principle (WP-003) ensures that non-human content is annotated rather than excluded.
+
+---
+
 ## 11.2 Technical Debts
 
 ### D-1: ~~Image Pinning Violations (Prometheus, Grafana)~~ — Resolved
