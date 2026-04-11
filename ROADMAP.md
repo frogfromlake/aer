@@ -669,4 +669,235 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ### Open Phases
 
+# AĒR ROADMAP — New Phases from Working Paper Series (WP-001 – WP-006)
+
+*These phases implement the concrete architectural recommendations from the Scientific Methodology Working Paper Series. They are ordered by dependency — earlier phases provide the schema and infrastructure that later phases build on. All phases target Probe 0 (German institutional RSS) as the implementation context.*
+
+*Design principle: These phases build **scientific infrastructure** — database schemas, API parameters, metadata models, workflow templates — without preempting open research questions. Tables are created empty where their content requires interdisciplinary validation. API endpoints that depend on validated data include explicit gates that return errors until validation has occurred. The distinction between "engineering scaffolding" and "scientific decision" is maintained throughout; see Phase 65 (`normalization` validation gate) for the canonical example.*
+
+---
+
+## Phase 62: Functional Probe Taxonomy & Source Classification Schema (WP-001)
+*WP-001 proposes a Functional Probe Taxonomy with four discourse functions and an Etic/Emic Dual Tagging System. This phase implements the database schema, the Pydantic models, and the initial classification for Probe 0. The classification itself is a manual scientific act — the schema enables it.*
+
+* [ ] **PostgreSQL Migration: `source_classifications` Table.** Create migration `000005_source_classifications.up.sql`:
+  - `source_id INTEGER REFERENCES sources(id)`, `primary_function VARCHAR(30) NOT NULL`, `secondary_function VARCHAR(30)`, `function_weights JSONB`, `emic_designation TEXT NOT NULL`, `emic_context TEXT NOT NULL`, `emic_language VARCHAR(10)`, `classified_by VARCHAR(100) NOT NULL`, `classification_date DATE NOT NULL`, `review_status VARCHAR(30) DEFAULT 'pending'` (valid values: `provisional_engineering`, `pending`, `reviewed`, `contested`), `PRIMARY KEY (source_id, classification_date)`.
+  - The table is additive — it does not modify existing `sources` entries. Multiple classification records per source enable temporal tracking of functional transitions.
+* [ ] **Seed Probe 0 Classification.** Create migration `000006_seed_probe0_classification.up.sql` that inserts etic/emic classifications for the existing RSS sources (tagesschau.de, bundesregierung.de). The primary/secondary function assignments are qualitatively justified by WP-001 §3 and §6 (Probe 0 classification). Numerical `function_weights` are **not** seeded — quantifying the relative strength of discourse functions requires the formalized classification process (WP-001 §4.4, Steps 1–2: area expert nomination and peer review), which has not yet occurred. The `review_status` is set to `provisional_engineering` to make this explicit:
+  - tagesschau.de: `primary_function = 'epistemic_authority'`, `secondary_function = 'power_legitimation'`, `function_weights = NULL`, `emic_designation = 'Tagesschau'`, `emic_context = 'State-funded public broadcaster (ARD). Norm-setting through informational baseline. Editorial independence structurally influenced by inter-party proportional governance.'`, `classified_by = 'WP-001/Probe-0'`, `review_status = 'provisional_engineering'`.
+  - bundesregierung.de: `primary_function = 'power_legitimation'`, `secondary_function = 'epistemic_authority'`, `function_weights = NULL`, `emic_designation = 'Bundesregierung'`, `emic_context = 'Official government communication channel. Structural power legitimation through agenda-setting and framing.'`, `classified_by = 'WP-001/Probe-0'`, `review_status = 'provisional_engineering'`.
+  - The SQL migration file must include an inline comment: `-- function_weights intentionally NULL. Quantification requires WP-001 §4.4 classification process. See docs/scientific_operations_guide.md.`
+* [ ] **Pydantic Models: `ProbeEticTag`, `ProbeEmicTag`, `DiscourseContext`.** Create `services/analysis-worker/internal/models/discourse.py` with the three models defined in WP-001 §4.2 and §7.2. `DiscourseContext` (containing `primary_function`, `secondary_function`, `emic_designation`) is the propagation model for `SilverMeta`.
+* [ ] **Extend `RSSAdapter` to Propagate Discourse Context.** The adapter reads the `source_classifications` table (via a new `get_source_classification(source_id)` query in the storage layer) and populates `DiscourseContext` in `RssMeta` during harmonization. If no classification exists, the field is `None` — the pipeline does not fail.
+* [ ] **Extend Gold Metrics with `discourse_function` Column.** Add `discourse_function String DEFAULT ''` to `aer_gold.metrics` and `aer_gold.entities` via ClickHouse migration. The extractor pipeline writes the `primary_function` from `DiscourseContext` into this column. This enables aggregation by discourse function.
+* [ ] **Probe Registration Record Template.** Create `docs/templates/probe_registration_template.yaml` containing the full registration template from WP-001 Appendix B. This is the manual form future researchers fill out when proposing new probes.
+* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.2: SilverMeta now includes `DiscourseContext`). Chapter 12 (Glossary: `Discourse Function`, `Etic Tag`, `Emic Tag`, `Probe Classification`). Chapter 13 (§13.8: Probe 0 is formally classified as Functions 1–2).
+* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make test-e2e`.
+
+
+## Phase 63: Metric Validity Infrastructure (WP-002)
+*WP-002 proposes a five-step validation protocol and recommends Option C (hybrid tier architecture: Tier 1 as immutable baseline, Tier 2/3 as validated enrichments). This phase builds the infrastructure to store and expose validation metadata — not the validation studies themselves (those require interdisciplinary collaborators).*
+
+* [ ] **ClickHouse Table: `aer_gold.metric_validity`.** Create via ClickHouse init migration:
+  - Schema: `metric_name String`, `context_key String` (e.g., `de:rss:epistemic_authority`), `validation_date DateTime`, `alpha_score Float32`, `correlation Float32`, `n_annotated UInt32`, `error_taxonomy String` (JSON blob), `valid_until DateTime`.
+  - `ENGINE = ReplacingMergeTree(validation_date)`, `ORDER BY (metric_name, context_key)`.
+  - This table is initially empty — it will be populated when validation studies are conducted.
+* [ ] **BFF API: Expose Validation Status.** Extend `GET /api/v1/metrics/available` response to include a `validation_status` field per metric (`unvalidated`, `validated`, `expired`). The BFF queries `aer_gold.metric_validity` and joins with available metrics. Unvalidated metrics (no entry in the validity table) return `unvalidated`. Update OpenAPI spec, regenerate stubs, implement handler + storage.
+* [ ] **Document Extractor Limitation Metadata.** Create `docs/methodology/extractor_limitations.md` documenting the known limitations of all Phase 42 extractors as identified in WP-002 §3: SentiWS negation blindness, compound word failure, spaCy NER entity linking absence, language detection short-text degradation. This file is the human-readable complement to the `metric_validity` table.
+* [ ] **ADR-016: Hybrid Tier Architecture (Option C).** Document the decision in `docs/arc42/09_architecture_decisions.md`: Tier 1 metrics are the immutable baseline, always displayed. Tier 2/3 metrics are validated enrichments, available via Progressive Disclosure. The dashboard never hides the Tier 1 score behind a Tier 2/3 score.
+* [ ] **Update Arc42 Documentation.** Chapter 8 (§8.10: document the hybrid tier principle). Chapter 13 (§13.3: mark validation table as implemented). Chapter 12 (Glossary: `Metric Validity`, `Validation Protocol`, `Context Key`).
+* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
+
+
+## Phase 64: Bias Documentation & SilverMeta Extension (WP-003)
+*WP-003 proposes standardized `BiasContext` fields in `SilverMeta` and a "document, don't filter" approach to non-human actors. This phase implements the metadata fields — authenticity extractors and coordination detectors are deferred to later phases as they require the `CorpusExtractor` path (R-9).*
+
+* [ ] **Pydantic Model: `BiasContext`.** Create the model in `services/analysis-worker/internal/models/bias.py`:
+  - Fields: `platform_type: str`, `access_method: str`, `visibility_mechanism: str`, `moderation_context: str`, `engagement_data_available: bool`, `account_metadata_available: bool`.
+* [ ] **Extend `RssMeta` with `BiasContext`.** Add `bias_context: BiasContext` to `RssMeta`. The `RSSAdapter` populates it with static values for RSS sources: `platform_type='rss'`, `access_method='public_rss'`, `visibility_mechanism='chronological'`, `moderation_context='editorial'`, `engagement_data_available=False`, `account_metadata_available=False`.
+* [ ] **Extend Source Adapter Protocol.** Update `adapters/base.py` to include `BiasContext` as an optional field in the `SourceAdapter` protocol documentation. Future adapters (social media, forums) will populate it with platform-specific values.
+* [ ] **Document Probe 0 Bias Profile.** Create `docs/methodology/probe0_bias_profile.md` following the WP-003 platform-bias framework: document the known biases of tagesschau.de and bundesregierung.de (editorial bias, state-funding bias, absence of engagement data, absence of algorithmic amplification). This is a manual scientific document, not code.
+* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.2: `SilverMeta` now includes `BiasContext`). Chapter 11 (add R-12: `Authenticity extractors not yet implemented — per WP-003 §8.2`). Chapter 12 (Glossary: `BiasContext`, `Visibility Mechanism`, `Authenticity Extractor`).
+* [ ] **Validate.** `make test`, `make lint`, `make audit`.
+
+
+## Phase 65: Cross-Cultural Comparability Infrastructure (WP-004)
+*WP-004 proposes a Metric Equivalence Registry, baseline computation, and z-score normalization. This phase implements the Gold layer extensions and BFF API normalization parameter. Actual equivalence entries require interdisciplinary validation and are deferred.*
+
+* [ ] **ClickHouse Table: `aer_gold.metric_baselines`.** Create via ClickHouse init migration:
+  - Schema: `metric_name String`, `source String`, `language String`, `baseline_value Float64`, `baseline_std Float64`, `window_start DateTime`, `window_end DateTime`, `n_documents UInt32`, `compute_date DateTime`.
+  - `ENGINE = ReplacingMergeTree(compute_date)`, `ORDER BY (metric_name, source, language)`.
+* [ ] **ClickHouse Table: `aer_gold.metric_equivalence`.** Create via ClickHouse init migration:
+  - Schema: `etic_construct String` (e.g., `evaluative_polarity`), `metric_name String` (e.g., `sentiment_score_sentiws`), `language String`, `source_type String`, `equivalence_level String` (`temporal`, `deviation`, `absolute`), `validated_by String`, `validation_date DateTime`, `confidence Float32`.
+  - `ENGINE = ReplacingMergeTree(validation_date)`, `ORDER BY (etic_construct, metric_name, language)`.
+  - Initially empty — populated when validation studies establish equivalence.
+* [ ] **Baseline Computation Script.** Create `scripts/compute_baselines.py` — a standalone Python script (not part of the real-time pipeline) that queries `aer_gold.metrics` for a specified time window, computes mean and standard deviation per `(metric_name, source, language)`, and inserts results into `aer_gold.metric_baselines`. Intended to be run periodically (weekly/monthly) by a researcher or as a cron job.
+* [ ] **BFF API: `normalization` Query Parameter.** Extend `GET /api/v1/metrics` to accept `?normalization=raw|zscore`:
+  - `raw` (default): current behavior.
+  - `zscore`: join with `metric_baselines`, return `(value - baseline_value) / baseline_std` as the value. **Validation gate:** the endpoint returns HTTP 400 with a descriptive error if (a) no baseline exists in `metric_baselines` for the requested `(metric_name, source)` pair, or (b) no entry in `metric_equivalence` confirms at least `deviation`-level equivalence for this metric-context combination. This prevents normalized comparisons from being served before interdisciplinary validation has established their scientific legitimacy (WP-004 §7.3, Q7: whether baseline normalization constitutes cultural erasure is an open research question that must be answered per-context, not assumed).
+  - Update OpenAPI spec, regenerate stubs, implement in handler + ClickHouse query layer.
+* [ ] **BFF API: Equivalence Metadata in `/metrics/available`.** Extend the response to include `etic_construct` and `equivalence_level` per metric if an entry exists in the equivalence registry. Unregistered metrics return `null`.
+* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `normalization` parameter). Chapter 13 (§13.3: cross-reference WP-004 Gold layer extensions). Chapter 12 (Glossary: `Metric Equivalence`, `Baseline`, `Z-Score Normalization`, `Etic Construct`).
+* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
+
+
+## Phase 66: Multi-Resolution Temporal Framework (WP-005)
+*WP-005 defines five temporal scales and proposes multi-resolution ClickHouse aggregation, BFF API extensions, and a tiered retention strategy. This phase implements the query-time aggregation (no materialized views yet — those are a performance optimization deferred until query latency requires them).*
+
+* [ ] **BFF API: `resolution` Query Parameter.** Extend `GET /api/v1/metrics` to accept `?resolution=5min|hourly|daily|weekly|monthly`:
+  - Map to ClickHouse aggregation functions: `toStartOfFiveMinute()`, `toStartOfHour()`, `toStartOfDay()`, `toStartOfWeek()`, `toStartOfMonth()`.
+  - Adjust the `rowLimit` OOM guard per resolution: wider windows produce fewer rows, so relax the limit proportionally (e.g., `hourly` → `rowLimit * 12`, `daily` → `rowLimit * 288`).
+  - Default remains `5min` for backward compatibility.
+  - Update OpenAPI spec, regenerate stubs, implement in handler + ClickHouse query layer.
+* [ ] **BFF API: Minimum Meaningful Window Metadata.** Extend `GET /api/v1/metrics/available` response to include `min_meaningful_resolution` per metric-source pair. Initially hardcoded based on Probe 0 publication rates (tagesschau.de ≈ 50 articles/day → `hourly`; bundesregierung.de ≈ 5 articles/day → `daily`). Stored as a config map in the BFF, not in ClickHouse.
+* [ ] **ClickHouse Materialized Views (Deferred Preparation).** Add the SQL definitions for `aer_gold.metrics_hourly`, `aer_gold.metrics_daily`, `aer_gold.metrics_monthly` as commented-out migration scripts in `infra/clickhouse/`. Document in the migration file that these should be activated when query latency exceeds acceptable thresholds (WP-005 §5.4). Do not activate yet — query-time aggregation is sufficient at current scale.
+* [ ] **Tiered Retention Strategy Documentation.** Document the proposed retention tiers (0–30d: full, 30–365d: hourly, 1–5y: daily, 5y+: monthly) in `docs/arc42/08_concepts.md` §8.8 as the target architecture. Mark as "planned — not yet active" to distinguish from current flat 365-day TTL.
+* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `resolution` parameter). Chapter 8 (§8.6: multi-resolution downsampling strategy). Chapter 12 (Glossary: `Temporal Scale`, `Minimum Meaningful Window`, `Tiered Retention`).
+* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
+
+
+## Phase 67: Reflexive Architecture — Methodological Transparency (WP-006)
+*WP-006 proposes five design principles for reflexive architecture. This phase implements the two that have immediate technical consequences: Methodological Transparency and Reflexive Documentation. The remaining three (Non-Prescriptive Visualization, Governed Openness, Interpretive Humility) are dashboard/governance concerns deferred to the frontend phase.*
+
+* [ ] **BFF API: Metric Provenance Endpoint.** Create `GET /api/v1/metrics/{metricName}/provenance` that returns:
+  - `tier_classification` (1, 2, or 3), `algorithm_description`, `known_limitations` (list of strings), `validation_status` (from `metric_validity` table), `extractor_version_hash`, `cultural_context_notes` (from `metric_equivalence` table if available).
+  - Data is assembled from a static config file (`configs/metric_provenance.yaml` in the BFF service) combined with dynamic lookups in `metric_validity` and `metric_equivalence`.
+  - Update OpenAPI spec, regenerate stubs, implement handler.
+* [ ] **Static Provenance Config: `metric_provenance.yaml`.** Create the config file documenting each currently implemented metric:
+  - `word_count`: Tier 1, deterministic, no known limitations.
+  - `sentiment_score`: Tier 1 (SentiWS), known limitations: negation blindness, compound word failure (WP-002 §3).
+  - `language`: Tier 1 (langdetect), known limitation: short-text degradation.
+  - `temporal_distribution`: Tier 1, deterministic.
+  - NER entities: Tier 1 (spaCy), known limitation: no entity linking, Western bias in entity ontology.
+* [ ] **Link Source Documentation to `sources` Table.** Add `documentation_url VARCHAR(255)` column to the PostgreSQL `sources` table via migration `000007_sources_documentation_url.up.sql`. Populate for existing RSS sources with links to `docs/methodology/probe0_bias_profile.md`. The BFF API exposes this field via a new `GET /api/v1/sources` endpoint (or extends the existing source metadata response).
+* [ ] **ADR-017: Reflexive Architecture Principles.** Document the five principles from WP-006 §6 in `docs/arc42/09_architecture_decisions.md` as an architectural commitment. Mark principles 1 (Methodological Transparency) and 3 (Reflexive Documentation) as "implemented" and principles 2, 4, 5 as "deferred to dashboard phase."
+* [ ] **Non-Prescriptive Visualization Guidelines.** Create `docs/design/visualization_guidelines.md` documenting the WP-006 §6.2 requirements: viridis color scale, no red/green encoding, no normative labels, uncertainty alongside point estimates, multiple visualization modes. This file guides future frontend development.
+* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document provenance endpoint). Chapter 8 (add §8.12: Reflexive Architecture). Chapter 12 (Glossary: `Reflexive Documentation`, `Methodological Transparency`, `Non-Prescriptive Visualization`).
+* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
+
+
+## Phase 68: Probe 0 Scientific Calibration & Manual Workflow Infrastructure
+*This phase addresses the cross-cutting concern across all WPs: the manual scientific workflows that researchers will perform alongside the automated pipeline. It creates the tooling, templates, and documentation for the five-step probe classification process (WP-001), the five-step validation protocol (WP-002), the bias assessment (WP-003), and the observer effect assessment (WP-006).*
+
+* [ ] **Probe Classification Workflow Guide.** Create `docs/methodology/guides/probe_classification_workflow.md` documenting the five-step process from WP-001 §4.4: (1) Area expert nomination, (2) Peer review, (3) Technical feasibility assessment, (4) Ethical review, (5) Registration. Include checklists and cross-references to the `probe_registration_template.yaml` (Phase 62) and the `source_classifications` table.
+* [ ] **Validation Study Template.** Create `docs/methodology/guides/validation_study_template.md` documenting the five-step validation protocol from WP-002 §6.2: (1) Annotation study (with annotation scheme guidance), (2) Baseline comparison, (3) Error taxonomy, (4) Cross-context transfer test, (5) Longitudinal stability test. Include minimum requirements (Krippendorff's Alpha ≥ 0.667, ≥ 3 annotators).
+* [ ] **Observer Effect Assessment Template.** Create `docs/methodology/guides/observer_effect_assessment.md` based on WP-006 §8.4 Q7: a per-region template for assessing how publication of AĒR metrics could affect discourse production. Fields: cultural region, beneficial effects, harmful effects, vulnerable populations, recommended safeguards.
+* [ ] **Cultural Calendar Annotation Seed.** Create `configs/cultural_calendars/de.yaml` as a seed file for the cultural calendar metadata service proposed in WP-005 §4.3. Contains German public holidays, federal election dates, and significant recurring media events (e.g., Berlinale, Buchmesse). Format: `{date, name, type, expected_discourse_effect}`. This is a static lookup — no service required for the POC.
+* [ ] **Update Arc42 Documentation.** Chapter 13 (§13.5: add "Manual Scientific Workflows" subsection cross-referencing the guides). Chapter 12 (Glossary: `Probe Classification Process`, `Validation Study`, `Cultural Calendar`).
+* [ ] **Validate.** Documentation review — no code changes in this phase.
+
+
+## Phase 69: Documentation Consolidation & Cross-Reference Audit (Post-WP Implementation)
+*After implementing Phases 62–68, the canonical documentation (Arc42, Operations Playbook, README) must be brought into full consistency with the new schemas, endpoints, models, and workflows. This is a dedicated documentation-only phase — no code changes, no schema changes. Its sole purpose is to ensure that AĒR's documentation accurately reflects the system as built and that all cross-references between Arc42 chapters, Working Papers, ADRs, and the ROADMAP are correct.*
+
+* [ ] **Arc42 Chapter 3 (System Scope and Context).** Verify that the Technical Context diagram reflects all new BFF API endpoints (`/metrics/{metricName}/provenance`, extended `/metrics/available` with validation/equivalence/resolution metadata). Verify the External Interfaces table includes the `normalization` and `resolution` query parameters. Verify the Business Context mentions the Probe Classification workflow and the role of interdisciplinary researchers as a new stakeholder class.
+* [ ] **Arc42 Chapter 5 (Building Block View).** Verify §5.1.2 (Silver Layer) documents `DiscourseContext` in `SilverMeta` and `BiasContext` in `RssMeta`. Verify §5.1.3 (BFF API) documents all new query parameters (`normalization`, `resolution`) and the provenance endpoint. Verify §5.1.4 (Gold Layer) documents all new ClickHouse tables (`metric_validity`, `metric_baselines`, `metric_equivalence`, `discourse_function` column in `metrics` and `entities`). Verify the `source_classifications` table is documented alongside the existing `sources` table.
+* [ ] **Arc42 Chapter 8 (Cross-cutting Concepts).** Verify §8.6 (Downsampling) documents multi-resolution aggregation strategy and the `rowLimit` per-resolution adjustment. Verify §8.8 (Data Lifecycle) documents the tiered retention strategy as "planned — not yet active." Verify §8.10 (Extractor Pipeline) documents the hybrid tier architecture (ADR-016, Option C). Add §8.12 (Reflexive Architecture) if not already present, cross-referencing ADR-017 and the five design principles.
+* [ ] **Arc42 Chapter 9 (Architecture Decisions).** Verify ADR-016 (Hybrid Tier Architecture) and ADR-017 (Reflexive Architecture Principles) are present and correctly numbered. Verify all existing ADRs still have correct cross-references (especially ADR-015 which is referenced by new SilverMeta extensions).
+* [ ] **Arc42 Chapter 11 (Risks and Technical Debts).** Verify R-12 (Authenticity extractors not yet implemented) is documented. Review whether any new risks emerged from Phases 62–68 (e.g., empty validation tables creating a false sense of infrastructure readiness). If so, document them.
+* [ ] **Arc42 Chapter 12 (Glossary).** Verify all new terms are present: `Discourse Function`, `Etic Tag`, `Emic Tag`, `Probe Classification`, `Metric Validity`, `Validation Protocol`, `Context Key`, `BiasContext`, `Visibility Mechanism`, `Authenticity Extractor`, `Metric Equivalence`, `Baseline`, `Z-Score Normalization`, `Etic Construct`, `Temporal Scale`, `Minimum Meaningful Window`, `Tiered Retention`, `Reflexive Documentation`, `Methodological Transparency`, `Non-Prescriptive Visualization`, `Probe Classification Process`, `Validation Study`, `Cultural Calendar`. Remove any duplicates. Alphabetical order.
+* [ ] **Arc42 Chapter 13 (Scientific Foundations).** Verify §13.3 (Methodological Roadmap) cross-references the new Gold tables. Verify §13.5 (Outreach Strategy) includes the "Manual Scientific Workflows" subsection. Verify §13.8 (Probe 0) reflects the formal classification from Phase 62. Verify §13.9 (Data Protection) is still accurate after schema extensions.
+* [ ] **Operations Playbook.** Add sections for inspecting the new ClickHouse tables (`metric_validity`, `metric_baselines`, `metric_equivalence`). Add a section for running `scripts/compute_baselines.py`. Document the `source_classifications` PostgreSQL table with example queries. Add a "Scientific Workflow" section with pointers to the new guides in `docs/methodology/guides/`.
+* [ ] **README.md.** Verify the project structure section reflects all new files (`models/discourse.py`, `models/bias.py`, `configs/metric_provenance.yaml`, `configs/cultural_calendars/de.yaml`, `docs/methodology/guides/*`, `docs/templates/probe_registration_template.yaml`, `docs/design/visualization_guidelines.md`, `scripts/compute_baselines.py`). Verify the "Developing a Crawler" section mentions the Probe Classification workflow as a prerequisite for adding new data sources.
+* [ ] **Cross-Reference Integrity Audit.** Systematically verify all inter-document cross-references:
+  - ROADMAP → Arc42 chapter/section references are correct.
+  - Arc42 §13 → Working Paper file paths are correct (check both EN and DE links).
+  - ADR-015, ADR-016, ADR-017 → referenced from correct Arc42 chapters.
+  - Working Papers → Arc42 section references (§13.6, §13.8 etc.) are still accurate after documentation updates.
+  - `mkdocs.yml` navigation → all new files are included in the correct sections.
+* [ ] **Validate.** Build mkdocs locally (`mkdocs build --strict`) — all links must resolve, no warnings. Grep for broken internal links (`grep -rn "§13\." docs/` and verify section numbers). Review rendered documentation for formatting consistency.
+
+
+## Phase 70: Operations Playbook — Scientific Touchpoints
+*The Operations Playbook (docs/operations_playbook.md) is currently a purely technical document for DevOps. Phases 62–68 introduced database tables, scripts, and config files that are populated or maintained by researchers, not developers. This phase extends the Playbook with the technical instructions for these scientific touchpoints — the "how to run this SQL" and "how to execute this script" parts — without duplicating the scientific rationale (that lives in the Scientific Operations Guide, Phase 71).*
+
+* [ ] **Section: `source_classifications` Table.** Add to the PostgreSQL section: how to inspect current classifications (`SELECT * FROM source_classifications`), how to insert a new classification (template SQL with placeholder values), how to update `review_status` from `provisional_engineering` → `pending` → `reviewed`. Cross-reference the Scientific Operations Guide for *when* and *why* to do this.
+* [ ] **Section: `metric_validity` Table.** Add to the ClickHouse section: how to inspect validation status, how to insert a validation result after an annotation study. Include example INSERT with all required fields. Cross-reference WP-002 §6.2 and the Scientific Operations Guide.
+* [ ] **Section: `metric_baselines` and `metric_equivalence` Tables.** Add to the ClickHouse section: how to run `scripts/compute_baselines.py` (flags, environment variables, expected output). How to insert an equivalence record. Cross-reference WP-004 and the Scientific Operations Guide.
+* [ ] **Section: `metric_provenance.yaml` Maintenance.** Add to the BFF API section: where the file lives, how to add a new metric's provenance entry, what fields are required. When to update (every time a new extractor is registered).
+* [ ] **Section: Cultural Calendar Files.** Add to the Configuration section: where `configs/cultural_calendars/` lives, the YAML format, how to add a new region file.
+* [ ] **Validate.** Documentation review. Verify all SQL examples execute cleanly against a running dev stack.
+
+
+## Phase 71: Scientific Operations Guide — The Bridge Document
+*AĒR now has two operational audiences: developers (Operations Playbook) and researchers (Working Papers). Neither document explains the handoff between them. This phase creates `docs/scientific_operations_guide.md` — a new top-level document that maps every point where scientific judgment enters the pipeline, documents the required process, and links to both the technical instructions (Playbook) and the scientific rationale (Working Papers).*
+
+* [ ] **Document Structure.** The guide is organized by workflow, not by Working Paper. Each section describes one scientific activity end-to-end: what triggers it, who performs it (role), what process must be followed (with WP cross-reference), what technical steps are required (with Playbook cross-reference), and what the outputs are (which table/file/config is updated).
+* [ ] **Workflow 1: Classifying a New Probe.** Covers the complete WP-001 §4.4 five-step process: (1) Area expert nomination → fill `probe_registration_template.yaml`, (2) Peer review → document disagreements, (3) Technical feasibility → developer assesses crawler viability, (4) Ethical review → fill observer effect assessment template (Phase 68), (5) Registration → INSERT into `source_classifications` (Playbook reference). Documents the `review_status` lifecycle: `provisional_engineering` → `pending` → `reviewed` / `contested`. Explains that `function_weights` remain `NULL` until quantified through the formalized process.
+* [ ] **Workflow 2: Validating a Metric.** Covers the WP-002 §6.2 five-step validation protocol: (1) Annotation study → minimum requirements (≥ 3 annotators, Krippendorff's Alpha ≥ 0.667), link to validation study template (Phase 68), (2) Baseline comparison → how to run the metric on annotated sample, (3) Error taxonomy → classification scheme, (4) Cross-context transfer → what constitutes a different context, (5) Longitudinal stability → minimum 6-month window. Output: INSERT into `aer_gold.metric_validity` (Playbook reference). Documents what happens when validation expires (`valid_until` passed) — metric reverts to `unvalidated` in the BFF API.
+* [ ] **Workflow 3: Establishing Metric Equivalence.** Covers WP-004 §5.2: when two metrics from different instruments can be compared cross-culturally. Documents the three equivalence levels (`temporal`, `deviation`, `absolute`), the evidence required for each, and the INSERT into `aer_gold.metric_equivalence` (Playbook reference). Explains the validation gate on `?normalization=zscore` — why the BFF returns 400 without an equivalence entry.
+* [ ] **Workflow 4: Computing and Updating Baselines.** Covers WP-004 §6.1: when to recompute baselines (after significant corpus growth, after adding a new source), how to run `scripts/compute_baselines.py` (Playbook reference), how to interpret the results, and how baseline staleness affects z-score reliability.
+* [ ] **Workflow 5: Assessing Bias for a Data Source.** Covers WP-003 §8.1: filling the `BiasContext` fields for a new source adapter. Documents which fields are objective platform properties (developer can fill) vs. which require domain expertise (researcher must fill). Output: `BiasContext` values in the adapter code + prose documentation in `docs/methodology/` (following the `probe0_bias_profile.md` template).
+* [ ] **Workflow 6: Updating the Cultural Calendar.** Covers WP-005 §4.3: when to add entries (new probe region), what to include (public holidays, elections, religious observances, major media events), how the calendar is consumed (currently static lookup, future: annotation layer).
+* [ ] **Provenance Inventory: All Manually Set Values.** A comprehensive table listing every value in the system that was set by human judgment rather than computed by the pipeline. For each: the value, where it lives (table/file/config), who set it, when, under what authority (WP reference), and current review status. This table is the single point of truth for answering "where did this number come from?" For Probe 0 at the end of Phase 68, this table will show: 2 × `primary_function` (WP-001 §6), 2 × `secondary_function` (WP-001 §6), 2 × `function_weights = NULL` (awaiting WP-001 §4.4), 2 × `BiasContext` static values (WP-003 §8.1), 5 × `known_limitations` in `metric_provenance.yaml` (WP-002 §3), 2 × `min_meaningful_resolution` heuristics (WP-005 §3.3).
+* [ ] **Add to `mkdocs.yml`.** Register `Scientific Operations Guide` as a top-level navigation entry between `Operations Playbook` and `Methodology (EN)`.
+* [ ] **Validate.** Documentation review. Verify all cross-references to Playbook sections, Working Paper sections, and Arc42 chapters resolve correctly.
+
+## Phase 72: Test Coverage for Scientific Infrastructure (Phases 62–68)
+*Phases 62–68 introduce new database tables, SilverMeta extensions, BFF API parameters, ClickHouse columns, and a standalone script. Each phase prescribes `make test` as a gate, but no phase specifies the new tests required to cover the new functionality. Without dedicated test coverage, the scientific infrastructure is structurally untested — regressions would be silent. This phase closes that gap across all three test layers (unit, integration, E2E), following the existing hybrid testing strategy (ADR-005).*
+
+### Python Unit Tests (Analysis Worker)
+
+* [ ] **`tests/test_discourse_context.py` (Phase 62).** Test `DiscourseContext` propagation in the `RSSAdapter`:
+  - Adapter receives a mock `source_classifications` row → `RssMeta.discourse_context` is correctly populated with `primary_function`, `secondary_function`, `emic_designation`.
+  - No classification exists for the source → `RssMeta.discourse_context` is `None`, pipeline does not fail.
+  - Classification has `function_weights = NULL` → field is `None` in the model, no crash.
+  - `review_status = 'provisional_engineering'` is propagated correctly.
+* [ ] **`tests/test_bias_context.py` (Phase 64).** Test `BiasContext` population in the `RSSAdapter`:
+  - Adapter produces correct static values for RSS sources (`platform_type='rss'`, `visibility_mechanism='chronological'`, etc.).
+  - All `BiasContext` fields are non-null for RSS sources.
+  - `BiasContext` model validates — missing required fields raise `ValidationError`.
+* [ ] **`tests/test_discourse_function_gold.py` (Phase 62).** Test that the extractor pipeline writes `discourse_function` to ClickHouse insert rows:
+  - When `DiscourseContext` is present → `discourse_function` column contains the `primary_function` value.
+  - When `DiscourseContext` is `None` → `discourse_function` column contains empty string (the `DEFAULT ''`).
+* [ ] **`tests/test_compute_baselines.py` (Phase 65).** Test `scripts/compute_baselines.py` logic (extracted into a testable function):
+  - Given a known set of metric values → produces correct mean and standard deviation.
+  - Empty metric set → no insert, no crash.
+  - Single-value metric set → standard deviation is 0, handled gracefully.
+
+### Go Integration Tests (BFF API)
+
+* [ ] **`internal/storage/metrics_query_test.go` — Normalization tests (Phase 65).** Extend existing test file:
+  - `?normalization=zscore` without baseline in `metric_baselines` → returns HTTP 400 with descriptive error message.
+  - `?normalization=zscore` with baseline but without `metric_equivalence` entry → returns HTTP 400.
+  - `?normalization=zscore` with valid baseline and equivalence entry → returns correct z-score values.
+  - `?normalization=raw` (default) → unchanged behavior, existing tests still pass.
+* [ ] **`internal/storage/metrics_query_test.go` — Resolution tests (Phase 66).** Extend existing test file:
+  - `?resolution=hourly` → ClickHouse returns hourly-aggregated data points (verify timestamp bucketing).
+  - `?resolution=daily` → fewer data points than hourly for the same time range.
+  - `?resolution=monthly` → correct month-start timestamps.
+  - Default (no parameter) → 5-minute bucketing, backward compatible.
+  - `rowLimit` adjustment → verify that wider resolutions allow proportionally more rows.
+* [ ] **`internal/handler/provenance_handler_test.go` (Phase 67).** New test file for the provenance endpoint:
+  - `GET /metrics/word_count/provenance` → returns tier 1, algorithm description, empty limitations list.
+  - `GET /metrics/sentiment_score/provenance` → returns tier 1, known limitations (negation blindness, compound word failure).
+  - `GET /metrics/nonexistent/provenance` → returns HTTP 404.
+  - Validation status join: metric with entry in `metric_validity` → `validation_status = 'validated'`. Metric without entry → `validation_status = 'unvalidated'`.
+* [ ] **`internal/storage/metrics_query_test.go` — Available metrics extensions (Phases 63, 65, 66).** Extend existing test:
+  - Response includes `validation_status` per metric (default `unvalidated`).
+  - Response includes `min_meaningful_resolution` when configured.
+  - Response includes `etic_construct` and `equivalence_level` when `metric_equivalence` entry exists.
+
+### Go Integration Tests (Ingestion API)
+
+* [ ] **`internal/storage/postgres_test.go` — Source classifications (Phase 62).** Extend existing test file:
+  - `get_source_classification(source_id)` returns the correct classification for a seeded source.
+  - `get_source_classification(unknown_id)` returns `nil`, no error.
+  - Multiple classifications for the same source (different `classification_date`) → returns the most recent.
+  - Foreign key integrity: classification referencing a non-existent `source_id` → insert fails.
+
+### E2E Smoke Test Extension
+
+* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 62).** After the existing assertions (word_count, sentiment_score, entities), add:
+  - Query `GET /api/v1/metrics?metricName=word_count&startDate=...&endDate=...` and verify the response includes a non-empty `discourse_function` field (confirming Phase 62 propagation works end-to-end).
+* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 66).** Add:
+  - Query `GET /api/v1/metrics?resolution=hourly&startDate=...&endDate=...` and verify the response returns data (confirming multi-resolution aggregation works).
+* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 67).** Add:
+  - Query `GET /api/v1/metrics/word_count/provenance` and verify the response contains `tier_classification` and `algorithm_description` fields.
+
+### Validate
+
+* [ ] **Run full validation suite.** `make test` (all new + existing tests green), `make test-e2e` (extended smoke test green), `make lint`, `make audit`, `make codegen && git diff --exit-code`.
+* [ ] **Update Arc42 §8.1 (Testing Strategy).** Add a paragraph documenting the test coverage for scientific infrastructure tables and the validation-gate testing pattern (asserting HTTP 400 for endpoints that require validated scientific data).
+
 ---

@@ -375,10 +375,12 @@ The detailed anonymization framework, including formal privacy models (k-Anonymi
 
 ## 14 Probe 0: Pipeline Calibration (German Institutional RSS)
 
-> **Status:** Operational — pipeline validated end-to-end (Phase 43).
-> **Date:** 2026-04-06
+> **Status:** Operational — pipeline validated end-to-end (Phase 43). Formally classified under the Functional Probe Taxonomy (Phase 62).
+> **Date:** 2026-04-11
 
 This section documents AĒR's first real data source. The source selection is explicitly **provisional** — it is driven by pragmatic engineering criteria, not by scientific probe methodology. The Manifesto's Probe Principle (§IV) requires interdisciplinary dialogue for valid probe selection; this dialogue has not yet occurred. The RSS feeds selected here serve as **calibration data** for the pipeline, not as a scientifically representative sample of German discourse. WP-001 (§6) formally classifies Probe 0 under the Functional Probe Taxonomy: bundesregierung.de serves the **Power Legitimation** function (primary) and tagesschau.de serves the **Epistemic Authority** function (primary). Functions 3 (Cohesion & Identity) and 4 (Subversion & Friction) are entirely unrepresented.
+
+**Formal Classification (Phase 62):** Probe 0 sources are now classified in the `source_classifications` PostgreSQL table with `review_status = 'provisional_engineering'`. The `DiscourseContext` (primary function, secondary function, emic designation) propagates through `RssMeta` into the Gold layer as the `discourse_function` column in `aer_gold.metrics` and `aer_gold.entities`. Classification `function_weights` are intentionally NULL — quantification requires the WP-001 §4.4 classification process (area expert nomination and peer review), which has not yet occurred. See `docs/templates/probe_registration_template.yaml` for the registration form.
 
 ### Purpose
 

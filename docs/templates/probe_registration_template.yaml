@@ -1,0 +1,92 @@
+# AER Probe Registration Template (WP-001 Appendix B)
+#
+# This template is the formal registration record for proposing a new
+# probe within the AER system. It must be completed by the proposing
+# researcher and reviewed through the five-step classification process
+# (WP-001 S4.4): (1) Area expert nomination, (2) Peer review,
+# (3) Technical feasibility assessment, (4) Ethical review, (5) Registration.
+#
+# Submit the completed template as a pull request to docs/probes/<probe_id>.yaml.
+
+# --- Probe Identity ---
+probe_id: ""                        # e.g., "probe-001-de-institutional"
+probe_name: ""                      # Human-readable name
+version: 1                          # Increment on reclassification
+registration_date: ""               # ISO 8601 date (YYYY-MM-DD)
+registered_by: ""                   # Name and affiliation of proposing researcher
+
+# --- Geographic and Cultural Scope ---
+geographic_scope:
+  region: ""                        # e.g., "Germany", "East Africa", "MENA"
+  country_codes: []                 # ISO 3166-1 alpha-2 codes, e.g., ["DE"]
+  cultural_context: ""              # Brief description of the cultural-linguistic context
+  languages: []                     # ISO 639-1 codes, e.g., ["de"]
+
+# --- Discourse Functions (Etic Classification) ---
+# Four universal discourse functions (WP-001 S3):
+#   epistemic_authority    — norm-setting through informational baseline
+#   power_legitimation     — institutional agenda-setting and framing
+#   cohesion_identity      — community cohesion and identity production
+#   subversion_friction    — counter-hegemonic discourse and resistance
+discourse_functions:
+  primary_function: ""              # Required. One of the four functions above
+  secondary_function: ""            # Optional. One of the four functions above
+  function_weights: null            # Optional. Dict mapping function names to weights (0.0-1.0)
+                                    # Only populated after WP-001 S4.4 Steps 1-2 (expert + peer review)
+  justification: ""                 # Qualitative justification for function assignment
+
+# --- Emic Designation ---
+emic:
+  designation: ""                   # How the source identifies itself (local name)
+  context: ""                       # Source's self-understanding and structural position
+  language: ""                      # Language of the emic designation (ISO 639-1)
+
+# --- Data Sources ---
+sources:
+  - name: ""                        # Source identifier (matches PostgreSQL sources.name)
+    type: ""                        # e.g., "rss", "api", "scraper"
+    url: ""                         # Primary URL or feed endpoint
+    access_method: ""               # e.g., "public_rss", "authenticated_api", "web_scrape"
+    expected_volume: ""             # e.g., "10-50 articles/day"
+    content_language: ""            # ISO 639-1
+
+# --- Technical Feasibility ---
+technical_assessment:
+  crawler_type: ""                  # e.g., "rss-crawler", "custom"
+  adapter_required: ""              # e.g., "RssAdapter" (existing) or "new ForumAdapter"
+  estimated_storage_impact: ""      # e.g., "~500 MB/year Bronze"
+  special_requirements: ""          # e.g., "rate limiting", "authentication", "JavaScript rendering"
+
+# --- Ethical Review ---
+ethical_review:
+  privacy_risk_level: ""            # "low", "medium", "high"
+  personal_data_present: false      # Does the source contain personal data?
+  anonymization_required: ""        # e.g., "identifier stripping only", "full anonymization"
+  terms_of_service_compliant: false # Has ToS been reviewed?
+  observer_effect_assessed: false   # Has WP-006 observer effect assessment been completed?
+  observer_effect_reference: ""     # Path to observer effect assessment document
+
+# --- Classification Workflow Status ---
+workflow:
+  step_1_expert_nomination:
+    status: "pending"               # "pending", "completed", "not_required"
+    expert_name: ""
+    date: ""
+  step_2_peer_review:
+    status: "pending"
+    reviewer_names: []
+    date: ""
+  step_3_technical_feasibility:
+    status: "pending"
+    assessor: ""
+    date: ""
+  step_4_ethical_review:
+    status: "pending"
+    reviewer: ""
+    date: ""
+  step_5_registration:
+    status: "pending"
+    date: ""
+
+# --- Review Status ---
+review_status: "pending"            # provisional_engineering, pending, reviewed, contested
