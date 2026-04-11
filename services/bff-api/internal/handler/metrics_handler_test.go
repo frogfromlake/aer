@@ -16,6 +16,12 @@ type mockStore struct {
 	pingErr    error
 	metrics    []storage.MetricRow
 	metricsErr error
+	normalizedMetrics    []storage.MetricRow
+	normalizedMetricsErr error
+	baselineExists       bool
+	baselineExistsErr    error
+	equivalenceExists    bool
+	equivalenceExistsErr error
 	entities                  []storage.EntityRow
 	entitiesErr               error
 	languageDetections        []storage.LanguageDetectionRow
@@ -42,6 +48,22 @@ func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, source, 
 	m.capturedSource = source
 	m.capturedMetricName = metricName
 	return m.metrics, m.metricsErr
+}
+
+func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error) {
+	m.capturedStart = start
+	m.capturedEnd = end
+	m.capturedSource = source
+	m.capturedMetricName = metricName
+	return m.normalizedMetrics, m.normalizedMetricsErr
+}
+
+func (m *mockStore) CheckBaselineExists(_ context.Context, _ string, _ *string) (bool, error) {
+	return m.baselineExists, m.baselineExistsErr
+}
+
+func (m *mockStore) CheckEquivalenceExists(_ context.Context, _ string) (bool, error) {
+	return m.equivalenceExists, m.equivalenceExistsErr
 }
 
 func (m *mockStore) GetEntities(_ context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error) {
@@ -318,6 +340,178 @@ func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 	}
 	if got[2].ValidationStatus != Expired {
 		t.Errorf("expected third status expired, got %q", got[2].ValidationStatus)
+	}
+}
+
+// --- GetMetrics: normalization=zscore ---
+
+func TestGetMetrics_ZscoreRequiresMetricName(t *testing.T) {
+	store := &mockStore{}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	norm := Zscore
+
+	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(GetMetrics400JSONResponse); !ok {
+		t.Fatalf("expected 400 when metricName is missing for zscore, got %T", resp)
+	}
+}
+
+func TestGetMetrics_ZscoreReturns400WhenNoBaseline(t *testing.T) {
+	store := &mockStore{baselineExists: false, equivalenceExists: true}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	norm := Zscore
+	metric := "sentiment_score"
+
+	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm, MetricName: &metric},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetrics400JSONResponse)
+	if !ok {
+		t.Fatalf("expected 400 when no baseline exists, got %T", resp)
+	}
+	if got.Message == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestGetMetrics_ZscoreReturns400WhenNoEquivalence(t *testing.T) {
+	store := &mockStore{baselineExists: true, equivalenceExists: false}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	norm := Zscore
+	metric := "sentiment_score"
+
+	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm, MetricName: &metric},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetrics400JSONResponse)
+	if !ok {
+		t.Fatalf("expected 400 when no equivalence exists, got %T", resp)
+	}
+	if got.Message == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestGetMetrics_ZscoreReturnsDataWhenGatePasses(t *testing.T) {
+	ts := time.Date(2025, 3, 15, 12, 0, 0, 0, time.UTC)
+	store := &mockStore{
+		baselineExists:    true,
+		equivalenceExists: true,
+		normalizedMetrics: []storage.MetricRow{
+			{TS: ts, Value: 1.5, Source: "tagesschau", MetricName: "sentiment_score"},
+		},
+	}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
+	norm := Zscore
+	metric := "sentiment_score"
+
+	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm, MetricName: &metric},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetrics200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200 when gate passes, got %T", resp)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(got))
+	}
+	if got[0].Value != 1.5 {
+		t.Errorf("expected zscore value 1.5, got %v", got[0].Value)
+	}
+}
+
+func TestGetMetrics_RawNormalizationIsDefault(t *testing.T) {
+	store := &mockStore{
+		metrics: []storage.MetricRow{
+			{TS: time.Now(), Value: 42.0, Source: "test", MetricName: "word_count"},
+		},
+	}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetrics200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200, got %T", resp)
+	}
+	if len(got) != 1 || got[0].Value != 42.0 {
+		t.Errorf("expected raw value 42.0, got %v", got[0].Value)
+	}
+}
+
+// --- GetMetricsAvailable: equivalence metadata ---
+
+func TestGetMetricsAvailable_IncludesEquivalenceMetadata(t *testing.T) {
+	etic := "evaluative_polarity"
+	equivLevel := "deviation"
+	store := &mockStore{
+		availableMetrics: []storage.AvailableMetricRow{
+			{MetricName: "sentiment_score", ValidationStatus: "unvalidated", EticConstruct: &etic, EquivalenceLevel: &equivLevel},
+			{MetricName: "word_count", ValidationStatus: "unvalidated"},
+		},
+	}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
+		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetricsAvailable200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200, got %T", resp)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 metrics, got %d", len(got))
+	}
+	if got[0].EticConstruct == nil || *got[0].EticConstruct != "evaluative_polarity" {
+		t.Errorf("expected eticConstruct=evaluative_polarity for first metric")
+	}
+	if got[0].EquivalenceLevel == nil || *got[0].EquivalenceLevel != Deviation {
+		t.Errorf("expected equivalenceLevel=deviation for first metric")
+	}
+	if got[1].EticConstruct != nil {
+		t.Errorf("expected nil eticConstruct for word_count, got %v", *got[1].EticConstruct)
+	}
+	if got[1].EquivalenceLevel != nil {
+		t.Errorf("expected nil equivalenceLevel for word_count, got %v", *got[1].EquivalenceLevel)
 	}
 }
 

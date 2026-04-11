@@ -171,6 +171,15 @@ func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create metric_validity table: %v", err)
 	}
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
+			etic_construct String, metric_name String, language String,
+			source_type String, equivalence_level String, validated_by String,
+			validation_date DateTime, confidence Float32
+		) ENGINE = Memory`)
+	if err != nil {
+		t.Fatalf("failed to create metric_equivalence table: %v", err)
+	}
 	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')")
 	if err != nil {
 		t.Fatalf("failed to insert: %v", err)
@@ -247,6 +256,15 @@ func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create metric_validity table: %v", err)
 	}
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
+			etic_construct String, metric_name String, language String,
+			source_type String, equivalence_level String, validated_by String,
+			validation_date DateTime, confidence Float32
+		) ENGINE = Memory`)
+	if err != nil {
+		t.Fatalf("failed to create metric_equivalence table: %v", err)
+	}
 	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')")
 	if err != nil {
 		t.Fatalf("failed to insert: %v", err)
@@ -276,6 +294,210 @@ func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 	}
 	if len(r2) != 2 {
 		t.Fatalf("expected 2 metrics after cache expiry, got %d: %v", len(r2), r2)
+	}
+}
+
+func TestCheckBaselineExists(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	// No baselines — should return false.
+	exists, err := store.CheckBaselineExists(ctx, "word_count", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Error("expected false when no baselines exist")
+	}
+
+	// Insert a baseline.
+	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
+		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
+		VALUES ('word_count', 'tagesschau', 'de', 150.0, 30.0, now() - INTERVAL 30 DAY, now(), 100, now())`)
+	if err != nil {
+		t.Fatalf("failed to insert baseline: %v", err)
+	}
+
+	// Now should return true.
+	exists, err = store.CheckBaselineExists(ctx, "word_count", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("expected true after inserting baseline")
+	}
+
+	// Filter by source — matching source.
+	src := "tagesschau"
+	exists, err = store.CheckBaselineExists(ctx, "word_count", &src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("expected true for matching source")
+	}
+
+	// Filter by source — non-matching source.
+	other := "nonexistent"
+	exists, err = store.CheckBaselineExists(ctx, "word_count", &other)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Error("expected false for non-matching source")
+	}
+}
+
+func TestCheckEquivalenceExists(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	// No equivalence — should return false.
+	exists, err := store.CheckEquivalenceExists(ctx, "sentiment_score")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Error("expected false when no equivalence entries exist")
+	}
+
+	// Insert a temporal-level equivalence (below the threshold).
+	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
+		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
+		VALUES ('evaluative_polarity', 'sentiment_score', 'de', 'rss', 'temporal', 'researcher_a', now(), 0.8)`)
+	if err != nil {
+		t.Fatalf("failed to insert equivalence: %v", err)
+	}
+
+	// temporal is below deviation — should still return false.
+	exists, err = store.CheckEquivalenceExists(ctx, "sentiment_score")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Error("expected false for temporal-only equivalence")
+	}
+
+	// Insert a deviation-level equivalence.
+	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
+		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
+		VALUES ('evaluative_polarity', 'sentiment_score', 'de', 'rss', 'deviation', 'researcher_b', now(), 0.9)`)
+	if err != nil {
+		t.Fatalf("failed to insert equivalence: %v", err)
+	}
+
+	// Now should return true.
+	exists, err = store.CheckEquivalenceExists(ctx, "sentiment_score")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("expected true after inserting deviation-level equivalence")
+	}
+}
+
+func TestGetNormalizedMetrics(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// Insert a metric row.
+	err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-1")
+	if err != nil {
+		t.Fatalf("failed to insert metric: %v", err)
+	}
+
+	// Insert a language detection for the article.
+	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), "tagesschau", "art-1", "de", 0.99, 1)
+	if err != nil {
+		t.Fatalf("failed to insert language detection: %v", err)
+	}
+
+	// Insert a baseline: mean=150, std=30.
+	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
+		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
+		VALUES ('word_count', 'tagesschau', 'de', 150.0, 30.0, ?, ?, 100, ?)`,
+		now.Add(-30*24*time.Hour), now, now)
+	if err != nil {
+		t.Fatalf("failed to insert baseline: %v", err)
+	}
+
+	start := now.Add(-2 * time.Hour)
+	end := now
+
+	results, err := store.GetNormalizedMetrics(ctx, start, end, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	// z-score = (180 - 150) / 30 = 1.0
+	if results[0].Value < 0.99 || results[0].Value > 1.01 {
+		t.Errorf("expected zscore ~1.0, got %v", results[0].Value)
+	}
+	if results[0].Source != "tagesschau" {
+		t.Errorf("expected source=tagesschau, got %q", results[0].Source)
+	}
+}
+
+func TestGetAvailableMetrics_IncludesEquivalenceMetadata(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// Insert metrics.
+	err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (?, 1.0, 'test', 'sentiment_score')", now)
+	if err != nil {
+		t.Fatalf("failed to insert metric: %v", err)
+	}
+	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (?, 1.0, 'test', 'word_count')", now)
+	if err != nil {
+		t.Fatalf("failed to insert metric: %v", err)
+	}
+
+	// Insert equivalence for sentiment_score only.
+	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
+		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
+		VALUES ('evaluative_polarity', 'sentiment_score', 'de', 'rss', 'deviation', 'researcher_a', now(), 0.9)`)
+	if err != nil {
+		t.Fatalf("failed to insert equivalence: %v", err)
+	}
+
+	start := now.Add(-time.Hour)
+	end := now.Add(time.Hour)
+	results, err := store.GetAvailableMetrics(ctx, start, end)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 metrics, got %d", len(results))
+	}
+
+	// sentiment_score should have equivalence metadata.
+	var sentiment, wordCount *AvailableMetricRow
+	for i := range results {
+		switch results[i].MetricName {
+		case "sentiment_score":
+			sentiment = &results[i]
+		case "word_count":
+			wordCount = &results[i]
+		}
+	}
+	if sentiment == nil || wordCount == nil {
+		t.Fatalf("expected both sentiment_score and word_count in results")
+	}
+	if sentiment.EticConstruct == nil || *sentiment.EticConstruct != "evaluative_polarity" {
+		t.Errorf("expected eticConstruct=evaluative_polarity for sentiment_score")
+	}
+	if sentiment.EquivalenceLevel == nil || *sentiment.EquivalenceLevel != "deviation" {
+		t.Errorf("expected equivalenceLevel=deviation for sentiment_score")
+	}
+	if wordCount.EticConstruct != nil {
+		t.Errorf("expected nil eticConstruct for word_count")
+	}
+	if wordCount.EquivalenceLevel != nil {
+		t.Errorf("expected nil equivalenceLevel for word_count")
 	}
 }
 

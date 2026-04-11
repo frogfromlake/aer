@@ -11,6 +11,9 @@ import (
 type Store interface {
 	Ping(ctx context.Context) error
 	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
+	GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
+	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
+	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
 	GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error)
 	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]storage.AvailableMetricRow, error)
@@ -42,8 +45,43 @@ func (s *Server) GetReadyz(ctx context.Context, _ GetReadyzRequestObject) (GetRe
 // GetMetrics handles the GET /metrics request and fetches time-series data.
 // startDate and endDate are required — the framework returns 400 before this handler
 // is called if either is absent.
+//
+// When normalization=zscore, a validation gate enforces two preconditions:
+// (a) baselines must exist for the requested (metricName, source) pair, and
+// (b) at least deviation-level equivalence must be confirmed in metric_equivalence.
+// This prevents normalized comparisons before interdisciplinary validation.
 func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error) {
-	data, err := s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName)
+	useZscore := request.Params.Normalization != nil && *request.Params.Normalization == Zscore
+
+	if useZscore {
+		if request.Params.MetricName == nil {
+			return GetMetrics400JSONResponse{Message: "normalization=zscore requires the metricName parameter"}, nil
+		}
+
+		baselineExists, err := s.db.CheckBaselineExists(ctx, *request.Params.MetricName, request.Params.Source)
+		if err != nil {
+			return GetMetrics500JSONResponse{Message: err.Error()}, nil
+		}
+		if !baselineExists {
+			return GetMetrics400JSONResponse{Message: "no baseline data exists for the requested metric and source; compute baselines before requesting z-score normalization"}, nil
+		}
+
+		equivExists, err := s.db.CheckEquivalenceExists(ctx, *request.Params.MetricName)
+		if err != nil {
+			return GetMetrics500JSONResponse{Message: err.Error()}, nil
+		}
+		if !equivExists {
+			return GetMetrics400JSONResponse{Message: "no equivalence entry with at least deviation-level equivalence exists for this metric; cross-cultural comparability has not been validated"}, nil
+		}
+	}
+
+	var data []storage.MetricRow
+	var err error
+	if useZscore {
+		data, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName)
+	} else {
+		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName)
+	}
 	if err != nil {
 		return GetMetrics500JSONResponse{Message: err.Error()}, nil
 	}
@@ -148,10 +186,18 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 
 	var response GetMetricsAvailable200JSONResponse
 	for _, r := range rows {
-		response = append(response, AvailableMetric{
+		m := AvailableMetric{
 			MetricName:       r.MetricName,
 			ValidationStatus: ValidationStatus(r.ValidationStatus),
-		})
+		}
+		if r.EticConstruct != nil {
+			m.EticConstruct = r.EticConstruct
+		}
+		if r.EquivalenceLevel != nil {
+			lvl := EquivalenceLevel(*r.EquivalenceLevel)
+			m.EquivalenceLevel = &lvl
+		}
+		response = append(response, m)
 	}
 
 	return response, nil
