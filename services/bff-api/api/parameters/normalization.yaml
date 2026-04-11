@@ -1,0 +1,14 @@
+name: normalization
+in: query
+description: >
+  Normalization mode for metric values.
+  "raw" returns values as stored.
+  "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std.
+  Requires baseline data and at least deviation-level equivalence validation.
+required: false
+schema:
+  type: string
+  enum:
+    - raw
+    - zscore
+  default: raw

@@ -35,6 +35,18 @@ components:
         - validated
         - expired
       example: unvalidated
+    EquivalenceLevel:
+      type: string
+      description: >
+        The level of cross-cultural equivalence established for this metric.
+        "temporal" means only temporal patterns are comparable, "deviation"
+        means deviation from baseline is comparable, "absolute" means raw
+        values are directly comparable across contexts.
+      enum:
+        - temporal
+        - deviation
+        - absolute
+      example: deviation
     AvailableMetric:
       type: object
       required:
@@ -47,3 +59,17 @@ components:
           example: word_count
         validationStatus:
           $ref: '#/components/schemas/ValidationStatus'
+        eticConstruct:
+          type: string
+          nullable: true
+          description: >
+            The etic construct this metric maps to in the equivalence registry
+            (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
+          example: null
+        equivalenceLevel:
+          nullable: true
+          description: >
+            The highest equivalence level established for this metric.
+            Null if no equivalence entry exists.
+          allOf:
+            - $ref: '#/components/schemas/EquivalenceLevel'

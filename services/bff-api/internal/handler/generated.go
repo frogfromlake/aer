@@ -15,6 +15,27 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
+// Defines values for EquivalenceLevel.
+const (
+	Absolute  EquivalenceLevel = "absolute"
+	Deviation EquivalenceLevel = "deviation"
+	Temporal  EquivalenceLevel = "temporal"
+)
+
+// Valid indicates whether the value is a known member of the EquivalenceLevel enum.
+func (e EquivalenceLevel) Valid() bool {
+	switch e {
+	case Absolute:
+		return true
+	case Deviation:
+		return true
+	case Temporal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ValidationStatus.
 const (
 	Expired     ValidationStatus = "expired"
@@ -36,14 +57,41 @@ func (e ValidationStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetMetricsParamsNormalization.
+const (
+	Raw    GetMetricsParamsNormalization = "raw"
+	Zscore GetMetricsParamsNormalization = "zscore"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricsParamsNormalization enum.
+func (e GetMetricsParamsNormalization) Valid() bool {
+	switch e {
+	case Raw:
+		return true
+	case Zscore:
+		return true
+	default:
+		return false
+	}
+}
+
 // AvailableMetric defines model for AvailableMetric.
 type AvailableMetric struct {
+	// EquivalenceLevel The highest equivalence level established for this metric. Null if no equivalence entry exists.
+	EquivalenceLevel *EquivalenceLevel `json:"equivalenceLevel,omitempty"`
+
+	// EticConstruct The etic construct this metric maps to in the equivalence registry (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
+	EticConstruct *string `json:"eticConstruct,omitempty"`
+
 	// MetricName The name of the metric.
 	MetricName string `json:"metricName"`
 
 	// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
 	ValidationStatus ValidationStatus `json:"validationStatus"`
 }
+
+// EquivalenceLevel The level of cross-cultural equivalence established for this metric. "temporal" means only temporal patterns are comparable, "deviation" means deviation from baseline is comparable, "absolute" means raw values are directly comparable across contexts.
+type EquivalenceLevel string
 
 // ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
 type ValidationStatus string
@@ -97,7 +145,13 @@ type GetMetricsParams struct {
 
 	// MetricName Filter metrics by metric name (e.g., "word_count")
 	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
+
+	// Normalization Normalization mode for metric values. "raw" returns values as stored. "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std. Requires baseline data and at least deviation-level equivalence validation.
+	Normalization *GetMetricsParamsNormalization `form:"normalization,omitempty" json:"normalization,omitempty"`
 }
+
+// GetMetricsParamsNormalization defines parameters for GetMetrics.
+type GetMetricsParamsNormalization string
 
 // GetMetricsAvailableParams defines parameters for GetMetricsAvailable.
 type GetMetricsAvailableParams struct {
@@ -390,6 +444,14 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "metricName", r.URL.Query(), &params.MetricName, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metricName", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "normalization" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "normalization", r.URL.Query(), &params.Normalization, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "normalization", Err: err})
 		return
 	}
 
