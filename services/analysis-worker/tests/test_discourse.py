@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
+from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext, ProbeEticTag, ProbeEmicTag
 from internal.adapters.rss import RssAdapter, RssMeta
 from internal.processor import DataProcessor
@@ -256,3 +257,67 @@ def test_rss_meta_without_discourse_context():
 
     data = meta.model_dump()
     assert data["discourse_context"] is None
+
+
+# ---------------------------------------------------------------------------
+# BiasContext model and propagation tests (Phase 64)
+# ---------------------------------------------------------------------------
+
+
+def test_bias_context_construction():
+    """Tests BiasContext creation with all fields."""
+    ctx = BiasContext(
+        platform_type="rss",
+        access_method="public_rss",
+        visibility_mechanism="chronological",
+        moderation_context="editorial",
+        engagement_data_available=False,
+        account_metadata_available=False,
+    )
+    assert ctx.platform_type == "rss"
+    assert ctx.access_method == "public_rss"
+    assert ctx.visibility_mechanism == "chronological"
+    assert ctx.moderation_context == "editorial"
+    assert ctx.engagement_data_available is False
+    assert ctx.account_metadata_available is False
+
+
+def test_rss_adapter_populates_bias_context():
+    """Tests that RssAdapter always populates bias_context with static RSS values."""
+    adapter = RssAdapter()
+    raw = {
+        "source": "tagesschau",
+        "source_type": "rss",
+        "raw_text": "Some text",
+        "url": "https://example.com",
+    }
+    event_time = datetime(2026, 4, 11, 10, 0, 0, tzinfo=timezone.utc)
+    core, meta = adapter.harmonize(raw, event_time, "rss/tagesschau/test.json")
+
+    assert meta.bias_context is not None
+    assert meta.bias_context.platform_type == "rss"
+    assert meta.bias_context.access_method == "public_rss"
+    assert meta.bias_context.visibility_mechanism == "chronological"
+    assert meta.bias_context.moderation_context == "editorial"
+    assert meta.bias_context.engagement_data_available is False
+    assert meta.bias_context.account_metadata_available is False
+
+
+def test_bias_context_serialization_in_silver():
+    """Tests that BiasContext serializes correctly in RssMeta."""
+    meta = RssMeta(
+        source_type="rss",
+        feed_url="https://example.com/feed",
+        bias_context=BiasContext(
+            platform_type="rss",
+            access_method="public_rss",
+            visibility_mechanism="chronological",
+            moderation_context="editorial",
+            engagement_data_available=False,
+            account_metadata_available=False,
+        ),
+    )
+
+    data = meta.model_dump()
+    assert data["bias_context"]["platform_type"] == "rss"
+    assert data["bias_context"]["engagement_data_available"] is False
