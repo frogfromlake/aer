@@ -11,6 +11,12 @@ class SourceAdapter(Protocol):
     Each data source (RSS, forum, social, legacy) implements this protocol
     to map its raw Bronze data to the universal SilverCore contract plus
     an optional source-specific SilverMeta envelope.
+
+    Adapters should populate a ``BiasContext`` in their SilverMeta subclass
+    with platform-specific values (WP-003). This documents structural biases
+    such as visibility mechanisms, moderation models, and data availability
+    constraints at the source level. See ``RssAdapter`` for a reference
+    implementation with static RSS bias values.
     """
 
     def harmonize(self, raw: dict, event_time: datetime, bronze_object_key: str) -> tuple[SilverCore, SilverMeta | None]:
