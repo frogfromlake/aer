@@ -107,5 +107,38 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create metric_validity table: %v", err)
 	}
 
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_baselines (
+			metric_name String,
+			source String,
+			language String,
+			baseline_value Float64,
+			baseline_std Float64,
+			window_start DateTime,
+			window_end DateTime,
+			n_documents UInt32,
+			compute_date DateTime
+		) ENGINE = Memory
+	`)
+	if err != nil {
+		t.Fatalf("failed to create metric_baselines table: %v", err)
+	}
+
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
+			etic_construct String,
+			metric_name String,
+			language String,
+			source_type String,
+			equivalence_level String,
+			validated_by String,
+			validation_date DateTime,
+			confidence Float32
+		) ENGINE = Memory
+	`)
+	if err != nil {
+		t.Fatalf("failed to create metric_equivalence table: %v", err)
+	}
+
 	return store, ctx
 }

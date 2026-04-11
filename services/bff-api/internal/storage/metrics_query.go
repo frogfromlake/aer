@@ -64,10 +64,12 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	return results, nil
 }
 
-// AvailableMetricRow represents a metric name with its validation status.
+// AvailableMetricRow represents a metric name with its validation status and optional equivalence metadata.
 type AvailableMetricRow struct {
 	MetricName       string
 	ValidationStatus string // "unvalidated", "validated", or "expired"
+	EticConstruct    *string
+	EquivalenceLevel *string
 }
 
 // GetAvailableMetrics returns the distinct metric names that have data in the given
@@ -128,17 +130,53 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 		validityMap[v.MetricName] = v.ValidationStatus
 	}
 
-	// Step 3: Combine — metrics without validity entries are "unvalidated".
+	// Step 3: Get equivalence metadata from metric_equivalence.
+	var equivalenceResults []struct {
+		MetricName       string
+		EticConstruct    string
+		EquivalenceLevel string
+	}
+	err = s.conn.Select(ctx, &equivalenceResults, `
+		SELECT
+			metric_name AS MetricName,
+			etic_construct AS EticConstruct,
+			equivalence_level AS EquivalenceLevel
+		FROM aer_gold.metric_equivalence
+		GROUP BY metric_name, etic_construct, equivalence_level
+	`)
+	if err != nil {
+		slog.Error("Failed to query metric equivalence from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	type equivInfo struct {
+		eticConstruct    string
+		equivalenceLevel string
+	}
+	equivalenceMap := make(map[string]equivInfo, len(equivalenceResults))
+	for _, e := range equivalenceResults {
+		equivalenceMap[e.MetricName] = equivInfo{
+			eticConstruct:    e.EticConstruct,
+			equivalenceLevel: e.EquivalenceLevel,
+		}
+	}
+
+	// Step 4: Combine — metrics without validity entries are "unvalidated".
 	entries := make([]AvailableMetricRow, len(metricResults))
 	for i, r := range metricResults {
 		status := "unvalidated"
 		if s, ok := validityMap[r.MetricName]; ok {
 			status = s
 		}
-		entries[i] = AvailableMetricRow{
+		row := AvailableMetricRow{
 			MetricName:       r.MetricName,
 			ValidationStatus: status,
 		}
+		if eq, ok := equivalenceMap[r.MetricName]; ok {
+			row.EticConstruct = &eq.eticConstruct
+			row.EquivalenceLevel = &eq.equivalenceLevel
+		}
+		entries[i] = row
 	}
 
 	s.metricsCache.mu.Lock()
@@ -149,4 +187,89 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 	s.metricsCache.mu.Unlock()
 
 	return entries, nil
+}
+
+// CheckBaselineExists returns true if at least one baseline row exists for the
+// given (metricName, source) pair.  When source is nil it checks for any source.
+func (s *ClickHouseStorage) CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error) {
+	query := `SELECT count() AS Cnt FROM aer_gold.metric_baselines WHERE metric_name = $1`
+	args := []any{metricName}
+	if source != nil {
+		query += ` AND source = $2`
+		args = append(args, *source)
+	}
+
+	var result []struct{ Cnt uint64 }
+	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
+		slog.Error("Failed to check baseline existence", "error", err)
+		return false, err
+	}
+	return len(result) > 0 && result[0].Cnt > 0, nil
+}
+
+// CheckEquivalenceExists returns true if at least one equivalence entry with
+// at least "deviation"-level equivalence exists for the given metricName.
+func (s *ClickHouseStorage) CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error) {
+	var result []struct{ Cnt uint64 }
+	err := s.conn.Select(ctx, &result, `
+		SELECT count() AS Cnt
+		FROM aer_gold.metric_equivalence
+		WHERE metric_name = $1
+		  AND equivalence_level IN ('deviation', 'absolute')
+	`, metricName)
+	if err != nil {
+		slog.Error("Failed to check equivalence existence", "error", err)
+		return false, err
+	}
+	return len(result) > 0 && result[0].Cnt > 0, nil
+}
+
+// GetNormalizedMetrics retrieves z-score normalized time-series data.
+// It joins metrics with language_detections (rank=1) to resolve language,
+// then with metric_baselines to compute (value - baseline_value) / baseline_std.
+func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]MetricRow, error) {
+	var results []MetricRow
+
+	query := `
+		SELECT
+			toStartOfFiveMinute(m.timestamp) AS TS,
+			avg((m.value - b.baseline_value) / b.baseline_std) AS Value,
+			m.source AS Source,
+			m.metric_name AS MetricName
+		FROM aer_gold.metrics AS m
+		INNER JOIN aer_gold.language_detections AS ld
+			ON m.article_id = ld.article_id AND ld.rank = 1
+		INNER JOIN aer_gold.metric_baselines AS b
+			ON m.metric_name = b.metric_name
+			AND m.source = b.source
+			AND ld.detected_language = b.language
+		WHERE m.timestamp >= $1 AND m.timestamp <= $2
+		  AND b.baseline_std > 0
+	`
+	args := []any{start, end}
+	argIdx := 3
+
+	if source != nil {
+		query += fmt.Sprintf(" AND m.source = $%d", argIdx)
+		args = append(args, *source)
+		argIdx++
+	}
+	if metricName != nil {
+		query += fmt.Sprintf(" AND m.metric_name = $%d", argIdx)
+		args = append(args, *metricName)
+	}
+
+	query += fmt.Sprintf(`
+		GROUP BY TS, Source, MetricName
+		ORDER BY TS ASC
+		LIMIT %d
+	`, s.rowLimit)
+
+	err := s.conn.Select(ctx, &results, query, args...)
+	if err != nil {
+		slog.Error("Failed to query normalized metrics from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	return results, nil
 }
