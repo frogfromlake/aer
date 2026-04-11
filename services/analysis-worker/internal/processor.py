@@ -110,12 +110,17 @@ class DataProcessor:
                     error=str(e),
                 )
 
+        # Extract discourse function from meta for Gold layer aggregation (Phase 62)
+        discourse_fn = ""
+        if meta and hasattr(meta, 'discourse_context') and meta.discourse_context:
+            discourse_fn = meta.discourse_context.primary_function or ""
+
         if all_metrics:
-            rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id] for m in all_metrics]
+            rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id, discourse_fn] for m in all_metrics]
             self.ch.insert(
                 'aer_gold.metrics',
                 rows,
-                column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id']
+                column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id', 'discourse_function']
             )
             logger.info(
                 "Gold layer updated",
@@ -128,13 +133,13 @@ class DataProcessor:
 
         if all_entities:
             entity_rows = [
-                [e.timestamp, e.source, e.article_id, e.entity_text, e.entity_label, e.start_char, e.end_char]
+                [e.timestamp, e.source, e.article_id, e.entity_text, e.entity_label, e.start_char, e.end_char, discourse_fn]
                 for e in all_entities
             ]
             self.ch.insert(
                 'aer_gold.entities',
                 entity_rows,
-                column_names=['timestamp', 'source', 'article_id', 'entity_text', 'entity_label', 'start_char', 'end_char']
+                column_names=['timestamp', 'source', 'article_id', 'entity_text', 'entity_label', 'start_char', 'end_char', 'discourse_function']
             )
             logger.info(
                 "Gold entities updated",

@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional
 import hashlib
 
+from internal.models.discourse import DiscourseContext, ProbeEticTag, ProbeEmicTag
+
 
 class SilverCore(BaseModel):
     """
@@ -67,4 +69,7 @@ def generate_document_id(source: str, bronze_object_key: str) -> str:
     return hashlib.sha256(f"{source}{bronze_object_key}".encode("utf-8")).hexdigest()
 
 
-__all__ = ["SilverCore", "SilverMeta", "SilverEnvelope", "generate_document_id", "ValidationError"]
+__all__ = [
+    "SilverCore", "SilverMeta", "SilverEnvelope", "generate_document_id", "ValidationError",
+    "DiscourseContext", "ProbeEticTag", "ProbeEmicTag",
+]

@@ -66,3 +66,36 @@ def update_document_status(pg_pool: ThreadedConnectionPool, obj_key: str, status
         conn.commit()
     finally:
         pg_pool.putconn(conn)
+
+
+def get_source_classification(pg_pool: ThreadedConnectionPool, source_name: str) -> dict | None:
+    """
+    Fetches the most recent discourse classification for a source by name.
+
+    Joins sources and source_classifications tables, returning the latest
+    classification record. Returns None if the source has no classification.
+    """
+    conn = pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT sc.primary_function, sc.secondary_function, sc.emic_designation
+                FROM source_classifications sc
+                JOIN sources s ON sc.source_id = s.id
+                WHERE s.name = %s
+                ORDER BY sc.classification_date DESC
+                LIMIT 1
+                """,
+                (source_name,)
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return {
+                "primary_function": row[0],
+                "secondary_function": row[1],
+                "emic_designation": row[2],
+            }
+    finally:
+        pg_pool.putconn(conn)

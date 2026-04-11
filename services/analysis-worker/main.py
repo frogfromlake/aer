@@ -109,7 +109,7 @@ async def main(config: WorkerConfig | None = None):
     ch_client = init_clickhouse(pool_size=config.worker_count)
     pg_pool = init_postgres()
 
-    adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter()})
+    adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter(pg_pool=pg_pool)})
     try:
         extractors = [
             WordCountExtractor(),
