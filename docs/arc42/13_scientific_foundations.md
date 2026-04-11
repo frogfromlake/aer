@@ -132,6 +132,8 @@ This section maps scientific methods to concrete implementation steps in the Pyt
 
 **Provisional Status Warning:** All Phase 42 NLP extractors are explicitly **provisional proof-of-concept implementations**. The specific lexicons, models, and parameters chosen are engineering defaults, not scientifically validated choices. They validate the extractor pipeline architecture with real NLP operations. They will be revisited, replaced, or recalibrated when interdisciplinary collaboration (§13.5) provides methodological grounding. See Chapter 11, R-11.
 
+**Validation Infrastructure (Phase 63):** The `aer_gold.metric_validity` ClickHouse table (Migration 006) stores per-metric validation metadata — Krippendorff's alpha, correlation with reference annotations, sample size, error taxonomy, and validity expiration. The BFF API exposes `validation_status` (`unvalidated`, `validated`, `expired`) per metric via `GET /api/v1/metrics/available`. All current metrics report `unvalidated`. The table will be populated when the five-step validation protocol (WP-002 §4) is executed with interdisciplinary collaborators. Known extractor limitations are documented in `docs/methodology/extractor_limitations.md`. See ADR-016 for the Hybrid Tier Architecture decision.
+
 ### 13.3.1 Tier 1 — Deterministic Core Metrics
 
 These methods are fully deterministic, transparent, and auditable. They form the foundation of AĒR's Gold layer and should be implemented first.
