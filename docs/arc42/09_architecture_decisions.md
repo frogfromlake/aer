@@ -380,3 +380,44 @@ A `LegacyAdapter` provides backward compatibility for existing Bronze objects (W
 
 * **Positive:** Adding a new data source requires only a new adapter and (optionally) a new `SilverMeta` model — zero changes to the processor, validator, or existing tests. Schema evolution is routine. Provenance is preserved (`raw_text` vs. `cleaned_text`). Layer responsibilities are clean (Silver = harmonization, Gold = analytics, PostgreSQL = lifecycle).
 * **Negative:** The adapter registry adds one lookup per event (O(1) dict access — negligible). The `SilverCore` model is slightly larger than the old `SilverRecord` due to the addition of `document_id`, `cleaned_text`, `language`, `source_type`, and `schema_version`. The `LegacyAdapter` must be maintained until all pre-Phase 39 Bronze objects have expired from the 90-day ILM window.
+
+---
+
+## ADR-016: Hybrid Tier Architecture for Metric Validation (Option C)
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-04-11 |
+| **Status** | Accepted |
+| **Relates to** | WP-002 (Metric Validity and Sentiment Calibration) |
+
+### Context
+
+WP-002 §5 evaluates three architectural options for presenting metrics with varying levels of scientific validation:
+
+- **Option A (Strict Gating):** Only display metrics that have passed the full five-step validation protocol. This blocks all current functionality until validation studies are complete.
+- **Option B (Flat Display):** Display all metrics equally regardless of validation status. This risks misinterpretation of provisional results as validated measurements.
+- **Option C (Hybrid Tier Architecture):** Classify metrics into tiers based on validation status and present them through Progressive Disclosure, ensuring transparency without blocking unvalidated work.
+
+AĒR's Phase 42 extractors are engineering proof-of-concept implementations with known limitations (see `docs/methodology/extractor_limitations.md`). Interdisciplinary validation requires external collaborators who are not yet engaged (Chapter 13, §13.5). Blocking metric display until validation is complete would render the system non-functional for an indeterminate period. Displaying all metrics without distinction would violate AĒR's commitment to methodological transparency (Manifesto §II).
+
+### Decision
+
+We adopt **Option C — Hybrid Tier Architecture** with the following structure:
+
+**Tier 1 — Immutable Baseline.** All currently implemented metrics are classified as Tier 1. They are always displayed in the dashboard and are never hidden or replaced by higher-tier metrics. Tier 1 metrics include both deterministic metrics (word count, temporal distribution) and provisional NLP metrics (sentiment, NER, language detection). The "immutable" property means that once a metric is published as Tier 1, it remains visible — a Tier 2 or Tier 3 metric of the same phenomenon does not suppress the Tier 1 score.
+
+**Tier 2 — Validated Enrichments.** Future metrics that have passed the five-step validation protocol (WP-002 §4) and are reproducible with a fixed seed. Available via Progressive Disclosure alongside (not instead of) the Tier 1 baseline. Examples: validated sentiment calibration, topic models with established inter-annotator agreement.
+
+**Tier 3 — LLM-Augmented Enrichments.** Non-deterministic metrics produced by Large Language Models. Explicitly flagged as non-deterministic in the Gold schema. Available only through Progressive Disclosure and never displayed as primary metrics.
+
+**Infrastructure:**
+
+- The `aer_gold.metric_validity` ClickHouse table stores validation metadata per metric. Initially empty.
+- The BFF API `GET /api/v1/metrics/available` endpoint exposes `validation_status` (`unvalidated`, `validated`, `expired`) per metric, derived from the validity table.
+- The dashboard (future) will never hide the Tier 1 score behind a Tier 2/3 score — Progressive Disclosure adds information, it does not replace it.
+
+### Consequences
+
+* **Positive:** The system is immediately usable with current provisional metrics. Methodological transparency is maintained — consumers can distinguish validated from unvalidated metrics. The architecture supports incremental validation without requiring a system-wide freeze. The dashboard principle (never hide Tier 1 behind Tier 2/3) prevents the common pitfall of sophisticated models silently replacing simpler, more auditable baselines.
+* **Negative:** Consumers must understand the tier system to correctly interpret results. The validation table is initially empty, meaning all current metrics report `unvalidated` — which is honest but may reduce perceived system maturity. The tier classification decision for each future metric requires interdisciplinary agreement, adding process overhead.
