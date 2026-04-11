@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import Field
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import SilverCore, SilverMeta, generate_document_id
+from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext
 from internal.storage.postgres_client import get_source_classification
 
@@ -17,6 +18,7 @@ class RssMeta(SilverMeta):
     author: str = Field(default="")
     feed_title: str = Field(default="")
     discourse_context: Optional[DiscourseContext] = None
+    bias_context: Optional[BiasContext] = None
 
 
 class RssAdapter:
@@ -78,6 +80,14 @@ class RssAdapter:
             author=raw.get("author", ""),
             feed_title=raw.get("feed_title", ""),
             discourse_context=discourse_context,
+            bias_context=BiasContext(
+                platform_type="rss",
+                access_method="public_rss",
+                visibility_mechanism="chronological",
+                moderation_context="editorial",
+                engagement_data_available=False,
+                account_metadata_available=False,
+            ),
         )
 
         return core, meta
