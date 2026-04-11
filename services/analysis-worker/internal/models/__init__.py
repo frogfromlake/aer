@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 import hashlib
 
+from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext, ProbeEticTag, ProbeEmicTag
 
 
@@ -71,5 +72,5 @@ def generate_document_id(source: str, bronze_object_key: str) -> str:
 
 __all__ = [
     "SilverCore", "SilverMeta", "SilverEnvelope", "generate_document_id", "ValidationError",
-    "DiscourseContext", "ProbeEticTag", "ProbeEmicTag",
+    "BiasContext", "DiscourseContext", "ProbeEticTag", "ProbeEmicTag",
 ]
