@@ -15,6 +15,39 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
+// Defines values for ValidationStatus.
+const (
+	Expired     ValidationStatus = "expired"
+	Unvalidated ValidationStatus = "unvalidated"
+	Validated   ValidationStatus = "validated"
+)
+
+// Valid indicates whether the value is a known member of the ValidationStatus enum.
+func (e ValidationStatus) Valid() bool {
+	switch e {
+	case Expired:
+		return true
+	case Unvalidated:
+		return true
+	case Validated:
+		return true
+	default:
+		return false
+	}
+}
+
+// AvailableMetric defines model for AvailableMetric.
+type AvailableMetric struct {
+	// MetricName The name of the metric.
+	MetricName string `json:"metricName"`
+
+	// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
+	ValidationStatus ValidationStatus `json:"validationStatus"`
+}
+
+// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
+type ValidationStatus string
+
 // GetEntitiesParams defines parameters for GetEntities.
 type GetEntitiesParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
@@ -752,7 +785,7 @@ type GetMetricsAvailableResponseObject interface {
 	VisitGetMetricsAvailableResponse(w http.ResponseWriter) error
 }
 
-type GetMetricsAvailable200JSONResponse []string
+type GetMetricsAvailable200JSONResponse []AvailableMetric
 
 func (response GetMetricsAvailable200JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

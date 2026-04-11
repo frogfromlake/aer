@@ -115,11 +115,14 @@ func TestGetAvailableMetrics(t *testing.T) {
 	if len(results) != 3 {
 		t.Fatalf("expected 3 distinct metric names, got %d: %v", len(results), results)
 	}
-	// Ordered alphabetically
+	// Ordered alphabetically, all unvalidated (empty metric_validity table)
 	expected := []string{"entity_count", "sentiment_score", "word_count"}
 	for i, name := range expected {
-		if results[i] != name {
-			t.Errorf("expected results[%d]=%q, got %q", i, name, results[i])
+		if results[i].MetricName != name {
+			t.Errorf("expected results[%d].MetricName=%q, got %q", i, name, results[i].MetricName)
+		}
+		if results[i].ValidationStatus != "unvalidated" {
+			t.Errorf("expected results[%d].ValidationStatus=unvalidated, got %q", i, results[i].ValidationStatus)
 		}
 	}
 }
@@ -158,6 +161,16 @@ func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_validity (
+			metric_name String, context_key String,
+			validation_date DateTime, alpha_score Float32,
+			correlation Float32, n_annotated UInt32,
+			error_taxonomy String, valid_until DateTime
+		) ENGINE = Memory`)
+	if err != nil {
+		t.Fatalf("failed to create metric_validity table: %v", err)
+	}
 	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')")
 	if err != nil {
 		t.Fatalf("failed to insert: %v", err)
@@ -171,11 +184,11 @@ func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first call: %v", err)
 	}
-	if len(r1) != 1 || r1[0] != "word_count" {
+	if len(r1) != 1 || r1[0].MetricName != "word_count" {
 		t.Fatalf("unexpected first result: %v", r1)
 	}
 
-	// Drop the underlying table so any second ClickHouse query would fail.
+	// Drop the underlying tables so any second ClickHouse query would fail.
 	if err := store.conn.Exec(ctx, "DROP TABLE aer_gold.metrics"); err != nil {
 		t.Fatalf("failed to drop table: %v", err)
 	}
@@ -185,7 +198,7 @@ func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second call (expected cache hit): %v", err)
 	}
-	if len(r2) != 1 || r2[0] != "word_count" {
+	if len(r2) != 1 || r2[0].MetricName != "word_count" {
 		t.Fatalf("unexpected second result: %v", r2)
 	}
 }
@@ -223,6 +236,16 @@ func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 		) ENGINE = Memory`)
 	if err != nil {
 		t.Fatalf("failed to create table: %v", err)
+	}
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_validity (
+			metric_name String, context_key String,
+			validation_date DateTime, alpha_score Float32,
+			correlation Float32, n_annotated UInt32,
+			error_taxonomy String, valid_until DateTime
+		) ENGINE = Memory`)
+	if err != nil {
+		t.Fatalf("failed to create metric_validity table: %v", err)
 	}
 	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')")
 	if err != nil {

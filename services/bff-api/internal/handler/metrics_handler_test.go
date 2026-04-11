@@ -20,7 +20,7 @@ type mockStore struct {
 	entitiesErr               error
 	languageDetections        []storage.LanguageDetectionRow
 	languageDetectionsErr     error
-	availableMetrics          []string
+	availableMetrics          []storage.AvailableMetricRow
 	availableMetricsErr       error
 	// captured args
 	capturedStart      time.Time
@@ -62,7 +62,7 @@ func (m *mockStore) GetLanguageDetections(_ context.Context, start, end time.Tim
 	return m.languageDetections, m.languageDetectionsErr
 }
 
-func (m *mockStore) GetAvailableMetrics(_ context.Context, _, _ time.Time) ([]string, error) {
+func (m *mockStore) GetAvailableMetrics(_ context.Context, _, _ time.Time) ([]storage.AvailableMetricRow, error) {
 	return m.availableMetrics, m.availableMetricsErr
 }
 
@@ -283,7 +283,11 @@ func TestGetMetricsAvailable_Returns400WhenMissingDates(t *testing.T) {
 
 func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 	store := &mockStore{
-		availableMetrics: []string{"entity_count", "sentiment_score", "word_count"},
+		availableMetrics: []storage.AvailableMetricRow{
+			{MetricName: "entity_count", ValidationStatus: "unvalidated"},
+			{MetricName: "sentiment_score", ValidationStatus: "validated"},
+			{MetricName: "word_count", ValidationStatus: "expired"},
+		},
 	}
 	s := NewServer(store)
 
@@ -301,10 +305,19 @@ func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 		t.Fatalf("expected GetMetricsAvailable200JSONResponse, got %T", resp)
 	}
 	if len(got) != 3 {
-		t.Fatalf("expected 3 metric names, got %d", len(got))
+		t.Fatalf("expected 3 metrics, got %d", len(got))
 	}
-	if got[0] != "entity_count" {
-		t.Errorf("expected first metric entity_count, got %q", got[0])
+	if got[0].MetricName != "entity_count" {
+		t.Errorf("expected first metric entity_count, got %q", got[0].MetricName)
+	}
+	if got[0].ValidationStatus != Unvalidated {
+		t.Errorf("expected first status unvalidated, got %q", got[0].ValidationStatus)
+	}
+	if got[1].ValidationStatus != Validated {
+		t.Errorf("expected second status validated, got %q", got[1].ValidationStatus)
+	}
+	if got[2].ValidationStatus != Expired {
+		t.Errorf("expected third status expired, got %q", got[2].ValidationStatus)
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 
 type metricsCache struct {
 	mu          sync.RWMutex
-	names       []string
+	entries     []AvailableMetricRow
 	cachedAt    time.Time
 	cachedStart time.Time
 	cachedEnd   time.Time

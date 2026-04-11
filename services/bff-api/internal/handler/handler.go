@@ -13,7 +13,7 @@ type Store interface {
 	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
 	GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error)
-	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]string, error)
+	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]storage.AvailableMetricRow, error)
 }
 
 // Server implements the generated StrictServerInterface.
@@ -136,14 +136,23 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 	return response, nil
 }
 
-// GetMetricsAvailable handles GET /metrics/available — returns distinct metric names for a time range.
+// GetMetricsAvailable handles GET /metrics/available — returns distinct metric names
+// with validation status for a time range.
 // startDate and endDate are required — the framework returns 400 before this handler
 // is called if either is absent.
 func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error) {
-	names, err := s.db.GetAvailableMetrics(ctx, request.Params.StartDate, request.Params.EndDate)
+	rows, err := s.db.GetAvailableMetrics(ctx, request.Params.StartDate, request.Params.EndDate)
 	if err != nil {
 		return GetMetricsAvailable500JSONResponse{Message: err.Error()}, nil
 	}
 
-	return GetMetricsAvailable200JSONResponse(names), nil
+	var response GetMetricsAvailable200JSONResponse
+	for _, r := range rows {
+		response = append(response, AvailableMetric{
+			MetricName:       r.MetricName,
+			ValidationStatus: ValidationStatus(r.ValidationStatus),
+		})
+	}
+
+	return response, nil
 }

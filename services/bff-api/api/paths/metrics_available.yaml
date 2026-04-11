@@ -7,13 +7,13 @@ get:
     - $ref: '../parameters/endDate.yaml'
   responses:
     '200':
-      description: A list of available metric names.
+      description: A list of available metrics with validation status.
       content:
         application/json:
           schema:
             type: array
             items:
-              type: string
+              $ref: '#/components/schemas/AvailableMetric'
     '400':
       description: Missing required parameters.
       content:

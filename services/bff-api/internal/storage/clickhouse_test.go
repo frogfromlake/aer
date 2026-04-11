@@ -91,5 +91,21 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create language_detections table: %v", err)
 	}
 
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.metric_validity (
+			metric_name String,
+			context_key String,
+			validation_date DateTime,
+			alpha_score Float32,
+			correlation Float32,
+			n_annotated UInt32,
+			error_taxonomy String,
+			valid_until DateTime
+		) ENGINE = Memory
+	`)
+	if err != nil {
+		t.Fatalf("failed to create metric_validity table: %v", err)
+	}
+
 	return store, ctx
 }

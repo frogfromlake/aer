@@ -20,3 +20,30 @@ paths:
     $ref: './paths/healthz.yaml'
   /readyz:
     $ref: './paths/readyz.yaml'
+
+components:
+  schemas:
+    ValidationStatus:
+      type: string
+      description: >
+        Validation status derived from the metric_validity table.
+        "unvalidated" if no entry exists, "validated" if a current entry
+        exists with valid_until in the future, "expired" if the most
+        recent entry has valid_until in the past.
+      enum:
+        - unvalidated
+        - validated
+        - expired
+      example: unvalidated
+    AvailableMetric:
+      type: object
+      required:
+        - metricName
+        - validationStatus
+      properties:
+        metricName:
+          type: string
+          description: The name of the metric.
+          example: word_count
+        validationStatus:
+          $ref: '#/components/schemas/ValidationStatus'

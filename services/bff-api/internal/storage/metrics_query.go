@@ -64,27 +64,35 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	return results, nil
 }
 
+// AvailableMetricRow represents a metric name with its validation status.
+type AvailableMetricRow struct {
+	MetricName       string
+	ValidationStatus string // "unvalidated", "validated", or "expired"
+}
+
 // GetAvailableMetrics returns the distinct metric names that have data in the given
-// time range. Results are served from an in-process TTL cache (default 60 s) keyed
-// on (start, end) to avoid a full table scan on every call. A request with a
-// different date range bypasses and replaces the cached entry.
-func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]string, error) {
+// time range, along with their validation status from the metric_validity table.
+// Results are served from an in-process TTL cache (default 60 s) keyed on (start, end)
+// to avoid a full table scan on every call. A request with a different date range
+// bypasses and replaces the cached entry.
+func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]AvailableMetricRow, error) {
 	s.metricsCache.mu.RLock()
-	if s.metricsCache.names != nil &&
+	if s.metricsCache.entries != nil &&
 		time.Since(s.metricsCache.cachedAt) < s.metricsCacheTTL &&
 		s.metricsCache.cachedStart.Equal(start) &&
 		s.metricsCache.cachedEnd.Equal(end) {
-		cached := s.metricsCache.names
+		cached := s.metricsCache.entries
 		s.metricsCache.mu.RUnlock()
 		return cached, nil
 	}
 	s.metricsCache.mu.RUnlock()
 
 	// Cache miss, expired, or different date range — fetch from ClickHouse.
-	var results []struct {
+	// Step 1: Get distinct metric names.
+	var metricResults []struct {
 		MetricName string
 	}
-	err := s.conn.Select(ctx, &results, `
+	err := s.conn.Select(ctx, &metricResults, `
 		SELECT DISTINCT metric_name as MetricName
 		FROM aer_gold.metrics
 		WHERE timestamp >= $1 AND timestamp <= $2
@@ -95,17 +103,50 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 		return nil, err
 	}
 
-	names := make([]string, len(results))
-	for i, r := range results {
-		names[i] = r.MetricName
+	// Step 2: Get validation status from metric_validity.
+	// Deduplicates by (metric_name, context_key) keeping the latest validation_date,
+	// compatible with both ReplacingMergeTree (production) and Memory (tests).
+	var validityResults []struct {
+		MetricName       string
+		ValidationStatus string
+	}
+	err = s.conn.Select(ctx, &validityResults, `
+		SELECT
+			metric_name AS MetricName,
+			if(max(valid_until) > now(), 'validated', 'expired') AS ValidationStatus
+		FROM aer_gold.metric_validity
+		GROUP BY metric_name
+	`)
+	if err != nil {
+		slog.Error("Failed to query metric validity from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	// Build lookup map from validity results.
+	validityMap := make(map[string]string, len(validityResults))
+	for _, v := range validityResults {
+		validityMap[v.MetricName] = v.ValidationStatus
+	}
+
+	// Step 3: Combine — metrics without validity entries are "unvalidated".
+	entries := make([]AvailableMetricRow, len(metricResults))
+	for i, r := range metricResults {
+		status := "unvalidated"
+		if s, ok := validityMap[r.MetricName]; ok {
+			status = s
+		}
+		entries[i] = AvailableMetricRow{
+			MetricName:       r.MetricName,
+			ValidationStatus: status,
+		}
 	}
 
 	s.metricsCache.mu.Lock()
-	s.metricsCache.names = names
+	s.metricsCache.entries = entries
 	s.metricsCache.cachedAt = time.Now()
 	s.metricsCache.cachedStart = start
 	s.metricsCache.cachedEnd = end
 	s.metricsCache.mu.Unlock()
 
-	return names, nil
+	return entries, nil
 }
