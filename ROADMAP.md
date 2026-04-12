@@ -924,67 +924,62 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [x] **Validate.** Dokumentations-Review. Alle Cross-References zu Playbook-Sektionen, Working-Paper-Sektionen, Arc42-Kapiteln, Phase-68-Templates und Probe-Dossier-Dateien auflösen. `mkdocs build --strict`.
 
----
 
-### Open Phases
-
----
-
-## Phase 72: Test Coverage for Scientific Infrastructure (Phases 62–68)
+## Phase 72: Test Coverage for Scientific Infrastructure (Phases 62–68) - [x] DONE
 
 *Phases 62–64 sind implementiert und bestehen `make test` — aber die Test-Gates verifizierten keine Regressionen, nicht dass neue Funktionalität durch dedizierte Tests abgedeckt ist. Phases 65–67 folgen dem gleichen Muster. Diese Phase schließt die Test-Lücke über alle drei Schichten (Unit, Integration, E2E) gemäß der Hybrid Testing Strategy (ADR-005).*
 
 ### Python Unit Tests (Analysis Worker)
 
-* [ ] **`tests/test_discourse_context.py` (Phase 62 — retroaktiv).** `DiscourseContext`-Propagation im `RSSAdapter`:
+* [x] **`tests/test_discourse_context.py` (Phase 62 — retroaktiv).** `DiscourseContext`-Propagation im `RSSAdapter`:
   - Adapter erhält Mock-`source_classifications`-Zeile → `RssMeta.discourse_context` korrekt populiert mit `primary_function`, `secondary_function`, `emic_designation`.
   - Keine Klassifikation für die Quelle → `RssMeta.discourse_context` ist `None`, Pipeline failt nicht.
   - Klassifikation hat `function_weights = NULL` → Feld ist `None` im Model, kein Crash.
   - `review_status = 'provisional_engineering'` wird korrekt propagiert.
 
-* [ ] **`tests/test_bias_context.py` (Phase 64 — retroaktiv).** `BiasContext`-Population im `RSSAdapter`:
+* [x] **`tests/test_bias_context.py` (Phase 64 — retroaktiv).** `BiasContext`-Population im `RSSAdapter`:
   - Adapter produziert korrekte statische Werte für RSS-Quellen (`platform_type='rss'`, `visibility_mechanism='chronological'`, etc.).
   - Alle `BiasContext`-Felder sind non-null für RSS-Quellen.
   - `BiasContext`-Model validiert — fehlende Pflichtfelder raisen `ValidationError`.
 
-* [ ] **`tests/test_discourse_function_gold.py` (Phase 62 — retroaktiv).** Extractor Pipeline schreibt `discourse_function` in ClickHouse-Insert-Rows:
+* [x] **`tests/test_discourse_function_gold.py` (Phase 62 — retroaktiv).** Extractor Pipeline schreibt `discourse_function` in ClickHouse-Insert-Rows:
   - `DiscourseContext` vorhanden → `discourse_function`-Spalte enthält `primary_function`-Wert.
   - `DiscourseContext` ist `None` → `discourse_function`-Spalte enthält leeren String (`DEFAULT ''`).
 
-* [ ] **`tests/test_compute_baselines.py` (Phase 65).** `scripts/compute_baselines.py`-Logik (in testbare Funktion extrahiert):
+* [x] **`tests/test_compute_baselines.py` (Phase 65).** `scripts/compute_baselines.py`-Logik (in testbare Funktion extrahiert):
   - Bekannter Satz von Metrik-Werten → korrekte Mean und Standardabweichung.
   - Leerer Metrik-Satz → kein Insert, kein Crash.
   - Einzelwert-Metrik-Satz → Standardabweichung ist 0, graceful behandelt.
 
 ### Go Integration Tests (BFF API)
 
-* [ ] **`internal/storage/metrics_query_test.go` — Normalization Tests (Phase 65).** Extend:
+* [x] **`internal/storage/metrics_query_test.go` — Normalization Tests (Phase 65).** Extend:
   - `?normalization=zscore` ohne Baseline in `metric_baselines` → HTTP 400 mit deskriptiver Fehlermeldung.
   - `?normalization=zscore` mit Baseline aber ohne `metric_equivalence`-Eintrag → HTTP 400.
   - `?normalization=zscore` mit valider Baseline und Equivalence-Eintrag → korrekte z-Score-Werte.
   - `?normalization=raw` (Default) → unverändertes Verhalten, bestehende Tests grün.
 
-* [ ] **`internal/storage/metrics_query_test.go` — Resolution Tests (Phase 66).** Extend:
+* [x] **`internal/storage/metrics_query_test.go` — Resolution Tests (Phase 66).** Extend:
   - `?resolution=hourly` → ClickHouse liefert stündlich aggregierte Datenpunkte (Timestamp-Bucketing verifizieren).
   - `?resolution=daily` → weniger Datenpunkte als `hourly` für denselben Zeitraum.
   - `?resolution=monthly` → korrekte Monatsstart-Timestamps.
   - Default (kein Parameter) → 5-Minuten-Bucketing, backward-compatible.
   - `rowLimit`-Anpassung → weitere Resolutions erlauben proportional mehr Rows.
 
-* [ ] **`internal/handler/provenance_handler_test.go` (Phase 67).** Neues Test-File:
+* [x] **`internal/handler/provenance_handler_test.go` (Phase 67).** Neues Test-File:
   - `GET /metrics/word_count/provenance` → Tier 1, Algorithm Description, leere Limitations-Liste.
   - `GET /metrics/sentiment_score/provenance` → Tier 1, Known Limitations (Negation Blindness, Compound Word Failure).
   - `GET /metrics/nonexistent/provenance` → HTTP 404.
   - Validation Status Join: Metrik mit Eintrag in `metric_validity` → `validation_status = 'validated'`. Metrik ohne Eintrag → `validation_status = 'unvalidated'`.
 
-* [ ] **`internal/storage/metrics_query_test.go` — Available Metrics Extensions (Phases 63, 65, 66).** Extend:
+* [x] **`internal/storage/metrics_query_test.go` — Available Metrics Extensions (Phases 63, 65, 66).** Extend:
   - Response enthält `validation_status` pro Metrik (Default `unvalidated`).
   - Response enthält `min_meaningful_resolution` wenn konfiguriert.
   - Response enthält `etic_construct` und `equivalence_level` wenn `metric_equivalence`-Eintrag existiert.
 
 ### Go Integration Tests (Ingestion API)
 
-* [ ] **`internal/storage/postgres_test.go` — Source Classifications (Phase 62 — retroaktiv).** Extend:
+* [x] **`internal/storage/postgres_test.go` — Source Classifications (Phase 62 — retroaktiv).** Extend:
   - `get_source_classification(source_id)` liefert korrekte Klassifikation für geseedete Quelle.
   - `get_source_classification(unknown_id)` liefert `nil`, kein Error.
   - Mehrere Klassifikationen für dieselbe Quelle (verschiedene `classification_date`) → liefert die neueste.
@@ -992,16 +987,21 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ### E2E Smoke Test Extension
 
-* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 62 — retroaktiv).** Nach bestehenden Assertions (word_count, sentiment_score, entities):
+* [x] **Extend `scripts/e2e_smoke_test.sh` (Phase 62 — retroaktiv).** Nach bestehenden Assertions (word_count, sentiment_score, entities):
   - Query `GET /api/v1/metrics?metricName=word_count&startDate=...&endDate=...` und verify: Response enthält non-empty `discourse_function`-Feld.
 
-* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 66).** Query `GET /api/v1/metrics?resolution=hourly&startDate=...&endDate=...` und verify: Response liefert Daten.
+* [x] **Extend `scripts/e2e_smoke_test.sh` (Phase 66).** Query `GET /api/v1/metrics?resolution=hourly&startDate=...&endDate=...` und verify: Response liefert Daten.
 
-* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 67).** Query `GET /api/v1/metrics/word_count/provenance` und verify: Response enthält `tier_classification` und `algorithm_description`.
+* [x] **Extend `scripts/e2e_smoke_test.sh` (Phase 67).** Query `GET /api/v1/metrics/word_count/provenance` und verify: Response enthält `tier_classification` und `algorithm_description`.
 
 ### Validate
 
-* [ ] **Full Validation Suite.** `make test` (alle neuen + bestehenden Tests grün), `make test-e2e` (erweiterter Smoke Test grün), `make lint`, `make audit`, `make codegen && git diff --exit-code`.
+* [x] **Full Validation Suite.** `make test` (alle neuen + bestehenden Tests grün), `make test-e2e` (erweiterter Smoke Test grün), `make lint`, `make audit`, `make codegen && git diff --exit-code`.
 
-* [ ] **Arc42 §8.1 (Testing Strategy) aktualisieren.** Paragraph zur Testabdeckung für Scientific Infrastructure Tables und das Validation-Gate Testing Pattern (HTTP 400 für Endpoints, die validierte wissenschaftliche Daten erfordern).
+* [x] **Arc42 §8.1 (Testing Strategy) aktualisieren.** Paragraph zur Testabdeckung für Scientific Infrastructure Tables und das Validation-Gate Testing Pattern (HTTP 400 für Endpoints, die validierte wissenschaftliche Daten erfordern).
+
+---
+
+### Open Phases
+
 ---
