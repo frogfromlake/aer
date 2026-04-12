@@ -46,7 +46,7 @@ func TestGetMetrics(t *testing.T) {
 	end := now
 
 	// TEST: GetMetrics without dimension filters (returns all in-range rows, grouped by source+metric)
-	results, err := store.GetMetrics(ctx, start, end, nil, nil)
+	results, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics, got: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestGetMetrics(t *testing.T) {
 
 	// TEST: GetMetrics filtered by source
 	wikiSource := "wikipedia"
-	results, err = store.GetMetrics(ctx, start, end, &wikiSource, nil)
+	results, err = store.GetMetrics(ctx, start, end, &wikiSource, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics with source filter, got: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestGetMetrics(t *testing.T) {
 
 	// TEST: GetMetrics filtered by metricName
 	metricName := "word_count"
-	results, err = store.GetMetrics(ctx, start, end, nil, &metricName)
+	results, err = store.GetMetrics(ctx, start, end, nil, &metricName, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics with metricName filter, got: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	// TEST: GetMetrics filtered by both source and metricName
-	results, err = store.GetMetrics(ctx, start, end, &wikiSource, &metricName)
+	results, err = store.GetMetrics(ctx, start, end, &wikiSource, &metricName, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics with both filters, got: %v", err)
 	}
@@ -425,7 +425,7 @@ func TestGetNormalizedMetrics(t *testing.T) {
 	start := now.Add(-2 * time.Hour)
 	end := now
 
-	results, err := store.GetNormalizedMetrics(ctx, start, end, nil, nil)
+	results, err := store.GetNormalizedMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -498,6 +498,77 @@ func TestGetAvailableMetrics_IncludesEquivalenceMetadata(t *testing.T) {
 	}
 	if wordCount.EquivalenceLevel != nil {
 		t.Errorf("expected nil equivalenceLevel for word_count")
+	}
+}
+
+// TestGetMetrics_ResolutionBucketing verifies that wider resolutions collapse
+// data points into fewer buckets and that the default behavior is unchanged.
+func TestGetMetrics_ResolutionBucketing(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Hour)
+
+	// Insert four points spanning ~3 hours, each in its own 5-minute bucket
+	// but all within the same hour-aligned day so daily/monthly collapse them.
+	points := []time.Time{
+		now.Add(-3 * time.Hour),
+		now.Add(-2*time.Hour - 30*time.Minute),
+		now.Add(-1*time.Hour - 15*time.Minute),
+		now.Add(-15 * time.Minute),
+	}
+	for i, p := range points {
+		err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+			p, float64(10*(i+1)), "test", "word_count", "art-"+time.Duration(i).String())
+		if err != nil {
+			t.Fatalf("failed to insert: %v", err)
+		}
+	}
+
+	start := now.Add(-4 * time.Hour)
+	end := now
+
+	fiveMin, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
+	if err != nil {
+		t.Fatalf("5min: %v", err)
+	}
+	if len(fiveMin) != 4 {
+		t.Errorf("5min expected 4 buckets, got %d", len(fiveMin))
+	}
+
+	hourly, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionHourly)
+	if err != nil {
+		t.Fatalf("hourly: %v", err)
+	}
+	// Hourly must collapse 5-minute buckets but cannot have more rows than the 5-minute query.
+	if len(hourly) >= len(fiveMin) {
+		t.Errorf("hourly should produce ≤ 5-minute bucket count; hourly=%d fiveMin=%d", len(hourly), len(fiveMin))
+	}
+	if len(hourly) == 0 {
+		t.Errorf("hourly expected at least one bucket, got 0")
+	}
+
+	daily, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionDaily)
+	if err != nil {
+		t.Fatalf("daily: %v", err)
+	}
+	if len(daily) > 2 {
+		t.Errorf("daily expected ≤2 buckets, got %d", len(daily))
+	}
+
+	monthly, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionMonthly)
+	if err != nil {
+		t.Fatalf("monthly: %v", err)
+	}
+	// Four points within ~3 hours collapse to at most 2 month-buckets
+	// (even if the window straddles a month boundary).
+	if len(monthly) < 1 || len(monthly) > 2 {
+		t.Errorf("monthly expected 1–2 buckets, got %d", len(monthly))
+	}
+	// Monthly buckets must align to the first of their month.
+	for _, b := range monthly {
+		if !b.TS.Equal(time.Date(b.TS.Year(), b.TS.Month(), 1, 0, 0, 0, 0, time.UTC)) {
+			t.Errorf("monthly bucket not month-aligned: %v", b.TS)
+		}
 	}
 }
 

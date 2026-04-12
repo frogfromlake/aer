@@ -15,24 +15,72 @@ type MetricRow struct {
 	MetricName string
 }
 
+// Resolution selects the temporal bucketing applied at query time.
+// The zero value (ResolutionFiveMinute) preserves backward-compatible behavior.
+type Resolution int
+
+const (
+	ResolutionFiveMinute Resolution = iota
+	ResolutionHourly
+	ResolutionDaily
+	ResolutionWeekly
+	ResolutionMonthly
+)
+
+// bucketExpr returns the ClickHouse expression that buckets the supplied
+// timestamp column for this resolution.
+func (r Resolution) bucketExpr(column string) string {
+	switch r {
+	case ResolutionHourly:
+		return "toStartOfHour(" + column + ")"
+	case ResolutionDaily:
+		return "toStartOfDay(" + column + ")"
+	case ResolutionWeekly:
+		return "toStartOfWeek(" + column + ")"
+	case ResolutionMonthly:
+		return "toStartOfMonth(" + column + ")"
+	default:
+		return "toStartOfFiveMinute(" + column + ")"
+	}
+}
+
+// rowLimitMultiplier scales the per-request hard cap by the size ratio
+// between the requested bucket and the 5-minute baseline. Wider buckets
+// produce proportionally fewer rows for the same time range, so we relax
+// the OOM guard to keep long ranges queryable.
+func (r Resolution) rowLimitMultiplier() int {
+	switch r {
+	case ResolutionHourly:
+		return 12
+	case ResolutionDaily:
+		return 288
+	case ResolutionWeekly:
+		return 2016
+	case ResolutionMonthly:
+		return 8640
+	default:
+		return 1
+	}
+}
+
 // GetMetrics retrieves aggregated time-series data from the gold layer.
-// It downsamples the data to 5-minute intervals to prevent OOM errors on large time ranges.
-// Optional source and metricName filters narrow results to specific dimensions.
-func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]MetricRow, error) {
+// It downsamples the data to the requested resolution (default 5-minute)
+// to prevent OOM errors on large time ranges. Optional source and metricName
+// filters narrow results to specific dimensions.
+func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, error) {
 	var results []MetricRow
 
-	// Use toStartOfFiveMinute and avg() to aggregate data on the DB level.
-	// We also apply a hard limit to guarantee memory safety.
-	// Build dynamic WHERE clause based on optional dimension filters.
-	query := `
+	// Bucket on the DB side via resolution.bucketExpr; aggregate with avg().
+	// A hard LIMIT — scaled by the resolution — keeps memory bounded.
+	query := fmt.Sprintf(`
 		SELECT
-			toStartOfFiveMinute(timestamp) as TS,
+			%s as TS,
 			avg(value) as Value,
 			source as Source,
 			metric_name as MetricName
 		FROM aer_gold.metrics
 		WHERE timestamp >= $1 AND timestamp <= $2
-	`
+	`, resolution.bucketExpr("timestamp"))
 	args := []any{start, end}
 	argIdx := 3
 
@@ -53,7 +101,7 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
-	`, s.rowLimit)
+	`, s.rowLimit*resolution.rowLimitMultiplier())
 
 	err := s.conn.Select(ctx, &results, query, args...)
 	if err != nil {
@@ -66,10 +114,11 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 
 // AvailableMetricRow represents a metric name with its validation status and optional equivalence metadata.
 type AvailableMetricRow struct {
-	MetricName       string
-	ValidationStatus string // "unvalidated", "validated", or "expired"
-	EticConstruct    *string
-	EquivalenceLevel *string
+	MetricName              string
+	ValidationStatus        string // "unvalidated", "validated", or "expired"
+	EticConstruct           *string
+	EquivalenceLevel        *string
+	MinMeaningfulResolution *string // resolution string ("hourly", "daily", ...) or nil
 }
 
 // GetAvailableMetrics returns the distinct metric names that have data in the given
@@ -227,12 +276,12 @@ func (s *ClickHouseStorage) CheckEquivalenceExists(ctx context.Context, metricNa
 // GetNormalizedMetrics retrieves z-score normalized time-series data.
 // It joins metrics with language_detections (rank=1) to resolve language,
 // then with metric_baselines to compute (value - baseline_value) / baseline_std.
-func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]MetricRow, error) {
+func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, error) {
 	var results []MetricRow
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
-			toStartOfFiveMinute(m.timestamp) AS TS,
+			%s AS TS,
 			avg((m.value - b.baseline_value) / b.baseline_std) AS Value,
 			m.source AS Source,
 			m.metric_name AS MetricName
@@ -245,7 +294,7 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 			AND ld.detected_language = b.language
 		WHERE m.timestamp >= $1 AND m.timestamp <= $2
 		  AND b.baseline_std > 0
-	`
+	`, resolution.bucketExpr("m.timestamp"))
 	args := []any{start, end}
 	argIdx := 3
 
@@ -263,7 +312,7 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
-	`, s.rowLimit)
+	`, s.rowLimit*resolution.rowLimitMultiplier())
 
 	err := s.conn.Select(ctx, &results, query, args...)
 	if err != nil {
