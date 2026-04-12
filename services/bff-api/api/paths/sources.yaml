@@ -1,0 +1,20 @@
+get:
+  summary: List known data sources with methodology documentation
+  description: >
+    Returns the canonical list of data sources configured in AĒR together
+    with optional links to their methodological documentation (e.g., bias
+    profiles under `docs/methodology/`). The list is served from a static
+    BFF config mirroring the PostgreSQL `sources` table so the BFF does
+    not require a direct Postgres connection.
+  operationId: getSources
+  responses:
+    '200':
+      description: The list of known sources.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/Source'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

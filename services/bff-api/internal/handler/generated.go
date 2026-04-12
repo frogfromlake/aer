@@ -63,6 +63,27 @@ func (e Resolution) Valid() bool {
 	}
 }
 
+// Defines values for TierClassification.
+const (
+	N1 TierClassification = 1
+	N2 TierClassification = 2
+	N3 TierClassification = 3
+)
+
+// Valid indicates whether the value is a known member of the TierClassification enum.
+func (e TierClassification) Valid() bool {
+	switch e {
+	case N1:
+		return true
+	case N2:
+		return true
+	case N3:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ValidationStatus.
 const (
 	Expired     ValidationStatus = "expired"
@@ -150,8 +171,50 @@ type AvailableMetric struct {
 // EquivalenceLevel The level of cross-cultural equivalence established for this metric. "temporal" means only temporal patterns are comparable, "deviation" means deviation from baseline is comparable, "absolute" means raw values are directly comparable across contexts.
 type EquivalenceLevel string
 
+// MetricProvenance defines model for MetricProvenance.
+type MetricProvenance struct {
+	// AlgorithmDescription Plain-language description of the algorithm or lexicon that produces this metric.
+	AlgorithmDescription string `json:"algorithmDescription"`
+
+	// CulturalContextNotes Contextual notes on cross-cultural applicability, sourced from the `metric_equivalence` table when an entry exists. Null when no equivalence entry has been registered.
+	CulturalContextNotes *string `json:"culturalContextNotes,omitempty"`
+
+	// ExtractorVersionHash Short hash or version tag identifying the extractor implementation that produced the metric definition. Lets downstream consumers bind analytical results to a specific extractor revision.
+	ExtractorVersionHash string `json:"extractorVersionHash"`
+
+	// KnownLimitations Enumerated methodological limitations documented in the relevant Working Paper. May be empty for deterministic metrics with no known limitations.
+	KnownLimitations []string `json:"knownLimitations"`
+
+	// MetricName The canonical metric name.
+	MetricName string `json:"metricName"`
+
+	// TierClassification Methodological tier of the metric as defined in WP-002. Tier 1 = deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3 = model-based/interpretive. The tier bounds the kind of claim the metric can support and is a primary signal for reflexive interpretation.
+	TierClassification TierClassification `json:"tierClassification"`
+
+	// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
+	ValidationStatus ValidationStatus `json:"validationStatus"`
+}
+
 // Resolution Temporal aggregation resolution. "5min" is the finest grain stored in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month at query time.
 type Resolution string
+
+// Source defines model for Source.
+type Source struct {
+	// DocumentationUrl Link to the methodology documentation for this source (e.g., bias profile under `docs/methodology/`). Null when no profile has been written.
+	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+
+	// Name Canonical source identifier.
+	Name string `json:"name"`
+
+	// Type Source type discriminator (e.g., "rss", "scraper").
+	Type string `json:"type"`
+
+	// Url Origin URL (feed, API, or seed page).
+	Url *string `json:"url,omitempty"`
+}
+
+// TierClassification Methodological tier of the metric as defined in WP-002. Tier 1 = deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3 = model-based/interpretive. The tier bounds the kind of claim the metric can support and is a primary signal for reflexive interpretation.
+type TierClassification int
 
 // ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
 type ValidationStatus string
@@ -245,9 +308,15 @@ type ServerInterface interface {
 	// List available metric names
 	// (GET /metrics/available)
 	GetMetricsAvailable(w http.ResponseWriter, r *http.Request, params GetMetricsAvailableParams)
+	// Retrieve provenance metadata for a metric
+	// (GET /metrics/{metricName}/provenance)
+	GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
+	// List known data sources with methodology documentation
+	// (GET /sources)
+	GetSources(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -284,9 +353,21 @@ func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Retrieve provenance metadata for a metric
+// (GET /metrics/{metricName}/provenance)
+func (_ Unimplemented) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Readiness probe
 // (GET /readyz)
 func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List known data sources with methodology documentation
+// (GET /sources)
+func (_ Unimplemented) GetSources(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -589,11 +670,50 @@ func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetMetricProvenance operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricProvenance(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "metricName" -------------
+	var metricName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "metricName", chi.URLParam(r, "metricName"), &metricName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metricName", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricProvenance(w, r, metricName)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetReadyz operation middleware
 func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetReadyz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSources operation middleware
+func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSources(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -732,7 +852,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/metrics/available", wrapper.GetMetricsAvailable)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/{metricName}/provenance", wrapper.GetMetricProvenance)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sources", wrapper.GetSources)
 	})
 
 	return r
@@ -954,6 +1080,47 @@ func (response GetMetricsAvailable500JSONResponse) VisitGetMetricsAvailableRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetMetricProvenanceRequestObject struct {
+	MetricName string `json:"metricName"`
+}
+
+type GetMetricProvenanceResponseObject interface {
+	VisitGetMetricProvenanceResponse(w http.ResponseWriter) error
+}
+
+type GetMetricProvenance200JSONResponse MetricProvenance
+
+func (response GetMetricProvenance200JSONResponse) VisitGetMetricProvenanceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricProvenance404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricProvenance404JSONResponse) VisitGetMetricProvenanceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricProvenance500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricProvenance500JSONResponse) VisitGetMetricProvenanceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetReadyzRequestObject struct {
 }
 
@@ -979,6 +1146,34 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetSourcesRequestObject struct {
+}
+
+type GetSourcesResponseObject interface {
+	VisitGetSourcesResponse(w http.ResponseWriter) error
+}
+
+type GetSources200JSONResponse []Source
+
+func (response GetSources200JSONResponse) VisitGetSourcesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSources500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSources500JSONResponse) VisitGetSourcesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Retrieve aggregated named entities
@@ -996,9 +1191,15 @@ type StrictServerInterface interface {
 	// List available metric names
 	// (GET /metrics/available)
 	GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error)
+	// Retrieve provenance metadata for a metric
+	// (GET /metrics/{metricName}/provenance)
+	GetMetricProvenance(ctx context.Context, request GetMetricProvenanceRequestObject) (GetMetricProvenanceResponseObject, error)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
+	// List known data sources with methodology documentation
+	// (GET /sources)
+	GetSources(ctx context.Context, request GetSourcesRequestObject) (GetSourcesResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -1158,6 +1359,32 @@ func (sh *strictHandler) GetMetricsAvailable(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// GetMetricProvenance operation middleware
+func (sh *strictHandler) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string) {
+	var request GetMetricProvenanceRequestObject
+
+	request.MetricName = metricName
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricProvenance(ctx, request.(GetMetricProvenanceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricProvenance")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricProvenanceResponseObject); ok {
+		if err := validResponse.VisitGetMetricProvenanceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetReadyz operation middleware
 func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	var request GetReadyzRequestObject
@@ -1175,6 +1402,30 @@ func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetReadyzResponseObject); ok {
 		if err := validResponse.VisitGetReadyzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSources operation middleware
+func (sh *strictHandler) GetSources(w http.ResponseWriter, r *http.Request) {
+	var request GetSourcesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSources(ctx, request.(GetSourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSourcesResponseObject); ok {
+		if err := validResponse.VisitGetSourcesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -1,0 +1,32 @@
+get:
+  summary: Retrieve provenance metadata for a metric
+  description: >
+    Returns the methodological provenance for a single metric: tier
+    classification, algorithm description, known limitations, current
+    validation status, extractor version hash, and cultural-context notes.
+    Static fields are sourced from the BFF's `metric_provenance.yaml`
+    config; dynamic fields (`validationStatus`, `culturalContextNotes`) are
+    resolved against the `metric_validity` and `metric_equivalence` tables.
+  operationId: getMetricProvenance
+  parameters:
+    - name: metricName
+      in: path
+      required: true
+      description: The canonical metric name (e.g., "word_count").
+      schema:
+        type: string
+  responses:
+    '200':
+      description: The provenance metadata for the requested metric.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MetricProvenance'
+    '404':
+      description: No provenance entry exists for the requested metric.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
