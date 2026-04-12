@@ -227,7 +227,7 @@ The working papers are designed to be shared with potential collaborators as sel
 
 ### 13.5.2 Manual Scientific Workflows
 
-Phases 62–68 introduced scientific infrastructure tables, config files, and templates whose contents are authored by researchers, not by the pipeline. These *manual workflows* live at the boundary between developer operations (the Operations Playbook — "what to type") and methodological reasoning (the Working Papers — "why this approach"). The canonical bridge document is the **Scientific Operations Guide** (`docs/scientific_operations_guide.md`, Phase 71 — planned). Each workflow in that guide names its trigger, performer, Working Paper rationale, Playbook command sequence, Phase 68 template, and destination table/config.
+Phases 62–68 introduced scientific infrastructure tables, config files, and templates whose contents are authored by researchers, not by the pipeline. These *manual workflows* live at the boundary between developer operations (the Operations Playbook — "what to type") and methodological reasoning (the Working Papers — "why this approach"). The canonical bridge document is the **[Scientific Operations Guide](../scientific_operations_guide.md)** (`docs/scientific_operations_guide.md`, Phase 71). Each workflow in that guide names its trigger, performer, Working Paper rationale, Playbook command sequence, Phase 68 template, destination table/config, and a concrete Probe 0 walkthrough.
 
 Workflows covered by the Scientific Operations Guide:
 
@@ -238,7 +238,7 @@ Workflows covered by the Scientific Operations Guide:
 5. **Assessing bias for a data source** (WP-003 §8.1) → `BiasContext` values in the adapter + prose under `docs/methodology/`.
 6. **Updating the Cultural Calendar** (WP-005 §4.3) → `configs/cultural_calendars/<region>.yaml`.
 
-Until the Scientific Operations Guide is published, each of these tables and files is populated only with provisional engineering defaults — see Chapter 11, R-13 for the architectural risk this creates.
+The Scientific Operations Guide is now published. Until the workflows it describes have actually been executed by interdisciplinary collaborators, each of these tables and files remains populated only with provisional engineering defaults — see Chapter 11, R-13 for the architectural risk this creates.
 
 ### 13.5.3 Outreach Roadmap
 
