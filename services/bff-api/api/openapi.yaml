@@ -35,6 +35,19 @@ components:
         - validated
         - expired
       example: unvalidated
+    Resolution:
+      type: string
+      description: >
+        Temporal aggregation resolution. "5min" is the finest grain stored
+        in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month
+        at query time.
+      enum:
+        - 5min
+        - hourly
+        - daily
+        - weekly
+        - monthly
+      example: hourly
     EquivalenceLevel:
       type: string
       description: >
@@ -73,3 +86,12 @@ components:
             Null if no equivalence entry exists.
           allOf:
             - $ref: '#/components/schemas/EquivalenceLevel'
+        minMeaningfulResolution:
+          nullable: true
+          description: >
+            The finest temporal resolution at which this (metric, source) pair
+            yields statistically meaningful aggregates. Derived from a static
+            BFF config map seeded by Probe 0 publication rates. Null if no
+            heuristic has been recorded for the metric-source pair.
+          allOf:
+            - $ref: '#/components/schemas/Resolution'

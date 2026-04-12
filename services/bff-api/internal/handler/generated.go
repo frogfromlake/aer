@@ -36,6 +36,33 @@ func (e EquivalenceLevel) Valid() bool {
 	}
 }
 
+// Defines values for Resolution.
+const (
+	ResolutionDaily   Resolution = "daily"
+	ResolutionHourly  Resolution = "hourly"
+	ResolutionMonthly Resolution = "monthly"
+	ResolutionN5min   Resolution = "5min"
+	ResolutionWeekly  Resolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the Resolution enum.
+func (e Resolution) Valid() bool {
+	switch e {
+	case ResolutionDaily:
+		return true
+	case ResolutionHourly:
+		return true
+	case ResolutionMonthly:
+		return true
+	case ResolutionN5min:
+		return true
+	case ResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ValidationStatus.
 const (
 	Expired     ValidationStatus = "expired"
@@ -75,6 +102,33 @@ func (e GetMetricsParamsNormalization) Valid() bool {
 	}
 }
 
+// Defines values for GetMetricsParamsResolution.
+const (
+	GetMetricsParamsResolutionDaily   GetMetricsParamsResolution = "daily"
+	GetMetricsParamsResolutionHourly  GetMetricsParamsResolution = "hourly"
+	GetMetricsParamsResolutionMonthly GetMetricsParamsResolution = "monthly"
+	GetMetricsParamsResolutionN5min   GetMetricsParamsResolution = "5min"
+	GetMetricsParamsResolutionWeekly  GetMetricsParamsResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricsParamsResolution enum.
+func (e GetMetricsParamsResolution) Valid() bool {
+	switch e {
+	case GetMetricsParamsResolutionDaily:
+		return true
+	case GetMetricsParamsResolutionHourly:
+		return true
+	case GetMetricsParamsResolutionMonthly:
+		return true
+	case GetMetricsParamsResolutionN5min:
+		return true
+	case GetMetricsParamsResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // AvailableMetric defines model for AvailableMetric.
 type AvailableMetric struct {
 	// EquivalenceLevel The highest equivalence level established for this metric. Null if no equivalence entry exists.
@@ -86,12 +140,18 @@ type AvailableMetric struct {
 	// MetricName The name of the metric.
 	MetricName string `json:"metricName"`
 
+	// MinMeaningfulResolution The finest temporal resolution at which this (metric, source) pair yields statistically meaningful aggregates. Derived from a static BFF config map seeded by Probe 0 publication rates. Null if no heuristic has been recorded for the metric-source pair.
+	MinMeaningfulResolution *Resolution `json:"minMeaningfulResolution,omitempty"`
+
 	// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
 	ValidationStatus ValidationStatus `json:"validationStatus"`
 }
 
 // EquivalenceLevel The level of cross-cultural equivalence established for this metric. "temporal" means only temporal patterns are comparable, "deviation" means deviation from baseline is comparable, "absolute" means raw values are directly comparable across contexts.
 type EquivalenceLevel string
+
+// Resolution Temporal aggregation resolution. "5min" is the finest grain stored in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month at query time.
+type Resolution string
 
 // ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
 type ValidationStatus string
@@ -148,10 +208,16 @@ type GetMetricsParams struct {
 
 	// Normalization Normalization mode for metric values. "raw" returns values as stored. "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std. Requires baseline data and at least deviation-level equivalence validation.
 	Normalization *GetMetricsParamsNormalization `form:"normalization,omitempty" json:"normalization,omitempty"`
+
+	// Resolution Temporal aggregation resolution for the returned series. Maps to ClickHouse bucketing functions: 5min → toStartOfFiveMinute, hourly → toStartOfHour, daily → toStartOfDay, weekly → toStartOfWeek, monthly → toStartOfMonth. Wider buckets relax the per-request row cap proportionally.
+	Resolution *GetMetricsParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
 }
 
 // GetMetricsParamsNormalization defines parameters for GetMetrics.
 type GetMetricsParamsNormalization string
+
+// GetMetricsParamsResolution defines parameters for GetMetrics.
+type GetMetricsParamsResolution string
 
 // GetMetricsAvailableParams defines parameters for GetMetricsAvailable.
 type GetMetricsAvailableParams struct {
@@ -452,6 +518,14 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "normalization", r.URL.Query(), &params.Normalization, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "normalization", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "resolution" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resolution", r.URL.Query(), &params.Resolution, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resolution", Err: err})
 		return
 	}
 

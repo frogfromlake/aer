@@ -8,6 +8,7 @@ get:
     - $ref: '../parameters/source.yaml'
     - $ref: '../parameters/metricName.yaml'
     - $ref: '../parameters/normalization.yaml'
+    - $ref: '../parameters/resolution.yaml'
   responses:
     '200':
       description: A list of time-series data points.
