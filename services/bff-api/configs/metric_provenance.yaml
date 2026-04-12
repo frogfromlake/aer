@@ -1,0 +1,79 @@
+# metric_provenance.yaml — static methodological provenance for every metric
+# currently implemented in the analysis worker.
+#
+# This file is the single source of truth for the static fields served by
+# GET /api/v1/metrics/{metricName}/provenance. Dynamic fields
+# (validation_status, cultural_context_notes) are resolved at query time
+# against the ClickHouse metric_validity / metric_equivalence tables.
+#
+# Update this file every time a new extractor is registered in
+# services/analysis-worker/internal/extractors/. The registered-metric
+# invariant is verified in the BFF handler tests.
+#
+# Fields:
+#   tier_classification      — 1 (deterministic), 2 (statistical), 3 (model-based)
+#   algorithm_description    — plain-language algorithm summary
+#   known_limitations        — methodological limitations from the relevant WP
+#   extractor_version_hash   — revision tag of the extractor implementation
+#
+# Working-paper references in known_limitations entries are intentional —
+# they let downstream consumers locate the provenance of each limitation.
+
+word_count:
+  tier_classification: 1
+  algorithm_description: >
+    Deterministic whitespace token count over the cleaned text of a single
+    document. Implemented by WordCountExtractor in the analysis worker.
+  known_limitations: []
+  extractor_version_hash: v1
+
+sentiment_score:
+  tier_classification: 1
+  algorithm_description: >
+    Lexicon-based polarity score using SentiWS v2.0. Per-token polarity
+    values are averaged over the document's cleaned text. Implemented by
+    SentimentExtractor.
+  known_limitations:
+    - "Negation blindness — SentiWS does not propagate negation scope (WP-002 §3)."
+    - "Compound word failure — German noun compounds outside the lexicon score as neutral (WP-002 §3)."
+    - "Genre drift — lexicon calibrated on news/product reviews, not institutional discourse (WP-002 §3)."
+  extractor_version_hash: sentiws-2.0
+
+language_confidence:
+  tier_classification: 1
+  algorithm_description: >
+    langdetect port of Google's compact language detector with a fixed
+    random seed. Returns the detector's top-ranked language and its
+    confidence score per document. Implemented by LanguageDetectionExtractor.
+  known_limitations:
+    - "Short-text degradation — reliability drops below 50 tokens per document (WP-002 §3)."
+    - "Code-switching blindness — returns a single language label per document even when multiple languages are present."
+  extractor_version_hash: langdetect-1.0.9
+
+publication_hour:
+  tier_classification: 1
+  algorithm_description: >
+    Hour-of-day (0–23) derived deterministically from the document
+    timestamp. Implemented by TemporalDistributionExtractor.
+  known_limitations: []
+  extractor_version_hash: v1
+
+publication_weekday:
+  tier_classification: 1
+  algorithm_description: >
+    ISO weekday (1=Monday, 7=Sunday) derived deterministically from the
+    document timestamp. Implemented by TemporalDistributionExtractor.
+  known_limitations: []
+  extractor_version_hash: v1
+
+entity_count:
+  tier_classification: 1
+  algorithm_description: >
+    Count of named entities extracted by spaCy de_core_news_lg-3.8.0.
+    Implemented by NamedEntityExtractor; individual entity records are
+    written to aer_gold.entities.
+  known_limitations:
+    - "No entity linking — entities are surface strings, not canonical IDs."
+    - "Western bias in entity ontology — PERSON/ORG/LOC/MISC inherited from CoNLL-2003 (WP-002 §3)."
+    - "Model drift — depends on the pinned spaCy model version; upgrading the model changes extraction behavior."
+  extractor_version_hash: de_core_news_lg-3.8.0
