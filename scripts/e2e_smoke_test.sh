@@ -254,6 +254,83 @@ else
     log_info "Response: $(cat /tmp/aer_e2e_available.json 2>/dev/null || echo '<empty>')"
 fi
 
+# ── Step 8b: Assert discourse_function is populated in ClickHouse (Phase 62) ─
+# The aer_gold.metrics.discourse_function column is written by the analysis
+# worker when a source_classifications row exists for the source. It is not
+# (yet) surfaced via the BFF API, so we assert directly against ClickHouse.
+log_step "Step 8b: Assert discourse_function populated in aer_gold.metrics (Phase 62)"
+
+# Note: metric timestamp comes from the article's publication date, not
+# ingest time, so we do not filter by timestamp here — the stack is torn
+# down after every run, so any matching row is from the current execution.
+DISCOURSE_COUNT=$(docker compose exec -T clickhouse clickhouse-client \
+    --user="${CLICKHOUSE_USER}" --password="${CLICKHOUSE_PASSWORD}" \
+    --query="SELECT count() FROM aer_gold.metrics WHERE metric_name = 'word_count' AND discourse_function != ''" \
+    2>/dev/null | tr -d '[:space:]') || DISCOURSE_COUNT="0"
+
+if [[ "${DISCOURSE_COUNT:-0}" -gt 0 ]]; then
+    log_ok "discourse_function populated on $DISCOURSE_COUNT row(s) in aer_gold.metrics."
+else
+    log_fail "discourse_function is empty for all recent word_count rows — Phase 62 propagation broken."
+fi
+
+# ── Step 8c: Assert GET /api/v1/metrics?resolution=hourly (Phase 66) ──────
+log_step "Step 8c: GET /api/v1/metrics?resolution=hourly (Phase 66)"
+
+HOURLY_STATUS=$(curl -sf \
+    -o /tmp/aer_e2e_hourly.json \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/metrics?resolution=hourly&metricName=word_count&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || HOURLY_STATUS="000"
+
+if [[ "$HOURLY_STATUS" == "200" ]]; then
+    HOURLY_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_hourly.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    if [[ "$HOURLY_COUNT" -gt 0 ]]; then
+        log_ok "metrics?resolution=hourly: $HOURLY_COUNT data point(s)."
+    else
+        log_fail "metrics?resolution=hourly returned 200 but 0 data points."
+        log_info "Response: $(cat /tmp/aer_e2e_hourly.json)"
+    fi
+else
+    log_fail "metrics?resolution=hourly returned HTTP $HOURLY_STATUS."
+    log_info "Response: $(cat /tmp/aer_e2e_hourly.json 2>/dev/null || echo '<empty>')"
+fi
+
+# ── Step 8d: Assert GET /api/v1/metrics/{metricName}/provenance (Phase 67) ─
+log_step "Step 8d: GET /api/v1/metrics/word_count/provenance (Phase 67)"
+
+PROVENANCE_STATUS=$(curl -sf \
+    -o /tmp/aer_e2e_provenance.json \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/metrics/word_count/provenance" 2>/dev/null) || PROVENANCE_STATUS="000"
+
+if [[ "$PROVENANCE_STATUS" == "200" ]]; then
+    PROVENANCE_OK=$(python3 -c "
+import json
+d = json.load(open('/tmp/aer_e2e_provenance.json'))
+required = ('tierClassification', 'algorithmDescription', 'knownLimitations', 'validationStatus', 'metricName')
+missing = [f for f in required if f not in d]
+if missing:
+    print('missing:' + ','.join(missing))
+elif not d['algorithmDescription']:
+    print('empty_algorithm_description')
+elif d['tierClassification'] not in (1, 2, 3):
+    print('invalid_tier:' + str(d['tierClassification']))
+else:
+    print('ok')
+" 2>/dev/null || echo "error")
+    if [[ "$PROVENANCE_OK" == "ok" ]]; then
+        log_ok "provenance endpoint returns tier + algorithm description for word_count."
+    else
+        log_fail "provenance endpoint response invalid: $PROVENANCE_OK"
+        log_info "Response: $(cat /tmp/aer_e2e_provenance.json)"
+    fi
+else
+    log_fail "provenance endpoint returned HTTP $PROVENANCE_STATUS."
+    log_info "Response: $(cat /tmp/aer_e2e_provenance.json 2>/dev/null || echo '<empty>')"
+fi
+
 # ── Step 9: Assert GET /api/v1/languages ────────────────────────────────
 log_step "Step 9: GET /api/v1/languages"
 
