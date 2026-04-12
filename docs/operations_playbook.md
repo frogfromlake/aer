@@ -5,6 +5,38 @@
 
 ---
 
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Stack Lifecycle](#stack-lifecycle)
+3. [PostgreSQL (Metadata Index)](#postgresql-metadata-index)
+    - [Source Classifications (WP-001)](#source-classifications-wp-001) — *touchpoint*
+4. [ClickHouse (Gold Layer — Analytics)](#clickhouse-gold-layer-analytics)
+    - [Metric Validity (WP-002)](#metric-validity-wp-002) — *touchpoint*
+    - [Metric Baselines & Equivalence (WP-004)](#metric-baselines-equivalence-wp-004) — *touchpoint*
+5. [MinIO (Data Lake — Object Storage)](#minio-data-lake-object-storage)
+6. [NATS JetStream (Event Broker)](#nats-jetstream-event-broker)
+7. [Observability Stack](#observability-stack)
+    - [Grafana](#grafana-dashboards-traces) · [Prometheus](#prometheus-metrics-alerting) · [Tempo](#tempo-distributed-tracing) · [OpenTelemetry Collector](#opentelemetry-collector)
+8. [Application Services](#application-services)
+    - [Ingestion API (Go)](#ingestion-api-go)
+    - [BFF API (Go)](#bff-api-go) — incl. [Metric Provenance Config](#metric-provenance-config) *touchpoint*
+    - [Analysis Worker (Python)](#analysis-worker-python) — incl. `BiasContext` *touchpoint*
+    - [RSS Crawler](#rss-crawler)
+9. [Configuration & Documentation Files](#configuration-documentation-files)
+    - [Cultural Calendar Files](#cultural-calendar-files) — *touchpoint*
+    - [Probe Dossier](#probe-dossier) — *touchpoint*
+10. [Arc42 Documentation Server](#arc42-documentation-server)
+11. [Testing](#testing)
+12. [Volume Management](#volume-management)
+13. [Network Architecture](#network-architecture)
+14. [Scientific Touchpoints Index](#scientific-touchpoints-index)
+15. [Quick Reference Card](#quick-reference-card)
+
+Sections marked *touchpoint* are points at which scientific judgment enters the pipeline. Each touchpoint links to the corresponding workflow in the [Scientific Operations Guide](scientific_operations_guide.md), and that guide links back here for the exact commands. The mapping is consolidated in the [Scientific Touchpoints Index](#scientific-touchpoints-index) below.
+
+---
+
 ## Prerequisites
 
 Before using any service, ensure the stack is running and the debug ports are exposed:
@@ -102,7 +134,7 @@ make infra-clean-postgres   # Wipe PostgreSQL volume (interactive confirmation)
 
 The `source_classifications` table records the etic/emic discourse-function classification of each data source. It is populated by seed migrations under `infra/postgres/migrations/` and updated as the WP-001 §4.4 review process advances a row through `provisional_engineering` → `pending` → `reviewed` (or `contested`). The composite primary key `(source_id, classification_date)` is designed for temporal tracking — insert new rows instead of updating existing ones.
 
-> Scientific rationale: [Scientific Operations Guide → Workflow 1: Classifying a New Probe](scientific_operations_guide.md).
+> Scientific rationale: [Scientific Operations Guide → Workflow 1: Classifying a New Probe](scientific_operations_guide.md#workflow-1-classifying-a-new-probe).
 
 **Inspect:**
 
@@ -220,8 +252,8 @@ SELECT * FROM aer_gold.schema_migrations ORDER BY version;
 **Schema — Scientific infrastructure tables (populated by researchers or scripts):**
 
 - `aer_gold.metric_validity` — Validation study outcomes per `(metric_name, context_key)`. See [Metric Validity](#metric-validity-wp-002) below.
-- `aer_gold.metric_baselines` — Per-`(metric_name, source, language)` mean/stddev for z-score normalization. See [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) below.
-- `aer_gold.metric_equivalence` — Cross-cultural comparability claims. See [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) below.
+- `aer_gold.metric_baselines` — Per-`(metric_name, source, language)` mean/stddev for z-score normalization. See [Metric Baselines & Equivalence](#metric-baselines-equivalence-wp-004) below.
+- `aer_gold.metric_equivalence` — Cross-cultural comparability claims. See [Metric Baselines & Equivalence](#metric-baselines-equivalence-wp-004) below.
 
 **Migrations** are in `infra/clickhouse/migrations/` and run via the `clickhouse-init` container (`infra/clickhouse/migrate.sh`) on startup. Applied versions are tracked in `aer_gold.schema_migrations`.
 
@@ -235,7 +267,7 @@ make infra-clean-clickhouse   # Wipe ClickHouse volume (interactive confirmation
 
 The `aer_gold.metric_validity` table (`ReplacingMergeTree`, Migration 006) records the outcome of a validation study for one `(metric_name, context_key)` pair. The BFF API joins this table at query time to compute the `validationStatus` field on `GET /api/v1/metrics/available` and `GET /api/v1/metrics/{metricName}/provenance`.
 
-> Scientific rationale: [Scientific Operations Guide → Workflow 2: Validating a Metric](scientific_operations_guide.md). Template: `docs/templates/validation_study_template.yaml`.
+> Scientific rationale: [Scientific Operations Guide → Workflow 2: Validating a Metric](scientific_operations_guide.md#workflow-2-validating-a-metric). Template: `docs/templates/validation_study_template.yaml`.
 
 **Inspect:**
 
@@ -291,7 +323,7 @@ When `valid_until` passes, the BFF API automatically reverts the metric to `vali
 
 `aer_gold.metric_baselines` stores the per-`(metric_name, source, language)` mean and standard deviation used as the denominator for z-score normalization. `aer_gold.metric_equivalence` records validated cross-instrument comparability claims at one of three levels (`temporal`, `deviation`, `absolute`) and gates the `?normalization=zscore` query parameter on the BFF API.
 
-> Scientific rationale: [Scientific Operations Guide → Workflow 3: Establishing Metric Equivalence](scientific_operations_guide.md) and [Workflow 4: Computing and Updating Baselines](scientific_operations_guide.md).
+> Scientific rationale: [Scientific Operations Guide → Workflow 3: Establishing Metric Equivalence](scientific_operations_guide.md#workflow-3-establishing-metric-equivalence) and [Workflow 4: Computing and Updating Baselines](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines).
 
 **Inspect:**
 
@@ -569,7 +601,7 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 
 `services/bff-api/configs/metric_provenance.yaml` is the SSoT for the static fields returned by `GET /api/v1/metrics/{metricName}/provenance`. The BFF loads it at startup; dynamic fields (`validationStatus`, `culturalContextNotes`) are resolved per-request against the ClickHouse `metric_validity` and `metric_equivalence` tables.
 
-> Scientific rationale: [Scientific Operations Guide → Workflow 1, Step 5](scientific_operations_guide.md) (registration) and [Workflow 2](scientific_operations_guide.md) (validation).
+> Scientific rationale: [Scientific Operations Guide → Workflow 1, Step 5](scientific_operations_guide.md#workflow-1-classifying-a-new-probe) (registration) and [Workflow 2](scientific_operations_guide.md#workflow-2-validating-a-metric) (validation).
 
 **Trigger for updates:** every time a new extractor is registered in `services/analysis-worker/internal/extractors/`. The registered-metric invariant is verified by the BFF handler tests — the build will fail if a metric exists in the worker but not in this YAML.
 
@@ -663,7 +695,7 @@ feeds:
 Adding a new RSS feed requires:
 1. A new entry in `feeds.yaml`.
 2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
-3. A Probe Dossier and Probe Classification workflow (see [Scientific Operations Guide → Workflow 1](scientific_operations_guide.md)).
+3. A Probe Dossier and Probe Classification workflow (see [Scientific Operations Guide → Workflow 1](scientific_operations_guide.md#workflow-1-classifying-a-new-probe)).
 
 **Deduplication:** The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs. State is written to disk immediately after each feed's batch is successfully submitted — not once at the end — so a crash or interruption mid-run does not cause re-ingestion of already-processed feeds.
 
@@ -679,7 +711,7 @@ Adding a new RSS feed requires:
 
 Per-region cultural calendars live under `configs/cultural_calendars/<region>.yaml`. They enumerate culturally significant dates (public holidays, elections, religious observances, recurring major media events) whose presence is expected to perturb discourse metrics. The calendars are static lookups for manual interpretation — they are not yet wired into the query layer.
 
-> Scientific rationale: [Scientific Operations Guide → Workflow 6: Updating the Cultural Calendar](scientific_operations_guide.md).
+> Scientific rationale: [Scientific Operations Guide → Workflow 6: Updating the Cultural Calendar](scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar).
 
 **File format** (per entry):
 
@@ -704,7 +736,7 @@ Per-region cultural calendars live under `configs/cultural_calendars/<region>.ya
 
 The Probe Dossier Pattern groups all per-probe scientific documentation under a single directory `docs/probes/<probe-id>/`. Per-metric provenance (`metric_provenance.yaml`) and per-validation context (`metric_validity`) are system-wide and intentionally **not** part of the dossier — they are referenced from the dossier's `README.md` WP Coverage Matrix.
 
-> Scientific rationale: Arc42 §8.15 — Probe Dossier Pattern. [Scientific Operations Guide → Workflow 1, Step 5](scientific_operations_guide.md).
+> Scientific rationale: Arc42 §8.15 — Probe Dossier Pattern. [Scientific Operations Guide → Workflow 1, Step 5](scientific_operations_guide.md#workflow-1-classifying-a-new-probe).
 
 **Mandatory dossier files:**
 
@@ -792,14 +824,14 @@ The following table indexes every point where scientific judgment enters the AĒ
 
 | Touchpoint | Technology | Playbook Section | Scientific Operations Guide |
 | :--- | :--- | :--- | :--- |
-| `source_classifications` | PostgreSQL | [Source Classifications](#source-classifications-wp-001) | Workflow 1: Classifying a New Probe |
-| `aer_gold.metric_validity` | ClickHouse | [Metric Validity](#metric-validity-wp-002) | Workflow 2: Validating a Metric |
-| `aer_gold.metric_equivalence` | ClickHouse | [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) | Workflow 3: Establishing Metric Equivalence |
-| `aer_gold.metric_baselines` | ClickHouse | [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) | Workflow 4: Computing and Updating Baselines |
-| `metric_provenance.yaml` | BFF Config | [Metric Provenance Config](#metric-provenance-config) | Workflow 1 (Step 5) / Workflow 2 |
-| Probe Dossier (`docs/probes/`) | Filesystem | [Probe Dossier](#probe-dossier) | Workflow 1 (Step 5) / Workflow 5 |
-| `BiasContext` (in adapter code) | Python | [Analysis Worker](#analysis-worker-python) | Workflow 5: Assessing Bias |
-| Cultural Calendar (`configs/cultural_calendars/`) | Filesystem | [Cultural Calendar Files](#cultural-calendar-files) | Workflow 6: Updating the Cultural Calendar |
+| `source_classifications` | PostgreSQL | [Source Classifications](#source-classifications-wp-001) | [Workflow 1: Classifying a New Probe](scientific_operations_guide.md#workflow-1-classifying-a-new-probe) |
+| `aer_gold.metric_validity` | ClickHouse | [Metric Validity](#metric-validity-wp-002) | [Workflow 2: Validating a Metric](scientific_operations_guide.md#workflow-2-validating-a-metric) |
+| `aer_gold.metric_equivalence` | ClickHouse | [Metric Baselines & Equivalence](#metric-baselines-equivalence-wp-004) | [Workflow 3: Establishing Metric Equivalence](scientific_operations_guide.md#workflow-3-establishing-metric-equivalence) |
+| `aer_gold.metric_baselines` | ClickHouse | [Metric Baselines & Equivalence](#metric-baselines-equivalence-wp-004) | [Workflow 4: Computing and Updating Baselines](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines) |
+| `metric_provenance.yaml` | BFF Config | [Metric Provenance Config](#metric-provenance-config) | [Workflow 1 (Step 5)](scientific_operations_guide.md#workflow-1-classifying-a-new-probe) / [Workflow 2](scientific_operations_guide.md#workflow-2-validating-a-metric) |
+| Probe Dossier (`docs/probes/`) | Filesystem | [Probe Dossier](#probe-dossier) | [Workflow 1 (Step 5)](scientific_operations_guide.md#workflow-1-classifying-a-new-probe) / [Workflow 5](scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) |
+| `BiasContext` (in adapter code) | Python | [Analysis Worker](#analysis-worker-python) | [Workflow 5: Assessing Bias](scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) |
+| Cultural Calendar (`configs/cultural_calendars/`) | Filesystem | [Cultural Calendar Files](#cultural-calendar-files) | [Workflow 6: Updating the Cultural Calendar](scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar) |
 
 ---
 
