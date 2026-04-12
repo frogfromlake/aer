@@ -263,9 +263,17 @@ log_step "Step 8b: Assert discourse_function populated in aer_gold.metrics (Phas
 # Note: metric timestamp comes from the article's publication date, not
 # ingest time, so we do not filter by timestamp here — the stack is torn
 # down after every run, so any matching row is from the current execution.
+# clickhouse-client rejects an empty --password= value ("Bad arguments:
+# the argument for option '--password' should follow immediately after
+# the equal sign"), so omit the flag entirely when the password is empty.
+CH_ARGS=(--user="${CLICKHOUSE_USER}")
+if [[ -n "${CLICKHOUSE_PASSWORD:-}" ]]; then
+    CH_ARGS+=(--password="${CLICKHOUSE_PASSWORD}")
+fi
+
 set +e
 DISCOURSE_OUT=$(docker compose exec -T clickhouse clickhouse-client \
-    --user="${CLICKHOUSE_USER}" --password="${CLICKHOUSE_PASSWORD}" \
+    "${CH_ARGS[@]}" \
     --query="SELECT count() FROM aer_gold.metrics WHERE metric_name = 'word_count' AND discourse_function != ''" 2>&1)
 DISCOURSE_RC=$?
 set -e
