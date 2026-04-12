@@ -421,3 +421,42 @@ We adopt **Option C — Hybrid Tier Architecture** with the following structure:
 
 * **Positive:** The system is immediately usable with current provisional metrics. Methodological transparency is maintained — consumers can distinguish validated from unvalidated metrics. The architecture supports incremental validation without requiring a system-wide freeze. The dashboard principle (never hide Tier 1 behind Tier 2/3) prevents the common pitfall of sophisticated models silently replacing simpler, more auditable baselines.
 * **Negative:** Consumers must understand the tier system to correctly interpret results. The validation table is initially empty, meaning all current metrics report `unvalidated` — which is honest but may reduce perceived system maturity. The tier classification decision for each future metric requires interdisciplinary agreement, adding process overhead.
+
+---
+
+## ADR-017: Reflexive Architecture Principles
+
+**Date:** 2026-04-12
+**Status:** Accepted
+
+### Context
+
+WP-006 ("The Reflexive Architecture") argues that an observatory of discourse cannot be methodologically neutral: the choice of metric, visualization, visibility, and governance all encode normative commitments. The working paper proposes five design principles that any such system must satisfy if it is to remain reflexive about its own role in shaping what it claims to observe:
+
+1. **Methodological Transparency** — every metric must expose its algorithmic provenance, tier classification, known limitations, and validation status at the point of consumption, not buried in documentation.
+2. **Non-Prescriptive Visualization** — visual encodings must not smuggle in normative judgments (e.g., red/green for "bad/good"), must always show uncertainty alongside point estimates, and must offer multiple visualization modes to avoid privileging one interpretive frame.
+3. **Reflexive Documentation** — each data source must link to its own bias profile and classification rationale so consumers can audit the instrument, not just its outputs.
+4. **Governed Openness** — access to raw and aggregated data must follow a documented governance model, not an ad-hoc permission matrix.
+5. **Interpretive Humility** — system surfaces must refuse to answer questions the underlying data cannot support, even when a numeric answer is technically derivable.
+
+AĒR is currently a headless pipeline with a BFF API and no dashboard. Principles 2, 4, and 5 are primarily frontend and policy concerns; principles 1 and 3 have immediate consequences for the backend contract.
+
+### Decision
+
+We adopt the five WP-006 principles as an architectural commitment. Their status is split by phase boundary:
+
+**Implemented in Phase 67:**
+
+- **Principle 1 (Methodological Transparency)** is implemented via `GET /api/v1/metrics/{metricName}/provenance`, which returns tier classification, algorithm description, known limitations, validation status, extractor version hash, and cultural context notes. Static fields are sourced from `services/bff-api/configs/metric_provenance.yaml`; dynamic fields are resolved at query time against `aer_gold.metric_validity` and `aer_gold.metric_equivalence`.
+- **Principle 3 (Reflexive Documentation)** is implemented via the PostgreSQL `sources.documentation_url` column (migration 000007) and a corresponding `GET /api/v1/sources` endpoint that surfaces the URL. For Probe 0, the column is populated with a pointer to `docs/methodology/probe0_bias_profile.md`.
+
+**Deferred to the dashboard phase:**
+
+- **Principle 2 (Non-Prescriptive Visualization)** is captured as requirements in `docs/design/visualization_guidelines.md`. These constrain future frontend work (viridis color scale, no red/green encoding, no normative labels, uncertainty alongside point estimates, multiple visualization modes).
+- **Principle 4 (Governed Openness)** is deferred until a governance model is drafted alongside the first public deployment plan. Until then, access is controlled by the existing static API key (ADR-011), and the constraint is documented, not enforced.
+- **Principle 5 (Interpretive Humility)** is partially prefigured by the validation-gate pattern from ADR-016 (the BFF returns HTTP 400 when z-score normalization is requested without a registered equivalence entry). Full implementation — including query-time refusal for insufficiently-supported questions — is deferred until the dashboard introduces interpretive surfaces.
+
+### Consequences
+
+* **Positive:** The backend contract now exposes the methodological provenance required for scientifically-literate consumption of metrics, and source-level bias documentation is addressable by URL rather than being hidden in Git. The split between implemented and deferred principles is explicit — future frontend work has a concrete spec in `docs/design/visualization_guidelines.md` rather than a vague commitment.
+* **Negative:** The static provenance config (`metric_provenance.yaml`) must be kept in sync with the extractor registry by hand; the handler test verifies that every registered metric has an entry, but additions to the extractor registry still require a deliberate documentation step. Three of the five principles remain commitments without enforcement — in principle, a future frontend could violate them without the backend noticing.
