@@ -24,6 +24,7 @@ graph LR
 
     subgraph "Consumers"
         Analyst["Sociologist / Analyst"]
+        Researcher["Interdisciplinary<br/>Researcher<br/>(CSS, NLP, Area Studies)"]
         Dashboard["Dashboard User<br/>(Future Frontend)"]
         Operator["System Operator"]
     end
@@ -32,7 +33,8 @@ graph LR
     FutureSrc -->|"JSON / HTML"| FutureCrawler
     WikiCrawler -->|"HTTP POST<br/>/api/v1/ingest"| AER
     FutureCrawler -->|"HTTP POST<br/>/api/v1/ingest"| AER
-    AER -->|"REST JSON<br/>/api/v1/metrics<br/>/api/v1/entities<br/>/api/v1/metrics/available"| Analyst
+    AER -->|"REST JSON<br/>/api/v1/metrics<br/>/api/v1/entities<br/>/api/v1/languages<br/>/api/v1/metrics/available<br/>/api/v1/metrics/{name}/provenance<br/>/api/v1/sources"| Analyst
+    AER -->|"REST JSON<br/>Same endpoints as Analyst<br/>+ validation / bias / provenance metadata"| Researcher
     AER -->|"REST JSON<br/>/api/v1/metrics<br/>/api/v1/entities<br/>/api/v1/metrics/available"| Dashboard
     AER -->|"Grafana Dashboards<br/>Traces, Metrics, Alerts"| Operator
 ```
@@ -41,7 +43,8 @@ graph LR
 | :--- | :--- | :--- |
 | **External Crawlers** | Standalone programs (under `crawlers/`) that fetch raw data from public APIs and deliver it to AĒR. They are deliberately external to the system — following a "Dumb Pipes, Smart Endpoints" pattern. The long-term vision is hundreds of specialized crawlers feeding the pipeline. | `POST /api/v1/ingest` on the Ingestion API (`:8081`). JSON payload containing `source_id` and an array of `documents`, each with a `key` and raw `data` blob. |
 | **External Data Source APIs** | Public APIs (e.g., Wikipedia REST API) that provide the raw discourse data. AĒR never accesses these directly — crawlers act as adapters that translate source-specific formats into the generic AĒR ingestion contract. | No direct interface. Accessed exclusively by crawlers. |
-| **Sociologist / Analyst** | Domain experts who consume aggregated metrics to study societal discourse patterns. They need transparent, deterministic data and the ability to drill down to the original raw source (Progressive Disclosure). | `GET /api/v1/metrics`, `GET /api/v1/entities`, `GET /api/v1/metrics/available` on the BFF API (`:8080`, authenticated via API key). Future: a dedicated frontend dashboard. |
+| **Sociologist / Analyst** | Domain experts who consume aggregated metrics to study societal discourse patterns. They need transparent, deterministic data and the ability to drill down to the original raw source (Progressive Disclosure). | `GET /api/v1/metrics`, `GET /api/v1/entities`, `GET /api/v1/languages`, `GET /api/v1/metrics/available`, `GET /api/v1/metrics/{metricName}/provenance`, `GET /api/v1/sources` on the BFF API (`:8080`, authenticated via API key). Future: a dedicated frontend dashboard. |
+| **Interdisciplinary Researcher** | Researchers from CSS, NLP, comparative methodology, area studies, STS, and information design who consume AĒR not only as a data source but as an *instrument whose methodology is itself under study*. They populate the scientific infrastructure tables (`source_classifications`, `metric_validity`, `metric_equivalence`) through the workflows documented in the Scientific Methodology Working Paper series (WP-001–WP-006, see Chapter 13, §13.5 and §13.7). They audit metric provenance, bias documentation, and the validation status of every displayed number. | Read access via the same BFF endpoints as the Analyst, with particular reliance on `GET /api/v1/metrics/{metricName}/provenance` (WP-006 Principle 1) and `GET /api/v1/sources` (WP-006 Principle 3). Write access — registration of classifications, validity entries, equivalence records — happens out-of-band via the workflows described in the Scientific Operations Guide (Phase 71, forthcoming). |
 | **Dashboard User** | End users who interact with visualizations of the aggregated "weather map" of societal discourse. | Same as Analyst — the BFF API serves both roles. Currently no dedicated frontend exists (Phase 4 in the roadmap). |
 | **System Operator** | Responsible for monitoring system health, pipeline throughput, DLQ overflow, and trace analysis. | Grafana (`:3000`) with pre-provisioned dashboards, Prometheus alerting rules, and Tempo trace exploration. Additionally: NATS Monitor (`:8222`), MinIO Console (`:9001`), ClickHouse Playground (`:8123/play`). |
 
@@ -107,7 +110,7 @@ These are the only interfaces through which data enters or leaves the AĒR syste
 | Channel | Direction | Protocol | Authentication | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | Ingestion API | **Inbound** | HTTP/JSON | None (internal network only) | `POST /api/v1/ingest` — Crawlers submit raw documents. The endpoint is on port `8081` and is only accessible on `aer-backend`, not exposed through Traefik. |
-| BFF API | **Outbound** | HTTPS/JSON (via Traefik) | API Key (`X-API-Key` or `Bearer`) | `GET /api/v1/metrics?startDate=...&endDate=...&source=...&metricName=...` — Consumers retrieve aggregated time-series data with source and metric dimensions. `GET /api/v1/entities?startDate=...&endDate=...&source=...&label=...&limit=...` — Consumers retrieve aggregated named entities. `GET /api/v1/metrics/available` — Discover available metric names dynamically. TLS is terminated by Traefik. Health probes (`/healthz`, `/readyz`) are unauthenticated. |
+| BFF API | **Outbound** | HTTPS/JSON (via Traefik) | API Key (`X-API-Key` or `Bearer`) | `GET /api/v1/metrics?startDate=...&endDate=...&source=...&metricName=...&normalization=(raw\|zscore)&resolution=(5min\|hourly\|daily\|weekly\|monthly)` — aggregated time-series with optional z-score normalization (Phase 65, WP-004, gated by `metric_baselines` and `metric_equivalence`) and multi-resolution bucketing (Phase 66, WP-005). `GET /api/v1/entities?startDate=...&endDate=...&source=...&label=...&limit=...` — aggregated named entities. `GET /api/v1/languages?startDate=...&endDate=...&source=...&language=...&limit=...` — aggregated language detections. `GET /api/v1/metrics/available?startDate=...&endDate=...` — dynamic metric discovery with `validationStatus`, `eticConstruct`, `equivalenceLevel`, `minMeaningfulResolution` fields (Phases 63, 65, 66). `GET /api/v1/metrics/{metricName}/provenance` — methodological provenance per metric (Phase 67, WP-006 Principle 1). `GET /api/v1/sources` — canonical source list with `documentationUrl` fields (Phase 67, WP-006 Principle 3). TLS is terminated by Traefik. Health probes (`/healthz`, `/readyz`) are unauthenticated. |
 | Grafana | **Outbound** | HTTP | Username/Password | Port `3000` — Operators access dashboards, traces, and alerts. Credentials are configured via `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` in the `.env` file. |
 | Admin UIs | **Outbound** | HTTP | Credentials from `.env` | MinIO Console (`:9001`), ClickHouse Playground (`:8123/play`), NATS Monitor (`:8222`) — for development and operational debugging. Not exposed through Traefik. |
 
