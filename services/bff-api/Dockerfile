@@ -20,8 +20,11 @@ FROM alpine:3.23.3
 RUN apk upgrade --no-cache zlib libcrypto3 libssl3
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /bin/bff-api /bff-api
+COPY --from=builder /bin/bff-api /app/bff-api
+COPY --from=builder /workspace/services/bff-api/configs /app/configs
+
+WORKDIR /app
 
 EXPOSE 8080
 
-ENTRYPOINT ["/bff-api"]
+ENTRYPOINT ["/app/bff-api"]
