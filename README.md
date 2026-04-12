@@ -32,7 +32,12 @@ Crawler  →  Ingestion API (Go)  →  MinIO Bronze  →  NATS JetStream
 
 **Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service. Currently includes the RSS crawler (German institutional feeds for pipeline calibration).
 
-Full architectural documentation (arc42) is available at `http://localhost:8000` when the stack is running.
+Full documentation is available at `http://localhost:8000` when the stack is running. The documentation portal has four pillars:
+
+- **Architecture (arc42)** — `docs/arc42/` — system blueprint, decisions, quality goals, risks.
+- **Scientific Methodology** — `docs/methodology/` — six interdisciplinary Working Papers (EN + DE).
+- **Operations Playbook** — [`docs/operations_playbook.md`](docs/operations_playbook.md) — *what to type*: commands, schemas, debug paths.
+- **Scientific Operations Guide** — [`docs/scientific_operations_guide.md`](docs/scientific_operations_guide.md) — *when and why*: the bridge document mapping every point at which scientific judgment enters the pipeline to the responsible role, the Working Paper, the Playbook command, and the resulting table or file. Each workflow includes a concrete Probe 0 walkthrough.
 
 ---
 
@@ -332,7 +337,7 @@ Crawlers for new data sources should include a `source_type` field in the `data`
 
 **4. Probe Dossier and Classification**
 
-Adding a new data source is not just an engineering task — every new probe requires a Probe Dossier under `docs/probes/<probe-id>/` (Arc42 §8.15) and a row in `source_classifications` produced by the WP-001 §4.4 Probe Classification Process. The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe. See the **Scientific Operations Guide** (Phase 71) for the end-to-end workflow and the **Operations Playbook → Scientific Infrastructure** section for the SQL templates. For the existing reference probe, see `docs/probes/probe-0-de-institutional-rss/`.
+Adding a new data source is not just an engineering task — every new probe requires a Probe Dossier under `docs/probes/<probe-id>/` (Arc42 §8.15) and a row in `source_classifications` produced by the WP-001 §4.4 Probe Classification Process. The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe. See [`docs/scientific_operations_guide.md`](docs/scientific_operations_guide.md) (Workflow 1) for the end-to-end workflow and [`docs/operations_playbook.md`](docs/operations_playbook.md) (PostgreSQL → Source Classifications) for the SQL templates. For the existing reference probe, see [`docs/probes/probe-0-de-institutional-rss/`](docs/probes/probe-0-de-institutional-rss/).
 
 **5. Authentication**
 

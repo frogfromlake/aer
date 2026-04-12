@@ -8,7 +8,7 @@ Functioning as a digital **"macroscope"**, AĒR is designed to capture large-sca
 
 ## Documentation Structure
 
-This documentation portal bridges the gap between software engineering and the humanities. It is divided into four pillars, accessible via the **top navigation tabs**:
+This documentation portal bridges the gap between software engineering and the humanities. It is divided into the following pillars, accessible via the **top navigation tabs**:
 
 ### Architecture (arc42)
 The complete technical blueprint of the AĒR pipeline. Following the established [arc42 framework](arc42/01_introduction_and_goals.md), this section details the system's modular microservice architecture, the strict Medallion data lake constraints (Bronze, Silver, Gold layers), and core engineering decisions (ADRs).
@@ -27,7 +27,10 @@ The epistemological lens of the system. A series of six interdisciplinary workin
 | **WP-006** | Observer Effect & Reflexivity | [EN](methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md) | [DE](methodology/de/WP-006-de-beobachtereffekt_reflexivitaet_und_die_ethik_der_diskursmessung.md) |
 
 ### Operations Playbook
-The practical guide for system operators. It contains [runbooks](operations_playbook.md), infrastructure commands, and observability guidelines (Grafana, Tempo, Prometheus) for deploying and maintaining the stack.
+The practical guide for system operators. It contains [runbooks](operations_playbook.md), infrastructure commands, and observability guidelines (Grafana, Tempo, Prometheus) for deploying and maintaining the stack — the *what to type* reference.
+
+### Scientific Operations Guide
+The bridge document between developer operations and scientific methodology. It maps every point at which scientific judgment enters the AĒR pipeline (`source_classifications`, `metric_validity`, `metric_equivalence`, `metric_baselines`, `BiasContext`, the Cultural Calendar, and the Probe Dossier) to the responsible role, the Working Paper rationale, the Operations Playbook commands, and the resulting persisted artefact. Six end-to-end workflows are documented, each with a concrete walkthrough using Probe 0 (German Institutional RSS) and real values. See the [Scientific Operations Guide](scientific_operations_guide.md).
 
 ---
 
