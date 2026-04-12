@@ -263,15 +263,23 @@ log_step "Step 8b: Assert discourse_function populated in aer_gold.metrics (Phas
 # Note: metric timestamp comes from the article's publication date, not
 # ingest time, so we do not filter by timestamp here — the stack is torn
 # down after every run, so any matching row is from the current execution.
-DISCOURSE_COUNT=$(docker compose exec -T clickhouse clickhouse-client \
+set +e
+DISCOURSE_OUT=$(docker compose exec -T clickhouse clickhouse-client \
     --user="${CLICKHOUSE_USER}" --password="${CLICKHOUSE_PASSWORD}" \
-    --query="SELECT count() FROM aer_gold.metrics WHERE metric_name = 'word_count' AND discourse_function != ''" \
-    2>/dev/null | tr -d '[:space:]') || DISCOURSE_COUNT="0"
+    --query="SELECT count() FROM aer_gold.metrics WHERE metric_name = 'word_count' AND discourse_function != ''" 2>&1)
+DISCOURSE_RC=$?
+set -e
+DISCOURSE_COUNT=$(echo "$DISCOURSE_OUT" | tr -d '[:space:]')
 
-if [[ "${DISCOURSE_COUNT:-0}" -gt 0 ]]; then
+if [[ $DISCOURSE_RC -ne 0 ]]; then
+    log_fail "clickhouse-client failed (rc=$DISCOURSE_RC): ${DISCOURSE_OUT}"
+elif [[ "${DISCOURSE_COUNT:-0}" -gt 0 ]]; then
     log_ok "discourse_function populated on $DISCOURSE_COUNT row(s) in aer_gold.metrics."
 else
-    log_fail "discourse_function is empty for all recent word_count rows — Phase 62 propagation broken."
+    # Distinguish seed missing from worker propagation failure
+    SEED_OUT=$(docker compose exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc \
+        "SELECT count(*) FROM source_classifications sc JOIN sources s ON sc.source_id = s.id WHERE s.name = 'bundesregierung'" 2>&1 | tr -d '[:space:]')
+    log_fail "discourse_function empty for all word_count rows. source_classifications rows for 'bundesregierung' in postgres: '${SEED_OUT}'. If 0 → migration 000006 didn't seed; if >0 → worker lookup in RssAdapter.harmonize returned None."
 fi
 
 # ── Step 8c: Assert GET /api/v1/metrics?resolution=hourly (Phase 66) ──────
