@@ -235,6 +235,6 @@ nav:
   # ---------------------------------------------------------------------------
   # Operations
   # ---------------------------------------------------------------------------
-  - "Operations Playbook": operations_playbook.md
-  # Scientific Operations Guide — placeholder, to be added in Phase 71.
-  # - "Scientific Operations Guide": scientific_operations_guide.md
+  - "Operations":
+      - "Operations Playbook": operations_playbook.md
+      - "Scientific Operations Guide": scientific_operations_guide.md
