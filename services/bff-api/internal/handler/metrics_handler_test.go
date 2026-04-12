@@ -36,25 +36,28 @@ type mockStore struct {
 	capturedLabel      *string
 	capturedLanguage   *string
 	capturedLimit      int
+	capturedResolution storage.Resolution
 }
 
 func (m *mockStore) Ping(_ context.Context) error {
 	return m.pingErr
 }
 
-func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error) {
+func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSource = source
 	m.capturedMetricName = metricName
+	m.capturedResolution = resolution
 	return m.metrics, m.metricsErr
 }
 
-func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error) {
+func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSource = source
 	m.capturedMetricName = metricName
+	m.capturedResolution = resolution
 	return m.normalizedMetrics, m.normalizedMetricsErr
 }
 
@@ -443,6 +446,71 @@ func TestGetMetrics_ZscoreReturnsDataWhenGatePasses(t *testing.T) {
 	}
 	if got[0].Value != 1.5 {
 		t.Errorf("expected zscore value 1.5, got %v", got[0].Value)
+	}
+}
+
+func TestGetMetrics_ResolutionParamPropagatesToStore(t *testing.T) {
+	store := &mockStore{}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	hourly := GetMetricsParamsResolutionHourly
+
+	if _, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end, Resolution: &hourly},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.capturedResolution != storage.ResolutionHourly {
+		t.Errorf("expected ResolutionHourly forwarded to store, got %v", store.capturedResolution)
+	}
+}
+
+func TestGetMetrics_DefaultResolutionIsFiveMinute(t *testing.T) {
+	store := &mockStore{}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	if _, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: start, EndDate: end},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.capturedResolution != storage.ResolutionFiveMinute {
+		t.Errorf("expected ResolutionFiveMinute by default, got %v", store.capturedResolution)
+	}
+}
+
+func TestGetMetricsAvailable_IncludesMinMeaningfulResolution(t *testing.T) {
+	store := &mockStore{
+		availableMetrics: []storage.AvailableMetricRow{
+			{MetricName: "word_count", ValidationStatus: "unvalidated"},
+			{MetricName: "unmapped_metric", ValidationStatus: "unvalidated"},
+		},
+	}
+	s := NewServer(store)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
+		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetricsAvailable200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200, got %T", resp)
+	}
+	if got[0].MinMeaningfulResolution == nil || *got[0].MinMeaningfulResolution != ResolutionHourly {
+		t.Errorf("expected word_count minMeaningfulResolution=hourly, got %v", got[0].MinMeaningfulResolution)
+	}
+	if got[1].MinMeaningfulResolution != nil {
+		t.Errorf("expected unmapped_metric minMeaningfulResolution=nil, got %v", got[1].MinMeaningfulResolution)
 	}
 }
 

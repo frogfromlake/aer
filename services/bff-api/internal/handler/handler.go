@@ -4,14 +4,37 @@ import (
 	"context"
 	"time"
 
+	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
+
+// resolutionFromParam maps the OpenAPI-validated query enum onto the
+// internal storage.Resolution constant. Unknown values fall back to the
+// 5-minute baseline; the generated router rejects values outside the
+// enum before the handler runs.
+func resolutionFromParam(p *GetMetricsParamsResolution) storage.Resolution {
+	if p == nil {
+		return storage.ResolutionFiveMinute
+	}
+	switch *p {
+	case GetMetricsParamsResolutionHourly:
+		return storage.ResolutionHourly
+	case GetMetricsParamsResolutionDaily:
+		return storage.ResolutionDaily
+	case GetMetricsParamsResolutionWeekly:
+		return storage.ResolutionWeekly
+	case GetMetricsParamsResolutionMonthly:
+		return storage.ResolutionMonthly
+	default:
+		return storage.ResolutionFiveMinute
+	}
+}
 
 // Store abstracts the data access layer for testability.
 type Store interface {
 	Ping(ctx context.Context) error
-	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
-	GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string) ([]storage.MetricRow, error)
+	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
+	GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
@@ -75,12 +98,14 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		}
 	}
 
+	resolution := resolutionFromParam(request.Params.Resolution)
+
 	var data []storage.MetricRow
 	var err error
 	if useZscore {
-		data, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName)
+		data, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
 	} else {
-		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName)
+		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
 	}
 	if err != nil {
 		return GetMetrics500JSONResponse{Message: err.Error()}, nil
@@ -196,6 +221,10 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 		if r.EquivalenceLevel != nil {
 			lvl := EquivalenceLevel(*r.EquivalenceLevel)
 			m.EquivalenceLevel = &lvl
+		}
+		if minRes := config.LookupMinMeaningfulResolution(r.MetricName); minRes != "" {
+			res := Resolution(minRes)
+			m.MinMeaningfulResolution = &res
 		}
 		response = append(response, m)
 	}
