@@ -63,4 +63,4 @@ The Probe Dossier Pattern documents per-probe scientific context along the six W
 - Arc42 §13.10 — full rationale for Probe 0 source selection.
 - Arc42 §8.15 — Probe Dossier Pattern as a cross-cutting concept.
 - Operations Playbook → "Probe Dossier" section — how to author a new dossier.
-- Scientific Operations Guide (Phase 71) — workflows that produce the data referenced from this dossier.
+- [Scientific Operations Guide](../../scientific_operations_guide.md) — workflows that produce the data referenced from this dossier; see in particular the [Probe 0 End-to-End Walkthrough](../../scientific_operations_guide.md#probe-0-end-to-end-walkthrough).

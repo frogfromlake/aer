@@ -2,7 +2,7 @@
 
 Initial observer-effect assessment for the two Probe 0 sources, completed against the `docs/templates/observer_effect_assessment.yaml` template introduced in Phase 68. For Probe 0 the assessed risk is **low**: both sources are public RSS feeds with no authentication, no engagement signal, and no feedback channel through which AĒR's observation could perturb the observed discourse.
 
-> **Status: provisional.** This assessment was completed by the engineering team rather than by a constituted ethics review board. It is recorded here so the pipeline can run while the WP-001 §4.4 Step 4 (Ethical Review) process catches up. See Scientific Operations Guide → **Workflow 1, Step 4** (Phase 71).
+> **Status: provisional.** This assessment was completed by the engineering team rather than by a constituted ethics review board. It is recorded here so the pipeline can run while the WP-001 §4.4 Step 4 (Ethical Review) process catches up. See [Scientific Operations Guide → **Workflow 1, Step 4**](../../scientific_operations_guide.md#workflow-1-classifying-a-new-probe).
 
 ---
 
@@ -69,4 +69,4 @@ This will *not* generalise to subsequent probes. The vulnerable-populations fiel
 - WP-006 §8.4 Q7 — observer effect assessment requirement
 - WP-001 §4.4 Step 4 — Ethical Review
 - ADR-017 — Reflexive Architecture
-- Scientific Operations Guide → **Workflow 1: Classifying a New Probe**, Step 4 (Phase 71)
+- [Scientific Operations Guide → **Workflow 1: Classifying a New Probe**, Step 4](../../scientific_operations_guide.md#workflow-1-classifying-a-new-probe)
