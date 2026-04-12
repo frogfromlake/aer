@@ -203,6 +203,8 @@ nav:
       - "WP-004: Cross-Cultural Comparability": methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md
       - "WP-005: Temporal Granularity": methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md
       - "WP-006: Observer Effect & Reflexivity": methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
+      - "Probe 0 — Bias Profile": methodology/probe0_bias_profile.md
+      - "Extractor Limitations": methodology/extractor_limitations.md
 
   # ---------------------------------------------------------------------------
   # Wissenschaftliche Methodik — Deutsch
@@ -216,6 +218,14 @@ nav:
       - "WP-006: Beobachtereffekt & Reflexivität": methodology/de/WP-006-de-beobachtereffekt_reflexivitaet_und_die_ethik_der_diskursmessung.md
 
   # ---------------------------------------------------------------------------
+  # Design
+  # ---------------------------------------------------------------------------
+  - "Design":
+      - "Visualization Guidelines (WP-006)": design/visualization_guidelines.md
+
+  # ---------------------------------------------------------------------------
   # Operations
   # ---------------------------------------------------------------------------
   - "Operations Playbook": operations_playbook.md
+  # Scientific Operations Guide — placeholder, to be added in Phase 71.
+  # - "Scientific Operations Guide": scientific_operations_guide.md
