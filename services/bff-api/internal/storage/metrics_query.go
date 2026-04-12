@@ -238,6 +238,67 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 	return entries, nil
 }
 
+// GetMetricValidationStatus returns the validation status for a single metric
+// name: "validated" when a current entry exists in metric_validity whose
+// valid_until is in the future, "expired" when the most recent entry has
+// already expired, and "unvalidated" when no entry exists at all.
+func (s *ClickHouseStorage) GetMetricValidationStatus(ctx context.Context, metricName string) (string, error) {
+	var result []struct {
+		Status string
+	}
+	err := s.conn.Select(ctx, &result, `
+		SELECT if(max(valid_until) > now(), 'validated', 'expired') AS Status
+		FROM aer_gold.metric_validity
+		WHERE metric_name = $1
+	`, metricName)
+	if err != nil {
+		slog.Error("Failed to query metric validity", "error", err, "metric", metricName)
+		return "", err
+	}
+	if len(result) == 0 || result[0].Status == "" {
+		return "unvalidated", nil
+	}
+	return result[0].Status, nil
+}
+
+// GetMetricCulturalContextNotes returns a human-readable summary of any
+// equivalence entries registered for the metric, or empty string when none
+// exists. The summary lists the highest-ranked equivalence level together
+// with the etic construct it maps to.
+func (s *ClickHouseStorage) GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error) {
+	var result []struct {
+		EticConstruct    string
+		EquivalenceLevel string
+	}
+	err := s.conn.Select(ctx, &result, `
+		SELECT
+			etic_construct AS EticConstruct,
+			equivalence_level AS EquivalenceLevel
+		FROM aer_gold.metric_equivalence
+		WHERE metric_name = $1
+		GROUP BY etic_construct, equivalence_level
+	`, metricName)
+	if err != nil {
+		slog.Error("Failed to query metric equivalence", "error", err, "metric", metricName)
+		return "", err
+	}
+	if len(result) == 0 {
+		return "", nil
+	}
+	// Pick the strongest equivalence level on record.
+	rank := map[string]int{"temporal": 1, "deviation": 2, "absolute": 3}
+	best := result[0]
+	for _, r := range result[1:] {
+		if rank[r.EquivalenceLevel] > rank[best.EquivalenceLevel] {
+			best = r
+		}
+	}
+	return fmt.Sprintf(
+		"Cross-cultural equivalence established at %q level for etic construct %q.",
+		best.EquivalenceLevel, best.EticConstruct,
+	), nil
+}
+
 // CheckBaselineExists returns true if at least one baseline row exists for the
 // given (metricName, source) pair.  When source is nil it checks for any source.
 func (s *ClickHouseStorage) CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error) {
