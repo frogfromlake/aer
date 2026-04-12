@@ -40,16 +40,20 @@ type Store interface {
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
 	GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error)
 	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]storage.AvailableMetricRow, error)
+	GetMetricValidationStatus(ctx context.Context, metricName string) (string, error)
+	GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error)
 }
 
 // Server implements the generated StrictServerInterface.
 type Server struct {
-	db Store
+	db          Store
+	provenance  config.MetricProvenanceMap
+	sources     []config.SourceEntry
 }
 
 // NewServer creates a new API server instance.
-func NewServer(db Store) *Server {
-	return &Server{db: db}
+func NewServer(db Store, provenance config.MetricProvenanceMap, sources []config.SourceEntry) *Server {
+	return &Server{db: db, provenance: provenance, sources: sources}
 }
 
 // GetHealthz handles GET /healthz — liveness probe, always returns 200 if the process is alive.
@@ -196,6 +200,56 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 		})
 	}
 
+	return response, nil
+}
+
+// GetMetricProvenance handles GET /metrics/{metricName}/provenance.
+// Static fields (tier, algorithm description, known limitations, extractor
+// version) come from the bundled metric_provenance.yaml config. Dynamic
+// fields (validationStatus, culturalContextNotes) are resolved against the
+// metric_validity / metric_equivalence ClickHouse tables.
+func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProvenanceRequestObject) (GetMetricProvenanceResponseObject, error) {
+	entry, ok := s.provenance[request.MetricName]
+	if !ok {
+		return GetMetricProvenance404JSONResponse{Message: "no provenance entry registered for metric"}, nil
+	}
+
+	status, err := s.db.GetMetricValidationStatus(ctx, request.MetricName)
+	if err != nil {
+		return GetMetricProvenance500JSONResponse{Message: err.Error()}, nil
+	}
+	notes, err := s.db.GetMetricCulturalContextNotes(ctx, request.MetricName)
+	if err != nil {
+		return GetMetricProvenance500JSONResponse{Message: err.Error()}, nil
+	}
+
+	resp := GetMetricProvenance200JSONResponse{
+		MetricName:           request.MetricName,
+		TierClassification:   TierClassification(entry.TierClassification),
+		AlgorithmDescription: entry.AlgorithmDescription,
+		KnownLimitations:     entry.KnownLimitations,
+		ValidationStatus:     ValidationStatus(status),
+		ExtractorVersionHash: entry.ExtractorVersionHash,
+	}
+	if notes != "" {
+		n := notes
+		resp.CulturalContextNotes = &n
+	}
+	return resp, nil
+}
+
+// GetSources handles GET /sources — returns the static list of known data
+// sources with optional methodology documentation URLs.
+func (s *Server) GetSources(_ context.Context, _ GetSourcesRequestObject) (GetSourcesResponseObject, error) {
+	response := make(GetSources200JSONResponse, 0, len(s.sources))
+	for _, src := range s.sources {
+		response = append(response, Source{
+			Name:             src.Name,
+			Type:             src.Type,
+			Url:              src.URL,
+			DocumentationUrl: src.DocumentationURL,
+		})
+	}
 	return response, nil
 }
 

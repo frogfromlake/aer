@@ -69,8 +69,20 @@ func main() {
 	}
 	slog.Info("ClickHouse connected successfully")
 
-	// 6. Setup Handlers and Router
-	serverLogic := handler.NewServer(chStore)
+	// 6. Load static BFF configs (metric provenance + source documentation).
+	provenance, err := config.LoadMetricProvenance("configs/metric_provenance.yaml")
+	if err != nil {
+		slog.Error("Failed to load metric_provenance.yaml", "error", err)
+		os.Exit(1)
+	}
+	sources, err := config.LoadSources("configs/source_documentation.yaml")
+	if err != nil {
+		slog.Error("Failed to load source_documentation.yaml", "error", err)
+		os.Exit(1)
+	}
+
+	// 7. Setup Handlers and Router
+	serverLogic := handler.NewServer(chStore, provenance, sources)
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
 	r := chi.NewRouter()

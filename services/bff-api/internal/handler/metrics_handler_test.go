@@ -28,6 +28,10 @@ type mockStore struct {
 	languageDetectionsErr     error
 	availableMetrics          []storage.AvailableMetricRow
 	availableMetricsErr       error
+	validationStatus          string
+	validationStatusErr       error
+	culturalContextNotes      string
+	culturalContextNotesErr   error
 	// captured args
 	capturedStart      time.Time
 	capturedEnd        time.Time
@@ -91,6 +95,14 @@ func (m *mockStore) GetAvailableMetrics(_ context.Context, _, _ time.Time) ([]st
 	return m.availableMetrics, m.availableMetricsErr
 }
 
+func (m *mockStore) GetMetricValidationStatus(_ context.Context, _ string) (string, error) {
+	return m.validationStatus, m.validationStatusErr
+}
+
+func (m *mockStore) GetMetricCulturalContextNotes(_ context.Context, _ string) (string, error) {
+	return m.culturalContextNotes, m.culturalContextNotesErr
+}
+
 // newTestRouter builds the full chi router for HTTP-level tests.
 func newTestRouter(s *Server) http.Handler {
 	return HandlerWithOptions(NewStrictHandler(s, nil), ChiServerOptions{})
@@ -99,7 +111,7 @@ func newTestRouter(s *Server) http.Handler {
 // --- GetHealthz ---
 
 func TestGetHealthz_AlwaysReturnsAlive(t *testing.T) {
-	s := NewServer(&mockStore{})
+	s := NewServer(&mockStore{}, nil, nil)
 	resp, err := s.GetHealthz(context.Background(), GetHealthzRequestObject{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -116,7 +128,7 @@ func TestGetHealthz_AlwaysReturnsAlive(t *testing.T) {
 // --- GetReadyz ---
 
 func TestGetReadyz_ReturnsOKWhenPingSucceeds(t *testing.T) {
-	s := NewServer(&mockStore{pingErr: nil})
+	s := NewServer(&mockStore{pingErr: nil}, nil, nil)
 	resp, err := s.GetReadyz(context.Background(), GetReadyzRequestObject{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -127,7 +139,7 @@ func TestGetReadyz_ReturnsOKWhenPingSucceeds(t *testing.T) {
 }
 
 func TestGetReadyz_Returns503WhenPingFails(t *testing.T) {
-	s := NewServer(&mockStore{pingErr: errors.New("connection refused")})
+	s := NewServer(&mockStore{pingErr: errors.New("connection refused")}, nil, nil)
 	resp, err := s.GetReadyz(context.Background(), GetReadyzRequestObject{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -148,7 +160,7 @@ func TestGetReadyz_Returns503WhenPingFails(t *testing.T) {
 // HTTP-level test because the requirement is enforced by the generated routing
 // code before the handler is called.
 func TestGetMetrics_Returns400WhenMissingDates(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil))
 
 	cases := []struct {
 		name  string
@@ -173,7 +185,7 @@ func TestGetMetrics_Returns400WhenMissingDates(t *testing.T) {
 
 func TestGetMetrics_UsesProvidedDates(t *testing.T) {
 	store := &mockStore{}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -199,7 +211,7 @@ func TestGetMetrics_UsesProvidedDates(t *testing.T) {
 
 func TestGetMetrics_Returns500OnStorageError(t *testing.T) {
 	store := &mockStore{metricsErr: errors.New("clickhouse timeout")}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -221,7 +233,7 @@ func TestGetMetrics_Returns500OnStorageError(t *testing.T) {
 
 func TestGetMetrics_ReturnsEmptySliceOnNoData(t *testing.T) {
 	store := &mockStore{metrics: nil}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -248,7 +260,7 @@ func TestGetMetrics_MapsStorageRowsToResponse(t *testing.T) {
 			{TS: ts, Value: 42.5, Source: "tagesschau", MetricName: "word_count"},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -283,7 +295,7 @@ func TestGetMetrics_MapsStorageRowsToResponse(t *testing.T) {
 // --- GetMetricsAvailable ---
 
 func TestGetMetricsAvailable_Returns400WhenMissingDates(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil))
 
 	cases := []struct {
 		name  string
@@ -314,7 +326,7 @@ func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 			{MetricName: "word_count", ValidationStatus: "expired"},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -350,7 +362,7 @@ func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 
 func TestGetMetrics_ZscoreRequiresMetricName(t *testing.T) {
 	store := &mockStore{}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -369,7 +381,7 @@ func TestGetMetrics_ZscoreRequiresMetricName(t *testing.T) {
 
 func TestGetMetrics_ZscoreReturns400WhenNoBaseline(t *testing.T) {
 	store := &mockStore{baselineExists: false, equivalenceExists: true}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -393,7 +405,7 @@ func TestGetMetrics_ZscoreReturns400WhenNoBaseline(t *testing.T) {
 
 func TestGetMetrics_ZscoreReturns400WhenNoEquivalence(t *testing.T) {
 	store := &mockStore{baselineExists: true, equivalenceExists: false}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -424,7 +436,7 @@ func TestGetMetrics_ZscoreReturnsDataWhenGatePasses(t *testing.T) {
 			{TS: ts, Value: 1.5, Source: "tagesschau", MetricName: "sentiment_score"},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
@@ -451,7 +463,7 @@ func TestGetMetrics_ZscoreReturnsDataWhenGatePasses(t *testing.T) {
 
 func TestGetMetrics_ResolutionParamPropagatesToStore(t *testing.T) {
 	store := &mockStore{}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -469,7 +481,7 @@ func TestGetMetrics_ResolutionParamPropagatesToStore(t *testing.T) {
 
 func TestGetMetrics_DefaultResolutionIsFiveMinute(t *testing.T) {
 	store := &mockStore{}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -491,7 +503,7 @@ func TestGetMetricsAvailable_IncludesMinMeaningfulResolution(t *testing.T) {
 			{MetricName: "unmapped_metric", ValidationStatus: "unvalidated"},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -520,7 +532,7 @@ func TestGetMetrics_RawNormalizationIsDefault(t *testing.T) {
 			{TS: time.Now(), Value: 42.0, Source: "test", MetricName: "word_count"},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -551,7 +563,7 @@ func TestGetMetricsAvailable_IncludesEquivalenceMetadata(t *testing.T) {
 			{MetricName: "word_count", ValidationStatus: "unvalidated"},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -585,7 +597,7 @@ func TestGetMetricsAvailable_IncludesEquivalenceMetadata(t *testing.T) {
 
 func TestGetMetricsAvailable_Returns500OnError(t *testing.T) {
 	store := &mockStore{availableMetricsErr: errors.New("db error")}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)

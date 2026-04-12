@@ -16,7 +16,7 @@ import (
 // TestGetEntities_Returns400WhenMissingDates verifies that the generated router
 // enforces startDate and endDate as required query parameters.
 func TestGetEntities_Returns400WhenMissingDates(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil))
 
 	cases := []struct {
 		name  string
@@ -40,7 +40,7 @@ func TestGetEntities_Returns400WhenMissingDates(t *testing.T) {
 }
 
 func TestGetEntities_Returns400WhenLimitTooLow(t *testing.T) {
-	s := NewServer(&mockStore{})
+	s := NewServer(&mockStore{}, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -58,7 +58,7 @@ func TestGetEntities_Returns400WhenLimitTooLow(t *testing.T) {
 }
 
 func TestGetEntities_Returns400WhenLimitTooHigh(t *testing.T) {
-	s := NewServer(&mockStore{})
+	s := NewServer(&mockStore{}, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -82,7 +82,7 @@ func TestGetEntities_ReturnsEntities(t *testing.T) {
 			{EntityText: "Berlin", EntityLabel: "LOC", Count: 3, Sources: []string{"tagesschau", "bundesregierung"}},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -121,7 +121,7 @@ func TestGetEntities_ReturnsEntities(t *testing.T) {
 
 func TestGetEntities_Returns500OnStorageError(t *testing.T) {
 	store := &mockStore{entitiesErr: errors.New("clickhouse timeout")}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -139,7 +139,7 @@ func TestGetEntities_Returns500OnStorageError(t *testing.T) {
 
 func TestGetEntities_RespectsCustomLimit(t *testing.T) {
 	store := &mockStore{}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -161,7 +161,7 @@ func TestGetEntities_RespectsCustomLimit(t *testing.T) {
 // TestGetLanguages_Returns400WhenMissingDates verifies that the generated router
 // enforces startDate and endDate as required query parameters.
 func TestGetLanguages_Returns400WhenMissingDates(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil))
 
 	cases := []struct {
 		name  string
@@ -185,7 +185,7 @@ func TestGetLanguages_Returns400WhenMissingDates(t *testing.T) {
 }
 
 func TestGetLanguages_Returns400WhenLimitTooLow(t *testing.T) {
-	s := NewServer(&mockStore{})
+	s := NewServer(&mockStore{}, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -203,7 +203,7 @@ func TestGetLanguages_Returns400WhenLimitTooLow(t *testing.T) {
 }
 
 func TestGetLanguages_Returns400WhenLimitTooHigh(t *testing.T) {
-	s := NewServer(&mockStore{})
+	s := NewServer(&mockStore{}, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -227,7 +227,7 @@ func TestGetLanguages_ReturnsDetections(t *testing.T) {
 			{DetectedLanguage: "en", Count: 5, AvgConfidence: 0.8512, Sources: []string{"tagesschau", "bundesregierung"}},
 		},
 	}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -269,7 +269,7 @@ func TestGetLanguages_ReturnsDetections(t *testing.T) {
 
 func TestGetLanguages_Returns500OnStorageError(t *testing.T) {
 	store := &mockStore{languageDetectionsErr: errors.New("clickhouse timeout")}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -287,7 +287,7 @@ func TestGetLanguages_Returns500OnStorageError(t *testing.T) {
 
 func TestGetLanguages_RespectsCustomLimit(t *testing.T) {
 	store := &mockStore{}
-	s := NewServer(store)
+	s := NewServer(store, nil, nil)
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
