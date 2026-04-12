@@ -222,7 +222,8 @@ if [[ "$AVAILABLE_STATUS" == "200" ]]; then
         HAS=$(python3 -c "
 import json
 d = json.load(open('/tmp/aer_e2e_available.json'))
-print('yes' if '$m' in d else 'no')
+names = {item.get('metricName') for item in d if isinstance(item, dict)}
+print('yes' if '$m' in names else 'no')
 " 2>/dev/null || echo "error")
         if [[ "$HAS" != "yes" ]]; then
             MISSING="${MISSING} ${m}"
@@ -240,7 +241,8 @@ print('yes' if '$m' in d else 'no')
     HAS_LEXICON_VERSION=$(python3 -c "
 import json
 d = json.load(open('/tmp/aer_e2e_available.json'))
-print('yes' if 'lexicon_version' in d else 'no')
+names = {item.get('metricName') for item in d if isinstance(item, dict)}
+print('yes' if 'lexicon_version' in names else 'no')
 " 2>/dev/null || echo "error")
     if [[ "$HAS_LEXICON_VERSION" == "no" ]]; then
         log_ok "metrics/available correctly excludes lexicon_version (provenance in Silver envelope)."
