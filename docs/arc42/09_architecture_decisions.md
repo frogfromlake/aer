@@ -399,7 +399,7 @@ WP-002 §5 evaluates three architectural options for presenting metrics with var
 - **Option B (Flat Display):** Display all metrics equally regardless of validation status. This risks misinterpretation of provisional results as validated measurements.
 - **Option C (Hybrid Tier Architecture):** Classify metrics into tiers based on validation status and present them through Progressive Disclosure, ensuring transparency without blocking unvalidated work.
 
-AĒR's Phase 42 extractors are engineering proof-of-concept implementations with known limitations (see `docs/methodology/extractor_limitations.md`). Interdisciplinary validation requires external collaborators who are not yet engaged (Chapter 13, §13.5). Blocking metric display until validation is complete would render the system non-functional for an indeterminate period. Displaying all metrics without distinction would violate AĒR's commitment to methodological transparency (Manifesto §II).
+AĒR's Phase 42 extractors are engineering proof-of-concept implementations with known limitations (see the per-metric `known_limitations` field in `services/bff-api/configs/metric_provenance.yaml`, served by `GET /api/v1/metrics/{metricName}/provenance`; the underlying methodological discussion lives in WP-002 §3). Interdisciplinary validation requires external collaborators who are not yet engaged (Chapter 13, §13.5). Blocking metric display until validation is complete would render the system non-functional for an indeterminate period. Displaying all metrics without distinction would violate AĒR's commitment to methodological transparency (Manifesto §II).
 
 ### Decision
 
@@ -448,7 +448,7 @@ We adopt the five WP-006 principles as an architectural commitment. Their status
 **Implemented in Phase 67:**
 
 - **Principle 1 (Methodological Transparency)** is implemented via `GET /api/v1/metrics/{metricName}/provenance`, which returns tier classification, algorithm description, known limitations, validation status, extractor version hash, and cultural context notes. Static fields are sourced from `services/bff-api/configs/metric_provenance.yaml`; dynamic fields are resolved at query time against `aer_gold.metric_validity` and `aer_gold.metric_equivalence`.
-- **Principle 3 (Reflexive Documentation)** is implemented via the PostgreSQL `sources.documentation_url` column (migration 000007) and a corresponding `GET /api/v1/sources` endpoint that surfaces the URL. For Probe 0, the column is populated with a pointer to `docs/methodology/probe0_bias_profile.md`.
+- **Principle 3 (Reflexive Documentation)** is implemented via the PostgreSQL `sources.documentation_url` column (migration 000007) and a corresponding `GET /api/v1/sources` endpoint that surfaces the URL. Phase 70 (migration 000008) repointed Probe 0 from a single bias-profile file to the probe dossier directory `docs/probes/probe-0-de-institutional-rss/` — see Arc42 §8.15 for the Probe Dossier Pattern.
 
 **Deferred to the dashboard phase:**
 

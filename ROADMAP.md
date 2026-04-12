@@ -816,99 +816,192 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-## Phase 70: Operations Playbook & README — Scientific Touchpoints
-*The Operations Playbook is currently a purely technical DevOps document. Phases 62–67 introduced database tables, scripts, and config files that are populated or maintained by researchers. This phase extends the Playbook with the technical "how-to" instructions for these touchpoints and updates the README to reflect the new project structure. The scientific rationale ("when and why") lives in the Scientific Operations Guide (Phase 71) — the Playbook covers only the "what to type."*
+## Phase 70: Probe Dossier Pattern, Documentation Consolidation & Operations Playbook Extension - [x] DONE
 
-* [ ] **Playbook Section: `source_classifications` Table.** Add to the PostgreSQL section: how to inspect current classifications (`SELECT * FROM source_classifications ORDER BY classification_date DESC`), template INSERT with placeholder values, how to update `review_status` (`UPDATE source_classifications SET review_status = 'reviewed' WHERE ...`). Each command cross-references the Scientific Operations Guide workflow that triggers it.
-* [ ] **Playbook Section: `metric_validity` Table.** Add to the ClickHouse section: how to inspect validation status, template INSERT with all required fields after a completed validation study. Cross-references the validation study template (Phase 68) and the Scientific Operations Guide.
-* [ ] **Playbook Section: `metric_baselines` and `metric_equivalence`.** Add to the ClickHouse section: how to run `scripts/compute_baselines.py` (flags, environment variables, expected output), how to insert an equivalence record. Cross-references the Scientific Operations Guide.
-* [ ] **Playbook Section: `metric_provenance.yaml`.** Add to the BFF API section: file location, required fields per metric entry, when to update (every time a new extractor is registered).
-* [ ] **Playbook Section: Cultural Calendar Files.** Add to the Configuration section: `configs/cultural_calendars/` location, YAML format, how to add a new region file.
-* [ ] **README.md Update.** Verify the project structure section reflects all new files from Phases 62–68 (`models/discourse.py`, `models/bias.py`, `configs/metric_provenance.yaml`, `configs/cultural_calendars/de.yaml`, `docs/templates/*`, `docs/design/visualization_guidelines.md`, `scripts/compute_baselines.py`). Add to the "Developing a Crawler" section: a note that adding a new data source requires completing the Probe Classification workflow (reference to Scientific Operations Guide).
-* [ ] **Validate.** Documentation review. Verify all SQL examples execute cleanly against a running dev stack.
+*Die bisherige Dokumentationsstruktur unter `docs/methodology/` ist ad-hoc gewachsen: `probe0_bias_profile.md` dokumentiert nur Bias (WP-003), `extractor_limitations.md` dupliziert Informationen, die bereits in `metric_provenance.yaml` und WP-002 §3 leben. Diese Phase konsolidiert die Dokumentation entlang zweier sauberer Achsen: Per-Probe-Dokumentation (Probe Dossier Pattern) und Per-Metrik-Dokumentation (SSoT: `metric_provenance.yaml`). Gleichzeitig wird das Operations Playbook um die wissenschaftlichen Touchpoints erweitert — jeder Abschnitt enthält sowohl ein generisches Template als auch ein konkretes Probe-0-Beispiel.*
 
+### Probe Dossier Pattern
+
+* [x] **Verzeichnisstruktur anlegen.** `docs/probes/probe-0-de-institutional-rss/` mit fünf Dateien:
+
+* [x] **`README.md` — Probe Overview & WP Coverage Matrix.** Zweck der Probe, beteiligte Quellen (tagesschau.de, bundesregierung.de), Engineering-Kalibrierungsstatus (nicht wissenschaftlich motiviert — vgl. §13.10), Exit-Kriterien. Enthält eine WP Coverage Matrix: tabellarische Zuordnung jedes der sechs Working Papers zur Datei oder Tabelle, in der die probe-spezifische Dokumentation lebt. WP-001 → `classification.md`. WP-003 → `bias_assessment.md`. WP-005 → `temporal_profile.md`. WP-006 → `observer_effect.md`. WP-002 → Verweis auf `aer_gold.metric_validity` (systemweit, nicht probe-spezifisch; Validierungsstudien werden pro `(metric_name, context_key)`-Paar durchgeführt). WP-004 → Verweis auf `aer_gold.metric_baselines` und `aer_gold.metric_equivalence` (cross-probe per Definition).
+
+* [x] **`classification.md` — Probe Classification (WP-001).** Dokumentiert die etic/emic Klassifikation beider Quellen: `primary_function`, `secondary_function`, `emic_designation`, `emic_context` — exakt die Werte aus der `source_classifications`-Tabelle (Migration 000006). Dokumentiert den `review_status = 'provisional_engineering'` und erklärt, warum `function_weights = NULL` (WP-001 §4.4 Schritte 1–2 ausstehend). Cross-Referenz: Scientific Operations Guide Workflow 1.
+
+* [x] **`bias_assessment.md` — Platform Bias (WP-003).** Inhaltlich identisch mit dem bestehenden `docs/methodology/probe0_bias_profile.md` — verschoben, nicht neu geschrieben. Enthält die `BiasContext`-Werte und die fünf dokumentierten strukturellen Biases. Cross-Referenz: Scientific Operations Guide Workflow 5.
+
+* [x] **`temporal_profile.md` — Temporal Characteristics (WP-005).** Publikationsmuster pro Quelle: tagesschau.de ≈ 50 Artikel/Tag (→ `min_meaningful_resolution = hourly`), bundesregierung.de ≈ 5 Artikel/Tag (→ `min_meaningful_resolution = daily`). Verweis auf den Cultural Calendar (`configs/cultural_calendars/de.yaml`). Hinweis auf die geplante Tiered Retention Strategy (§8.8, "planned — not yet active"). Cross-Referenz: Scientific Operations Guide Workflow 6.
+
+* [x] **`observer_effect.md` — Observer Effect Assessment (WP-006).** Initiale Bewertung basierend auf dem `observer_effect_assessment.yaml`-Template (Phase 68). Für Probe 0 ist das Risiko gering: öffentliche RSS-Feeds, kein Login, kein Engagement-Signal, das Rückkopplungen erzeugen könnte. Dokumentiert: `cultural_region = DE`, `beneficial_effects`, `harmful_effects`, `vulnerable_populations`, `recommended_safeguards`. Cross-Referenz: Scientific Operations Guide Workflow 1, Step 4.
+
+### Documentation Consolidation
+
+* [x] **`docs/methodology/extractor_limitations.md` löschen.** Das Dokument ist redundant: `metric_provenance.yaml` enthält die strukturierten `known_limitations` pro Metrik (SSoT für die API), WP-002 §3 enthält die wissenschaftliche Analyse. Die Prosa in `extractor_limitations.md` dupliziert beides, ohne eigenen Informationswert zu liefern. Cross-cutting Concerns (Graceful Degradation, Immutable Input, Validation Required) sind bereits in Arc42 §8.3 dokumentiert.
+
+* [x] **`metric_provenance.yaml` anreichern.** `wp_reference`-Feld pro Metrik hinzufügen (YAML-only, nicht über die API exponiert, da der Go-YAML-Parser unbekannte Felder ignoriert). `known_limitations`-Einträge von knappen Labels zu vollständigen Sätzen erweitern, die das Problem und seine Konsequenz erklären. Beispiel: statt `"Negation blindness"` → `"Negation blindness — SentiWS does not propagate negation scope; 'nicht gut' scores as positive (WP-002 §3)."` Die bestehenden Einträge sind bereits nahe an diesem Format; die fehlenden werden angeglichen.
+
+* [x] **`docs/methodology/probe0_bias_profile.md` entfernen.** Inhalt lebt jetzt in `docs/probes/probe-0-de-institutional-rss/bias_assessment.md`. Redirect-Kommentar in der gelöschten Datei ist nicht nötig — alle Verweise werden in dieser Phase aktualisiert.
+
+* [x] **PostgreSQL Migration: `documentation_url` aktualisieren.** Migration `000008_update_documentation_url.up.sql`: `UPDATE sources SET documentation_url = 'docs/probes/probe-0-de-institutional-rss/' WHERE name IN ('bundesregierung', 'tagesschau');` — zeigt auf das Dossier-Verzeichnis statt auf eine einzelne Datei.
+
+* [x] **`mkdocs.yml` Navigation anpassen.** Unter "Methodology (EN)": `probe0_bias_profile.md` und `extractor_limitations.md` entfernen. Neuen Abschnitt "Probes" hinzufügen mit `docs/probes/probe-0-de-institutional-rss/README.md` als Einstieg. Die Unterseiten (`classification.md`, `bias_assessment.md`, `temporal_profile.md`, `observer_effect.md`) als Kinder darunter.
+
+### Operations Playbook Extension
+
+*Jeder neue Abschnitt enthält (a) ein generisches Template mit Platzhaltern für beliebige Probes und (b) ein konkretes Probe-0-Beispiel mit echten Werten. Die wissenschaftliche Begründung ("warum") lebt im Scientific Operations Guide (Phase 71) — das Playbook beschreibt nur "was tippen".*
+
+* [x] **Playbook Section: `source_classifications`-Tabelle.** PostgreSQL-Abschnitt: Inspect-Query (`SELECT * FROM source_classifications ORDER BY classification_date DESC`), generisches Template-INSERT mit allen Pflichtfeldern und Kommentaren, konkretes Probe-0-Beispiel (tagesschau.de-Werte aus Migration 000006). Update-Query für `review_status`-Lifecycle. Cross-Referenz: Scientific Operations Guide Workflow 1.
+
+* [x] **Playbook Section: `metric_validity`-Tabelle.** ClickHouse-Abschnitt: Inspect-Query, generisches Template-INSERT mit allen Pflichtfeldern (aus `validation_study_template.yaml`), konkretes Probe-0-Beispiel (hypothetische Validation Study für `sentiment_score` im Kontext `de:rss:epistemic_authority`). Cross-Referenz: Scientific Operations Guide Workflow 2.
+
+* [x] **Playbook Section: `metric_baselines` und `metric_equivalence`.** ClickHouse-Abschnitt: Ausführung von `scripts/compute_baselines.py` (Flags, Umgebungsvariablen, erwarteter Output), generisches Template-INSERT für Equivalence-Einträge, konkretes Probe-0-Beispiel (Baseline für `word_count` auf tagesschau.de). Cross-Referenz: Scientific Operations Guide Workflows 3–4.
+
+* [x] **Playbook Section: `metric_provenance.yaml`.** BFF-API-Abschnitt: Dateipfad (`services/bff-api/configs/metric_provenance.yaml`), Pflichtfelder pro Metrik-Eintrag, Trigger für Updates (neue Extractor-Registrierung), `wp_reference` als YAML-interner Kommentar für Entwickler. Konkretes Probe-0-Beispiel: die bestehenden fünf Metriken.
+
+* [x] **Playbook Section: Cultural Calendar Files.** Konfigurations-Abschnitt: `configs/cultural_calendars/`-Verzeichnis, YAML-Format (`{date, name, type, expected_discourse_effect}`), Anleitung zum Hinzufügen einer neuen Region. Konkretes Probe-0-Beispiel: Verweis auf `de.yaml` und ausgewählte Einträge.
+
+* [x] **Playbook Section: Probe Dossier.** Neuer Abschnitt: Verzeichnisstruktur (`docs/probes/<probe-id>/`), welche Dateien Pflicht sind, wie man ein neues Dossier anlegt (copy template, fill in), Zusammenhang mit der `documentation_url`-Spalte in `sources`. Konkretes Probe-0-Beispiel: die soeben erstellten fünf Dateien.
+
+### README & Arc42
+
+* [x] **`README.md`-Update.** Projektstruktur-Abschnitt aktualisieren: `docs/probes/` hinzufügen, `docs/methodology/probe0_bias_profile.md` und `docs/methodology/extractor_limitations.md` entfernen. "Developing a Crawler"-Abschnitt: Hinweis, dass eine neue Datenquelle das Probe-Dossier und den Probe Classification Workflow erfordert (Verweis auf Scientific Operations Guide).
+
+* [x] **Arc42-Updates.** Chapter 5 (§5.1.3): `documentation_url` zeigt auf Dossier-Verzeichnis statt Einzeldatei. Chapter 8: §8.15 Probe Dossier Pattern als Cross-cutting Concept — Verzeichnisstruktur, WP Coverage Matrix, Beziehung zu `source_classifications` und `documentation_url`. Chapter 11: R-13 aktualisieren — Probe 0 hat jetzt ein vollständiges Dossier; Risiko bleibt bis zur wissenschaftlichen Validierung bestehen, aber die Dokumentationslücke ist geschlossen. Chapter 12 (Glossary): `Probe Dossier`.
+
+* [x] **Cross-Reference Audit.** Grep-Sweep für alle Verweise auf `probe0_bias_profile.md` und `extractor_limitations.md` in `docs/`, `ROADMAP.md`, `README.md`, Migrations, YAML-Configs. Alle Verweise aktualisieren oder entfernen.
+
+* [x] **Validate.** `mkdocs build --strict` (0 Warnings). Alle SQL-Beispiele im Playbook gegen laufenden Dev-Stack ausführen. `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
+
+---
 
 ## Phase 71: Scientific Operations Guide — The Bridge Document
-*AĒR now has two operational audiences: developers (Operations Playbook — "how to type the command") and researchers (Working Papers — "why this methodology"). Neither document explains the handoff between them. This phase creates `docs/scientific_operations_guide.md` — the single document that maps every point where scientific judgment enters the pipeline, from trigger to output.*
 
-*Structure principle: The guide is organized by workflow, not by Working Paper. Each workflow describes one scientific activity end-to-end: what triggers it, who performs it (role), what process must be followed (WP cross-reference), what technical steps are required (Playbook cross-reference), what templates to use (Phase 68 cross-reference), and what the outputs are (which table/file/config is updated).*
+*AĒR hat zwei operationale Zielgruppen: Entwickler (Operations Playbook — "was tippen") und Wissenschaftler (Working Papers — "warum diese Methodik"). Keines der Dokumente erklärt den Handoff zwischen ihnen. Diese Phase erstellt `docs/scientific_operations_guide.md` — das Dokument, das jeden Punkt kartiert, an dem wissenschaftliches Urteil in die Pipeline eintritt.*
 
-* [ ] **Workflow 1: Classifying a New Probe.** Covers WP-001 §4.4 five-step process: (1) Area expert nomination → fill `probe_registration_template.yaml` (created in Phase 62), (2) Peer review → document disagreements, (3) Technical feasibility → developer assesses crawler viability, (4) Ethical review → fill `observer_effect_assessment.yaml` (Phase 68), (5) Registration → INSERT into `source_classifications` (Playbook §PostgreSQL). Documents the `review_status` lifecycle: `provisional_engineering` → `pending` → `reviewed` / `contested`. Explains that `function_weights` remain `NULL` until quantified through Steps 1–2.
-* [ ] **Workflow 2: Validating a Metric.** Covers WP-002 §6.2 five-step protocol: (1) Annotation study → minimum requirements (≥ 3 annotators, Krippendorff's Alpha ≥ 0.667), fill `validation_study_template.yaml` (Phase 68), (2) Baseline comparison → run metric on annotated sample, (3) Error taxonomy → classification scheme, (4) Cross-context transfer → what constitutes a different context, (5) Longitudinal stability → minimum 6-month window. Output: INSERT into `aer_gold.metric_validity` (Playbook §ClickHouse). Documents what happens when `valid_until` expires — metric reverts to `unvalidated` in BFF API.
-* [ ] **Workflow 3: Establishing Metric Equivalence.** Covers WP-004 §5.2: when two metrics from different instruments can be compared cross-culturally. Documents the three equivalence levels (`temporal`, `deviation`, `absolute`), evidence required for each, INSERT into `aer_gold.metric_equivalence` (Playbook §ClickHouse). Explains the validation gate on `?normalization=zscore` — why the BFF returns 400 without an equivalence entry.
-* [ ] **Workflow 4: Computing and Updating Baselines.** Covers WP-004 §6.1: triggers (significant corpus growth, new source added), execution via `scripts/compute_baselines.py` (Playbook §ClickHouse), interpreting results, how baseline staleness affects z-score reliability.
-* [ ] **Workflow 5: Assessing Bias for a Data Source.** Covers WP-003 §8.1: filling `BiasContext` fields for a new source adapter. Documents which fields are objective platform properties (developer) vs. which require domain expertise (researcher). Output: `BiasContext` values in adapter code + prose in `docs/methodology/` following `probe0_bias_profile.md` (created in Phase 64).
-* [ ] **Workflow 6: Updating the Cultural Calendar.** Covers WP-005 §4.3: triggers (new probe region), content (public holidays, elections, religious observances, major media events), format (`configs/cultural_calendars/<region>.yaml`), consumption (currently static lookup).
-* [ ] **Provenance Inventory: All Manually Set Values.** A comprehensive table listing every value in the system set by human judgment rather than computed by the pipeline. Columns: value, location (table/file/config), set by, date, authority (WP reference), current review status. For Probe 0 at this point: 2 × `primary_function` (WP-001 §6), 2 × `secondary_function` (WP-001 §6), 2 × `function_weights = NULL` (awaiting WP-001 §4.4), 2 × `BiasContext` static values (WP-003 §8.1), 5 × `known_limitations` in `metric_provenance.yaml` (WP-002 §3), 2 × `min_meaningful_resolution` heuristics (WP-005 §3.3). This table is maintained as a living section — updated whenever a new manually-set value enters the system.
-* [ ] **Add to `mkdocs.yml`.** Register `Scientific Operations Guide` as a top-level navigation entry between `Operations Playbook` and `Methodology (EN)`.
-* [ ] **Validate.** Documentation review. Verify all cross-references to Playbook sections, Working Paper sections, Arc42 chapters, and Phase 68 templates resolve correctly.
+*Strukturprinzip: Organisiert nach Workflow, nicht nach Working Paper. Jeder Workflow beschreibt eine wissenschaftliche Aktivität end-to-end: Trigger, Rolle (wer), Prozess (WP-Referenz), technische Schritte (Playbook-Referenz), Templates (Phase-68-Referenz), Outputs (Tabelle/Datei/Config), und einen konkreten Probe-0-Walkthrough mit echten Werten.*
 
+### Workflows
+
+* [ ] **Workflow 1: Classifying a New Probe.** WP-001 §4.4 Fünf-Schritt-Prozess: (1) Area Expert Nomination → `probe_registration_template.yaml` ausfüllen, (2) Peer Review → Disagreements dokumentieren, (3) Technische Machbarkeit → Entwickler bewertet Crawler-Viabilität, (4) Ethical Review → `observer_effect_assessment.yaml` ausfüllen → Ergebnis in Probe Dossier `observer_effect.md`, (5) Registration → INSERT in `source_classifications` (Playbook §PostgreSQL) + Probe Dossier anlegen (`docs/probes/<probe-id>/`). `review_status`-Lifecycle: `provisional_engineering` → `pending` → `reviewed` / `contested`. Erklärt, warum `function_weights = NULL` bis Schritte 1–2 quantifiziert sind.
+  - **Probe 0 Walkthrough:** Chronologische Rekonstruktion, wie Probe 0 klassifiziert wurde — von der Quellenwahl (§13.10: Engineering-Kalibrierung) über Migration 000006 (`provisional_engineering`) bis zum fertigen Dossier. Zeigt den aktuellen Status und die offenen Schritte (function_weights, Peer Review).
+
+* [ ] **Workflow 2: Validating a Metric.** WP-002 §6.2 Fünf-Schritt-Protokoll: (1) Annotationsstudie (≥ 3 Annotator:innen, Krippendorff's Alpha ≥ 0.667), `validation_study_template.yaml` ausfüllen, (2) Baseline-Vergleich → Metrik auf annotiertem Sample ausführen, (3) Error Taxonomy → Klassifikationsschema erstellen, (4) Cross-Context Transfer → was konstituiert einen anderen Kontext, (5) Longitudinale Stabilität → mindestens 6-Monats-Fenster. Output: INSERT in `aer_gold.metric_validity` (Playbook §ClickHouse). Dokumentiert was bei `valid_until`-Ablauf passiert — Metrik revertiert zu `unvalidated` in der BFF API.
+  - **Probe 0 Walkthrough:** Hypothetische (aber vollständige) Validation Study für `sentiment_score` im Kontext `de:rss:epistemic_authority`. Alle fünf Schritte mit Beispielwerten durchgespielt bis zum INSERT-Statement. Markiert als hypothetisch — keine Studie wurde tatsächlich durchgeführt.
+
+* [ ] **Workflow 3: Establishing Metric Equivalence.** WP-004 §5.2: Wann zwei Metriken aus verschiedenen Instrumenten cross-kulturell vergleichbar sind. Drei Equivalence Levels (`temporal`, `deviation`, `absolute`), erforderliche Evidenz pro Level, INSERT in `aer_gold.metric_equivalence` (Playbook §ClickHouse). Erklärt den Validation Gate auf `?normalization=zscore` — warum die BFF 400 zurückgibt ohne Equivalence-Eintrag.
+  - **Probe 0 Walkthrough:** Erklärt, warum dieses Workflow für Probe 0 (monolingual, monokulturell) nicht anwendbar ist — cross-kulturelle Vergleichbarkeit setzt mindestens zwei Probes aus verschiedenen kulturellen Kontexten voraus. Dokumentiert den erwarteten HTTP-400-Response bei `?normalization=zscore` als bewusstes Design.
+
+* [ ] **Workflow 4: Computing and Updating Baselines.** WP-004 §6.1: Trigger (signifikantes Corpus-Wachstum, neue Quelle hinzugefügt), Ausführung über `scripts/compute_baselines.py` (Playbook §ClickHouse), Interpretation der Ergebnisse, wie Baseline-Staleness die z-Score-Zuverlässigkeit beeinflusst.
+  - **Probe 0 Walkthrough:** Konkreter Durchlauf von `compute_baselines.py` gegen die existierenden Probe-0-Daten. Erwarteter Output für `word_count` und `sentiment_score` auf tagesschau.de. Zeigt den resultierenden INSERT in `metric_baselines`.
+
+* [ ] **Workflow 5: Assessing Bias for a Data Source.** WP-003 §8.1: `BiasContext`-Felder für einen neuen Source Adapter ausfüllen. Dokumentiert welche Felder objektive Plattform-Eigenschaften sind (Entwickler) vs. welche Domain-Expertise erfordern (Forscher:in). Output: `BiasContext`-Werte im Adapter-Code + Prosa im Probe Dossier (`bias_assessment.md`).
+  - **Probe 0 Walkthrough:** Zeigt die sechs `BiasContext`-Werte für RSS-Quellen und verlinkt auf `docs/probes/probe-0-de-institutional-rss/bias_assessment.md` als fertiges Beispiel. Erklärt die Entscheidung, dass für RSS alle Felder vom Entwickler gesetzt werden können (kein Domain-Expertise-Split nötig, weil RSS keine algorithmische Amplifikation hat).
+
+* [ ] **Workflow 6: Updating the Cultural Calendar.** WP-005 §4.3: Trigger (neue Probe-Region), Inhalt (Feiertage, Wahlen, religiöse Feste, Medienereignisse), Format (`configs/cultural_calendars/<region>.yaml`), Konsumation (aktuell statisches Lookup).
+  - **Probe 0 Walkthrough:** Zeigt ausgewählte Einträge aus `configs/cultural_calendars/de.yaml` und erklärt, wie ein neuer Eintrag (z.B. Bundestagswahl 2025) hinzugefügt wird.
+
+### Probe 0 End-to-End Walkthrough
+
+* [ ] **Zusammenhängender Walkthrough.** Chronologische Erzählung, die alle sechs Workflows in der Reihenfolge durchgeht, in der sie für Probe 0 anfallen oder anfallen würden. Beginnt mit Workflow 1 (Klassifikation — bereits geschehen als `provisional_engineering`), führt über Workflow 5 (Bias Assessment — bereits dokumentiert), Workflow 6 (Cultural Calendar — `de.yaml` existiert), Workflow 4 (Baseline Computation — kann sofort ausgeführt werden), und endet mit Workflow 2 (Metric Validation — ausstehend) und Workflow 3 (Equivalence — nicht anwendbar für eine einzelne Probe). Pro Schritt: Status (done / can do now / requires collaborators), konkretes SQL oder Kommando, erwarteter Output, Verweis auf Playbook-Sektion.
+
+### Provenance Inventory
+
+* [ ] **Alle manuell gesetzten Werte.** Tabelle: Wert, Ort (Tabelle/Datei/Config), gesetzt von, Datum, Autorität (WP-Referenz), aktueller Review-Status. Für Probe 0: 2 × `primary_function`, 2 × `secondary_function`, 2 × `function_weights = NULL`, 2 × `BiasContext`-Statische Werte (6 Felder je Quelle), 5 × `known_limitations` in `metric_provenance.yaml`, 2 × `min_meaningful_resolution`-Heuristiken, Cultural Calendar `de.yaml` (N Einträge). Lebender Abschnitt — bei jedem neuen manuell gesetzten Wert aktualisiert.
+
+### Integration
+
+* [ ] **`mkdocs.yml`.** `Scientific Operations Guide` als Top-Level-Eintrag registrieren, zwischen `Operations Playbook` und `Probes`. Navigation:
+  ```yaml
+  - "Operations":
+      - "Operations Playbook": operations_playbook.md
+      - "Scientific Operations Guide": scientific_operations_guide.md
+  - "Probes":
+      - "Probe 0 — DE Institutional RSS":
+          - "Overview": probes/probe-0-de-institutional-rss/README.md
+          - "Classification (WP-001)": probes/probe-0-de-institutional-rss/classification.md
+          - "Bias Assessment (WP-003)": probes/probe-0-de-institutional-rss/bias_assessment.md
+          - "Temporal Profile (WP-005)": probes/probe-0-de-institutional-rss/temporal_profile.md
+          - "Observer Effect (WP-006)": probes/probe-0-de-institutional-rss/observer_effect.md
+  ```
+
+* [ ] **Strukturelle Parallelität mit Operations Playbook.** Jeder Workflow im Scientific Operations Guide verweist auf den korrespondierenden Playbook-Abschnitt für die technischen Kommandos. Jeder Playbook-Abschnitt verweist zurück auf den korrespondierenden Workflow für die wissenschaftliche Begründung. Die Verweise sind bidirektional und verwenden konsistente Anker-IDs.
+
+* [x] **Validate.** Dokumentations-Review. Alle Cross-References zu Playbook-Sektionen, Working-Paper-Sektionen, Arc42-Kapiteln, Phase-68-Templates und Probe-Dossier-Dateien auflösen. `mkdocs build --strict`.
+
+---
 
 ## Phase 72: Test Coverage for Scientific Infrastructure (Phases 62–68)
-*Phases 62–64 are implemented and pass `make test` — but their test gates verified no regressions, not that new functionality is covered by dedicated tests. Phases 65–67 will follow the same pattern. This phase closes the test gap across all three layers (unit, integration, E2E), following the hybrid testing strategy (ADR-005). Tests for already-implemented features (62–64) are written retroactively; tests for Phases 65–67 are written after those phases complete.*
+
+*Phases 62–64 sind implementiert und bestehen `make test` — aber die Test-Gates verifizierten keine Regressionen, nicht dass neue Funktionalität durch dedizierte Tests abgedeckt ist. Phases 65–67 folgen dem gleichen Muster. Diese Phase schließt die Test-Lücke über alle drei Schichten (Unit, Integration, E2E) gemäß der Hybrid Testing Strategy (ADR-005).*
 
 ### Python Unit Tests (Analysis Worker)
 
-* [ ] **`tests/test_discourse_context.py` (Phase 62 — retroactive).** Test `DiscourseContext` propagation in the `RSSAdapter`:
-  - Adapter receives a mock `source_classifications` row → `RssMeta.discourse_context` is correctly populated with `primary_function`, `secondary_function`, `emic_designation`.
-  - No classification exists for the source → `RssMeta.discourse_context` is `None`, pipeline does not fail.
-  - Classification has `function_weights = NULL` → field is `None` in the model, no crash.
-  - `review_status = 'provisional_engineering'` is propagated correctly.
-* [ ] **`tests/test_bias_context.py` (Phase 64 — retroactive).** Test `BiasContext` population in the `RSSAdapter`:
-  - Adapter produces correct static values for RSS sources (`platform_type='rss'`, `visibility_mechanism='chronological'`, etc.).
-  - All `BiasContext` fields are non-null for RSS sources.
-  - `BiasContext` model validates — missing required fields raise `ValidationError`.
-* [ ] **`tests/test_discourse_function_gold.py` (Phase 62 — retroactive).** Test that the extractor pipeline writes `discourse_function` to ClickHouse insert rows:
-  - When `DiscourseContext` is present → `discourse_function` column contains the `primary_function` value.
-  - When `DiscourseContext` is `None` → `discourse_function` column contains empty string (the `DEFAULT ''`).
-* [ ] **`tests/test_compute_baselines.py` (Phase 65).** Test `scripts/compute_baselines.py` logic (extracted into a testable function):
-  - Given a known set of metric values → produces correct mean and standard deviation.
-  - Empty metric set → no insert, no crash.
-  - Single-value metric set → standard deviation is 0, handled gracefully.
+* [ ] **`tests/test_discourse_context.py` (Phase 62 — retroaktiv).** `DiscourseContext`-Propagation im `RSSAdapter`:
+  - Adapter erhält Mock-`source_classifications`-Zeile → `RssMeta.discourse_context` korrekt populiert mit `primary_function`, `secondary_function`, `emic_designation`.
+  - Keine Klassifikation für die Quelle → `RssMeta.discourse_context` ist `None`, Pipeline failt nicht.
+  - Klassifikation hat `function_weights = NULL` → Feld ist `None` im Model, kein Crash.
+  - `review_status = 'provisional_engineering'` wird korrekt propagiert.
+
+* [ ] **`tests/test_bias_context.py` (Phase 64 — retroaktiv).** `BiasContext`-Population im `RSSAdapter`:
+  - Adapter produziert korrekte statische Werte für RSS-Quellen (`platform_type='rss'`, `visibility_mechanism='chronological'`, etc.).
+  - Alle `BiasContext`-Felder sind non-null für RSS-Quellen.
+  - `BiasContext`-Model validiert — fehlende Pflichtfelder raisen `ValidationError`.
+
+* [ ] **`tests/test_discourse_function_gold.py` (Phase 62 — retroaktiv).** Extractor Pipeline schreibt `discourse_function` in ClickHouse-Insert-Rows:
+  - `DiscourseContext` vorhanden → `discourse_function`-Spalte enthält `primary_function`-Wert.
+  - `DiscourseContext` ist `None` → `discourse_function`-Spalte enthält leeren String (`DEFAULT ''`).
+
+* [ ] **`tests/test_compute_baselines.py` (Phase 65).** `scripts/compute_baselines.py`-Logik (in testbare Funktion extrahiert):
+  - Bekannter Satz von Metrik-Werten → korrekte Mean und Standardabweichung.
+  - Leerer Metrik-Satz → kein Insert, kein Crash.
+  - Einzelwert-Metrik-Satz → Standardabweichung ist 0, graceful behandelt.
 
 ### Go Integration Tests (BFF API)
 
-* [ ] **`internal/storage/metrics_query_test.go` — Normalization tests (Phase 65).** Extend existing test file:
-  - `?normalization=zscore` without baseline in `metric_baselines` → returns HTTP 400 with descriptive error message.
-  - `?normalization=zscore` with baseline but without `metric_equivalence` entry → returns HTTP 400.
-  - `?normalization=zscore` with valid baseline and equivalence entry → returns correct z-score values.
-  - `?normalization=raw` (default) → unchanged behavior, existing tests still pass.
-* [ ] **`internal/storage/metrics_query_test.go` — Resolution tests (Phase 66).** Extend existing test file:
-  - `?resolution=hourly` → ClickHouse returns hourly-aggregated data points (verify timestamp bucketing).
-  - `?resolution=daily` → fewer data points than hourly for the same time range.
-  - `?resolution=monthly` → correct month-start timestamps.
-  - Default (no parameter) → 5-minute bucketing, backward compatible.
-  - `rowLimit` adjustment → verify that wider resolutions allow proportionally more rows.
-* [ ] **`internal/handler/provenance_handler_test.go` (Phase 67).** New test file for the provenance endpoint:
-  - `GET /metrics/word_count/provenance` → returns tier 1, algorithm description, empty limitations list.
-  - `GET /metrics/sentiment_score/provenance` → returns tier 1, known limitations (negation blindness, compound word failure).
-  - `GET /metrics/nonexistent/provenance` → returns HTTP 404.
-  - Validation status join: metric with entry in `metric_validity` → `validation_status = 'validated'`. Metric without entry → `validation_status = 'unvalidated'`.
-* [ ] **`internal/storage/metrics_query_test.go` — Available metrics extensions (Phases 63, 65, 66).** Extend existing test:
-  - Response includes `validation_status` per metric (default `unvalidated`).
-  - Response includes `min_meaningful_resolution` when configured.
-  - Response includes `etic_construct` and `equivalence_level` when `metric_equivalence` entry exists.
+* [ ] **`internal/storage/metrics_query_test.go` — Normalization Tests (Phase 65).** Extend:
+  - `?normalization=zscore` ohne Baseline in `metric_baselines` → HTTP 400 mit deskriptiver Fehlermeldung.
+  - `?normalization=zscore` mit Baseline aber ohne `metric_equivalence`-Eintrag → HTTP 400.
+  - `?normalization=zscore` mit valider Baseline und Equivalence-Eintrag → korrekte z-Score-Werte.
+  - `?normalization=raw` (Default) → unverändertes Verhalten, bestehende Tests grün.
+
+* [ ] **`internal/storage/metrics_query_test.go` — Resolution Tests (Phase 66).** Extend:
+  - `?resolution=hourly` → ClickHouse liefert stündlich aggregierte Datenpunkte (Timestamp-Bucketing verifizieren).
+  - `?resolution=daily` → weniger Datenpunkte als `hourly` für denselben Zeitraum.
+  - `?resolution=monthly` → korrekte Monatsstart-Timestamps.
+  - Default (kein Parameter) → 5-Minuten-Bucketing, backward-compatible.
+  - `rowLimit`-Anpassung → weitere Resolutions erlauben proportional mehr Rows.
+
+* [ ] **`internal/handler/provenance_handler_test.go` (Phase 67).** Neues Test-File:
+  - `GET /metrics/word_count/provenance` → Tier 1, Algorithm Description, leere Limitations-Liste.
+  - `GET /metrics/sentiment_score/provenance` → Tier 1, Known Limitations (Negation Blindness, Compound Word Failure).
+  - `GET /metrics/nonexistent/provenance` → HTTP 404.
+  - Validation Status Join: Metrik mit Eintrag in `metric_validity` → `validation_status = 'validated'`. Metrik ohne Eintrag → `validation_status = 'unvalidated'`.
+
+* [ ] **`internal/storage/metrics_query_test.go` — Available Metrics Extensions (Phases 63, 65, 66).** Extend:
+  - Response enthält `validation_status` pro Metrik (Default `unvalidated`).
+  - Response enthält `min_meaningful_resolution` wenn konfiguriert.
+  - Response enthält `etic_construct` und `equivalence_level` wenn `metric_equivalence`-Eintrag existiert.
 
 ### Go Integration Tests (Ingestion API)
 
-* [ ] **`internal/storage/postgres_test.go` — Source classifications (Phase 62 — retroactive).** Extend existing test file:
-  - `get_source_classification(source_id)` returns the correct classification for a seeded source.
-  - `get_source_classification(unknown_id)` returns `nil`, no error.
-  - Multiple classifications for the same source (different `classification_date`) → returns the most recent.
-  - Foreign key integrity: classification referencing a non-existent `source_id` → insert fails.
+* [ ] **`internal/storage/postgres_test.go` — Source Classifications (Phase 62 — retroaktiv).** Extend:
+  - `get_source_classification(source_id)` liefert korrekte Klassifikation für geseedete Quelle.
+  - `get_source_classification(unknown_id)` liefert `nil`, kein Error.
+  - Mehrere Klassifikationen für dieselbe Quelle (verschiedene `classification_date`) → liefert die neueste.
+  - Foreign-Key-Integrität: Klassifikation referenziert nicht-existente `source_id` → Insert failt.
 
 ### E2E Smoke Test Extension
 
-* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 62 — retroactive).** After the existing assertions (word_count, sentiment_score, entities), add:
-  - Query `GET /api/v1/metrics?metricName=word_count&startDate=...&endDate=...` and verify the response includes a non-empty `discourse_function` field (confirming Phase 62 propagation works end-to-end).
-* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 66).** Add:
-  - Query `GET /api/v1/metrics?resolution=hourly&startDate=...&endDate=...` and verify the response returns data (confirming multi-resolution aggregation works).
-* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 67).** Add:
-  - Query `GET /api/v1/metrics/word_count/provenance` and verify the response contains `tier_classification` and `algorithm_description` fields.
+* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 62 — retroaktiv).** Nach bestehenden Assertions (word_count, sentiment_score, entities):
+  - Query `GET /api/v1/metrics?metricName=word_count&startDate=...&endDate=...` und verify: Response enthält non-empty `discourse_function`-Feld.
+
+* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 66).** Query `GET /api/v1/metrics?resolution=hourly&startDate=...&endDate=...` und verify: Response liefert Daten.
+
+* [ ] **Extend `scripts/e2e_smoke_test.sh` (Phase 67).** Query `GET /api/v1/metrics/word_count/provenance` und verify: Response enthält `tier_classification` und `algorithm_description`.
 
 ### Validate
 
-* [ ] **Run full validation suite.** `make test` (all new + existing tests green), `make test-e2e` (extended smoke test green), `make lint`, `make audit`, `make codegen && git diff --exit-code`.
-* [ ] **Update Arc42 §8.1 (Testing Strategy).** Add a paragraph documenting the test coverage for scientific infrastructure tables and the validation-gate testing pattern (asserting HTTP 400 for endpoints that require validated scientific data).
+* [ ] **Full Validation Suite.** `make test` (alle neuen + bestehenden Tests grün), `make test-e2e` (erweiterter Smoke Test grün), `make lint`, `make audit`, `make codegen && git diff --exit-code`.
 
+* [ ] **Arc42 §8.1 (Testing Strategy) aktualisieren.** Paragraph zur Testabdeckung für Scientific Infrastructure Tables und das Validation-Gate Testing Pattern (HTTP 400 für Endpoints, die validierte wissenschaftliche Daten erfordern).
 ---

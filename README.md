@@ -330,7 +330,11 @@ Documents are submitted as JSON batches to `POST /api/v1/ingest`. See the [Inges
 
 Crawlers for new data sources should include a `source_type` field in the `data` payload (e.g., `"rss"`, `"forum"`, `"social"`). This field is used by the analysis worker to select the correct Source Adapter for harmonization. Documents without a `source_type` are handled by the legacy adapter. See ADR-015 in the architecture documentation.
 
-**4. Authentication**
+**4. Probe Dossier and Classification**
+
+Adding a new data source is not just an engineering task — every new probe requires a Probe Dossier under `docs/probes/<probe-id>/` (Arc42 §8.15) and a row in `source_classifications` produced by the WP-001 §4.4 Probe Classification Process. The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe. See the **Scientific Operations Guide** (Phase 71) for the end-to-end workflow and the **Operations Playbook → Scientific Infrastructure** section for the SQL templates. For the existing reference probe, see `docs/probes/probe-0-de-institutional-rss/`.
+
+**5. Authentication**
 
 All Ingestion API endpoints (except `/api/v1/healthz` and `/api/v1/readyz`) require the `X-API-Key` header (or `Authorization: Bearer <key>`). The key is configured via the `INGESTION_API_KEY` environment variable in `.env`.
 
