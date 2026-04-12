@@ -336,7 +336,7 @@ All Ingestion API endpoints (except `/api/v1/healthz` and `/api/v1/readyz`) requ
 
 ### RSS Crawler
 
-The RSS crawler (`crawlers/rss-crawler/`) is AĒR's first real data source. It fetches German institutional RSS feeds for pipeline calibration (see architecture documentation, Chapter 13, §13.8).
+The RSS crawler (`crawlers/rss-crawler/`) is AĒR's first real data source. It fetches German institutional RSS feeds for pipeline calibration (see architecture documentation, Chapter 13, §13.10).
 
 **Usage:**
 

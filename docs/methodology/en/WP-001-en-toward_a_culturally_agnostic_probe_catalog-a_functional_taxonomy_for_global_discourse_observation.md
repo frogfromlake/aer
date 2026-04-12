@@ -243,7 +243,7 @@ The **Minimum Viable Probe Set (MVPS)** for a given society is the smallest set 
 | Cohesion & Identity | (to be determined — cultural media) | TBD |
 | Subversion & Friction | (to be determined — investigative/activist) | TBD |
 
-AĒR's Probe 0 (§13.8) covers only the first two rows — both from the same platform type (RSS) and both from the institutional sphere. This is explicitly acknowledged as a calibration probe, not a scientifically representative probe set.
+AĒR's Probe 0 (§13.10) covers only the first two rows — both from the same platform type (RSS) and both from the institutional sphere. This is explicitly acknowledged as a calibration probe, not a scientifically representative probe set.
 
 ### 5.2 Weighting and Representativeness
 
@@ -269,14 +269,14 @@ The Coverage Map directly addresses WP-006's call for "negative space visualizat
 
 ## 6. Probe 0 Revisited: Classification Under the Taxonomy
 
-AĒR's operational Probe 0 (§13.8) can now be formally classified under the functional taxonomy:
+AĒR's operational Probe 0 (§13.10) can now be formally classified under the functional taxonomy:
 
 | Source | Primary Function | Secondary Function | Etic Confidence | Emic Context |
 | :--- | :--- | :--- | :--- | :--- |
 | bundesregierung.de RSS | Power Legitimation | Epistemic Authority (policy as fact-setting) | 0.85 | *Bundesregierung Pressemitteilungen* — official government communication in *Beamtendeutsch* register, constitutionally mandated transparency |
 | tagesschau.de RSS | Epistemic Authority | Power Legitimation (state-funded, proportional governance) | 0.75 | *Öffentlich-rechtlicher Rundfunk* — public broadcasting under inter-party governance (*Rundfunkräte*), institutional register, perceived by German public as authoritative baseline |
 
-**Gaps in Probe 0.** Functions 3 (Cohesion & Identity) and 4 (Subversion & Friction) are entirely unrepresented. Both represented sources are institutional, editorial, and German-language. This is not a defect of Probe 0 — it was designed as engineering calibration (§13.8). But it means that any sociological interpretation of Probe 0 data must be limited to the institutional sphere of German discourse.
+**Gaps in Probe 0.** Functions 3 (Cohesion & Identity) and 4 (Subversion & Friction) are entirely unrepresented. Both represented sources are institutional, editorial, and German-language. This is not a defect of Probe 0 — it was designed as engineering calibration (§13.10). But it means that any sociological interpretation of Probe 0 data must be limited to the institutional sphere of German discourse.
 
 ---
 

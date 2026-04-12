@@ -243,7 +243,7 @@ Das **Minimum Viable Probe Set (MVPS)** für eine gegebene Gesellschaft ist das 
 | Kohäsion & Identität | (zu bestimmen — kulturelle Medien) | offen |
 | Subversion & Friktion | (zu bestimmen — investigativ/aktivistisch) | offen |
 
-AĒRs Sonde 0 (§13.8) deckt nur die ersten beiden Zeilen ab — beide vom selben Plattformtyp (RSS) und beide aus der institutionellen Sphäre. Dies wird explizit als Kalibrierungssonde anerkannt, nicht als wissenschaftlich repräsentatives Sondenset.
+AĒRs Sonde 0 (§13.10) deckt nur die ersten beiden Zeilen ab — beide vom selben Plattformtyp (RSS) und beide aus der institutionellen Sphäre. Dies wird explizit als Kalibrierungssonde anerkannt, nicht als wissenschaftlich repräsentatives Sondenset.
 
 ### 5.2 Gewichtung und Repräsentativität
 
@@ -269,14 +269,14 @@ Die Abdeckungskarte adressiert direkt WP-006s Forderung nach „Negativraum-Visu
 
 ## 6. Sonde 0 revisited: Klassifikation unter der Taxonomie
 
-AĒRs operationale Sonde 0 (§13.8) kann nun formal unter der funktionalen Taxonomie klassifiziert werden:
+AĒRs operationale Sonde 0 (§13.10) kann nun formal unter der funktionalen Taxonomie klassifiziert werden:
 
 | Quelle | Primäre Funktion | Sekundäre Funktion | Etische Konfidenz | Emischer Kontext |
 | :--- | :--- | :--- | :--- | :--- |
 | bundesregierung.de RSS | Machtlegitimation | Epistemische Autorität (Politik als Fakten setzend) | 0,85 | *Bundesregierung Pressemitteilungen* — offizielle Regierungskommunikation im Register des *Beamtendeutsch*, verfassungsrechtlich mandatierte Transparenz |
 | tagesschau.de RSS | Epistemische Autorität | Machtlegitimation (staatsfinanziert, proportionale Governance) | 0,75 | *Öffentlich-rechtlicher Rundfunk* — öffentlicher Rundfunk unter parteipolitisch-proportionaler Governance (*Rundfunkräte*), institutionelles Register, von der deutschen Öffentlichkeit als autoritative Grundlinie wahrgenommen |
 
-**Lücken in Sonde 0.** Die Funktionen 3 (Kohäsion & Identität) und 4 (Subversion & Friktion) sind vollständig unrepräsentiert. Beide vertretenen Quellen sind institutionell, redaktionell und deutschsprachig. Dies ist kein Defekt von Sonde 0 — sie wurde als technische Kalibrierung konzipiert (§13.8). Es bedeutet jedoch, dass jede soziologische Interpretation der Daten von Sonde 0 auf die institutionelle Sphäre des deutschen Diskurses beschränkt sein muss.
+**Lücken in Sonde 0.** Die Funktionen 3 (Kohäsion & Identität) und 4 (Subversion & Friktion) sind vollständig unrepräsentiert. Beide vertretenen Quellen sind institutionell, redaktionell und deutschsprachig. Dies ist kein Defekt von Sonde 0 — sie wurde als technische Kalibrierung konzipiert (§13.10). Es bedeutet jedoch, dass jede soziologische Interpretation der Daten von Sonde 0 auf die institutionelle Sphäre des deutschen Diskurses beschränkt sein muss.
 
 ---
 
