@@ -15,10 +15,61 @@ Usage:
 """
 
 import argparse
+import math
 import sys
 from datetime import datetime, timezone
+from typing import Iterable, Sequence
 
 import clickhouse_connect
+
+
+def compute_mean_std(values: Sequence[float]) -> tuple[float, float]:
+    """Population mean and standard deviation for a set of metric values.
+
+    Mirrors ClickHouse's ``avg`` / ``stddevPop`` semantics so Phase 65 tests
+    can verify baseline arithmetic without a live ClickHouse instance.
+
+    Empty input returns ``(0.0, 0.0)`` — the calling code must filter empty
+    groups explicitly; this function is a pure helper, not a guard.
+    A single value has no dispersion, so the standard deviation is 0.
+    """
+    n = len(values)
+    if n == 0:
+        return 0.0, 0.0
+    mean = sum(values) / n
+    variance = sum((v - mean) ** 2 for v in values) / n
+    return mean, math.sqrt(variance)
+
+
+def build_baseline_rows(
+    query_rows: Iterable[tuple],
+    window_start: datetime,
+    window_end: datetime,
+    compute_date: datetime,
+) -> list[list]:
+    """Shape pre-aggregated ClickHouse rows into ``metric_baselines`` inserts.
+
+    Each query row is a ``(metric_name, source, language, baseline_value,
+    baseline_std, n_documents)`` tuple produced by :data:`BASELINE_QUERY`.
+    The resulting list is ready to pass to ``client.insert(..., rows, ...)``
+    with the column order defined in :func:`main`.
+
+    Empty ``query_rows`` → empty list; the caller must skip the insert.
+    """
+    rows: list[list] = []
+    for metric_name, source, language, baseline_value, baseline_std, n_docs in query_rows:
+        rows.append([
+            metric_name,
+            source,
+            language,
+            baseline_value,
+            baseline_std,
+            window_start,
+            window_end,
+            n_docs,
+            compute_date,
+        ])
+    return rows
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,19 +147,8 @@ def main() -> None:
         return
 
     compute_date = datetime.now(timezone.utc)
-    rows = []
+    rows = build_baseline_rows(result.result_rows, window_start, window_end, compute_date)
     for metric_name, source, language, baseline_value, baseline_std, n_docs in result.result_rows:
-        rows.append([
-            metric_name,
-            source,
-            language,
-            baseline_value,
-            baseline_std,
-            window_start,
-            window_end,
-            n_docs,
-            compute_date,
-        ])
         print(
             f"  {metric_name:30s} | {source:20s} | {language:5s} | "
             f"mean={baseline_value:8.4f}  std={baseline_std:8.4f}  n={n_docs}"
