@@ -665,6 +665,12 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - No other Arc42 chapters affected — the architecture, patterns, and runtime behavior are unchanged.
 * [x] **Update `README.md` if the project structure section references specific file paths** that changed during decomposition.
 
+# AĒR ROADMAP — New Phases from Working Paper Series (WP-001 – WP-006)
+
+*These phases implement the concrete architectural recommendations from the Scientific Methodology Working Paper Series. They are ordered by dependency — earlier phases provide the schema and infrastructure that later phases build on. All phases target Probe 0 (German institutional RSS) as the implementation context.*
+
+*Design principle: These phases build **scientific infrastructure** — database schemas, API parameters, metadata models, workflow templates — without preempting open research questions. Tables are created empty where their content requires interdisciplinary validation. API endpoints that depend on validated data include explicit gates that return errors until validation has occurred. The distinction between "engineering scaffolding" and "scientific decision" is maintained throughout; see Phase 65 (`normalization` validation gate) for the canonical example.*
+
 ## Phase 62: Functional Probe Taxonomy & Source Classification Schema (WP-001) - [x] DONE
 *WP-001 proposes a Functional Probe Taxonomy with four discourse functions and an Etic/Emic Dual Tagging System. This phase implements the database schema, the Pydantic models, and the initial classification for Probe 0. The classification itself is a manual scientific act — the schema enables it.*
 
@@ -707,52 +713,45 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.2: `SilverMeta` now includes `BiasContext`). Chapter 11 (add R-12: `Authenticity extractors not yet implemented — per WP-003 §8.2`). Chapter 12 (Glossary: `BiasContext`, `Visibility Mechanism`, `Authenticity Extractor`).
 * [x] **Validate.** `make test`, `make lint`, `make audit`.
 
----
-
-### Open Phases
-
-# AĒR ROADMAP — New Phases from Working Paper Series (WP-001 – WP-006)
-
-*These phases implement the concrete architectural recommendations from the Scientific Methodology Working Paper Series. They are ordered by dependency — earlier phases provide the schema and infrastructure that later phases build on. All phases target Probe 0 (German institutional RSS) as the implementation context.*
-
-*Design principle: These phases build **scientific infrastructure** — database schemas, API parameters, metadata models, workflow templates — without preempting open research questions. Tables are created empty where their content requires interdisciplinary validation. API endpoints that depend on validated data include explicit gates that return errors until validation has occurred. The distinction between "engineering scaffolding" and "scientific decision" is maintained throughout; see Phase 65 (`normalization` validation gate) for the canonical example.*
-
----
-
-## Phase 65: Cross-Cultural Comparability Infrastructure (WP-004)
+## Phase 65: Cross-Cultural Comparability Infrastructure (WP-004) - [x] DONE
 *WP-004 proposes a Metric Equivalence Registry, baseline computation, and z-score normalization. This phase implements the Gold layer extensions and BFF API normalization parameter. Actual equivalence entries require interdisciplinary validation and are deferred.*
 
-* [ ] **ClickHouse Table: `aer_gold.metric_baselines`.** Create via ClickHouse init migration:
+* [x] **ClickHouse Table: `aer_gold.metric_baselines`.** Create via ClickHouse init migration:
   - Schema: `metric_name String`, `source String`, `language String`, `baseline_value Float64`, `baseline_std Float64`, `window_start DateTime`, `window_end DateTime`, `n_documents UInt32`, `compute_date DateTime`.
   - `ENGINE = ReplacingMergeTree(compute_date)`, `ORDER BY (metric_name, source, language)`.
-* [ ] **ClickHouse Table: `aer_gold.metric_equivalence`.** Create via ClickHouse init migration:
+* [x] **ClickHouse Table: `aer_gold.metric_equivalence`.** Create via ClickHouse init migration:
   - Schema: `etic_construct String` (e.g., `evaluative_polarity`), `metric_name String` (e.g., `sentiment_score_sentiws`), `language String`, `source_type String`, `equivalence_level String` (`temporal`, `deviation`, `absolute`), `validated_by String`, `validation_date DateTime`, `confidence Float32`.
   - `ENGINE = ReplacingMergeTree(validation_date)`, `ORDER BY (etic_construct, metric_name, language)`.
   - Initially empty — populated when validation studies establish equivalence.
-* [ ] **Baseline Computation Script.** Create `scripts/compute_baselines.py` — a standalone Python script (not part of the real-time pipeline) that queries `aer_gold.metrics` for a specified time window, computes mean and standard deviation per `(metric_name, source, language)`, and inserts results into `aer_gold.metric_baselines`. Intended to be run periodically (weekly/monthly) by a researcher or as a cron job.
-* [ ] **BFF API: `normalization` Query Parameter.** Extend `GET /api/v1/metrics` to accept `?normalization=raw|zscore`:
+* [x] **Baseline Computation Script.** Create `scripts/compute_baselines.py` — a standalone Python script (not part of the real-time pipeline) that queries `aer_gold.metrics` for a specified time window, computes mean and standard deviation per `(metric_name, source, language)`, and inserts results into `aer_gold.metric_baselines`. Intended to be run periodically (weekly/monthly) by a researcher or as a cron job.
+* [x] **BFF API: `normalization` Query Parameter.** Extend `GET /api/v1/metrics` to accept `?normalization=raw|zscore`:
   - `raw` (default): current behavior.
   - `zscore`: join with `metric_baselines`, return `(value - baseline_value) / baseline_std` as the value. **Validation gate:** the endpoint returns HTTP 400 with a descriptive error if (a) no baseline exists in `metric_baselines` for the requested `(metric_name, source)` pair, or (b) no entry in `metric_equivalence` confirms at least `deviation`-level equivalence for this metric-context combination. This prevents normalized comparisons from being served before interdisciplinary validation has established their scientific legitimacy (WP-004 §7.3, Q7: whether baseline normalization constitutes cultural erasure is an open research question that must be answered per-context, not assumed).
   - Update OpenAPI spec, regenerate stubs, implement in handler + ClickHouse query layer.
-* [ ] **BFF API: Equivalence Metadata in `/metrics/available`.** Extend the response to include `etic_construct` and `equivalence_level` per metric if an entry exists in the equivalence registry. Unregistered metrics return `null`.
-* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `normalization` parameter). Chapter 13 (§13.3: cross-reference WP-004 Gold layer extensions). Chapter 12 (Glossary: `Metric Equivalence`, `Baseline`, `Z-Score Normalization`, `Etic Construct`).
-* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
+* [x] **BFF API: Equivalence Metadata in `/metrics/available`.** Extend the response to include `etic_construct` and `equivalence_level` per metric if an entry exists in the equivalence registry. Unregistered metrics return `null`.
+* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `normalization` parameter). Chapter 13 (§13.3: cross-reference WP-004 Gold layer extensions). Chapter 12 (Glossary: `Metric Equivalence`, `Baseline`, `Z-Score Normalization`, `Etic Construct`).
+* [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
 
 
-## Phase 66: Multi-Resolution Temporal Framework (WP-005)
+## Phase 66: Multi-Resolution Temporal Framework (WP-005) - [x] DONE
 *WP-005 defines five temporal scales and proposes multi-resolution ClickHouse aggregation, BFF API extensions, and a tiered retention strategy. This phase implements the query-time aggregation (no materialized views yet — those are a performance optimization deferred until query latency requires them).*
 
-* [ ] **BFF API: `resolution` Query Parameter.** Extend `GET /api/v1/metrics` to accept `?resolution=5min|hourly|daily|weekly|monthly`:
+* [x] **BFF API: `resolution` Query Parameter.** Extend `GET /api/v1/metrics` to accept `?resolution=5min|hourly|daily|weekly|monthly`:
   - Map to ClickHouse aggregation functions: `toStartOfFiveMinute()`, `toStartOfHour()`, `toStartOfDay()`, `toStartOfWeek()`, `toStartOfMonth()`.
   - Adjust the `rowLimit` OOM guard per resolution: wider windows produce fewer rows, so relax the limit proportionally (e.g., `hourly` → `rowLimit * 12`, `daily` → `rowLimit * 288`).
   - Default remains `5min` for backward compatibility.
   - Update OpenAPI spec, regenerate stubs, implement in handler + ClickHouse query layer.
-* [ ] **BFF API: Minimum Meaningful Window Metadata.** Extend `GET /api/v1/metrics/available` response to include `min_meaningful_resolution` per metric-source pair. Initially hardcoded based on Probe 0 publication rates (tagesschau.de ≈ 50 articles/day → `hourly`; bundesregierung.de ≈ 5 articles/day → `daily`). Stored as a config map in the BFF, not in ClickHouse.
-* [ ] **ClickHouse Materialized Views (Deferred Preparation).** Add the SQL definitions for `aer_gold.metrics_hourly`, `aer_gold.metrics_daily`, `aer_gold.metrics_monthly` as commented-out migration scripts in `infra/clickhouse/`. Document in the migration file that these should be activated when query latency exceeds acceptable thresholds (WP-005 §5.4). Do not activate yet — query-time aggregation is sufficient at current scale.
-* [ ] **Tiered Retention Strategy Documentation.** Document the proposed retention tiers (0–30d: full, 30–365d: hourly, 1–5y: daily, 5y+: monthly) in `docs/arc42/08_concepts.md` §8.8 as the target architecture. Mark as "planned — not yet active" to distinguish from current flat 365-day TTL.
-* [ ] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `resolution` parameter). Chapter 8 (§8.6: multi-resolution downsampling strategy). Chapter 12 (Glossary: `Temporal Scale`, `Minimum Meaningful Window`, `Tiered Retention`).
-* [ ] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
+* [x] **BFF API: Minimum Meaningful Window Metadata.** Extend `GET /api/v1/metrics/available` response to include `min_meaningful_resolution` per metric-source pair. Initially hardcoded based on Probe 0 publication rates (tagesschau.de ≈ 50 articles/day → `hourly`; bundesregierung.de ≈ 5 articles/day → `daily`). Stored as a config map in the BFF, not in ClickHouse.
+* [x] **ClickHouse Materialized Views (Deferred Preparation).** Add the SQL definitions for `aer_gold.metrics_hourly`, `aer_gold.metrics_daily`, `aer_gold.metrics_monthly` as commented-out migration scripts in `infra/clickhouse/`. Document in the migration file that these should be activated when query latency exceeds acceptable thresholds (WP-005 §5.4). Do not activate yet — query-time aggregation is sufficient at current scale.
+* [x] **Tiered Retention Strategy Documentation.** Document the proposed retention tiers (0–30d: full, 30–365d: hourly, 1–5y: daily, 5y+: monthly) in `docs/arc42/08_concepts.md` §8.8 as the target architecture. Mark as "planned — not yet active" to distinguish from current flat 365-day TTL.
+* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `resolution` parameter). Chapter 8 (§8.6: multi-resolution downsampling strategy). Chapter 12 (Glossary: `Temporal Scale`, `Minimum Meaningful Window`, `Tiered Retention`).
+* [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
 
+---
+
+### Open Phases
+
+---
 
 ## Phase 67: Reflexive Architecture — Methodological Transparency (WP-006)
 *WP-006 proposes five design principles for reflexive architecture. This phase implements the two that have immediate technical consequences: Methodological Transparency and Reflexive Documentation. The remaining three (Non-Prescriptive Visualization, Governed Openness, Interpretive Humility) are dashboard/governance concerns deferred to the frontend phase.*
