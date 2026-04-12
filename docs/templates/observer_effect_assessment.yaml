@@ -1,0 +1,69 @@
+# AER Observer Effect Assessment Template (WP-006 §8.4 Q7)
+#
+# Structured record completed during Step 4 (Ethical Review) of the
+# Probe Classification Process (WP-001 §4.4). It documents the
+# anticipated effects — beneficial and harmful — of observing a given
+# discourse with AER, the populations potentially affected, and the
+# safeguards the research team commits to.
+#
+# A completed assessment is a precondition for moving a probe from
+# `pending` to `reviewed` in `source_classifications.review_status`.
+# The file path is recorded in the corresponding probe registration
+# (`ethical_review.observer_effect_reference`).
+
+# --- Assessment Identity ---
+assessment_id: ""                     # e.g., "oea-2026-04-probe-001-de"
+probe_id: ""                          # Must match probe_registration_template.probe_id
+assessment_date: ""                   # ISO 8601 (YYYY-MM-DD)
+assessed_by: ""                       # Name and affiliation of lead reviewer
+working_paper_reference: "WP-006 §8.4 Q7"
+
+# --- Cultural and Geographic Scope ---
+cultural_region:
+  region: ""                          # e.g., "Germany", "MENA", "East Africa"
+  country_codes: []                   # ISO 3166-1 alpha-2
+  language_communities: []            # ISO 639-1
+  context_notes: ""                   # Cultural specificities relevant to the assessment
+
+# --- Anticipated Effects ---
+beneficial_effects:
+  - effect: ""                        # e.g., "Improved transparency on media bias"
+    beneficiary: ""                   # Who benefits — population or institution
+    likelihood: ""                    # "low" | "medium" | "high"
+    evidence: ""                      # Prior literature or empirical basis
+
+harmful_effects:
+  - effect: ""                        # e.g., "Re-identification of authors via metadata"
+    affected_party: ""
+    likelihood: ""                    # "low" | "medium" | "high"
+    severity: ""                      # "low" | "medium" | "high"
+    evidence: ""
+
+# --- Vulnerable Populations ---
+vulnerable_populations:
+  - group: ""                         # e.g., "minority-language journalists"
+    vulnerability_basis: ""           # Why this group is at elevated risk
+    specific_risks: []                # List of risks specific to this group
+
+# --- Safeguards ---
+recommended_safeguards:
+  - safeguard: ""                     # e.g., "Drop author byline before Silver"
+    addresses: ""                     # Which harmful effect this mitigates
+    responsible_role: ""              # "developer" | "researcher" | "operator"
+    implementation_status: "planned"  # "planned" | "implemented" | "deferred"
+    implementation_reference: ""      # File path, ADR, or ticket
+
+# --- Reflexive Considerations (WP-006 §6) ---
+reflexive_notes:
+  observer_position: ""               # Researcher's standpoint and limits of perspective
+  power_asymmetry: ""                 # Asymmetry between observer and observed
+  consent_status: ""                  # Public-record / opt-in / not applicable — and rationale
+  feedback_to_observed: ""            # If/how findings will be made available to the observed community
+
+# --- Review Outcome ---
+review_outcome:
+  decision: "pending"                 # "approved" | "approved_with_conditions" | "rejected" | "pending"
+  conditions: []                      # Conditions attached to approval
+  reviewers: []                       # Names and affiliations of ethics reviewers
+  decision_date: ""
+  notes: ""

@@ -1,0 +1,81 @@
+# AER Validation Study Record Template (WP-002 §6.2)
+#
+# Structured record completed by a researcher after carrying out a metric
+# validation study following the WP-002 §6.2 five-step protocol:
+#   1. Annotation study   (>= 3 annotators, Krippendorff's Alpha >= 0.667)
+#   2. Baseline comparison
+#   3. Error taxonomy
+#   4. Cross-context transfer
+#   5. Longitudinal stability (>= 6-month window)
+#
+# A completed record is the source data for an INSERT into
+# `aer_gold.metric_validity`. Until such a record exists for a given
+# (metric_name, context_key) pair, the BFF API reports the metric as
+# `validation_status = 'unvalidated'`.
+
+# --- Study Identity ---
+study_id: ""                          # e.g., "vs-2026-04-sentiment-de-news"
+metric_name: ""                       # Must match a metric in aer_gold.metrics
+context_key: ""                       # Free-form context identifier, e.g.,
+                                      # "de_news_rss", "twitter_de_political"
+study_date: ""                        # ISO 8601 (YYYY-MM-DD)
+conducted_by: ""                      # Name and affiliation of lead researcher
+working_paper_reference: ""           # e.g., "WP-002 §6.2"
+
+# --- Step 1: Annotation Study ---
+annotation_scheme:
+  description: ""                     # Annotation guidelines (or path to PDF)
+  label_set: []                       # e.g., ["positive", "neutral", "negative"]
+  document_count: 0                   # Number of annotated documents
+  sampling_strategy: ""               # e.g., "stratified by source and month"
+
+annotator_count: 0                    # Required: >= 3
+annotators:                           # Identity-pseudonymized list
+  - id: ""
+    expertise: ""                     # e.g., "linguist", "domain expert"
+    language_native: false
+
+krippendorff_alpha: 0.0               # Required: >= 0.667
+inter_annotator_notes: ""             # Disagreement patterns, edge cases
+
+# --- Step 2: Baseline Comparison ---
+correlation:
+  metric_value_vs_human_label: 0.0    # Pearson or Spearman, document below
+  method: ""                          # "pearson" | "spearman" | "kendall"
+  confidence_interval_95: [0.0, 0.0]
+  sample_size: 0
+
+# --- Step 3: Error Taxonomy ---
+error_taxonomy:
+  - error_class: ""                   # e.g., "negation_blindness"
+    frequency_pct: 0.0
+    example: ""                       # Anonymized example
+    severity: ""                      # "low" | "medium" | "high"
+
+# --- Step 4: Cross-Context Transfer ---
+transfer_boundary:
+  applies_to_contexts: []             # Contexts where the metric is valid
+  does_not_transfer_to: []            # Contexts explicitly tested and rejected
+  evidence: ""                        # Brief rationale or attached study
+
+# --- Step 5: Longitudinal Stability ---
+longitudinal_window:
+  start_date: ""                      # ISO 8601 — at least 6 months before end_date
+  end_date: ""
+  drift_observed: false
+  drift_description: ""               # If true: nature and magnitude of drift
+
+# --- Output ---
+result:
+  validity_status: ""                 # "validated" | "validated_with_caveats" | "rejected"
+  valid_until: ""                     # ISO 8601 date — re-validation required after this
+  caveats: ""                         # Any conditions on the validity claim
+  inserted_into_metric_validity: false
+  insert_date: ""
+
+# --- Review ---
+peer_review:
+  status: "pending"                   # "pending" | "approved" | "revisions_requested"
+  reviewers: []
+  review_date: ""
+  notes: ""

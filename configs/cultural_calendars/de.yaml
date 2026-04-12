@@ -1,0 +1,116 @@
+# AER Cultural Calendar — Germany (WP-005 §4.3)
+#
+# Static lookup of culturally significant dates whose presence is expected
+# to perturb discourse metrics. Used by analysts when interpreting metric
+# anomalies — not consumed by any service in the POC.
+#
+# Schema per entry:
+#   date                       ISO 8601 date (YYYY-MM-DD), or recurring rule
+#   name                       Human-readable name (German)
+#   type                       public_holiday | election | media_event | commemoration
+#   expected_discourse_effect  Qualitative note on the discourse signature
+#                              (volume shift, topic concentration, etc.)
+#
+# Recurring entries use `recurrence` instead of a fixed date:
+#   recurrence: annual         Same calendar date every year
+#   recurrence: movable        Date computed per year (Easter-based, etc.)
+#
+# Federal election dates are listed individually because they are not
+# regular. Add new entries when the Bundeswahlleiter announces a new date.
+
+region: DE
+language: de
+last_updated: "2026-04-12"
+
+entries:
+  # --- Public Holidays (federal, recurring) ---
+  - date: "01-01"
+    recurrence: annual
+    name: "Neujahr"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; reflective/year-in-review framing dominates."
+
+  - date: "05-01"
+    recurrence: annual
+    name: "Tag der Arbeit"
+    type: public_holiday
+    expected_discourse_effect: "Concentration on labor, unions, social policy; protest coverage."
+
+  - date: "10-03"
+    recurrence: annual
+    name: "Tag der Deutschen Einheit"
+    type: public_holiday
+    expected_discourse_effect: "National identity discourse; East-West retrospectives; political speeches."
+
+  - date: "12-25"
+    recurrence: annual
+    name: "Erster Weihnachtstag"
+    type: public_holiday
+    expected_discourse_effect: "Sharply reduced news volume; family/social-cohesion framing."
+
+  - date: "12-26"
+    recurrence: annual
+    name: "Zweiter Weihnachtstag"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; year-end retrospectives begin."
+
+  - recurrence: movable
+    rule: "easter_sunday"
+    name: "Ostersonntag"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; religious and family framing."
+
+  - recurrence: movable
+    rule: "easter_sunday + 1"
+    name: "Ostermontag"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; continuation of Easter framing."
+
+  - recurrence: movable
+    rule: "easter_sunday + 39"
+    name: "Christi Himmelfahrt"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; long-weekend travel coverage."
+
+  # --- Federal Elections (individual entries) ---
+  - date: "2025-02-23"
+    name: "Bundestagswahl 2025"
+    type: election
+    expected_discourse_effect: "Sharp volume spike; concentration on political_legitimation function; sentiment polarization."
+
+  - date: "2021-09-26"
+    name: "Bundestagswahl 2021"
+    type: election
+    expected_discourse_effect: "Sharp volume spike; political_legitimation function; coalition negotiations follow-up."
+
+  # --- Significant Recurring Media Events ---
+  - date: "02"
+    recurrence: annual_month
+    name: "Berlinale (Internationale Filmfestspiele Berlin)"
+    type: media_event
+    expected_discourse_effect: "Concentration of cultural/film coverage; international entity mentions spike."
+
+  - date: "10"
+    recurrence: annual_month
+    name: "Frankfurter Buchmesse"
+    type: media_event
+    expected_discourse_effect: "Literary, publishing, and free-speech topics rise; guest-country coverage spike."
+
+  - date: "09"
+    recurrence: annual_month
+    name: "Oktoberfest (München)"
+    type: media_event
+    expected_discourse_effect: "Bavaria-centric coverage; tourism, public-safety, and economic framing."
+
+  # --- Commemorations ---
+  - date: "01-27"
+    recurrence: annual
+    name: "Tag des Gedenkens an die Opfer des Nationalsozialismus"
+    type: commemoration
+    expected_discourse_effect: "Historical memory discourse; sentiment shifts negative; institutional speeches."
+
+  - date: "11-09"
+    recurrence: annual
+    name: "Jahrestag des Mauerfalls / Reichspogromnacht"
+    type: commemoration
+    expected_discourse_effect: "Dual framing — reunification celebration and Holocaust commemoration; high reflective volume."

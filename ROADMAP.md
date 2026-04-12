@@ -786,20 +786,20 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document provenance endpoint). Chapter 8 (add §8.12: Reflexive Architecture). Chapter 12 (Glossary: `Reflexive Documentation`, `Methodological Transparency`, `Non-Prescriptive Visualization`).
 * [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
 
+
+## Phase 68: Seed Files & Configuration Templates (Cross-WP) - [x] DONE
+*Phases 62–64 are implemented; Phases 65–67 will complete the schema and API work and are implemented as well. Before documenting workflows (Phase 71), the system needs the static seed files and configuration templates that those workflows reference. Phase 62 already created `probe_registration_template.yaml` and Phase 64 already created `probe0_bias_profile.md` — this phase creates only the remaining templates.*
+
+* [x] **Cultural Calendar Annotation Seed.** Create `configs/cultural_calendars/de.yaml` as a seed file for the cultural calendar metadata proposed in WP-005 §4.3. Contains German public holidays, federal election dates, and significant recurring media events (e.g., Berlinale, Buchmesse). Format: `{date, name, type, expected_discourse_effect}`. This is a static lookup — no service required for the POC.
+* [x] **Validation Study Record Template.** Create `docs/templates/validation_study_template.yaml` with fields from WP-002 §6.2: `metric_name`, `context_key`, `annotation_scheme`, `annotator_count`, `krippendorff_alpha`, `correlation`, `error_taxonomy`, `transfer_boundary`, `longitudinal_window`. This is the structured record a researcher fills out after completing a validation study — the data that gets inserted into `aer_gold.metric_validity`.
+* [x] **Observer Effect Assessment Template.** Create `docs/templates/observer_effect_assessment.yaml` based on WP-006 §8.4 Q7: `cultural_region`, `beneficial_effects`, `harmful_effects`, `vulnerable_populations`, `recommended_safeguards`, `assessed_by`, `assessment_date`. This is the structured record completed during Step 4 (ethical review) of the probe classification process.
+* [x] **Validate.** File format review — all YAML templates parse cleanly. No code changes.
+
 ---
 
 ### Open Phases
 
 ---
-
-## Phase 68: Seed Files & Configuration Templates (Cross-WP)
-*Phases 62–64 are implemented; Phases 65–67 will complete the schema and API work. Before documenting workflows (Phase 71), the system needs the static seed files and configuration templates that those workflows reference. Phase 62 already created `probe_registration_template.yaml` and Phase 64 already created `probe0_bias_profile.md` — this phase creates only the remaining templates.*
-
-* [ ] **Cultural Calendar Annotation Seed.** Create `configs/cultural_calendars/de.yaml` as a seed file for the cultural calendar metadata proposed in WP-005 §4.3. Contains German public holidays, federal election dates, and significant recurring media events (e.g., Berlinale, Buchmesse). Format: `{date, name, type, expected_discourse_effect}`. This is a static lookup — no service required for the POC.
-* [ ] **Validation Study Record Template.** Create `docs/templates/validation_study_template.yaml` with fields from WP-002 §6.2: `metric_name`, `context_key`, `annotation_scheme`, `annotator_count`, `krippendorff_alpha`, `correlation`, `error_taxonomy`, `transfer_boundary`, `longitudinal_window`. This is the structured record a researcher fills out after completing a validation study — the data that gets inserted into `aer_gold.metric_validity`.
-* [ ] **Observer Effect Assessment Template.** Create `docs/templates/observer_effect_assessment.yaml` based on WP-006 §8.4 Q7: `cultural_region`, `beneficial_effects`, `harmful_effects`, `vulnerable_populations`, `recommended_safeguards`, `assessed_by`, `assessment_date`. This is the structured record completed during Step 4 (ethical review) of the probe classification process.
-* [ ] **Validate.** File format review — all YAML templates parse cleanly. No code changes.
-
 
 ## Phase 69: Arc42 Consolidation & Cross-Reference Audit
 *Phases 62–64 each included inline Arc42 updates (Chapter 5, 8, 11, 12, 13) for the features they introduced. Phases 65–67 will do the same. This phase does not repeat those updates — it verifies their consistency, fills gaps that only become visible when viewing the documentation as a whole, and ensures all cross-references are intact after eleven phases of changes.*
