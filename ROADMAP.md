@@ -810,11 +810,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Cross-Reference Integrity Audit.** Grep sweep for `§13.x`, `methodology/WP-`, and `ADR-0` references across `docs/`, `ROADMAP.md`, and `README.md`. All broken or stale references identified by this audit were fixed in the bullets above.
 * [x] **Validate.** `mkdocs build --strict` passes (0 warnings, exit 0) against `squidfunk/mkdocs-material:9.7.6`.
 
----
-
-### Open Phases
-
----
 
 ## Phase 70: Probe Dossier Pattern, Documentation Consolidation & Operations Playbook Extension - [x] DONE
 
@@ -872,9 +867,8 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [x] **Validate.** `mkdocs build --strict` (0 Warnings). Alle SQL-Beispiele im Playbook gegen laufenden Dev-Stack ausführen. `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
 
----
 
-## Phase 71: Scientific Operations Guide — The Bridge Document
+## Phase 71: Scientific Operations Guide — The Bridge Document - [x] DONE
 
 *AĒR hat zwei operationale Zielgruppen: Entwickler (Operations Playbook — "was tippen") und Wissenschaftler (Working Papers — "warum diese Methodik"). Keines der Dokumente erklärt den Handoff zwischen ihnen. Diese Phase erstellt `docs/scientific_operations_guide.md` — das Dokument, das jeden Punkt kartiert, an dem wissenschaftliches Urteil in die Pipeline eintritt.*
 
@@ -882,35 +876,35 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ### Workflows
 
-* [ ] **Workflow 1: Classifying a New Probe.** WP-001 §4.4 Fünf-Schritt-Prozess: (1) Area Expert Nomination → `probe_registration_template.yaml` ausfüllen, (2) Peer Review → Disagreements dokumentieren, (3) Technische Machbarkeit → Entwickler bewertet Crawler-Viabilität, (4) Ethical Review → `observer_effect_assessment.yaml` ausfüllen → Ergebnis in Probe Dossier `observer_effect.md`, (5) Registration → INSERT in `source_classifications` (Playbook §PostgreSQL) + Probe Dossier anlegen (`docs/probes/<probe-id>/`). `review_status`-Lifecycle: `provisional_engineering` → `pending` → `reviewed` / `contested`. Erklärt, warum `function_weights = NULL` bis Schritte 1–2 quantifiziert sind.
+* [x] **Workflow 1: Classifying a New Probe.** WP-001 §4.4 Fünf-Schritt-Prozess: (1) Area Expert Nomination → `probe_registration_template.yaml` ausfüllen, (2) Peer Review → Disagreements dokumentieren, (3) Technische Machbarkeit → Entwickler bewertet Crawler-Viabilität, (4) Ethical Review → `observer_effect_assessment.yaml` ausfüllen → Ergebnis in Probe Dossier `observer_effect.md`, (5) Registration → INSERT in `source_classifications` (Playbook §PostgreSQL) + Probe Dossier anlegen (`docs/probes/<probe-id>/`). `review_status`-Lifecycle: `provisional_engineering` → `pending` → `reviewed` / `contested`. Erklärt, warum `function_weights = NULL` bis Schritte 1–2 quantifiziert sind.
   - **Probe 0 Walkthrough:** Chronologische Rekonstruktion, wie Probe 0 klassifiziert wurde — von der Quellenwahl (§13.10: Engineering-Kalibrierung) über Migration 000006 (`provisional_engineering`) bis zum fertigen Dossier. Zeigt den aktuellen Status und die offenen Schritte (function_weights, Peer Review).
 
-* [ ] **Workflow 2: Validating a Metric.** WP-002 §6.2 Fünf-Schritt-Protokoll: (1) Annotationsstudie (≥ 3 Annotator:innen, Krippendorff's Alpha ≥ 0.667), `validation_study_template.yaml` ausfüllen, (2) Baseline-Vergleich → Metrik auf annotiertem Sample ausführen, (3) Error Taxonomy → Klassifikationsschema erstellen, (4) Cross-Context Transfer → was konstituiert einen anderen Kontext, (5) Longitudinale Stabilität → mindestens 6-Monats-Fenster. Output: INSERT in `aer_gold.metric_validity` (Playbook §ClickHouse). Dokumentiert was bei `valid_until`-Ablauf passiert — Metrik revertiert zu `unvalidated` in der BFF API.
+* [x] **Workflow 2: Validating a Metric.** WP-002 §6.2 Fünf-Schritt-Protokoll: (1) Annotationsstudie (≥ 3 Annotator:innen, Krippendorff's Alpha ≥ 0.667), `validation_study_template.yaml` ausfüllen, (2) Baseline-Vergleich → Metrik auf annotiertem Sample ausführen, (3) Error Taxonomy → Klassifikationsschema erstellen, (4) Cross-Context Transfer → was konstituiert einen anderen Kontext, (5) Longitudinale Stabilität → mindestens 6-Monats-Fenster. Output: INSERT in `aer_gold.metric_validity` (Playbook §ClickHouse). Dokumentiert was bei `valid_until`-Ablauf passiert — Metrik revertiert zu `unvalidated` in der BFF API.
   - **Probe 0 Walkthrough:** Hypothetische (aber vollständige) Validation Study für `sentiment_score` im Kontext `de:rss:epistemic_authority`. Alle fünf Schritte mit Beispielwerten durchgespielt bis zum INSERT-Statement. Markiert als hypothetisch — keine Studie wurde tatsächlich durchgeführt.
 
-* [ ] **Workflow 3: Establishing Metric Equivalence.** WP-004 §5.2: Wann zwei Metriken aus verschiedenen Instrumenten cross-kulturell vergleichbar sind. Drei Equivalence Levels (`temporal`, `deviation`, `absolute`), erforderliche Evidenz pro Level, INSERT in `aer_gold.metric_equivalence` (Playbook §ClickHouse). Erklärt den Validation Gate auf `?normalization=zscore` — warum die BFF 400 zurückgibt ohne Equivalence-Eintrag.
+* [x] **Workflow 3: Establishing Metric Equivalence.** WP-004 §5.2: Wann zwei Metriken aus verschiedenen Instrumenten cross-kulturell vergleichbar sind. Drei Equivalence Levels (`temporal`, `deviation`, `absolute`), erforderliche Evidenz pro Level, INSERT in `aer_gold.metric_equivalence` (Playbook §ClickHouse). Erklärt den Validation Gate auf `?normalization=zscore` — warum die BFF 400 zurückgibt ohne Equivalence-Eintrag.
   - **Probe 0 Walkthrough:** Erklärt, warum dieses Workflow für Probe 0 (monolingual, monokulturell) nicht anwendbar ist — cross-kulturelle Vergleichbarkeit setzt mindestens zwei Probes aus verschiedenen kulturellen Kontexten voraus. Dokumentiert den erwarteten HTTP-400-Response bei `?normalization=zscore` als bewusstes Design.
 
-* [ ] **Workflow 4: Computing and Updating Baselines.** WP-004 §6.1: Trigger (signifikantes Corpus-Wachstum, neue Quelle hinzugefügt), Ausführung über `scripts/compute_baselines.py` (Playbook §ClickHouse), Interpretation der Ergebnisse, wie Baseline-Staleness die z-Score-Zuverlässigkeit beeinflusst.
+* [x] **Workflow 4: Computing and Updating Baselines.** WP-004 §6.1: Trigger (signifikantes Corpus-Wachstum, neue Quelle hinzugefügt), Ausführung über `scripts/compute_baselines.py` (Playbook §ClickHouse), Interpretation der Ergebnisse, wie Baseline-Staleness die z-Score-Zuverlässigkeit beeinflusst.
   - **Probe 0 Walkthrough:** Konkreter Durchlauf von `compute_baselines.py` gegen die existierenden Probe-0-Daten. Erwarteter Output für `word_count` und `sentiment_score` auf tagesschau.de. Zeigt den resultierenden INSERT in `metric_baselines`.
 
-* [ ] **Workflow 5: Assessing Bias for a Data Source.** WP-003 §8.1: `BiasContext`-Felder für einen neuen Source Adapter ausfüllen. Dokumentiert welche Felder objektive Plattform-Eigenschaften sind (Entwickler) vs. welche Domain-Expertise erfordern (Forscher:in). Output: `BiasContext`-Werte im Adapter-Code + Prosa im Probe Dossier (`bias_assessment.md`).
+* [x] **Workflow 5: Assessing Bias for a Data Source.** WP-003 §8.1: `BiasContext`-Felder für einen neuen Source Adapter ausfüllen. Dokumentiert welche Felder objektive Plattform-Eigenschaften sind (Entwickler) vs. welche Domain-Expertise erfordern (Forscher:in). Output: `BiasContext`-Werte im Adapter-Code + Prosa im Probe Dossier (`bias_assessment.md`).
   - **Probe 0 Walkthrough:** Zeigt die sechs `BiasContext`-Werte für RSS-Quellen und verlinkt auf `docs/probes/probe-0-de-institutional-rss/bias_assessment.md` als fertiges Beispiel. Erklärt die Entscheidung, dass für RSS alle Felder vom Entwickler gesetzt werden können (kein Domain-Expertise-Split nötig, weil RSS keine algorithmische Amplifikation hat).
 
-* [ ] **Workflow 6: Updating the Cultural Calendar.** WP-005 §4.3: Trigger (neue Probe-Region), Inhalt (Feiertage, Wahlen, religiöse Feste, Medienereignisse), Format (`configs/cultural_calendars/<region>.yaml`), Konsumation (aktuell statisches Lookup).
+* [x] **Workflow 6: Updating the Cultural Calendar.** WP-005 §4.3: Trigger (neue Probe-Region), Inhalt (Feiertage, Wahlen, religiöse Feste, Medienereignisse), Format (`configs/cultural_calendars/<region>.yaml`), Konsumation (aktuell statisches Lookup).
   - **Probe 0 Walkthrough:** Zeigt ausgewählte Einträge aus `configs/cultural_calendars/de.yaml` und erklärt, wie ein neuer Eintrag (z.B. Bundestagswahl 2025) hinzugefügt wird.
 
 ### Probe 0 End-to-End Walkthrough
 
-* [ ] **Zusammenhängender Walkthrough.** Chronologische Erzählung, die alle sechs Workflows in der Reihenfolge durchgeht, in der sie für Probe 0 anfallen oder anfallen würden. Beginnt mit Workflow 1 (Klassifikation — bereits geschehen als `provisional_engineering`), führt über Workflow 5 (Bias Assessment — bereits dokumentiert), Workflow 6 (Cultural Calendar — `de.yaml` existiert), Workflow 4 (Baseline Computation — kann sofort ausgeführt werden), und endet mit Workflow 2 (Metric Validation — ausstehend) und Workflow 3 (Equivalence — nicht anwendbar für eine einzelne Probe). Pro Schritt: Status (done / can do now / requires collaborators), konkretes SQL oder Kommando, erwarteter Output, Verweis auf Playbook-Sektion.
+* [x] **Zusammenhängender Walkthrough.** Chronologische Erzählung, die alle sechs Workflows in der Reihenfolge durchgeht, in der sie für Probe 0 anfallen oder anfallen würden. Beginnt mit Workflow 1 (Klassifikation — bereits geschehen als `provisional_engineering`), führt über Workflow 5 (Bias Assessment — bereits dokumentiert), Workflow 6 (Cultural Calendar — `de.yaml` existiert), Workflow 4 (Baseline Computation — kann sofort ausgeführt werden), und endet mit Workflow 2 (Metric Validation — ausstehend) und Workflow 3 (Equivalence — nicht anwendbar für eine einzelne Probe). Pro Schritt: Status (done / can do now / requires collaborators), konkretes SQL oder Kommando, erwarteter Output, Verweis auf Playbook-Sektion.
 
 ### Provenance Inventory
 
-* [ ] **Alle manuell gesetzten Werte.** Tabelle: Wert, Ort (Tabelle/Datei/Config), gesetzt von, Datum, Autorität (WP-Referenz), aktueller Review-Status. Für Probe 0: 2 × `primary_function`, 2 × `secondary_function`, 2 × `function_weights = NULL`, 2 × `BiasContext`-Statische Werte (6 Felder je Quelle), 5 × `known_limitations` in `metric_provenance.yaml`, 2 × `min_meaningful_resolution`-Heuristiken, Cultural Calendar `de.yaml` (N Einträge). Lebender Abschnitt — bei jedem neuen manuell gesetzten Wert aktualisiert.
+* [x] **Alle manuell gesetzten Werte.** Tabelle: Wert, Ort (Tabelle/Datei/Config), gesetzt von, Datum, Autorität (WP-Referenz), aktueller Review-Status. Für Probe 0: 2 × `primary_function`, 2 × `secondary_function`, 2 × `function_weights = NULL`, 2 × `BiasContext`-Statische Werte (6 Felder je Quelle), 5 × `known_limitations` in `metric_provenance.yaml`, 2 × `min_meaningful_resolution`-Heuristiken, Cultural Calendar `de.yaml` (N Einträge). Lebender Abschnitt — bei jedem neuen manuell gesetzten Wert aktualisiert.
 
 ### Integration
 
-* [ ] **`mkdocs.yml`.** `Scientific Operations Guide` als Top-Level-Eintrag registrieren, zwischen `Operations Playbook` und `Probes`. Navigation:
+* [x] **`mkdocs.yml`.** `Scientific Operations Guide` als Top-Level-Eintrag registrieren, zwischen `Operations Playbook` und `Probes`. Navigation:
   ```yaml
   - "Operations":
       - "Operations Playbook": operations_playbook.md
@@ -924,9 +918,15 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
           - "Observer Effect (WP-006)": probes/probe-0-de-institutional-rss/observer_effect.md
   ```
 
-* [ ] **Strukturelle Parallelität mit Operations Playbook.** Jeder Workflow im Scientific Operations Guide verweist auf den korrespondierenden Playbook-Abschnitt für die technischen Kommandos. Jeder Playbook-Abschnitt verweist zurück auf den korrespondierenden Workflow für die wissenschaftliche Begründung. Die Verweise sind bidirektional und verwenden konsistente Anker-IDs.
+* [x] **Strukturelle Parallelität mit Operations Playbook.** Jeder Workflow im Scientific Operations Guide verweist auf den korrespondierenden Playbook-Abschnitt für die technischen Kommandos. Jeder Playbook-Abschnitt verweist zurück auf den korrespondierenden Workflow für die wissenschaftliche Begründung. Die Verweise sind bidirektional und verwenden konsistente Anker-IDs.
+
+* [x] **Cross-Reference Audit and Arc42 Dokumentation** Grep-Sweep für alle Verweise auf `Scientific Operations Guide`.
 
 * [x] **Validate.** Dokumentations-Review. Alle Cross-References zu Playbook-Sektionen, Working-Paper-Sektionen, Arc42-Kapiteln, Phase-68-Templates und Probe-Dossier-Dateien auflösen. `mkdocs build --strict`.
+
+---
+
+### Open Phases
 
 ---
 
