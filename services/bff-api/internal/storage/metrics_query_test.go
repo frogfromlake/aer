@@ -572,6 +572,115 @@ func TestGetMetrics_ResolutionBucketing(t *testing.T) {
 	}
 }
 
+// TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty verifies that the
+// inner join drops metrics whose (source, language) pair has no baseline row.
+// Phase 65 test coverage.
+func TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-1"); err != nil {
+		t.Fatalf("failed to insert metric: %v", err)
+	}
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), "tagesschau", "art-1", "de", 0.99, 1); err != nil {
+		t.Fatalf("failed to insert language detection: %v", err)
+	}
+	// Baseline exists but for a different source — join produces no rows.
+	if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
+		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
+		VALUES ('word_count', 'other_source', 'de', 150.0, 30.0, ?, ?, 100, ?)`,
+		now.Add(-30*24*time.Hour), now, now); err != nil {
+		t.Fatalf("failed to insert baseline: %v", err)
+	}
+
+	results, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected empty result when no baseline matches, got %d rows", len(results))
+	}
+}
+
+// TestGetNormalizedMetrics_ZeroStdBaselineFiltered verifies that the
+// "b.baseline_std > 0" predicate excludes degenerate baselines to
+// prevent division by zero. Phase 65 test coverage.
+func TestGetNormalizedMetrics_ZeroStdBaselineFiltered(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-1"); err != nil {
+		t.Fatalf("insert metric: %v", err)
+	}
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), "tagesschau", "art-1", "de", 0.99, 1); err != nil {
+		t.Fatalf("insert language detection: %v", err)
+	}
+	if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
+		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
+		VALUES ('word_count', 'tagesschau', 'de', 150.0, 0.0, ?, ?, 1, ?)`,
+		now.Add(-30*24*time.Hour), now, now); err != nil {
+		t.Fatalf("insert baseline: %v", err)
+	}
+
+	results, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected zero-std baselines to be filtered, got %d rows", len(results))
+	}
+}
+
+// TestResolutionRowLimitMultiplier verifies that coarser resolutions raise
+// the effective row cap proportionally so wider time ranges remain queryable.
+// Phase 66 test coverage.
+func TestResolutionRowLimitMultiplier(t *testing.T) {
+	cases := []struct {
+		name     string
+		res      Resolution
+		expected int
+	}{
+		{"5min", ResolutionFiveMinute, 1},
+		{"hourly", ResolutionHourly, 12},
+		{"daily", ResolutionDaily, 288},
+		{"weekly", ResolutionWeekly, 2016},
+		{"monthly", ResolutionMonthly, 8640},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.res.rowLimitMultiplier(); got != tc.expected {
+				t.Errorf("expected multiplier %d for %s, got %d", tc.expected, tc.name, got)
+			}
+		})
+	}
+}
+
+// TestResolutionBucketExpr verifies that each resolution maps to the
+// expected ClickHouse bucketing function.
+func TestResolutionBucketExpr(t *testing.T) {
+	cases := []struct {
+		res      Resolution
+		expected string
+	}{
+		{ResolutionFiveMinute, "toStartOfFiveMinute(timestamp)"},
+		{ResolutionHourly, "toStartOfHour(timestamp)"},
+		{ResolutionDaily, "toStartOfDay(timestamp)"},
+		{ResolutionWeekly, "toStartOfWeek(timestamp)"},
+		{ResolutionMonthly, "toStartOfMonth(timestamp)"},
+	}
+	for _, tc := range cases {
+		if got := tc.res.bucketExpr("timestamp"); got != tc.expected {
+			t.Errorf("expected bucketExpr %q, got %q", tc.expected, got)
+		}
+	}
+}
+
 // TestGetAvailableMetrics_ConcurrentAccess verifies thread safety under concurrent reads.
 func TestGetAvailableMetrics_ConcurrentAccess(t *testing.T) {
 	store, ctx := setupTestStore(t)
