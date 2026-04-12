@@ -1,7 +1,7 @@
 # Operations Playbook
 
 > **Purpose:** Practical reference for accessing, inspecting, and debugging every component in the AĒR infrastructure stack.
-> For *architectural rationale*, see the [arc42 documentation](arc42/01_introduction_and_goals.md). This document covers *how to operate*.
+> For *architectural rationale*, see the [arc42 documentation](arc42/01_introduction_and_goals.md). For *scientific workflows* (when and why to populate tables), see the [Scientific Operations Guide](scientific_operations_guide.md). This document covers *how to operate*.
 
 ---
 
@@ -41,7 +41,7 @@ make logs                # Tail combined service logs (Ctrl+C safe)
 
 ## PostgreSQL (Metadata Index)
 
-Stores ingestion job metadata, document lifecycle states, source registry, and trace IDs.
+Stores ingestion job metadata, document lifecycle states, source registry, source classifications, and trace IDs.
 
 **Connection (debug profile required):**
 
@@ -66,9 +66,10 @@ psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT id, sourc
 
 **Key tables:**
 
-- `sources` — Registered data sources (e.g., `bundesregierung`, `tagesschau`). Crawlers resolve their `source_id` via `GET /api/v1/sources?name=<n>`.
+- `sources` — Registered data sources (e.g., `bundesregierung`, `tagesschau`). Crawlers resolve their `source_id` via `GET /api/v1/sources?name=<n>`. Includes `documentation_url` pointing to the Probe Dossier for each source.
 - `ingestion_jobs` — Batch job tracking with status (`running`, `completed`, `completed_with_errors`, `failed`).
 - `documents` — Per-document lifecycle (`pending` → `uploaded` → `processed`), including `bronze_object_key` and `trace_id`.
+- `source_classifications` — Etic/emic discourse-function classification per source (WP-001). See [Source Classifications](#source-classifications-wp-001) below.
 
 **Migrations** are in `infra/postgres/migrations/` and run automatically on `ingestion-api` startup via `golang-migrate`.
 
@@ -97,11 +98,87 @@ make logs | grep "PostgreSQL retention"
 make infra-clean-postgres   # Wipe PostgreSQL volume (interactive confirmation)
 ```
 
+### Source Classifications (WP-001)
+
+The `source_classifications` table records the etic/emic discourse-function classification of each data source. It is populated by seed migrations under `infra/postgres/migrations/` and updated as the WP-001 §4.4 review process advances a row through `provisional_engineering` → `pending` → `reviewed` (or `contested`). The composite primary key `(source_id, classification_date)` is designed for temporal tracking — insert new rows instead of updating existing ones.
+
+> Scientific rationale: [Scientific Operations Guide → Workflow 1: Classifying a New Probe](scientific_operations_guide.md).
+
+**Inspect:**
+
+```bash
+psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB \
+  -c "SELECT source_id, primary_function, secondary_function, function_weights, review_status, classification_date FROM source_classifications ORDER BY classification_date DESC;"
+```
+
+**Generic template (insert a new classification row):**
+
+```sql
+-- Replace placeholders. function_weights stays NULL until WP-001 §4.4 Steps 1-2 complete.
+-- review_status starts at 'provisional_engineering' for engineering-team-only classifications.
+INSERT INTO source_classifications (
+    source_id, primary_function, secondary_function, function_weights,
+    emic_designation, emic_context, emic_language,
+    classified_by, classification_date, review_status
+)
+SELECT
+    id,
+    '<primary>',           -- one of: epistemic_authority | power_legitimation | cohesion_identity | subversion_friction
+    '<secondary>',         -- same enum, or NULL
+    NULL,                  -- function_weights JSONB, e.g. '{"primary": 0.7, "secondary": 0.3}'::jsonb after WP-001 §4.4
+    '<emic_designation>',  -- local participant-perspective name
+    '<emic_context>',      -- one-paragraph contextual self-understanding
+    '<lang>',              -- ISO 639-1
+    '<classified_by>',     -- e.g. 'WP-001/<probe-id>' or reviewer name
+    CURRENT_DATE,
+    'provisional_engineering'
+FROM sources WHERE name = '<source-name>'
+ON CONFLICT DO NOTHING;
+```
+
+**Probe 0 example** (matches migration `000006`):
+
+```sql
+INSERT INTO source_classifications (
+    source_id, primary_function, secondary_function, function_weights,
+    emic_designation, emic_context, emic_language,
+    classified_by, classification_date, review_status
+)
+SELECT
+    id,
+    'epistemic_authority',
+    'power_legitimation',
+    NULL,
+    'Tagesschau',
+    'State-funded public broadcaster (ARD). Norm-setting through informational baseline. Editorial independence structurally influenced by inter-party proportional governance.',
+    'de',
+    'WP-001/Probe-0',
+    '2026-04-11',
+    'provisional_engineering'
+FROM sources WHERE name = 'tagesschau'
+ON CONFLICT DO NOTHING;
+```
+
+**Advancing the review status** (after WP-001 §4.4 Steps 1–4 complete and `function_weights` are quantified, insert a *new* row — do **not** UPDATE; the composite PK is designed to track temporal transitions):
+
+```sql
+INSERT INTO source_classifications (
+    source_id, primary_function, secondary_function, function_weights,
+    emic_designation, emic_context, emic_language,
+    classified_by, classification_date, review_status
+)
+SELECT id, 'epistemic_authority', 'power_legitimation',
+       '{"primary": 0.7, "secondary": 0.3}'::jsonb,
+       'Tagesschau', '<updated context after review>', 'de',
+       '<reviewer-name>', CURRENT_DATE, 'reviewed'
+FROM sources WHERE name = 'tagesschau';
+```
+
 ---
 
 ## ClickHouse (Gold Layer — Analytics)
 
-Column-oriented OLAP database storing derived time-series metrics.
+Column-oriented OLAP database storing derived time-series metrics, entities, language detections, and scientific infrastructure tables (validation, baselines, equivalence).
 
 **Connection (debug profile required):**
 
@@ -134,10 +211,17 @@ SELECT entity_text, entity_label, count() AS mentions FROM aer_gold.entities GRO
 SELECT * FROM aer_gold.schema_migrations ORDER BY version;
 ```
 
-**Schema:**
+**Schema — Pipeline tables (populated by the analysis worker):**
 
-- `aer_gold.metrics` — columns: `timestamp`, `value`, `source`, `metric_name`, `article_id`. MergeTree engine, ordered by `timestamp`, 365-day TTL.
-- `aer_gold.entities` — columns: `timestamp`, `source`, `article_id`, `entity_text`, `entity_label`, `start_char`, `end_char`. MergeTree engine, ordered by `timestamp`, 365-day TTL. Entity labels follow spaCy German NER taxonomy: `PER`, `ORG`, `LOC`, `MISC`.
+- `aer_gold.metrics` — columns: `timestamp`, `value`, `source`, `metric_name`, `article_id`, `discourse_function`. MergeTree engine, ordered by `timestamp`, 365-day TTL.
+- `aer_gold.entities` — columns: `timestamp`, `source`, `article_id`, `entity_text`, `entity_label`, `start_char`, `end_char`, `discourse_function`. MergeTree engine, ordered by `timestamp`, 365-day TTL. Entity labels follow spaCy German NER taxonomy: `PER`, `ORG`, `LOC`, `MISC`.
+- `aer_gold.language_detections` — columns: `timestamp`, `source`, `article_id`, `detected_language`, `confidence`, `rank`. MergeTree engine, ordered by `(timestamp, source)`, 365-day TTL.
+
+**Schema — Scientific infrastructure tables (populated by researchers or scripts):**
+
+- `aer_gold.metric_validity` — Validation study outcomes per `(metric_name, context_key)`. See [Metric Validity](#metric-validity-wp-002) below.
+- `aer_gold.metric_baselines` — Per-`(metric_name, source, language)` mean/stddev for z-score normalization. See [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) below.
+- `aer_gold.metric_equivalence` — Cross-cultural comparability claims. See [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) below.
 
 **Migrations** are in `infra/clickhouse/migrations/` and run via the `clickhouse-init` container (`infra/clickhouse/migrate.sh`) on startup. Applied versions are tracked in `aer_gold.schema_migrations`.
 
@@ -146,6 +230,119 @@ SELECT * FROM aer_gold.schema_migrations ORDER BY version;
 ```bash
 make infra-clean-clickhouse   # Wipe ClickHouse volume (interactive confirmation)
 ```
+
+### Metric Validity (WP-002)
+
+The `aer_gold.metric_validity` table (`ReplacingMergeTree`, Migration 006) records the outcome of a validation study for one `(metric_name, context_key)` pair. The BFF API joins this table at query time to compute the `validationStatus` field on `GET /api/v1/metrics/available` and `GET /api/v1/metrics/{metricName}/provenance`.
+
+> Scientific rationale: [Scientific Operations Guide → Workflow 2: Validating a Metric](scientific_operations_guide.md). Template: `docs/templates/validation_study_template.yaml`.
+
+**Inspect:**
+
+```sql
+-- Connect: docker exec -it aer_clickhouse clickhouse-client
+SELECT metric_name, context_key, alpha_score, correlation, n_annotated, valid_until
+  FROM aer_gold.metric_validity FINAL
+ ORDER BY metric_name, context_key;
+```
+
+**Generic template:**
+
+```sql
+-- Required fields mirror docs/templates/validation_study_template.yaml.
+-- Methodological minima: n_annotated >= 3 annotators, alpha_score >= 0.667 (Krippendorff).
+INSERT INTO aer_gold.metric_validity
+    (metric_name, context_key, validation_date, alpha_score, correlation,
+     n_annotated, error_taxonomy, valid_until)
+VALUES
+    ('<metric_name>',
+     '<lang>:<source_type>:<discourse_function>',  -- e.g. 'de:rss:epistemic_authority'
+     now(),
+     0.000,    -- Krippendorff alpha from the annotation study
+     0.000,    -- Pearson/Spearman correlation with reference annotations
+     0,        -- sample size (number of annotated documents)
+     '<error_taxonomy>',  -- semicolon-separated error categories or JSON
+     toDate('YYYY-MM-DD'));  -- expiry date for the validation claim
+```
+
+**Probe 0 example** (hypothetical — no actual study has been performed; `metric_validity` is empty in production):
+
+```sql
+-- Hypothetical sentiment_score validation study for Probe 0.
+-- DO NOT run this against production. It illustrates the shape of a row
+-- that Workflow 2 would produce after a completed annotation study.
+INSERT INTO aer_gold.metric_validity
+    (metric_name, context_key, validation_date, alpha_score, correlation,
+     n_annotated, error_taxonomy, valid_until)
+VALUES
+    ('sentiment_score',
+     'de:rss:epistemic_authority',
+     now(),
+     0.71,     -- acceptable inter-annotator agreement
+     0.62,     -- moderate correlation with human judgment
+     250,      -- 250 documents annotated by 3 annotators
+     'negation_failure;compound_failure;genre_drift',
+     toDate('2027-04-12'));  -- valid for 12 months
+```
+
+When `valid_until` passes, the BFF API automatically reverts the metric to `validationStatus = 'unvalidated'` — no manual cleanup is required.
+
+### Metric Baselines & Equivalence (WP-004)
+
+`aer_gold.metric_baselines` stores the per-`(metric_name, source, language)` mean and standard deviation used as the denominator for z-score normalization. `aer_gold.metric_equivalence` records validated cross-instrument comparability claims at one of three levels (`temporal`, `deviation`, `absolute`) and gates the `?normalization=zscore` query parameter on the BFF API.
+
+> Scientific rationale: [Scientific Operations Guide → Workflow 3: Establishing Metric Equivalence](scientific_operations_guide.md) and [Workflow 4: Computing and Updating Baselines](scientific_operations_guide.md).
+
+**Inspect:**
+
+```sql
+SELECT * FROM aer_gold.metric_baselines FINAL ORDER BY metric_name, source;
+SELECT * FROM aer_gold.metric_equivalence FINAL ORDER BY etic_construct, metric_name;
+```
+
+**Computing baselines.** `scripts/compute_baselines.py` runs offline against the ClickHouse instance and writes one row per `(metric_name, source, language)` it finds.
+
+```bash
+# Required env (read from .env if present):
+#   CLICKHOUSE_HOST, CLICKHOUSE_PORT, CLICKHOUSE_USER, CLICKHOUSE_PASSWORD, CLICKHOUSE_DB
+# Common flags:
+#   --metric <name>     restrict to one metric (default: all)
+#   --window <days>     reference window in days (default: 90)
+#   --dry-run           compute and print, do not insert
+
+cd services/analysis-worker
+python scripts/compute_baselines.py --metric word_count --window 90 --dry-run
+python scripts/compute_baselines.py --metric word_count --window 90
+```
+
+**Probe 0 example** (compute the `word_count` baseline for tagesschau.de):
+
+```bash
+python scripts/compute_baselines.py --metric word_count --window 90
+# Expected output (one line per (metric, source, language)):
+#   word_count | tagesschau | de | mean=312.4 | std=158.7 | n=4500
+#   word_count | bundesregierung | de | mean=487.2 | std=203.1 | n=450
+# Each line corresponds to an INSERT into aer_gold.metric_baselines.
+```
+
+**Generic template (manual equivalence INSERT):**
+
+```sql
+INSERT INTO aer_gold.metric_equivalence
+    (etic_construct, metric_name, language, source_type,
+     equivalence_level, validated_by, validation_date, confidence)
+VALUES
+    ('<etic_construct>',           -- e.g. 'evaluative_polarity'
+     '<metric_name>',
+     '<lang>',                     -- ISO 639-1
+     '<source_type>',              -- e.g. 'rss'
+     '<temporal|deviation|absolute>',
+     '<doi-or-validation-study-id>',
+     now(),
+     0.00);                        -- confidence score from the equivalence study
+```
+
+**Probe 0 note:** A single probe cannot establish cross-cultural equivalence — it requires at least two probes from different cultural contexts. `?normalization=zscore` against Probe 0 sources returns HTTP 400 by design until a second probe enables meaningful comparison. This is not a bug — it is the validation gate (WP-004 §7.3) functioning as intended.
 
 ---
 
@@ -325,7 +522,7 @@ curl -X POST http://localhost:8081/api/v1/ingest \
 curl http://localhost:8080/api/v1/healthz
 curl http://localhost:8080/api/v1/readyz
 
-# Query Gold layer metrics
+# Query Gold layer metrics (raw values, 5-minute resolution — defaults)
 curl -H "X-API-Key: $BFF_API_KEY" \
   "http://localhost:8080/api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z"
 
@@ -333,9 +530,17 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 curl -H "X-API-Key: $BFF_API_KEY" \
   "http://localhost:8080/api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&source=tagesschau&metricName=word_count"
 
-# Discover available metric names
+# Multi-resolution queries (hourly, daily, weekly, monthly)
 curl -H "X-API-Key: $BFF_API_KEY" \
-  "http://localhost:8080/api/v1/metrics/available"
+  "http://localhost:8080/api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&metricName=word_count&resolution=daily"
+
+# Z-score normalization (requires baseline + equivalence entry — returns 400 for Probe 0)
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&metricName=word_count&normalization=zscore"
+
+# Discover available metric names (with validation status and equivalence metadata)
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/metrics/available?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z"
 
 # Query named entities (aggregated by text and label)
 curl -H "X-API-Key: $BFF_API_KEY" \
@@ -344,9 +549,41 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 # Filter entities by source and NER label (PER, ORG, LOC, MISC)
 curl -H "X-API-Key: $BFF_API_KEY" \
   "http://localhost:8080/api/v1/entities?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&source=bundesregierung&label=ORG&limit=50"
+
+# Query language detections
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/languages?startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z"
+
+# List known data sources (with documentation URLs)
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/sources"
+
+# Metric provenance (tier, algorithm, known limitations, validation status)
+curl -H "X-API-Key: $BFF_API_KEY" \
+  "http://localhost:8080/api/v1/metrics/word_count/provenance"
 ```
 
 **OpenAPI spec:** `services/bff-api/api/openapi.yaml`. Regenerate server stubs: `make codegen`.
+
+#### Metric Provenance Config
+
+`services/bff-api/configs/metric_provenance.yaml` is the SSoT for the static fields returned by `GET /api/v1/metrics/{metricName}/provenance`. The BFF loads it at startup; dynamic fields (`validationStatus`, `culturalContextNotes`) are resolved per-request against the ClickHouse `metric_validity` and `metric_equivalence` tables.
+
+> Scientific rationale: [Scientific Operations Guide → Workflow 1, Step 5](scientific_operations_guide.md) (registration) and [Workflow 2](scientific_operations_guide.md) (validation).
+
+**Trigger for updates:** every time a new extractor is registered in `services/analysis-worker/internal/extractors/`. The registered-metric invariant is verified by the BFF handler tests — the build will fail if a metric exists in the worker but not in this YAML.
+
+**Required fields per metric entry:**
+
+| Field | Required | Notes |
+| :--- | :--- | :--- |
+| `tier_classification` | yes | 1, 2, or 3 (see ADR-016 / §8.12) |
+| `algorithm_description` | yes | Plain-language summary |
+| `known_limitations` | yes (may be empty) | Full sentences explaining problem and consequence |
+| `extractor_version_hash` | yes | Pinned model/lexicon version or `v1` for deterministic |
+| `wp_reference` | yes | YAML-only — Go parser ignores; for developer orientation |
+
+**Probe 0 example** — the file currently registers six metrics from the Phase 42–45 extractors: `word_count`, `sentiment_score`, `language_confidence`, `publication_hour`, `publication_weekday`, `entity_count`. Each includes `known_limitations` as full sentences with WP-002 §3 cross-references where applicable.
 
 ### Analysis Worker (Python)
 
@@ -366,7 +603,7 @@ The worker subscribes to NATS subject `aer.lake.bronze`, downloads raw documents
 | `WordCountExtractor` | `word_count` | Token count of cleaned text |
 | `TemporalDistributionExtractor` | `publication_hour`, `publication_weekday` | Publication time metadata |
 | `LanguageDetectionExtractor` | `language_confidence` | Confidence score via `langdetect` |
-| `SentimentExtractor` | `sentiment_score`, `lexicon_version` | German lexicon polarity via SentiWS |
+| `SentimentExtractor` | `sentiment_score` | German lexicon polarity via SentiWS |
 | `NamedEntityExtractor` | `entity_count` | spaCy `de_core_news_lg` NER; raw spans stored in `aer_gold.entities` |
 
 Extractors are independent — one failing extractor does not crash others or route the document to the DLQ. Extractor source code is in `services/analysis-worker/internal/extractors/`.
@@ -375,15 +612,14 @@ Extractors are independent — one failing extractor does not crash others or ro
 
 | Source Type | Adapter | Silver Output |
 | :--- | :--- | :--- |
-| `rss` | `RSSAdapter` | `SilverCore` + `RSSMeta` (feed_url, categories, author, feed_title) |
+| `rss` | `RSSAdapter` | `SilverCore` + `RssMeta` (feed_url, categories, author, feed_title, `DiscourseContext`, `BiasContext`) |
 | *(missing/unknown)* | `LegacyAdapter` | Backward-compatible mapping for pre-Phase 39 documents |
+
+The `RSSAdapter` reads the `source_classifications` table (via `get_source_classification(source_id)`) and populates `DiscourseContext` in `RssMeta`. If no classification exists, the field is `None` and the pipeline continues without failure. `BiasContext` is populated with static RSS-specific values (`platform_type='rss'`, `visibility_mechanism='chronological'`, etc.).
 
 ```bash
 # Check worker logs
 make logs   # Combined logs of all services
-
-# Or directly
-tail -f .pids/worker.log
 ```
 
 ### RSS Crawler
@@ -427,12 +663,70 @@ feeds:
 Adding a new RSS feed requires:
 1. A new entry in `feeds.yaml`.
 2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
+3. A Probe Dossier and Probe Classification workflow (see [Scientific Operations Guide → Workflow 1](scientific_operations_guide.md)).
 
 **Deduplication:** The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs. State is written to disk immediately after each feed's batch is successfully submitted — not once at the end — so a crash or interruption mid-run does not cause re-ingestion of already-processed feeds.
 
 **HTTP timeouts:** All outbound HTTP clients enforce strict timeouts — 10 s for source ID lookup, 30 s for ingestion API posts, and 30 s for RSS feed fetches — to prevent the crawler from hanging indefinitely on unresponsive upstreams.
 
 **Graceful shutdown:** The crawler respects `SIGINT`/`SIGTERM` via `signal.NotifyContext`. Cancelling mid-run will abort in-flight HTTP requests cleanly; any feeds processed before the signal will have their state already persisted.
+
+---
+
+## Configuration & Documentation Files
+
+### Cultural Calendar Files
+
+Per-region cultural calendars live under `configs/cultural_calendars/<region>.yaml`. They enumerate culturally significant dates (public holidays, elections, religious observances, recurring major media events) whose presence is expected to perturb discourse metrics. The calendars are static lookups for manual interpretation — they are not yet wired into the query layer.
+
+> Scientific rationale: [Scientific Operations Guide → Workflow 6: Updating the Cultural Calendar](scientific_operations_guide.md).
+
+**File format** (per entry):
+
+```yaml
+- date: "YYYY-MM-DD"        # or "MM-DD" with recurrence: annual
+  recurrence: annual         # optional: annual | movable
+  name: "<local name>"
+  type: public_holiday       # public_holiday | election | media_event | commemoration
+  expected_discourse_effect: "<qualitative note>"
+```
+
+**Adding a new region:**
+
+1. Create `configs/cultural_calendars/<iso-region>.yaml`.
+2. Set `region`, `language`, and `last_updated` at the top of the file.
+3. Add entries; group by category with comment headers (`# --- Public Holidays ---`).
+4. Reference the file from the corresponding Probe Dossier `temporal_profile.md`.
+
+**Probe 0 example** — `configs/cultural_calendars/de.yaml` contains German federal public holidays, Bundestag election dates, Easter-based movable feasts, and recurring media events (Berlinale, Buchmesse). See the file for the full list.
+
+### Probe Dossier
+
+The Probe Dossier Pattern groups all per-probe scientific documentation under a single directory `docs/probes/<probe-id>/`. Per-metric provenance (`metric_provenance.yaml`) and per-validation context (`metric_validity`) are system-wide and intentionally **not** part of the dossier — they are referenced from the dossier's `README.md` WP Coverage Matrix.
+
+> Scientific rationale: Arc42 §8.15 — Probe Dossier Pattern. [Scientific Operations Guide → Workflow 1, Step 5](scientific_operations_guide.md).
+
+**Mandatory dossier files:**
+
+| File | WP | Purpose |
+| :--- | :--- | :--- |
+| `README.md` | (overview) | Probe overview, source list, calibration status, exit criteria, WP coverage matrix |
+| `classification.md` | WP-001 | Etic/emic classification, mirror of the `source_classifications` row |
+| `bias_assessment.md` | WP-003 | `BiasContext` values and structural biases per source |
+| `temporal_profile.md` | WP-005 | Publication-rate heuristics, `min_meaningful_resolution` derivation, cultural-calendar pointer |
+| `observer_effect.md` | WP-006 | Completed `observer_effect_assessment.yaml` for the probe |
+
+**Authoring a new dossier:**
+
+1. `mkdir docs/probes/<probe-id>/` (use a kebab-case slug, e.g. `probe-1-fr-civic-forum`).
+2. Copy the five files from `docs/probes/probe-0-de-institutional-rss/` and replace the content. Keep the headings stable so the structure stays uniform across probes.
+3. Add the dossier to `mkdocs.yml` under the `Probes` nav entry.
+4. Create a PostgreSQL migration that updates `sources.documentation_url` to point at the new dossier directory:
+   ```sql
+   UPDATE sources SET documentation_url = 'docs/probes/<probe-id>/' WHERE name = '<source-name>';
+   ```
+
+**Probe 0 example** — `docs/probes/probe-0-de-institutional-rss/` contains the five files above, populated for tagesschau.de and bundesregierung.de. Migration `000008_update_documentation_url.up.sql` points the `sources.documentation_url` column at this directory.
 
 ---
 
@@ -464,7 +758,7 @@ make codegen         # Regenerate OpenAPI stubs, then check for drift
 
 **Testcontainers:** Go and Python tests spin up real database containers using image tags parsed from `compose.yaml` (SSoT enforcement). No hardcoded tags in test files.
 
-**E2E smoke test** (`scripts/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics) → validates end-to-end data flow → teardown.
+**E2E smoke test** (`scripts/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
 
 ---
 
@@ -489,6 +783,23 @@ AĒR follows a Zero-Trust posture (ADR-013). Two isolated Docker networks:
 - **`aer-backend`** — All databases, NATS, observability, application services.
 
 Only `bff-api` and `grafana` bridge both networks. No backend service is reachable from the host unless `make debug-up` is explicitly run.
+
+---
+
+## Scientific Touchpoints Index
+
+The following table indexes every point where scientific judgment enters the AĒR pipeline — tables populated by researchers, config files set by domain experts, and documentation authored by interdisciplinary collaborators. Each row links to the relevant Playbook section (for "what to type") and the Scientific Operations Guide workflow (for "when and why").
+
+| Touchpoint | Technology | Playbook Section | Scientific Operations Guide |
+| :--- | :--- | :--- | :--- |
+| `source_classifications` | PostgreSQL | [Source Classifications](#source-classifications-wp-001) | Workflow 1: Classifying a New Probe |
+| `aer_gold.metric_validity` | ClickHouse | [Metric Validity](#metric-validity-wp-002) | Workflow 2: Validating a Metric |
+| `aer_gold.metric_equivalence` | ClickHouse | [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) | Workflow 3: Establishing Metric Equivalence |
+| `aer_gold.metric_baselines` | ClickHouse | [Metric Baselines & Equivalence](#metric-baselines--equivalence-wp-004) | Workflow 4: Computing and Updating Baselines |
+| `metric_provenance.yaml` | BFF Config | [Metric Provenance Config](#metric-provenance-config) | Workflow 1 (Step 5) / Workflow 2 |
+| Probe Dossier (`docs/probes/`) | Filesystem | [Probe Dossier](#probe-dossier) | Workflow 1 (Step 5) / Workflow 5 |
+| `BiasContext` (in adapter code) | Python | [Analysis Worker](#analysis-worker-python) | Workflow 5: Assessing Bias |
+| Cultural Calendar (`configs/cultural_calendars/`) | Filesystem | [Cultural Calendar Files](#cultural-calendar-files) | Workflow 6: Updating the Cultural Calendar |
 
 ---
 
