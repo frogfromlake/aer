@@ -13,8 +13,14 @@
 # Fields:
 #   tier_classification      — 1 (deterministic), 2 (statistical), 3 (model-based)
 #   algorithm_description    — plain-language algorithm summary
-#   known_limitations        — methodological limitations from the relevant WP
+#   known_limitations        — methodological limitations from the relevant WP,
+#                              full sentences explaining problem and consequence
 #   extractor_version_hash   — revision tag of the extractor implementation
+#   wp_reference             — primary working paper section anchoring the
+#                              methodological discussion. YAML-only — the Go
+#                              YAML parser ignores unknown fields, so this
+#                              field is for developer orientation, not
+#                              exposed via the /provenance API.
 #
 # Working-paper references in known_limitations entries are intentional —
 # they let downstream consumers locate the provenance of each limitation.
@@ -24,8 +30,10 @@ word_count:
   algorithm_description: >
     Deterministic whitespace token count over the cleaned text of a single
     document. Implemented by WordCountExtractor in the analysis worker.
-  known_limitations: []
+  known_limitations:
+    - "Whitespace tokenisation — agglutinative or logographic languages are not split on word boundaries; for the current Probe 0 (German institutional RSS) this has no observable effect (WP-002 §3)."
   extractor_version_hash: v1
+  wp_reference: WP-002 §3
 
 sentiment_score:
   tier_classification: 1
@@ -34,10 +42,13 @@ sentiment_score:
     values are averaged over the document's cleaned text. Implemented by
     SentimentExtractor.
   known_limitations:
-    - "Negation blindness — SentiWS does not propagate negation scope (WP-002 §3)."
-    - "Compound word failure — German noun compounds outside the lexicon score as neutral (WP-002 §3)."
-    - "Genre drift — lexicon calibrated on news/product reviews, not institutional discourse (WP-002 §3)."
+    - "Negation blindness — SentiWS does not propagate negation scope; 'nicht gut' scores as positive because 'gut' matches the lexicon (WP-002 §3)."
+    - "Compound word failure — German noun compounds outside the lexicon score as neutral; 'Umweltkatastrophe' is not decomposed into 'Katastrophe' before lookup (WP-002 §3)."
+    - "Genre drift — the lexicon was calibrated on news and product reviews, not institutional discourse; polarity weights may not transfer to formal government communication (WP-002 §3)."
+    - "No compositionality — intensifiers ('sehr gut') and diminishers ('kaum relevant') are not handled; each token is scored independently (WP-002 §3)."
+    - "No irony or sarcasm detection — ironic usage is scored at face value, producing inverted measurements (WP-002 §3)."
   extractor_version_hash: sentiws-2.0
+  wp_reference: WP-002 §3
 
 language_confidence:
   tier_classification: 1
@@ -46,9 +57,11 @@ language_confidence:
     random seed. Returns the detector's top-ranked language and its
     confidence score per document. Implemented by LanguageDetectionExtractor.
   known_limitations:
-    - "Short-text degradation — reliability drops below 50 tokens per document (WP-002 §3)."
-    - "Code-switching blindness — returns a single language label per document even when multiple languages are present."
+    - "Short-text degradation — detection reliability drops below approximately 50 tokens per document; headlines and captions may receive incorrect labels (WP-002 §3)."
+    - "Code-switching blindness — returns a single language label per document even when multiple languages are present, with the dominant proportion winning (WP-002 §3)."
+    - "Fixed-seed determinism — reproducibility is guaranteed across runs but accuracy is not improved; the same incorrect classification is reproducibly returned for ambiguous inputs."
   extractor_version_hash: langdetect-1.0.9
+  wp_reference: WP-002 §3
 
 publication_hour:
   tier_classification: 1
@@ -57,6 +70,7 @@ publication_hour:
     timestamp. Implemented by TemporalDistributionExtractor.
   known_limitations: []
   extractor_version_hash: v1
+  wp_reference: WP-005 §3
 
 publication_weekday:
   tier_classification: 1
@@ -65,6 +79,7 @@ publication_weekday:
     document timestamp. Implemented by TemporalDistributionExtractor.
   known_limitations: []
   extractor_version_hash: v1
+  wp_reference: WP-005 §3
 
 entity_count:
   tier_classification: 1
@@ -73,7 +88,9 @@ entity_count:
     Implemented by NamedEntityExtractor; individual entity records are
     written to aer_gold.entities.
   known_limitations:
-    - "No entity linking — entities are surface strings, not canonical IDs."
-    - "Western bias in entity ontology — PERSON/ORG/LOC/MISC inherited from CoNLL-2003 (WP-002 §3)."
-    - "Model drift — depends on the pinned spaCy model version; upgrading the model changes extraction behavior."
+    - "No entity linking — surface forms are counted, not canonical IDs; 'Angela Merkel', 'Merkel', and 'die Bundeskanzlerin' are three distinct entities, inflating counts and preventing entity-level aggregation (WP-002 §3)."
+    - "Western bias in entity ontology — the PER/ORG/LOC/MISC labels are inherited from CoNLL-2003; recognition accuracy degrades for non-Western names, organisations, and locations (WP-002 §3)."
+    - "Model drift — extraction is tied to the pinned spaCy model version (de_core_news_lg-3.8.0); model upgrades may produce different boundaries and labels for the same input, breaking longitudinal comparability (Arc42 Chapter 11, R-10)."
+    - "No coreference resolution — pronouns and anaphoric references are not resolved to antecedents, so frequency counts reflect only explicit named mentions (WP-002 §3)."
   extractor_version_hash: de_core_news_lg-3.8.0
+  wp_reference: WP-002 §3

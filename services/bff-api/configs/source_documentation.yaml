@@ -9,12 +9,12 @@ sources:
   - name: bundesregierung
     type: rss
     url: https://www.bundesregierung.de/breg-de/aktuelles.rss
-    documentation_url: docs/methodology/probe0_bias_profile.md
+    documentation_url: docs/probes/probe-0-de-institutional-rss/
 
   - name: tagesschau
     type: rss
     url: https://www.tagesschau.de/index~rss2.xml
-    documentation_url: docs/methodology/probe0_bias_profile.md
+    documentation_url: docs/probes/probe-0-de-institutional-rss/
 
   - name: wikipedia
     type: scraper

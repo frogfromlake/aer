@@ -200,7 +200,7 @@ type Resolution string
 
 // Source defines model for Source.
 type Source struct {
-	// DocumentationUrl Link to the methodology documentation for this source (e.g., bias profile under `docs/methodology/`). Null when no profile has been written.
+	// DocumentationUrl Link to the probe dossier directory for this source (under `docs/probes/<probe-id>/`). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
 	DocumentationUrl *string `json:"documentationUrl,omitempty"`
 
 	// Name Canonical source identifier.

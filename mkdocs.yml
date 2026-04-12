@@ -203,8 +203,6 @@ nav:
       - "WP-004: Cross-Cultural Comparability": methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md
       - "WP-005: Temporal Granularity": methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md
       - "WP-006: Observer Effect & Reflexivity": methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
-      - "Probe 0 — Bias Profile": methodology/probe0_bias_profile.md
-      - "Extractor Limitations": methodology/extractor_limitations.md
 
   # ---------------------------------------------------------------------------
   # Wissenschaftliche Methodik — Deutsch
@@ -222,6 +220,17 @@ nav:
   # ---------------------------------------------------------------------------
   - "Design":
       - "Visualization Guidelines (WP-006)": design/visualization_guidelines.md
+
+  # ---------------------------------------------------------------------------
+  # Probes
+  # ---------------------------------------------------------------------------
+  - "Probes":
+      - "Probe 0 — DE Institutional RSS":
+          - "Overview": probes/probe-0-de-institutional-rss/README.md
+          - "Classification (WP-001)": probes/probe-0-de-institutional-rss/classification.md
+          - "Bias Assessment (WP-003)": probes/probe-0-de-institutional-rss/bias_assessment.md
+          - "Temporal Profile (WP-005)": probes/probe-0-de-institutional-rss/temporal_profile.md
+          - "Observer Effect (WP-006)": probes/probe-0-de-institutional-rss/observer_effect.md
 
   # ---------------------------------------------------------------------------
   # Operations

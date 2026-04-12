@@ -9,8 +9,9 @@
 ALTER TABLE sources
     ADD COLUMN IF NOT EXISTS documentation_url VARCHAR(255);
 
--- Seed documentation URLs for the Probe 0 RSS sources. The referenced file
--- is created in Phase 64 (probe0_bias_profile.md).
+-- Seed documentation URLs for the Probe 0 RSS sources. Migration 000008
+-- (Phase 70) replaces this single-file pointer with the probe dossier
+-- directory `docs/probes/probe-0-de-institutional-rss/`.
 UPDATE sources
    SET documentation_url = 'docs/methodology/probe0_bias_profile.md'
  WHERE name IN ('bundesregierung', 'tagesschau');
