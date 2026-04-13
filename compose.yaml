@@ -133,10 +133,14 @@ services:
         condition: service_healthy
     networks:
       - aer-backend
+    volumes:
+      - ./infra/nats/streams:/config/streams:ro
+    # Idempotent IaC provisioning: create stream if absent, otherwise update
+    # from the versioned JSON definition. Hard Rule 5 SSoT.
     command: >
       sh -c "
-        nats stream add AER_LAKE --subjects 'aer.lake.>' --storage file --server nats:4222 --defaults &&
-        echo 'JetStream AER_LAKE created successfully.'
+        nats --server nats:4222 stream add AER_LAKE --config /config/streams/AER_LAKE.json 2>/dev/null ||
+        nats --server nats:4222 stream update AER_LAKE --config /config/streams/AER_LAKE.json --force
       "
   # ----------------------------------------------------
   # 3. METADATA (INDEX FOR THE DATA LAKE)

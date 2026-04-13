@@ -33,6 +33,37 @@ load_dotenv()
 logger = structlog.get_logger()
 
 
+DEFAULT_EXTRACTOR_CLASSES = [
+    WordCountExtractor,
+    TemporalDistributionExtractor,
+    LanguageDetectionExtractor,
+    SentimentExtractor,
+    NamedEntityExtractor,
+]
+
+
+def init_extractors(extractor_classes):
+    """
+    Instantiate extractors one-by-one, skipping any that raise during init.
+
+    Hard-Rule graceful-degradation gate: a single misconfigured extractor
+    (missing model, missing lexicon, unexpected environment) must never take
+    down the worker. Failed extractors are logged and omitted from the pipeline.
+    """
+    extractors = []
+    for cls in extractor_classes:
+        try:
+            extractors.append(cls())
+        except Exception as e:
+            logger.warning(
+                "Extractor init failed — skipping",
+                extractor=getattr(cls, "__name__", repr(cls)),
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+    return extractors
+
+
 @dataclass
 class WorkerConfig:
     """Configuration for the analysis worker, injectable for testing."""
@@ -110,17 +141,7 @@ async def main(config: WorkerConfig | None = None):
     pg_pool = init_postgres()
 
     adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter(pg_pool=pg_pool)})
-    try:
-        extractors = [
-            WordCountExtractor(),
-            TemporalDistributionExtractor(),
-            LanguageDetectionExtractor(),
-            SentimentExtractor(),
-            NamedEntityExtractor(),
-        ]
-    except Exception as e:
-        logger.error("Failed to initialize extractors", error=str(e), error_type=type(e).__name__)
-        raise
+    extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES)
     data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry, extractors)
     nc = NATS()
     task_queue = asyncio.Queue()
@@ -135,15 +156,10 @@ async def main(config: WorkerConfig | None = None):
 
     await connect_nats()
 
-    # 1. Enable JetStream
+    # 1. Enable JetStream. Stream provisioning is IaC — handled by the
+    #    `nats-init` container (see infra/nats/streams/AER_LAKE.json) and
+    #    gated via `depends_on: nats-init: service_completed_successfully`.
     js = nc.jetstream()
-
-    # Stream provisioning: Ensure the stream exists (idempotent)
-    try:
-        await js.add_stream(name=config.stream_name, subjects=[config.subject])
-        logger.info("JetStream Stream ensured.", stream=config.stream_name)
-    except Exception as e:
-        logger.warning("Note on Stream creation", error=str(e))
 
     # 2. Start worker tasks
     workers = [
