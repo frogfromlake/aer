@@ -1040,6 +1040,19 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **R-14 in Arc42 Kapitel 11 als "resolved via Phase 74" markieren** (Erstanlage erfolgt in Phase 80).
 * [x] **Validate.** `make test`, `make test-e2e`.
 
+
+## Phase 75: BFF Security Hardening [P1] - [x] DONE
+
+*Drei unabhängige, nicht-breaking Security-Patches im BFF und dem geteilten `pkg/middleware`. Jeder Patch ist eine Einzel-Datei-Änderung plus Test.*
+
+* [x] **`err.Error()` Leaks in `handler/handler.go` entfernen.** 9 Stellen in `handler.go` (und 1 in `main.go`) geben interne Fehlermeldungen an den Client. Ersetzen durch generische `"internal server error"`-Message + strukturiertes `slog.Error("handler failure", "op", "GetMetrics", "error", err)`. OpenAPI-Contract unverändert.
+* [x] **Handler-Tests anpassen.** `entities_handler_test.go`, `metrics_handler_test.go`, `provenance_handler_test.go`: alle `Message`-Assertions auf die neue generische Message.
+* [x] **`pkg/middleware/apikey.go` auf Constant-Time-Vergleich.** `subtle.ConstantTimeCompare([]byte(token), []byte(apiKey)) == 1`. Gleichzeitig: `w.Header().Set("Content-Type", "application/json")` vor `WriteHeader(401)`, statt `http.Error` (das setzt text/plain).
+* [x] **`apikey_test.go`.** Neue Tests: (a) Content-Type-Header ist `application/json` bei 401, (b) Mismatch-Timing: Vergleich mit 1-Char-Differenz vs. voller Länge ist zeitlich ununterscheidbar (optional — schwer zu testen, deshalb nur Sanity-Check, dass `subtle` verwendet wird).
+* [x] **API-Key-Boot-Validation.** `services/bff-api/internal/config/config.go` und `services/ingestion-api/internal/config/config.go`: bei leerem Key `return nil, fmt.Errorf("BFF_API_KEY must be set")`. Gleiche Behandlung für `CLICKHOUSE_PASSWORD` und `POSTGRES_PASSWORD` in beiden Services.
+* [x] **Request-Logger: Trace-ID aus OTel-Context.** `services/bff-api/cmd/server/main.go` `requestLogger` liest aktuell `r.Header.Get("Traceparent")` — das ist der eingehende Header, nicht die vom Otelhttp-Middleware aufgebaute Trace-ID. Stattdessen: `trace.SpanFromContext(r.Context()).SpanContext().TraceID().String()`. Damit werden Access-Log und Tempo-Spans überhaupt erst korrelierbar.
+* [x] **Validate.** `make test-go-pkg`, `make test-go`, `make lint`.
+
 ---
 
 ### Open Phases
@@ -1053,22 +1066,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 - **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
 - **P3 (Robustness & Clean-ups):** Phasen 79
 - **P-Docs (parallel):** Phasen 80, 81
-
----
-
----
-
-## Phase 75: BFF Security Hardening [P1]
-
-*Drei unabhängige, nicht-breaking Security-Patches im BFF und dem geteilten `pkg/middleware`. Jeder Patch ist eine Einzel-Datei-Änderung plus Test.*
-
-* [ ] **`err.Error()` Leaks in `handler/handler.go` entfernen.** 9 Stellen in `handler.go` (und 1 in `main.go`) geben interne Fehlermeldungen an den Client. Ersetzen durch generische `"internal server error"`-Message + strukturiertes `slog.Error("handler failure", "op", "GetMetrics", "error", err)`. OpenAPI-Contract unverändert.
-* [ ] **Handler-Tests anpassen.** `entities_handler_test.go`, `metrics_handler_test.go`, `provenance_handler_test.go`: alle `Message`-Assertions auf die neue generische Message.
-* [ ] **`pkg/middleware/apikey.go` auf Constant-Time-Vergleich.** `subtle.ConstantTimeCompare([]byte(token), []byte(apiKey)) == 1`. Gleichzeitig: `w.Header().Set("Content-Type", "application/json")` vor `WriteHeader(401)`, statt `http.Error` (das setzt text/plain).
-* [ ] **`apikey_test.go`.** Neue Tests: (a) Content-Type-Header ist `application/json` bei 401, (b) Mismatch-Timing: Vergleich mit 1-Char-Differenz vs. voller Länge ist zeitlich ununterscheidbar (optional — schwer zu testen, deshalb nur Sanity-Check, dass `subtle` verwendet wird).
-* [ ] **API-Key-Boot-Validation.** `services/bff-api/internal/config/config.go` und `services/ingestion-api/internal/config/config.go`: bei leerem Key `return nil, fmt.Errorf("BFF_API_KEY must be set")`. Gleiche Behandlung für `CLICKHOUSE_PASSWORD` und `POSTGRES_PASSWORD` in beiden Services.
-* [ ] **Request-Logger: Trace-ID aus OTel-Context.** `services/bff-api/cmd/server/main.go` `requestLogger` liest aktuell `r.Header.Get("Traceparent")` — das ist der eingehende Header, nicht die vom Otelhttp-Middleware aufgebaute Trace-ID. Stattdessen: `trace.SpanFromContext(r.Context()).SpanContext().TraceID().String()`. Damit werden Access-Log und Tempo-Spans überhaupt erst korrelierbar.
-* [ ] **Validate.** `make test-go-pkg`, `make test-go`, `make lint`.
 
 ---
 
@@ -1115,6 +1112,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 *Zwei Housekeeping-Items. Beide reduzieren Angriffsoberfläche, ohne den Happy Path zu berühren.*
 
 * [ ] **MinIO Service Accounts.** `infra/minio/setup.sh` erweitern um `mc admin user add aer_worker ...` und `mc admin user add aer_ingestion ...` mit `readwrite`-Policies auf den jeweils benötigten Buckets. `compose.yaml` für beide Services auf die neuen Credentials umstellen. `MINIO_ROOT_USER` bleibt nur für `minio-init` und `setup.sh`.
+* [ ] **Alle Credentials aus `.env.example` auf GitHub Actions Secrets migrieren.** Phase 75 hat nur die vier boot-validierten Secrets abgedeckt (`BFF_API_KEY`, `INGESTION_API_KEY`, `CLICKHOUSE_PASSWORD`, `POSTGRES_PASSWORD`). Die übrigen Credentials müssen ebenfalls aus GitHub Secrets statt `.env.example`-Defaults stammen: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` (nach Service-Account-Split: `aer_worker`/`aer_ingestion`), `GF_SECURITY_ADMIN_PASSWORD`. `.env.example` enthält am Ende nur noch nicht-sensitive Defaults oder Platzhalter. CI-Job `e2e-smoke` erweitert den `sed`-Block entsprechend. Ebenfalls `DB_URL` anpassen und das Secret updaten.
 * [ ] **ClickHouse Memory-Limits verifizieren.** `compose.yaml` auf `deploy.resources.limits` für `clickhouse` prüfen — falls fehlend, 2G/1 CPU als Default setzen. Phase 20 hat das beansprucht, aber ein Re-Check ist billig.
 * [ ] **Rate-Limiter-Beschreibung korrigieren (Code oder Doku).** Entweder auf Per-API-Key (Phase 16 Anspruch) umstellen — oder Operations Playbook klarstellen, dass der Limiter global ist. **Empfehlung: Letzteres, bis es mindestens zwei Konsumenten gibt.**
 * [ ] **Metrics-Cache: Text oder LRU.** Arc42 §8.11 beschreibt einen "Metrics Cache" implizit als Multi-Slot; tatsächlich ist es ein Single-Slot. Entweder auf `hashicorp/golang-lru/v2` mit 16 Slots umstellen, oder Text präzisieren. **Empfehlung: Text präzisieren.**
