@@ -115,12 +115,18 @@ class DataProcessor:
         if meta and hasattr(meta, 'discourse_context') and meta.discourse_context:
             discourse_fn = meta.discourse_context.primary_function or ""
 
+        # Phase 74: monotone ingestion_version derived from the deterministic
+        # MinIO event time lets ReplacingMergeTree collapse duplicate rows from
+        # NATS redelivery. Redelivered events share the same event_time → same
+        # version → last-write-wins is a no-op on identical payloads.
+        ingestion_version = int(event_time.timestamp() * 1_000_000_000)
+
         if all_metrics:
-            rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id, discourse_fn] for m in all_metrics]
+            rows = [[m.timestamp, m.value, m.source, m.metric_name, m.article_id, discourse_fn, ingestion_version] for m in all_metrics]
             self.ch.insert(
                 'aer_gold.metrics',
                 rows,
-                column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id', 'discourse_function']
+                column_names=['timestamp', 'value', 'source', 'metric_name', 'article_id', 'discourse_function', 'ingestion_version']
             )
             logger.info(
                 "Gold layer updated",
@@ -133,13 +139,13 @@ class DataProcessor:
 
         if all_entities:
             entity_rows = [
-                [e.timestamp, e.source, e.article_id, e.entity_text, e.entity_label, e.start_char, e.end_char, discourse_fn]
+                [e.timestamp, e.source, e.article_id, e.entity_text, e.entity_label, e.start_char, e.end_char, discourse_fn, ingestion_version]
                 for e in all_entities
             ]
             self.ch.insert(
                 'aer_gold.entities',
                 entity_rows,
-                column_names=['timestamp', 'source', 'article_id', 'entity_text', 'entity_label', 'start_char', 'end_char', 'discourse_function']
+                column_names=['timestamp', 'source', 'article_id', 'entity_text', 'entity_label', 'start_char', 'end_char', 'discourse_function', 'ingestion_version']
             )
             logger.info(
                 "Gold entities updated",
@@ -151,13 +157,13 @@ class DataProcessor:
 
         if all_language_detections:
             lang_rows = [
-                [d.timestamp, d.source, d.article_id, d.detected_language, d.confidence, d.rank]
+                [d.timestamp, d.source, d.article_id, d.detected_language, d.confidence, d.rank, ingestion_version]
                 for d in all_language_detections
             ]
             self.ch.insert(
                 'aer_gold.language_detections',
                 lang_rows,
-                column_names=['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank']
+                column_names=['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank', 'ingestion_version']
             )
             logger.info(
                 "Gold language detections updated",

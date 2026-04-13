@@ -40,7 +40,7 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     assert row[2] == "test-source"
     assert row[3] == "word_count"
     assert row[4] == generate_document_id("test-source", obj_key)
-    assert ch_kwargs['column_names'] == ['timestamp', 'value', 'source', 'metric_name', 'article_id', 'discourse_function']
+    assert ch_kwargs['column_names'] == ['timestamp', 'value', 'source', 'metric_name', 'article_id', 'discourse_function', 'ingestion_version']
 
     processor._update_document_status.assert_called_with(obj_key, "processed")
 

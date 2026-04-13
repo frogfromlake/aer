@@ -55,9 +55,10 @@ def test_discourse_function_written_when_classification_present(
     insert_call = mock_clickhouse.insert.call_args
     assert insert_call is not None
     _, kwargs = insert_call
-    assert "discourse_function" in kwargs["column_names"]
+    column_names = kwargs["column_names"]
+    assert "discourse_function" in column_names
     row = insert_call[0][1][0]
-    assert row[-1] == "epistemic_authority"
+    assert row[column_names.index("discourse_function")] == "epistemic_authority"
 
 
 def test_discourse_function_empty_string_without_classification(
@@ -71,6 +72,7 @@ def test_discourse_function_empty_string_without_classification(
     insert_call = mock_clickhouse.insert.call_args
     assert insert_call is not None
     _, kwargs = insert_call
-    assert "discourse_function" in kwargs["column_names"]
+    column_names = kwargs["column_names"]
+    assert "discourse_function" in column_names
     row = insert_call[0][1][0]
-    assert row[-1] == ""
+    assert row[column_names.index("discourse_function")] == ""

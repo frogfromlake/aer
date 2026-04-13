@@ -1000,8 +1000,157 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [x] **Arc42 §8.1 (Testing Strategy) aktualisieren.** Paragraph zur Testabdeckung für Scientific Infrastructure Tables und das Validation-Gate Testing Pattern (HTTP 400 für Endpoints, die validierte wissenschaftliche Daten erfordern).
 
+## Post-Review Phases (73–82)
+
+*Die Phasen 73–81 sind das Ergebnis eines kritischen Code Reviews nach Abschluss von Phase 72. Sie sind nach Dringlichkeit geordnet und so aufgeteilt, dass jede Phase nicht zu gross ist und in sich abgeschlossene Gates hat. Prioritäten:*
+
+- **P0 (Correctness / Hard-Rule-Violations):** Phasen 73, 74
+- **P1 (Security Hygiene):** Phase 75
+- **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
+- **P3 (Robustness & Clean-ups):** Phasen 79
+- **P-Docs (parallel):** Phasen 80, 81
+
+## Phase 73: Worker Hard-Rule-5 Restoration & IaC Fix [P0] - [x] DONE
+
+*Der `analysis-worker` erstellt zur Laufzeit JetStream-Streams und initialisiert Extractors so, dass ein fehlender spaCy-Modell oder SentiWS-Lexicon den gesamten Worker crasht — entgegen der zugesagten Graceful Degradation. Kleinster Fix mit höchstem Gewinn, weil er zwei explizite Zusicherungen der Dokumentation mit dem Code in Einklang bringt.*
+
+* [x] **`js.add_stream` aus `services/analysis-worker/main.py` entfernen.** Zeile ~143: stream wird bereits vom `nats-init` Container idempotent angelegt. Die Python-Zeile ersatzlos löschen — der `depends_on: nats-init: service_completed_successfully` Gate ist ausreichend. Hard Rule 5 wieder erfüllt.
+* [x] **`infra/nats/` anlegen.** Verzeichnis mit `streams/AER_LAKE.json` als versionierte Stream-Definition. `nats-init`-Container konsumiert die Datei per `nats stream add --config /config/streams/AER_LAKE.json`. Dokumentationsbehauptung ("infra/nats/") damit eingelöst.
+* [x] **Extractor-Init: einzeln + graceful.** `main.py` konstruiert die Extractor-Liste in einem einzigen `try/except` — ein Init-Fehler killt alle. Stattdessen iterieren:
+
+  ```python
+  extractor_classes = [WordCountExtractor, TemporalDistributionExtractor, ...]
+  extractors = []
+  for cls in extractor_classes:
+      try:
+          extractors.append(cls())
+      except Exception as e:
+          logger.warning("Extractor init failed — skipping", extractor=cls.__name__, error=str(e))
+  ```
+* [x] **Test: Worker startet ohne SentiWS-Lexicon.** Neuer Test in `tests/test_main_bootstrap.py`: leeres `data/sentiws/`-Verzeichnis gemockt → Worker startet, Extractor-Liste enthält keinen `SentimentExtractor`, verarbeitet Dokumente ohne Crash.
+* [x] **Validate.** `make test`, `make test-e2e`, `make lint`.
+
+## Phase 74: Worker Idempotency — ReplacingMergeTree Dedup Gate [P0] - [x] DONE
+
+*Der Processor schreibt sequenziell in drei ClickHouse-Tabellen, bevor `document_status = 'processed'` gesetzt wird. Bei NATS-Redelivery nach Teil-Erfolg werden bereits gelandete Rows dupliziert. Aktuelle Tabellen sind plain `MergeTree` — sie deduplizieren nicht. Fix: Engine auf `ReplacingMergeTree` umstellen.*
+
+* [x] **ClickHouse-Migration `000010_replacing_merge_tree.sql`.** Drei `RENAME TABLE` + `CREATE TABLE ... ENGINE = ReplacingMergeTree(ingestion_version) ORDER BY (article_id, metric_name)` + `INSERT INTO new SELECT * FROM old` + `DROP old` für `aer_gold.metrics`, `aer_gold.entities`, `aer_gold.language_detections`. `ingestion_version` ist eine monotone UInt64-Spalte (Event-Zeitstempel als Unix-Nanos).
+* [x] **Processor schreibt `ingestion_version`.** `processor.py` setzt `ingestion_version = int(event_time.timestamp() * 1e9)` auf allen drei Insert-Batches.
+* [x] **Dedup-Test.** Integrationstest mit Testcontainers: zwei Kopien desselben NATS-Events verarbeiten → nach `OPTIMIZE TABLE ... FINAL` ist je nur eine Row pro `(article_id, metric_name)` übrig.
+* [x] **R-14 in Arc42 Kapitel 11 als "resolved via Phase 74" markieren** (Erstanlage erfolgt in Phase 80).
+* [x] **Validate.** `make test`, `make test-e2e`.
+
 ---
 
 ### Open Phases
 
+## Post-Review Phases (73–82)
+
+*Die Phasen 73–81 sind das Ergebnis eines kritischen Code Reviews nach Abschluss von Phase 72. Sie sind nach Dringlichkeit geordnet und so aufgeteilt, dass jede Phase nicht zu gross ist und in sich abgeschlossene Gates hat. Prioritäten:*
+
+- **P0 (Correctness / Hard-Rule-Violations):** Phasen 73, 74
+- **P1 (Security Hygiene):** Phase 75
+- **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
+- **P3 (Robustness & Clean-ups):** Phasen 79
+- **P-Docs (parallel):** Phasen 80, 81
+
 ---
+
+---
+
+## Phase 75: BFF Security Hardening [P1]
+
+*Drei unabhängige, nicht-breaking Security-Patches im BFF und dem geteilten `pkg/middleware`. Jeder Patch ist eine Einzel-Datei-Änderung plus Test.*
+
+* [ ] **`err.Error()` Leaks in `handler/handler.go` entfernen.** 9 Stellen in `handler.go` (und 1 in `main.go`) geben interne Fehlermeldungen an den Client. Ersetzen durch generische `"internal server error"`-Message + strukturiertes `slog.Error("handler failure", "op", "GetMetrics", "error", err)`. OpenAPI-Contract unverändert.
+* [ ] **Handler-Tests anpassen.** `entities_handler_test.go`, `metrics_handler_test.go`, `provenance_handler_test.go`: alle `Message`-Assertions auf die neue generische Message.
+* [ ] **`pkg/middleware/apikey.go` auf Constant-Time-Vergleich.** `subtle.ConstantTimeCompare([]byte(token), []byte(apiKey)) == 1`. Gleichzeitig: `w.Header().Set("Content-Type", "application/json")` vor `WriteHeader(401)`, statt `http.Error` (das setzt text/plain).
+* [ ] **`apikey_test.go`.** Neue Tests: (a) Content-Type-Header ist `application/json` bei 401, (b) Mismatch-Timing: Vergleich mit 1-Char-Differenz vs. voller Länge ist zeitlich ununterscheidbar (optional — schwer zu testen, deshalb nur Sanity-Check, dass `subtle` verwendet wird).
+* [ ] **API-Key-Boot-Validation.** `services/bff-api/internal/config/config.go` und `services/ingestion-api/internal/config/config.go`: bei leerem Key `return nil, fmt.Errorf("BFF_API_KEY must be set")`. Gleiche Behandlung für `CLICKHOUSE_PASSWORD` und `POSTGRES_PASSWORD` in beiden Services.
+* [ ] **Request-Logger: Trace-ID aus OTel-Context.** `services/bff-api/cmd/server/main.go` `requestLogger` liest aktuell `r.Header.Get("Traceparent")` — das ist der eingehende Header, nicht die vom Otelhttp-Middleware aufgebaute Trace-ID. Stattdessen: `trace.SpanFromContext(r.Context()).SpanContext().TraceID().String()`. Damit werden Access-Log und Tempo-Spans überhaupt erst korrelierbar.
+* [ ] **Validate.** `make test-go-pkg`, `make test-go`, `make lint`.
+
+---
+
+## Phase 76: Analysis Worker Data Quality [P2]
+
+*Vier kleine Adapter- und Processor-Fixes, die alle denselben Kern-Widerspruch behandeln: der Worker "weiß" Dinge, die er eigentlich dynamisch beobachten sollte, oder widerspricht sich selbst.*
+
+* [ ] **`RssAdapter.language` nicht mehr hardcoden.** `adapters/rss.py`: `language=""` (explizit "unknown"), der `LanguageDetectionExtractor` ist die SSoT. Alternativ leer lassen und in `core.language` einen Sentinel (`"und"` = undetermined, ISO 639-3) verwenden. Test in `test_rss_adapter.py`.
+* [ ] **N+1 Classification-Query cachen.** `adapters/rss.py` ruft `get_source_classification(self._pg_pool, source)` pro Dokument. Einfachster Patch: im Adapter ein `dict[str, tuple[dict|None, float]]` mit 60-Sekunden-TTL pro `source`. Ein einzelner `time.monotonic()`-Check reicht, kein LRU nötig (Sources sind O(10)).
+* [ ] **Word-Count-Dopplung entfernen.** `WordCountExtractor` liest `core.word_count` statt `core.cleaned_text.split()` neu zu tokenisieren. `legacy.py` / `rss.py` bleiben die einzige Quelle der Wahrheit für die Tokenisierung.
+* [ ] **Processor/Meta-Contract klarstellen.** `processor.py` liest `meta.discourse_context.primary_function` direkt — das ist der einzige Ort, an dem Gold-Row-Assembly `SilverMeta` berührt. Zwei Optionen:
+  - **(a)** Code bleibt, aber kleine Refaktorisierung: ein Helper `_derive_discourse_function(meta) -> str` isoliert den einzigen Punkt, an dem der Contract "bricht", und ist unit-testbar.
+  - **(b)** `extract_all(core, meta, article_id)` als Breaking-Protocol-Change.
+
+  **Empfehlung (a)** — kleinster Patch, klare Lokation für zukünftige Erweiterung.
+* [ ] **Validate.** `make test-python`, `make test-e2e`.
+
+---
+
+## Phase 77: Ingestion API Semantic Fixes [P2]
+
+*Zwei kleine, aber semantisch wichtige Korrekturen im `ingestion-api`.*
+
+* [ ] **`errorCount` aufteilen.** `internal/core/service.go` `IngestDocuments`: zwei Zähler (`uploadFailures`, `statusUpdateFailures`). Job-Final-Status basiert nur auf `uploadFailures`. Ein Dokument mit `uploaded`-Objekt in MinIO, aber fehlgeschlagenem Status-Update, darf den Job nicht als `failed` markieren. Der Status-Update-Fehler wird als `slog.Error` mit `op="status_update"` geloggt und als Prometheus-Counter surface'd (`ingestion_status_update_failures_total`).
+* [ ] **Bronze-Bucketname konfigurierbar.** `internal/core/service.go` hat `"bronze"` zweimal hart-kodiert. Auf `s.bucket` + Config-Feld `BronzeBucket` (ENV `INGESTION_BRONZE_BUCKET`, Default `bronze`). `.env.example`, `compose.yaml` (ingestion-api + analysis-worker) erweitern. Worker `processor.py` bekommt Konfiguration via ENV `WORKER_BRONZE_BUCKET` (gleicher Default). **Zwei Services, eine Wahrheit.**
+* [ ] **Test**: `postgres_test.go` Regression — Status-Update-Failure darf Job-Status nicht kippen.
+* [ ] **Validate.** `make test-go`, `make test-e2e`.
+
+---
+
+## Phase 78: BFF Query Robustness [P2]
+
+*Zwei Verhaltensfragen im BFF, die aktuell implizit falsch antworten.*
+
+* [ ] **`GetNormalizedMetrics`: `LEFT JOIN` statt `INNER JOIN` auf `language_detections`.** `storage/metrics_query.go`: Metriken ohne zugehörige Language-Detection verschwinden still. Auf `LEFT JOIN` umstellen, `WHERE ld.detected_language IS NOT NULL` — und der Handler gibt zusätzlich einen `excluded_count` im Response-Envelope zurück (OpenAPI-Änderung, `make codegen`). Alternativ: `excluded_count` nur loggen, Response-Schema unverändert lassen. **Empfehlung: letzteres — minimal-invasiv.**
+* [ ] **`NewClickHouseStorage` Backoff-Budget auf 60s.** `MaxElapsedTime` von 30s auf 60s, cold Docker-Start braucht oft länger.
+* [ ] **Regressionstest.** Integrationstest mit Metrik ohne Language-Row: Ergebnis-Anzahl stabil, Log-Eintrag vorhanden.
+* [ ] **Validate.** `make test-go`, `make test-e2e`.
+
+---
+
+## Phase 79: Infra & Credentials Cleanup [P3]
+
+*Zwei Housekeeping-Items. Beide reduzieren Angriffsoberfläche, ohne den Happy Path zu berühren.*
+
+* [ ] **MinIO Service Accounts.** `infra/minio/setup.sh` erweitern um `mc admin user add aer_worker ...` und `mc admin user add aer_ingestion ...` mit `readwrite`-Policies auf den jeweils benötigten Buckets. `compose.yaml` für beide Services auf die neuen Credentials umstellen. `MINIO_ROOT_USER` bleibt nur für `minio-init` und `setup.sh`.
+* [ ] **ClickHouse Memory-Limits verifizieren.** `compose.yaml` auf `deploy.resources.limits` für `clickhouse` prüfen — falls fehlend, 2G/1 CPU als Default setzen. Phase 20 hat das beansprucht, aber ein Re-Check ist billig.
+* [ ] **Rate-Limiter-Beschreibung korrigieren (Code oder Doku).** Entweder auf Per-API-Key (Phase 16 Anspruch) umstellen — oder Operations Playbook klarstellen, dass der Limiter global ist. **Empfehlung: Letzteres, bis es mindestens zwei Konsumenten gibt.**
+* [ ] **Metrics-Cache: Text oder LRU.** Arc42 §8.11 beschreibt einen "Metrics Cache" implizit als Multi-Slot; tatsächlich ist es ein Single-Slot. Entweder auf `hashicorp/golang-lru/v2` mit 16 Slots umstellen, oder Text präzisieren. **Empfehlung: Text präzisieren.**
+* [ ] **Validate.** `make test`, `make up` Smoke-Check.
+
+---
+
+## Phase 80: Arc42 Structural Fix [P-Docs]
+
+*Arc42 Kapitel 8 hat nach Phasen 62–72 strukturelle Drift. ROADMAP.md hat ein Duplikat. Beides wird isoliert konsolidiert, ohne Code-Änderungen. Läuft parallel zu Phasen 73–79.*
+
+* [ ] **Phase 67 Duplikat in ROADMAP.md entfernen.** Zwei identische Blöcke bei ~Zeile 751 und ~770.
+* [ ] **Arc42 Kapitel 8 Neu-Nummerierung.** Aktuelle Reihenfolge im File: `8.1 … 8.8 … 8.9 … 8.10 … 8.9.3 Configuration … 8.11 … 8.12 … 8.13 … 8.8 (addendum) … 8.14 … 8.15`. Defekte:
+  - `8.9.3 Configuration Management` steht **hinter** `8.10` — muss zu `8.9` vor 8.10 umgesetzt werden.
+  - `8.8 (addendum, Phase 66)` ist ein zweites `§8.8` — sollte als `8.8.1 Tiered Retention (Planned)` subsummiert werden.
+  - Phase 69 hat bereits notiert, dass die ROADMAP `§8.6/§8.10/§8.12` referenziert, die tatsächlich `§8.13/§8.12/§8.14` sind — diese alten Referenzen in ROADMAP-Historie und Cross-Doku korrigieren.
+* [ ] **R-14: Triple-Insert-Risiko in `11_risks_and_technical_debts.md`.** Neuer Eintrag, Risikoklasse **high**, verlinkt auf Phase 74 als Mitigation (wird nach Phase 74 Commit auf "resolved" umgeschaltet).
+* [ ] **ADR-018 / ADR-019 in `09_architecture_decisions.md`.**
+  - **ADR-018: Constant-Time API-Key-Vergleich.** Begründung, Impl-Referenz, Non-Goals.
+  - **ADR-019: IaC-only NATS-Stream-Provisionierung.** Worum es geht, warum `js.add_stream` entfernt wurde, Referenz auf `infra/nats/streams/`.
+* [ ] **`mkdocs build --strict`** grün, Quer-Verweise stichprobenartig prüfen.
+
+---
+
+## Phase 81: Documentation Alignment — CLAUDE.md, README, Playbook, WPs [P-Docs]
+
+*Parallel zu Phase 80. Aktualisiert Dokumentation, die sich durch Phasen 73–79 ändert. Keine Vorab-Änderungen — diese Phase folgt dem Code.*
+
+* [ ] **CLAUDE.md Hard Rule 5 präzisieren.** Zusatz: "Diese Regel schließt NATS-Stream-Provisionierung ein. Siehe `infra/nats/streams/` und den `nats-init`-Container."
+* [ ] **CLAUDE.md "Extractors receive immutable SilverCore" korrigieren.** Nach Phase 76 präziser: "Extractors receive SilverCore. The processor may enrich Gold rows with `SilverMeta`-derived context (e.g. `discourse_function`) via a dedicated helper — this is the only sanctioned point where meta influences Gold."
+* [ ] **README.md: `infra/nats/` Verweis reparieren.** Linkziel an das nach Phase 73 erstellte Verzeichnis anpassen.
+* [ ] **Operations Playbook: neue ENV-Variablen.** `INGESTION_BRONZE_BUCKET`, `WORKER_BRONZE_BUCKET` (Phase 77), MinIO-Service-Account-Credentials (Phase 79).
+* [ ] **Arc42 §8.7.1 Constant-Time Compare dokumentieren** (nach Phase 75).
+* [ ] **Arc42 §8.11 Metrics Cache Wortlaut** (falls in Phase 79 Text-Option gewählt).
+* [ ] **WP-001..006 Cross-Reference Sweep.** Grep über alle sechs Papers (DE+EN) auf `§` und `WP-XXX`. Ziel: Arc42-Abschnittsnummern nach Phase 80 stimmen, Playbook-Referenzen stimmen.
+* [ ] **`mkdocs build --strict`** grün, `make lint` grün.
+
+## Phase 82: Stack Validierung
+* [ ] **`make test, make test-e2e, make audit && make codegen && git diff --exit-code`** grün

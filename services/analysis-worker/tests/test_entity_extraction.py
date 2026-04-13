@@ -197,7 +197,7 @@ def test_processor_inserts_entities(mock_minio, mock_clickhouse, mock_pg_pool, a
     assert entity_rows[1][3] == "Merkel"
     assert entity_rows[1][4] == "PER"
     assert entities_call[1]["column_names"] == [
-        "timestamp", "source", "article_id", "entity_text", "entity_label", "start_char", "end_char", "discourse_function"
+        "timestamp", "source", "article_id", "entity_text", "entity_label", "start_char", "end_char", "discourse_function", "ingestion_version"
     ]
 
 
