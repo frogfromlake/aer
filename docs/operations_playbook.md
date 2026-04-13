@@ -51,6 +51,22 @@ make debug-up
 
 All credentials are defined in `.env` (copy from `.env.example` on first setup). The variable names referenced below correspond to the keys in that file.
 
+### Required Boot Secrets (Phase 75)
+
+Since Phase 75, the Go services validate a small set of required secrets at start-up and refuse to boot if any of them is empty. This is a defence-in-depth guardrail against accidentally shipping a service with a default or unset credential.
+
+| Variable | Consumed by | Where to set |
+|----------|-------------|--------------|
+| `BFF_API_KEY` | `bff-api` (`X-API-Key` header auth) | `.env` for local/compose, GitHub Actions secret for CI, secret manager for prod |
+| `CLICKHOUSE_PASSWORD` | `bff-api` (ClickHouse client) | same as above |
+| `INGESTION_API_KEY` | `ingestion-api` (`X-API-Key` header auth) | same as above |
+| `DB_URL` | `ingestion-api` (Postgres client; embeds `POSTGRES_PASSWORD`) | same as above |
+| `POSTGRES_PASSWORD` | Postgres init + `DB_URL` | same as above |
+
+**Generate API keys** with `openssl rand -base64 32`.
+
+**CI (GitHub Actions):** add the four secrets above in `Settings → Secrets and variables → Actions` and surface them as env vars in any job that boots the services (integration and e2e jobs). Unit tests that never call `config.Load()` are unaffected.
+
 ---
 
 ## Stack Lifecycle

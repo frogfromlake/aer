@@ -241,8 +241,12 @@ jobs:
       - name: Create .env for smoke test
         run: |
           cp .env.example .env
-          # Override secrets from GitHub — add future secrets here
+          # Override secrets from GitHub — required boot secrets (Phase 75).
           sed -i "s|^BFF_API_KEY=.*|BFF_API_KEY=${{ secrets.BFF_API_KEY }}|" .env
+          sed -i "s|^INGESTION_API_KEY=.*|INGESTION_API_KEY=${{ secrets.INGESTION_API_KEY }}|" .env
+          sed -i "s|^CLICKHOUSE_PASSWORD=.*|CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}|" .env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}|" .env
+          sed -i "s|^DB_URL=.*|DB_URL=postgres://aer_admin:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/aer_metadata?sslmode=disable|" .env
 
       - name: Run E2E Smoke Test
         run: bash scripts/e2e_smoke_test.sh
