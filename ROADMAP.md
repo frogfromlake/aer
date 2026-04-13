@@ -1068,6 +1068,15 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   **Empfehlung (a)** — kleinster Patch, klare Lokation für zukünftige Erweiterung.
 * [x] **Validate.** `make test-python`, `make test-e2e`.
 
+## Phase 77: Ingestion API Semantic Fixes [P2] - [x] DONE
+
+*Zwei kleine, aber semantisch wichtige Korrekturen im `ingestion-api`.*
+
+* [x] **`errorCount` aufteilen.** `internal/core/service.go` `IngestDocuments`: zwei Zähler (`uploadFailures`, `statusUpdateFailures`). Job-Final-Status basiert nur auf `uploadFailures`. Ein Dokument mit `uploaded`-Objekt in MinIO, aber fehlgeschlagenem Status-Update, darf den Job nicht als `failed` markieren. Der Status-Update-Fehler wird als `slog.Error` mit `op="status_update"` geloggt und als Prometheus-Counter surface'd (`ingestion_status_update_failures_total`).
+* [x] **Bronze-Bucketname konfigurierbar.** `internal/core/service.go` hat `"bronze"` zweimal hart-kodiert. Auf `s.bucket` + Config-Feld `BronzeBucket` (ENV `INGESTION_BRONZE_BUCKET`, Default `bronze`). `.env.example`, `compose.yaml` (ingestion-api + analysis-worker) erweitern. Worker `processor.py` bekommt Konfiguration via ENV `WORKER_BRONZE_BUCKET` (gleicher Default). **Zwei Services, eine Wahrheit.**
+* [x] **Test**: `postgres_test.go` Regression — Status-Update-Failure darf Job-Status nicht kippen. *(Regression lives in `internal/core/service_test.go::TestIngestDocuments_StatusUpdateFailureDoesNotFailJob` — pure unit test on the core contract, no PG container needed.)*
+* [x] **Validate.** `make test-go`, `make test-e2e`.
+
 ---
 
 ### Open Phases
@@ -1081,17 +1090,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 - **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
 - **P3 (Robustness & Clean-ups):** Phasen 79
 - **P-Docs (parallel):** Phasen 80, 81
-
----
-
-## Phase 77: Ingestion API Semantic Fixes [P2]
-
-*Zwei kleine, aber semantisch wichtige Korrekturen im `ingestion-api`.*
-
-* [ ] **`errorCount` aufteilen.** `internal/core/service.go` `IngestDocuments`: zwei Zähler (`uploadFailures`, `statusUpdateFailures`). Job-Final-Status basiert nur auf `uploadFailures`. Ein Dokument mit `uploaded`-Objekt in MinIO, aber fehlgeschlagenem Status-Update, darf den Job nicht als `failed` markieren. Der Status-Update-Fehler wird als `slog.Error` mit `op="status_update"` geloggt und als Prometheus-Counter surface'd (`ingestion_status_update_failures_total`).
-* [ ] **Bronze-Bucketname konfigurierbar.** `internal/core/service.go` hat `"bronze"` zweimal hart-kodiert. Auf `s.bucket` + Config-Feld `BronzeBucket` (ENV `INGESTION_BRONZE_BUCKET`, Default `bronze`). `.env.example`, `compose.yaml` (ingestion-api + analysis-worker) erweitern. Worker `processor.py` bekommt Konfiguration via ENV `WORKER_BRONZE_BUCKET` (gleicher Default). **Zwei Services, eine Wahrheit.**
-* [ ] **Test**: `postgres_test.go` Regression — Status-Update-Failure darf Job-Status nicht kippen.
-* [ ] **Validate.** `make test-go`, `make test-e2e`.
 
 ---
 

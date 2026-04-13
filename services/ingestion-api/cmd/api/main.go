@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/frogfromlake/aer/pkg/logger"
@@ -120,7 +121,7 @@ func main() {
 	slog.Info("MinIO client connected successfully")
 
 	// 4. Wire service and handlers
-	svc := core.NewIngestionService(db, minioClient)
+	svc := core.NewIngestionService(db, minioClient, cfg.BronzeBucket)
 	h := handler.NewHandler(svc)
 
 	// 5. Setup chi router with OTel instrumentation
@@ -129,13 +130,20 @@ func main() {
 		return otelhttp.NewHandler(next, "ingestion-api")
 	})
 
-	// API Key Auth: protects all routes except /healthz and /readyz
-	r.Use(mw.APIKeyAuth(cfg.APIKey))
+	// Prometheus scrape endpoint sits outside the API-key middleware: the
+	// backend network is zero-trust-internal only, and scrape targets
+	// cannot carry per-caller secrets.
+	r.Handle("/metrics", promhttp.Handler())
 
-	r.Post("/api/v1/ingest", h.Ingest)
-	r.Get("/api/v1/sources", h.GetSources)
-	r.Get("/api/v1/healthz", h.Healthz)
-	r.Get("/api/v1/readyz", h.Readyz)
+	// API Key Auth: protects all routes except /healthz and /readyz.
+	// Scoped via Group so /metrics above stays unauthenticated.
+	r.Group(func(r chi.Router) {
+		r.Use(mw.APIKeyAuth(cfg.APIKey))
+		r.Post("/api/v1/ingest", h.Ingest)
+		r.Get("/api/v1/sources", h.GetSources)
+		r.Get("/api/v1/healthz", h.Healthz)
+		r.Get("/api/v1/readyz", h.Readyz)
+	})
 
 	// 6. Start background PostgreSQL retention cleanup (runs every 24h)
 	go startRetentionCleanup(ctx, db)

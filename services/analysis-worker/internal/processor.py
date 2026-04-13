@@ -1,4 +1,5 @@
 import json
+import os
 import structlog
 from datetime import datetime
 from minio import Minio
@@ -45,6 +46,10 @@ class DataProcessor:
         self.pg = pg_pool
         self.adapter_registry = adapter_registry
         self.extractors: list[MetricExtractor] = extractors or []
+        # Bronze bucket name, shared with ingestion-api via .env / compose.
+        # Two services, one truth: if ingestion-api writes to a renamed
+        # bucket, the worker must read from the same one.
+        self.bronze_bucket = os.getenv("WORKER_BRONZE_BUCKET", "bronze")
         self._extraction_provenance: dict[str, str] = {
             e.name: e.version_hash
             for e in self.extractors
@@ -68,7 +73,7 @@ class DataProcessor:
         event_time = datetime.fromisoformat(event_time_str.replace('Z', '+00:00'))
 
         # --- 2. Fetch raw data (Bronze Layer) ---
-        response = self.minio.get_object("bronze", obj_key)
+        response = self.minio.get_object(self.bronze_bucket, obj_key)
         raw_content = json.loads(response.read().decode('utf-8'))
 
         # --- 3. Resolve source adapter ---

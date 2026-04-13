@@ -5,7 +5,22 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
+
+// counterValue reads the current value of a Prometheus counter for tests
+// that assert delta increments. Protected by t.Helper() so failures point
+// at the caller.
+func counterValue(t *testing.T, c prometheus.Counter) float64 {
+	t.Helper()
+	var m dto.Metric
+	if err := c.Write(&m); err != nil {
+		t.Fatalf("failed to read counter: %v", err)
+	}
+	return m.GetCounter().GetValue()
+}
 
 // --- Mock implementations ---
 
@@ -82,7 +97,7 @@ func (m *mockObjectStore) BucketExists(ctx context.Context, bucket string) (bool
 // --- Tests ---
 
 func TestIngestDocuments_EmptyInput(t *testing.T) {
-	svc := NewIngestionService(newMockDB(), newMockMinio())
+	svc := NewIngestionService(newMockDB(), newMockMinio(), "bronze")
 	_, err := svc.IngestDocuments(context.Background(), 1, nil)
 	if err == nil {
 		t.Fatal("expected error for empty document list")
@@ -94,7 +109,7 @@ func TestIngestDocuments_CreateJobFailure(t *testing.T) {
 	db.createJobFn = func(_ context.Context, _ int) (int, error) {
 		return 0, errors.New("db unavailable")
 	}
-	svc := NewIngestionService(db, newMockMinio())
+	svc := NewIngestionService(db, newMockMinio(), "bronze")
 	_, err := svc.IngestDocuments(context.Background(), 1, []Document{{Key: "a.json", Data: "{}"}})
 	if err == nil {
 		t.Fatal("expected error when job creation fails")
@@ -104,7 +119,7 @@ func TestIngestDocuments_CreateJobFailure(t *testing.T) {
 func TestIngestDocuments_AllSuccess(t *testing.T) {
 	db := newMockDB()
 	minio := newMockMinio()
-	svc := NewIngestionService(db, minio)
+	svc := NewIngestionService(db, minio, "bronze")
 
 	docs := []Document{
 		{Key: "doc-1.json", Data: `{"id":1}`},
@@ -154,7 +169,7 @@ func TestIngestDocuments_PartialFailure(t *testing.T) {
 		return nil
 	}
 
-	svc := NewIngestionService(db, minio)
+	svc := NewIngestionService(db, minio, "bronze")
 	docs := []Document{
 		{Key: "fail.json", Data: "{}"},
 		{Key: "ok.json", Data: "{}"},
@@ -190,7 +205,7 @@ func TestIngestDocuments_AllFailed(t *testing.T) {
 		return errors.New("storage unavailable")
 	}
 
-	svc := NewIngestionService(db, minio)
+	svc := NewIngestionService(db, minio, "bronze")
 	docs := []Document{
 		{Key: "a.json", Data: "{}"},
 		{Key: "b.json", Data: "{}"},
@@ -228,7 +243,7 @@ func TestIngestDocuments_DarkDataPrevention(t *testing.T) {
 		return nil
 	}
 
-	svc := NewIngestionService(db, minio)
+	svc := NewIngestionService(db, minio, "bronze")
 	docs := []Document{
 		{Key: "dark.json", Data: "{}"},
 		{Key: "light.json", Data: "{}"},
@@ -249,6 +264,60 @@ func TestIngestDocuments_DarkDataPrevention(t *testing.T) {
 
 	if result.Status != "completed_with_errors" {
 		t.Errorf("expected 'completed_with_errors', got %q", result.Status)
+	}
+}
+
+// TestIngestDocuments_StatusUpdateFailureDoesNotFailJob is the Phase 77
+// regression guard: when upload to bronze succeeds but the subsequent
+// PostgreSQL status update fails, the document is already live in MinIO
+// and the job must NOT be marked as failed or completed_with_errors.
+func TestIngestDocuments_StatusUpdateFailureDoesNotFailJob(t *testing.T) {
+	db := newMockDB()
+	minio := newMockMinio()
+
+	// Every UpdateDocumentStatus call targeting the "uploaded" status fails;
+	// the "failed" transition (used only on upload errors) still succeeds,
+	// so this isolates the exact semantic the fix protects.
+	db.updateDocStatusFn = func(_ context.Context, key, status string) error {
+		db.docStatuses[key] = status
+		if status == "uploaded" {
+			return errors.New("pg write timeout")
+		}
+		return nil
+	}
+
+	before := counterValue(t, StatusUpdateFailures)
+
+	svc := NewIngestionService(db, minio, "bronze")
+	docs := []Document{
+		{Key: "doc-a.json", Data: "{}"},
+		{Key: "doc-b.json", Data: "{}"},
+	}
+
+	result, err := svc.IngestDocuments(context.Background(), 1, docs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Status != "completed" {
+		t.Errorf("expected job status 'completed' despite status-update failures, got %q", result.Status)
+	}
+	if result.Accepted != 2 {
+		t.Errorf("expected 2 accepted (both uploaded to MinIO), got %d", result.Accepted)
+	}
+	if result.Failed != 0 {
+		t.Errorf("expected 0 failed, got %d", result.Failed)
+	}
+	if !slices.Contains(db.jobStatuses, "completed") {
+		t.Errorf("expected persisted job status 'completed', got %v", db.jobStatuses)
+	}
+	if len(minio.uploadedKeys) != 2 {
+		t.Errorf("expected both docs uploaded to bronze, got %v", minio.uploadedKeys)
+	}
+
+	after := counterValue(t, StatusUpdateFailures)
+	if got := after - before; got != 2 {
+		t.Errorf("expected StatusUpdateFailures counter to increment by 2, got %v", got)
 	}
 }
 
@@ -301,7 +370,7 @@ func TestJobStatusTransitions(t *testing.T) {
 				docs[i] = Document{Key: "doc.json", Data: "{}"}
 			}
 
-			result, err := NewIngestionService(db, minio).IngestDocuments(context.Background(), 1, docs)
+			result, err := NewIngestionService(db, minio, "bronze").IngestDocuments(context.Background(), 1, docs)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

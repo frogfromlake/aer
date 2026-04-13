@@ -6,8 +6,19 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 )
+
+// StatusUpdateFailures counts cases where a document was uploaded to the
+// bronze bucket but the subsequent PostgreSQL status update failed. These
+// documents are live in MinIO — the job must not be marked as failed. The
+// counter surfaces the inconsistency for operators so they can reconcile.
+var StatusUpdateFailures = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "ingestion_status_update_failures_total",
+	Help: "Documents uploaded to the bronze bucket whose PostgreSQL status update failed.",
+})
 
 // MetadataStore abstracts the PostgreSQL operations needed by IngestionService.
 type MetadataStore interface {
@@ -41,15 +52,21 @@ type IngestResult struct {
 
 // IngestionService orchestrates the data collection and storage processes.
 type IngestionService struct {
-	db    MetadataStore
-	minio ObjectStore
+	db     MetadataStore
+	minio  ObjectStore
+	bucket string
 }
 
 // NewIngestionService creates a new core service via Dependency Injection.
-func NewIngestionService(db MetadataStore, minio ObjectStore) *IngestionService {
+// bucket names the MinIO bronze bucket; empty string falls back to "bronze".
+func NewIngestionService(db MetadataStore, minio ObjectStore, bucket string) *IngestionService {
+	if bucket == "" {
+		bucket = "bronze"
+	}
 	return &IngestionService{
-		db:    db,
-		minio: minio,
+		db:     db,
+		minio:  minio,
+		bucket: bucket,
 	}
 }
 
@@ -67,7 +84,14 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 	slog.Info("Created new ingestion job", "job_id", jobID, "document_count", len(docs))
 
 	tracer := otel.Tracer("aer.ingestion")
-	errorCount := 0
+	// uploadFailures counts documents that never reached the bronze bucket
+	// (log-step failure or upload-step failure). Only this counter drives
+	// the terminal job status. statusUpdateFailures counts documents that
+	// were uploaded successfully but whose PostgreSQL row could not be
+	// flipped to "uploaded" — the data is live in MinIO, so the job is
+	// still a success. See Phase 77 for the contract.
+	uploadFailures := 0
+	statusUpdateFailures := 0
 
 	for _, doc := range docs {
 		ctxSpan, span := tracer.Start(ctx, "IngestDocument")
@@ -80,22 +104,25 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 				"key", doc.Key, "error", logErr)
 			span.RecordError(logErr)
 			span.End()
-			errorCount++
+			uploadFailures++
 			continue
 		}
 
 		// 2. Upload to MinIO (Bronze Layer)
-		uploadErr := s.minio.UploadJSON(ctxSpan, "bronze", doc.Key, doc.Data)
+		uploadErr := s.minio.UploadJSON(ctxSpan, s.bucket, doc.Key, doc.Data)
 		if uploadErr != nil {
 			slog.Error("Failed to upload to bronze", "key", doc.Key, "error", uploadErr)
 			span.RecordError(uploadErr)
-			errorCount++
+			uploadFailures++
 			_ = s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "failed")
 		} else {
 			updateErr := s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "uploaded")
 			if updateErr != nil {
-				slog.Error("Failed to update document status to uploaded", "key", doc.Key, "error", updateErr)
-				errorCount++
+				slog.Error("Document uploaded to bronze but PostgreSQL status update failed. Job continues; operator must reconcile.",
+					"op", "status_update", "key", doc.Key, "error", updateErr)
+				span.RecordError(updateErr)
+				statusUpdateFailures++
+				StatusUpdateFailures.Inc()
 			} else {
 				slog.Info("Successfully ingested document", "key", doc.Key, "trace_id", traceID)
 			}
@@ -104,10 +131,12 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 		span.End()
 	}
 
-	// Determine final job status
+	// Terminal job status is derived solely from uploadFailures: a document
+	// that is live in MinIO counts as accepted even if its PostgreSQL row
+	// lags behind.
 	finalStatus := "completed"
-	if errorCount > 0 {
-		if errorCount == len(docs) {
+	if uploadFailures > 0 {
+		if uploadFailures == len(docs) {
 			finalStatus = "failed"
 		} else {
 			finalStatus = "completed_with_errors"
@@ -118,13 +147,15 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 		slog.Error("Failed to update job status", "job_id", jobID, "error", err)
 	} else {
 		slog.Info("Ingestion job finished", "job_id", jobID, "status", finalStatus,
-			"errors", errorCount, "total", len(docs))
+			"upload_failures", uploadFailures,
+			"status_update_failures", statusUpdateFailures,
+			"total", len(docs))
 	}
 
 	return &IngestResult{
 		JobID:    jobID,
-		Accepted: len(docs) - errorCount,
-		Failed:   errorCount,
+		Accepted: len(docs) - uploadFailures,
+		Failed:   uploadFailures,
 		Status:   finalStatus,
 	}, nil
 }
@@ -145,12 +176,12 @@ func (s *IngestionService) CheckPostgres(ctx context.Context) error {
 func (s *IngestionService) CheckMinio(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	exists, err := s.minio.BucketExists(ctx, "bronze")
+	exists, err := s.minio.BucketExists(ctx, s.bucket)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("bronze bucket not found")
+		return fmt.Errorf("bronze bucket %q not found", s.bucket)
 	}
 	return nil
 }
