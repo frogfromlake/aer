@@ -210,8 +210,12 @@ func TestGetMetricProvenance_Returns500WhenValidationStatusQueryFails(t *testing
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
 	}
-	if _, ok := resp.(GetMetricProvenance500JSONResponse); !ok {
+	got, ok := resp.(GetMetricProvenance500JSONResponse)
+	if !ok {
 		t.Fatalf("expected 500 response, got %T", resp)
+	}
+	if got.Message != genericInternalError {
+		t.Errorf("expected generic internal error message, got %q", got.Message)
 	}
 }
 
@@ -228,8 +232,12 @@ func TestGetMetricProvenance_Returns500WhenCulturalContextQueryFails(t *testing.
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
 	}
-	if _, ok := resp.(GetMetricProvenance500JSONResponse); !ok {
+	got, ok := resp.(GetMetricProvenance500JSONResponse)
+	if !ok {
 		t.Fatalf("expected 500 response, got %T", resp)
+	}
+	if got.Message != genericInternalError {
+		t.Errorf("expected generic internal error message, got %q", got.Message)
 	}
 }
 

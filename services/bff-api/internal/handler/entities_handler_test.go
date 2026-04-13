@@ -132,8 +132,12 @@ func TestGetEntities_Returns500OnStorageError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
 	}
-	if _, ok := resp.(GetEntities500JSONResponse); !ok {
+	got, ok := resp.(GetEntities500JSONResponse)
+	if !ok {
 		t.Fatalf("expected GetEntities500JSONResponse, got %T", resp)
+	}
+	if got.Message != genericInternalError {
+		t.Errorf("expected generic internal error message, got %q", got.Message)
 	}
 }
 
@@ -280,8 +284,12 @@ func TestGetLanguages_Returns500OnStorageError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
 	}
-	if _, ok := resp.(GetLanguages500JSONResponse); !ok {
+	got, ok := resp.(GetLanguages500JSONResponse)
+	if !ok {
 		t.Fatalf("expected GetLanguages500JSONResponse, got %T", resp)
+	}
+	if got.Message != genericInternalError {
+		t.Errorf("expected generic internal error message, got %q", got.Message)
 	}
 }
 

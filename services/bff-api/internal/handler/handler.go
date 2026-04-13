@@ -2,11 +2,18 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
+
+// genericInternalError is the opaque message returned to clients on any
+// internal failure. Real error details are logged server-side only, so
+// internal state (driver errors, SQL fragments, stack hints) never leaks
+// across the trust boundary.
+const genericInternalError = "internal server error"
 
 // resolutionFromParam maps the OpenAPI-validated query enum onto the
 // internal storage.Resolution constant. Unknown values fall back to the
@@ -64,7 +71,8 @@ func (s *Server) GetHealthz(_ context.Context, _ GetHealthzRequestObject) (GetHe
 // GetReadyz handles GET /readyz — readiness probe, returns 200 only if ClickHouse is reachable.
 func (s *Server) GetReadyz(ctx context.Context, _ GetReadyzRequestObject) (GetReadyzResponseObject, error) {
 	if err := s.db.Ping(ctx); err != nil {
-		return GetReadyz503JSONResponse{"clickhouse": err.Error()}, nil
+		slog.Error("handler failure", "op", "GetReadyz", "error", err)
+		return GetReadyz503JSONResponse{"clickhouse": "unavailable"}, nil
 	}
 	return GetReadyz200JSONResponse{"clickhouse": "ok"}, nil
 }
@@ -87,7 +95,8 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 
 		baselineExists, err := s.db.CheckBaselineExists(ctx, *request.Params.MetricName, request.Params.Source)
 		if err != nil {
-			return GetMetrics500JSONResponse{Message: err.Error()}, nil
+			slog.Error("handler failure", "op", "GetMetrics.CheckBaselineExists", "error", err)
+			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 		}
 		if !baselineExists {
 			return GetMetrics400JSONResponse{Message: "no baseline data exists for the requested metric and source; compute baselines before requesting z-score normalization"}, nil
@@ -95,7 +104,8 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 
 		equivExists, err := s.db.CheckEquivalenceExists(ctx, *request.Params.MetricName)
 		if err != nil {
-			return GetMetrics500JSONResponse{Message: err.Error()}, nil
+			slog.Error("handler failure", "op", "GetMetrics.CheckEquivalenceExists", "error", err)
+			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 		}
 		if !equivExists {
 			return GetMetrics400JSONResponse{Message: "no equivalence entry with at least deviation-level equivalence exists for this metric; cross-cultural comparability has not been validated"}, nil
@@ -112,7 +122,8 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
 	}
 	if err != nil {
-		return GetMetrics500JSONResponse{Message: err.Error()}, nil
+		slog.Error("handler failure", "op", "GetMetrics", "error", err)
+		return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	var response GetMetrics200JSONResponse
@@ -147,7 +158,8 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 
 	data, err := s.db.GetEntities(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.Label, limit)
 	if err != nil {
-		return GetEntities500JSONResponse{Message: err.Error()}, nil
+		slog.Error("handler failure", "op", "GetEntities", "error", err)
+		return GetEntities500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	var response GetEntities200JSONResponse
@@ -182,7 +194,8 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 
 	data, err := s.db.GetLanguageDetections(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.Language, limit)
 	if err != nil {
-		return GetLanguages500JSONResponse{Message: err.Error()}, nil
+		slog.Error("handler failure", "op", "GetLanguages", "error", err)
+		return GetLanguages500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	var response GetLanguages200JSONResponse
@@ -216,11 +229,13 @@ func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProve
 
 	status, err := s.db.GetMetricValidationStatus(ctx, request.MetricName)
 	if err != nil {
-		return GetMetricProvenance500JSONResponse{Message: err.Error()}, nil
+		slog.Error("handler failure", "op", "GetMetricProvenance.GetMetricValidationStatus", "error", err)
+		return GetMetricProvenance500JSONResponse{Message: genericInternalError}, nil
 	}
 	notes, err := s.db.GetMetricCulturalContextNotes(ctx, request.MetricName)
 	if err != nil {
-		return GetMetricProvenance500JSONResponse{Message: err.Error()}, nil
+		slog.Error("handler failure", "op", "GetMetricProvenance.GetMetricCulturalContextNotes", "error", err)
+		return GetMetricProvenance500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	resp := GetMetricProvenance200JSONResponse{
@@ -260,7 +275,8 @@ func (s *Server) GetSources(_ context.Context, _ GetSourcesRequestObject) (GetSo
 func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error) {
 	rows, err := s.db.GetAvailableMetrics(ctx, request.Params.StartDate, request.Params.EndDate)
 	if err != nil {
-		return GetMetricsAvailable500JSONResponse{Message: err.Error()}, nil
+		slog.Error("handler failure", "op", "GetMetricsAvailable", "error", err)
+		return GetMetricsAvailable500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	var response GetMetricsAvailable200JSONResponse

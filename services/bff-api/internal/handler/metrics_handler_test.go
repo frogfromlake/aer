@@ -148,8 +148,8 @@ func TestGetReadyz_Returns503WhenPingFails(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected GetReadyz503JSONResponse, got %T", resp)
 	}
-	if got["clickhouse"] == "" {
-		t.Error("expected non-empty clickhouse error message in 503 response")
+	if got["clickhouse"] != "unavailable" {
+		t.Errorf("expected opaque clickhouse=unavailable, got %q", got["clickhouse"])
 	}
 }
 
@@ -226,8 +226,8 @@ func TestGetMetrics_Returns500OnStorageError(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected GetMetrics500JSONResponse, got %T", resp)
 	}
-	if got.Message == "" {
-		t.Error("expected non-empty error message in 500 response")
+	if got.Message != genericInternalError {
+		t.Errorf("expected generic internal error message, got %q", got.Message)
 	}
 }
 
