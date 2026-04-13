@@ -52,5 +52,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("INGESTION_API_KEY must be set")
+	}
+	if cfg.DBUrl == "" {
+		return nil, fmt.Errorf("DB_URL must be set (contains POSTGRES_PASSWORD)")
+	}
+
 	return &cfg, nil
 }

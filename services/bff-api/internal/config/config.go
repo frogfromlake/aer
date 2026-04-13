@@ -60,5 +60,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("BFF_API_KEY must be set")
+	}
+	if cfg.ClickHousePassword == "" {
+		return nil, fmt.Errorf("CLICKHOUSE_PASSWORD must be set")
+	}
+
 	return &cfg, nil
 }
