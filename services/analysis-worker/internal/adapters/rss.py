@@ -1,3 +1,4 @@
+import time
 import structlog
 from datetime import datetime
 from typing import Optional
@@ -9,6 +10,8 @@ from internal.models.discourse import DiscourseContext
 from internal.storage.postgres_client import get_source_classification
 
 logger = structlog.get_logger()
+
+CLASSIFICATION_CACHE_TTL_SECONDS = 60.0
 
 
 class RssMeta(SilverMeta):
@@ -32,10 +35,23 @@ class RssAdapter:
     the source_classifications table to populate DiscourseContext in
     RssMeta. If no pool or no classification exists, discourse_context
     is None and the pipeline continues without failure.
+
+    Classification lookups are cached per source with a 60s TTL to avoid
+    an N+1 query on high-throughput ingestion batches (Phase 76).
     """
 
     def __init__(self, pg_pool: ThreadedConnectionPool | None = None):
         self._pg_pool = pg_pool
+        self._classification_cache: dict[str, tuple[dict | None, float]] = {}
+
+    def _get_classification_cached(self, source: str) -> dict | None:
+        now = time.monotonic()
+        entry = self._classification_cache.get(source)
+        if entry is not None and now - entry[1] < CLASSIFICATION_CACHE_TTL_SECONDS:
+            return entry[0]
+        classification = get_source_classification(self._pg_pool, source)
+        self._classification_cache[source] = (classification, now)
+        return classification
 
     def harmonize(self, raw: dict, event_time: datetime, bronze_object_key: str) -> tuple[SilverCore, RssMeta]:
         source = raw.get("source", "")
@@ -49,7 +65,7 @@ class RssAdapter:
             source_type="rss",
             raw_text=raw_text,
             cleaned_text=cleaned_text,
-            language="de",  # Probe 0: German institutional feeds
+            language="und",
             timestamp=event_time,
             url=raw.get("url", raw.get("link", "")),
             schema_version=2,
@@ -59,7 +75,7 @@ class RssAdapter:
         discourse_context = None
         if self._pg_pool is not None:
             try:
-                classification = get_source_classification(self._pg_pool, source)
+                classification = self._get_classification_cached(source)
                 if classification:
                     discourse_context = DiscourseContext(
                         primary_function=classification["primary_function"],

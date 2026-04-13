@@ -14,6 +14,22 @@ from internal import silver as _silver_module
 logger = structlog.get_logger()
 
 
+def _derive_discourse_function(meta) -> str:
+    """Return the discourse primary_function from a SilverMeta, or "".
+
+    This is the single sanctioned point where Gold-row assembly reads
+    `SilverMeta`. Isolating it here keeps the `MetricExtractor` protocol
+    meta-agnostic (Phase 76) and gives a clear extension point should
+    further meta-derived Gold columns appear.
+    """
+    if meta is None:
+        return ""
+    ctx = getattr(meta, "discourse_context", None)
+    if ctx is None:
+        return ""
+    return ctx.primary_function or ""
+
+
 class DataProcessor:
     """
     Source-agnostic data processor for the AĒR Medallion Architecture.
@@ -110,10 +126,7 @@ class DataProcessor:
                     error=str(e),
                 )
 
-        # Extract discourse function from meta for Gold layer aggregation (Phase 62)
-        discourse_fn = ""
-        if meta and hasattr(meta, 'discourse_context') and meta.discourse_context:
-            discourse_fn = meta.discourse_context.primary_function or ""
+        discourse_fn = _derive_discourse_function(meta)
 
         # Phase 74: monotone ingestion_version derived from the deterministic
         # MinIO event time lets ReplacingMergeTree collapse duplicate rows from

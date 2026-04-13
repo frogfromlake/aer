@@ -38,7 +38,7 @@ def test_rss_adapter_happy_path(mock_minio, mock_clickhouse, mock_pg_pool, adapt
     assert core["source_type"] == "rss"
     assert core["source"] == "tagesschau"
     assert core["schema_version"] == 2
-    assert core["language"] == "de"
+    assert core["language"] == "und"
     assert core["url"] == "https://www.tagesschau.de/inland/klimaschutz-2026"
     assert core["raw_text"] == "Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet."
     assert core["cleaned_text"] == core["raw_text"]

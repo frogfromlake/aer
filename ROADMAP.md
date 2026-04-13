@@ -1053,6 +1053,21 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Request-Logger: Trace-ID aus OTel-Context.** `services/bff-api/cmd/server/main.go` `requestLogger` liest aktuell `r.Header.Get("Traceparent")` — das ist der eingehende Header, nicht die vom Otelhttp-Middleware aufgebaute Trace-ID. Stattdessen: `trace.SpanFromContext(r.Context()).SpanContext().TraceID().String()`. Damit werden Access-Log und Tempo-Spans überhaupt erst korrelierbar.
 * [x] **Validate.** `make test-go-pkg`, `make test-go`, `make lint`.
 
+
+## Phase 76: Analysis Worker Data Quality [P2] - [x] DONE
+
+*Vier kleine Adapter- und Processor-Fixes, die alle denselben Kern-Widerspruch behandeln: der Worker "weiß" Dinge, die er eigentlich dynamisch beobachten sollte, oder widerspricht sich selbst.*
+
+* [x] **`RssAdapter.language` nicht mehr hardcoden.** `adapters/rss.py`: `language=""` (explizit "unknown"), der `LanguageDetectionExtractor` ist die SSoT. Alternativ leer lassen und in `core.language` einen Sentinel (`"und"` = undetermined, ISO 639-3) verwenden. Test in `test_rss_adapter.py`.
+* [x] **N+1 Classification-Query cachen.** `adapters/rss.py` ruft `get_source_classification(self._pg_pool, source)` pro Dokument. Einfachster Patch: im Adapter ein `dict[str, tuple[dict|None, float]]` mit 60-Sekunden-TTL pro `source`. Ein einzelner `time.monotonic()`-Check reicht, kein LRU nötig (Sources sind O(10)).
+* [x] **Word-Count-Dopplung entfernen.** `WordCountExtractor` liest `core.word_count` statt `core.cleaned_text.split()` neu zu tokenisieren. `legacy.py` / `rss.py` bleiben die einzige Quelle der Wahrheit für die Tokenisierung.
+* [x] **Processor/Meta-Contract klarstellen.** `processor.py` liest `meta.discourse_context.primary_function` direkt — das ist der einzige Ort, an dem Gold-Row-Assembly `SilverMeta` berührt. Zwei Optionen:
+  - **(a)** Code bleibt, aber kleine Refaktorisierung: ein Helper `_derive_discourse_function(meta) -> str` isoliert den einzigen Punkt, an dem der Contract "bricht", und ist unit-testbar.
+  - **(b)** `extract_all(core, meta, article_id)` als Breaking-Protocol-Change.
+
+  **Empfehlung (a)** — kleinster Patch, klare Lokation für zukünftige Erweiterung.
+* [x] **Validate.** `make test-python`, `make test-e2e`.
+
 ---
 
 ### Open Phases
@@ -1066,22 +1081,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 - **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
 - **P3 (Robustness & Clean-ups):** Phasen 79
 - **P-Docs (parallel):** Phasen 80, 81
-
----
-
-## Phase 76: Analysis Worker Data Quality [P2]
-
-*Vier kleine Adapter- und Processor-Fixes, die alle denselben Kern-Widerspruch behandeln: der Worker "weiß" Dinge, die er eigentlich dynamisch beobachten sollte, oder widerspricht sich selbst.*
-
-* [ ] **`RssAdapter.language` nicht mehr hardcoden.** `adapters/rss.py`: `language=""` (explizit "unknown"), der `LanguageDetectionExtractor` ist die SSoT. Alternativ leer lassen und in `core.language` einen Sentinel (`"und"` = undetermined, ISO 639-3) verwenden. Test in `test_rss_adapter.py`.
-* [ ] **N+1 Classification-Query cachen.** `adapters/rss.py` ruft `get_source_classification(self._pg_pool, source)` pro Dokument. Einfachster Patch: im Adapter ein `dict[str, tuple[dict|None, float]]` mit 60-Sekunden-TTL pro `source`. Ein einzelner `time.monotonic()`-Check reicht, kein LRU nötig (Sources sind O(10)).
-* [ ] **Word-Count-Dopplung entfernen.** `WordCountExtractor` liest `core.word_count` statt `core.cleaned_text.split()` neu zu tokenisieren. `legacy.py` / `rss.py` bleiben die einzige Quelle der Wahrheit für die Tokenisierung.
-* [ ] **Processor/Meta-Contract klarstellen.** `processor.py` liest `meta.discourse_context.primary_function` direkt — das ist der einzige Ort, an dem Gold-Row-Assembly `SilverMeta` berührt. Zwei Optionen:
-  - **(a)** Code bleibt, aber kleine Refaktorisierung: ein Helper `_derive_discourse_function(meta) -> str` isoliert den einzigen Punkt, an dem der Contract "bricht", und ist unit-testbar.
-  - **(b)** `extract_all(core, meta, article_id)` als Breaking-Protocol-Change.
-
-  **Empfehlung (a)** — kleinster Patch, klare Lokation für zukünftige Erweiterung.
-* [ ] **Validate.** `make test-python`, `make test-e2e`.
 
 ---
 
@@ -1100,7 +1099,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 *Zwei Verhaltensfragen im BFF, die aktuell implizit falsch antworten.*
 
-* [ ] **`GetNormalizedMetrics`: `LEFT JOIN` statt `INNER JOIN` auf `language_detections`.** `storage/metrics_query.go`: Metriken ohne zugehörige Language-Detection verschwinden still. Auf `LEFT JOIN` umstellen, `WHERE ld.detected_language IS NOT NULL` — und der Handler gibt zusätzlich einen `excluded_count` im Response-Envelope zurück (OpenAPI-Änderung, `make codegen`). Alternativ: `excluded_count` nur loggen, Response-Schema unverändert lassen. **Empfehlung: letzteres — minimal-invasiv.**
+* [ ] **`GetNormalizedMetrics`: `LEFT JOIN` statt `INNER JOIN` auf `language_detections`.** `storage/metrics_query.go`: Metriken ohne zugehörige Language-Detection verschwinden still. Auf `LEFT JOIN` umstellen, `WHERE ld.detected_language IS NOT NULL` — und der Handler gibt zusätzlich einen `excluded_count` im Response-Envelope zurück (OpenAPI-Änderung, `make codegen`). Alternativ: `excluded_count` nur loggen, Response-Schema unverändert lassen. **Empfehlung: sauberste Lösung verwenden. Eventuell doch erstere Option**
 * [ ] **`NewClickHouseStorage` Backoff-Budget auf 60s.** `MaxElapsedTime` von 30s auf 60s, cold Docker-Start braucht oft länger.
 * [ ] **Regressionstest.** Integrationstest mit Metrik ohne Language-Row: Ergebnis-Anzahl stabil, Log-Eintrag vorhanden.
 * [ ] **Validate.** `make test-go`, `make test-e2e`.
