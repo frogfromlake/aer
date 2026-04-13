@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
 
 	"github.com/frogfromlake/aer/pkg/logger"
@@ -170,17 +171,27 @@ func rateLimiter(limiter *rate.Limiter) func(http.Handler) http.Handler {
 }
 
 // requestLogger is a structured access log middleware using slog.
+//
+// The trace_id is read from the active OpenTelemetry span rather than the
+// incoming Traceparent header. The otelhttp middleware runs earlier in the
+// stack and establishes the server-side span; its TraceID is what Tempo
+// indexes, so using the span's ID is the only way to make access logs and
+// Tempo traces correlatable.
 func requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		next.ServeHTTP(ww, r)
+		traceID := ""
+		if sc := trace.SpanFromContext(r.Context()).SpanContext(); sc.IsValid() {
+			traceID = sc.TraceID().String()
+		}
 		slog.Info("http request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", ww.Status(),
 			"duration_ms", time.Since(start).Milliseconds(),
-			"trace_id", r.Header.Get("Traceparent"),
+			"trace_id", traceID,
 		)
 	})
 }
