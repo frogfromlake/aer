@@ -1077,6 +1077,15 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Test**: `postgres_test.go` Regression — Status-Update-Failure darf Job-Status nicht kippen. *(Regression lives in `internal/core/service_test.go::TestIngestDocuments_StatusUpdateFailureDoesNotFailJob` — pure unit test on the core contract, no PG container needed.)*
 * [x] **Validate.** `make test-go`, `make test-e2e`.
 
+## Phase 78: BFF Query Robustness [P2] - [x] DONE
+
+*Zwei Verhaltensfragen im BFF, die aktuell implizit falsch antworten.*
+
+* [x] **`GetNormalizedMetrics`: `LEFT JOIN` statt `INNER JOIN` auf `language_detections`.** `storage/metrics_query.go`: Metriken ohne zugehörige Language-Detection verschwinden still. Auf `LEFT JOIN` umstellen, `WHERE ld.detected_language IS NOT NULL` — und der Handler gibt zusätzlich einen `excluded_count` im Response-Envelope zurück (OpenAPI-Änderung, `make codegen`). Alternativ: `excluded_count` nur loggen, Response-Schema unverändert lassen. **Empfehlung: sauberste Lösung verwenden. Entscheidung für Option 1 wurde getroffen**
+* [x] **`NewClickHouseStorage` Backoff-Budget auf 60s.** `MaxElapsedTime` von 30s auf 60s, cold Docker-Start braucht oft länger.
+* [x] **Regressionstest.** Integrationstest mit Metrik ohne Language-Row: Ergebnis-Anzahl stabil, Log-Eintrag vorhanden.
+* [x] **Validate.** `make test-go`, `make test-e2e`.
+
 ---
 
 ### Open Phases
@@ -1090,17 +1099,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 - **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
 - **P3 (Robustness & Clean-ups):** Phasen 79
 - **P-Docs (parallel):** Phasen 80, 81
-
----
-
-## Phase 78: BFF Query Robustness [P2]
-
-*Zwei Verhaltensfragen im BFF, die aktuell implizit falsch antworten.*
-
-* [ ] **`GetNormalizedMetrics`: `LEFT JOIN` statt `INNER JOIN` auf `language_detections`.** `storage/metrics_query.go`: Metriken ohne zugehörige Language-Detection verschwinden still. Auf `LEFT JOIN` umstellen, `WHERE ld.detected_language IS NOT NULL` — und der Handler gibt zusätzlich einen `excluded_count` im Response-Envelope zurück (OpenAPI-Änderung, `make codegen`). Alternativ: `excluded_count` nur loggen, Response-Schema unverändert lassen. **Empfehlung: sauberste Lösung verwenden. Eventuell doch erstere Option**
-* [ ] **`NewClickHouseStorage` Backoff-Budget auf 60s.** `MaxElapsedTime` von 30s auf 60s, cold Docker-Start braucht oft länger.
-* [ ] **Regressionstest.** Integrationstest mit Metrik ohne Language-Row: Ergebnis-Anzahl stabil, Log-Eintrag vorhanden.
-* [ ] **Validate.** `make test-go`, `make test-e2e`.
 
 ---
 

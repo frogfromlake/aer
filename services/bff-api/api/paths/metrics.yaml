@@ -11,13 +11,11 @@ get:
     - $ref: '../parameters/resolution.yaml'
   responses:
     '200':
-      description: A list of time-series data points.
+      description: Envelope containing the time-series data points and query metadata.
       content:
         application/json:
           schema:
-            type: array
-            items:
-              $ref: '../schemas/MetricDataPoint.yaml'
+            $ref: '../schemas/MetricsResponse.yaml'
     '400':
       description: Missing required parameters.
       content:

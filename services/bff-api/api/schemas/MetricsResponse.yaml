@@ -1,0 +1,21 @@
+type: object
+required:
+  - data
+  - excludedCount
+properties:
+  data:
+    type: array
+    description: The aggregated time-series data points for the requested window.
+    items:
+      $ref: './MetricDataPoint.yaml'
+  excludedCount:
+    type: integer
+    format: int64
+    minimum: 0
+    description: >
+      Number of source rows that were dropped from the aggregation because
+      their article had no matching language detection. Always 0 for raw
+      (non-normalized) queries; may be non-zero for `normalization=zscore`,
+      where the language-scoped baseline join requires a detected language.
+      A non-zero value surfaces data-quality gaps without altering the
+      aggregated payload.

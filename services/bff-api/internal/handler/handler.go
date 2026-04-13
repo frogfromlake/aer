@@ -41,7 +41,7 @@ func resolutionFromParam(p *GetMetricsParamsResolution) storage.Resolution {
 type Store interface {
 	Ping(ctx context.Context) error
 	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
-	GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
+	GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
@@ -115,9 +115,10 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	resolution := resolutionFromParam(request.Params.Resolution)
 
 	var data []storage.MetricRow
+	var excludedCount int64
 	var err error
 	if useZscore {
-		data, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
+		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
 	} else {
 		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
 	}
@@ -126,9 +127,14 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	var response GetMetrics200JSONResponse
+	points := make([]struct {
+		MetricName string    `json:"metricName"`
+		Source     string    `json:"source"`
+		Timestamp  time.Time `json:"timestamp"`
+		Value      float64   `json:"value"`
+	}, 0, len(data))
 	for _, d := range data {
-		response = append(response, struct {
+		points = append(points, struct {
 			MetricName string    `json:"metricName"`
 			Source     string    `json:"source"`
 			Timestamp  time.Time `json:"timestamp"`
@@ -141,7 +147,10 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		})
 	}
 
-	return response, nil
+	return GetMetrics200JSONResponse{
+		Data:          points,
+		ExcludedCount: excludedCount,
+	}, nil
 }
 
 // GetEntities handles GET /entities — returns aggregated named entities.

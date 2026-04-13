@@ -994,18 +994,24 @@ type GetMetricsResponseObject interface {
 	VisitGetMetricsResponse(w http.ResponseWriter) error
 }
 
-type GetMetrics200JSONResponse []struct {
-	// MetricName The name of the metric (e.g., "word_count", "sentiment_score").
-	MetricName string `json:"metricName"`
+type GetMetrics200JSONResponse struct {
+	// Data The aggregated time-series data points for the requested window.
+	Data []struct {
+		// MetricName The name of the metric (e.g., "word_count", "sentiment_score").
+		MetricName string `json:"metricName"`
 
-	// Source The data source that produced this metric (e.g., "tagesschau", "bundesregierung").
-	Source string `json:"source"`
+		// Source The data source that produced this metric (e.g., "tagesschau", "bundesregierung").
+		Source string `json:"source"`
 
-	// Timestamp The UTC timestamp of the aggregation interval.
-	Timestamp time.Time `json:"timestamp"`
+		// Timestamp The UTC timestamp of the aggregation interval.
+		Timestamp time.Time `json:"timestamp"`
 
-	// Value The aggregated sociological metric value.
-	Value float64 `json:"value"`
+		// Value The aggregated sociological metric value.
+		Value float64 `json:"value"`
+	} `json:"data"`
+
+	// ExcludedCount Number of source rows that were dropped from the aggregation because their article had no matching language detection. Always 0 for raw (non-normalized) queries; may be non-zero for `normalization=zscore`, where the language-scoped baseline join requires a detected language. A non-zero value surfaces data-quality gaps without altering the aggregated payload.
+	ExcludedCount int64 `json:"excludedCount"`
 }
 
 func (response GetMetrics200JSONResponse) VisitGetMetricsResponse(w http.ResponseWriter) error {

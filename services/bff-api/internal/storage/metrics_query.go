@@ -334,11 +334,52 @@ func (s *ClickHouseStorage) CheckEquivalenceExists(ctx context.Context, metricNa
 	return len(result) > 0 && result[0].Cnt > 0, nil
 }
 
-// GetNormalizedMetrics retrieves z-score normalized time-series data.
-// It joins metrics with language_detections (rank=1) to resolve language,
-// then with metric_baselines to compute (value - baseline_value) / baseline_std.
-func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, error) {
-	var results []MetricRow
+// GetNormalizedMetrics retrieves z-score normalized time-series data and the
+// count of source rows dropped because their article lacks a language detection.
+//
+// Metrics are LEFT JOINed against language_detections (rank=1) so rows with no
+// detection can be counted and surfaced to the client as excludedCount instead
+// of vanishing silently. The subsequent INNER JOIN against metric_baselines
+// still excludes rows whose (source, language) pair has no baseline — those are
+// out of scope for excludedCount because the baseline-precondition gate in the
+// handler (CheckBaselineExists) ensures the requested (metric, source) has at
+// least one baseline before this query runs.
+//
+// The `SETTINGS join_use_nulls = 1` clause makes LEFT-JOIN misses produce true
+// NULLs instead of ClickHouse's default zero-values, so `IS NULL` / `IS NOT NULL`
+// discriminate correctly regardless of the detected_language string domain.
+func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
+	baseWhere := "m.timestamp >= $1 AND m.timestamp <= $2"
+	args := []any{start, end}
+	argIdx := 3
+	if source != nil {
+		baseWhere += fmt.Sprintf(" AND m.source = $%d", argIdx)
+		args = append(args, *source)
+		argIdx++
+	}
+	if metricName != nil {
+		baseWhere += fmt.Sprintf(" AND m.metric_name = $%d", argIdx)
+		args = append(args, *metricName)
+	}
+
+	// Excluded-count query: source rows in-window with no matching language detection.
+	excludedQuery := `
+		SELECT count() AS Cnt
+		FROM aer_gold.metrics AS m
+		LEFT JOIN aer_gold.language_detections AS ld
+			ON m.article_id = ld.article_id AND ld.rank = 1
+		WHERE ` + baseWhere + ` AND ld.detected_language IS NULL
+		SETTINGS join_use_nulls = 1
+	`
+	var excludedResult []struct{ Cnt uint64 }
+	if err := s.conn.Select(ctx, &excludedResult, excludedQuery, args...); err != nil {
+		slog.Error("Failed to count excluded normalized metrics", "error", err)
+		return nil, 0, err
+	}
+	var excluded int64
+	if len(excludedResult) > 0 {
+		excluded = int64(excludedResult[0].Cnt)
+	}
 
 	query := fmt.Sprintf(`
 		SELECT
@@ -347,39 +388,36 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 			m.source AS Source,
 			m.metric_name AS MetricName
 		FROM aer_gold.metrics AS m
-		INNER JOIN aer_gold.language_detections AS ld
+		LEFT JOIN aer_gold.language_detections AS ld
 			ON m.article_id = ld.article_id AND ld.rank = 1
 		INNER JOIN aer_gold.metric_baselines AS b
 			ON m.metric_name = b.metric_name
 			AND m.source = b.source
 			AND ld.detected_language = b.language
-		WHERE m.timestamp >= $1 AND m.timestamp <= $2
+		WHERE %s
+		  AND ld.detected_language IS NOT NULL
 		  AND b.baseline_std > 0
-	`, resolution.bucketExpr("m.timestamp"))
-	args := []any{start, end}
-	argIdx := 3
-
-	if source != nil {
-		query += fmt.Sprintf(" AND m.source = $%d", argIdx)
-		args = append(args, *source)
-		argIdx++
-	}
-	if metricName != nil {
-		query += fmt.Sprintf(" AND m.metric_name = $%d", argIdx)
-		args = append(args, *metricName)
-	}
-
-	query += fmt.Sprintf(`
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
-	`, s.rowLimit*resolution.rowLimitMultiplier())
+		SETTINGS join_use_nulls = 1
+	`, resolution.bucketExpr("m.timestamp"), baseWhere, s.rowLimit*resolution.rowLimitMultiplier())
 
-	err := s.conn.Select(ctx, &results, query, args...)
-	if err != nil {
+	var results []MetricRow
+	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
 		slog.Error("Failed to query normalized metrics from ClickHouse", "error", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return results, nil
+	if excluded > 0 {
+		slog.Warn("normalized metrics query excluded rows lacking language detection",
+			"excluded", excluded,
+			"start", start,
+			"end", end,
+			"source", source,
+			"metric", metricName,
+		)
+	}
+
+	return results, excluded, nil
 }

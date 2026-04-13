@@ -139,7 +139,7 @@ METRICS_STATUS=$(curl -sf \
     "${BFF_URL}/metrics?metricName=word_count&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || METRICS_STATUS="000"
 
 if [[ "$METRICS_STATUS" == "200" ]]; then
-    WC_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_wc.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    WC_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_wc.json')); print(len(d.get('data', [])) if isinstance(d, dict) else 0)" 2>/dev/null || echo "0")
     if [[ "$WC_COUNT" -gt 0 ]]; then
         log_ok "word_count metrics: $WC_COUNT data point(s)."
     else
@@ -161,13 +161,14 @@ SENTIMENT_STATUS=$(curl -sf \
     "${BFF_URL}/metrics?metricName=sentiment_score&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || SENTIMENT_STATUS="000"
 
 if [[ "$SENTIMENT_STATUS" == "200" ]]; then
-    SENT_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_sent.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    SENT_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_sent.json')); print(len(d.get('data', [])) if isinstance(d, dict) else 0)" 2>/dev/null || echo "0")
     if [[ "$SENT_COUNT" -gt 0 ]]; then
         # Verify values are within expected range [-1, 1]
         SENT_VALID=$(python3 -c "
 import json
 d = json.load(open('/tmp/aer_e2e_sent.json'))
-print('ok' if all(-1.0 <= p['value'] <= 1.0 for p in d) else 'out_of_range')
+points = d.get('data', []) if isinstance(d, dict) else []
+print('ok' if all(-1.0 <= p['value'] <= 1.0 for p in points) else 'out_of_range')
 " 2>/dev/null || echo "error")
         if [[ "$SENT_VALID" == "ok" ]]; then
             log_ok "sentiment_score metrics: $SENT_COUNT data point(s), all within [-1, 1]."
@@ -300,7 +301,7 @@ HOURLY_STATUS=$(curl -sf \
     "${BFF_URL}/metrics?resolution=hourly&metricName=word_count&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || HOURLY_STATUS="000"
 
 if [[ "$HOURLY_STATUS" == "200" ]]; then
-    HOURLY_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_hourly.json')); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    HOURLY_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_hourly.json')); print(len(d.get('data', [])) if isinstance(d, dict) else 0)" 2>/dev/null || echo "0")
     if [[ "$HOURLY_COUNT" -gt 0 ]]; then
         log_ok "metrics?resolution=hourly: $HOURLY_COUNT data point(s)."
     else

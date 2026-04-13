@@ -425,12 +425,15 @@ func TestGetNormalizedMetrics(t *testing.T) {
 	start := now.Add(-2 * time.Hour)
 	end := now
 
-	results, err := store.GetNormalizedMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
+	results, excluded, err := store.GetNormalizedMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if excluded != 0 {
+		t.Errorf("expected excluded=0 (every metric has a language detection), got %d", excluded)
 	}
 	// z-score = (180 - 150) / 30 = 1.0
 	if results[0].Value < 0.99 || results[0].Value > 1.01 {
@@ -596,12 +599,15 @@ func TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty(t *testing.T) {
 		t.Fatalf("failed to insert baseline: %v", err)
 	}
 
-	results, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 0 {
 		t.Fatalf("expected empty result when no baseline matches, got %d rows", len(results))
+	}
+	if excluded != 0 {
+		t.Errorf("expected excluded=0 (language detection present, only baseline missing), got %d", excluded)
 	}
 }
 
@@ -628,12 +634,65 @@ func TestGetNormalizedMetrics_ZeroStdBaselineFiltered(t *testing.T) {
 		t.Fatalf("insert baseline: %v", err)
 	}
 
-	results, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	results, _, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 0 {
 		t.Fatalf("expected zero-std baselines to be filtered, got %d rows", len(results))
+	}
+}
+
+// TestGetNormalizedMetrics_MissingLanguageDetectionIsCounted verifies the
+// Phase 78 contract: metric rows whose article has no matching language
+// detection must not silently disappear. The aggregated result must remain
+// stable for rows that do have detections, and the excluded count must
+// reflect the number of source rows that were dropped by the LEFT JOIN.
+func TestGetNormalizedMetrics_MissingLanguageDetectionIsCounted(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// Row A: has language detection + matching baseline — should be aggregated.
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-with-lang"); err != nil {
+		t.Fatalf("insert metric A: %v", err)
+	}
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
+		now.Add(-1*time.Hour), "tagesschau", "art-with-lang", "de", 0.99, 1); err != nil {
+		t.Fatalf("insert language detection: %v", err)
+	}
+
+	// Row B: metric row but NO language detection for this article — must be counted as excluded.
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		now.Add(-45*time.Minute), 210.0, "tagesschau", "word_count", "art-no-lang"); err != nil {
+		t.Fatalf("insert metric B: %v", err)
+	}
+
+	// Baseline for (word_count, tagesschau, de).
+	if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
+		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
+		VALUES ('word_count', 'tagesschau', 'de', 150.0, 30.0, ?, ?, 100, ?)`,
+		now.Add(-30*24*time.Hour), now, now); err != nil {
+		t.Fatalf("insert baseline: %v", err)
+	}
+
+	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Row A survives the join (one bucket, z-score = (180 - 150)/30 = 1.0).
+	if len(results) != 1 {
+		t.Fatalf("expected 1 aggregated bucket from the row with a language detection, got %d", len(results))
+	}
+	if results[0].Value < 0.99 || results[0].Value > 1.01 {
+		t.Errorf("expected zscore ~1.0 for surviving row, got %v", results[0].Value)
+	}
+
+	// Row B is excluded and surfaced through excluded count.
+	if excluded != 1 {
+		t.Errorf("expected excluded=1 for the row without a language detection, got %d", excluded)
 	}
 }
 

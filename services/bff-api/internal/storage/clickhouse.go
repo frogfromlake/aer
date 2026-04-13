@@ -53,7 +53,7 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, 
 
 	conn, err := backoff.Retry(ctx, operation,
 		backoff.WithBackOff(backoff.NewExponentialBackOff()),
-		backoff.WithMaxElapsedTime(30*time.Second),
+		backoff.WithMaxElapsedTime(60*time.Second),
 		backoff.WithNotify(notify),
 	)
 	if err != nil {

@@ -16,8 +16,9 @@ type mockStore struct {
 	pingErr    error
 	metrics    []storage.MetricRow
 	metricsErr error
-	normalizedMetrics    []storage.MetricRow
-	normalizedMetricsErr error
+	normalizedMetrics        []storage.MetricRow
+	normalizedMetricsExcluded int64
+	normalizedMetricsErr     error
 	baselineExists       bool
 	baselineExistsErr    error
 	equivalenceExists    bool
@@ -56,13 +57,13 @@ func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, source, 
 	return m.metrics, m.metricsErr
 }
 
-func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
+func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSource = source
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
-	return m.normalizedMetrics, m.normalizedMetricsErr
+	return m.normalizedMetrics, m.normalizedMetricsExcluded, m.normalizedMetricsErr
 }
 
 func (m *mockStore) CheckBaselineExists(_ context.Context, _ string, _ *string) (bool, error) {
@@ -248,8 +249,11 @@ func TestGetMetrics_ReturnsEmptySliceOnNoData(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected GetMetrics200JSONResponse, got %T", resp)
 	}
-	if len(got) != 0 {
-		t.Errorf("expected empty slice, got %d entries", len(got))
+	if len(got.Data) != 0 {
+		t.Errorf("expected empty data, got %d entries", len(got.Data))
+	}
+	if got.ExcludedCount != 0 {
+		t.Errorf("expected excludedCount=0 for empty raw response, got %d", got.ExcludedCount)
 	}
 }
 
@@ -275,20 +279,20 @@ func TestGetMetrics_MapsStorageRowsToResponse(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected GetMetrics200JSONResponse, got %T", resp)
 	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(got))
+	if len(got.Data) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(got.Data))
 	}
-	if !got[0].Timestamp.Equal(ts) {
-		t.Errorf("expected timestamp %v, got %v", ts, got[0].Timestamp)
+	if !got.Data[0].Timestamp.Equal(ts) {
+		t.Errorf("expected timestamp %v, got %v", ts, got.Data[0].Timestamp)
 	}
-	if got[0].Value != 42.5 {
-		t.Errorf("expected value 42.5, got %v", got[0].Value)
+	if got.Data[0].Value != 42.5 {
+		t.Errorf("expected value 42.5, got %v", got.Data[0].Value)
 	}
-	if got[0].Source != "tagesschau" {
-		t.Errorf("expected source tagesschau, got %q", got[0].Source)
+	if got.Data[0].Source != "tagesschau" {
+		t.Errorf("expected source tagesschau, got %q", got.Data[0].Source)
 	}
-	if got[0].MetricName != "word_count" {
-		t.Errorf("expected metricName word_count, got %q", got[0].MetricName)
+	if got.Data[0].MetricName != "word_count" {
+		t.Errorf("expected metricName word_count, got %q", got.Data[0].MetricName)
 	}
 }
 
@@ -453,11 +457,11 @@ func TestGetMetrics_ZscoreReturnsDataWhenGatePasses(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 200 when gate passes, got %T", resp)
 	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(got))
+	if len(got.Data) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(got.Data))
 	}
-	if got[0].Value != 1.5 {
-		t.Errorf("expected zscore value 1.5, got %v", got[0].Value)
+	if got.Data[0].Value != 1.5 {
+		t.Errorf("expected zscore value 1.5, got %v", got.Data[0].Value)
 	}
 }
 
@@ -547,8 +551,8 @@ func TestGetMetrics_RawNormalizationIsDefault(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 200, got %T", resp)
 	}
-	if len(got) != 1 || got[0].Value != 42.0 {
-		t.Errorf("expected raw value 42.0, got %v", got[0].Value)
+	if len(got.Data) != 1 || got.Data[0].Value != 42.0 {
+		t.Errorf("expected raw value 42.0, got %v", got)
 	}
 }
 
