@@ -45,7 +45,7 @@ See:
 
 ## Tiered Retention (Planned, Not Yet Active)
 
-WP-005 §5.4 proposes a tiered retention strategy in which raw 5-minute samples are kept short-term and progressively coarser pre-aggregated tables retain progressively longer history. The target tiers are documented in **Arc42 §8.8 (addendum)**.
+WP-005 §5.4 proposes a tiered retention strategy in which raw 5-minute samples are kept short-term and progressively coarser pre-aggregated tables retain progressively longer history. The target tiers are documented in **Arc42 §8.8.1**.
 
 > **Status: planned — not yet active.** Probe 0 currently runs on the flat 365-day TTL on `aer_gold.metrics`. Activation depends on the deferred materialized views in migration `000009`. Until then, the temporal profile of Probe 0 is bounded by that flat retention.
 
@@ -53,7 +53,7 @@ WP-005 §5.4 proposes a tiered retention strategy in which raw 5-minute samples 
 
 - WP-005 — *Temporal Granularity of Discourse Shifts*
 - Arc42 §8.13 — Multi-Resolution Temporal Framework
-- Arc42 §8.8 (addendum) — Tiered Retention status
+- Arc42 §8.8.1 — Tiered Retention status
 - `services/bff-api/internal/config/min_resolution.go` — `minMeaningfulResolution` config map
 - `configs/cultural_calendars/de.yaml` — German cultural calendar
 - [Scientific Operations Guide → **Workflow 6: Updating the Cultural Calendar**](../../scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar)

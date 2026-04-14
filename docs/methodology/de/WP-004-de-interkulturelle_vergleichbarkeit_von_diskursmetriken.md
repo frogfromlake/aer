@@ -4,7 +4,7 @@
 > **Status:** Entwurf — offen für interdisziplinäre Begutachtung
 > **Datum:** 07.04.2026
 > **Abhängig von:** WP-001 (Funktionale Sondentaxonomie), WP-002 (Metrik-Validität), WP-003 (Plattform-Bias)
-> **Architekturkontext:** Gold-Layer-Aggregation (§5.1.4), ClickHouse OLAP (§8.6), BFF API (§5.1.3), Manifest §II–§IV
+> **Architekturkontext:** Gold-Layer-Aggregation (§5.1.4), Multi-Resolution Temporal Framework (§8.13), BFF API (§5.1.3), Manifest §II–§IV
 > **Lizenz:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---

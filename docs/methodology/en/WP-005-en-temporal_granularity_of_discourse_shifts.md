@@ -4,7 +4,7 @@
 > **Status:** Draft — open for interdisciplinary review
 > **Date:** 2026-04-07
 > **Depends on:** WP-002 (Metric Validity), WP-004 (Cross-Cultural Comparability)
-> **Architectural context:** ClickHouse Gold Layer (§5.1.4), BFF API downsampling (§8.6), TTL/ILM (Phase 11), Temporal Extractor (Phase 42)
+> **Architectural context:** ClickHouse Gold Layer (§5.1.4), Multi-Resolution Temporal Framework (§8.13), Data Lifecycle Management (§8.8), Temporal Extractor (Phase 42)
 > **License:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — © 2026 Fabian Quist
 
 ---
