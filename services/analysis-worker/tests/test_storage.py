@@ -80,6 +80,8 @@ def minio_container():
         DockerContainer(get_compose_image("minio"))
         .with_env("MINIO_ROOT_USER", "minioadmin")
         .with_env("MINIO_ROOT_PASSWORD", "minioadmin")
+        # The container itself still requires MINIO_ROOT_* to boot; the worker
+        # client reads MINIO_ACCESS_KEY / MINIO_SECRET_KEY (Phase 79 split).
         .with_command("server /data")
         .with_exposed_ports(9000)
     )
@@ -223,8 +225,8 @@ class TestInitMinio:
         monkeypatch.setenv("MINIO_ENDPOINT",
                            f"{minio_container.get_container_host_ip()}:"
                            f"{minio_container.get_exposed_port(9000)}")
-        monkeypatch.setenv("MINIO_ROOT_USER", "minioadmin")
-        monkeypatch.setenv("MINIO_ROOT_PASSWORD", "minioadmin")
+        monkeypatch.setenv("MINIO_ACCESS_KEY", "minioadmin")
+        monkeypatch.setenv("MINIO_SECRET_KEY", "minioadmin")
 
         client = init_minio()
         assert client is not None

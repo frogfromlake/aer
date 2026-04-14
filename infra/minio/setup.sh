@@ -62,8 +62,86 @@ EOF
 
 # Enable Event Notifications
 echo "Linking bucket events to NATS..."
-# Force the event addition. We use '|| true' to ensure the script continues 
+# Force the event addition. We use '|| true' to ensure the script continues
 # even if the event notification is already configured.
 /usr/bin/mc event add myminio/bronze arn:minio:sqs::aer:nats --event put || true
+
+# ----------------------------------------------------------------------------
+# Service accounts (Phase 79)
+# Replace MINIO_ROOT_USER usage in long-running services with least-privilege
+# user accounts scoped to the buckets each service actually touches.
+#   - aer_ingestion : write-only on bronze
+#   - aer_worker    : read on bronze, read/write on silver and bronze-quarantine
+# Root credentials remain for setup.sh + minio-init only.
+# ----------------------------------------------------------------------------
+echo "Provisioning service accounts and policies..."
+
+: "${INGESTION_MINIO_ACCESS_KEY:?INGESTION_MINIO_ACCESS_KEY must be set}"
+: "${INGESTION_MINIO_SECRET_KEY:?INGESTION_MINIO_SECRET_KEY must be set}"
+: "${WORKER_MINIO_ACCESS_KEY:?WORKER_MINIO_ACCESS_KEY must be set}"
+: "${WORKER_MINIO_SECRET_KEY:?WORKER_MINIO_SECRET_KEY must be set}"
+
+cat > /tmp/aer_ingestion_policy.json <<'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::bronze"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": ["arn:aws:s3:::bronze/*"]
+    }
+  ]
+}
+EOF
+
+cat > /tmp/aer_worker_policy.json <<'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::bronze",
+        "arn:aws:s3:::silver",
+        "arn:aws:s3:::bronze-quarantine"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::bronze/*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::silver/*",
+        "arn:aws:s3:::bronze-quarantine/*"
+      ]
+    }
+  ]
+}
+EOF
+
+# Idempotent user + policy provisioning. `mc admin user add` is a no-op if the
+# user already exists with the same secret; `policy create` rewrites in-place.
+/usr/bin/mc admin user add myminio "${INGESTION_MINIO_ACCESS_KEY}" "${INGESTION_MINIO_SECRET_KEY}"
+/usr/bin/mc admin user add myminio "${WORKER_MINIO_ACCESS_KEY}" "${WORKER_MINIO_SECRET_KEY}"
+
+/usr/bin/mc admin policy create myminio aer_ingestion_policy /tmp/aer_ingestion_policy.json || \
+  /usr/bin/mc admin policy update myminio aer_ingestion_policy /tmp/aer_ingestion_policy.json
+/usr/bin/mc admin policy create myminio aer_worker_policy /tmp/aer_worker_policy.json || \
+  /usr/bin/mc admin policy update myminio aer_worker_policy /tmp/aer_worker_policy.json
+
+/usr/bin/mc admin policy attach myminio aer_ingestion_policy --user "${INGESTION_MINIO_ACCESS_KEY}" || true
+/usr/bin/mc admin policy attach myminio aer_worker_policy --user "${WORKER_MINIO_ACCESS_KEY}" || true
+
+rm -f /tmp/aer_ingestion_policy.json /tmp/aer_worker_policy.json
 
 echo "AĒR Data Lake provisioned successfully."
