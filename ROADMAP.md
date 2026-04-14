@@ -1086,6 +1086,17 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Regressionstest.** Integrationstest mit Metrik ohne Language-Row: Ergebnis-Anzahl stabil, Log-Eintrag vorhanden.
 * [x] **Validate.** `make test-go`, `make test-e2e`.
 
+## Phase 79: Infra & Credentials Cleanup [P3] - [x] DONE
+
+*Zwei Housekeeping-Items. Beide reduzieren Angriffsoberfläche, ohne den Happy Path zu berühren.*
+
+* [x] **MinIO Service Accounts.** `infra/minio/setup.sh` erweitern um `mc admin user add aer_worker ...` und `mc admin user add aer_ingestion ...` mit `readwrite`-Policies auf den jeweils benötigten Buckets. `compose.yaml` für beide Services auf die neuen Credentials umstellen. `MINIO_ROOT_USER` bleibt nur für `minio-init` und `setup.sh`.
+* [x] **Alle Credentials aus `.env.example` auf GitHub Actions Secrets migrieren.** Phase 75 hat nur die vier boot-validierten Secrets abgedeckt (`BFF_API_KEY`, `INGESTION_API_KEY`, `CLICKHOUSE_PASSWORD`, `POSTGRES_PASSWORD`). Die übrigen Credentials müssen ebenfalls aus GitHub Secrets statt `.env.example`-Defaults stammen: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` (nach Service-Account-Split: `aer_worker`/`aer_ingestion`), `GF_SECURITY_ADMIN_PASSWORD`. `.env.example` enthält am Ende nur noch nicht-sensitive Defaults oder Platzhalter. CI-Job `e2e-smoke` erweitert den `sed`-Block entsprechend. Ebenfalls `DB_URL` anpassen und das Secret updaten.
+* [x] **ClickHouse Memory-Limits verifizieren.** `compose.yaml` auf `deploy.resources.limits` für `clickhouse` prüfen — falls fehlend, 2G/1 CPU als Default setzen. Phase 20 hat das beansprucht, aber ein Re-Check ist billig.
+* [x] **Rate-Limiter-Beschreibung korrigieren (Code oder Doku).** Entweder auf Per-API-Key (Phase 16 Anspruch) umstellen — oder Operations Playbook klarstellen, dass der Limiter global ist. **Empfehlung: Letzteres, bis es mindestens zwei Konsumenten gibt.**
+* [x] **Metrics-Cache: Text oder LRU.** Arc42 §8.11 beschreibt einen "Metrics Cache" implizit als Multi-Slot; tatsächlich ist es ein Single-Slot. Entweder auf `hashicorp/golang-lru/v2` mit 16 Slots umstellen, oder Text präzisieren. **Empfehlung: Text präzisieren.**
+* [x] **Validate.** `make test`, `make up` Smoke-Check.
+
 ---
 
 ### Open Phases
@@ -1102,24 +1113,11 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-## Phase 79: Infra & Credentials Cleanup [P3]
-
-*Zwei Housekeeping-Items. Beide reduzieren Angriffsoberfläche, ohne den Happy Path zu berühren.*
-
-* [ ] **MinIO Service Accounts.** `infra/minio/setup.sh` erweitern um `mc admin user add aer_worker ...` und `mc admin user add aer_ingestion ...` mit `readwrite`-Policies auf den jeweils benötigten Buckets. `compose.yaml` für beide Services auf die neuen Credentials umstellen. `MINIO_ROOT_USER` bleibt nur für `minio-init` und `setup.sh`.
-* [ ] **Alle Credentials aus `.env.example` auf GitHub Actions Secrets migrieren.** Phase 75 hat nur die vier boot-validierten Secrets abgedeckt (`BFF_API_KEY`, `INGESTION_API_KEY`, `CLICKHOUSE_PASSWORD`, `POSTGRES_PASSWORD`). Die übrigen Credentials müssen ebenfalls aus GitHub Secrets statt `.env.example`-Defaults stammen: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` (nach Service-Account-Split: `aer_worker`/`aer_ingestion`), `GF_SECURITY_ADMIN_PASSWORD`. `.env.example` enthält am Ende nur noch nicht-sensitive Defaults oder Platzhalter. CI-Job `e2e-smoke` erweitert den `sed`-Block entsprechend. Ebenfalls `DB_URL` anpassen und das Secret updaten.
-* [ ] **ClickHouse Memory-Limits verifizieren.** `compose.yaml` auf `deploy.resources.limits` für `clickhouse` prüfen — falls fehlend, 2G/1 CPU als Default setzen. Phase 20 hat das beansprucht, aber ein Re-Check ist billig.
-* [ ] **Rate-Limiter-Beschreibung korrigieren (Code oder Doku).** Entweder auf Per-API-Key (Phase 16 Anspruch) umstellen — oder Operations Playbook klarstellen, dass der Limiter global ist. **Empfehlung: Letzteres, bis es mindestens zwei Konsumenten gibt.**
-* [ ] **Metrics-Cache: Text oder LRU.** Arc42 §8.11 beschreibt einen "Metrics Cache" implizit als Multi-Slot; tatsächlich ist es ein Single-Slot. Entweder auf `hashicorp/golang-lru/v2` mit 16 Slots umstellen, oder Text präzisieren. **Empfehlung: Text präzisieren.**
-* [ ] **Validate.** `make test`, `make up` Smoke-Check.
-
----
-
 ## Phase 80: Arc42 Structural Fix [P-Docs]
 
 *Arc42 Kapitel 8 hat nach Phasen 62–72 strukturelle Drift. ROADMAP.md hat ein Duplikat. Beides wird isoliert konsolidiert, ohne Code-Änderungen. Läuft parallel zu Phasen 73–79.*
 
-* [ ] **Phase 67 Duplikat in ROADMAP.md entfernen.** Zwei identische Blöcke bei ~Zeile 751 und ~770.
+* [ ] **Phase 67 Duplikat in ROADMAP.md entfernen.** Zwei identische Blöcke.
 * [ ] **Arc42 Kapitel 8 Neu-Nummerierung.** Aktuelle Reihenfolge im File: `8.1 … 8.8 … 8.9 … 8.10 … 8.9.3 Configuration … 8.11 … 8.12 … 8.13 … 8.8 (addendum) … 8.14 … 8.15`. Defekte:
   - `8.9.3 Configuration Management` steht **hinter** `8.10` — muss zu `8.9` vor 8.10 umgesetzt werden.
   - `8.8 (addendum, Phase 66)` ist ein zweites `§8.8` — sollte als `8.8.1 Tiered Retention (Planned)` subsummiert werden.
@@ -1144,6 +1142,3 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **Arc42 §8.11 Metrics Cache Wortlaut** (falls in Phase 79 Text-Option gewählt).
 * [ ] **WP-001..006 Cross-Reference Sweep.** Grep über alle sechs Papers (DE+EN) auf `§` und `WP-XXX`. Ziel: Arc42-Abschnittsnummern nach Phase 80 stimmen, Playbook-Referenzen stimmen.
 * [ ] **`mkdocs build --strict`** grün, `make lint` grün.
-
-## Phase 82: Stack Validierung
-* [ ] **`make test, make test-e2e, make audit && make codegen && git diff --exit-code`** grün
