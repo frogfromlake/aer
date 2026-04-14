@@ -1134,18 +1134,18 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ### Open Phases
 
-## Phase 84: Supply Chain & Container Hardening [P1] - [ ] TODO
+## Phase 84: Supply Chain & Container Hardening [P1] - [x] TODO
 
 *Das Projekt ist noch nicht deployed — genau der richtige Moment, die Container-Images zu härten, bevor ein Registry-Push sie für immer zementiert.*
 
-* [ ] **`.dockerignore` anlegen.** Weder Repo-Root noch Service-Directories haben ein `.dockerignore`. Konsequenz: Der `analysis-worker`-Build (`services/analysis-worker/Dockerfile` Zeile 33: `COPY services/analysis-worker/ .`) kopiert das gesamte `.venv/` ins Final-Image → aufgeblähtes Image, redundante Python-Deps. **Fix**: `.dockerignore` im Repo-Root, das `.venv/`, `.git/`, `tests/`, `*.pyc`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `bin/`, `.env`, `.env.*`, `logs/`, `.pids/` ausschließt.
-* [ ] **Alpine-Basis-Images SHA256-pinnen.** `services/ingestion-api/Dockerfile`, `services/bff-api/Dockerfile` und das Builder-Stage des Workers verwenden `alpine:3.XX` als Tag. Tag ≠ Immutable. **Fix**: `FROM alpine:3.XX@sha256:...` — Digest aus der aktuell gepullten Image via `docker inspect`. Kommentar mit Upstream-Link, damit der nächste Pin-Refresh nachvollziehbar ist.
-* [ ] **`USER`-Direktive + `HEALTHCHECK`.** Alle drei Service-Dockerfiles laufen heute als `root`. Nicht-Root-User einführen (`adduser -S aer -u 10001`, `USER aer`). `HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:$PORT/api/v1/healthz || exit 1` für die Go-Services, Python-Pendant für den Worker (Healthcheck via Prometheus-Port 8001 `/metrics`).
-* [ ] **Go-Builds mit `-trimpath` und `-ldflags="-s -w"`.** Reproduzierbarkeit + kleinere Binaries, gratis.
-* [ ] **SentiWS-Hash-Pin.** `services/analysis-worker/Dockerfile` lädt SentiWS zur Build-Zeit ohne SHA256-Verifikation. **Fix**: `ARG SENTIWS_SHA256=...` + `echo "${SENTIWS_SHA256}  sentiws.zip" | sha256sum -c -` nach dem `wget`.
-* [ ] **`requirements.txt` mit `--hash=` pinnen.** `services/analysis-worker/requirements.txt` hat Version-Pins, aber keine Hash-Pins → ein kompromittierter PyPI-Account könnte eine Malicious-Version mit derselben Version zurückziehen/republishen. **Fix**: `pip-compile --generate-hashes` via `pip-tools`, CI-Step, der gegen den generierten Hash-Lockfile installiert (`pip install --require-hashes -r requirements.lock.txt`).
-* [ ] **Trivy-Severity auf `MEDIUM` anheben (soft fail).** `.github/workflows/ci.yml` scannt nur `HIGH,CRITICAL`. Zweiter Trivy-Step für `MEDIUM` mit `exit-code: 0` — reporting-only, damit Drift früh sichtbar wird, ohne den Build zu blockieren.
-* [ ] **Validate.** `make test-e2e`, Image-Size-Vergleich vor/nach in der Commit-Message dokumentieren.
+* [x] **`.dockerignore` anlegen.** Weder Repo-Root noch Service-Directories haben ein `.dockerignore`. Konsequenz: Der `analysis-worker`-Build (`services/analysis-worker/Dockerfile` Zeile 33: `COPY services/analysis-worker/ .`) kopiert das gesamte `.venv/` ins Final-Image → aufgeblähtes Image, redundante Python-Deps. **Fix**: `.dockerignore` im Repo-Root, das `**/.venv/`, `.git/`, `**/tests/`, `*.pyc`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `**/bin/`, `.env`, `.env.*`, `logs/`, `.pids/` ausschließt. (`**/`-Prefix ist nötig, damit Patterns auch Service-Unterverzeichnisse erwischen.)
+* [x] **Alpine-Basis-Images SHA256-pinnen.** `services/ingestion-api/Dockerfile`, `services/bff-api/Dockerfile` und das Builder-Stage des Workers verwenden `alpine:3.XX` als Tag. Tag ≠ Immutable. **Fix**: `FROM alpine:3.XX@sha256:...` — Digest aus der aktuell gepullten Image via `docker inspect`. Kommentar mit Upstream-Link, damit der nächste Pin-Refresh nachvollziehbar ist. Gilt symmetrisch für `golang:1.26.2-alpine3.23` (Builder) und `python:3.14.3-slim-bookworm` (Worker).
+* [x] **`USER`-Direktive + `HEALTHCHECK`.** Alle drei Service-Dockerfiles laufen heute als `root`. Nicht-Root-User einführen (`adduser -S aer -u 10001`, `USER aer`). `HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:$PORT/api/v1/healthz || exit 1` für die Go-Services, Python-Pendant für den Worker (Healthcheck via Prometheus-Port 8001 `/metrics`).
+* [x] **Go-Builds mit `-trimpath` und `-ldflags="-s -w"`.** Reproduzierbarkeit + kleinere Binaries, gratis.
+* [x] **SentiWS-Hash-Pin.** `services/analysis-worker/Dockerfile` lädt SentiWS zur Build-Zeit ohne SHA256-Verifikation. **Fix**: `ARG SENTIWS_SHA256=...` + `echo "${SENTIWS_SHA256}  sentiws.zip" | sha256sum -c -` nach dem `wget`.
+* [x] **`requirements.txt` mit `--hash=` pinnen.** `services/analysis-worker/requirements.txt` hat Version-Pins, aber keine Hash-Pins → ein kompromittierter PyPI-Account könnte eine Malicious-Version mit derselben Version zurückziehen/republishen. **Fix**: `pip-compile --generate-hashes --allow-unsafe` via `pip-tools`, CI-Step, der gegen den generierten Hash-Lockfile installiert (`pip install --require-hashes -r requirements.lock.txt`). Regenerierung immer im `python:3.14.3-slim-bookworm`-Container, damit Hashes zum Runtime-Python passen.
+* [x] **Trivy-Severity auf `MEDIUM` anheben (soft fail).** `.github/workflows/ci.yml` scannt nur `HIGH,CRITICAL`. Zweiter Trivy-Step für `MEDIUM` mit `exit-code: 0` — reporting-only, damit Drift früh sichtbar wird, ohne den Build zu blockieren.
+* [x] **Validate.** `make test-e2e` (12/12 passed). Image-Size-Vergleich: `aer-analysis-worker` 3.72 GB → 1.94 GB (−48 %, `.venv` war im alten Image); `aer-bff-api` und `aer-ingestion-api` unverändert bei 54 MB / 54 MB.
 
 ## Phase 85: Scalability Symmetry & Query-Path-Polish [P2] - [ ] TODO
 
@@ -1170,20 +1170,39 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [ ] **NATS-Stream `num_replicas` dokumentieren.** `infra/nats/streams/AER_LAKE.json` hat `num_replicas: 1` und `max_age: 0` (unbounded). Für eine Single-Node-Dev-Installation ist das korrekt, aber ADR-019 / Arc42 §8.X sollten explizit sagen, dass ein Multi-Node-Deployment diese Werte anpassen muss.
 * [ ] **Validate.** `make up`, `curl http://localhost:9090/api/v1/targets` zeigt `analysis-worker` + `bff-api` als `UP`. Grafana-Dashboard-Sichtprüfung.
 
-## Phase 87: Source-of-Truth-Drift & Doc-Sweep [P-Docs] - [ ] TODO
+## Phase 87: Source-of-Truth Drift Resolution [P-Docs] - [ ] TODO
 
-*Zwei konkrete SSoT-Lecks und ein strukturierter Arc42-Sweep. Keine Code-Änderung außerhalb einer einzelnen Entscheidung (BFF-Sources).*
+*Zwei konkrete SSoT-Lecks, die nach den Code-Phasen 82–86 offen bleiben. Das einzige Phase-87-Item mit realer Code-Änderung ist die BFF-Sources-Entscheidung; der Rest ist Config-Cleanup.*
 
 * [ ] **BFF `sources.yaml` vs. Postgres `sources`-Tabelle auflösen.** `services/bff-api/internal/config/sources.go` lädt Source-Metadaten aus einem statischen YAML (`configs/source_documentation.yaml`). Der `ingestion-api` hält sie in der Postgres-`sources`-Tabelle. Zwei Wahrheiten → Drift garantiert. **Entscheidung** (eine von zwei, nicht beides):
   - **Option A (empfohlen)**: BFF liest Source-Metadaten via neuen Postgres-Read-Only-Account aus der `sources`-Tabelle. Cache-TTL 60s. YAML wird gelöscht. Keine SSoT-Duplizierung.
   - **Option B**: YAML bleibt, aber eine CI-Assertion prüft, dass für jeden Source-Slug in `infra/postgres/migrations/*_seed_sources.sql` ein Eintrag im YAML existiert (und umgekehrt). Drift wird an der CI-Grenze gefangen, nicht im Prod-Stack.
 * [ ] **`.env.example`-Kommentare auf den aktuellen Stand.** Ein paar Kommentare referenzieren "Phase 79" als aktuell — Phase 82–86 können am Ende dieser Phase ebenfalls hinein, falls sie neue ENV-Variablen einführen (`INGESTION_MAX_BODY_BYTES`, `INGESTION_SHUTDOWN_TIMEOUT_SECONDS`, `INGESTION_DB_MAX_OPEN_CONNS`, etc.).
+* [ ] **Validate.** `make test-go` grün (BFF-Sources-Pfad falls Option A), `make lint` grün.
+
+## Phase 88: Doc Sweep & Dependency Update Automation [P-Docs] - [ ] TODO
+
+*Strukturierter Arc42-Sweep nach den Code-Phasen 82–86 plus das Supply-Chain-Runbook, das Phase 84 offengelassen hat. Phase 88 setzt voraus, dass Phase 87 die SSoT-Entscheidung bereits gefällt hat — sonst referenziert der Sweep veraltete Architektur.*
+
 * [ ] **Arc42-Drift-Sweep nach Phasen 82–86.** Nach Abschluss der Code-Phasen: §8.7 (Security) um HTTP-Timeouts, Body-Size-Limit und Fehler-Leak-Fix ergänzen. §8.8 (Analysis Worker) um Queue-Backpressure, NATS-Consumer-Safety und Poison-Pill-DLQ. §8.10/§8.11 um die neuen Cache-Slots. Kapitel 10 (Quality Requirements) um die konkreten Timeout-Werte. Kapitel 11 (Risks) — R-15 "Unbounded task queue OOM" als "Resolved (Phase 83)" eintragen.
 * [ ] **CLAUDE.md-Update.** Hard Rule 2 (Healthchecks) um die neuen Dockerfile-`HEALTHCHECK`-Direktiven ergänzen. Ein neuer Abschnitt "Security Defaults" listet: HTTP-Server-Timeouts, Body-Size-Limits, Constant-Time-Auth, Non-Root-Container-User, Hashverified SentiWS/Requirements.
-* [ ] **Validate.** `mkdocs build --strict` grün, `make lint` grün, Grep auf "TODO", "FIXME", "Phase 79" in Arc42.
+* [ ] **Dependency / Image-Update Runbook + `make deps-refresh` Automation.** Nach Phase 84 sind vier supply-chain-Artefakte hash- bzw. digest-gepinnt: Dockerfile-`FROM @sha256:...`, `requirements.lock.txt` mit `--hash=`, `SENTIWS_SHA256`-ARG, Trivy-Allowlist. Sobald Trivy (oder `pip-audit` / `govulncheck`) eine Version-Bump erzwingt oder eine Upstream-Release erscheint, muss der Pfad für *jede* dieser Oberflächen eindeutig sein. **Deliverable (1) — Makefile-Target `deps-refresh`**: ein einziges Kommando automatisiert die 90 %, die mechanisch sind:
+  1. Für jede gepinnte Base-Image-Zeile in den drei Dockerfiles: `docker pull <image>:<tag>` → neuen Digest aus dem Output extrahieren (`docker inspect --format='{{index .RepoDigests 0}}'`) → `sed -i` ersetzt die `@sha256:...`-Sektion hinter dem jeweiligen Tag. Die `FROM`-Zeilen haben eine stabile Form (`FROM <image>:<tag>@sha256:<digest>[ AS <stage>]`), sed-Regex ist deshalb load-bearing, aber nicht fragil.
+  2. `docker run --rm -v $PWD/services/analysis-worker:/work -w /work python:3.14.3-slim-bookworm bash -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --output-file=requirements.lock.txt requirements.txt"` → regeneriert das Hash-Lockfile im Runtime-Python.
+  3. `curl -sL https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip | sha256sum` → gibt den neuen Hash aus; `sed -i` ersetzt die `SENTIWS_SHA256=...`-Default-Zeile im Worker-Dockerfile.
+  4. Smoke-Test: `docker compose build` ohne Cache, anschließend `make test-e2e`.
+  Trivy-Entscheidungen (ignore vs. bump vs. wait) bleiben manuell — das Target liefert nur die mechanische Vorarbeit.
+  **Deliverable (2) — Runbook `docs/operations_playbook.md#updating-pinned-dependencies`**: beschreibt, *wann* man `make deps-refresh` aufruft (neue Trivy-Findings, geplante Wartungsfenster, CVE-Alerts), wie man das Diff reviewt, und vor allem die manuellen Pfade für die Edge-Cases, die das Target *nicht* abdeckt:
+  - **Happy path**: `make deps-refresh` → Diff reviewen → Commit mit Changelog-Zeile pro Artefakt.
+  - **Neue Python-Dependency hinzufügen**: `requirements.txt` editieren *bevor* `make deps-refresh` läuft; das Target regeneriert das Lockfile automatisch. Bei Version-Conflicts manuell `pip-compile` mit `--upgrade-package <name>` aufrufen.
+  - **Manuelle Base-Image-Tag-Bumps** (z. B. `python:3.14.3` → `3.14.4`): zuerst den Tag in allen drei Dockerfiles ersetzen, dann `make deps-refresh`, damit der neue Tag den frischen Digest bekommt.
+  - **SentiWS-URL ändert sich** (Upstream-Moved-Szenario): URL im Worker-Dockerfile updaten, dann `make deps-refresh` — das Target curl't die *im Dockerfile definierte* URL, nicht eine harte Makefile-Konstante.
+  - **Trivy-Finding-Triage**: (a) Package-Bump fixt's → `make deps-refresh`, (b) Kein Fix verfügbar → `.trivyignore`-Eintrag mit CVE + Ablaufdatum + Begründung, (c) False Positive → ignorieren mit Kommentar. In allen Fällen Commit-Message mit CVE-ID, betroffener Komponente und Entscheidungsbegründung.
+  - **Cross-Ref**: Arc42 §8.7 (Security) und `CLAUDE.md` Hard Rule 1 um einen Verweis auf dieses Runbook + `make deps-refresh` ergänzen, damit die SSoT-Quellen (`compose.yaml`, `.tool-versions`, `requirements.lock.txt`, Dockerfile-Digests) und ihre Update-Pfade zentral auffindbar bleiben. `README.md` Abschnitt "Contributing" um einen Einzeiler erweitern: "Pinned dependency updates: run `make deps-refresh`, see `docs/operations_playbook.md#updating-pinned-dependencies`."
+* [ ] **Validate.** `mkdocs build --strict` grün, `make lint` grün, Grep auf "TODO", "FIXME", "Phase 79" in Arc42. `make deps-refresh` erfolgreich in einem sauberen Worktree, kein Diff in den pinned Artefakten nach einer frischen Baseline.
 
 ---
 
-**Review-Notiz (Phase 82–87):** Die sieben Findings in Phase 82 und 83 sind die einzigen mit P0-Priorität. Alles darüber ist polish. Empfohlene Reihenfolge: 82 → 83 (Correctness-Base), dann 84 (Supply-Chain-Base vor Deploy), dann 85 → 86 (Performance & Observability), zuletzt 87 (Docs folgen dem Code).
+**Review-Notiz (Phase 82–88):** Die sieben Findings in Phase 82 und 83 sind die einzigen mit P0-Priorität. Alles darüber ist polish. Empfohlene Reihenfolge: 82 → 83 (Correctness-Base), dann 84 (Supply-Chain-Base vor Deploy), dann 85 → 86 (Performance & Observability), zuletzt 87 (SSoT-Drift) und 88 (Doc-Sweep + Deps-Automation). 87 muss vor 88 laufen, damit der Arc42-Sweep nicht nachträglich die Sources-Architektur zurückziehen muss.
 
 ---
