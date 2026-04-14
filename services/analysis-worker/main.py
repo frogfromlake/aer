@@ -6,6 +6,7 @@ import structlog
 from urllib.parse import unquote
 from dataclasses import dataclass, field
 from nats.aio.client import Client as NATS
+from nats.js import api as js_api
 from tenacity import retry, wait_exponential, stop_after_delay
 from dotenv import load_dotenv
 
@@ -14,6 +15,7 @@ from opentelemetry import trace, propagate
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 # Internal application imports
 from prometheus_client import start_http_server
@@ -69,23 +71,48 @@ class WorkerConfig:
     """Configuration for the analysis worker, injectable for testing."""
     nats_url: str = field(default_factory=lambda: os.getenv("NATS_URL", "nats://localhost:4222"))
     otel_endpoint: str = field(default_factory=lambda: os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"))
+    otel_sample_rate: float = field(default_factory=lambda: float(os.getenv("OTEL_TRACE_SAMPLE_RATE", "1.0")))
     worker_count: int = field(default_factory=lambda: int(os.getenv("WORKER_COUNT", "5")))
     stream_name: str = "AER_LAKE"
     subject: str = "aer.lake.bronze"
     durable_name: str = "aer_analysis_worker"
+    # Phase 83: JetStream consumer safety parameters. See `main.py` subscribe
+    # call and ROADMAP §Phase 83 for rationale.
+    max_deliver: int = 5
+    ack_wait_seconds: float = 60.0
 
 
-def init_telemetry(otel_endpoint: str) -> trace.Tracer:
-    """Initialize OpenTelemetry tracing. Call once from main(), not at module scope."""
+def init_telemetry(otel_endpoint: str, sample_rate: float = 1.0) -> trace.Tracer:
+    """Initialize OpenTelemetry tracing. Call once from main(), not at module scope.
+
+    `sample_rate` is wrapped in ParentBased so child spans inherit the
+    parent's sampling decision, matching the Go services (see
+    `pkg/telemetry/otel.go`).
+    """
     resource = Resource(attributes={SERVICE_NAME: "aer-analysis-worker"})
-    provider = TracerProvider(resource=resource)
+    sampler = ParentBased(root=TraceIdRatioBased(sample_rate))
+    provider = TracerProvider(resource=resource, sampler=sampler)
     processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{otel_endpoint}/v1/traces"))
     provider.add_span_processor(processor)
     trace.set_tracer_provider(provider)
     return trace.get_tracer(__name__)
 
 
-async def worker_task(worker_id: int, data_processor: DataProcessor, task_queue: asyncio.Queue, tracer: trace.Tracer):
+def _num_delivered(msg) -> int:
+    """Return the JetStream delivery count or 0 if unavailable (e.g. non-JS msg)."""
+    try:
+        return int(msg.metadata.num_delivered)
+    except Exception:
+        return 0
+
+
+async def worker_task(
+    worker_id: int,
+    data_processor: DataProcessor,
+    task_queue: asyncio.Queue,
+    tracer: trace.Tracer,
+    max_deliver: int,
+):
     """Background worker that processes events asynchronously from the queue."""
     logger.info("Worker started", worker_id=worker_id)
     while True:
@@ -98,39 +125,90 @@ async def worker_task(worker_id: int, data_processor: DataProcessor, task_queue:
             break  # Exit the loop safely, releasing all resources
 
         try:
-            event_data = json.loads(msg.data.decode())
-            obj_key = unquote(event_data['Records'][0]['s3']['object']['key'])
-
-            # --- EXTRACT DETERMINISTIC TIMESTAMP ---
-            event_time_str = event_data['Records'][0]['eventTime'] # e.g. "2023-10-25T12:34:56.000Z"
-
-            # --- TRACE CONTINUATION ---
-            raw_meta = event_data['Records'][0]['s3']['object'].get('userMetadata', {})
-            normalized_meta = {k.lower().replace('x-amz-meta-', ''): v for k, v in raw_meta.items()}
-            context = propagate.extract(normalized_meta)
-
-            with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
-                logger.info("Processing event", worker_id=worker_id, object=obj_key)
-                # Since MinIO/ClickHouse clients are synchronous, we offload them to a thread pool
-                # to avoid blocking the asyncio event loop!
-                await asyncio.to_thread(data_processor.process_event, obj_key, event_time_str, span)
-
-            # IMPORTANT: Manual Ack only AFTER error-free processing (JetStream)
-            await msg.ack()
-
-        except Exception as e:
-            logger.error("Error processing message. Event will be redelivered.", worker_id=worker_id, error=str(e))
-            # NAK triggers a faster redelivery than a timeout
-            await msg.nak()
+            await _handle_message(worker_id, msg, data_processor, tracer, max_deliver)
         finally:
             task_queue.task_done()
+
+
+async def _handle_message(
+    worker_id: int,
+    msg,
+    data_processor: DataProcessor,
+    tracer: trace.Tracer,
+    max_deliver: int,
+):
+    """Process a single JetStream message with poison-pill containment.
+
+    Phase 83: a deterministically-failing message (adapter bug, malformed
+    envelope) must not recycle through the consumer forever. On the final
+    allowed delivery attempt, the message is routed to `bronze-quarantine`
+    via `DataProcessor.quarantine_poison_message` and ack'd — breaking the
+    NAK→redeliver→NAK loop that would otherwise spin until `ack_wait`
+    starves the whole pipeline.
+    """
+    try:
+        event_data = json.loads(msg.data.decode())
+        record = event_data["Records"][0]
+        # MinIO URL-encodes the key in notifications.
+        obj_key = unquote(record["s3"]["object"]["key"])
+        event_time_str = record["eventTime"]
+
+        raw_meta = record["s3"]["object"].get("userMetadata", {})
+        normalized_meta = {k.lower().replace("x-amz-meta-", ""): v for k, v in raw_meta.items()}
+        context = propagate.extract(normalized_meta)
+
+        with tracer.start_as_current_span("Process-Harmonization-And-Analytics", context=context) as span:
+            logger.info("Processing event", worker_id=worker_id, object=obj_key)
+            # Sync MinIO/ClickHouse clients — offload to a thread pool to keep
+            # the event loop responsive.
+            await asyncio.to_thread(data_processor.process_event, obj_key, event_time_str, span)
+
+        await msg.ack()
+
+    except Exception as e:
+        num_delivered = _num_delivered(msg)
+        error_type = type(e).__name__
+        if num_delivered >= max_deliver:
+            logger.error(
+                "Poison pill — max_deliver exhausted. Routing to quarantine.",
+                worker_id=worker_id,
+                num_delivered=num_delivered,
+                max_deliver=max_deliver,
+                error=str(e),
+                error_type=error_type,
+            )
+            try:
+                await asyncio.to_thread(
+                    data_processor.quarantine_poison_message,
+                    msg.data,
+                    error_type,
+                    str(e),
+                )
+                await msg.ack()
+                return
+            except Exception as quarantine_err:
+                logger.error(
+                    "Poison quarantine write failed; letting NATS drop via max_deliver.",
+                    worker_id=worker_id,
+                    error=str(quarantine_err),
+                )
+                await msg.nak()
+                return
+
+        logger.error(
+            "Error processing message. Event will be redelivered.",
+            worker_id=worker_id,
+            num_delivered=num_delivered,
+            error=str(e),
+        )
+        await msg.nak()
 
 
 async def main(config: WorkerConfig | None = None):
     if config is None:
         config = WorkerConfig()
 
-    tracer = init_telemetry(config.otel_endpoint)
+    tracer = init_telemetry(config.otel_endpoint, config.otel_sample_rate)
 
     metrics_port = int(os.getenv("METRICS_PORT", "8001"))
     start_http_server(metrics_port)
@@ -144,7 +222,11 @@ async def main(config: WorkerConfig | None = None):
     extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES)
     data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry, extractors)
     nc = NATS()
-    task_queue = asyncio.Queue()
+    # Phase 83: bounded queue enforces backpressure. `put` blocks when
+    # workers fall behind, which propagates back to JetStream via the
+    # `max_ack_pending` cap set on the consumer below.
+    queue_max_size = config.worker_count * 4
+    task_queue: asyncio.Queue = asyncio.Queue(maxsize=queue_max_size)
 
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -163,20 +245,37 @@ async def main(config: WorkerConfig | None = None):
 
     # 2. Start worker tasks
     workers = [
-        asyncio.create_task(worker_task(i, data_processor, task_queue, tracer))
+        asyncio.create_task(
+            worker_task(i, data_processor, task_queue, tracer, config.max_deliver)
+        )
         for i in range(config.worker_count)
     ]
 
-    # 3. Message Handler: Does not block, just pushes to the queue
+    # 3. Message Handler: Does not block, just pushes to the queue.
+    # `put` blocks when the queue is full, which pushes backpressure all the
+    # way to the NATS consumer via `max_ack_pending`.
     async def message_handler(msg):
         await task_queue.put(msg)
 
-    # 4. Durable subscription to the MinIO stream
+    # 4. Durable subscription to the Bronze MinIO stream.
+    #
+    # Phase 83: consumer safety parameters. `max_ack_pending` matches the
+    # bounded queue size so JetStream never delivers more than the worker
+    # pool can hold in flight. `ack_wait` gives each document a generous
+    # processing window before NATS retries. `max_deliver` caps retry
+    # storms; the poison-pill handler in `_handle_message` catches the
+    # final attempt and routes it to `bronze-quarantine`.
+    consumer_config = js_api.ConsumerConfig(
+        max_ack_pending=queue_max_size,
+        ack_wait=config.ack_wait_seconds,
+        max_deliver=config.max_deliver,
+    )
     await js.subscribe(
         config.subject,
         durable=config.durable_name,
         cb=message_handler,
-        manual_ack=True
+        manual_ack=True,
+        config=consumer_config,
     )
 
     logger.info("Analysis Worker initialized (JetStream + Queue) and awaiting events...")

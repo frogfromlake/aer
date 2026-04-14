@@ -1118,20 +1118,21 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Tests.** Handler-Test, der bei fehlerhaftem JSON keinen `err.Error()`-Inhalt im Response-Body sieht. Handler-Test, der bei 32-MiB-Body ein `http.StatusRequestEntityTooLarge` (413) erhält.
 * [x] **Validate.** `make test-go`, `make test-e2e`.
 
----
 
-### Open Phases
-
-## Phase 83: Analysis Worker Backpressure & Poison-Pill Containment [P0] - [ ] TODO
+## Phase 83: Analysis Worker Backpressure & Poison-Pill Containment [P0] - [x] TODO
 
 *Der `analysis-worker` hat zwei Stellen, an denen ein einzelner Fehlertyp das System umkippen kann: eine unbegrenzte In-Process-Queue und ein Retry-Loop, der schlechte Nachrichten ewig reshippt.*
 
-* [ ] **`asyncio.Queue` begrenzen.** `services/analysis-worker/main.py` Zeile 147: `task_queue = asyncio.Queue()` — unbounded. Kombiniert mit einem `message_handler`, der nur `await task_queue.put(msg)` macht, hat das System keine Backpressure: eine langsame Extractor-Pipeline lässt die Queue (und den Python-Heap) ins Unendliche wachsen. **Fix**: `asyncio.Queue(maxsize=config.worker_count * 4)`. `put()` blockiert damit, wenn die Worker nicht hinterherkommen — NATS JetStream liefert dann durch `max_ack_pending` von sich aus Backpressure.
-* [ ] **NATS-Consumer-Safety-Parameter.** `js.subscribe(...)` (Zeile 175ff.) setzt weder `max_ack_pending`, noch `ack_wait`, noch `max_deliver`. **Werte**: `max_ack_pending = config.worker_count * 4` (matches queue size), `ack_wait = 60s` (muss länger als die durchschnittliche Verarbeitungszeit eines Dokuments sein), `max_deliver = 5`. Nach 5 Zustellversuchen wandert die Nachricht in eine Dead-Letter-Subjekt-Semantik (siehe nächster Punkt).
-* [ ] **Poison-Pill-DLQ statt NAK-Loop.** `worker_task` NAKt heute jede Exception (siehe `main.py`), was bei einem deterministischen Fehler (z.B. ein Adapter-Bug, den die Nachricht jedes Mal auslöst) einen endlosen Redelivery-Loop erzeugt. **Fix**: Wenn `msg.metadata.num_delivered >= max_deliver - 1`, die Nachricht in den bestehenden `bronze-quarantine`-DLQ-Pfad schreiben (neuer Helper `data_processor.quarantine_poison_message(msg, reason)`), **dann** `msg.ack()` statt `nak()`. Counter `analysis_worker_poison_messages_total` (Label `reason`).
-* [ ] **`OTEL_TRACE_SAMPLE_RATE` ehren.** `init_telemetry` in `main.py` konstruiert den Tracer-Provider ohne Sampler-Argument → 100 % Sampling, egal was in `.env` steht. Symmetrie zu den Go-Services herstellen: `ParentBased(TraceIdRatioBased(rate))`, Default `1.0` wie heute, aber Production-ready.
-* [ ] **Tests.** Unit-Test, der einen immer-failenden Mock-Processor baut und nachweist, dass nach `max_deliver` ein Quarantine-Write passiert und die Nachricht anschließend `ack`ed ist. Integrationstest (Testcontainers NATS+MinIO), der prüft, dass bei 100 Messages und `maxsize=4` die `put`-Calls blockieren statt Memory zu fressen.
-* [ ] **Validate.** `make test-python`, `make test-e2e`.
+* [x] **`asyncio.Queue` begrenzen.** `services/analysis-worker/main.py` Zeile 147: `task_queue = asyncio.Queue()` — unbounded. Kombiniert mit einem `message_handler`, der nur `await task_queue.put(msg)` macht, hat das System keine Backpressure: eine langsame Extractor-Pipeline lässt die Queue (und den Python-Heap) ins Unendliche wachsen. **Fix**: `asyncio.Queue(maxsize=config.worker_count * 4)`. `put()` blockiert damit, wenn die Worker nicht hinterherkommen — NATS JetStream liefert dann durch `max_ack_pending` von sich aus Backpressure.
+* [x] **NATS-Consumer-Safety-Parameter.** `js.subscribe(...)` (Zeile 175ff.) setzt weder `max_ack_pending`, noch `ack_wait`, noch `max_deliver`. **Werte**: `max_ack_pending = config.worker_count * 4` (matches queue size), `ack_wait = 60s` (muss länger als die durchschnittliche Verarbeitungszeit eines Dokuments sein), `max_deliver = 5`. Nach 5 Zustellversuchen wandert die Nachricht in eine Dead-Letter-Subjekt-Semantik (siehe nächster Punkt).
+* [x] **Poison-Pill-DLQ statt NAK-Loop.** `worker_task` NAKt heute jede Exception (siehe `main.py`), was bei einem deterministischen Fehler (z.B. ein Adapter-Bug, den die Nachricht jedes Mal auslöst) einen endlosen Redelivery-Loop erzeugt. **Fix**: Wenn `msg.metadata.num_delivered >= max_deliver`, die Nachricht in den bestehenden `bronze-quarantine`-DLQ-Pfad schreiben (neuer Helper `DataProcessor.quarantine_poison_message(msg_data, error_type, error_text)`), **dann** `msg.ack()` statt `nak()`. Counter `analysis_worker_poison_messages_total` (Label `reason`). Sollte der Quarantine-Write selbst scheitern, fällt der Handler auf `nak()` zurück, damit NATS den Stuck-Zustand über `max_deliver`-Metriken sichtbar macht.
+* [x] **`OTEL_TRACE_SAMPLE_RATE` ehren.** `init_telemetry` in `main.py` konstruiert den Tracer-Provider ohne Sampler-Argument → 100 % Sampling, egal was in `.env` steht. Symmetrie zu den Go-Services herstellen: `ParentBased(TraceIdRatioBased(rate))`, Default `1.0` wie heute, aber Production-ready.
+* [x] **Tests.** `tests/test_backpressure_and_poison_pill.py`: 8 Unit-Tests pinnen (1) den Poison-Pill-Pfad mit immer-failendem Mock-Processor inkl. Fallback bei Quarantine-Write-Fehler, (2) das Recovery-vs-Synthetic-Envelope-Verhalten von `quarantine_poison_message`, (3) das Blocking-Verhalten einer `maxsize=4` Queue gegen 100 parallele `put`-Calls, (4) das Sampler-Wiring in `init_telemetry`.
+* [x] **Validate.** `make test-python` (125 passed), `make test-e2e` (12 passed).
+
+---
+
+### Open Phases
 
 ## Phase 84: Supply Chain & Container Hardening [P1] - [ ] TODO
 

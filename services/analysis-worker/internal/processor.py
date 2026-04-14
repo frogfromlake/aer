@@ -1,13 +1,21 @@
 import json
 import os
+import uuid
 import structlog
 from datetime import datetime
+from urllib.parse import unquote
 from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import ValidationError
 from internal.adapters.registry import AdapterRegistry
 from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
-from internal.metrics import events_processed_total, event_processing_duration_seconds
+from internal.metrics import (
+    events_processed_total,
+    event_processing_duration_seconds,
+    events_quarantined_total,
+    dlq_size,
+    analysis_worker_poison_messages_total,
+)
 from internal.storage.postgres_client import get_document_status, update_document_status
 from internal import quarantine as _quarantine_module
 from internal import silver as _silver_module
@@ -218,3 +226,54 @@ class DataProcessor:
     def _move_to_quarantine(self, obj_key: str, raw_content: dict) -> None:
         """Moves unprocessable raw data to the quarantine bucket."""
         _quarantine_module.move_to_quarantine(self.minio, obj_key, raw_content)
+
+    def quarantine_poison_message(self, msg_data: bytes, error_type: str, error_text: str) -> None:
+        """
+        Route a message that exhausted its NATS redelivery budget to the DLQ.
+
+        Best-effort: tries to recover the original Bronze payload via the
+        MinIO key parsed from the NATS event envelope. If parsing or fetch
+        fails, writes a synthetic poison-pill envelope so the raw NATS
+        payload is never silently dropped. Emits both the legacy
+        `events_quarantined_total` / `dlq_size` signals and the Phase 83
+        `analysis_worker_poison_messages_total` counter.
+        """
+        obj_key: str
+        raw_content: dict
+        try:
+            event_data = json.loads(msg_data.decode("utf-8"))
+            obj_key = unquote(event_data["Records"][0]["s3"]["object"]["key"])
+        except Exception:
+            obj_key = f"poison/unparseable/{uuid.uuid4().hex}.json"
+            event_data = None
+
+        try:
+            response = self.minio.get_object(self.bronze_bucket, obj_key)
+            raw_content = json.loads(response.read().decode("utf-8"))
+        except Exception as fetch_err:
+            raw_content = {
+                "_poison": True,
+                "_error_type": error_type,
+                "_error": error_text,
+                "_fetch_error": str(fetch_err),
+                "_event_envelope": event_data,
+            }
+
+        _quarantine_module.move_to_quarantine(self.minio, obj_key, raw_content)
+        try:
+            self._update_document_status(obj_key, "quarantined")
+        except Exception as status_err:
+            logger.warning(
+                "Failed to update poison document status",
+                obj_key=obj_key,
+                error=str(status_err),
+            )
+        events_quarantined_total.inc()
+        dlq_size.inc()
+        analysis_worker_poison_messages_total.labels(reason=error_type).inc()
+        logger.error(
+            "Poison message quarantined after max redeliveries",
+            obj_key=obj_key,
+            error_type=error_type,
+            error=error_text,
+        )

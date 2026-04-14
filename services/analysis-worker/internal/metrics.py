@@ -20,3 +20,9 @@ dlq_size = Gauge(
     "dlq_size",
     "Current number of objects accumulated in the bronze-quarantine bucket.",
 )
+
+analysis_worker_poison_messages_total = Counter(
+    "analysis_worker_poison_messages_total",
+    "Messages that exhausted NATS redeliveries and were routed to the poison-pill DLQ.",
+    ["reason"],
+)
