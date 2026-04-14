@@ -12,7 +12,7 @@ This chapter documents known architectural risks and consciously accepted techni
 | **Affected Component** | `bff-api` |
 | **Status** | Resolved (Phase 16) |
 
-A token-bucket rate limiter (`golang.org/x/time/rate`) has been implemented as `chi` middleware on the BFF API, configurable via environment variables. A distributed (Redis-backed) rate limiter is deferred until horizontal scaling requires it — adding Redis for a single-instance deployment would violate Occam's Razor.
+A token-bucket rate limiter (`golang.org/x/time/rate`) has been implemented as `chi` middleware on the BFF API, configurable via environment variables. The limiter is **global** — a single token bucket shared across all callers, not per API key — because the system currently has exactly one consumer (the operator). Per-key rate limiting becomes meaningful once a second consumer exists; until then, a single bucket is the simplest correct shape. A distributed (Redis-backed) rate limiter is deferred until horizontal scaling requires it — adding Redis for a single-instance deployment would violate Occam's Razor.
 
 ---
 
