@@ -699,7 +699,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **BFF API: Expose Validation Status.** Extend `GET /api/v1/metrics/available` response to include a `validation_status` field per metric (`unvalidated`, `validated`, `expired`). The BFF queries `aer_gold.metric_validity` and joins with available metrics. Unvalidated metrics (no entry in the validity table) return `unvalidated`. Update OpenAPI spec, regenerate stubs, implement handler + storage.
 * [x] **Document Extractor Limitation Metadata.** Create `docs/methodology/extractor_limitations.md` documenting the known limitations of all Phase 42 extractors as identified in WP-002 §3: SentiWS negation blindness, compound word failure, spaCy NER entity linking absence, language detection short-text degradation. This file is the human-readable complement to the `metric_validity` table.
 * [x] **ADR-016: Hybrid Tier Architecture (Option C).** Document the decision in `docs/arc42/09_architecture_decisions.md`: Tier 1 metrics are the immutable baseline, always displayed. Tier 2/3 metrics are validated enrichments, available via Progressive Disclosure. The dashboard never hides the Tier 1 score behind a Tier 2/3 score.
-* [x] **Update Arc42 Documentation.** Chapter 8 (§8.10: document the hybrid tier principle). Chapter 13 (§13.3: mark validation table as implemented). Chapter 12 (Glossary: `Metric Validity`, `Validation Protocol`, `Context Key`).
+* [x] **Update Arc42 Documentation.** Chapter 8 (§8.12: document the hybrid tier principle). Chapter 13 (§13.3: mark validation table as implemented). Chapter 12 (Glossary: `Metric Validity`, `Validation Protocol`, `Context Key`).
 * [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
 
 ## Phase 64: Bias Documentation & SilverMeta Extension (WP-003) - [x] DONE
@@ -744,7 +744,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **BFF API: Minimum Meaningful Window Metadata.** Extend `GET /api/v1/metrics/available` response to include `min_meaningful_resolution` per metric-source pair. Initially hardcoded based on Probe 0 publication rates (tagesschau.de ≈ 50 articles/day → `hourly`; bundesregierung.de ≈ 5 articles/day → `daily`). Stored as a config map in the BFF, not in ClickHouse.
 * [x] **ClickHouse Materialized Views (Deferred Preparation).** Add the SQL definitions for `aer_gold.metrics_hourly`, `aer_gold.metrics_daily`, `aer_gold.metrics_monthly` as commented-out migration scripts in `infra/clickhouse/`. Document in the migration file that these should be activated when query latency exceeds acceptable thresholds (WP-005 §5.4). Do not activate yet — query-time aggregation is sufficient at current scale.
 * [x] **Tiered Retention Strategy Documentation.** Document the proposed retention tiers (0–30d: full, 30–365d: hourly, 1–5y: daily, 5y+: monthly) in `docs/arc42/08_concepts.md` §8.8 as the target architecture. Mark as "planned — not yet active" to distinguish from current flat 365-day TTL.
-* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `resolution` parameter). Chapter 8 (§8.6: multi-resolution downsampling strategy). Chapter 12 (Glossary: `Temporal Scale`, `Minimum Meaningful Window`, `Tiered Retention`).
+* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document `resolution` parameter). Chapter 8 (§8.13: multi-resolution downsampling strategy). Chapter 12 (Glossary: `Temporal Scale`, `Minimum Meaningful Window`, `Tiered Retention`).
 * [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`, `make test-e2e`.
 
 
@@ -764,28 +764,8 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Link Source Documentation to `sources` Table.** Add `documentation_url VARCHAR(255)` column to the PostgreSQL `sources` table via migration `000007_sources_documentation_url.up.sql`. Populate for existing RSS sources with links to `docs/methodology/probe0_bias_profile.md`. The BFF API exposes this field via a new `GET /api/v1/sources` endpoint (or extends the existing source metadata response).
 * [x] **ADR-017: Reflexive Architecture Principles.** Document the five principles from WP-006 §6 in `docs/arc42/09_architecture_decisions.md` as an architectural commitment. Mark principles 1 (Methodological Transparency) and 3 (Reflexive Documentation) as "implemented" and principles 2, 4, 5 as "deferred to dashboard phase."
 * [x] **Non-Prescriptive Visualization Guidelines.** Create `docs/design/visualization_guidelines.md` documenting the WP-006 §6.2 requirements: viridis color scale, no red/green encoding, no normative labels, uncertainty alongside point estimates, multiple visualization modes. This file guides future frontend development.
-* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document provenance endpoint). Chapter 8 (add §8.12: Reflexive Architecture). Chapter 12 (Glossary: `Reflexive Documentation`, `Methodological Transparency`, `Non-Prescriptive Visualization`).
+* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document provenance endpoint). Chapter 8 (add §8.14: Reflexive Architecture). Chapter 12 (Glossary: `Reflexive Documentation`, `Methodological Transparency`, `Non-Prescriptive Visualization`).
 * [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
-
-## Phase 67: Reflexive Architecture — Methodological Transparency (WP-006) - [x] DONE
-*WP-006 proposes five design principles for reflexive architecture. This phase implements the two that have immediate technical consequences: Methodological Transparency and Reflexive Documentation. The remaining three (Non-Prescriptive Visualization, Governed Openness, Interpretive Humility) are dashboard/governance concerns deferred to the frontend phase.*
-
-* [x] **BFF API: Metric Provenance Endpoint.** Create `GET /api/v1/metrics/{metricName}/provenance` that returns:
-  - `tier_classification` (1, 2, or 3), `algorithm_description`, `known_limitations` (list of strings), `validation_status` (from `metric_validity` table), `extractor_version_hash`, `cultural_context_notes` (from `metric_equivalence` table if available).
-  - Data is assembled from a static config file (`configs/metric_provenance.yaml` in the BFF service) combined with dynamic lookups in `metric_validity` and `metric_equivalence`.
-  - Update OpenAPI spec, regenerate stubs, implement handler.
-* [x] **Static Provenance Config: `metric_provenance.yaml`.** Create the config file documenting each currently implemented metric:
-  - `word_count`: Tier 1, deterministic, no known limitations.
-  - `sentiment_score`: Tier 1 (SentiWS), known limitations: negation blindness, compound word failure (WP-002 §3).
-  - `language`: Tier 1 (langdetect), known limitation: short-text degradation.
-  - `temporal_distribution`: Tier 1, deterministic.
-  - NER entities: Tier 1 (spaCy), known limitation: no entity linking, Western bias in entity ontology.
-* [x] **Link Source Documentation to `sources` Table.** Add `documentation_url VARCHAR(255)` column to the PostgreSQL `sources` table via migration `000007_sources_documentation_url.up.sql`. Populate for existing RSS sources with links to `docs/methodology/probe0_bias_profile.md`. The BFF API exposes this field via a new `GET /api/v1/sources` endpoint (or extends the existing source metadata response).
-* [x] **ADR-017: Reflexive Architecture Principles.** Document the five principles from WP-006 §6 in `docs/arc42/09_architecture_decisions.md` as an architectural commitment. Mark principles 1 (Methodological Transparency) and 3 (Reflexive Documentation) as "implemented" and principles 2, 4, 5 as "deferred to dashboard phase."
-* [x] **Non-Prescriptive Visualization Guidelines.** Create `docs/design/visualization_guidelines.md` documenting the WP-006 §6.2 requirements: viridis color scale, no red/green encoding, no normative labels, uncertainty alongside point estimates, multiple visualization modes. This file guides future frontend development.
-* [x] **Update Arc42 Documentation.** Chapter 5 (§5.1.3: document provenance endpoint). Chapter 8 (add §8.12: Reflexive Architecture). Chapter 12 (Glossary: `Reflexive Documentation`, `Methodological Transparency`, `Non-Prescriptive Visualization`).
-* [x] **Validate.** `make test`, `make lint`, `make audit`, `make codegen && git diff --exit-code`.
-
 
 ## Phase 68: Seed Files & Configuration Templates (Cross-WP) - [x] DONE
 *Phases 62–64 are implemented; Phases 65–67 will complete the schema and API work and are implemented as well. Before documenting workflows (Phase 71), the system needs the static seed files and configuration templates that those workflows reference. Phase 62 already created `probe_registration_template.yaml` and Phase 64 already created `probe0_bias_profile.md` — this phase creates only the remaining templates.*
@@ -801,7 +781,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [x] **Chapter 3 (System Scope and Context).** Technical Context / Business Context diagrams extended with the Phase 63–67 BFF endpoints (`/provenance`, `/sources`, `/languages`, extended `/metrics/available`). External Interfaces table now documents `normalization` and `resolution` query parameters. Added "Interdisciplinary Researcher" as a stakeholder class in the Business Context.
 * [x] **Chapter 5 (Building Block View).** §5.1.2 already documented `DiscourseContext` (Phase 62) and `BiasContext` (Phase 64). §5.1.3 already covered `normalization`, `resolution`, and the provenance endpoint. §5.1.4 was missing `aer_gold.metric_validity` (Phase 63) — now added alongside `metric_baselines` and `metric_equivalence`. `source_classifications` and `discourse_function` column documentation verified.
-* [x] **Chapter 8 (Cross-cutting Concepts).** Verified existing coverage: §8.12 Hybrid Tier Architecture (ADR-016), §8.13 Multi-Resolution Temporal Framework, §8.8 addendum Tiered Retention "planned — not yet active", §8.14 Reflexive Architecture (ADR-017). (Note: ROADMAP referred to §8.6/§8.10/§8.12 — actual section numbers are §8.13/§8.12/§8.14 respectively. Content is correct.)
+* [x] **Chapter 8 (Cross-cutting Concepts).** Verified existing coverage: §8.12 Hybrid Tier Architecture (ADR-016), §8.13 Multi-Resolution Temporal Framework, §8.8.1 Tiered Retention "planned — not yet active", §8.14 Reflexive Architecture (ADR-017). (Historical ROADMAP-text references to §8.6/§8.10/§8.12 — actual section numbers §8.13/§8.12/§8.14 — were corrected in Phase 80.)
 * [x] **Chapter 9 (Architecture Decisions).** ADR-015, ADR-016 (Phase 63, Hybrid Tier), ADR-017 (Phase 67, Reflexive Architecture) all present and correctly numbered. ADR-015 cross-references still accurate — `SilverMeta` is explicitly described as unstable, so Phase 62/64 additions (DiscourseContext, BiasContext) require no ADR update.
 * [x] **Chapter 11 (Risks and Technical Debts).** R-12 (Authenticity Extractors, Phase 64) verified present. Added **R-13: Scientific Infrastructure Tables Are Empty** — warns that `metric_validity`, `metric_equivalence`, and `source_classifications.function_weights` are empty or carry provisional defaults, making the BFF surface look "validation-ready" when it is not. Added R-13 to the risk matrix overview.
 * [x] **Chapter 12 (Glossary).** Added missing terms `Cultural Calendar` and `Validation Study`. Verified all other Phase 62–67 terms (`Baseline`, `BiasContext`, `Discourse Function`, `Emic Tag`, `Etic Construct`, `Etic Tag`, `Metric Equivalence`, `Metric Validity`, `Methodological Transparency`, `Minimum Meaningful Window`, `Non-Prescriptive Visualization`, `Probe Classification`, `Reflexive Documentation`, `Temporal Scale`, `Tiered Retention`, `Validation Protocol`, `Visibility Mechanism`, `Z-Score Normalization`) are present.
@@ -1097,6 +1077,22 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Metrics-Cache: Text oder LRU.** Arc42 §8.11 beschreibt einen "Metrics Cache" implizit als Multi-Slot; tatsächlich ist es ein Single-Slot. Entweder auf `hashicorp/golang-lru/v2` mit 16 Slots umstellen, oder Text präzisieren. **Empfehlung: Text präzisieren.**
 * [x] **Validate.** `make test`, `make up` Smoke-Check.
 
+
+## Phase 80: Arc42 Structural Fix [P-Docs] - [x] DONE
+
+*Arc42 Kapitel 8 hat nach Phasen 62–72 strukturelle Drift. ROADMAP.md hat ein Duplikat. Beides wird isoliert konsolidiert, ohne Code-Änderungen. Läuft parallel zu Phasen 73–79.*
+
+* [x] **Phase 67 Duplikat in ROADMAP.md entfernen.** Zwei identische Blöcke.
+* [x] **Arc42 Kapitel 8 Neu-Nummerierung.** Aktuelle Reihenfolge im File: `8.1 … 8.8 … 8.9 … 8.10 … 8.9.3 Configuration … 8.11 … 8.12 … 8.13 … 8.8 (addendum) … 8.14 … 8.15`. Defekte:
+  - `8.9.3 Configuration Management` steht **hinter** `8.10` — muss zu `8.9` vor 8.10 umgesetzt werden.
+  - `8.8 (addendum, Phase 66)` ist ein zweites `§8.8` — sollte als `8.8.1 Tiered Retention (Planned)` subsummiert werden.
+  - Phase 69 hat bereits notiert, dass die ROADMAP `§8.6/§8.10/§8.12` referenziert, die tatsächlich `§8.13/§8.12/§8.14` sind — diese alten Referenzen in ROADMAP-Historie und Cross-Doku korrigieren.
+* [x] **R-14: Triple-Insert-Risiko in `11_risks_and_technical_debts.md`.** Neuer Eintrag; da Phase 74 bereits committed ist, wurde der Eintrag direkt als "Resolved (Phase 74)" mit Phase-74-Mitigation angelegt.
+* [x] **ADR-018 / ADR-019 in `09_architecture_decisions.md`.**
+  - **ADR-018: Constant-Time API-Key-Vergleich.** Begründung, Impl-Referenz, Non-Goals.
+  - **ADR-019: IaC-only NATS-Stream-Provisionierung.** Worum es geht, warum `js.add_stream` entfernt wurde, Referenz auf `infra/nats/streams/`.
+* [x] **`mkdocs build --strict`** grün, Quer-Verweise stichprobenartig geprüft.
+
 ---
 
 ### Open Phases
@@ -1110,23 +1106,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 - **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
 - **P3 (Robustness & Clean-ups):** Phasen 79
 - **P-Docs (parallel):** Phasen 80, 81
-
----
-
-## Phase 80: Arc42 Structural Fix [P-Docs]
-
-*Arc42 Kapitel 8 hat nach Phasen 62–72 strukturelle Drift. ROADMAP.md hat ein Duplikat. Beides wird isoliert konsolidiert, ohne Code-Änderungen. Läuft parallel zu Phasen 73–79.*
-
-* [ ] **Phase 67 Duplikat in ROADMAP.md entfernen.** Zwei identische Blöcke.
-* [ ] **Arc42 Kapitel 8 Neu-Nummerierung.** Aktuelle Reihenfolge im File: `8.1 … 8.8 … 8.9 … 8.10 … 8.9.3 Configuration … 8.11 … 8.12 … 8.13 … 8.8 (addendum) … 8.14 … 8.15`. Defekte:
-  - `8.9.3 Configuration Management` steht **hinter** `8.10` — muss zu `8.9` vor 8.10 umgesetzt werden.
-  - `8.8 (addendum, Phase 66)` ist ein zweites `§8.8` — sollte als `8.8.1 Tiered Retention (Planned)` subsummiert werden.
-  - Phase 69 hat bereits notiert, dass die ROADMAP `§8.6/§8.10/§8.12` referenziert, die tatsächlich `§8.13/§8.12/§8.14` sind — diese alten Referenzen in ROADMAP-Historie und Cross-Doku korrigieren.
-* [ ] **R-14: Triple-Insert-Risiko in `11_risks_and_technical_debts.md`.** Neuer Eintrag, Risikoklasse **high**, verlinkt auf Phase 74 als Mitigation (wird nach Phase 74 Commit auf "resolved" umgeschaltet).
-* [ ] **ADR-018 / ADR-019 in `09_architecture_decisions.md`.**
-  - **ADR-018: Constant-Time API-Key-Vergleich.** Begründung, Impl-Referenz, Non-Goals.
-  - **ADR-019: IaC-only NATS-Stream-Provisionierung.** Worum es geht, warum `js.add_stream` entfernt wurde, Referenz auf `infra/nats/streams/`.
-* [ ] **`mkdocs build --strict`** grün, Quer-Verweise stichprobenartig prüfen.
 
 ---
 

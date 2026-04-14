@@ -460,3 +460,55 @@ We adopt the five WP-006 principles as an architectural commitment. Their status
 
 * **Positive:** The backend contract now exposes the methodological provenance required for scientifically-literate consumption of metrics, and source-level bias documentation is addressable by URL rather than being hidden in Git. The split between implemented and deferred principles is explicit — future frontend work has a concrete spec in `docs/design/visualization_guidelines.md` rather than a vague commitment.
 * **Negative:** The static provenance config (`metric_provenance.yaml`) must be kept in sync with the extractor registry by hand; the handler test verifies that every registered metric has an entry, but additions to the extractor registry still require a deliberate documentation step. Three of the five principles remain commitments without enforcement — in principle, a future frontend could violate them without the backend noticing.
+
+---
+
+## ADR-018: Constant-Time API-Key Comparison
+
+**Date:** 2026-04-13
+**Status:** Accepted
+
+### Context
+
+The BFF API and the Ingestion API both authenticate callers with a static API key (ADR-011) compared against an expected value held in process memory. Prior to Phase 75 the comparison used `==` on byte slices, whose runtime cost depends on how many leading bytes match before the first mismatch. Over a sufficient number of probes an attacker can measure this difference and reconstruct the key byte by byte — a classical timing side channel against equality comparison on secrets.
+
+The guarantee required here is narrow: the comparison function itself must not leak information about the candidate through its observable runtime. Defences like rate limiting (R-1 resolution) reduce how fast an attacker can probe, but they do not remove the underlying signal — they only make it slower to exploit.
+
+### Decision
+
+The shared API-key middleware in `pkg/middleware/apikey.go` compares the candidate against the expected key via `crypto/subtle.ConstantTimeCompare`. `subtle.ConstantTimeCompare` runs in time dependent only on the length of its inputs (which are of fixed length here), not on where the first differing byte sits. Both the BFF API and the Ingestion API share this middleware through the workspace-linked `pkg/` module, so the guarantee holds across both internet-facing entry points without duplicating the comparison logic.
+
+The unauthorized response path was also tightened in the same patch: the middleware now sets `Content-Type: application/json` before writing the 401 body, rather than using `http.Error` (which forces `text/plain`). This is unrelated to the timing guarantee and is documented here only because it lives in the same function.
+
+**Non-goals.** This ADR does not address key rotation, key revocation, per-caller keys, or a rate-limiting strategy. Those concerns are tracked separately (ADR-011 for the single-key model, R-2 for plaintext `.env` storage, the existing BFF rate limiter for probe velocity).
+
+### Consequences
+
+* **Positive:** The equality check on the auth secret is free of the dominant timing signal that makes naive `==` comparisons exploitable. A sanity test (`TestAPIKeyAuth_UsesConstantTimeCompare` in `pkg/middleware/apikey_test.go`) verifies that a wrong key produces the same 401 outcome regardless of how many leading bytes match, and that `subtle.ConstantTimeCompare` is the function under test. Because the middleware is shared, both services inherit the fix from the same source file.
+* **Negative:** `subtle.ConstantTimeCompare` returns `int` rather than `bool` and demands exactly-length inputs — a minor ergonomic cost at every call site. The constant-time guarantee only applies to the comparison; timing signals arising from surrounding work (header parsing, bearer-token extraction, response serialization) are not addressed and are considered acceptable under the current threat model.
+
+---
+
+## ADR-019: IaC-Only NATS JetStream Stream Provisioning
+
+**Date:** 2026-04-13
+**Status:** Accepted
+
+### Context
+
+Hard Rule 5 of the project charter forbids services from creating infrastructure at startup — buckets, tables, streams, and schemas must be provisioned by dedicated init containers and migration scripts. Before Phase 73, the analysis worker violated this rule for its NATS JetStream consumer: on startup it called `js.add_stream(...)` to idempotently declare the `AER_LAKE` stream if it did not already exist. The call was implemented as a safety net — "the worker must not crash against a missing stream in a fresh environment" — but in practice it meant the worker held implicit write authority over stream configuration, and the real stream definition lived partly in Python code, partly in whatever NATS container had been started first.
+
+This is the same class of drift as a service that auto-creates its own Postgres tables. It produces three concrete failure modes: (1) the stream config in code and the config in production can silently diverge, since no migration ever runs against an existing stream; (2) a misconfigured worker with the wrong retention or subject filter can "fix" the stream for every other consumer; (3) environment bootstrap order stops being deterministic — whichever service happens to come up first defines the stream.
+
+### Decision
+
+NATS JetStream streams are provisioned exclusively by the `nats-init` init container from versioned JSON stream definitions under `infra/nats/streams/`. The analysis worker's `js.add_stream(...)` call was removed in Phase 73, and the worker now only *subscribes* to the stream — it assumes the stream exists and fails fast if it does not, exactly as it would against a missing PostgreSQL table or a missing MinIO bucket. The sole authoritative definition of the `AER_LAKE` stream is `infra/nats/streams/AER_LAKE.json`, which records subjects, retention, storage, replica count, and deduplication window.
+
+This mirrors how `minio-init` and `clickhouse-init` already work for their respective infrastructures (ADR-014 for ClickHouse migrations). With the worker demoted to a pure consumer, Hard Rule 5 is uniformly enforced across all three storage backends.
+
+**Non-goals.** This ADR does not introduce a migration framework for stream schema changes — changes today are applied by editing the JSON file and restarting `nats-init`. A proper migration story is only worth building once the first backwards-incompatible stream change lands, which has not happened yet.
+
+### Consequences
+
+* **Positive:** The stream definition is now a single, versioned, diff-able file in the repository, owned by infrastructure rather than by any service. A misconfigured worker can no longer corrupt stream configuration for other consumers. Bootstrap order is deterministic: `nats-init` runs, the stream exists, services that depend on it start. The Hard Rule 5 surface is uniform — three storage backends, three init containers, zero services with implicit provisioning authority. See also CLAUDE.md Hard Rule 5 and §8.4 (Infrastructure as Code) in Chapter 8.
+* **Negative:** Fresh development environments now require `nats-init` to have run before the worker can start; a developer who bypasses the normal compose bring-up and starts the worker directly against an empty NATS instance will see a hard failure instead of silent self-repair. This is the intended trade-off — fail loudly in the wrong place rather than quietly mask a missing provisioning step.

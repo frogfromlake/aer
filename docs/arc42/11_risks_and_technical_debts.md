@@ -188,6 +188,22 @@ The architectural risk: from a consumer's perspective the BFF API looks *validat
 
 ---
 
+### R-14: ~~Triple-Insert Duplication on NATS Redelivery~~ — Resolved
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | High |
+| **Affected Component** | `analysis-worker`, ClickHouse (`aer_gold.metrics`, `aer_gold.entities`, `aer_gold.language_detections`) |
+| **Status** | Resolved (Phase 74) |
+
+Before Phase 74 the analysis worker wrote sequentially to three ClickHouse tables — `aer_gold.metrics`, `aer_gold.entities`, and `aer_gold.language_detections` — and only then marked the document as `processed` in PostgreSQL. If the worker crashed or the NATS JetStream consumer redelivered a message after a partial insert, the already-landed rows would be written a second time. The tables were plain `MergeTree`, which does not deduplicate, so every redelivery produced duplicate rows and silently inflated downstream metric aggregates — a correctness risk invisible to callers and to test suites that did not replay events.
+
+**Resolution (Phase 74).** Migration `000010_replacing_merge_tree.sql` rebuilt all three Gold tables as `ReplacingMergeTree(ingestion_version)` ordered by their natural dedup key (`(article_id, metric_name)` for metrics, span identity for entities, rank for language detections). The processor now stamps a monotone `ingestion_version` (event-time Unix nanoseconds) on every row it writes, so redelivered messages produce rows that `ReplacingMergeTree` collapses on merge (or on demand via `SELECT ... FINAL` / `OPTIMIZE TABLE ... FINAL`). A Testcontainers integration test replays the same NATS event twice and asserts that after `OPTIMIZE TABLE ... FINAL` exactly one row per dedup key remains in each of the three tables.
+
+**Why this matters.** With deduplication pushed down into the storage engine, at-least-once delivery from NATS JetStream is safe for the Gold layer without introducing a distributed idempotency table. The fix is a pure schema and write-path change — no changes were required to the BFF query layer, because any stale duplicate rows remaining between background merges are resolved by the `FINAL` modifier on read paths that require it (none currently do; counting queries tolerate transient duplicates until the next merge).
+
+---
+
 ## 11.2 Technical Debts
 
 ### D-1: ~~Image Pinning Violations (Prometheus, Grafana)~~ — Resolved
