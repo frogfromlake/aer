@@ -405,9 +405,14 @@ S3-compatible storage for the Medallion Architecture layers (Bronze, Silver, DLQ
 | API           | `http://localhost:9000`              |
 | Console (UI)  | `http://localhost:9001`              |
 | Console (TLS) | `https://$MINIO_CONSOLE_HOST` (via Traefik) |
-| Access Key    | `$MINIO_ROOT_USER`                  |
-| Secret Key    | `$MINIO_ROOT_PASSWORD`              |
+| Root user     | `$MINIO_ROOT_USER` / `$MINIO_ROOT_PASSWORD` (admin only) |
+| Ingestion API | `$INGESTION_MINIO_ACCESS_KEY` / `$INGESTION_MINIO_SECRET_KEY` (`aer_ingestion_policy`, Phase 79) |
+| Analysis Worker | `$WORKER_MINIO_ACCESS_KEY` / `$WORKER_MINIO_SECRET_KEY` (`aer_worker_policy`, Phase 79) |
 | Internal host | `minio:9000` (from containers)      |
+
+**Service accounts (Phase 79).** Each application service authenticates with its own MinIO user — the root credentials are reserved for `minio-init` and `setup.sh`. `aer_ingestion` has write access to the Bronze bucket; `aer_worker` has read access to Bronze and write access to Silver and the DLQ. Policies are declared and attached in `infra/minio/setup.sh`.
+
+**Bronze bucket ENV overrides (Phase 77).** Both services read the bucket name from environment variables — `INGESTION_BRONZE_BUCKET` for the Ingestion API and `WORKER_BRONZE_BUCKET` for the Analysis Worker. Default is `bronze`; both must match. Defined in `.env.example` and wired in `compose.yaml`.
 
 ```bash
 # Web console
@@ -858,7 +863,7 @@ The following table indexes every point where scientific judgment enters the AĒ
 | PostgreSQL           | `localhost:5432`                  | `$POSTGRES_USER` / `$POSTGRES_PASSWORD`        |
 | ClickHouse (UI)      | `http://localhost:8123/play`      | `$CLICKHOUSE_USER` / `$CLICKHOUSE_PASSWORD`    |
 | ClickHouse (native)  | `localhost:9002`                  | same                                           |
-| MinIO Console        | `http://localhost:9001`           | `$MINIO_ROOT_USER` / `$MINIO_ROOT_PASSWORD`   |
+| MinIO Console        | `http://localhost:9001`           | `$MINIO_ROOT_USER` / `$MINIO_ROOT_PASSWORD` (admin); per-service: `$INGESTION_MINIO_*`, `$WORKER_MINIO_*` |
 | MinIO API            | `http://localhost:9000`           | same                                           |
 | NATS                 | `localhost:4222`                  | none                                           |
 | NATS Monitor         | `http://localhost:8222`           | none                                           |

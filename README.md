@@ -48,7 +48,7 @@ Full documentation is available at `http://localhost:8000` when the stack is run
 | Ingestion / BFF / Crawlers | Go 1.26.2+ | High-concurrency I/O, minimal memory footprint |
 | Analysis / Processing | Python 3.14+ | Deterministic data science ecosystem (spaCy, Pydantic) |
 | Object Storage / Event Publisher | MinIO | S3-compatible data lake with native JetStream notification |
-| Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling |
+| Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling. Streams are declared in [`infra/nats/streams/`](infra/nats/streams/) and provisioned by the `nats-init` container (IaC-only, see ADR-019). |
 | Analytics Database | ClickHouse | Column-oriented OLAP; mandatory for sub-second time-series queries |
 | Metadata Index | PostgreSQL | Relational tracking of ingestion jobs, document lifecycle, trace IDs |
 | Reverse Proxy / TLS | Traefik | Self-signed TLS in dev; ACME/Let's Encrypt in production via `compose.prod.yaml` overlay |

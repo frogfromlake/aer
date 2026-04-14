@@ -1093,31 +1093,22 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - **ADR-019: IaC-only NATS-Stream-Provisionierung.** Worum es geht, warum `js.add_stream` entfernt wurde, Referenz auf `infra/nats/streams/`.
 * [x] **`mkdocs build --strict`** grün, Quer-Verweise stichprobenartig geprüft.
 
+
+## Phase 81: Documentation Alignment — CLAUDE.md, README, Playbook, WPs [P-Docs] - [x] DONE
+
+*Parallel zu Phase 80. Aktualisiert Dokumentation, die sich durch Phasen 73–79 ändert. Keine Vorab-Änderungen — diese Phase folgt dem Code.*
+
+* [x] **CLAUDE.md Hard Rule 5 präzisieren.** Zusatz: "Diese Regel schließt NATS-Stream-Provisionierung ein. Siehe `infra/nats/streams/` und den `nats-init`-Container."
+* [x] **CLAUDE.md "Extractors receive immutable SilverCore" korrigieren.** Nach Phase 76 präziser: "Extractors receive SilverCore. The processor may enrich Gold rows with `SilverMeta`-derived context (e.g. `discourse_function`) via a dedicated helper — this is the only sanctioned point where meta influences Gold."
+* [x] **README.md: `infra/nats/` Verweis reparieren.** Linkziel an das nach Phase 73 erstellte Verzeichnis anpassen.
+* [x] **Operations Playbook: neue ENV-Variablen.** `INGESTION_BRONZE_BUCKET`, `WORKER_BRONZE_BUCKET` (Phase 77), MinIO-Service-Account-Credentials (Phase 79).
+* [x] **Arc42 §8.7.1 Constant-Time Compare dokumentieren** (nach Phase 75).
+* [x] **Arc42 §8.11 Metrics Cache Wortlaut** (falls in Phase 79 Text-Option gewählt). — bereits in Phase 79 (commit 39ca291) auf "single-slot" präzisiert; keine weitere Änderung nötig.
+* [x] **WP-001..006 Cross-Reference Sweep.** Grep über alle sechs Papers (DE+EN) auf `§` und `WP-XXX`. Ziel: Arc42-Abschnittsnummern nach Phase 80 stimmen, Playbook-Referenzen stimmen. — WP-004 / WP-005 (DE+EN) Header-Refs von `§8.6` (ClickHouse OLAP / BFF Downsampling, heute Observability) auf `§8.13` (Multi-Resolution Temporal Framework) bzw. `§8.8` (Data Lifecycle) umgezogen.
+* [x] **`mkdocs build --strict`** grün, `make lint` grün.
+
 ---
 
 ### Open Phases
 
-## Post-Review Phases (73–82)
-
-*Die Phasen 73–81 sind das Ergebnis eines kritischen Code Reviews nach Abschluss von Phase 72. Sie sind nach Dringlichkeit geordnet und so aufgeteilt, dass jede Phase nicht zu gross ist und in sich abgeschlossene Gates hat. Prioritäten:*
-
-- **P0 (Correctness / Hard-Rule-Violations):** Phasen 73, 74
-- **P1 (Security Hygiene):** Phase 75
-- **P2 (Data Quality & Boundaries):** Phasen 76, 77, 78
-- **P3 (Robustness & Clean-ups):** Phasen 79
-- **P-Docs (parallel):** Phasen 80, 81
-
 ---
-
-## Phase 81: Documentation Alignment — CLAUDE.md, README, Playbook, WPs [P-Docs]
-
-*Parallel zu Phase 80. Aktualisiert Dokumentation, die sich durch Phasen 73–79 ändert. Keine Vorab-Änderungen — diese Phase folgt dem Code.*
-
-* [ ] **CLAUDE.md Hard Rule 5 präzisieren.** Zusatz: "Diese Regel schließt NATS-Stream-Provisionierung ein. Siehe `infra/nats/streams/` und den `nats-init`-Container."
-* [ ] **CLAUDE.md "Extractors receive immutable SilverCore" korrigieren.** Nach Phase 76 präziser: "Extractors receive SilverCore. The processor may enrich Gold rows with `SilverMeta`-derived context (e.g. `discourse_function`) via a dedicated helper — this is the only sanctioned point where meta influences Gold."
-* [ ] **README.md: `infra/nats/` Verweis reparieren.** Linkziel an das nach Phase 73 erstellte Verzeichnis anpassen.
-* [ ] **Operations Playbook: neue ENV-Variablen.** `INGESTION_BRONZE_BUCKET`, `WORKER_BRONZE_BUCKET` (Phase 77), MinIO-Service-Account-Credentials (Phase 79).
-* [ ] **Arc42 §8.7.1 Constant-Time Compare dokumentieren** (nach Phase 75).
-* [ ] **Arc42 §8.11 Metrics Cache Wortlaut** (falls in Phase 79 Text-Option gewählt).
-* [ ] **WP-001..006 Cross-Reference Sweep.** Grep über alle sechs Papers (DE+EN) auf `§` und `WP-XXX`. Ziel: Arc42-Abschnittsnummern nach Phase 80 stimmen, Playbook-Referenzen stimmen.
-* [ ] **`mkdocs build --strict`** grün, `make lint` grün.
