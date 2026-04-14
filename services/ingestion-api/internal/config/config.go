@@ -22,6 +22,14 @@ type Config struct {
 	MigrationsPath string `mapstructure:"MIGRATIONS_PATH"`
 	APIKey         string `mapstructure:"INGESTION_API_KEY"`
 	BronzeBucket   string `mapstructure:"INGESTION_BRONZE_BUCKET"`
+	// MaxBodyBytes caps the size of the JSON body accepted by POST /api/v1/ingest.
+	// A request larger than this is rejected with 413 before the decoder runs,
+	// so a malicious or buggy client cannot drive the process into OOM.
+	MaxBodyBytes int64 `mapstructure:"INGESTION_MAX_BODY_BYTES"`
+	// ShutdownTimeoutSeconds is the grace period the HTTP server has to drain
+	// in-flight requests before it is forced down. Must exceed WriteTimeout so
+	// a request that is mid-flight at signal time can complete.
+	ShutdownTimeoutSeconds int `mapstructure:"INGESTION_SHUTDOWN_TIMEOUT_SECONDS"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -41,6 +49,8 @@ func Load() (*Config, error) {
 	v.SetDefault("MIGRATIONS_PATH", "/migrations")
 	v.SetDefault("INGESTION_API_KEY", "")
 	v.SetDefault("INGESTION_BRONZE_BUCKET", "bronze")
+	v.SetDefault("INGESTION_MAX_BODY_BYTES", int64(16<<20)) // 16 MiB
+	v.SetDefault("INGESTION_SHUTDOWN_TIMEOUT_SECONDS", 30)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

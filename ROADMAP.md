@@ -1107,8 +1107,82 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **WP-001..006 Cross-Reference Sweep.** Grep über alle sechs Papers (DE+EN) auf `§` und `WP-XXX`. Ziel: Arc42-Abschnittsnummern nach Phase 80 stimmen, Playbook-Referenzen stimmen. — WP-004 / WP-005 (DE+EN) Header-Refs von `§8.6` (ClickHouse OLAP / BFF Downsampling, heute Observability) auf `§8.13` (Multi-Resolution Temporal Framework) bzw. `§8.8` (Data Lifecycle) umgezogen.
 * [x] **`mkdocs build --strict`** grün, `make lint` grün.
 
+## Phase 82: Ingestion API Edge Hardening [P0] - [x] TODO
+
+*Der `ingestion-api` ist der einzige Pfad, über den externe Daten ins System kommen. Drei kleine, aber load-bearing Lücken, die noch aus der Pre-Phase-75-Ära stammen und beim BFF-Review (Phase 75) symmetrisch übersehen wurden.*
+
+* [x] **HTTP-Server-Timeouts.** `services/ingestion-api/cmd/api/main.go` konstruiert den `http.Server` nur mit `Addr` und `Handler`. Keine `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `MaxHeaderBytes` → Slowloris-tauglich, unbegrenzt offene Idle-Connections. **Werte**: `ReadHeaderTimeout: 5s`, `ReadTimeout: 30s`, `WriteTimeout: 60s` (Batch-Upload muss reichen), `IdleTimeout: 120s`, `MaxHeaderBytes: 1 << 20`. Der `bff-api` erbt dieselbe Lücke (`services/bff-api/cmd/server/main.go`) — im selben Commit mitziehen.
+* [x] **Fehler-Leak im Handler schließen (Symmetrie zu Phase 75).** `internal/handler/handler.go` Zeile 34 gibt `"invalid JSON body: " + err.Error()` an den Client zurück, Zeile 62 leakt die rohe Service-Fehlermeldung. Phase 75 hat genau dieses Muster im BFF gefixt, den Ingestion-Handler aber übersehen. Generische Messages an den Client, Detail nur in `slog.Error` mit `request_id`.
+* [x] **Request-Body-Size-Limit.** Aktuell kein `http.MaxBytesReader` im Ingest-Handler → ein 10-GB-POST frisst Memory, bis der OOM-Killer greift. Hard Limit `INGESTION_MAX_BODY_BYTES` (Default 16 MiB) via Middleware vor dem JSON-Decoder.
+* [x] **Graceful-Shutdown-Budget auf 30s, konfigurierbar.** Der 5s-Timeout (Zeile 169) ist knapper als `WriteTimeout: 60s` — ein laufender Batch wird hart abgebrochen. Auf 30s erhöhen, `INGESTION_SHUTDOWN_TIMEOUT_SECONDS` aus Config. Gleicher Fix im BFF (dort ebenfalls 5s).
+* [x] **Tests.** Handler-Test, der bei fehlerhaftem JSON keinen `err.Error()`-Inhalt im Response-Body sieht. Handler-Test, der bei 32-MiB-Body ein `http.StatusRequestEntityTooLarge` (413) erhält.
+* [x] **Validate.** `make test-go`, `make test-e2e`.
+
 ---
 
 ### Open Phases
+
+## Phase 83: Analysis Worker Backpressure & Poison-Pill Containment [P0] - [ ] TODO
+
+*Der `analysis-worker` hat zwei Stellen, an denen ein einzelner Fehlertyp das System umkippen kann: eine unbegrenzte In-Process-Queue und ein Retry-Loop, der schlechte Nachrichten ewig reshippt.*
+
+* [ ] **`asyncio.Queue` begrenzen.** `services/analysis-worker/main.py` Zeile 147: `task_queue = asyncio.Queue()` — unbounded. Kombiniert mit einem `message_handler`, der nur `await task_queue.put(msg)` macht, hat das System keine Backpressure: eine langsame Extractor-Pipeline lässt die Queue (und den Python-Heap) ins Unendliche wachsen. **Fix**: `asyncio.Queue(maxsize=config.worker_count * 4)`. `put()` blockiert damit, wenn die Worker nicht hinterherkommen — NATS JetStream liefert dann durch `max_ack_pending` von sich aus Backpressure.
+* [ ] **NATS-Consumer-Safety-Parameter.** `js.subscribe(...)` (Zeile 175ff.) setzt weder `max_ack_pending`, noch `ack_wait`, noch `max_deliver`. **Werte**: `max_ack_pending = config.worker_count * 4` (matches queue size), `ack_wait = 60s` (muss länger als die durchschnittliche Verarbeitungszeit eines Dokuments sein), `max_deliver = 5`. Nach 5 Zustellversuchen wandert die Nachricht in eine Dead-Letter-Subjekt-Semantik (siehe nächster Punkt).
+* [ ] **Poison-Pill-DLQ statt NAK-Loop.** `worker_task` NAKt heute jede Exception (siehe `main.py`), was bei einem deterministischen Fehler (z.B. ein Adapter-Bug, den die Nachricht jedes Mal auslöst) einen endlosen Redelivery-Loop erzeugt. **Fix**: Wenn `msg.metadata.num_delivered >= max_deliver - 1`, die Nachricht in den bestehenden `bronze-quarantine`-DLQ-Pfad schreiben (neuer Helper `data_processor.quarantine_poison_message(msg, reason)`), **dann** `msg.ack()` statt `nak()`. Counter `analysis_worker_poison_messages_total` (Label `reason`).
+* [ ] **`OTEL_TRACE_SAMPLE_RATE` ehren.** `init_telemetry` in `main.py` konstruiert den Tracer-Provider ohne Sampler-Argument → 100 % Sampling, egal was in `.env` steht. Symmetrie zu den Go-Services herstellen: `ParentBased(TraceIdRatioBased(rate))`, Default `1.0` wie heute, aber Production-ready.
+* [ ] **Tests.** Unit-Test, der einen immer-failenden Mock-Processor baut und nachweist, dass nach `max_deliver` ein Quarantine-Write passiert und die Nachricht anschließend `ack`ed ist. Integrationstest (Testcontainers NATS+MinIO), der prüft, dass bei 100 Messages und `maxsize=4` die `put`-Calls blockieren statt Memory zu fressen.
+* [ ] **Validate.** `make test-python`, `make test-e2e`.
+
+## Phase 84: Supply Chain & Container Hardening [P1] - [ ] TODO
+
+*Das Projekt ist noch nicht deployed — genau der richtige Moment, die Container-Images zu härten, bevor ein Registry-Push sie für immer zementiert.*
+
+* [ ] **`.dockerignore` anlegen.** Weder Repo-Root noch Service-Directories haben ein `.dockerignore`. Konsequenz: Der `analysis-worker`-Build (`services/analysis-worker/Dockerfile` Zeile 33: `COPY services/analysis-worker/ .`) kopiert das gesamte `.venv/` ins Final-Image → aufgeblähtes Image, redundante Python-Deps. **Fix**: `.dockerignore` im Repo-Root, das `.venv/`, `.git/`, `tests/`, `*.pyc`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `bin/`, `.env`, `.env.*`, `logs/`, `.pids/` ausschließt.
+* [ ] **Alpine-Basis-Images SHA256-pinnen.** `services/ingestion-api/Dockerfile`, `services/bff-api/Dockerfile` und das Builder-Stage des Workers verwenden `alpine:3.XX` als Tag. Tag ≠ Immutable. **Fix**: `FROM alpine:3.XX@sha256:...` — Digest aus der aktuell gepullten Image via `docker inspect`. Kommentar mit Upstream-Link, damit der nächste Pin-Refresh nachvollziehbar ist.
+* [ ] **`USER`-Direktive + `HEALTHCHECK`.** Alle drei Service-Dockerfiles laufen heute als `root`. Nicht-Root-User einführen (`adduser -S aer -u 10001`, `USER aer`). `HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:$PORT/api/v1/healthz || exit 1` für die Go-Services, Python-Pendant für den Worker (Healthcheck via Prometheus-Port 8001 `/metrics`).
+* [ ] **Go-Builds mit `-trimpath` und `-ldflags="-s -w"`.** Reproduzierbarkeit + kleinere Binaries, gratis.
+* [ ] **SentiWS-Hash-Pin.** `services/analysis-worker/Dockerfile` lädt SentiWS zur Build-Zeit ohne SHA256-Verifikation. **Fix**: `ARG SENTIWS_SHA256=...` + `echo "${SENTIWS_SHA256}  sentiws.zip" | sha256sum -c -` nach dem `wget`.
+* [ ] **`requirements.txt` mit `--hash=` pinnen.** `services/analysis-worker/requirements.txt` hat Version-Pins, aber keine Hash-Pins → ein kompromittierter PyPI-Account könnte eine Malicious-Version mit derselben Version zurückziehen/republishen. **Fix**: `pip-compile --generate-hashes` via `pip-tools`, CI-Step, der gegen den generierten Hash-Lockfile installiert (`pip install --require-hashes -r requirements.lock.txt`).
+* [ ] **Trivy-Severity auf `MEDIUM` anheben (soft fail).** `.github/workflows/ci.yml` scannt nur `HIGH,CRITICAL`. Zweiter Trivy-Step für `MEDIUM` mit `exit-code: 0` — reporting-only, damit Drift früh sichtbar wird, ohne den Build zu blockieren.
+* [ ] **Validate.** `make test-e2e`, Image-Size-Vergleich vor/nach in der Commit-Message dokumentieren.
+
+## Phase 85: Scalability Symmetry & Query-Path-Polish [P2] - [ ] TODO
+
+*Horizontale Skalierbarkeit steht und fällt mit symmetrischen Pool-Größen und nicht-serialisierten Batch-Operationen. Vier kleine, unabhängige Verbesserungen.*
+
+* [ ] **PostgreSQL-Pool-Symmetrie (Go-Seite).** `services/ingestion-api/internal/storage/postgres.go` nutzt `sql.DB` mit Defaults (`MaxOpenConns=0` → unbegrenzt, `MaxIdleConns=2`, `ConnMaxLifetime=0`). **Fix**: `db.SetMaxOpenConns(25)`, `db.SetMaxIdleConns(5)`, `db.SetConnMaxLifetime(30*time.Minute)` — Werte konfigurierbar via `INGESTION_DB_MAX_OPEN_CONNS` etc.
+* [ ] **PG/CH-Pool-Symmetrie (Python-Seite).** `services/analysis-worker/internal/storage/clickhouse_client.py` dimensioniert den Pool an `WORKER_COUNT`, `postgres_client.py` hat einen fixen `maxconn=10`. Bei `WORKER_COUNT=20` läuft der PG-Pool trocken, während CH noch Luft hat. **Fix**: `maxconn = worker_count + 2` (plus ein kleiner Buffer für Retention-Sweeps, falls später implementiert), `minconn = 1`. `WORKER_COUNT` per Config nach oben propagieren.
+* [ ] **Konkurrenter MinIO-Upload im Ingestion-Batch.** `services/ingestion-api/internal/core/service.go` `IngestDocuments` uploaded Dokumente seriell in einer Schleife. Bei einer Batch-Größe von 50 dominiert die MinIO-Round-Trip-Latenz den Request. **Fix**: `errgroup.Group` mit `SetLimit(8)` — 8 parallele Uploads, der Rest derselbe Code. Tests: bestehender Batch-Test muss grün bleiben + ein neuer, der Ordering der Result-Indizes absichert.
+* [ ] **BFF Metrics-Cache auf Hot-Path anwenden.** `services/bff-api/internal/storage/metrics_query.go` cached nur `GetAvailableMetrics`, nicht `GetNormalizedMetrics` / `GetEntities` / `GetLanguages`. **Fix**: Single-Slot-Cache nach Phase 79 behalten, aber einen zweiten Slot-Typ `last-5min-query:{endpoint}:{hash(params)}` hinzufügen, TTL `BFF_METRICS_CACHE_TTL_SECONDS` (Default 60s). Dashboard-Refresh-Gewitter schlägt damit nicht mehr durch auf ClickHouse.
+* [ ] **RssAdapter `_classification_cache` bounden.** `services/analysis-worker/internal/adapters/rss.py` nutzt eine unbounded `dict` als Classification-Cache → ein Crawl mit 1 Mio. distinkten RSS-Kategorien frisst den Worker-Heap. **Fix**: `functools.lru_cache(maxsize=4096)` auf die Lookup-Methode, oder `cachetools.TTLCache(maxsize=4096, ttl=3600)` falls TTL erwünscht.
+* [ ] **Validate.** `make test`, `make test-e2e`, `ab`/`hey` mit 100 parallelen Requests gegen `GET /api/v1/metrics` vs. Baseline.
+
+## Phase 86: Observability Wiring [P3] - [ ] TODO
+
+*Kleine, aber nervige Lücken in der Telemetry-Pipeline. Jede einzeln wäre ein One-Liner-Bugfix, gesammelt ergeben sie ein ehrliches Observability-Fundament.*
+
+* [ ] **Prometheus-Scrape für `analysis-worker` reparieren.** `infra/observability/prometheus.yml` scraped den Worker heute via `host.docker.internal:8001` — das funktioniert auf Mac-Docker, aber nicht in Linux-Containern (WSL2 inklusive). **Fix**: `analysis-worker:8001` als Target (Service-DNS im `aer-backend`-Netzwerk), Prometheus muss dem Netzwerk beitreten, Worker-Dockerfile muss Port 8001 `EXPOSE`en.
+* [ ] **Prometheus-Scrape für `bff-api` hinzufügen.** Es gibt heute schlicht keinen BFF-Scrape-Target in `prometheus.yml`. `bff-api` exponiert `/metrics` (symmetrisch zum Ingestion). **Fix**: Job `bff-api` mit `targets: ['bff-api:8080']`, `metrics_path: /metrics`.
+* [ ] **OTel-Collector-Pipeline mit Processors.** `infra/observability/otel-collector.yaml` hat keinen `processors`-Block → keine `batch`-Aggregation, kein `memory_limiter`. **Fix**: `memory_limiter` (check_interval 1s, limit 512 MiB, spike 128 MiB) und `batch` (timeout 10s, send_batch_size 8192) in alle Pipelines (`traces`, `metrics`, `logs`). Best-Practice-Default, spart Netzwerk.
+* [ ] **RSS-Crawler-Metriken.** `crawlers/rss-crawler/main.go` hat heute null Prometheus-Metriken. Als kurzlebiger Batch-Prozess ist das kein Dauerbetrieb-Endpoint, aber ein `pushgateway`-Push oder ein `textfile collector`-File am Ende des Runs (`feeds_crawled_total`, `items_submitted_total`, `items_skipped_total`, `crawl_duration_seconds`, `last_successful_crawl_timestamp`) reicht. **Empfehlung**: Textfile-Collector (`/var/lib/node_exporter/textfile_collector/rss-crawler.prom`), weil zero extra Infrastruktur.
+* [ ] **BFF-CORS `X-API-Key` allowen.** `services/bff-api/internal/config/config.go` CORS-Config listet `X-API-Key` nicht in den Allowed-Headers. Für einen echten Browser-Frontend-Client (Phase 90+) wäre das ein stiller 403.
+* [ ] **NATS-Stream `num_replicas` dokumentieren.** `infra/nats/streams/AER_LAKE.json` hat `num_replicas: 1` und `max_age: 0` (unbounded). Für eine Single-Node-Dev-Installation ist das korrekt, aber ADR-019 / Arc42 §8.X sollten explizit sagen, dass ein Multi-Node-Deployment diese Werte anpassen muss.
+* [ ] **Validate.** `make up`, `curl http://localhost:9090/api/v1/targets` zeigt `analysis-worker` + `bff-api` als `UP`. Grafana-Dashboard-Sichtprüfung.
+
+## Phase 87: Source-of-Truth-Drift & Doc-Sweep [P-Docs] - [ ] TODO
+
+*Zwei konkrete SSoT-Lecks und ein strukturierter Arc42-Sweep. Keine Code-Änderung außerhalb einer einzelnen Entscheidung (BFF-Sources).*
+
+* [ ] **BFF `sources.yaml` vs. Postgres `sources`-Tabelle auflösen.** `services/bff-api/internal/config/sources.go` lädt Source-Metadaten aus einem statischen YAML (`configs/source_documentation.yaml`). Der `ingestion-api` hält sie in der Postgres-`sources`-Tabelle. Zwei Wahrheiten → Drift garantiert. **Entscheidung** (eine von zwei, nicht beides):
+  - **Option A (empfohlen)**: BFF liest Source-Metadaten via neuen Postgres-Read-Only-Account aus der `sources`-Tabelle. Cache-TTL 60s. YAML wird gelöscht. Keine SSoT-Duplizierung.
+  - **Option B**: YAML bleibt, aber eine CI-Assertion prüft, dass für jeden Source-Slug in `infra/postgres/migrations/*_seed_sources.sql` ein Eintrag im YAML existiert (und umgekehrt). Drift wird an der CI-Grenze gefangen, nicht im Prod-Stack.
+* [ ] **`.env.example`-Kommentare auf den aktuellen Stand.** Ein paar Kommentare referenzieren "Phase 79" als aktuell — Phase 82–86 können am Ende dieser Phase ebenfalls hinein, falls sie neue ENV-Variablen einführen (`INGESTION_MAX_BODY_BYTES`, `INGESTION_SHUTDOWN_TIMEOUT_SECONDS`, `INGESTION_DB_MAX_OPEN_CONNS`, etc.).
+* [ ] **Arc42-Drift-Sweep nach Phasen 82–86.** Nach Abschluss der Code-Phasen: §8.7 (Security) um HTTP-Timeouts, Body-Size-Limit und Fehler-Leak-Fix ergänzen. §8.8 (Analysis Worker) um Queue-Backpressure, NATS-Consumer-Safety und Poison-Pill-DLQ. §8.10/§8.11 um die neuen Cache-Slots. Kapitel 10 (Quality Requirements) um die konkreten Timeout-Werte. Kapitel 11 (Risks) — R-15 "Unbounded task queue OOM" als "Resolved (Phase 83)" eintragen.
+* [ ] **CLAUDE.md-Update.** Hard Rule 2 (Healthchecks) um die neuen Dockerfile-`HEALTHCHECK`-Direktiven ergänzen. Ein neuer Abschnitt "Security Defaults" listet: HTTP-Server-Timeouts, Body-Size-Limits, Constant-Time-Auth, Non-Root-Container-User, Hashverified SentiWS/Requirements.
+* [ ] **Validate.** `mkdocs build --strict` grün, `make lint` grün, Grep auf "TODO", "FIXME", "Phase 79" in Arc42.
+
+---
+
+**Review-Notiz (Phase 82–87):** Die sieben Findings in Phase 82 und 83 sind die einzigen mit P0-Priorität. Alles darüber ist polish. Empfohlene Reihenfolge: 82 → 83 (Correctness-Base), dann 84 (Supply-Chain-Base vor Deploy), dann 85 → 86 (Performance & Observability), zuletzt 87 (Docs folgen dem Code).
 
 ---

@@ -25,6 +25,10 @@ type Config struct {
 	RateLimitBurst     int     `mapstructure:"RATE_LIMIT_BURST"`
 	QueryRowLimit       int     `mapstructure:"BFF_QUERY_ROW_LIMIT"`
 	MetricsCacheTTLSecs int     `mapstructure:"BFF_METRICS_CACHE_TTL_SECONDS"`
+	// ShutdownTimeoutSeconds is the grace period the HTTP server has to drain
+	// in-flight requests before it is forced down. Must exceed the chi request
+	// timeout so an in-flight ClickHouse query can finish during shutdown.
+	ShutdownTimeoutSeconds int `mapstructure:"BFF_SHUTDOWN_TIMEOUT_SECONDS"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -47,6 +51,7 @@ func Load() (*Config, error) {
 	v.SetDefault("RATE_LIMIT_BURST", 200)
 	v.SetDefault("BFF_QUERY_ROW_LIMIT", 10000)
 	v.SetDefault("BFF_METRICS_CACHE_TTL_SECONDS", 60)
+	v.SetDefault("BFF_SHUTDOWN_TIMEOUT_SECONDS", 30)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

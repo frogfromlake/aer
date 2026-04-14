@@ -122,7 +122,7 @@ func main() {
 
 	// 4. Wire service and handlers
 	svc := core.NewIngestionService(db, minioClient, cfg.BronzeBucket)
-	h := handler.NewHandler(svc)
+	h := handler.NewHandler(svc, cfg.MaxBodyBytes)
 
 	// 5. Setup chi router with OTel instrumentation
 	r := chi.NewRouter()
@@ -148,10 +148,22 @@ func main() {
 	// 6. Start background PostgreSQL retention cleanup (runs every 24h)
 	go startRetentionCleanup(ctx, db)
 
-	// 7. Start HTTP server
+	// 7. Start HTTP server.
+	//
+	// Timeouts are hard defaults chosen to survive slowloris-style attacks
+	// and keep idle sockets from accumulating. WriteTimeout must be the
+	// largest per-request budget; ShutdownTimeout must exceed it so a mid-
+	// flight batch can drain. MaxHeaderBytes caps the request-line + header
+	// block and is independent of the JSON body limit, which the Ingest
+	// handler enforces via http.MaxBytesReader.
 	server := &http.Server{
-		Addr:    ":" + cfg.IngestionPort,
-		Handler: r,
+		Addr:              ":" + cfg.IngestionPort,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MiB
 	}
 
 	go func() {
@@ -162,11 +174,12 @@ func main() {
 		}
 	}()
 
-	// 8. Block until shutdown signal, then drain with 5s timeout
+	// 8. Block until shutdown signal, then drain with configurable grace period.
 	<-ctx.Done()
 	slog.Info("Shutdown signal received. Shutting down Ingestion API gracefully...")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownTimeout := time.Duration(cfg.ShutdownTimeoutSeconds) * time.Second
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {

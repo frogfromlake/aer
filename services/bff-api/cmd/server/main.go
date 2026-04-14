@@ -125,9 +125,20 @@ func main() {
 	handler.HandlerFromMuxWithBaseURL(strictHandler, r, "/api/v1")
 
 	// --- GRACEFUL SHUTDOWN LOGIC ---
+	//
+	// HTTP server timeouts are hard defaults: ReadHeaderTimeout guards
+	// against slowloris-style header stalls, WriteTimeout must exceed the
+	// chi request timeout (30s) so a slow ClickHouse query still has time
+	// to serialize its response, and ShutdownTimeout in turn must exceed
+	// WriteTimeout so an in-flight request can drain on SIGTERM.
 	server := &http.Server{
-		Addr:    ":" + cfg.BFFPort,
-		Handler: r,
+		Addr:              ":" + cfg.BFFPort,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MiB
 	}
 
 	// Start server in a separate goroutine
@@ -143,8 +154,9 @@ func main() {
 	<-ctx.Done()
 	slog.Info("Shutdown signal received. Shutting down BFF API gracefully...")
 
-	// Allow up to 5 seconds for active requests to finish
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Grace period for active requests to finish before forced shutdown.
+	shutdownTimeout := time.Duration(cfg.ShutdownTimeoutSeconds) * time.Second
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
