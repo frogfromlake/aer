@@ -187,6 +187,12 @@ jobs:
         working-directory: ./services/analysis-worker
         run: pip-audit -r requirements.txt
 
+      - name: Verify hash-pinned lockfile installs (analysis-worker)
+        working-directory: ./services/analysis-worker
+        run: |
+          python -m venv /tmp/lock-verify
+          /tmp/lock-verify/bin/pip install --require-hashes -r requirements.lock.txt
+
   container-security-scan:
     name: Container Security Scanning
     runs-on: ubuntu-latest
@@ -229,6 +235,35 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
+
+      # Phase 84: MEDIUM-severity scan is reporting-only (exit-code: 0).
+      # Catches drift early without blocking the build.
+      - name: Trivy scan (MEDIUM, reporting-only) — ingestion-api
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: 'aer/ingestion-api:ci'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'MEDIUM'
+
+      - name: Trivy scan (MEDIUM, reporting-only) — bff-api
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: 'aer/bff-api:ci'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'MEDIUM'
+
+      - name: Trivy scan (MEDIUM, reporting-only) — analysis-worker
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: 'aer/analysis-worker:ci'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'MEDIUM'
 
   e2e-smoke:
     name: E2E Smoke Test
