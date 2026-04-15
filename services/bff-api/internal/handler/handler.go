@@ -51,15 +51,24 @@ type Store interface {
 	GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error)
 }
 
+// SourceLister abstracts the source-metadata read path so the handler
+// does not care whether its backing store is Postgres, an in-memory fake
+// (for tests), or a future alternative. A nil value is valid — the
+// /sources endpoint will then return 500, which mirrors the behavior of
+// a misconfigured stack where the read path was never wired up.
+type SourceLister interface {
+	List(ctx context.Context) ([]config.SourceEntry, error)
+}
+
 // Server implements the generated StrictServerInterface.
 type Server struct {
-	db          Store
-	provenance  config.MetricProvenanceMap
-	sources     []config.SourceEntry
+	db         Store
+	provenance config.MetricProvenanceMap
+	sources    SourceLister
 }
 
 // NewServer creates a new API server instance.
-func NewServer(db Store, provenance config.MetricProvenanceMap, sources []config.SourceEntry) *Server {
+func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister) *Server {
 	return &Server{db: db, provenance: provenance, sources: sources}
 }
 
@@ -262,11 +271,23 @@ func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProve
 	return resp, nil
 }
 
-// GetSources handles GET /sources — returns the static list of known data
-// sources with optional methodology documentation URLs.
-func (s *Server) GetSources(_ context.Context, _ GetSourcesRequestObject) (GetSourcesResponseObject, error) {
-	response := make(GetSources200JSONResponse, 0, len(s.sources))
-	for _, src := range s.sources {
+// GetSources handles GET /sources — returns the list of known data
+// sources with optional methodology documentation URLs. Data comes from
+// the PostgreSQL `sources` table (the SSoT) via a TTL-cached read-only
+// store. A misconfigured stack (nil source lister) or a Postgres outage
+// with no warm cache surfaces as 500.
+func (s *Server) GetSources(ctx context.Context, _ GetSourcesRequestObject) (GetSourcesResponseObject, error) {
+	if s.sources == nil {
+		slog.Error("handler failure", "op", "GetSources", "error", "source lister is not configured")
+		return GetSources500JSONResponse{Message: genericInternalError}, nil
+	}
+	entries, err := s.sources.List(ctx)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetSources", "error", err)
+		return GetSources500JSONResponse{Message: genericInternalError}, nil
+	}
+	response := make(GetSources200JSONResponse, 0, len(entries))
+	for _, src := range entries {
 		response = append(response, Source{
 			Name:             src.Name,
 			Type:             src.Type,
