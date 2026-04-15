@@ -29,6 +29,17 @@ type Config struct {
 	// in-flight requests before it is forced down. Must exceed the chi request
 	// timeout so an in-flight ClickHouse query can finish during shutdown.
 	ShutdownTimeoutSeconds int `mapstructure:"BFF_SHUTDOWN_TIMEOUT_SECONDS"`
+	// Postgres connection for the /sources read-only path. BFF connects as
+	// a dedicated `bff_readonly` role provisioned by the postgres-init-roles
+	// init container; the role only holds SELECT on the `sources` table
+	// (Phase 87). Leaving BFFDBUser or BFFDBPassword empty disables the
+	// /sources endpoint and is only acceptable in unit tests.
+	PostgresHost         string `mapstructure:"POSTGRES_HOST"`
+	PostgresPort         string `mapstructure:"POSTGRES_PORT"`
+	PostgresDB           string `mapstructure:"POSTGRES_DB"`
+	BFFDBUser            string `mapstructure:"BFF_DB_USER"`
+	BFFDBPassword        string `mapstructure:"BFF_DB_PASSWORD"`
+	SourcesCacheTTLSecs  int    `mapstructure:"BFF_SOURCES_CACHE_TTL_SECONDS"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -52,6 +63,12 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_QUERY_ROW_LIMIT", 10000)
 	v.SetDefault("BFF_METRICS_CACHE_TTL_SECONDS", 60)
 	v.SetDefault("BFF_SHUTDOWN_TIMEOUT_SECONDS", 30)
+	v.SetDefault("POSTGRES_HOST", "localhost")
+	v.SetDefault("POSTGRES_PORT", "5432")
+	v.SetDefault("POSTGRES_DB", "aer_metadata")
+	v.SetDefault("BFF_DB_USER", "")
+	v.SetDefault("BFF_DB_PASSWORD", "")
+	v.SetDefault("BFF_SOURCES_CACHE_TTL_SECONDS", 60)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -70,6 +87,12 @@ func Load() (*Config, error) {
 	}
 	if cfg.ClickHousePassword == "" {
 		return nil, fmt.Errorf("CLICKHOUSE_PASSWORD must be set")
+	}
+	if cfg.BFFDBUser == "" {
+		return nil, fmt.Errorf("BFF_DB_USER must be set")
+	}
+	if cfg.BFFDBPassword == "" {
+		return nil, fmt.Errorf("BFF_DB_PASSWORD must be set")
 	}
 
 	return &cfg, nil

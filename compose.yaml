@@ -174,6 +174,32 @@ services:
           memory: 512M
           cpus: "0.50"
 
+  # Provisions the BFF API's read-only PostgreSQL role. Waits until
+  # ingestion-api has run its migrations (so the `sources` table exists),
+  # then creates/updates `bff_readonly` with SELECT on that single table.
+  # IaC-only (Hard Rule 5) — the BFF must never provision its own role.
+  postgres-init-roles:
+    image: postgres:18.3-alpine3.23
+    container_name: aer_postgres_init_roles
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ingestion-api:
+        condition: service_healthy
+    environment:
+      - PGHOST=postgres
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+      - BFF_DB_USER=${BFF_DB_USER}
+      - BFF_DB_PASSWORD=${BFF_DB_PASSWORD}
+    volumes:
+      - ./infra/postgres/init-roles.sh:/init-roles.sh:ro
+    entrypoint: /bin/sh /init-roles.sh
+    networks:
+      - aer-backend
+
   # ----------------------------------------------------
   # 3.1 ANALYTICS / GOLD LAYER (TIME-SERIES)
   # ----------------------------------------------------
@@ -339,6 +365,15 @@ services:
       - CLICKHOUSE_DB=${CLICKHOUSE_DB}
       - BFF_API_KEY=${BFF_API_KEY}
       - BFF_METRICS_CACHE_TTL_SECONDS=${BFF_METRICS_CACHE_TTL_SECONDS:-60}
+      # BFF reads source metadata directly from the Postgres `sources`
+      # table via a dedicated read-only role (Phase 87). The role is
+      # provisioned by the postgres-init-roles init container.
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - BFF_DB_USER=${BFF_DB_USER}
+      - BFF_DB_PASSWORD=${BFF_DB_PASSWORD}
+      - BFF_SOURCES_CACHE_TTL_SECONDS=${BFF_SOURCES_CACHE_TTL_SECONDS:-60}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
     labels:
@@ -353,6 +388,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+      postgres-init-roles:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v1/healthz"]
       interval: 10s
