@@ -9,6 +9,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
+)
+
+// Per-document outcome produced by the IngestDocuments batch loop.
+// outcomeUploaded is the zero value so the default-initialised slice element
+// implicitly means "success" without an extra write.
+type docOutcome uint8
+
+const (
+	outcomeUploaded docOutcome = iota
+	outcomeUploadFailed
+	outcomeStatusUpdateFailed
 )
 
 // StatusUpdateFailures counts cases where a document was uploaded to the
@@ -52,21 +64,28 @@ type IngestResult struct {
 
 // IngestionService orchestrates the data collection and storage processes.
 type IngestionService struct {
-	db     MetadataStore
-	minio  ObjectStore
-	bucket string
+	db                MetadataStore
+	minio             ObjectStore
+	bucket            string
+	uploadConcurrency int
 }
 
 // NewIngestionService creates a new core service via Dependency Injection.
 // bucket names the MinIO bronze bucket; empty string falls back to "bronze".
-func NewIngestionService(db MetadataStore, minio ObjectStore, bucket string) *IngestionService {
+// uploadConcurrency bounds parallel MinIO uploads per batch and must be >= 1;
+// the composition root (cmd/api) owns the default via config.
+func NewIngestionService(db MetadataStore, minio ObjectStore, bucket string, uploadConcurrency int) *IngestionService {
 	if bucket == "" {
 		bucket = "bronze"
 	}
+	if uploadConcurrency < 1 {
+		uploadConcurrency = 1
+	}
 	return &IngestionService{
-		db:     db,
-		minio:  minio,
-		bucket: bucket,
+		db:                db,
+		minio:             minio,
+		bucket:             bucket,
+		uploadConcurrency:  uploadConcurrency,
 	}
 }
 
@@ -84,51 +103,66 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 	slog.Info("Created new ingestion job", "job_id", jobID, "document_count", len(docs))
 
 	tracer := otel.Tracer("aer.ingestion")
-	// uploadFailures counts documents that never reached the bronze bucket
-	// (log-step failure or upload-step failure). Only this counter drives
-	// the terminal job status. statusUpdateFailures counts documents that
-	// were uploaded successfully but whose PostgreSQL row could not be
-	// flipped to "uploaded" — the data is live in MinIO, so the job is
-	// still a success. See Phase 77 for the contract.
-	uploadFailures := 0
-	statusUpdateFailures := 0
+	// Per-document outcome slice keyed by input index so ordering stays
+	// stable even though uploads run concurrently. Aggregation below derives
+	// uploadFailures / statusUpdateFailures from this slice.
+	outcomes := make([]docOutcome, len(docs))
 
-	for _, doc := range docs {
-		ctxSpan, span := tracer.Start(ctx, "IngestDocument")
-		traceID := span.SpanContext().TraceID().String()
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(s.uploadConcurrency)
+	for i, doc := range docs {
+		g.Go(func() error {
+			ctxSpan, span := tracer.Start(gctx, "IngestDocument")
+			defer span.End()
+			traceID := span.SpanContext().TraceID().String()
 
-		// 1. Write to DB FIRST (Status: pending) to prevent dark data
-		logErr := s.db.LogDocument(ctxSpan, jobID, doc.Key, traceID)
-		if logErr != nil {
-			slog.Error("Failed to log pending document metadata. Skipping upload to prevent dark data.",
-				"key", doc.Key, "error", logErr)
-			span.RecordError(logErr)
-			span.End()
-			uploadFailures++
-			continue
-		}
+			// 1. Write to DB FIRST (Status: pending) to prevent dark data
+			if logErr := s.db.LogDocument(ctxSpan, jobID, doc.Key, traceID); logErr != nil {
+				slog.Error("Failed to log pending document metadata. Skipping upload to prevent dark data.",
+					"key", doc.Key, "error", logErr)
+				span.RecordError(logErr)
+				outcomes[i] = outcomeUploadFailed
+				return nil
+			}
 
-		// 2. Upload to MinIO (Bronze Layer)
-		uploadErr := s.minio.UploadJSON(ctxSpan, s.bucket, doc.Key, doc.Data)
-		if uploadErr != nil {
-			slog.Error("Failed to upload to bronze", "key", doc.Key, "error", uploadErr)
-			span.RecordError(uploadErr)
-			uploadFailures++
-			_ = s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "failed")
-		} else {
-			updateErr := s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "uploaded")
-			if updateErr != nil {
+			// 2. Upload to MinIO (Bronze Layer)
+			if uploadErr := s.minio.UploadJSON(ctxSpan, s.bucket, doc.Key, doc.Data); uploadErr != nil {
+				slog.Error("Failed to upload to bronze", "key", doc.Key, "error", uploadErr)
+				span.RecordError(uploadErr)
+				outcomes[i] = outcomeUploadFailed
+				_ = s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "failed")
+				return nil
+			}
+
+			if updateErr := s.db.UpdateDocumentStatus(ctxSpan, doc.Key, "uploaded"); updateErr != nil {
 				slog.Error("Document uploaded to bronze but PostgreSQL status update failed. Job continues; operator must reconcile.",
 					"op", "status_update", "key", doc.Key, "error", updateErr)
 				span.RecordError(updateErr)
-				statusUpdateFailures++
+				outcomes[i] = outcomeStatusUpdateFailed
 				StatusUpdateFailures.Inc()
-			} else {
-				slog.Info("Successfully ingested document", "key", doc.Key, "trace_id", traceID)
+				return nil
 			}
-		}
+			slog.Info("Successfully ingested document", "key", doc.Key, "trace_id", traceID)
+			return nil
+		})
+	}
+	// All goroutines return nil; Wait never errors. Drain before aggregating.
+	_ = g.Wait()
 
-		span.End()
+	// uploadFailures counts documents that never reached the bronze bucket.
+	// Only this counter drives the terminal job status. statusUpdateFailures
+	// counts documents that were uploaded successfully but whose PostgreSQL
+	// row could not be flipped to "uploaded" — the data is live in MinIO,
+	// so the job is still a success. See Phase 77 for the contract.
+	uploadFailures := 0
+	statusUpdateFailures := 0
+	for _, o := range outcomes {
+		switch o {
+		case outcomeUploadFailed:
+			uploadFailures++
+		case outcomeStatusUpdateFailed:
+			statusUpdateFailures++
+		}
 	}
 
 	// Terminal job status is derived solely from uploadFailures: a document

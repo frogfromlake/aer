@@ -19,7 +19,7 @@ from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 # Internal application imports
 from prometheus_client import start_http_server
-from internal.storage import init_minio, init_clickhouse, init_postgres
+from internal.storage import init_minio, init_clickhouse, init_postgres, PG_POOL_HEADROOM
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter
 from internal.extractors import (
@@ -216,7 +216,9 @@ async def main(config: WorkerConfig | None = None):
 
     minio_client = init_minio()
     ch_client = init_clickhouse(pool_size=config.worker_count)
-    pg_pool = init_postgres()
+    # Phase 85: size the PG pool symmetrically with the CH pool so the
+    # worker does not starve on PG connections when WORKER_COUNT is raised.
+    pg_pool = init_postgres(maxconn=config.worker_count + PG_POOL_HEADROOM)
 
     adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter(pg_pool=pg_pool)})
     extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES)

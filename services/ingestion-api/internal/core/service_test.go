@@ -4,11 +4,19 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
+
+// serialUploads forces IngestDocuments to process documents one at a time
+// so tests can make deterministic ordering and call-count assertions.
+// A separate TestIngestDocuments_ConcurrentUploadsPreserveOrdering exercises
+// the parallel path and the ordering invariant the production path relies on.
+const serialUploads = 1
 
 // counterValue reads the current value of a Prometheus counter for tests
 // that assert delta increments. Protected by t.Helper() so failures point
@@ -25,6 +33,7 @@ func counterValue(t *testing.T, c prometheus.Counter) float64 {
 // --- Mock implementations ---
 
 type mockMetadataStore struct {
+	mu                 sync.Mutex
 	createJobFn        func(ctx context.Context, sourceID int) (int, error)
 	updateJobStatusFn  func(ctx context.Context, jobID int, status string) error
 	logDocumentFn      func(ctx context.Context, jobID int, key, traceID string) error
@@ -55,15 +64,23 @@ func newMockDB() *mockMetadataStore {
 }
 
 func (m *mockMetadataStore) CreateIngestionJob(ctx context.Context, sourceID int) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.createJobFn(ctx, sourceID)
 }
 func (m *mockMetadataStore) UpdateJobStatus(ctx context.Context, jobID int, status string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.updateJobStatusFn(ctx, jobID, status)
 }
 func (m *mockMetadataStore) LogDocument(ctx context.Context, jobID int, key, traceID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.logDocumentFn(ctx, jobID, key, traceID)
 }
 func (m *mockMetadataStore) UpdateDocumentStatus(ctx context.Context, key, status string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.updateDocStatusFn(ctx, key, status)
 }
 func (m *mockMetadataStore) GetSourceByName(ctx context.Context, name string) (int, string, error) {
@@ -97,7 +114,7 @@ func (m *mockObjectStore) BucketExists(ctx context.Context, bucket string) (bool
 // --- Tests ---
 
 func TestIngestDocuments_EmptyInput(t *testing.T) {
-	svc := NewIngestionService(newMockDB(), newMockMinio(), "bronze")
+	svc := NewIngestionService(newMockDB(), newMockMinio(), "bronze", serialUploads)
 	_, err := svc.IngestDocuments(context.Background(), 1, nil)
 	if err == nil {
 		t.Fatal("expected error for empty document list")
@@ -109,7 +126,7 @@ func TestIngestDocuments_CreateJobFailure(t *testing.T) {
 	db.createJobFn = func(_ context.Context, _ int) (int, error) {
 		return 0, errors.New("db unavailable")
 	}
-	svc := NewIngestionService(db, newMockMinio(), "bronze")
+	svc := NewIngestionService(db, newMockMinio(), "bronze", serialUploads)
 	_, err := svc.IngestDocuments(context.Background(), 1, []Document{{Key: "a.json", Data: "{}"}})
 	if err == nil {
 		t.Fatal("expected error when job creation fails")
@@ -119,7 +136,7 @@ func TestIngestDocuments_CreateJobFailure(t *testing.T) {
 func TestIngestDocuments_AllSuccess(t *testing.T) {
 	db := newMockDB()
 	minio := newMockMinio()
-	svc := NewIngestionService(db, minio, "bronze")
+	svc := NewIngestionService(db, minio, "bronze", serialUploads)
 
 	docs := []Document{
 		{Key: "doc-1.json", Data: `{"id":1}`},
@@ -169,7 +186,7 @@ func TestIngestDocuments_PartialFailure(t *testing.T) {
 		return nil
 	}
 
-	svc := NewIngestionService(db, minio, "bronze")
+	svc := NewIngestionService(db, minio, "bronze", serialUploads)
 	docs := []Document{
 		{Key: "fail.json", Data: "{}"},
 		{Key: "ok.json", Data: "{}"},
@@ -205,7 +222,7 @@ func TestIngestDocuments_AllFailed(t *testing.T) {
 		return errors.New("storage unavailable")
 	}
 
-	svc := NewIngestionService(db, minio, "bronze")
+	svc := NewIngestionService(db, minio, "bronze", serialUploads)
 	docs := []Document{
 		{Key: "a.json", Data: "{}"},
 		{Key: "b.json", Data: "{}"},
@@ -243,7 +260,7 @@ func TestIngestDocuments_DarkDataPrevention(t *testing.T) {
 		return nil
 	}
 
-	svc := NewIngestionService(db, minio, "bronze")
+	svc := NewIngestionService(db, minio, "bronze", serialUploads)
 	docs := []Document{
 		{Key: "dark.json", Data: "{}"},
 		{Key: "light.json", Data: "{}"},
@@ -288,7 +305,7 @@ func TestIngestDocuments_StatusUpdateFailureDoesNotFailJob(t *testing.T) {
 
 	before := counterValue(t, StatusUpdateFailures)
 
-	svc := NewIngestionService(db, minio, "bronze")
+	svc := NewIngestionService(db, minio, "bronze", serialUploads)
 	docs := []Document{
 		{Key: "doc-a.json", Data: "{}"},
 		{Key: "doc-b.json", Data: "{}"},
@@ -370,7 +387,7 @@ func TestJobStatusTransitions(t *testing.T) {
 				docs[i] = Document{Key: "doc.json", Data: "{}"}
 			}
 
-			result, err := NewIngestionService(db, minio, "bronze").IngestDocuments(context.Background(), 1, docs)
+			result, err := NewIngestionService(db, minio, "bronze", serialUploads).IngestDocuments(context.Background(), 1, docs)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -382,4 +399,131 @@ func TestJobStatusTransitions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIngestDocuments_ConcurrentUploadsPreserveOrdering is the Phase 85
+// regression guard for the errgroup-based upload loop. It pins three
+// invariants the batched hot path relies on:
+//
+//  1. Per-document outcomes are indexed by the document's position in the
+//     input slice, so a mid-batch failure is attributed to the correct doc.
+//  2. Concurrent uploads never under- or over-count accepted / failed totals.
+//  3. Every document in the batch is actually handed to the object store
+//     (no lost work when the errgroup semaphore releases slots).
+//
+// The fake UploadJSON sleeps just long enough (with reverse-ordered delays)
+// to guarantee that completion order differs from input order — otherwise a
+// silently serial loop would still pass.
+func TestIngestDocuments_ConcurrentUploadsPreserveOrdering(t *testing.T) {
+	const (
+		batchSize          = 16
+		uploadConcurrency  = 4
+		stepDelay          = 2 * time.Millisecond
+		failEveryNthByIndex = 3 // indices 0, 3, 6, 9, 12, 15
+	)
+
+	db := newMockDB()
+	minio := newMockMinio()
+
+	var uploadMu sync.Mutex
+	minio.uploadFn = func(_ context.Context, _, key, _ string) error {
+		// Reverse-ordered sleep so later-submitted docs complete first.
+		// Parse the trailing index from the key (e.g. "doc-012.json") and
+		// sleep (batchSize - index) * stepDelay. The delay monotonically
+		// decreases as index grows — without parallelism, total runtime
+		// would exceed batchSize * stepDelay.
+		idx := parseDocIndex(t, key)
+		time.Sleep(time.Duration(batchSize-idx) * stepDelay)
+
+		uploadMu.Lock()
+		defer uploadMu.Unlock()
+		minio.uploadedKeys = append(minio.uploadedKeys, key)
+		if idx%failEveryNthByIndex == 0 {
+			return errors.New("synthetic upload failure")
+		}
+		return nil
+	}
+
+	docs := make([]Document, batchSize)
+	for i := range docs {
+		docs[i] = Document{Key: fmtDocKey(i), Data: "{}"}
+	}
+
+	svc := NewIngestionService(db, minio, "bronze", uploadConcurrency)
+
+	start := time.Now()
+	result, err := svc.IngestDocuments(context.Background(), 1, docs)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Sanity: every doc was actually handed to UploadJSON.
+	if len(minio.uploadedKeys) != batchSize {
+		t.Fatalf("expected %d UploadJSON calls, got %d", batchSize, len(minio.uploadedKeys))
+	}
+
+	// Accepted / failed totals must match the deterministic failure pattern.
+	expectedFailed := 0
+	for i := range batchSize {
+		if i%failEveryNthByIndex == 0 {
+			expectedFailed++
+		}
+	}
+	if result.Failed != expectedFailed {
+		t.Errorf("expected %d failed, got %d", expectedFailed, result.Failed)
+	}
+	if result.Accepted != batchSize-expectedFailed {
+		t.Errorf("expected %d accepted, got %d", batchSize-expectedFailed, result.Accepted)
+	}
+
+	// Per-index ordering invariant: docStatuses must reflect the failure
+	// pattern position-by-position (i.e. the i-th failure is attributed to
+	// the i-th failing doc, not a neighbour).
+	for i, doc := range docs {
+		got := db.docStatuses[doc.Key]
+		want := "uploaded"
+		if i%failEveryNthByIndex == 0 {
+			want = "failed"
+		}
+		if got != want {
+			t.Errorf("doc %q (index %d): expected %q, got %q", doc.Key, i, want, got)
+		}
+	}
+
+	// Concurrency sanity: the sum of all per-doc sleeps is
+	// sum(batchSize..1) * stepDelay. A fully serial loop takes that long.
+	// With uploadConcurrency workers we expect roughly 1/uploadConcurrency
+	// of that — use half the serial budget as a loose lower-bound guard.
+	serialBudget := time.Duration(batchSize*(batchSize+1)/2) * stepDelay
+	if elapsed >= serialBudget/2 {
+		t.Errorf("batch ran too slowly for concurrency=%d: elapsed=%v, serial-budget=%v",
+			uploadConcurrency, elapsed, serialBudget)
+	}
+}
+
+func fmtDocKey(i int) string {
+	return "doc-" + padIndex(i) + ".json"
+}
+
+func padIndex(i int) string {
+	s := []byte{'0', '0', '0'}
+	for j := len(s) - 1; j >= 0 && i > 0; j-- {
+		s[j] = byte('0' + i%10)
+		i /= 10
+	}
+	return string(s)
+}
+
+func parseDocIndex(t *testing.T, key string) int {
+	t.Helper()
+	// key format: "doc-NNN.json"
+	if len(key) < len("doc-000.json") {
+		t.Fatalf("malformed doc key: %q", key)
+	}
+	n := 0
+	for _, b := range key[4:7] {
+		n = n*10 + int(b-'0')
+	}
+	return n
 }

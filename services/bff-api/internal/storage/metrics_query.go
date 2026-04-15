@@ -349,6 +349,12 @@ func (s *ClickHouseStorage) CheckEquivalenceExists(ctx context.Context, metricNa
 // NULLs instead of ClickHouse's default zero-values, so `IS NULL` / `IS NOT NULL`
 // discriminate correctly regardless of the detected_language string domain.
 func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
+	cacheKey := hotQueryKey("normalized_metrics",
+		start.UnixNano(), end.UnixNano(), derefString(source), derefString(metricName), int(resolution))
+	if cached, ok := s.normalizedMetricsCache.get(cacheKey, s.metricsCacheTTL); ok {
+		return cached.rows, cached.excluded, nil
+	}
+
 	baseWhere := "m.timestamp >= $1 AND m.timestamp <= $2"
 	args := []any{start, end}
 	argIdx := 3
@@ -419,5 +425,6 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 		)
 	}
 
+	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: results, excluded: excluded})
 	return results, excluded, nil
 }

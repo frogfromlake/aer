@@ -17,6 +17,12 @@ type EntityRow struct {
 
 // GetEntities retrieves aggregated named entities from the gold layer.
 func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]EntityRow, error) {
+	cacheKey := hotQueryKey("entities",
+		start.UnixNano(), end.UnixNano(), derefString(source), derefString(label), limit)
+	if cached, ok := s.entitiesCache.get(cacheKey, s.metricsCacheTTL); ok {
+		return cached, nil
+	}
+
 	query := `
 		SELECT
 			entity_text as EntityText,
@@ -55,6 +61,7 @@ func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Tim
 		return nil, err
 	}
 
+	s.entitiesCache.put(cacheKey, results)
 	return results, nil
 }
 
@@ -69,6 +76,12 @@ type LanguageDetectionRow struct {
 // GetLanguageDetections retrieves aggregated language detections from the gold layer.
 // Only rank=1 (top candidate per document) detections are included.
 func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]LanguageDetectionRow, error) {
+	cacheKey := hotQueryKey("languages",
+		start.UnixNano(), end.UnixNano(), derefString(source), derefString(language), limit)
+	if cached, ok := s.languagesCache.get(cacheKey, s.metricsCacheTTL); ok {
+		return cached, nil
+	}
+
 	query := `
 		SELECT
 			detected_language as DetectedLanguage,
@@ -108,5 +121,6 @@ func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, en
 		return nil, err
 	}
 
+	s.languagesCache.put(cacheKey, results)
 	return results, nil
 }

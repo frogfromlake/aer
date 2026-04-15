@@ -16,18 +16,35 @@ def _log_retry(retry_state):
     )
 
 
+PG_POOL_HEADROOM = 2
+"""Extra connections above worker_count reserved for ad-hoc callers such as
+retention sweeps or health-probe paths that would otherwise contend with the
+per-worker hot path. Two slots empirically cover both classes without
+over-committing PostgreSQL's max_connections budget."""
+
+
 @retry(
     wait=wait_exponential(multiplier=1, min=1, max=10),
     stop=stop_after_delay(30),
     before_sleep=_log_retry
 )
-def init_postgres() -> ThreadedConnectionPool:
+def init_postgres(maxconn: int | None = None) -> ThreadedConnectionPool:
     """
     Initializes a thread-safe connection pool for PostgreSQL.
+
+    The pool is sized symmetrically with the ClickHouse pool: the caller
+    (main.py) passes worker_count + PG_POOL_HEADROOM so every NATS worker
+    owns a dedicated connection instead of contending for a fixed slot.
+    Falls back to 10 when no size is provided, preserving the legacy default
+    for tests that do not thread the worker count through.
     """
+    if maxconn is None:
+        maxconn = 10
+    if maxconn < 1:
+        maxconn = 1
     pool = ThreadedConnectionPool(
         minconn=1,
-        maxconn=10,
+        maxconn=maxconn,
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", "5432"),
         user=os.getenv("POSTGRES_USER", "aer_admin"),

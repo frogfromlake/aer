@@ -12,6 +12,12 @@ import clickhouse_connect  # noqa: F401 — kept for test patch target compatibi
 
 from internal.storage.minio_client import init_minio
 from internal.storage.clickhouse_client import init_clickhouse, ClickHousePool
-from internal.storage.postgres_client import init_postgres
+from internal.storage.postgres_client import init_postgres, PG_POOL_HEADROOM
 
-__all__ = ["init_minio", "init_clickhouse", "init_postgres", "ClickHousePool"]
+__all__ = [
+    "init_minio",
+    "init_clickhouse",
+    "init_postgres",
+    "ClickHousePool",
+    "PG_POOL_HEADROOM",
+]

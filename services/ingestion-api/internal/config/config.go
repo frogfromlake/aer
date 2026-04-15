@@ -30,6 +30,15 @@ type Config struct {
 	// in-flight requests before it is forced down. Must exceed WriteTimeout so
 	// a request that is mid-flight at signal time can complete.
 	ShutdownTimeoutSeconds int `mapstructure:"INGESTION_SHUTDOWN_TIMEOUT_SECONDS"`
+	// PostgreSQL connection pool sizing. Defaults aligned with typical
+	// hot-path ingestion throughput; tune via env when scaling horizontally.
+	DBMaxOpenConns     int `mapstructure:"INGESTION_DB_MAX_OPEN_CONNS"`
+	DBMaxIdleConns     int `mapstructure:"INGESTION_DB_MAX_IDLE_CONNS"`
+	DBConnMaxLifeMin   int `mapstructure:"INGESTION_DB_CONN_MAX_LIFETIME_MINUTES"`
+	// MinioUploadConcurrency caps the number of parallel MinIO uploads per
+	// ingest batch. 8 balances round-trip latency reduction against MinIO
+	// connection pressure at typical batch sizes.
+	MinioUploadConcurrency int `mapstructure:"INGESTION_MINIO_UPLOAD_CONCURRENCY"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -51,6 +60,10 @@ func Load() (*Config, error) {
 	v.SetDefault("INGESTION_BRONZE_BUCKET", "bronze")
 	v.SetDefault("INGESTION_MAX_BODY_BYTES", int64(16<<20)) // 16 MiB
 	v.SetDefault("INGESTION_SHUTDOWN_TIMEOUT_SECONDS", 30)
+	v.SetDefault("INGESTION_DB_MAX_OPEN_CONNS", 25)
+	v.SetDefault("INGESTION_DB_MAX_IDLE_CONNS", 5)
+	v.SetDefault("INGESTION_DB_CONN_MAX_LIFETIME_MINUTES", 30)
+	v.SetDefault("INGESTION_MINIO_UPLOAD_CONCURRENCY", 8)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

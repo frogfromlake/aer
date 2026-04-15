@@ -24,6 +24,13 @@ type ClickHouseStorage struct {
 	rowLimit        int
 	metricsCacheTTL time.Duration
 	metricsCache    metricsCache
+	// Phase 85 hot-path single-slot caches. Each slot absorbs dashboard
+	// refresh bursts on identical parameters; differing parameters replace
+	// the slot in place. TTL reuses metricsCacheTTL so operators have a
+	// single knob (BFF_METRICS_CACHE_TTL_SECONDS) for all data endpoints.
+	normalizedMetricsCache singleSlot[normalizedMetricsCacheEntry]
+	entitiesCache          singleSlot[[]EntityRow]
+	languagesCache         singleSlot[[]LanguageDetectionRow]
 }
 
 func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, rowLimit int, metricsCacheTTL time.Duration) (*ClickHouseStorage, error) {

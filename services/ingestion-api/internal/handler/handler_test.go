@@ -13,6 +13,11 @@ import (
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/core"
 )
 
+// serialUploads forces the IngestionService to process documents one at a
+// time so handler tests stay deterministic. The core package owns the
+// concurrent-upload invariant; see core/service_test.go for the parallel path.
+const serialUploads = 1
+
 // --- Mocks for core.MetadataStore and core.ObjectStore ---
 //
 // These live in the handler package (not imported from core_test.go) because
@@ -57,7 +62,7 @@ func newTestHandler(t *testing.T, db *stubDB, mio *stubMinio, maxBodyBytes int64
 	if mio == nil {
 		mio = &stubMinio{}
 	}
-	svc := core.NewIngestionService(db, mio, "bronze")
+	svc := core.NewIngestionService(db, mio, "bronze", serialUploads)
 	return NewHandler(svc, maxBodyBytes)
 }
 

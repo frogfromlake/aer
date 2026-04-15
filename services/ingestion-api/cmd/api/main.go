@@ -87,7 +87,11 @@ func main() {
 	}()
 
 	// 2. Initialize PostgreSQL adapter
-	db, err := storage.NewPostgresDB(ctx, cfg.DBUrl)
+	db, err := storage.NewPostgresDB(ctx, cfg.DBUrl, storage.PoolConfig{
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: time.Duration(cfg.DBConnMaxLifeMin) * time.Minute,
+	})
 	if err != nil {
 		slog.Error("Failed to initialize PostgreSQL", "error", err)
 		os.Exit(1)
@@ -121,7 +125,7 @@ func main() {
 	slog.Info("MinIO client connected successfully")
 
 	// 4. Wire service and handlers
-	svc := core.NewIngestionService(db, minioClient, cfg.BronzeBucket)
+	svc := core.NewIngestionService(db, minioClient, cfg.BronzeBucket, cfg.MinioUploadConcurrency)
 	h := handler.NewHandler(svc, cfg.MaxBodyBytes)
 
 	// 5. Setup chi router with OTel instrumentation

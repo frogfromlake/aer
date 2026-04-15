@@ -1,5 +1,5 @@
-import time
 import structlog
+from collections import OrderedDict
 from datetime import datetime
 from typing import Optional
 from pydantic import Field
@@ -8,10 +8,17 @@ from internal.models import SilverCore, SilverMeta, generate_document_id
 from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext
 from internal.storage.postgres_client import get_source_classification
+import time
 
 logger = structlog.get_logger()
 
 CLASSIFICATION_CACHE_TTL_SECONDS = 60.0
+# Phase 85: bound the classification cache. A malicious or runaway crawl with
+# millions of distinct `source` values would otherwise retain one entry per
+# unique source for the lifetime of the worker process. 4096 covers every
+# realistic source catalogue with ample headroom; evictions fall back to the
+# PostgreSQL lookup path, which is the pre-cache behaviour.
+CLASSIFICATION_CACHE_MAX_ENTRIES = 4096
 
 
 class RssMeta(SilverMeta):
@@ -42,15 +49,22 @@ class RssAdapter:
 
     def __init__(self, pg_pool: ThreadedConnectionPool | None = None):
         self._pg_pool = pg_pool
-        self._classification_cache: dict[str, tuple[dict | None, float]] = {}
+        # LRU classification cache bounded at CLASSIFICATION_CACHE_MAX_ENTRIES.
+        # OrderedDict gives O(1) move-to-end and popitem(last=False) for LRU
+        # semantics without an external dependency.
+        self._classification_cache: OrderedDict[str, tuple[dict | None, float]] = OrderedDict()
 
     def _get_classification_cached(self, source: str) -> dict | None:
         now = time.monotonic()
         entry = self._classification_cache.get(source)
         if entry is not None and now - entry[1] < CLASSIFICATION_CACHE_TTL_SECONDS:
+            self._classification_cache.move_to_end(source)
             return entry[0]
         classification = get_source_classification(self._pg_pool, source)
         self._classification_cache[source] = (classification, now)
+        self._classification_cache.move_to_end(source)
+        if len(self._classification_cache) > CLASSIFICATION_CACHE_MAX_ENTRIES:
+            self._classification_cache.popitem(last=False)
         return classification
 
     def harmonize(self, raw: dict, event_time: datetime, bronze_object_key: str) -> tuple[SilverCore, RssMeta]:

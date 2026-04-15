@@ -1107,7 +1107,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **WP-001..006 Cross-Reference Sweep.** Grep über alle sechs Papers (DE+EN) auf `§` und `WP-XXX`. Ziel: Arc42-Abschnittsnummern nach Phase 80 stimmen, Playbook-Referenzen stimmen. — WP-004 / WP-005 (DE+EN) Header-Refs von `§8.6` (ClickHouse OLAP / BFF Downsampling, heute Observability) auf `§8.13` (Multi-Resolution Temporal Framework) bzw. `§8.8` (Data Lifecycle) umgezogen.
 * [x] **`mkdocs build --strict`** grün, `make lint` grün.
 
-## Phase 82: Ingestion API Edge Hardening [P0] - [x] TODO
+## Phase 82: Ingestion API Edge Hardening [P0] - [x] Done
 
 *Der `ingestion-api` ist der einzige Pfad, über den externe Daten ins System kommen. Drei kleine, aber load-bearing Lücken, die noch aus der Pre-Phase-75-Ära stammen und beim BFF-Review (Phase 75) symmetrisch übersehen wurden.*
 
@@ -1119,7 +1119,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Validate.** `make test-go`, `make test-e2e`.
 
 
-## Phase 83: Analysis Worker Backpressure & Poison-Pill Containment [P0] - [x] TODO
+## Phase 83: Analysis Worker Backpressure & Poison-Pill Containment [P0] - [x] Done
 
 *Der `analysis-worker` hat zwei Stellen, an denen ein einzelner Fehlertyp das System umkippen kann: eine unbegrenzte In-Process-Queue und ein Retry-Loop, der schlechte Nachrichten ewig reshippt.*
 
@@ -1130,11 +1130,8 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Tests.** `tests/test_backpressure_and_poison_pill.py`: 8 Unit-Tests pinnen (1) den Poison-Pill-Pfad mit immer-failendem Mock-Processor inkl. Fallback bei Quarantine-Write-Fehler, (2) das Recovery-vs-Synthetic-Envelope-Verhalten von `quarantine_poison_message`, (3) das Blocking-Verhalten einer `maxsize=4` Queue gegen 100 parallele `put`-Calls, (4) das Sampler-Wiring in `init_telemetry`.
 * [x] **Validate.** `make test-python` (125 passed), `make test-e2e` (12 passed).
 
----
 
-### Open Phases
-
-## Phase 84: Supply Chain & Container Hardening [P1] - [x] TODO
+## Phase 84: Supply Chain & Container Hardening [P1] - [x] Done
 
 *Das Projekt ist noch nicht deployed — genau der richtige Moment, die Container-Images zu härten, bevor ein Registry-Push sie für immer zementiert.*
 
@@ -1147,28 +1144,33 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Trivy-Severity auf `MEDIUM` anheben (soft fail).** `.github/workflows/ci.yml` scannt nur `HIGH,CRITICAL`. Zweiter Trivy-Step für `MEDIUM` mit `exit-code: 0` — reporting-only, damit Drift früh sichtbar wird, ohne den Build zu blockieren.
 * [x] **Validate.** `make test-e2e` (12/12 passed). Image-Size-Vergleich: `aer-analysis-worker` 3.72 GB → 1.94 GB (−48 %, `.venv` war im alten Image); `aer-bff-api` und `aer-ingestion-api` unverändert bei 54 MB / 54 MB.
 
-## Phase 85: Scalability Symmetry & Query-Path-Polish [P2] - [ ] TODO
+
+## Phase 85: Scalability Symmetry & Query-Path-Polish [P2] - [x] DONE
 
 *Horizontale Skalierbarkeit steht und fällt mit symmetrischen Pool-Größen und nicht-serialisierten Batch-Operationen. Vier kleine, unabhängige Verbesserungen.*
 
-* [ ] **PostgreSQL-Pool-Symmetrie (Go-Seite).** `services/ingestion-api/internal/storage/postgres.go` nutzt `sql.DB` mit Defaults (`MaxOpenConns=0` → unbegrenzt, `MaxIdleConns=2`, `ConnMaxLifetime=0`). **Fix**: `db.SetMaxOpenConns(25)`, `db.SetMaxIdleConns(5)`, `db.SetConnMaxLifetime(30*time.Minute)` — Werte konfigurierbar via `INGESTION_DB_MAX_OPEN_CONNS` etc.
-* [ ] **PG/CH-Pool-Symmetrie (Python-Seite).** `services/analysis-worker/internal/storage/clickhouse_client.py` dimensioniert den Pool an `WORKER_COUNT`, `postgres_client.py` hat einen fixen `maxconn=10`. Bei `WORKER_COUNT=20` läuft der PG-Pool trocken, während CH noch Luft hat. **Fix**: `maxconn = worker_count + 2` (plus ein kleiner Buffer für Retention-Sweeps, falls später implementiert), `minconn = 1`. `WORKER_COUNT` per Config nach oben propagieren.
-* [ ] **Konkurrenter MinIO-Upload im Ingestion-Batch.** `services/ingestion-api/internal/core/service.go` `IngestDocuments` uploaded Dokumente seriell in einer Schleife. Bei einer Batch-Größe von 50 dominiert die MinIO-Round-Trip-Latenz den Request. **Fix**: `errgroup.Group` mit `SetLimit(8)` — 8 parallele Uploads, der Rest derselbe Code. Tests: bestehender Batch-Test muss grün bleiben + ein neuer, der Ordering der Result-Indizes absichert.
-* [ ] **BFF Metrics-Cache auf Hot-Path anwenden.** `services/bff-api/internal/storage/metrics_query.go` cached nur `GetAvailableMetrics`, nicht `GetNormalizedMetrics` / `GetEntities` / `GetLanguages`. **Fix**: Single-Slot-Cache nach Phase 79 behalten, aber einen zweiten Slot-Typ `last-5min-query:{endpoint}:{hash(params)}` hinzufügen, TTL `BFF_METRICS_CACHE_TTL_SECONDS` (Default 60s). Dashboard-Refresh-Gewitter schlägt damit nicht mehr durch auf ClickHouse.
-* [ ] **RssAdapter `_classification_cache` bounden.** `services/analysis-worker/internal/adapters/rss.py` nutzt eine unbounded `dict` als Classification-Cache → ein Crawl mit 1 Mio. distinkten RSS-Kategorien frisst den Worker-Heap. **Fix**: `functools.lru_cache(maxsize=4096)` auf die Lookup-Methode, oder `cachetools.TTLCache(maxsize=4096, ttl=3600)` falls TTL erwünscht.
-* [ ] **Validate.** `make test`, `make test-e2e`, `ab`/`hey` mit 100 parallelen Requests gegen `GET /api/v1/metrics` vs. Baseline.
+* [x] **PostgreSQL-Pool-Symmetrie (Go-Seite).** `services/ingestion-api/internal/storage/postgres.go` nimmt jetzt eine `PoolConfig`-Struktur mit `MaxOpenConns`, `MaxIdleConns`, `ConnMaxLifetime`. Defaults (25/5/30m) in `INGESTION_DB_MAX_OPEN_CONNS`, `INGESTION_DB_MAX_IDLE_CONNS`, `INGESTION_DB_CONN_MAX_LIFETIME_MINUTES`.
+* [x] **PG/CH-Pool-Symmetrie (Python-Seite).** `init_postgres(maxconn=...)` propagiert jetzt `WORKER_COUNT + PG_POOL_HEADROOM` (2) vom `main.py` nach unten. Kein Trockenlaufen mehr, wenn `WORKER_COUNT` skaliert wird.
+* [x] **Konkurrenter MinIO-Upload im Ingestion-Batch.** `IngestDocuments` nutzt `errgroup.Group` mit `SetLimit(cfg.MinioUploadConcurrency)` (Default 8). Per-Index-`outcomes`-Slice bewahrt die Reihenfolge; neue Regression `TestIngestDocuments_ConcurrentUploadsPreserveOrdering` prüft Ordering, Accepted/Failed-Counts und tatsächliche Parallelität via Laufzeit-Budget.
+* [x] **BFF Metrics-Cache auf Hot-Path anwenden.** `internal/storage/query_cache.go` liefert einen generischen `singleSlot[T]`. `GetNormalizedMetrics`, `GetEntities`, `GetLanguageDetections` prüfen einen eigenen Slot mit Key `endpoint|{params}` und TTL `BFF_METRICS_CACHE_TTL_SECONDS`. Bestehender Slot für `GetAvailableMetrics` unverändert.
+* [x] **RssAdapter `_classification_cache` bounden.** `_classification_cache` ist jetzt eine `OrderedDict` mit LRU-Eviction bei `CLASSIFICATION_CACHE_MAX_ENTRIES=4096`. TTL bleibt 60s, Worker-Heap ist gegen pathologische Source-Kardinalität geschützt.
+* [x] **Validate.** `make lint`, `make test-python` (125 passed), `make test-go` (all packages green inkl. neuer Ordering-Test), `make test-e2e` (12/12 passed).
 
-## Phase 86: Observability Wiring [P3] - [ ] TODO
+---
+
+### Open Phases
+
+## Phase 86: Observability Wiring [P3] - [x] DONE
 
 *Kleine, aber nervige Lücken in der Telemetry-Pipeline. Jede einzeln wäre ein One-Liner-Bugfix, gesammelt ergeben sie ein ehrliches Observability-Fundament.*
 
-* [ ] **Prometheus-Scrape für `analysis-worker` reparieren.** `infra/observability/prometheus.yml` scraped den Worker heute via `host.docker.internal:8001` — das funktioniert auf Mac-Docker, aber nicht in Linux-Containern (WSL2 inklusive). **Fix**: `analysis-worker:8001` als Target (Service-DNS im `aer-backend`-Netzwerk), Prometheus muss dem Netzwerk beitreten, Worker-Dockerfile muss Port 8001 `EXPOSE`en.
-* [ ] **Prometheus-Scrape für `bff-api` hinzufügen.** Es gibt heute schlicht keinen BFF-Scrape-Target in `prometheus.yml`. `bff-api` exponiert `/metrics` (symmetrisch zum Ingestion). **Fix**: Job `bff-api` mit `targets: ['bff-api:8080']`, `metrics_path: /metrics`.
-* [ ] **OTel-Collector-Pipeline mit Processors.** `infra/observability/otel-collector.yaml` hat keinen `processors`-Block → keine `batch`-Aggregation, kein `memory_limiter`. **Fix**: `memory_limiter` (check_interval 1s, limit 512 MiB, spike 128 MiB) und `batch` (timeout 10s, send_batch_size 8192) in alle Pipelines (`traces`, `metrics`, `logs`). Best-Practice-Default, spart Netzwerk.
-* [ ] **RSS-Crawler-Metriken.** `crawlers/rss-crawler/main.go` hat heute null Prometheus-Metriken. Als kurzlebiger Batch-Prozess ist das kein Dauerbetrieb-Endpoint, aber ein `pushgateway`-Push oder ein `textfile collector`-File am Ende des Runs (`feeds_crawled_total`, `items_submitted_total`, `items_skipped_total`, `crawl_duration_seconds`, `last_successful_crawl_timestamp`) reicht. **Empfehlung**: Textfile-Collector (`/var/lib/node_exporter/textfile_collector/rss-crawler.prom`), weil zero extra Infrastruktur.
-* [ ] **BFF-CORS `X-API-Key` allowen.** `services/bff-api/internal/config/config.go` CORS-Config listet `X-API-Key` nicht in den Allowed-Headers. Für einen echten Browser-Frontend-Client (Phase 90+) wäre das ein stiller 403.
-* [ ] **NATS-Stream `num_replicas` dokumentieren.** `infra/nats/streams/AER_LAKE.json` hat `num_replicas: 1` und `max_age: 0` (unbounded). Für eine Single-Node-Dev-Installation ist das korrekt, aber ADR-019 / Arc42 §8.X sollten explizit sagen, dass ein Multi-Node-Deployment diese Werte anpassen muss.
-* [ ] **Validate.** `make up`, `curl http://localhost:9090/api/v1/targets` zeigt `analysis-worker` + `bff-api` als `UP`. Grafana-Dashboard-Sichtprüfung.
+* [x] **Prometheus-Scrape für `analysis-worker` repariert.** `infra/observability/prometheus.yml` zielt jetzt auf `analysis-worker:8001` im `aer-backend`-DNS. Der Worker-Dockerfile `EXPOSE`t Port 8001 bereits seit Phase 84; das `extra_hosts: host.docker.internal`-Workaround in `compose.yaml` wurde ersatzlos entfernt.
+* [x] **Prometheus-Scrape für `bff-api` hinzugefügt.** Neuer Job `bff-api` mit `targets: ['bff-api:8080']` und `metrics_path: /metrics`. Der BFF-Router mountet `promhttp.Handler()` jetzt root-level *vor* der API-Key-Group, symmetrisch zum Ingestion-Service — die Scrape-Target bleibt damit unauthentifiziert (begründet durch Zero-Trust-Backbone-Isolation, siehe Arc42 §8.12).
+* [x] **OTel-Collector-Pipeline mit Processors.** `infra/observability/otel-collector.yaml` hat jetzt einen `processors`-Block mit `memory_limiter` (check_interval 1s, limit 512 MiB, spike 128 MiB) und `batch` (timeout 10s, send_batch_size 8192). Beide Processors sind in den `traces`- und `metrics`-Pipelines verdrahtet (Reihenfolge: `[memory_limiter, batch]`). Kein `logs`-Pipeline, weil keine Log-Receiver konfiguriert sind — wird erst relevant, wenn strukturierte Logs über OTLP statt stdout fließen.
+* [x] **RSS-Crawler-Metriken (Textfile-Collector).** `crawlers/rss-crawler/main.go` nimmt jetzt einen `--metrics-file`-Flag (env `PROMETHEUS_TEXTFILE_PATH`). Am Ende des Runs schreibt `writeTextfileMetrics` fünf Kennzahlen atomar (temp + rename) als Prometheus-Exposition-Format: `rss_crawler_feeds_crawled_total`, `rss_crawler_items_submitted_total`, `rss_crawler_items_skipped_total`, `rss_crawler_duration_seconds`, `rss_crawler_last_successful_crawl_timestamp`. Ohne Flag: No-op — Backwards-Compatible.
+* [x] **BFF-CORS `X-API-Key` allowen.** `AllowedHeaders` in `services/bff-api/cmd/server/main.go` listet jetzt `X-API-Key` neben `Accept` und `Content-Type`. Preflight-Requests aus einem Browser-Frontend werden damit nicht mehr stillschweigend am CORS-Layer abgewiesen.
+* [x] **NATS-Stream `num_replicas` dokumentiert.** ADR-019 bekommt einen neuen "Single-node defaults"-Absatz, der explizit sagt, dass `num_replicas: 1` + `max_age: 0` korrekt für Single-Node ist und dass ein Multi-Node-Deployment `num_replicas` auf eine quorum-sichere odd number (typischerweise 3) und `max_age` passend zur Bronze-TTL erhöhen muss. Keine Code-Änderung nötig — beide Werte sind bereits deklarativ in `infra/nats/streams/AER_LAKE.json` und werden von `nats-init` idempotent angewendet.
+* [x] **Validate.** `make lint` grün. `docker compose up -d --build` brachte den vollen Stack hoch; alle vier Prometheus-Scrape-Targets (`analysis-worker`, `bff-api`, `ingestion-api`, `otel-collector`) melden `health: up` in `/api/v1/targets`. OTel-Collector-Log bestätigt `memory_limiter configured {limit_mib: 512, spike_limit_mib: 128}`. `make test-e2e` (12/12 passed), `make test-go-crawlers` (alle grün), `make test-python` (125 passed).
 
 ## Phase 87: Source-of-Truth Drift Resolution [P-Docs] - [ ] TODO
 

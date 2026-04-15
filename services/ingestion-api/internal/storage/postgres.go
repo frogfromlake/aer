@@ -15,12 +15,31 @@ type PostgresDB struct {
 	DB *sql.DB
 }
 
-func NewPostgresDB(ctx context.Context, connStr string) (*PostgresDB, error) {
+// PoolConfig describes the PostgreSQL connection pool bounds. A zero value
+// falls back to Go database/sql defaults; callers should supply explicit
+// values so the pool behaves symmetrically with the downstream NATS/MinIO
+// concurrency budget.
+type PoolConfig struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+}
+
+func NewPostgresDB(ctx context.Context, connStr string, pool PoolConfig) (*PostgresDB, error) {
 	// 1. Define an operation returning the connection directly (thanks to v5 generics!)
 	operation := func() (*sql.DB, error) {
 		db, err := sql.Open("pgx", connStr)
 		if err != nil {
 			return nil, err
+		}
+		if pool.MaxOpenConns > 0 {
+			db.SetMaxOpenConns(pool.MaxOpenConns)
+		}
+		if pool.MaxIdleConns > 0 {
+			db.SetMaxIdleConns(pool.MaxIdleConns)
+		}
+		if pool.ConnMaxLifetime > 0 {
+			db.SetConnMaxLifetime(pool.ConnMaxLifetime)
 		}
 
 		// PingContext ensures the actual network connection is established

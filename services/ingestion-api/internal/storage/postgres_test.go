@@ -48,7 +48,7 @@ func setupTestDB(t *testing.T) (*PostgresDB, context.Context) {
 		t.Fatalf("failed to get connection string: %v", err)
 	}
 
-	db, err := NewPostgresDB(ctx, connStr)
+	db, err := NewPostgresDB(ctx, connStr, PoolConfig{})
 	if err != nil {
 		t.Fatalf("failed to connect to test database: %v", err)
 	}
