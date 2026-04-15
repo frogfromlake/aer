@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
@@ -88,41 +89,47 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// --- MIDDLEWARE STACK ---
-
-	// Recovery: catches panics in handlers and returns 500 instead of crashing
+	// Recovery runs on every request (including /metrics) so a panic in any
+	// handler becomes a 500 instead of crashing the server.
 	r.Use(middleware.Recoverer)
 
-	// Request Timeout: limits each request to 30s to prevent hanging ClickHouse queries
-	r.Use(middleware.Timeout(30 * time.Second))
+	// Prometheus scrape endpoint sits outside the API-key middleware: the
+	// backend network is zero-trust-internal only, and scrape targets
+	// cannot carry per-caller secrets.
+	r.Handle("/metrics", promhttp.Handler())
 
-	// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var
-	allowedOrigins := strings.Split(cfg.CORSOrigins, ",")
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
-		AllowedMethods:   []string{"GET", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
-		AllowCredentials: false,
-		MaxAge:           300,
-	}))
+	// --- API ROUTE GROUP (authenticated, rate-limited, traced) ---
+	r.Group(func(r chi.Router) {
+		// Request Timeout: limits each request to 30s to prevent hanging ClickHouse queries
+		r.Use(middleware.Timeout(30 * time.Second))
 
-	// OTel: wraps each request in a span and propagates the trace context
-	r.Use(func(next http.Handler) http.Handler {
-		return otelhttp.NewHandler(next, "bff-api")
+		// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var
+		allowedOrigins := strings.Split(cfg.CORSOrigins, ",")
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   allowedOrigins,
+			AllowedMethods:   []string{"GET", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Content-Type", "X-API-Key"},
+			AllowCredentials: false,
+			MaxAge:           300,
+		}))
+
+		// OTel: wraps each request in a span and propagates the trace context
+		r.Use(func(next http.Handler) http.Handler {
+			return otelhttp.NewHandler(next, "bff-api")
+		})
+
+		// Request Logging: structured access log for every request via slog
+		r.Use(requestLogger)
+
+		// Rate Limiting: token-bucket limiter; rejects excess requests with 429
+		limiter := rate.NewLimiter(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
+		r.Use(rateLimiter(limiter))
+
+		// API Key Auth: protects all routes except /healthz and /readyz
+		r.Use(mw.APIKeyAuth(cfg.APIKey))
+
+		handler.HandlerFromMuxWithBaseURL(strictHandler, r, "/api/v1")
 	})
-
-	// Request Logging: structured access log for every request via slog
-	r.Use(requestLogger)
-
-	// Rate Limiting: token-bucket limiter; rejects excess requests with 429
-	limiter := rate.NewLimiter(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-	r.Use(rateLimiter(limiter))
-
-	// API Key Auth: protects all routes except /healthz and /readyz
-	r.Use(mw.APIKeyAuth(cfg.APIKey))
-
-	// --- ROUTES ---
-	handler.HandlerFromMuxWithBaseURL(strictHandler, r, "/api/v1")
 
 	// --- GRACEFUL SHUTDOWN LOGIC ---
 	//

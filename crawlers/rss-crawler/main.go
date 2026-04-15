@@ -41,11 +41,14 @@ func main() {
 	sourcesURL := flag.String("sources-url", getEnv("SOURCES_URL", "http://localhost:8081/api/v1/sources"), "URL of the sources lookup endpoint")
 	apiKey := flag.String("api-key", getEnv("INGESTION_API_KEY", ""), "API key for the ingestion API")
 	statePath := flag.String("state", getEnv("STATE_FILE", ".rss-crawler-state.json"), "Path to the dedup state file")
+	metricsPath := flag.String("metrics-file", getEnv("PROMETHEUS_TEXTFILE_PATH", ""), "Optional node_exporter textfile collector path to write Prometheus metrics")
 	delayMs := flag.Int("delay", 1000, "Delay in milliseconds between feed fetches")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	start := time.Now()
 
 	// Load feed configuration
 	configData, err := os.ReadFile(*configPath)
@@ -76,6 +79,7 @@ func main() {
 
 	totalSubmitted := 0
 	totalSkipped := 0
+	feedsCrawled := 0
 
 	for i, fc := range config.Feeds {
 		if i > 0 {
@@ -98,6 +102,7 @@ func main() {
 			slog.Error("Failed to parse feed", "name", fc.Name, "url", fc.URL, "error", err)
 			continue
 		}
+		feedsCrawled++
 		slog.Info("Parsed feed", "name", fc.Name, "title", feedTitle, "items", len(items))
 
 		// Translate and deduplicate
@@ -152,7 +157,45 @@ func main() {
 		totalSkipped += skipped
 	}
 
-	slog.Info("RSS Crawler finished", "total_submitted", totalSubmitted, "total_skipped", totalSkipped)
+	duration := time.Since(start)
+	slog.Info("RSS Crawler finished", "total_submitted", totalSubmitted, "total_skipped", totalSkipped, "duration_seconds", duration.Seconds())
+
+	if *metricsPath != "" {
+		if err := writeTextfileMetrics(*metricsPath, feedsCrawled, totalSubmitted, totalSkipped, duration); err != nil {
+			slog.Warn("Failed to write Prometheus textfile metrics", "path", *metricsPath, "error", err)
+		}
+	}
+}
+
+// writeTextfileMetrics writes the run's outcome as a Prometheus exposition
+// file consumable by node_exporter's textfile collector. Rendered atomically
+// (temp + rename) so a concurrent scrape never observes a partial file.
+func writeTextfileMetrics(path string, feedsCrawled, submitted, skipped int, duration time.Duration) error {
+	var buf bytes.Buffer
+	fmt.Fprintln(&buf, "# HELP rss_crawler_feeds_crawled_total Number of feeds successfully parsed in the last run.")
+	fmt.Fprintln(&buf, "# TYPE rss_crawler_feeds_crawled_total counter")
+	fmt.Fprintf(&buf, "rss_crawler_feeds_crawled_total %d\n", feedsCrawled)
+	fmt.Fprintln(&buf, "# HELP rss_crawler_items_submitted_total Number of items submitted to the ingestion API in the last run.")
+	fmt.Fprintln(&buf, "# TYPE rss_crawler_items_submitted_total counter")
+	fmt.Fprintf(&buf, "rss_crawler_items_submitted_total %d\n", submitted)
+	fmt.Fprintln(&buf, "# HELP rss_crawler_items_skipped_total Number of items skipped as duplicates in the last run.")
+	fmt.Fprintln(&buf, "# TYPE rss_crawler_items_skipped_total counter")
+	fmt.Fprintf(&buf, "rss_crawler_items_skipped_total %d\n", skipped)
+	fmt.Fprintln(&buf, "# HELP rss_crawler_duration_seconds Wall-clock runtime of the last crawler invocation.")
+	fmt.Fprintln(&buf, "# TYPE rss_crawler_duration_seconds gauge")
+	fmt.Fprintf(&buf, "rss_crawler_duration_seconds %f\n", duration.Seconds())
+	fmt.Fprintln(&buf, "# HELP rss_crawler_last_successful_crawl_timestamp Unix timestamp of the last successful crawl completion.")
+	fmt.Fprintln(&buf, "# TYPE rss_crawler_last_successful_crawl_timestamp gauge")
+	fmt.Fprintf(&buf, "rss_crawler_last_successful_crawl_timestamp %d\n", time.Now().Unix())
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("atomic rename: %w", err)
+	}
+	return nil
 }
 
 // resolveSourceID queries the ingestion API to look up a source ID by name.

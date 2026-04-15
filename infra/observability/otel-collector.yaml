@@ -6,6 +6,20 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+processors:
+  # memory_limiter must run first in every pipeline so OOM pressure
+  # rejects incoming data at the receiver boundary instead of the exporter
+  # (upstream recommendation).
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  # batch sits at the end so exported payloads coalesce into one request
+  # per send_batch_size, drastically reducing network chatter.
+  batch:
+    timeout: 10s
+    send_batch_size: 8192
+
 exporters:
   otlp/tempo:
     endpoint: tempo:4317
@@ -18,7 +32,9 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [memory_limiter, batch]
       exporters: [otlp/tempo]
     metrics:
       receivers: [otlp]
+      processors: [memory_limiter, batch]
       exporters: [prometheus]

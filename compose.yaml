@@ -406,8 +406,6 @@ services:
     container_name: aer_prometheus
     restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./infra/observability/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
