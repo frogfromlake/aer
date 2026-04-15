@@ -188,6 +188,22 @@ The architectural risk: from a consumer's perspective the BFF API looks *validat
 
 ---
 
+### R-15: ~~Unbounded Task Queue OOM Under Burst Load~~ — Resolved (Phase 83)
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | High |
+| **Affected Component** | `analysis-worker` (`main.py` NATS consumer, `asyncio.Queue`) |
+| **Status** | Resolved (Phase 83) |
+
+Before Phase 83 the analysis worker's `asyncio.Queue` was constructed without a `maxsize`. The NATS message handler called `queue.put_nowait(msg)` for every delivered message, regardless of whether the worker pool was keeping up. Under a burst of Bronze events — for example after a crawler catch-up or a ClickHouse latency spike — the queue grew unboundedly until the container hit its memory limit and was OOM-killed, taking the in-flight work with it. The NATS consumer did not apply backpressure because JetStream cannot see into the application's own async buffers.
+
+**Resolution (Phase 83).** The queue is now bounded: `asyncio.Queue(maxsize = WORKER_COUNT * 4)`. The JetStream subscription is configured with `max_ack_pending = queue_max_size`, so NATS delivers at most `queue_max_size` un-ack'd messages and then stops — backpressure is visible end-to-end from the worker all the way back to the broker. When the queue is full, `queue.put()` blocks the message handler, which in turn pauses NATS delivery; when the worker drains, delivery resumes. The two limits are derived from the same variable in `main.py`, so editing one without the other is a compile-time-visible break.
+
+The poison-pill handler (R-paired with this fix, see §8.16.2) guarantees that a deterministically-failing message cannot occupy a queue slot forever — it is ack'd to `bronze-quarantine` on the final allowed delivery attempt.
+
+---
+
 ### R-14: ~~Triple-Insert Duplication on NATS Redelivery~~ — Resolved
 
 | Property | Value |

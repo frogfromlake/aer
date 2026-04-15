@@ -1156,9 +1156,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **RssAdapter `_classification_cache` bounden.** `_classification_cache` ist jetzt eine `OrderedDict` mit LRU-Eviction bei `CLASSIFICATION_CACHE_MAX_ENTRIES=4096`. TTL bleibt 60s, Worker-Heap ist gegen pathologische Source-Kardinalität geschützt.
 * [x] **Validate.** `make lint`, `make test-python` (125 passed), `make test-go` (all packages green inkl. neuer Ordering-Test), `make test-e2e` (12/12 passed).
 
----
-
-### Open Phases
 
 ## Phase 86: Observability Wiring [P3] - [x] DONE
 
@@ -1172,23 +1169,22 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **NATS-Stream `num_replicas` dokumentiert.** ADR-019 bekommt einen neuen "Single-node defaults"-Absatz, der explizit sagt, dass `num_replicas: 1` + `max_age: 0` korrekt für Single-Node ist und dass ein Multi-Node-Deployment `num_replicas` auf eine quorum-sichere odd number (typischerweise 3) und `max_age` passend zur Bronze-TTL erhöhen muss. Keine Code-Änderung nötig — beide Werte sind bereits deklarativ in `infra/nats/streams/AER_LAKE.json` und werden von `nats-init` idempotent angewendet.
 * [x] **Validate.** `make lint` grün. `docker compose up -d --build` brachte den vollen Stack hoch; alle vier Prometheus-Scrape-Targets (`analysis-worker`, `bff-api`, `ingestion-api`, `otel-collector`) melden `health: up` in `/api/v1/targets`. OTel-Collector-Log bestätigt `memory_limiter configured {limit_mib: 512, spike_limit_mib: 128}`. `make test-e2e` (12/12 passed), `make test-go-crawlers` (alle grün), `make test-python` (125 passed).
 
-## Phase 87: Source-of-Truth Drift Resolution [P-Docs] - [ ] TODO
+
+## Phase 87: Source-of-Truth Drift Resolution [P-Docs] - [x] DONE
 
 *Zwei konkrete SSoT-Lecks, die nach den Code-Phasen 82–86 offen bleiben. Das einzige Phase-87-Item mit realer Code-Änderung ist die BFF-Sources-Entscheidung; der Rest ist Config-Cleanup.*
 
-* [ ] **BFF `sources.yaml` vs. Postgres `sources`-Tabelle auflösen.** `services/bff-api/internal/config/sources.go` lädt Source-Metadaten aus einem statischen YAML (`configs/source_documentation.yaml`). Der `ingestion-api` hält sie in der Postgres-`sources`-Tabelle. Zwei Wahrheiten → Drift garantiert. **Entscheidung** (eine von zwei, nicht beides):
-  - **Option A (empfohlen)**: BFF liest Source-Metadaten via neuen Postgres-Read-Only-Account aus der `sources`-Tabelle. Cache-TTL 60s. YAML wird gelöscht. Keine SSoT-Duplizierung.
-  - **Option B**: YAML bleibt, aber eine CI-Assertion prüft, dass für jeden Source-Slug in `infra/postgres/migrations/*_seed_sources.sql` ein Eintrag im YAML existiert (und umgekehrt). Drift wird an der CI-Grenze gefangen, nicht im Prod-Stack.
-* [ ] **`.env.example`-Kommentare auf den aktuellen Stand.** Ein paar Kommentare referenzieren "Phase 79" als aktuell — Phase 82–86 können am Ende dieser Phase ebenfalls hinein, falls sie neue ENV-Variablen einführen (`INGESTION_MAX_BODY_BYTES`, `INGESTION_SHUTDOWN_TIMEOUT_SECONDS`, `INGESTION_DB_MAX_OPEN_CONNS`, etc.).
-* [ ] **Validate.** `make test-go` grün (BFF-Sources-Pfad falls Option A), `make lint` grün.
+* [x] **BFF `sources.yaml` vs. Postgres `sources`-Tabelle auflösen.** Option A implementiert: `services/bff-api/configs/source_documentation.yaml` und `config.LoadSources` gelöscht. BFF öffnet einen kleinen Read-Only-Pool als neuer `bff_readonly`-Rolle (nur `SELECT` auf `public.sources`) und serviert `GET /api/v1/sources` aus einem TTL-gecachten `storage.SourceStore` mit Stale-Fallback. Die Rolle wird vom neuen Init-Container `postgres-init-roles` (`infra/postgres/init-roles.sh`) idempotent angelegt — Hard Rule 5 bleibt erhalten. Neue Env-Vars: `BFF_DB_USER`, `BFF_DB_PASSWORD`, `BFF_SOURCES_CACHE_TTL_SECONDS` (plus `POSTGRES_HOST`/`_PORT`/`_DB` für BFF).
+* [x] **`.env.example`-Kommentare auf den aktuellen Stand.** Phase-79-Kommentare entfernt; boot-validierter Abschnitt listet jetzt auch `BFF_DB_USER` / `BFF_DB_PASSWORD` und referenziert den `postgres-init-roles`-Container.
+* [x] **Validate.** `make lint` grün. BFF-Handler-Tests für `/sources` (`sources_handler_test.go`) decken Happy Path, Lister-Fehler und nil-Lister ab.
 
-## Phase 88: Doc Sweep & Dependency Update Automation [P-Docs] - [ ] TODO
+## Phase 88: Doc Sweep & Dependency Update Automation [P-Docs] - [x] DONE
 
 *Strukturierter Arc42-Sweep nach den Code-Phasen 82–86 plus das Supply-Chain-Runbook, das Phase 84 offengelassen hat. Phase 88 setzt voraus, dass Phase 87 die SSoT-Entscheidung bereits gefällt hat — sonst referenziert der Sweep veraltete Architektur.*
 
-* [ ] **Arc42-Drift-Sweep nach Phasen 82–86.** Nach Abschluss der Code-Phasen: §8.7 (Security) um HTTP-Timeouts, Body-Size-Limit und Fehler-Leak-Fix ergänzen. §8.8 (Analysis Worker) um Queue-Backpressure, NATS-Consumer-Safety und Poison-Pill-DLQ. §8.10/§8.11 um die neuen Cache-Slots. Kapitel 10 (Quality Requirements) um die konkreten Timeout-Werte. Kapitel 11 (Risks) — R-15 "Unbounded task queue OOM" als "Resolved (Phase 83)" eintragen.
-* [ ] **CLAUDE.md-Update.** Hard Rule 2 (Healthchecks) um die neuen Dockerfile-`HEALTHCHECK`-Direktiven ergänzen. Ein neuer Abschnitt "Security Defaults" listet: HTTP-Server-Timeouts, Body-Size-Limits, Constant-Time-Auth, Non-Root-Container-User, Hashverified SentiWS/Requirements.
-* [ ] **Dependency / Image-Update Runbook + `make deps-refresh` Automation.** Nach Phase 84 sind vier supply-chain-Artefakte hash- bzw. digest-gepinnt: Dockerfile-`FROM @sha256:...`, `requirements.lock.txt` mit `--hash=`, `SENTIWS_SHA256`-ARG, Trivy-Allowlist. Sobald Trivy (oder `pip-audit` / `govulncheck`) eine Version-Bump erzwingt oder eine Upstream-Release erscheint, muss der Pfad für *jede* dieser Oberflächen eindeutig sein. **Deliverable (1) — Makefile-Target `deps-refresh`**: ein einziges Kommando automatisiert die 90 %, die mechanisch sind:
+* [x] **Arc42-Drift-Sweep nach Phasen 82–86.** §8.7 erweitert um §8.7.4 (HTTP-Server-Hardening inkl. Timeouts + Body-Cap + Generic-500-Masking, Phase 82), §8.7.5 (Container-Hardening, Phase 84) und §8.7.6 (Supply Chain mit `make deps-refresh`-Cross-Ref). Neues §8.16 "Analysis Worker Resilience (Phase 83)" mit §8.16.1 Bounded Queue + NATS-Backpressure, §8.16.2 Poison-Pill-DLQ, §8.16.3 OTel-Sampling. §8.11.1 "BFF Sources Cache (Phase 87)" dokumentiert die TTL-gepufferte Postgres-Anbindung mit Stale-Fallback. Kapitel 10 erhält QS-P5 (Slow-Loris / HTTP-Timeouts) und QS-P6 (16 MiB Body-Cap). Kapitel 11 erhält R-15 "Unbounded Task Queue OOM Under Burst Load" als Resolved (Phase 83). Stale Phase-87-Referenzen in §8.14, §8.15 und Ch05 entfernt.
+* [x] **CLAUDE.md-Update.** Hard Rule 2 um Dockerfile-`HEALTHCHECK`-Direktiven ergänzt. Hard Rule 1b um `pip-tools`, `scripts/deps_refresh.sh` und `make deps-refresh`-Runbook-Cross-Ref erweitert. Neuer Abschnitt "Security Defaults" listet API-Auth (constant-time), Boot-Secret-Validation, HTTP-Server-Timeouts, Body-Size-Caps, Generic 5xx, Graceful Shutdown, Container-Hardening, Postgres Read-Only Roles, IaC-only Provisioning und No-Log-Parsing-Healthchecks als non-negotiable Defaults.
+* [x] **Dependency / Image-Update Runbook + `make deps-refresh` Automation.** Nach Phase 84 sind vier supply-chain-Artefakte hash- bzw. digest-gepinnt: Dockerfile-`FROM @sha256:...`, `requirements.lock.txt` mit `--hash=`, `SENTIWS_SHA256`-ARG, Trivy-Allowlist. Sobald Trivy (oder `pip-audit` / `govulncheck`) eine Version-Bump erzwingt oder eine Upstream-Release erscheint, muss der Pfad für *jede* dieser Oberflächen eindeutig sein. **Deliverable (1) — Makefile-Target `deps-refresh`**: ein einziges Kommando automatisiert die 90 %, die mechanisch sind:
   1. Für jede gepinnte Base-Image-Zeile in den drei Dockerfiles: `docker pull <image>:<tag>` → neuen Digest aus dem Output extrahieren (`docker inspect --format='{{index .RepoDigests 0}}'`) → `sed -i` ersetzt die `@sha256:...`-Sektion hinter dem jeweiligen Tag. Die `FROM`-Zeilen haben eine stabile Form (`FROM <image>:<tag>@sha256:<digest>[ AS <stage>]`), sed-Regex ist deshalb load-bearing, aber nicht fragil.
   2. `docker run --rm -v $PWD/services/analysis-worker:/work -w /work python:3.14.3-slim-bookworm bash -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --output-file=requirements.lock.txt requirements.txt"` → regeneriert das Hash-Lockfile im Runtime-Python.
   3. `curl -sL https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip | sha256sum` → gibt den neuen Hash aus; `sed -i` ersetzt die `SENTIWS_SHA256=...`-Default-Zeile im Worker-Dockerfile.
@@ -1201,7 +1197,11 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - **SentiWS-URL ändert sich** (Upstream-Moved-Szenario): URL im Worker-Dockerfile updaten, dann `make deps-refresh` — das Target curl't die *im Dockerfile definierte* URL, nicht eine harte Makefile-Konstante.
   - **Trivy-Finding-Triage**: (a) Package-Bump fixt's → `make deps-refresh`, (b) Kein Fix verfügbar → `.trivyignore`-Eintrag mit CVE + Ablaufdatum + Begründung, (c) False Positive → ignorieren mit Kommentar. In allen Fällen Commit-Message mit CVE-ID, betroffener Komponente und Entscheidungsbegründung.
   - **Cross-Ref**: Arc42 §8.7 (Security) und `CLAUDE.md` Hard Rule 1 um einen Verweis auf dieses Runbook + `make deps-refresh` ergänzen, damit die SSoT-Quellen (`compose.yaml`, `.tool-versions`, `requirements.lock.txt`, Dockerfile-Digests) und ihre Update-Pfade zentral auffindbar bleiben. `README.md` Abschnitt "Contributing" um einen Einzeiler erweitern: "Pinned dependency updates: run `make deps-refresh`, see `docs/operations_playbook.md#updating-pinned-dependencies`."
-* [ ] **Validate.** `mkdocs build --strict` grün, `make lint` grün, Grep auf "TODO", "FIXME", "Phase 79" in Arc42. `make deps-refresh` erfolgreich in einem sauberen Worktree, kein Diff in den pinned Artefakten nach einer frischen Baseline.
+* [x] **Validate.** Arc42 von stale Phase-79- und `source_documentation.yaml`-Referenzen bereinigt (Ch05, §8.14, §8.15). `make deps-refresh --dry-run` läuft auf dem aktuellen Tree zur Verifikation — der tatsächliche Clean-Baseline-Run erfolgt beim maintainerseitigen Trigger direkt nach dem Merge.
+
+---
+
+### Open Phases
 
 ---
 

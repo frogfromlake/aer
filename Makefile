@@ -5,7 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
-.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup
+.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
 
 SHELL := /bin/bash
 
@@ -258,7 +258,26 @@ audit-python:
 		fi
 
 # ==========================================
-# 7. DEVELOPER SETUP
+# 7. DEPENDENCY REFRESH (supply-chain baseline)
+# ==========================================
+
+# One-shot maintainer entrypoint that advances every externally-pinned
+# dependency the stack ships: base image digests across all three service
+# Dockerfiles, the analysis-worker pip lockfile, and the SentiWS lexicon
+# hash. Delegates to scripts/deps_refresh.sh — see that script's header
+# and docs/operations_playbook.md "Dependency refresh" for the runbook.
+#
+# Flags are forwarded verbatim, e.g.:
+#   make deps-refresh ARGS="--dry-run"
+#   make deps-refresh ARGS="--skip-e2e"
+#   make deps-refresh ARGS="--skip-build"
+deps-refresh:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running dependency refresh (see docs/operations_playbook.md)...$(RESET)"
+	@./scripts/deps_refresh.sh $(ARGS)
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)deps-refresh done — review 'git diff' before committing.$(RESET)"
+
+# ==========================================
+# 8. DEVELOPER SETUP
 # ==========================================
 
 setup:
@@ -327,5 +346,6 @@ help:
 	@echo -e "  $(GREEN)test-e2e$(RESET)        $(GRAY)Run Docker Compose end-to-end smoke test$(RESET)"
 	@echo -e "  $(CYAN)lint$(RESET)            $(GRAY)Run linters across all Go and Python code$(RESET)"
 	@echo -e "  $(GREEN)audit$(RESET)           $(GRAY)Run dependency vulnerability scanners (govulncheck + pip-audit)$(RESET)"
+	@echo -e "  $(GREEN)deps-refresh$(RESET)    $(GRAY)Refresh base image digests, pip lock, and SentiWS hash (runbook in playbook)$(RESET)"
 	@echo -e "  $(GREEN)setup$(RESET)           $(GRAY)Install all required developer tools (pinned to CI versions)$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"

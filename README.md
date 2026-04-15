@@ -186,6 +186,7 @@ make        # or: make help — prints a formatted overview of all available tar
 | `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
 | `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
 | `make audit` | Run dependency vulnerability scanners (`govulncheck` for Go, `pip-audit` for Python) |
+| `make deps-refresh` | One-shot rotation of the entire pinned supply-chain baseline: base image digests (all three Dockerfiles), analysis-worker `requirements.lock.txt`, and `SENTIWS_SHA256`. Idempotent on a clean baseline. See [operations playbook — Dependency Refresh](docs/operations_playbook.md#dependency-refresh-supply-chain-baseline) for the full runbook. |
 | `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
 | `make crawl` | Build and run the RSS crawler (requires stack + `make debug-up`) |
 | `make build-services` | Compile Go binaries into `./bin/` |

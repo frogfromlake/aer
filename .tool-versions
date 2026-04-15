@@ -1,6 +1,9 @@
 # Developer tool versions — Single Source of Truth
-# Referenced by: Makefile (include), .github/workflows/ci.yml ($GITHUB_ENV)
+# Referenced by: Makefile (include), .github/workflows/ci.yml ($GITHUB_ENV),
+# scripts/deps_refresh.sh. No tool version may be hardcoded elsewhere.
 GOLANGCI_LINT_VERSION=v1.64.8
 OAPI_CODEGEN_VERSION=v2.6.0
 GOVULNCHECK_VERSION=v1.1.4
 PIP_AUDIT_VERSION=2.10.0
+# Consumed by scripts/deps_refresh.sh when recompiling requirements.lock.txt.
+PIP_TOOLS_VERSION=7.5.1

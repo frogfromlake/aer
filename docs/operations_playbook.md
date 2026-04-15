@@ -28,10 +28,11 @@
     - [Probe Dossier](#probe-dossier) — *touchpoint*
 10. [Arc42 Documentation Server](#arc42-documentation-server)
 11. [Testing](#testing)
-12. [Volume Management](#volume-management)
-13. [Network Architecture](#network-architecture)
-14. [Scientific Touchpoints Index](#scientific-touchpoints-index)
-15. [Quick Reference Card](#quick-reference-card)
+12. [Dependency Refresh (Supply-Chain Baseline)](#dependency-refresh-supply-chain-baseline)
+13. [Volume Management](#volume-management)
+14. [Network Architecture](#network-architecture)
+15. [Scientific Touchpoints Index](#scientific-touchpoints-index)
+16. [Quick Reference Card](#quick-reference-card)
 
 Sections marked *touchpoint* are points at which scientific judgment enters the pipeline. Each touchpoint links to the corresponding workflow in the [Scientific Operations Guide](scientific_operations_guide.md), and that guide links back here for the exact commands. The mapping is consolidated in the [Scientific Touchpoints Index](#scientific-touchpoints-index) below.
 
@@ -812,6 +813,100 @@ make codegen         # Regenerate OpenAPI stubs, then check for drift
 **Testcontainers:** Go and Python tests spin up real database containers using image tags parsed from `compose.yaml` (SSoT enforcement). No hardcoded tags in test files.
 
 **E2E smoke test** (`scripts/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
+
+---
+
+## Dependency Refresh (Supply-Chain Baseline)
+
+Phase 84 pinned the stack's external dependencies to specific hashes: every `FROM` line in `services/*/Dockerfile` uses `image:tag@sha256:digest`, `services/analysis-worker/requirements.lock.txt` is generated with `pip-compile --generate-hashes --require-hashes`, and the SentiWS lexicon download is guarded by `SENTIWS_SHA256`. This is how we keep the supply chain reproducible, but it means those hashes are frozen in time and must be rotated deliberately. Phase 88 turns that rotation into a single command.
+
+### When to run it
+
+| Trigger | Priority |
+|---------|---------|
+| Trivy flags HIGH/CRITICAL on a pinned base image (CI red) | Same day |
+| `govulncheck` or `pip-audit` flags a vulnerable transitive dep | Same day |
+| Monthly maintenance cadence, regardless of signals | Monthly |
+| Before cutting a release tag | Always |
+| After editing `services/analysis-worker/requirements.txt` | Always (lockfile drift) |
+| After bumping a `FROM image:tag` in any Dockerfile | Always (digest drift) |
+
+Security signals from CI should take precedence over the monthly cadence — if Trivy is red on a Monday, do not wait for month-end.
+
+### Happy path
+
+```bash
+make deps-refresh
+```
+
+The target delegates to `scripts/deps_refresh.sh`, which runs four steps, each of which fails loudly and leaves the working tree in an inspectable state:
+
+1. **Base image digest refresh.** Every `FROM image:tag@sha256:…` line across all three service Dockerfiles is deduplicated by image reference. Each unique `image:tag` is `docker pull`ed once, the new digest is resolved via `docker image inspect`, and the old digest is rewritten in place. Shared base images (alpine, python, golang) stay in lockstep across Dockerfiles by construction.
+2. **`requirements.lock.txt` regeneration.** `pip-compile --generate-hashes --allow-unsafe` runs inside the *exact* Python image the worker builds from (read back out of the freshly-updated worker Dockerfile), guaranteeing the hash set is byte-compatible with `pip install --require-hashes` at build time. `pip-tools` is pinned via `PIP_TOOLS_VERSION` in `.tool-versions`.
+3. **SentiWS hash recomputation.** The script greps the SentiWS URL out of `services/analysis-worker/Dockerfile`, downloads it with curl, runs `sha256sum`, and rewrites `ARG SENTIWS_SHA256=…` in place. Changing the lexicon URL is therefore a one-line Dockerfile edit — rerun `make deps-refresh` and the hash follows.
+4. **No-cache rebuild + e2e smoke test.** `docker compose build --no-cache` forces every image to reproduce from the new baseline, then `make test-e2e` asserts the full ingestion → worker → BFF pipeline still answers correctly. A failure here means *revert, investigate, do not commit*.
+
+On a clean baseline (nothing upstream moved since the last run), the script produces zero file changes and `git diff` is empty. That property is load-bearing — it's how CI can one day run `make deps-refresh --skip-build` on a scheduled job and only open a PR when the diff is non-empty.
+
+After a successful run, review `git diff` (especially to confirm only digests/hashes changed, not tags) and commit the result as a single `chore(supply-chain): refresh dependency baseline` commit.
+
+### Flags
+
+```bash
+make deps-refresh ARGS="--dry-run"     # report intent, no writes, no rebuild
+make deps-refresh ARGS="--skip-e2e"    # rebuild but skip the 90s+ e2e suite
+make deps-refresh ARGS="--skip-build"  # just rewrite files; no rebuild, no e2e
+./scripts/deps_refresh.sh --help       # full help from the script directly
+```
+
+Use `--dry-run` the first time you run the target on an unfamiliar machine, or when you want to see the upstream digest drift without committing to a rebuild cycle. Use `--skip-e2e` only when CI is the smoke test (e.g. refreshing inside a branch that will open a PR immediately).
+
+### Adding a new Python dependency
+
+1. Add the dependency to `services/analysis-worker/requirements.txt` with a pinned version.
+2. Run `make deps-refresh`. Step 2 will regenerate `requirements.lock.txt` with hashes for the new dep and its transitives. Steps 1, 3, and 4 still run — the lockfile is the only expected non-trivial diff.
+3. Commit both `requirements.txt` and `requirements.lock.txt`.
+
+Do not edit `requirements.lock.txt` by hand; the build will reject it at `pip install --require-hashes` time.
+
+### Bumping a base image tag
+
+1. Edit the `FROM image:NEW_TAG@sha256:…` line in the relevant Dockerfile. Leave the digest alone — it will be overwritten on the next step.
+2. Run `make deps-refresh`. Step 1 will pull the new tag, resolve its digest, and rewrite it. If the tag is shared across Dockerfiles, update *all* copies to the same new tag before running so the dedupe pass covers them in one pull.
+3. Step 2 will also rerun pip-compile against the new Python image (if the Python tag moved) — review the lockfile diff carefully.
+4. Commit.
+
+### Changing the SentiWS download URL
+
+1. Edit the URL in the `wget` line of `services/analysis-worker/Dockerfile`. Leave the `SENTIWS_SHA256` value alone.
+2. Run `make deps-refresh`. Step 3 will download the new URL, sha256sum it, and rewrite the hash.
+3. Commit both the URL change and the hash change together.
+
+### Trivy triage after a refresh
+
+If the post-refresh Trivy run still shows HIGH/CRITICAL, the vulnerable package was not fixed upstream yet. Options, in order of preference:
+
+| Severity | Upstream status | Action |
+|----------|----------------|-------|
+| HIGH/CRITICAL | Fix available in a newer base image | Bump the `FROM image:tag`, rerun `make deps-refresh` |
+| HIGH/CRITICAL | Fix available via explicit `apt-get install -y --only-upgrade <pkg>` | Add it to the existing `RUN apt-get` block in the Dockerfile, rerun refresh |
+| HIGH/CRITICAL | No upstream fix, package unreachable from our code | Add a time-boxed entry to `.trivyignore` with a justification comment and a review date; open a tracking issue |
+| HIGH/CRITICAL | No upstream fix, package IS reachable | Block release; escalate |
+| MEDIUM/LOW | Any | CI does not fail on these; refresh monthly |
+
+`.trivyignore` is the supply-chain equivalent of a `// TODO`. Any entry there must have a date and an owner.
+
+### Failure recovery
+
+The script uses `set -euo pipefail`, so a failure at any step stops immediately with a red log line pointing at the failing step. The partial diff is preserved so you can inspect it:
+
+```bash
+git diff                  # see what was rewritten before the failure
+git restore .             # throw it away and start over
+git stash                 # save it for later inspection
+```
+
+`--skip-build` is the fastest way to iterate on a failure in steps 1–3 without paying the rebuild cost on each run.
 
 ---
 
