@@ -1233,18 +1233,17 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Tests.** Unit test for `ClickHousePool.getconn()` timeout: mock a pool with zero available clients, assert `TimeoutError` is raised within the configured window. Unit test for `RssAdapter` cache under concurrent access: spawn N threads calling `_get_classification_cached()` simultaneously, assert no `RuntimeError` or lost entries. Unit test for processor partial insert failure: mock `ch.insert` to raise on the second call, assert the document is still marked `"processed"` (or quarantined, depending on chosen strategy).
 * [x] **Validate.** `make lint`, `make test-python`, `make test-e2e`.
 
----
-
-### Open Phases
-
-## Phase 92: PostgreSQL Schema Integrity [P3]
+## Phase 92: PostgreSQL Schema Integrity [P3] - [x] DONE
 
 *Two missing constraints in the original Postgres schema that can cause slow queries and silent data duplicates.*
 
-* [ ] **Add index on `documents.job_id`.** `infra/postgres/migrations/000001_initial_schema.up.sql:21`: `job_id INTEGER REFERENCES ingestion_jobs(id)` has no index. Migration 004 added `idx_documents_ingested_at` for retention cleanup, but queries joining documents by `job_id` (e.g. checking all documents for a job in the ingestion service) still trigger sequential scans as the table grows. **Fix**: New migration `infra/postgres/migrations/000009_add_documents_job_id_index.up.sql`: `CREATE INDEX IF NOT EXISTS idx_documents_job_id ON documents(job_id);`. Corresponding down migration: `DROP INDEX IF EXISTS idx_documents_job_id;`.
-* [ ] **Add UNIQUE constraint on `sources.url`.** `infra/postgres/migrations/000001_initial_schema.up.sql:7`: `url VARCHAR(500) NOT NULL` allows duplicate URLs. Without a unique constraint, two crawlers registering the same source URL create silent duplicates that fragment metrics by `source_id`. **Fix**: New migration `infra/postgres/migrations/000010_add_sources_url_unique.up.sql`: `CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url_unique ON sources(url);`. Down migration: `DROP INDEX IF EXISTS idx_sources_url_unique;`. Before applying, verify no existing duplicates with `SELECT url, COUNT(*) FROM sources GROUP BY url HAVING COUNT(*) > 1`.
-* [ ] **Validate.** `make test-go` (Testcontainers run all migrations), `make test-e2e`.
+* [x] **Add index on `documents.job_id`.** `infra/postgres/migrations/000001_initial_schema.up.sql:21`: `job_id INTEGER REFERENCES ingestion_jobs(id)` has no index. Migration 004 added `idx_documents_ingested_at` for retention cleanup, but queries joining documents by `job_id` (e.g. checking all documents for a job in the ingestion service) still trigger sequential scans as the table grows. **Fix**: New migration `infra/postgres/migrations/000009_add_documents_job_id_index.up.sql`: `CREATE INDEX IF NOT EXISTS idx_documents_job_id ON documents(job_id);`. Corresponding down migration: `DROP INDEX IF EXISTS idx_documents_job_id;`.
+* [x] **Add UNIQUE constraint on `sources.url`.** `infra/postgres/migrations/000001_initial_schema.up.sql:7`: `url VARCHAR(500) NOT NULL` allows duplicate URLs. Without a unique constraint, two crawlers registering the same source URL create silent duplicates that fragment metrics by `source_id`. **Fix**: New migration `infra/postgres/migrations/000010_add_sources_url_unique.up.sql`: `CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url_unique ON sources(url);`. Down migration: `DROP INDEX IF EXISTS idx_sources_url_unique;`. Before applying, verify no existing duplicates with `SELECT url, COUNT(*) FROM sources GROUP BY url HAVING COUNT(*) > 1`.
+* [x] **Validate.** `make test-go` (Testcontainers run all migrations), `make test-e2e`.
 
+---
+
+### Open Phases
 
 ## Phase 93: Doc Sweep (Post Phases 89–92) [P-Docs]
 
