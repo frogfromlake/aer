@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -202,7 +203,7 @@ func writeTextfileMetrics(path string, feedsCrawled, submitted, skipped int, dur
 func resolveSourceID(ctx context.Context, sourcesURL, name, apiKey string) (int, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourcesURL+"?name="+name, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourcesURL+"?name="+url.QueryEscape(name), nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build request: %w", err)
 	}
