@@ -267,7 +267,7 @@ AĒR implements automated, infrastructure-level data retention to prevent unboun
 | Bronze | MinIO `bronze` | 90 days | MinIO ILM (`infra/minio/setup.sh`) |
 | Quarantine (DLQ) | MinIO `bronze-quarantine` | 30 days | MinIO ILM (`infra/minio/setup.sh`) |
 | Silver | MinIO `silver` | 365 days | MinIO ILM (`infra/minio/setup.sh`) |
-| Gold | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL on `MergeTree` (`infra/clickhouse/init.sql`) |
+| Gold | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL on `ReplacingMergeTree` (`infra/clickhouse/init.sql`, migration 000010) |
 | Metadata | PostgreSQL | Unlimited | No automated cleanup |
 
 All retention policies are defined in IaC scripts — no application code manages data expiration.
@@ -445,3 +445,7 @@ On the *final* allowed attempt (`num_delivered >= max_deliver`), the `_handle_me
 Traces are valuable but not free: a 100 % sampling rate at production document volumes would inflate the Tempo backend and the OTel Collector's heap. The worker now reads `OTEL_TRACE_SAMPLE_RATE` at startup and wraps it in a `ParentBased(TraceIdRatioBased(rate))` sampler, matching the Go services' `pkg/telemetry/otel.go` behaviour. ParentBased means child spans inherit the parent's sampling decision, so a single request produces either a fully-sampled or fully-dropped trace — never a partial skeleton.
 
 Development stacks keep the default 1.0 (100 %) from `.env.example`; production is expected to run at 0.1 (10 %). The knob is purely runtime — no code change is required to retune it.
+
+### 8.16.4 Idempotent Gold Writes (ReplacingMergeTree)
+
+NATS redelivery after a partial success can re-insert rows into ClickHouse Gold tables. Plain `MergeTree` does not deduplicate, so redelivered events would create duplicates. Migration `infra/clickhouse/migrations/000010_replacing_merge_tree.sql` (Phase 74) converted all three Gold fact tables (`aer_gold.metrics`, `aer_gold.entities`, `aer_gold.language_detections`) from `MergeTree` to `ReplacingMergeTree(ingestion_version)`. The `ingestion_version` column is a monotone `UInt64` derived from the MinIO event timestamp (Unix nanoseconds). Redelivered events share the same event time and therefore the same version — `ReplacingMergeTree` collapses them to one row per `ORDER BY` tuple after a merge. Existing rows were migrated with `ingestion_version = 0`.

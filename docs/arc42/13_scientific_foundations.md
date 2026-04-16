@@ -168,7 +168,7 @@ These methods use Large Language Models and are inherently non-deterministic. Th
 | **Stance Classification** | LLM-based classification of author stance toward specific entities or policies. | No | Low | Same flagging requirements as Narrative Frame Detection. Consider fine-tuned, smaller models for improved consistency. |
 | **Cross-Lingual Summary** | LLM-generated summaries enabling cross-cultural comparison of discourse on the same topic. | No | Low | Store in Silver layer as enrichment, not in Gold. Useful for analyst-facing Progressive Disclosure but not for quantitative dashboards. |
 
-**Architectural Decision:** The introduction of Tier 3 methods requires a formal ADR (to be filed as ADR-014) that documents the tradeoff between analytical depth and the Ockham's Razor principle. The decision must specify which Tier 3 outputs are permissible in the Gold layer and under what conditions.
+**Architectural Decision:** The introduction of Tier 3 methods requires a formal ADR (to be filed as ADR-020) that documents the tradeoff between analytical depth and the Ockham's Razor principle. The decision must specify which Tier 3 outputs are permissible in the Gold layer and under what conditions.
 
 ---
 
