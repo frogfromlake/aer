@@ -59,7 +59,7 @@ func Load() (*Config, error) {
 	v.SetDefault("INGESTION_API_KEY", "")
 	v.SetDefault("INGESTION_BRONZE_BUCKET", "bronze")
 	v.SetDefault("INGESTION_MAX_BODY_BYTES", int64(16<<20)) // 16 MiB
-	v.SetDefault("INGESTION_SHUTDOWN_TIMEOUT_SECONDS", 30)
+	v.SetDefault("INGESTION_SHUTDOWN_TIMEOUT_SECONDS", 65)
 	v.SetDefault("INGESTION_DB_MAX_OPEN_CONNS", 25)
 	v.SetDefault("INGESTION_DB_MAX_IDLE_CONNS", 5)
 	v.SetDefault("INGESTION_DB_CONN_MAX_LIFETIME_MINUTES", 30)

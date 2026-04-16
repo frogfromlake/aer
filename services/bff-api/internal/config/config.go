@@ -62,7 +62,7 @@ func Load() (*Config, error) {
 	v.SetDefault("RATE_LIMIT_BURST", 200)
 	v.SetDefault("BFF_QUERY_ROW_LIMIT", 10000)
 	v.SetDefault("BFF_METRICS_CACHE_TTL_SECONDS", 60)
-	v.SetDefault("BFF_SHUTDOWN_TIMEOUT_SECONDS", 30)
+	v.SetDefault("BFF_SHUTDOWN_TIMEOUT_SECONDS", 65)
 	v.SetDefault("POSTGRES_HOST", "localhost")
 	v.SetDefault("POSTGRES_PORT", "5432")
 	v.SetDefault("POSTGRES_DB", "aer_metadata")

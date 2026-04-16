@@ -117,6 +117,7 @@ func main() {
 		cfg.MinioAccessKey,
 		cfg.MinioSecretKey,
 		cfg.MinioUseSSL,
+		cfg.BronzeBucket,
 	)
 	if err != nil {
 		slog.Error("Failed to initialize MinIO", "error", err)

@@ -17,7 +17,7 @@ type MinioClient struct {
 	Client *minio.Client
 }
 
-func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, useSSL bool) (*MinioClient, error) {
+func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, useSSL bool, bucketName string) (*MinioClient, error) {
 	var client *minio.Client
 
 	operation := func() (*minio.Client, error) {
@@ -34,12 +34,12 @@ func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, 
 		cancelCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
-		exists, err := client.BucketExists(cancelCtx, "bronze")
+		exists, err := client.BucketExists(cancelCtx, bucketName)
 		if err != nil {
 			return nil, err // Server not reachable
 		}
 		if !exists {
-			return nil, fmt.Errorf("bucket 'bronze' does not exist yet") // Provisioning not finished
+			return nil, fmt.Errorf("bucket %q does not exist yet", bucketName) // Provisioning not finished
 		}
 
 		return client, nil
