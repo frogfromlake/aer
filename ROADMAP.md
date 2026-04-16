@@ -1211,20 +1211,20 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Tests.** Python: unit test that `ClickHousePool.close_all()` drains all clients. Unit test that `response.close()` is called after `get_object()` in the processor (mock `get_object` returning a mock response, assert `close()` called). Go: ingestion-api test that `NewMinioClient` checks the configured bucket name, not a hardcoded one.
 * [x] **Validate.** `make lint`, `make test-python`, `make test-go`, `make test-e2e`.
 
----
-
-### Open Phases
-
-## Phase 90: Worker Boot-Time Credential Validation & Crawler Input Safety [P1]
+## Phase 90: Worker Boot-Time Credential Validation & Crawler Input Safety [P1] - [x] DONE
 
 *The Go services (ingestion-api, bff-api) refuse to boot on empty credentials since Phases 75/82. The Python worker does not — it falls through to hardcoded defaults or empty strings and fails only at first use. The RSS crawler has a URL-encoding gap in the source-lookup request.*
 
-* [ ] **Remove hardcoded default password in Python worker.** `services/analysis-worker/internal/storage/postgres_client.py:51`: `password=os.getenv("POSTGRES_PASSWORD", "aer_secret")`. If the env var is unset, the worker silently authenticates with a weak default instead of failing fast. **Fix**: Remove the `"aer_secret"` default. Add a boot-time validation function (called from `main.py` before `init_postgres`) that checks `POSTGRES_PASSWORD`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, and `CLICKHOUSE_PASSWORD` are non-empty and raises `SystemExit` with a clear message if any is missing. This mirrors the Go pattern (`config.Load()` returns `fmt.Errorf`).
-* [ ] **Validate MinIO credentials at worker startup.** `services/analysis-worker/internal/storage/minio_client.py:31–32`: `access_key=os.getenv("MINIO_ACCESS_KEY", "")`, `secret_key=os.getenv("MINIO_SECRET_KEY", "")`. The service boots and fails only when the first MinIO operation is attempted. **Fix**: Covered by the centralized boot-time validation above.
-* [ ] **Validate ClickHouse password at worker startup.** `services/analysis-worker/internal/storage/clickhouse_client.py:34`: `password=os.getenv("CLICKHOUSE_PASSWORD", "")`. Same pattern. **Fix**: Covered by the centralized boot-time validation above.
-* [ ] **URL-encode feed name in RSS crawler source lookup.** `crawlers/rss-crawler/main.go:205`: `sourcesURL+"?name="+name` concatenates the feed name directly into the URL without `url.QueryEscape`. Feed names containing spaces, `&`, `#`, or `?` corrupt or hijack the query string. **Fix**: `sourcesURL + "?name=" + url.QueryEscape(name)`. Add `"net/url"` import.
-* [ ] **Tests.** Python: unit test that `validate_required_env()` (or equivalent) raises `SystemExit` when `POSTGRES_PASSWORD` is empty. Go crawler: unit test for `resolveSourceID` with a feed name containing special characters (e.g. `"Süddeutsche Zeitung & More"`), asserting the request URL is properly encoded.
-* [ ] **Validate.** `make lint`, `make test-python`, `make test-go-crawlers`, `make test-e2e`.
+* [x] **Remove hardcoded default password in Python worker.** `services/analysis-worker/internal/storage/postgres_client.py:51`: `password=os.getenv("POSTGRES_PASSWORD", "aer_secret")`. If the env var is unset, the worker silently authenticates with a weak default instead of failing fast. **Fix**: Remove the `"aer_secret"` default. Add a boot-time validation function (called from `main.py` before `init_postgres`) that checks `POSTGRES_PASSWORD`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, and `CLICKHOUSE_PASSWORD` are non-empty and raises `SystemExit` with a clear message if any is missing. This mirrors the Go pattern (`config.Load()` returns `fmt.Errorf`).
+* [x] **Validate MinIO credentials at worker startup.** `services/analysis-worker/internal/storage/minio_client.py:31–32`: `access_key=os.getenv("MINIO_ACCESS_KEY", "")`, `secret_key=os.getenv("MINIO_SECRET_KEY", "")`. The service boots and fails only when the first MinIO operation is attempted. **Fix**: Covered by the centralized boot-time validation above.
+* [x] **Validate ClickHouse password at worker startup.** `services/analysis-worker/internal/storage/clickhouse_client.py:34`: `password=os.getenv("CLICKHOUSE_PASSWORD", "")`. Same pattern. **Fix**: Covered by the centralized boot-time validation above.
+* [x] **URL-encode feed name in RSS crawler source lookup.** `crawlers/rss-crawler/main.go:205`: `sourcesURL+"?name="+name` concatenates the feed name directly into the URL without `url.QueryEscape`. Feed names containing spaces, `&`, `#`, or `?` corrupt or hijack the query string. **Fix**: `sourcesURL + "?name=" + url.QueryEscape(name)`. Add `"net/url"` import.
+* [x] **Tests.** Python: unit test that `validate_required_env()` (or equivalent) raises `SystemExit` when `POSTGRES_PASSWORD` is empty. Go crawler: unit test for `resolveSourceID` with a feed name containing special characters (e.g. `"Süddeutsche Zeitung & More"`), asserting the request URL is properly encoded.
+* [x] **Validate.** `make lint`, `make test-python`, `make test-go-crawlers`, `make test-e2e`.
+
+---
+
+### Open Phases
 
 
 ## Phase 91: Worker Resilience — Timeouts, Thread Safety & Partial-Failure Handling [P2]
