@@ -48,7 +48,7 @@ def init_postgres(maxconn: int | None = None) -> ThreadedConnectionPool:
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", "5432"),
         user=os.getenv("POSTGRES_USER", "aer_admin"),
-        password=os.getenv("POSTGRES_PASSWORD", "aer_secret"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
         database=os.getenv("POSTGRES_DB", "aer_metadata")
     )
     # Ping the database

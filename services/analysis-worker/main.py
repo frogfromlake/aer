@@ -34,6 +34,29 @@ load_dotenv()
 
 logger = structlog.get_logger()
 
+REQUIRED_ENV_VARS = [
+    "POSTGRES_PASSWORD",
+    "MINIO_ACCESS_KEY",
+    "MINIO_SECRET_KEY",
+    "CLICKHOUSE_PASSWORD",
+]
+
+
+def validate_required_env(env_vars: list[str] | None = None) -> None:
+    """Validate that required credentials are set and non-empty.
+
+    Mirrors the Go services' boot-time validation pattern (config.Load()
+    returns fmt.Errorf). Raises SystemExit so the container restarts
+    instead of silently running with missing credentials.
+    """
+    if env_vars is None:
+        env_vars = REQUIRED_ENV_VARS
+    missing = [v for v in env_vars if not os.getenv(v, "").strip()]
+    if missing:
+        raise SystemExit(
+            f"Fatal: required environment variables are empty or unset: {', '.join(missing)}"
+        )
+
 
 DEFAULT_EXTRACTOR_CLASSES = [
     WordCountExtractor,
@@ -207,6 +230,8 @@ async def _handle_message(
 async def main(config: WorkerConfig | None = None):
     if config is None:
         config = WorkerConfig()
+
+    validate_required_env()
 
     tracer = init_telemetry(config.otel_endpoint, config.otel_sample_rate)
 
