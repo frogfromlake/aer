@@ -22,6 +22,7 @@ class ClickHousePool:
 
     def __init__(self, size: int):
         self._pool: queue.Queue[clickhouse_connect.driver.Client] = queue.Queue(maxsize=size)
+        self._pool_timeout = int(os.getenv("CLICKHOUSE_POOL_TIMEOUT_SECONDS", "30"))
         for _ in range(size):
             self._pool.put(self._create_client())
 
@@ -36,7 +37,12 @@ class ClickHousePool:
         )
 
     def getconn(self) -> clickhouse_connect.driver.Client:
-        return self._pool.get()
+        try:
+            return self._pool.get(timeout=self._pool_timeout)
+        except queue.Empty:
+            raise TimeoutError(
+                f"ClickHouse pool exhausted: no client available within {self._pool_timeout}s"
+            )
 
     def putconn(self, client: clickhouse_connect.driver.Client) -> None:
         self._pool.put(client)

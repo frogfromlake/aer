@@ -42,6 +42,7 @@ def init_postgres(maxconn: int | None = None) -> ThreadedConnectionPool:
         maxconn = 10
     if maxconn < 1:
         maxconn = 1
+    statement_timeout_ms = os.getenv("WORKER_PG_STATEMENT_TIMEOUT_MS", "5000")
     pool = ThreadedConnectionPool(
         minconn=1,
         maxconn=maxconn,
@@ -49,7 +50,8 @@ def init_postgres(maxconn: int | None = None) -> ThreadedConnectionPool:
         port=os.getenv("POSTGRES_PORT", "5432"),
         user=os.getenv("POSTGRES_USER", "aer_admin"),
         password=os.getenv("POSTGRES_PASSWORD", ""),
-        database=os.getenv("POSTGRES_DB", "aer_metadata")
+        database=os.getenv("POSTGRES_DB", "aer_metadata"),
+        options=f"-c statement_timeout={statement_timeout_ms}",
     )
     # Ping the database
     conn = pool.getconn()

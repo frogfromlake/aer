@@ -1,4 +1,5 @@
 import structlog
+import threading
 from collections import OrderedDict
 from datetime import datetime
 from typing import Optional
@@ -53,18 +54,23 @@ class RssAdapter:
         # OrderedDict gives O(1) move-to-end and popitem(last=False) for LRU
         # semantics without an external dependency.
         self._classification_cache: OrderedDict[str, tuple[dict | None, float]] = OrderedDict()
+        # Guard all cache mutations — OrderedDict is not thread-safe under
+        # concurrent move_to_end / popitem / __setitem__ from asyncio.to_thread.
+        self._cache_lock = threading.Lock()
 
     def _get_classification_cached(self, source: str) -> dict | None:
         now = time.monotonic()
-        entry = self._classification_cache.get(source)
-        if entry is not None and now - entry[1] < CLASSIFICATION_CACHE_TTL_SECONDS:
-            self._classification_cache.move_to_end(source)
-            return entry[0]
+        with self._cache_lock:
+            entry = self._classification_cache.get(source)
+            if entry is not None and now - entry[1] < CLASSIFICATION_CACHE_TTL_SECONDS:
+                self._classification_cache.move_to_end(source)
+                return entry[0]
         classification = get_source_classification(self._pg_pool, source)
-        self._classification_cache[source] = (classification, now)
-        self._classification_cache.move_to_end(source)
-        if len(self._classification_cache) > CLASSIFICATION_CACHE_MAX_ENTRIES:
-            self._classification_cache.popitem(last=False)
+        with self._cache_lock:
+            self._classification_cache[source] = (classification, now)
+            self._classification_cache.move_to_end(source)
+            if len(self._classification_cache) > CLASSIFICATION_CACHE_MAX_ENTRIES:
+                self._classification_cache.popitem(last=False)
         return classification
 
     def harmonize(self, raw: dict, event_time: datetime, bronze_object_key: str) -> tuple[SilverCore, RssMeta]:
