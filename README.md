@@ -270,10 +270,10 @@ Optional filters: `source`, `language` (ISO 639-1 code, e.g., `de`), `limit` (de
 **Discover available metric names:**
 
 ```
-GET /api/v1/metrics/available
+GET /api/v1/metrics/available?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
 ```
 
-Returns all distinct `metric_name` values present in the Gold layer (e.g., `word_count`, `sentiment_score`, `language_confidence`, `publication_hour`, `publication_weekday`, `entity_count`).
+Returns all distinct `metric_name` values present in the Gold layer within the specified time range (e.g., `word_count`, `sentiment_score`, `language_confidence`, `publication_hour`, `publication_weekday`, `entity_count`). Both `startDate` and `endDate` are required.
 
 ---
 
@@ -399,7 +399,7 @@ This is enforced automatically in CI on every push to `main`.
 
 ## CI/CD Pipeline
 
-The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs four parallel jobs on every push and pull request to `main`:
+The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs five parallel jobs on every push and pull request to `main`:
 
 | Job | Steps |
 | :--- | :--- |
@@ -407,6 +407,7 @@ The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs four parallel jobs
 | `go-pipeline` | golangci-lint → OpenAPI contract check → Testcontainers integration tests |
 | `dependency-audit` | govulncheck (Go) → pip-audit (Python) |
 | `container-security-scan` | Docker build → Trivy scan (HIGH/CRITICAL CVEs, `exit-code: 1`) |
+| `e2e-smoke` | Docker Compose full-stack → end-to-end smoke test (`main` pushes only) |
 
 Testcontainers images are cached as tarballs via `actions/cache@v4` to avoid registry pulls on cache hits. Developer tool versions (golangci-lint, oapi-codegen, govulncheck, pip-audit) are pinned in `.tool-versions` and loaded into CI via `$GITHUB_ENV`.
 

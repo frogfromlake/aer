@@ -1241,14 +1241,14 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Add UNIQUE constraint on `sources.url`.** `infra/postgres/migrations/000001_initial_schema.up.sql:7`: `url VARCHAR(500) NOT NULL` allows duplicate URLs. Without a unique constraint, two crawlers registering the same source URL create silent duplicates that fragment metrics by `source_id`. **Fix**: New migration `infra/postgres/migrations/000010_add_sources_url_unique.up.sql`: `CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url_unique ON sources(url);`. Down migration: `DROP INDEX IF EXISTS idx_sources_url_unique;`. Before applying, verify no existing duplicates with `SELECT url, COUNT(*) FROM sources GROUP BY url HAVING COUNT(*) > 1`.
 * [x] **Validate.** `make test-go` (Testcontainers run all migrations), `make test-e2e`.
 
-## Phase 93: Doc Sweep (Post Phases 89–92) [P-Docs]
+## Phase 93: Doc Sweep (Post Phases 89–92) [P-Docs] - [x] DONE
 
 *Documentation housekeeping after the code phases. Must run after Phase 92 so all code changes are final.*
 
-* [ ] **Fix stale ADR-014 reference in Chapter 13.** `docs/arc42/13_scientific_foundations.md:171` states *"The introduction of Tier 3 methods requires a formal ADR (to be filed as ADR-014)"* — but ADR-014 already exists as "Database Migration Strategy" (Chapter 9). **Fix**: Update the parenthetical to reference the next available ADR number, or remove it and state that a Tier 3 ADR will be filed when interdisciplinary validation begins.
-* [ ] **Document ClickHouse migration 000010 in Arc42.** Migration `infra/clickhouse/migrations/000010_replacing_merge_tree.sql` (ReplacingMergeTree conversion for idempotent NATS redelivery) exists but is not referenced in the Arc42 cross-cutting concepts. **Fix**: Add a brief reference in §8.8 (Data Lifecycle) or §8.16 (Analysis Worker Resilience) noting the schema change and its rationale.
-* [ ] **CLAUDE.md update.** Reflect any new env vars or validation behavior introduced by Phases 89–91 in the "Security Defaults" section (boot-time secret validation list, new timeout vars).
-* [ ] **Validate.** `mkdocs build --strict` green, `make lint` green. Grep for stale phase references.
+* [x] **Fix stale ADR-014 reference in Chapter 13.** `docs/arc42/13_scientific_foundations.md:171` states *"The introduction of Tier 3 methods requires a formal ADR (to be filed as ADR-014)"* — but ADR-014 already exists as "Database Migration Strategy" (Chapter 9). **Fix**: Update the parenthetical to reference the next available ADR number, or remove it and state that a Tier 3 ADR will be filed when interdisciplinary validation begins.
+* [x] **Document ClickHouse migration 000010 in Arc42.** Migration `infra/clickhouse/migrations/000010_replacing_merge_tree.sql` (ReplacingMergeTree conversion for idempotent NATS redelivery) exists but is not referenced in the Arc42 cross-cutting concepts. **Fix**: Add a brief reference in §8.8 (Data Lifecycle) or §8.16 (Analysis Worker Resilience) noting the schema change and its rationale.
+* [x] **CLAUDE.md update.** Reflect any new env vars or validation behavior introduced by Phases 89–91 in the "Security Defaults" section (boot-time secret validation list, new timeout vars).
+* [x] **Validate.** `mkdocs build --strict` green, `make lint` green. Grep for stale phase references.
 
 ---
 
