@@ -1241,10 +1241,6 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 * [x] **Add UNIQUE constraint on `sources.url`.** `infra/postgres/migrations/000001_initial_schema.up.sql:7`: `url VARCHAR(500) NOT NULL` allows duplicate URLs. Without a unique constraint, two crawlers registering the same source URL create silent duplicates that fragment metrics by `source_id`. **Fix**: New migration `infra/postgres/migrations/000010_add_sources_url_unique.up.sql`: `CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url_unique ON sources(url);`. Down migration: `DROP INDEX IF EXISTS idx_sources_url_unique;`. Before applying, verify no existing duplicates with `SELECT url, COUNT(*) FROM sources GROUP BY url HAVING COUNT(*) > 1`.
 * [x] **Validate.** `make test-go` (Testcontainers run all migrations), `make test-e2e`.
 
----
-
-### Open Phases
-
 ## Phase 93: Doc Sweep (Post Phases 89–92) [P-Docs]
 
 *Documentation housekeeping after the code phases. Must run after Phase 92 so all code changes are final.*
@@ -1257,5 +1253,9 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 ---
 
 **Review note (Phases 89–93):** Five findings are P0 (correctness/safety) — the shutdown timeout arithmetic is the most load-bearing since it can truncate in-flight batches on every deploy. P1 establishes boot-time credential validation symmetry between Go and Python services plus a URL-encoding fix in the crawler. P2 addresses four resilience paths that can cause deadlocks or wasteful reprocessing under stress. P3 is schema polish. Recommended order: 89 → 90 (correctness base), 91 (resilience), 92 (schema), 93 (docs last, after code changes settle). Phase 93 must run after 89–92 so the doc sweep captures all changes.
+
+---
+
+### Open Phases
 
 ---
