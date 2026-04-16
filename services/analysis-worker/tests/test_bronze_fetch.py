@@ -32,6 +32,43 @@ def test_nested_raw_text_raises_unhandled_exception(processor, mock_minio, mock_
     processor._update_document_status.assert_not_called()
 
 
+def test_get_object_response_closed_on_success(processor, mock_minio, mock_clickhouse, dummy_span):
+    """
+    Verifies that the MinIO get_object() response is closed after reading,
+    preventing HTTP connection leaks under sustained throughput.
+    """
+    mock_response = MagicMock()
+    mock_response.read.return_value = VALID_BRONZE_DATA
+    mock_minio.get_object.return_value = mock_response
+
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
+
+    processor.process_event("test-source/close-test/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_response.close.assert_called_once()
+    mock_response.release_conn.assert_called_once()
+
+
+def test_get_object_response_closed_on_read_failure(processor, mock_minio, mock_clickhouse, dummy_span):
+    """
+    Verifies that the MinIO get_object() response is closed even when
+    response.read() raises an exception.
+    """
+    mock_response = MagicMock()
+    mock_response.read.side_effect = Exception("read failed")
+    mock_minio.get_object.return_value = mock_response
+
+    processor._get_document_status = MagicMock(return_value=None)
+    processor._update_document_status = MagicMock()
+
+    with pytest.raises(Exception, match="read failed"):
+        processor.process_event("test-source/close-fail/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
+
+    mock_response.close.assert_called_once()
+    mock_response.release_conn.assert_called_once()
+
+
 def test_silver_upload_failure_propagates(processor, mock_minio, mock_clickhouse, dummy_span):
     """
     Tests that a transient network error during the Silver MinIO upload propagates

@@ -328,3 +328,28 @@ class TestInitClickhouse:
              patch("time.monotonic", side_effect=[0.0, 0.5, 1.0, 31.0]):
             with pytest.raises(RetryError):
                 init_clickhouse(pool_size=1)
+
+    def test_close_all_drains_pool(self):
+        """
+        Verifies that ClickHousePool.close_all() drains every client from the
+        pool and calls close() on each one.
+        """
+        mock_clients = [MagicMock() for _ in range(3)]
+        call_idx = {"i": 0}
+
+        def mock_get_client(**kwargs):
+            client = mock_clients[call_idx["i"]]
+            call_idx["i"] += 1
+            return client
+
+        with patch("internal.storage.clickhouse_connect.get_client",
+                   side_effect=mock_get_client), \
+             patch("time.sleep"):
+            pool = init_clickhouse(pool_size=3)
+
+        pool.close_all()
+
+        for client in mock_clients:
+            client.close.assert_called_once()
+
+        assert pool._pool.empty()

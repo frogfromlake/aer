@@ -82,7 +82,11 @@ class DataProcessor:
 
         # --- 2. Fetch raw data (Bronze Layer) ---
         response = self.minio.get_object(self.bronze_bucket, obj_key)
-        raw_content = json.loads(response.read().decode('utf-8'))
+        try:
+            raw_content = json.loads(response.read().decode('utf-8'))
+        finally:
+            response.close()
+            response.release_conn()
 
         # --- 3. Resolve source adapter ---
         source_type = raw_content.get("source_type", "legacy")
@@ -249,7 +253,11 @@ class DataProcessor:
 
         try:
             response = self.minio.get_object(self.bronze_bucket, obj_key)
-            raw_content = json.loads(response.read().decode("utf-8"))
+            try:
+                raw_content = json.loads(response.read().decode("utf-8"))
+            finally:
+                response.close()
+                response.release_conn()
         except Exception as fetch_err:
             raw_content = {
                 "_poison": True,

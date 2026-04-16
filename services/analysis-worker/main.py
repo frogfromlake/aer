@@ -312,6 +312,17 @@ async def main(config: WorkerConfig | None = None):
         await asyncio.gather(*workers)
 
         await nc.close()
+
+        logger.info("Closing database connection pools...")
+        try:
+            ch_client.close_all()
+        except Exception as e:
+            logger.warning("Error closing ClickHouse pool", error=str(e))
+        try:
+            pg_pool.closeall()
+        except Exception as e:
+            logger.warning("Error closing PostgreSQL pool", error=str(e))
+
         logger.info("Analysis Worker shut down cleanly.")
 
 if __name__ == '__main__':

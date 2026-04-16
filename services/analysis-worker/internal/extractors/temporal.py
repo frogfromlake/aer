@@ -29,7 +29,7 @@ class TemporalDistributionExtractor:
 
     def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         ts = core.timestamp
-        if ts.tzinfo is None or ts.utcoffset().total_seconds() != 0:
+        if ts.tzinfo is None or ts.utcoffset() is None or ts.utcoffset().total_seconds() != 0:
             logger.warning(
                 "temporal_distribution: timestamp is not UTC-aware (tzinfo=%r, utcoffset=%r) "
                 "for article_id=%r — skipping temporal metrics",

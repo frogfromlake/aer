@@ -41,6 +41,15 @@ class ClickHousePool:
     def putconn(self, client: clickhouse_connect.driver.Client) -> None:
         self._pool.put(client)
 
+    def close_all(self) -> None:
+        """Drain the pool and close every ClickHouse client connection."""
+        while not self._pool.empty():
+            try:
+                client = self._pool.get_nowait()
+                client.close()
+            except queue.Empty:
+                break
+
     def insert(self, table: str, rows: list, column_names: list[str]) -> None:
         client = self.getconn()
         try:
