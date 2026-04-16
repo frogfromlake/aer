@@ -40,8 +40,8 @@ fi
 
 echo "postgres-init-roles: ensuring role '${BFF_DB_USER}' exists with read-only access to sources..."
 
-# Idempotent role provisioning. CREATE ROLE is wrapped in a DO block so
-# rerunning the init container against an existing database is a no-op.
+# Idempotent role provisioning. The role is created via \gexec so psql
+# variable interpolation works (DO $$ blocks suppress interpolation).
 # The password is always (re)synced via ALTER ROLE so rotating
 # BFF_DB_PASSWORD in .env is picked up on the next stack restart.
 psql -v ON_ERROR_STOP=1 \
@@ -49,13 +49,8 @@ psql -v ON_ERROR_STOP=1 \
      -v bff_password="${BFF_DB_PASSWORD}" \
      -v pg_database="${PGDATABASE}" \
      <<'SQL'
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'bff_user') THEN
-        EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'bff_user', :'bff_password');
-    END IF;
-END
-$$;
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'bff_user', :'bff_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'bff_user') \gexec
 
 ALTER ROLE :"bff_user" WITH LOGIN PASSWORD :'bff_password';
 

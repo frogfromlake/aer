@@ -21,7 +21,7 @@ RUN go mod download && \
 # Upstream: https://hub.docker.com/_/alpine — alpine:3.23.3
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 
-RUN apk upgrade --no-cache zlib libcrypto3 libssl3 \
+RUN apk upgrade --no-cache zlib libcrypto3 libssl3 musl musl-utils \
     && adduser -S -D -H -u 10001 aer
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
