@@ -1256,6 +1256,405 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-### Open Phases
+# Open Phases
+
+---
+
+## Phase 94: Frontend Foundation — Documentation Integration & Arc42 Anchoring [P-Docs] - [ ] TODO
+
+*ADR-020 (Frontend Technology Stack) has been ratified. The Design Brief exists under `docs/design/design_brief.md`. Before any frontend code is written, the documentation must be fully integrated into the Arc42 structure, the MkDocs navigation, and the cross-reference graph. This phase is docs-only — zero code changes to services. It establishes the epistemic foundation that the subsequent code phases refer back to.*
+
+* [ ] **MkDocs navigation extension.** Add the Design Brief and visualization guidelines to `mkdocs.yml` under a new top-level tab `Design` (peer to `Architecture (arc42)`, `Methodology`, `Operations`). Structure:
+  ```yaml
+  - "Design":
+      - "Design Brief": design/design_brief.md
+      - "Visualization Guidelines": design/visualization_guidelines.md
+  ```
+  Verify with `mkdocs build --strict` (zero warnings allowed). Verify live-reload picks up the new files in the `docs` container.
+
+* [ ] **Arc42 §8.17 — Frontend Architecture (Cross-cutting Concept).** Add a new section `8.17 Frontend Architecture` to `docs/arc42/08_concepts.md`. Content (short, ~40–60 lines): one-paragraph description of the dashboard as a service, the three surfaces (Atmosphere / Function Lanes / Reflection), the five layers of progressive descent, the four visualization domains (§5.9), and explicit cross-references to the Design Brief and ADR-020. This section is the *bridge* from Arc42 readers to the full Design Brief — it must be brief and direct, not a summary of the brief. Link form: `See [Design Brief](../design/design_brief.md) for the full architecture.`
+
+* [ ] **Arc42 §5 — Building Block View update.** Extend `docs/arc42/05_building_block_view.md` to include the `dashboard` service as a new building block alongside `ingestion-api`, `bff-api`, and `analysis-worker`. Single row in the existing service table: responsibility ("User-facing dashboard serving three surfaces"), language (TypeScript/Svelte), dependencies (BFF API only), position in the container network (`aer-frontend` only).
+
+* [ ] **Arc42 §7 — Deployment View placeholder.** Extend `docs/arc42/07_deployment_view.md` §7.4 with a placeholder entry for the `dashboard` service in the service table — image base, port, network, memory, CPU. Values marked as `TBD (Phase 96)` where the Dockerfile does not yet exist. This ensures §7 is consistent with the intended deployment even before Phase 96 implements it.
+
+* [ ] **Arc42 §2 — Architecture Constraints extension.** Add a row to the Technical Constraints table in `docs/arc42/02_architecture_constraints.md` §2.2: "Frontend Stack — TypeScript 5.5+, Svelte 5, SvelteKit static adapter. Enforced by ADR-020, `package.json` engines field, CI workflow."
+
+* [ ] **Arc42 §9 — ADR-020 is already inserted.** Verify that ADR-020 reads consistently after ADR-019, with the same formatting conventions (Status / Context / Decision / Consequences). Check that all cross-references (ADR-003, ADR-008, ADR-016, ADR-017) resolve to the correct in-document anchors.
+
+* [ ] **Arc42 §12 — Glossary additions.** Add six new glossary entries to `docs/arc42/12_glossary.md`:
+  - **Dashboard** — The AĒR user-facing application. A static SvelteKit build serving three surfaces (Atmosphere, Function Lanes, Reflection). Deployed behind Traefik on `aer-frontend` network. See ADR-020 and the Design Brief.
+  - **Surface (Dashboard)** — One of three top-level encounter modes: Atmosphere (the 3D globe), Function Lanes (discourse functions from WP-001), Reflection (methodological prose). Surfaces are orthogonal to Layers. See Design Brief §3.
+  - **Layer (Progressive Descent)** — One of five depths at which any surface can be viewed: Immersion (L0), Orientation (L1), Exploration (L2), Analysis (L3), Provenance (L4), Evidence (L5). Layers are orthogonal to Surfaces. See Design Brief §4.
+  - **Progressive Semantics** — The Dual-Register communication pattern: every data point carries both a semantic and a methodological register in the DOM, with only one prominent at a time. See Design Brief §5.7.
+  - **Epistemic Weight** — The visual prominence of a rendered metric scales with its methodological backing (Tier 1 unvalidated → moderate weight; Tier 2 validated → full weight; Tier 3 LLM-augmented → distinct styling). See Design Brief §5.8.
+  - **Content Catalog** — The BFF subsystem serving Dual-Register content (semantic + methodological text for metrics, probes, discourse functions, and refusal types) from YAML sources under `services/bff-api/configs/content/`. New in Phase 95. See ADR-020 Layer 4.
+
+* [ ] **Cross-reference audit.** `grep -r "docs/design/" docs/` and `grep -r "ADR-020" docs/` — verify that every reference resolves and that the Design Brief is cited from at least `arc42/08_concepts.md §8.17`, `arc42/09_architecture_decisions.md` (ADR-020), `arc42/05_building_block_view.md`, and `arc42/12_glossary.md`.
+
+* [ ] **Update `docs/index.md`.** Add a fourth pillar under "Documentation Structure": "**Design** — The design language of the AĒR dashboard. The Design Brief defines visual identity, interaction architecture, and extensibility commitments; the Visualization Guidelines constrain individual rendering decisions." One paragraph, in the same tone as the existing three pillars.
+
+* [ ] **Validation.** `mkdocs build --strict` green, `make lint` green (any future Python/Go linting still passes — no code changes in this phase), pre-push hooks green.
+
+**Exit criteria:** The Design Brief is discoverable from the MkDocs landing page in two clicks. ADR-020 is findable both via Arc42 §9 and from the Design section's cross-links. `arc42/08_concepts.md` has a §8.17 entry that connects Arc42 readers to the Design Brief without requiring them to read the full brief first. Every glossary term used anywhere in the new docs is defined in §12.
+
+---
+
+## Phase 95: Content Catalog — BFF Backend for Dual-Register Content [P1] - [ ] TODO
+
+*The Dual-Register content required by Design Brief §5.7 lives outside the frontend. The BFF serves both semantic and methodological register text for every metric, probe, discourse function, and refusal type — from YAML source files under `services/bff-api/configs/content/`. This phase implements the backend side only; the frontend integrates it in Phase 96+. Content authoring happens as a separate scientific workflow, not code.*
+
+* [ ] **Content directory structure.** Create `services/bff-api/configs/content/` with subdirectories:
+  ```
+  configs/content/
+  ├── en/
+  │   ├── metrics/
+  │   │   ├── sentiment_score.yaml
+  │   │   ├── word_count.yaml
+  │   │   ├── temporal_distribution.yaml
+  │   │   ├── language_confidence.yaml
+  │   │   └── entity_count.yaml
+  │   ├── probes/
+  │   │   └── probe-0-de-institutional-rss.yaml
+  │   ├── discourse_functions/
+  │   │   ├── epistemic_authority.yaml
+  │   │   ├── power_legitimation.yaml
+  │   │   ├── cohesion_identity.yaml
+  │   │   └── subversion_friction.yaml
+  │   └── refusals/
+  │       ├── normalization_equivalence_missing.yaml
+  │       ├── validation_missing.yaml
+  │       └── k_anonymity_threshold_not_met.yaml
+  └── de/
+      └── (same structure, German content)
+  ```
+
+* [ ] **Content schema (Pydantic / Go struct).** Define the content record schema for each entity type. Both registers must exist; both have a `short` (≤ 200 characters, for hover/badge surfaces) and `long` variant (prose, ≤ 2000 characters, for Layer 4). Required metadata: `entityId`, `entityType`, `locale`, `contentVersion` (semver-like string), `lastReviewedBy`, `lastReviewedDate` (ISO 8601), optional `workingPaperAnchors` (list of strings like `"WP-002 §3"`). Shape:
+  ```yaml
+  entityId: sentiment_score
+  entityType: metric
+  locale: en
+  registers:
+    semantic:
+      short: "A score from −1 to +1 that reflects..."
+      long: "Multiple paragraphs..."
+    methodological:
+      short: "Tier 1 lexicon-based score (SentiWS v2.0). Unvalidated."
+      long: "Multiple paragraphs with WP-002 citations..."
+  contentVersion: "v2026-04-a"
+  lastReviewedBy: "Fabian Quist"
+  lastReviewedDate: "2026-04-17"
+  workingPaperAnchors:
+    - "WP-002 §3"
+    - "WP-002 §4"
+  ```
+
+* [ ] **Seed content for Phase 42 metrics (EN + DE).** Draft the initial semantic and methodological registers for all five current metrics (`word_count`, `sentiment_score`, `language_confidence`, `temporal_distribution`, `entity_count`). Draft from WP-002 §3 (known limitations), `services/bff-api/configs/metric_provenance.yaml` (existing methodology), and the Working Papers. EN drafts first; DE translations in a single commit after EN review passes. Both registers need to be pedagogically honest — the semantic register explains *what* without dumbing down; the methodological register explains *how* without assuming familiarity with the pipeline.
+
+* [ ] **Seed content for Probe 0 (EN + DE).** Draft the probe dossier content for `probe-0-de-institutional-rss`. Pull from existing `docs/probes/probe-0-de-institutional-rss/README.md` and related dossier files. This content is consumed by Surface III (Reflection) when the probe is inspected.
+
+* [ ] **Seed content for four discourse functions (EN + DE).** Draft semantic and methodological registers for Epistemic Authority, Power Legitimation, Cohesion & Identity, and Subversion & Friction. Source: WP-001 §3. These content entries populate the empty-lane captions on Surface II (Design Brief §3.2, §5.7 example).
+
+* [ ] **Seed content for refusal types (EN + DE).** Three refusals must be authored first: (1) `normalization_equivalence_missing` (HTTP 400 from z-score gate), (2) `validation_missing` (metric accessed at a confidence claim above its validation tier), (3) `k_anonymity_threshold_not_met` (L5 descent refused due to WP-006 §7). Follow the refusal pattern from Design Brief §5.4 + §5.7: semantic = plain-language explanation, methodological = exact gate + WP anchor + alternatives.
+
+* [ ] **BFF content loader.** Extend the BFF API's configuration package to load `configs/content/**/*.yaml` at startup into an in-memory read-through cache. The loader validates each file against the content schema; malformed files abort startup with a clear error. Files are hot-reloadable in the `docs` dev container via an fs-watcher (optional; defer if adds complexity).
+
+* [ ] **OpenAPI contract extension.** Add to `services/bff-api/api/openapi.yaml`:
+  ```yaml
+  /content/{entityType}/{entityId}:
+    get:
+      summary: Get Dual-Register content for an entity
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [metric, probe, discourse_function, refusal]
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: locale
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [en, de]
+            default: en
+      responses:
+        '200':
+          description: Content found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentResponse'
+        '404':
+          description: Content not found for the given entity or locale
+        '400':
+          description: Invalid entityType or entityId
+  ```
+  Define the `ContentResponse` schema matching the YAML record shape.
+
+* [ ] **BFF handler implementation.** Implement `GET /api/v1/content/{entityType}/{entityId}` in `services/bff-api/internal/handler/`. Dispatch to the content loader; return 404 if no matching entry for the requested locale (with a `Content-Language` header). Include trace instrumentation consistent with existing BFF endpoints.
+
+* [ ] **Content contract test.** Add tests in `services/bff-api/internal/handler/` covering: (a) successful fetch for each entity type, (b) 404 on missing entity, (c) 404 on missing locale, (d) invalid entity type → 400. Tests use fixture content files under a test configs directory.
+
+* [ ] **E2E smoke test extension.** Extend `scripts/e2e_smoke_test.sh` with assertions against the new content endpoints for at least one metric (sentiment_score), one probe (probe-0-de-institutional-rss), one discourse function (epistemic_authority), and one refusal (normalization_equivalence_missing). Both locales (en, de) verified.
+
+* [ ] **Codegen regeneration.** `make codegen` to regenerate the Go server stubs from the updated OpenAPI. Verify that the CI drift check (`git diff --exit-code`) passes.
+
+* [ ] **Arc42 documentation.** Add §8.18 to `docs/arc42/08_concepts.md` describing the Content Catalog subsystem — storage format, API shape, i18n model, versioning, and the relationship to the Dual-Register content in Design Brief §5.7. Cross-reference in §12 Glossary ("Content Catalog" entry from Phase 94 gets a §8.18 link appended).
+
+* [ ] **Validation.** `make lint` green, `make test` green, `make codegen` clean, `scripts/e2e_smoke_test.sh` green, `mkdocs build --strict` green.
+
+**Exit criteria:** `curl -H 'X-API-Key: ...' http://localhost:8080/api/v1/content/metric/sentiment_score?locale=de` returns a well-formed JSON response with both registers and content metadata. All current Phase 42 metrics, Probe 0, four discourse functions, and three refusal types are authored in EN and DE.
+
+---
+
+## Phase 96: Frontend Scaffolding — SvelteKit Static + Infrastructure Integration [P0] - [ ] TODO
+
+*This phase creates `services/dashboard/` as a new service in the monorepo. It produces a minimal "Hello AĒR" page that renders through Traefik, emits OTel traces into the existing collector, and passes the same CI/supply-chain rigor as the Go services. No user-facing features yet — this is purely the foundation on which all subsequent frontend work stands.*
+
+* [ ] **Service directory structure.** Create `services/dashboard/` with the following structure:
+  ```
+  services/dashboard/
+  ├── src/
+  │   ├── lib/              # Svelte components (empty initially)
+  │   ├── routes/
+  │   │   ├── +layout.svelte
+  │   │   └── +page.svelte  # "Hello AĒR" landing
+  │   ├── app.html
+  │   └── app.d.ts
+  ├── static/
+  │   └── favicon.svg
+  ├── tests/
+  │   ├── unit/             # Vitest
+  │   └── e2e/              # Playwright (single smoke test)
+  ├── package.json
+  ├── pnpm-lock.yaml
+  ├── svelte.config.js
+  ├── vite.config.ts
+  ├── tsconfig.json
+  ├── .npmrc
+  ├── .gitignore
+  ├── Dockerfile
+  └── README.md
+  ```
+
+* [ ] **Svelte / SvelteKit configuration.** Install Svelte 5, SvelteKit with `@sveltejs/adapter-static`, TypeScript 5.5+. `svelte.config.js` configures the static adapter with `prerender: true` and fallback `index.html` for SPA routing. `tsconfig.json` has strict mode enabled (`"strict": true`, `"noUncheckedIndexedAccess": true`, `"exactOptionalPropertyTypes": true`).
+
+* [ ] **pnpm and lockfile.** pnpm 9+ as the package manager. `pnpm install --frozen-lockfile` enforced in CI. `.npmrc` with `strict-peer-dependencies=true`. Pin all dev dependencies to exact versions — no caret ranges in `package.json`.
+
+* [ ] **TypeScript API client codegen.** Install `openapi-typescript`. Add `make codegen-ts` target to the root `Makefile` that runs `openapi-typescript services/bff-api/api/openapi.yaml -o services/dashboard/src/lib/api/types.ts`. Add a `.tool-versions` entry for `openapi-typescript`. CI workflow step: `make codegen-ts && git diff --exit-code` — mirror of the existing Go drift check.
+
+* [ ] **ESLint + Prettier.** ESLint with `@typescript-eslint` and the official Svelte plugin. Prettier with the Svelte plugin. Same formatting conventions as the Go/Python code where applicable (2-space indentation for TS/Svelte, LF line endings, single quotes for strings).
+
+* [ ] **Makefile integration.** Add to the root Makefile:
+  ```make
+  fe-install:    ## Install frontend dependencies
+  fe-lint:       ## Lint frontend (ESLint + Prettier check + svelte-check)
+  fe-typecheck:  ## TypeScript strict typecheck
+  fe-test:       ## Vitest unit tests
+  fe-test-e2e:   ## Playwright end-to-end smoke test
+  fe-build:      ## Production build
+  fe-check:      ## Composite: lint + typecheck + test + bundle-size gate
+  ```
+  Extend the existing `make lint` target to include `fe-lint`. Extend `make test` to include `fe-test`. The existing `make codegen` target remains Go-only; `make codegen-ts` is its frontend peer.
+
+* [ ] **Bundle-size gate.** Add a Vite plugin (`rollup-plugin-visualizer` or equivalent) that emits bundle stats. Add a CI step that fails the build if the initial bundle (shell + router + runtime) exceeds 80 kB gzipped. Budget exists with headroom — the 180 kB total budget (Design Brief §7) is enforced at phase 98 when actual Surface I code lands.
+
+* [ ] **OpenTelemetry Web SDK.** Install `@opentelemetry/sdk-trace-web`, `@opentelemetry/instrumentation-fetch`, `@opentelemetry/exporter-trace-otlp-http`. Configure in a dedicated `src/lib/observability/otel.ts` module. Lazy-load after first paint (do not block initial render). OTLP endpoint configurable via build-time env var; default points at the existing `otel-collector:4318` internal service for development. Resource attributes: `service.name=aer-dashboard`, `service.version` (from `package.json`), `deployment.environment` (build-time env var).
+
+* [ ] **Dockerfile (multi-stage).** Build stage uses `node:22-alpine3.23` with pinned digest; runtime stage uses `nginx:1.27-alpine3.23` with pinned digest. Build output from SvelteKit's static adapter is copied to `/usr/share/nginx/html`. Nginx config serves `index.html` as SPA fallback. Image is pinned via the SSoT pattern from Arc42 §2.3. Build output size gate: refuse to build if image exceeds 50 MB.
+
+* [ ] **Supply-chain hardening (Phase 84 parity).** Image build pipeline produces:
+  - Trivy scan (fails on HIGH/CRITICAL vulnerabilities)
+  - Cosign signature (keyless via OIDC in CI)
+  - Syft SBOM (attached as OCI artifact)
+  Extend existing CI workflow steps to cover the dashboard image symmetrically to the Go service images.
+
+* [ ] **`compose.yaml` integration.** Add the `dashboard` service to `compose.yaml`:
+  ```yaml
+  dashboard:
+    build:
+      context: ./services/dashboard
+      dockerfile: Dockerfile
+    image: aer-dashboard:local
+    networks:
+      - aer-frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+  ```
+  The dashboard is only on `aer-frontend` — it has no access to backend services except through the BFF API via Traefik. This enforces ADR-008 Zero-Trust symmetrically.
+
+* [ ] **Traefik routing verification.** With `make up`, confirm that `https://localhost/` serves the dashboard and `https://localhost/api/...` still routes to the BFF. Check that the BFF is *not* reachable via the dashboard's routing.
+
+* [ ] **Git hooks extension.** Extend `scripts/hooks/pre-commit` and `scripts/hooks/pre-push` to include `make fe-lint` (pre-commit) and `make fe-check` (pre-push). Hooks only run the frontend steps if `services/dashboard/` files have changed — otherwise skip to preserve the Go-only fast path.
+
+* [ ] **CI workflow extension.** Extend `.github/workflows/ci.yml` with a `frontend` job that runs in parallel to `backend` jobs: install → lint → typecheck → unit test → build → e2e (Playwright) → bundle-size gate → image build → Trivy scan. The job runs on every PR that touches `services/dashboard/` or the OpenAPI spec.
+
+* [ ] **Health & readiness.** The dashboard container responds to `GET /healthz` (just returns 200 from Nginx on a static file) for Docker healthchecks. No dynamic readiness needed — it's a static bundle.
+
+* [ ] **README.md.** Service-level README at `services/dashboard/README.md` with: one-paragraph description, cross-references to ADR-020 and the Design Brief, developer setup commands, and an architecture overview that defers to the central docs. No duplicate content — only pointers.
+
+* [ ] **Arc42 §7 update.** Fill in the `dashboard` service row in §7.4 (Deployment View) that was a placeholder in Phase 94: actual image base, port, network, memory, CPU, healthcheck command.
+
+* [ ] **Validation.** `make up` brings the stack up including the dashboard. `make fe-check` green. `make lint` green. `make test` green. The dashboard loads in a browser via Traefik. OTel traces for dashboard page loads are visible in Grafana Tempo.
+
+**Exit criteria:** A blank but fully instrumented dashboard service runs alongside the existing stack, emits traces, follows the monorepo's supply-chain hardening, and passes the same quality gates as the Go services. Zero user-facing features — but the foundation is production-grade.
+
+---
+
+## Phase 97: Design System Foundation [P1] - [ ] TODO
+
+*Before rendering any real data, the dashboard needs a design system — typography, color tokens, spacing, focus-rings, dark-mode defaults. This phase establishes those primitives and sets up Histoire for isolated component testing. The design system is additive: later phases extend it, but never rewrite it.*
+
+* [ ] **CSS custom properties as design tokens.** Define the AĒR design token set in `src/lib/design/tokens.css`: colors (Viridis-family palette stops, UI grays, accent cyan, semantic colors for validation status), typography scale (Inter Variable UI, IBM Plex Mono for numbers; modular scale with ratios), spacing scale (4px baseline grid), radius scale, elevation/shadow scale, motion scale (durations + easings). All values are CSS custom properties — no Tailwind, no framework-specific tokens. Follows the approach of Distill.pub and other scientific publishing projects.
+
+* [ ] **Dark-mode-first approach.** Design Brief §5.5 mandates dark mode as primary. Tokens provide a `data-theme="dark"` (default) and `data-theme="light"` (fallback). CSS-only switching via custom properties — no JS needed for theme application. System preference honored via `@media (prefers-color-scheme)` at first load.
+
+* [ ] **Typography rendering.** Self-host Inter Variable and IBM Plex Mono via `@fontsource-variable/inter` and `@fontsource/ibm-plex-mono` — no Google Fonts dependency (Zero-Trust compatibility, no third-party requests from the user's browser). Subsetting to Latin-Extended and Greek (for ἀήρ etc.). Font files total ~180 kB compressed — budgeted against the shell's 180 kB total, not the initial paint.
+
+* [ ] **Viridis color scale module.** `src/lib/design/viridis.ts` exports the Viridis-256 and Cividis-256 arrays (colorblind-safe variants) plus a `viridis(t: number): string` interpolator. These are the canonical color scales used by every visualization module per Design Brief §5.2 and `visualization_guidelines.md` §1. No ad-hoc palette definitions anywhere else.
+
+* [ ] **Epistemic Weight styles.** `src/lib/design/epistemic-weight.css` defines the visual treatments from Design Brief §5.8: CSS classes `.weight-tier1-unvalidated`, `.weight-tier1-validated`, `.weight-tier2-validated`, `.weight-tier3`, `.weight-expired`. Each class defines line-weight, opacity, and decoration (dashed, hatched, badge) conventions. Visualization modules consume these classes rather than hardcoding visual treatments.
+
+* [ ] **Accessibility primitives.** Focus-ring tokens with minimum 3:1 contrast against any background. `:focus-visible` for keyboard-only focus. `prefers-reduced-motion` honored by the motion-scale tokens (reduces all motion to < 0.01s when set). Skip-link styling. ARIA label conventions documented in `src/lib/design/a11y.md`.
+
+* [ ] **Base component primitives.** Minimum set of Svelte components in `src/lib/components/base/`:
+  - `Button.svelte` (primary, secondary, ghost variants; keyboard-accessible; loading state)
+  - `Dialog.svelte` (modal with focus-trap; WCAG 2.2 AA compliant)
+  - `Tooltip.svelte` (ARIA-described; positions via CSS anchor-positioning where supported)
+  - `Badge.svelte` (status badges consuming Epistemic Weight classes)
+  - `SkipLink.svelte` (screen-reader navigation)
+  No business logic — these are pure primitives.
+
+* [ ] **Histoire setup.** Install `@histoire/plugin-svelte` — lighter than Storybook, Svelte-native. Configure under `histoire.config.ts`. Every base component has a `.story.svelte` file demonstrating all variants. Runs via `pnpm histoire dev` on a separate port; CI runs `pnpm histoire build` as a smoke check.
+
+* [ ] **Visual regression baseline.** Playwright visual regression configured. Baseline snapshots captured for each base component at both `data-theme="dark"` and `data-theme="light"`. Snapshots committed to the repo. Changes require explicit snapshot approval.
+
+* [ ] **Accessibility baseline testing.** Install `@axe-core/playwright`. E2E test runs axe-core against every base component story and fails on any WCAG 2.2 AA violation. This becomes the permanent a11y gate — every new component must pass before merging.
+
+* [ ] **Design documentation.** Add `docs/design/design_system.md` (new) documenting the token set, the Viridis scale, the Epistemic Weight classes, and the base components. Cross-referenced from the Design Brief (§5.2 color, §5.5 typography, §5.8 epistemic weight). MkDocs nav updated.
+
+* [ ] **Validation.** `make fe-check` green. Histoire builds without errors. All accessibility tests pass. Visual regression baseline captured. Bundle-size gate: initial bundle now ~60–70 kB gzipped (design tokens + base components + fonts); within budget.
+
+**Exit criteria:** Design tokens, typography, color scales, Epistemic Weight classes, base components, and the Histoire environment are all in place. A developer starting Phase 98 can compose features from existing primitives rather than inventing new ones. The a11y gate enforces WCAG 2.2 AA from this phase onward.
+
+---
+
+## Phase 98: Surface I Shell — Low-Fidelity Atmosphere [P1] - [ ] TODO
+
+*The first user-facing feature: a 2D equirectangular map showing Probe 0's two luminous points over Germany, with a live terminator, served from live BFF data. No 3D, no WebGL. This phase proves the end-to-end pipeline — BFF query → typed client → Svelte state → rendering — works under realistic constraints. The low-fidelity atmosphere is deliberately the first feature because Design Brief §5.6 says it must carry full scientific depth on weak hardware. If it works at L0–L1 here, it will work everywhere.*
+
+* [ ] **Data layer foundation.** `src/lib/api/client.ts` wraps the generated types (from `make codegen-ts`) with a typed fetch client. `src/lib/api/queries.ts` defines query functions using TanStack Query (Svelte adapter). Query keys follow a stable schema: `['probes']`, `['probes', probeId]`, `['metrics', metricName, { source, from, to, resolution }]`. Error handling: typed discriminated unions for success / refusal / network error.
+
+* [ ] **Refusal surface primitive.** `src/lib/components/RefusalSurface.svelte` — the component that renders BFF HTTP 400 responses as methodological statements per Design Brief §5.4. Accepts a `refusalType` prop, queries the Content Catalog (from Phase 95) for the corresponding text, renders semantic + methodological registers via Progressive Semantics (§5.7). This is the first component that uses the Content Catalog end-to-end.
+
+* [ ] **Progressive Semantics primitive.** `src/lib/components/ProgressiveSemantics.svelte` — the component that renders any entity (metric value, probe label, refusal) in Dual-Register form. Semantic register primary by default; methodological register accessible via a compact badge affordance. ARIA-Expanded pattern for register transitions. Both registers always present in DOM; CSS controls prominence. Used by most subsequent components.
+
+* [ ] **Low-fidelity map rendering module.** `src/lib/viz/atmosphere-lofi.ts` — framework-agnostic 2D map renderer. Input: probe list, time range, sun position. Output: SVG element. Features:
+  - Equirectangular projection of coastlines (from pre-built SVG at `static/world.svg`, ~15 kB)
+  - Probe points as static circles (luminosity via `visibility` opacity tied to publication volume)
+  - Live terminator as a sine-curve polygon (recomputed on sun-position change, ~60 seconds update cadence)
+  - Absence regions optionally rendered on negative-space overlay (Phase 103, not now — component ready for future extension)
+  Tested in Histoire isolated from the framework.
+
+* [ ] **Atmosphere route.** `src/routes/+page.svelte` (replacing the Hello AĒR landing):
+  - Queries `/api/v1/probes` for active probes
+  - Queries `/api/v1/metrics/temporal_distribution` for the last 24 hours for each probe
+  - Renders via the low-fidelity map module
+  - On probe hover: tooltip with emic designation (from content catalog)
+  - On probe click: side panel opens with probe metadata (Layer 3 descent — structural; content rendering in later phases)
+  No 3D, no WebGL. This is Surface I at Layer 0–L1 in pure Low-Fidelity.
+
+* [ ] **Time scrubber component.** `src/lib/components/TimeScrubber.svelte` — horizontal slider for time-range selection. URL-persisted (`?from=...&to=...`). Uses the base Button component. Accessible via keyboard (arrow keys, Home/End).
+
+* [ ] **URL-state synchronization.** `src/lib/state/url.ts` — a Svelte 5 Runes-based store that reads/writes state (`activeProbe`, `timeRange`, `resolution`, `viewingMode`) to the URL. Design Brief §5.5 mandates deep-linkable state. A conversation about AĒR is a conversation about URLs.
+
+* [ ] **Integration test.** A Playwright E2E test: load the dashboard → verify Germany appears on the map → verify two probe points visible → click one → verify side panel opens with emic content from the Content Catalog → verify trace IDs appear in the Tempo dashboard.
+
+* [ ] **Accessibility audit for Surface I.** `@axe-core/playwright` against the atmosphere surface in both themes. Keyboard-only navigation: all interactive elements reachable via Tab; focus-visible rings present; ESC closes panels. Screen-reader verification: VoiceOver / NVDA reports meaningful content (not just "SVG"). Zero WCAG 2.2 AA violations.
+
+* [ ] **Performance measurement.** Lighthouse CI run: on 50 Mbps connection (Design Brief §7 high-fi target), first contentful paint < 1.5s; on 5 Mbps throttled (low-fi target), first contentful paint < 3s. Bundle size: shell + atmosphere module < 120 kB gzipped. Frame times during scrubber interaction < 33 ms/frame.
+
+* [ ] **Validation.** `make fe-check` green. `make up` brings the full stack up; the atmosphere surface loads with live Probe 0 data. Both themes work. Visual regression snapshots updated.
+
+**Exit criteria:** A researcher can open the dashboard locally, see Probe 0's two sources over Germany on a live 2D map with a live terminator, click a probe to see its emic context, and scrub through time. The full data pipeline BFF → typed client → Svelte state → rendering module is validated. The Content Catalog from Phase 95 is consumed end-to-end. No 3D yet — but everything needed for 3D is now in place.
+
+---
+
+## Phase 99: 3D Atmosphere Engine — High-Fidelity Upgrade [P1] - [ ] TODO
+
+*The high-fidelity atmosphere from Design Brief §3.1: a rotating 3D globe with custom GLSL shaders for terminator, probe glow, and atmospheric scattering. The engine is a framework-agnostic vanilla three.js module per §5.9. It lazy-loads after the low-fidelity atmosphere and upgrades the surface in place when ready. The user sees a smooth visual upgrade, not a page reload.*
+
+* [ ] **3D engine package.** Create `services/dashboard/packages/engine-3d/` as a pnpm workspace package. Enables isolated testing and dependency management distinct from the shell. `package.json` declares three.js as a peer dependency so it's tree-shaken correctly into the lazy chunk.
+
+* [ ] **Three.js import discipline.** Import only what's needed: `WebGLRenderer`, `Scene`, `PerspectiveCamera`, `SphereGeometry`, `Mesh`, `ShaderMaterial`, `Vector3`, `Color`, `Clock`. No `three/examples/*` except `OrbitControls`. Verify bundle: after full engine build, the three.js footprint is < 100 kB gzipped.
+
+* [ ] **Globe geometry and textures.** Blue-Marble-style Earth texture (public domain NASA imagery, baked to 2048×1024 WebP, ~80 kB). Single sphere mesh. Texture loaded lazily after first render of the low-fidelity form.
+
+* [ ] **Custom terminator shader (GLSL).** `packages/engine-3d/src/shaders/terminator.glsl` — fragment shader computing per-pixel day/night via `dot(normal, sunDirection)`. Smooth transition via `smoothstep` over a ~5° angular band for realistic twilight. Day side: unaltered Earth texture. Night side: darkened texture with city-lights overlay (optional second texture, further ~60 kB, lazy). Uniform `uSunDirection` updated per frame from current Unix timestamp.
+
+* [ ] **Probe glow shader (GLSL).** Custom shader for luminous probe points. Input: probe position in lat/lon, publication volume (→ brightness), pillar mode (→ hue variation within Viridis). Output: billboarded quad with radial gradient glow + subtle bloom. No post-processing pass — glow is done in the fragment shader directly, respecting the 60fps budget.
+
+* [ ] **Atmospheric scattering shader (GLSL).** Rayleigh/Mie atmospheric halo around the globe edge. Standard analytic approximation (see Bruneton-Neyret or similar references). This is the ornamental-yet-informational element allowed by Design Brief §5.1 — the halo is real physics, not decoration.
+
+* [ ] **Camera controls.** `OrbitControls` from three.js examples: orbit, zoom, tilt. Damping enabled for smooth feel. Zoom limits: no closer than 1.2× globe radius (prevents disorientation), no farther than 8× (keeps Earth visible). Auto-rotation at 0.05 rad/s when user hasn't interacted in 10s (atmospheric "stillness with motion beneath").
+
+* [ ] **Raycaster for probe interaction.** Per-frame raycast on mouse-move identifies the closest probe point under the cursor. Hover: probe glow intensifies slightly; tooltip with emic designation. Click: dispatches a `probe-selected` custom event to the framework shell, which opens the side panel (reusing the Phase 98 infrastructure).
+
+* [ ] **Engine API.** Minimal imperative interface exposed by the engine module:
+  ```typescript
+  export interface AtmosphereEngine {
+    mount(element: HTMLCanvasElement): void;
+    setProbes(probes: ProbeMarker[]): void;
+    setPillarMode(mode: 'aleph' | 'episteme' | 'rhizome'): void;
+    setTimeRange(from: Date, to: Date): void;
+    flyTo(lat: number, lon: number, durationMs?: number): void;
+    on(event: 'probe-selected', handler: (probe: Probe) => void): void;
+    dispose(): void;
+  }
+  ```
+  The framework shell calls this API; the engine never reaches into the shell.
+
+* [ ] **High-Fi / Low-Fi mode switching.** Capability detection on startup: WebGL2 available + GPU passes a simple benchmark (frame time < 20 ms on a test frame) → High-Fi. Otherwise Low-Fi. User can override via a settings toggle persisted in URL (`?fidelity=hi|lo`). When switching: smooth fade transition using the View Transitions API; both modes consume the same data from the query cache so no re-fetch needed.
+
+* [ ] **Respect for reduced motion.** If `prefers-reduced-motion: reduce` is set, auto-rotation is disabled; terminator update cadence reduced; atmosphere halo animation disabled. All data still renders.
+
+* [ ] **Isolated engine tests.** Histoire stories for the engine: one with a single probe, one with ten probes, one with the globe paused, one demonstrating fly-to. Each story exercises the imperative API directly, without the SvelteKit shell. Visual regression snapshots of each story captured.
+
+* [ ] **Performance verification.** Benchmark on 2021 M1 MacBook Air (Design Brief §7 high-fi target): 60fps sustained during orbit with 10 probe points visible. Benchmark on integrated-graphics 2015 ThinkPad: High-Fi fails the capability check → automatic Low-Fi fallback (verified in Phase 98 already). No thermal throttling in a 10-minute session.
+
+* [ ] **Bundle impact.** After this phase, Surface I at High-Fidelity is a ~250 kB gzipped lazy chunk (engine + textures). Shell remains ~60 kB. Low-Fi users never download the 3D chunk. Bundle-size gate updated to check both.
+
+* [ ] **Integration test.** Playwright test on a WebGL2-capable headless browser (Chromium): load dashboard → verify 3D globe renders → verify terminator visible → verify probes visible → click a probe → verify the side panel opens (same panel as Low-Fi version). Then with WebGL2 disabled: verify Low-Fi fallback activates automatically.
+
+* [ ] **Accessibility verification.** The 3D canvas has an ARIA-label describing the scene and fallback text content. Keyboard navigation: Tab moves through probes; Enter opens the selected probe's panel. Screen readers get a textual description of the atmospheric state. The visual experience is enhanced by 3D but does not depend on it.
+
+* [ ] **Arc42 update.** Update §8.17 (Frontend Architecture) with a brief note on the engine/shell separation and the High-Fi / Low-Fi mode-switching mechanism. Cross-reference the engine package location.
+
+* [ ] **Validation.** `make fe-check` green. All tests green. Lighthouse CI: High-Fi first paint on 50 Mbps < 1.5s (low-fi paints first, 3D upgrades within 3s); no frames dropped during orbit. Histoire stories all render correctly. Visual regression snapshots stable.
+
+**Exit criteria:** The rotating Earth with live terminator, glowing probe points, and atmospheric halo renders at 60fps on capable hardware. Users on weak hardware get the Low-Fi version automatically. Both modes share the same data, the same Content Catalog content, and the same interactive behavior. The engine is fully isolated from the framework — it can be tested, benchmarked, and eventually swapped without touching the shell.
+
+---
 
 ---
