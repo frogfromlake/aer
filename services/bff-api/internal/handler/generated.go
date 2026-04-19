@@ -13,17 +13,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for EquivalenceLevel.
+// Defines values for AvailableMetricEquivalenceLevel.
 const (
-	Absolute  EquivalenceLevel = "absolute"
-	Deviation EquivalenceLevel = "deviation"
-	Temporal  EquivalenceLevel = "temporal"
+	Absolute  AvailableMetricEquivalenceLevel = "absolute"
+	Deviation AvailableMetricEquivalenceLevel = "deviation"
+	Temporal  AvailableMetricEquivalenceLevel = "temporal"
 )
 
-// Valid indicates whether the value is a known member of the EquivalenceLevel enum.
-func (e EquivalenceLevel) Valid() bool {
+// Valid indicates whether the value is a known member of the AvailableMetricEquivalenceLevel enum.
+func (e AvailableMetricEquivalenceLevel) Valid() bool {
 	switch e {
 	case Absolute:
 		return true
@@ -36,42 +37,105 @@ func (e EquivalenceLevel) Valid() bool {
 	}
 }
 
-// Defines values for Resolution.
+// Defines values for AvailableMetricMinMeaningfulResolution.
 const (
-	ResolutionDaily   Resolution = "daily"
-	ResolutionHourly  Resolution = "hourly"
-	ResolutionMonthly Resolution = "monthly"
-	ResolutionN5min   Resolution = "5min"
-	ResolutionWeekly  Resolution = "weekly"
+	AvailableMetricMinMeaningfulResolutionDaily   AvailableMetricMinMeaningfulResolution = "daily"
+	AvailableMetricMinMeaningfulResolutionHourly  AvailableMetricMinMeaningfulResolution = "hourly"
+	AvailableMetricMinMeaningfulResolutionMonthly AvailableMetricMinMeaningfulResolution = "monthly"
+	AvailableMetricMinMeaningfulResolutionN5min   AvailableMetricMinMeaningfulResolution = "5min"
+	AvailableMetricMinMeaningfulResolutionWeekly  AvailableMetricMinMeaningfulResolution = "weekly"
 )
 
-// Valid indicates whether the value is a known member of the Resolution enum.
-func (e Resolution) Valid() bool {
+// Valid indicates whether the value is a known member of the AvailableMetricMinMeaningfulResolution enum.
+func (e AvailableMetricMinMeaningfulResolution) Valid() bool {
 	switch e {
-	case ResolutionDaily:
+	case AvailableMetricMinMeaningfulResolutionDaily:
 		return true
-	case ResolutionHourly:
+	case AvailableMetricMinMeaningfulResolutionHourly:
 		return true
-	case ResolutionMonthly:
+	case AvailableMetricMinMeaningfulResolutionMonthly:
 		return true
-	case ResolutionN5min:
+	case AvailableMetricMinMeaningfulResolutionN5min:
 		return true
-	case ResolutionWeekly:
+	case AvailableMetricMinMeaningfulResolutionWeekly:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for TierClassification.
+// Defines values for AvailableMetricValidationStatus.
 const (
-	N1 TierClassification = 1
-	N2 TierClassification = 2
-	N3 TierClassification = 3
+	AvailableMetricValidationStatusExpired     AvailableMetricValidationStatus = "expired"
+	AvailableMetricValidationStatusUnvalidated AvailableMetricValidationStatus = "unvalidated"
+	AvailableMetricValidationStatusValidated   AvailableMetricValidationStatus = "validated"
 )
 
-// Valid indicates whether the value is a known member of the TierClassification enum.
-func (e TierClassification) Valid() bool {
+// Valid indicates whether the value is a known member of the AvailableMetricValidationStatus enum.
+func (e AvailableMetricValidationStatus) Valid() bool {
+	switch e {
+	case AvailableMetricValidationStatusExpired:
+		return true
+	case AvailableMetricValidationStatusUnvalidated:
+		return true
+	case AvailableMetricValidationStatusValidated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ContentResponseEntityType.
+const (
+	ContentResponseEntityTypeDiscourseFunction ContentResponseEntityType = "discourse_function"
+	ContentResponseEntityTypeMetric            ContentResponseEntityType = "metric"
+	ContentResponseEntityTypeProbe             ContentResponseEntityType = "probe"
+	ContentResponseEntityTypeRefusal           ContentResponseEntityType = "refusal"
+)
+
+// Valid indicates whether the value is a known member of the ContentResponseEntityType enum.
+func (e ContentResponseEntityType) Valid() bool {
+	switch e {
+	case ContentResponseEntityTypeDiscourseFunction:
+		return true
+	case ContentResponseEntityTypeMetric:
+		return true
+	case ContentResponseEntityTypeProbe:
+		return true
+	case ContentResponseEntityTypeRefusal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ContentResponseLocale.
+const (
+	ContentResponseLocaleDe ContentResponseLocale = "de"
+	ContentResponseLocaleEn ContentResponseLocale = "en"
+)
+
+// Valid indicates whether the value is a known member of the ContentResponseLocale enum.
+func (e ContentResponseLocale) Valid() bool {
+	switch e {
+	case ContentResponseLocaleDe:
+		return true
+	case ContentResponseLocaleEn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MetricProvenanceTierClassification.
+const (
+	N1 MetricProvenanceTierClassification = 1
+	N2 MetricProvenanceTierClassification = 2
+	N3 MetricProvenanceTierClassification = 3
+)
+
+// Valid indicates whether the value is a known member of the MetricProvenanceTierClassification enum.
+func (e MetricProvenanceTierClassification) Valid() bool {
 	switch e {
 	case N1:
 		return true
@@ -84,21 +148,63 @@ func (e TierClassification) Valid() bool {
 	}
 }
 
-// Defines values for ValidationStatus.
+// Defines values for MetricProvenanceValidationStatus.
 const (
-	Expired     ValidationStatus = "expired"
-	Unvalidated ValidationStatus = "unvalidated"
-	Validated   ValidationStatus = "validated"
+	MetricProvenanceValidationStatusExpired     MetricProvenanceValidationStatus = "expired"
+	MetricProvenanceValidationStatusUnvalidated MetricProvenanceValidationStatus = "unvalidated"
+	MetricProvenanceValidationStatusValidated   MetricProvenanceValidationStatus = "validated"
 )
 
-// Valid indicates whether the value is a known member of the ValidationStatus enum.
-func (e ValidationStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the MetricProvenanceValidationStatus enum.
+func (e MetricProvenanceValidationStatus) Valid() bool {
 	switch e {
-	case Expired:
+	case MetricProvenanceValidationStatusExpired:
 		return true
-	case Unvalidated:
+	case MetricProvenanceValidationStatusUnvalidated:
 		return true
-	case Validated:
+	case MetricProvenanceValidationStatusValidated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetContentParamsLocale.
+const (
+	GetContentParamsLocaleDe GetContentParamsLocale = "de"
+	GetContentParamsLocaleEn GetContentParamsLocale = "en"
+)
+
+// Valid indicates whether the value is a known member of the GetContentParamsLocale enum.
+func (e GetContentParamsLocale) Valid() bool {
+	switch e {
+	case GetContentParamsLocaleDe:
+		return true
+	case GetContentParamsLocaleEn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetContentParamsEntityType.
+const (
+	GetContentParamsEntityTypeDiscourseFunction GetContentParamsEntityType = "discourse_function"
+	GetContentParamsEntityTypeMetric            GetContentParamsEntityType = "metric"
+	GetContentParamsEntityTypeProbe             GetContentParamsEntityType = "probe"
+	GetContentParamsEntityTypeRefusal           GetContentParamsEntityType = "refusal"
+)
+
+// Valid indicates whether the value is a known member of the GetContentParamsEntityType enum.
+func (e GetContentParamsEntityType) Valid() bool {
+	switch e {
+	case GetContentParamsEntityTypeDiscourseFunction:
+		return true
+	case GetContentParamsEntityTypeMetric:
+		return true
+	case GetContentParamsEntityTypeProbe:
+		return true
+	case GetContentParamsEntityTypeRefusal:
 		return true
 	default:
 		return false
@@ -153,7 +259,7 @@ func (e GetMetricsParamsResolution) Valid() bool {
 // AvailableMetric defines model for AvailableMetric.
 type AvailableMetric struct {
 	// EquivalenceLevel The highest equivalence level established for this metric. Null if no equivalence entry exists.
-	EquivalenceLevel *EquivalenceLevel `json:"equivalenceLevel,omitempty"`
+	EquivalenceLevel *AvailableMetricEquivalenceLevel `json:"equivalenceLevel,omitempty"`
 
 	// EticConstruct The etic construct this metric maps to in the equivalence registry (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
 	EticConstruct *string `json:"eticConstruct,omitempty"`
@@ -162,21 +268,78 @@ type AvailableMetric struct {
 	MetricName string `json:"metricName"`
 
 	// MinMeaningfulResolution The finest temporal resolution at which this (metric, source) pair yields statistically meaningful aggregates. Derived from a static BFF config map seeded by Probe 0 publication rates. Null if no heuristic has been recorded for the metric-source pair.
-	MinMeaningfulResolution *Resolution `json:"minMeaningfulResolution,omitempty"`
+	MinMeaningfulResolution *AvailableMetricMinMeaningfulResolution `json:"minMeaningfulResolution,omitempty"`
 
 	// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
-	ValidationStatus ValidationStatus `json:"validationStatus"`
+	ValidationStatus AvailableMetricValidationStatus `json:"validationStatus"`
 }
 
-// EquivalenceLevel The level of cross-cultural equivalence established for this metric. "temporal" means only temporal patterns are comparable, "deviation" means deviation from baseline is comparable, "absolute" means raw values are directly comparable across contexts.
-type EquivalenceLevel string
+// AvailableMetricEquivalenceLevel The level of cross-cultural equivalence established for this metric. "temporal" means only temporal patterns are comparable, "deviation" means deviation from baseline is comparable, "absolute" means raw values are directly comparable across contexts.
+type AvailableMetricEquivalenceLevel string
+
+// AvailableMetricMinMeaningfulResolution Temporal aggregation resolution. "5min" is the finest grain stored in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month at query time.
+type AvailableMetricMinMeaningfulResolution string
+
+// AvailableMetricValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
+type AvailableMetricValidationStatus string
+
+// ContentResponse Dual-Register content record for one entity. Sourced from versioned YAML files under configs/content/. Both registers are guaranteed present when the record is returned.
+type ContentResponse struct {
+	// ContentVersion Semver-style version string for the content record, e.g. "v2026-04-a". Incremented on every editorial update so consumers can detect staleness.
+	ContentVersion string `json:"contentVersion"`
+
+	// EntityId Canonical identifier of the entity.
+	EntityId string `json:"entityId"`
+
+	// EntityType Category of the entity.
+	EntityType ContentResponseEntityType `json:"entityType"`
+
+	// LastReviewedBy Name or role of the last reviewer.
+	LastReviewedBy string `json:"lastReviewedBy"`
+
+	// LastReviewedDate ISO 8601 date of last review.
+	LastReviewedDate openapi_types.Date `json:"lastReviewedDate"`
+
+	// Locale Language of the returned content.
+	Locale ContentResponseLocale `json:"locale"`
+
+	// Registers The paired semantic and methodological registers for one entity. Both registers are always present; the frontend decides which is prominent.
+	Registers struct {
+		// Methodological One register variant — either semantic or methodological.
+		Methodological struct {
+			// Long Full prose explanation (≤ 2000 characters). Rendered in Layer 4 (Provenance) panels where the user has descended to methodological detail.
+			Long string `json:"long"`
+
+			// Short Concise single-sentence summary (≤ 200 characters). Suitable for hover tooltips, badges, and compact surfaces.
+			Short string `json:"short"`
+		} `json:"methodological"`
+
+		// Semantic One register variant — either semantic or methodological.
+		Semantic struct {
+			// Long Full prose explanation (≤ 2000 characters). Rendered in Layer 4 (Provenance) panels where the user has descended to methodological detail.
+			Long string `json:"long"`
+
+			// Short Concise single-sentence summary (≤ 200 characters). Suitable for hover tooltips, badges, and compact surfaces.
+			Short string `json:"short"`
+		} `json:"semantic"`
+	} `json:"registers"`
+
+	// WorkingPaperAnchors Optional list of Working Paper section references (e.g., "WP-002 §3") for downstream citation linking.
+	WorkingPaperAnchors *[]string `json:"workingPaperAnchors,omitempty"`
+}
+
+// ContentResponseEntityType Category of the entity.
+type ContentResponseEntityType string
+
+// ContentResponseLocale Language of the returned content.
+type ContentResponseLocale string
 
 // MetricProvenance defines model for MetricProvenance.
 type MetricProvenance struct {
 	// AlgorithmDescription Plain-language description of the algorithm or lexicon that produces this metric.
 	AlgorithmDescription string `json:"algorithmDescription"`
 
-	// CulturalContextNotes Contextual notes on cross-cultural applicability, sourced from the `metric_equivalence` table when an entry exists. Null when no equivalence entry has been registered.
+	// CulturalContextNotes Contextual notes on cross-cultural applicability, sourced from the metric_equivalence table when an entry exists. Null when no equivalence entry has been registered.
 	CulturalContextNotes *string `json:"culturalContextNotes,omitempty"`
 
 	// ExtractorVersionHash Short hash or version tag identifying the extractor implementation that produced the metric definition. Lets downstream consumers bind analytical results to a specific extractor revision.
@@ -189,18 +352,21 @@ type MetricProvenance struct {
 	MetricName string `json:"metricName"`
 
 	// TierClassification Methodological tier of the metric as defined in WP-002. Tier 1 = deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3 = model-based/interpretive. The tier bounds the kind of claim the metric can support and is a primary signal for reflexive interpretation.
-	TierClassification TierClassification `json:"tierClassification"`
+	TierClassification MetricProvenanceTierClassification `json:"tierClassification"`
 
 	// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
-	ValidationStatus ValidationStatus `json:"validationStatus"`
+	ValidationStatus MetricProvenanceValidationStatus `json:"validationStatus"`
 }
 
-// Resolution Temporal aggregation resolution. "5min" is the finest grain stored in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month at query time.
-type Resolution string
+// MetricProvenanceTierClassification Methodological tier of the metric as defined in WP-002. Tier 1 = deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3 = model-based/interpretive. The tier bounds the kind of claim the metric can support and is a primary signal for reflexive interpretation.
+type MetricProvenanceTierClassification int
+
+// MetricProvenanceValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
+type MetricProvenanceValidationStatus string
 
 // Source defines model for Source.
 type Source struct {
-	// DocumentationUrl Link to the probe dossier directory for this source (under `docs/probes/<probe-id>/`). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
+	// DocumentationUrl Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
 	DocumentationUrl *string `json:"documentationUrl,omitempty"`
 
 	// Name Canonical source identifier.
@@ -213,11 +379,17 @@ type Source struct {
 	Url *string `json:"url,omitempty"`
 }
 
-// TierClassification Methodological tier of the metric as defined in WP-002. Tier 1 = deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3 = model-based/interpretive. The tier bounds the kind of claim the metric can support and is a primary signal for reflexive interpretation.
-type TierClassification int
+// GetContentParams defines parameters for GetContent.
+type GetContentParams struct {
+	// Locale The language of the content to return. Defaults to "en".
+	Locale *GetContentParamsLocale `form:"locale,omitempty" json:"locale,omitempty"`
+}
 
-// ValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
-type ValidationStatus string
+// GetContentParamsLocale defines parameters for GetContent.
+type GetContentParamsLocale string
+
+// GetContentParamsEntityType defines parameters for GetContent.
+type GetContentParamsEntityType string
 
 // GetEntitiesParams defines parameters for GetEntities.
 type GetEntitiesParams struct {
@@ -293,6 +465,9 @@ type GetMetricsAvailableParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get Dual-Register content for an entity
+	// (GET /content/{entityType}/{entityId})
+	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
 	// Retrieve aggregated named entities
 	// (GET /entities)
 	GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams)
@@ -322,6 +497,12 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Get Dual-Register content for an entity
+// (GET /content/{entityType}/{entityId})
+func (_ Unimplemented) GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Retrieve aggregated named entities
 // (GET /entities)
@@ -379,6 +560,51 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetContent operation middleware
+func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "entityType" -------------
+	var entityType GetContentParamsEntityType
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entityType", chi.URLParam(r, "entityType"), &entityType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "entityType", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "entityId" -------------
+	var entityId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "entityId", chi.URLParam(r, "entityId"), &entityId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "entityId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetContentParams
+
+	// ------------- Optional query parameter "locale" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locale", r.URL.Query(), &params.Locale, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locale", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetContent(w, r, entityType, entityId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetEntities operation middleware
 func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Request) {
@@ -837,6 +1063,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/entities", wrapper.GetEntities)
 	})
 	r.Group(func(r chi.Router) {
@@ -862,6 +1091,61 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type GetContentRequestObject struct {
+	EntityType GetContentParamsEntityType `json:"entityType"`
+	EntityId   string                     `json:"entityId"`
+	Params     GetContentParams
+}
+
+type GetContentResponseObject interface {
+	VisitGetContentResponse(w http.ResponseWriter) error
+}
+
+type GetContent200JSONResponse ContentResponse
+
+func (response GetContent200JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetContent400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetContent400JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetContent404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetContent404JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetContent500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetContent500JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type GetEntitiesRequestObject struct {
@@ -1182,6 +1466,9 @@ func (response GetSources500JSONResponse) VisitGetSourcesResponse(w http.Respons
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Get Dual-Register content for an entity
+	// (GET /content/{entityType}/{entityId})
+	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
 	// Retrieve aggregated named entities
 	// (GET /entities)
 	GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error)
@@ -1235,6 +1522,34 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetContent operation middleware
+func (sh *strictHandler) GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams) {
+	var request GetContentRequestObject
+
+	request.EntityType = entityType
+	request.EntityId = entityId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetContent(ctx, request.(GetContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetContent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetContentResponseObject); ok {
+		if err := validResponse.VisitGetContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetEntities operation middleware

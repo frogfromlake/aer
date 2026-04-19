@@ -83,7 +83,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 6b. Open the read-only PostgreSQL pool that backs /api/v1/sources.
+	// 6b. Load the Dual-Register content catalog from the YAML files bundled
+	// with the binary. Malformed files abort startup so broken content is
+	// caught before any request is served.
+	catalog, err := config.LoadContentCatalog("configs/content")
+	if err != nil {
+		slog.Error("Failed to load content catalog", "error", err)
+		os.Exit(1)
+	}
+
+	// 6c. Open the read-only PostgreSQL pool that backs /api/v1/sources.
 	// The pool is intentionally tiny: /sources is served from a TTL cache
 	// so we only need enough capacity to refresh every BFF_SOURCES_CACHE_TTL
 	// and absorb the occasional startup probe.
@@ -101,7 +110,7 @@ func main() {
 	sourceStore := storage.NewSourceStore(pgDB, sourcesTTL)
 
 	// 7. Setup Handlers and Router
-	serverLogic := handler.NewServer(chStore, provenance, sourceStore)
+	serverLogic := handler.NewServer(chStore, provenance, sourceStore, catalog)
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
 	r := chi.NewRouter()

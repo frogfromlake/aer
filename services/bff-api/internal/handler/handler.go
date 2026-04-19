@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
@@ -65,11 +67,12 @@ type Server struct {
 	db         Store
 	provenance config.MetricProvenanceMap
 	sources    SourceLister
+	catalog    config.ContentCatalog
 }
 
 // NewServer creates a new API server instance.
-func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister) *Server {
-	return &Server{db: db, provenance: provenance, sources: sources}
+func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog) *Server {
+	return &Server{db: db, provenance: provenance, sources: sources, catalog: catalog}
 }
 
 // GetHealthz handles GET /healthz — liveness probe, always returns 200 if the process is alive.
@@ -258,10 +261,10 @@ func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProve
 
 	resp := GetMetricProvenance200JSONResponse{
 		MetricName:           request.MetricName,
-		TierClassification:   TierClassification(entry.TierClassification),
+		TierClassification:   MetricProvenanceTierClassification(entry.TierClassification),
 		AlgorithmDescription: entry.AlgorithmDescription,
 		KnownLimitations:     entry.KnownLimitations,
-		ValidationStatus:     ValidationStatus(status),
+		ValidationStatus:     MetricProvenanceValidationStatus(status),
 		ExtractorVersionHash: entry.ExtractorVersionHash,
 	}
 	if notes != "" {
@@ -313,21 +316,64 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 	for _, r := range rows {
 		m := AvailableMetric{
 			MetricName:       r.MetricName,
-			ValidationStatus: ValidationStatus(r.ValidationStatus),
+			ValidationStatus: AvailableMetricValidationStatus(r.ValidationStatus),
 		}
 		if r.EticConstruct != nil {
 			m.EticConstruct = r.EticConstruct
 		}
 		if r.EquivalenceLevel != nil {
-			lvl := EquivalenceLevel(*r.EquivalenceLevel)
+			lvl := AvailableMetricEquivalenceLevel(*r.EquivalenceLevel)
 			m.EquivalenceLevel = &lvl
 		}
 		if minRes := config.LookupMinMeaningfulResolution(r.MetricName); minRes != "" {
-			res := Resolution(minRes)
+			res := AvailableMetricMinMeaningfulResolution(minRes)
 			m.MinMeaningfulResolution = &res
 		}
 		response = append(response, m)
 	}
 
 	return response, nil
+}
+
+// GetContent handles GET /content/{entityType}/{entityId} — returns Dual-Register content
+// for an entity. Locale defaults to "en".
+func (s *Server) GetContent(_ context.Context, request GetContentRequestObject) (GetContentResponseObject, error) {
+	if !request.EntityType.Valid() {
+		return GetContent400JSONResponse{Message: "invalid entityType; must be one of metric, probe, discourse_function, refusal"}, nil
+	}
+
+	locale := string(GetContentParamsLocaleEn)
+	if request.Params.Locale != nil {
+		locale = string(*request.Params.Locale)
+	}
+
+	key := config.CatalogKey(locale, string(request.EntityType), request.EntityId)
+	record, ok := s.catalog[key]
+	if !ok {
+		return GetContent404JSONResponse{Message: "no content found for the requested entity and locale"}, nil
+	}
+
+	date, err := time.Parse("2006-01-02", record.LastReviewedDate)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetContent", "error", "invalid date in content record", "key", key)
+		return GetContent500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	var resp GetContent200JSONResponse
+	resp.EntityId = record.EntityID
+	resp.EntityType = ContentResponseEntityType(record.EntityType)
+	resp.Locale = ContentResponseLocale(record.Locale)
+	resp.Registers.Semantic.Short = record.Registers.Semantic.Short
+	resp.Registers.Semantic.Long = record.Registers.Semantic.Long
+	resp.Registers.Methodological.Short = record.Registers.Methodological.Short
+	resp.Registers.Methodological.Long = record.Registers.Methodological.Long
+	resp.ContentVersion = record.ContentVersion
+	resp.LastReviewedBy = record.LastReviewedBy
+	resp.LastReviewedDate = openapi_types.Date{Time: date}
+	if len(record.WorkingPaperAnchors) > 0 {
+		anchors := make([]string, len(record.WorkingPaperAnchors))
+		copy(anchors, record.WorkingPaperAnchors)
+		resp.WorkingPaperAnchors = &anchors
+	}
+	return resp, nil
 }

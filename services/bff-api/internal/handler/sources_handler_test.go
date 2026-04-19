@@ -31,7 +31,7 @@ func TestGetSources_ReturnsRowsFromLister(t *testing.T) {
 		{Name: "tagesschau", Type: "rss", URL: sourceStrPtr("https://tagesschau.de/rss"), DocumentationURL: sourceStrPtr("docs/probes/probe-0-de-institutional-rss/")},
 		{Name: "wikipedia", Type: "scraper", URL: sourceStrPtr("https://en.wikipedia.org/")},
 	}}
-	router := newTestRouter(NewServer(&mockStore{}, nil, lister))
+	router := newTestRouter(NewServer(&mockStore{}, nil, lister, nil))
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/sources", nil))
@@ -47,7 +47,7 @@ func TestGetSources_ReturnsRowsFromLister(t *testing.T) {
 
 func TestGetSources_Returns500OnListerError(t *testing.T) {
 	lister := &fakeSourceLister{err: errors.New("postgres exploded")}
-	router := newTestRouter(NewServer(&mockStore{}, nil, lister))
+	router := newTestRouter(NewServer(&mockStore{}, nil, lister, nil))
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/sources", nil))
@@ -58,7 +58,7 @@ func TestGetSources_Returns500OnListerError(t *testing.T) {
 }
 
 func TestGetSources_Returns500WhenListerNil(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}, nil, nil))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil))
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/sources", nil))

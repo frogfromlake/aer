@@ -42,7 +42,7 @@ func testProvenance() config.MetricProvenanceMap {
 
 func TestGetMetricProvenance_WordCountReturnsTier1AndEmptyLimitations(t *testing.T) {
 	store := &mockStore{validationStatus: "unvalidated"}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "word_count",
@@ -66,7 +66,7 @@ func TestGetMetricProvenance_WordCountReturnsTier1AndEmptyLimitations(t *testing
 	if len(got.KnownLimitations) != 0 {
 		t.Errorf("expected empty known_limitations, got %v", got.KnownLimitations)
 	}
-	if got.ValidationStatus != Unvalidated {
+	if got.ValidationStatus != MetricProvenanceValidationStatusUnvalidated {
 		t.Errorf("expected validation_status=unvalidated, got %q", got.ValidationStatus)
 	}
 	if got.ExtractorVersionHash != "v1" {
@@ -76,7 +76,7 @@ func TestGetMetricProvenance_WordCountReturnsTier1AndEmptyLimitations(t *testing
 
 func TestGetMetricProvenance_SentimentScoreSurfacesKnownLimitations(t *testing.T) {
 	store := &mockStore{validationStatus: "unvalidated"}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "sentiment_score",
@@ -104,7 +104,7 @@ func TestGetMetricProvenance_SentimentScoreSurfacesKnownLimitations(t *testing.T
 }
 
 func TestGetMetricProvenance_UnknownMetricReturns404(t *testing.T) {
-	s := NewServer(&mockStore{}, testProvenance(), nil)
+	s := NewServer(&mockStore{}, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "nonexistent",
@@ -121,9 +121,9 @@ func TestGetMetricProvenance_UnknownMetricReturns404(t *testing.T) {
 	}
 }
 
-func TestGetMetricProvenance_ValidationStatusJoinValidated(t *testing.T) {
+func TestGetMetricProvenance_ValidationStatusJoinMetricProvenanceValidationStatusValidated(t *testing.T) {
 	store := &mockStore{validationStatus: "validated"}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "word_count",
@@ -135,14 +135,14 @@ func TestGetMetricProvenance_ValidationStatusJoinValidated(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 200 response, got %T", resp)
 	}
-	if got.ValidationStatus != Validated {
+	if got.ValidationStatus != MetricProvenanceValidationStatusValidated {
 		t.Errorf("expected validation_status=validated, got %q", got.ValidationStatus)
 	}
 }
 
-func TestGetMetricProvenance_ValidationStatusJoinUnvalidated(t *testing.T) {
+func TestGetMetricProvenance_ValidationStatusJoinMetricProvenanceValidationStatusUnvalidated(t *testing.T) {
 	store := &mockStore{validationStatus: "unvalidated"}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "word_count",
@@ -154,7 +154,7 @@ func TestGetMetricProvenance_ValidationStatusJoinUnvalidated(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 200 response, got %T", resp)
 	}
-	if got.ValidationStatus != Unvalidated {
+	if got.ValidationStatus != MetricProvenanceValidationStatusUnvalidated {
 		t.Errorf("expected validation_status=unvalidated, got %q", got.ValidationStatus)
 	}
 }
@@ -164,7 +164,7 @@ func TestGetMetricProvenance_CulturalContextNotesPopulated(t *testing.T) {
 		validationStatus:     "unvalidated",
 		culturalContextNotes: "Cross-cultural equivalence established at \"deviation\" level for etic construct \"evaluative_polarity\".",
 	}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "sentiment_score",
@@ -183,7 +183,7 @@ func TestGetMetricProvenance_CulturalContextNotesPopulated(t *testing.T) {
 
 func TestGetMetricProvenance_CulturalContextNotesOmittedWhenEmpty(t *testing.T) {
 	store := &mockStore{validationStatus: "unvalidated", culturalContextNotes: ""}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "word_count",
@@ -202,7 +202,7 @@ func TestGetMetricProvenance_CulturalContextNotesOmittedWhenEmpty(t *testing.T) 
 
 func TestGetMetricProvenance_Returns500WhenValidationStatusQueryFails(t *testing.T) {
 	store := &mockStore{validationStatusErr: errors.New("clickhouse timeout")}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "word_count",
@@ -224,7 +224,7 @@ func TestGetMetricProvenance_Returns500WhenCulturalContextQueryFails(t *testing.
 		validationStatus:        "unvalidated",
 		culturalContextNotesErr: errors.New("clickhouse timeout"),
 	}
-	s := NewServer(store, testProvenance(), nil)
+	s := NewServer(store, testProvenance(), nil, nil)
 
 	resp, err := s.GetMetricProvenance(context.Background(), GetMetricProvenanceRequestObject{
 		MetricName: "word_count",
