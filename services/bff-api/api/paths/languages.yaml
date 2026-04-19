@@ -1,4 +1,5 @@
 get:
+  tags: [Analysis]
   summary: Retrieve aggregated language detections
   description: Fetches detected languages aggregated across processed documents. Only rank-1 (top candidate) detections are included in the aggregation.
   operationId: getLanguages

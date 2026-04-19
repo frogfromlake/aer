@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"strings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -143,6 +145,7 @@ func main() {
 	// API Key Auth: protects all routes except /healthz and /readyz.
 	// Scoped via Group so /metrics above stays unauthenticated.
 	r.Group(func(r chi.Router) {
+		r.Use(mw.NewCORSHandler(strings.Split(cfg.CORSOrigins, ","), []string{"GET", "POST", "OPTIONS"}))
 		r.Use(mw.APIKeyAuth(cfg.APIKey))
 		r.Post("/api/v1/ingest", h.Ingest)
 		r.Get("/api/v1/sources", h.GetSources)

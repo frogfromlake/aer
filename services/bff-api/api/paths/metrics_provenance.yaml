@@ -1,4 +1,5 @@
 get:
+  tags: [Metrics]
   summary: Retrieve provenance metadata for a metric
   description: >
     Returns the methodological provenance for a single metric: tier

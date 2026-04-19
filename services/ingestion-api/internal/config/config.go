@@ -21,6 +21,7 @@ type Config struct {
 	OTelSampleRate    float64 `mapstructure:"OTEL_TRACE_SAMPLE_RATE"`
 	MigrationsPath string `mapstructure:"MIGRATIONS_PATH"`
 	APIKey         string `mapstructure:"INGESTION_API_KEY"`
+	CORSOrigins    string `mapstructure:"CORS_ALLOWED_ORIGINS"`
 	BronzeBucket   string `mapstructure:"INGESTION_BRONZE_BUCKET"`
 	// MaxBodyBytes caps the size of the JSON body accepted by POST /api/v1/ingest.
 	// A request larger than this is rejected with 413 before the decoder runs,
@@ -57,6 +58,7 @@ func Load() (*Config, error) {
 	v.SetDefault("OTEL_TRACE_SAMPLE_RATE", 1.0)
 	v.SetDefault("MIGRATIONS_PATH", "/migrations")
 	v.SetDefault("INGESTION_API_KEY", "")
+	v.SetDefault("CORS_ALLOWED_ORIGINS", "")
 	v.SetDefault("INGESTION_BRONZE_BUCKET", "bronze")
 	v.SetDefault("INGESTION_MAX_BODY_BYTES", int64(16<<20)) // 16 MiB
 	v.SetDefault("INGESTION_SHUTDOWN_TIMEOUT_SECONDS", 65)

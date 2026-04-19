@@ -7,6 +7,21 @@ servers:
   - url: http://localhost:8080/api/v1
     description: Local Development Server
 
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: Metrics
+    description: Time-series metrics, available metric discovery, and provenance metadata.
+  - name: Analysis
+    description: Named entity and language detection aggregations.
+  - name: Content
+    description: Dual-Register semantic and methodological content for UI entities.
+  - name: Reference
+    description: Source registry and static reference data.
+  - name: Health
+    description: Liveness and readiness probes (no authentication required).
+
 paths:
   /metrics:
     $ref: './paths/metrics.yaml'
@@ -28,6 +43,15 @@ paths:
     $ref: './paths/content.yaml'
 
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Static API key. Compared via `crypto/subtle.ConstantTimeCompare` in
+        `pkg/middleware/apikey.go`. Required on all data endpoints; health
+        probes are exempt.
   schemas:
     ValidationStatus:
       $ref: './schemas/ValidationStatus.yaml'

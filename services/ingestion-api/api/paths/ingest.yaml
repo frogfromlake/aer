@@ -1,4 +1,5 @@
 post:
+  tags: [Ingestion]
   summary: Ingest a batch of documents
   description: >
     Accepts a batch of raw documents under a known source, persists each

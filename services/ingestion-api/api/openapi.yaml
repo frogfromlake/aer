@@ -15,6 +15,14 @@ servers:
 security:
   - ApiKeyAuth: []
 
+tags:
+  - name: Ingestion
+    description: Document batch submission endpoint.
+  - name: Reference
+    description: Source registry — used by crawlers to resolve source IDs by name.
+  - name: Health
+    description: Liveness and readiness probes (no authentication required).
+
 paths:
   /ingest:
     $ref: './paths/ingest.yaml'

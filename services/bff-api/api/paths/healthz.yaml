@@ -1,4 +1,6 @@
 get:
+  tags: [Health]
+  security: []
   summary: Liveness probe
   description: Returns 200 if the service process is alive. Used by Kubernetes liveness probes.
   operationId: getHealthz

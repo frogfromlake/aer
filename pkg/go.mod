@@ -3,6 +3,7 @@ module github.com/frogfromlake/aer/pkg
 go 1.26.2
 
 require (
+	github.com/go-chi/cors v1.2.2
 	github.com/lmittmann/tint v1.1.3
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0

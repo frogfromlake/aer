@@ -1,4 +1,5 @@
 get:
+  tags: [Metrics]
   summary: List available metric names
   description: Returns the distinct metric names present in the gold layer for the given time range. Enables frontends to discover metrics dynamically.
   operationId: getMetricsAvailable

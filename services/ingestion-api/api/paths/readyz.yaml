@@ -1,4 +1,6 @@
 get:
+  tags: [Health]
+  security: []
   summary: Readiness probe
   description: >
     Returns 200 if PostgreSQL and MinIO are reachable, 503 otherwise.

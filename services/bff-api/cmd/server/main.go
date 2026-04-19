@@ -16,7 +16,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -132,13 +131,7 @@ func main() {
 
 		// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var
 		allowedOrigins := strings.Split(cfg.CORSOrigins, ",")
-		r.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   allowedOrigins,
-			AllowedMethods:   []string{"GET", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Content-Type", "X-API-Key"},
-			AllowCredentials: false,
-			MaxAge:           300,
-		}))
+		r.Use(mw.NewCORSHandler(allowedOrigins, []string{"GET", "OPTIONS"}))
 
 		// OTel: wraps each request in a span and propagates the trace context
 		r.Use(func(next http.Handler) http.Handler {

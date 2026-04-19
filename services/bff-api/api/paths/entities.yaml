@@ -1,4 +1,5 @@
 get:
+  tags: [Analysis]
   summary: Retrieve aggregated named entities
   description: Fetches named entities (persons, organizations, locations) extracted from processed documents, aggregated by entity text and label.
   operationId: getEntities

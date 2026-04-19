@@ -1,4 +1,5 @@
 get:
+  tags: [Reference]
   summary: List known data sources with methodology documentation
   description: >
     Returns the canonical list of data sources configured in AĒR together

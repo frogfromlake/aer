@@ -1,4 +1,5 @@
 get:
+  tags: [Reference]
   summary: Resolve a source by name
   description: >
     Returns the PostgreSQL source record that matches the `name` query

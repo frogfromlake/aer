@@ -1,4 +1,5 @@
 get:
+  tags: [Metrics]
   summary: Retrieve aggregated time-series metrics
   description: Fetches gold-layer metrics for the dashboard's "weather map" visualization.
   operationId: getMetrics

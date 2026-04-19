@@ -1,4 +1,5 @@
 get:
+  tags: [Content]
   summary: Get Dual-Register content for an entity
   description: >
     Returns the semantic and methodological register text for a single entity
