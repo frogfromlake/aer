@@ -189,6 +189,10 @@ make        # or: make help — prints a formatted overview of all available tar
 | `make audit` | Run dependency vulnerability scanners (`govulncheck` for Go, `pip-audit` for Python) |
 | `make deps-refresh` | One-shot rotation of the entire pinned supply-chain baseline: base image digests (all three Dockerfiles), analysis-worker `requirements.lock.txt`, and `SENTIWS_SHA256`. Idempotent on a clean baseline. See [operations playbook — Dependency Refresh](docs/operations_playbook.md#dependency-refresh-supply-chain-baseline) for the full runbook. |
 | `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
+| `make openapi-bundle` | Bundle modular OpenAPI specs into single-file artifacts for Swagger UI |
+| `make openapi-lint` | Enforce the two-style `$ref` convention across all OpenAPI files |
+| `make swagger-up` | Bundle specs and start the Swagger UI dev container (`http://localhost:8089`) |
+| `make swagger-down` | Stop the Swagger UI dev container |
 | `make crawl` | Build and run the RSS crawler (requires stack + `make debug-up`) |
 | `make build-services` | Compile Go binaries into `./bin/` |
 | `make tidy` | Run `go mod tidy` across all modules |
@@ -207,6 +211,12 @@ AĒR uses a Zero-Trust network posture. Only Traefik, the BFF API, and the docum
 | `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
 | `8000` | MkDocs | Arc42 architecture documentation |
 | `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/entities`, `/api/v1/languages`, `/api/v1/metrics/available`, `/api/v1/healthz`, `/api/v1/readyz` |
+
+### Dev Compose profile only (`make swagger-up`)
+
+| Port | Service | Purpose |
+| :--- | :--- | :--- |
+| `8089` | Swagger UI | Browsable OpenAPI reference — BFF and Ingestion API specs. Bound to `127.0.0.1` (loopback only, never through Traefik). Start with `make swagger-up`; stop with `make swagger-down`. |
 
 ### Debug profile only (`make debug-up`)
 

@@ -537,7 +537,7 @@ The first row is the only context in which `#/components/...` is sanctioned. `ki
 
 **Bundling.** `scripts/openapi_bundle.py` produces `services/<service>/api/openapi.bundle.yaml` by emulating `kin-openapi`'s path-item flattening: it inlines path files into the root first (so their `#/components/...` refs become valid against the combined document), then resolves remaining external-file refs. The bundle is gitignored, rebuilt on demand via `make openapi-bundle`, and consumed by Swagger UI. Codegen does **not** read the bundle — it runs against the modular source directly.
 
-**Swagger UI.** A `swagger-ui` service (`swaggerapi/swagger-ui`, pinned tag) lives in `compose.yaml` under the `dev` compose profile so it is absent in production. It is bound to `127.0.0.1:8089` (loopback-only, not published through Traefik) and mounts both bundle files with a multi-spec dropdown. Start with `docker compose --profile dev up swagger-ui`; see the Operations Playbook for the workflow.
+**Swagger UI.** A `swagger-ui` service (`swaggerapi/swagger-ui`, pinned tag) lives in `compose.yaml` under the `dev` compose profile so it is absent in production. It is bound to `127.0.0.1:8089` (loopback-only, not published through Traefik) and mounts both bundle files with a multi-spec dropdown. Start with `make swagger-up` (bundles specs then starts the container); see the Operations Playbook for the full workflow.
 
 **CI enforcement.** Three independent checks:
 

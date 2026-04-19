@@ -5,6 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
+.PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
 
 SHELL := /bin/bash
@@ -177,6 +178,18 @@ openapi-bundle:
 openapi-lint:
 	@./scripts/openapi_ref_style_check.sh
 
+swagger-up:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling OpenAPI specs for Swagger UI...$(RESET)"
+	@$(MAKE) --no-print-directory openapi-bundle
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting Swagger UI (dev profile)...$(RESET)"
+	@docker compose --profile dev up -d swagger-ui
+	@echo -e "$(SYMBOL_SUCCESS) Swagger UI: $(CYAN)http://localhost:8089$(RESET)"
+
+swagger-down:
+	@echo -e "$(BOLD)$(GRAY)--- STOPPING SWAGGER UI ---$(RESET)"
+	@docker compose --profile dev rm --stop --force swagger-ui 2>/dev/null || true
+	@echo -e "$(SYMBOL_STOP) $(GRAY)Swagger UI stopped.$(RESET)"
+
 codegen:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
 	@cd services/bff-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml
@@ -348,33 +361,48 @@ help:
 	@echo -e "$(BOLD)$(CYAN)AĒR Stack - Makefile Commands$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"
 	@echo -e "$(BOLD)Global Commands:$(RESET)"
-	@echo -e "  $(GREEN)up$(RESET)              $(GRAY)Start the entire stack (infrastructure + services)$(RESET)"
-	@echo -e "  $(GOLD)down$(RESET)            $(GRAY)Stop the entire stack$(RESET)"
-	@echo -e "  $(CYAN)restart$(RESET)         $(GRAY)Restart the entire stack$(RESET)"
+	@echo -e "  $(GREEN)up$(RESET)                  $(GRAY)Start the entire stack (infrastructure + services)$(RESET)"
+	@echo -e "  $(GOLD)down$(RESET)                $(GRAY)Stop the entire stack$(RESET)"
+	@echo -e "  $(CYAN)restart$(RESET)             $(GRAY)Restart the entire stack$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Infrastructure:$(RESET)"
-	@echo -e "  $(GREEN)infra-up$(RESET)        $(GRAY)Start backend infra (DBs, Queues, Observability)$(RESET)"
-	@echo -e "  $(GOLD)infra-down$(RESET)      $(GRAY)Stop backend infra$(RESET)"
-	@echo -e "  $(CYAN)debug-up$(RESET)        $(GRAY)Expose internal infra ports to host for debugging$(RESET)"
-	@echo -e "  $(CYAN)infra-clean$(RESET)     $(GRAY)Wipe all infra data (append -postgres, -minio, etc. for specific)$(RESET)"
+	@echo -e "  $(GREEN)infra-up$(RESET)            $(GRAY)Start backend infra (DBs, Queues, Observability)$(RESET)"
+	@echo -e "  $(GOLD)infra-down$(RESET)          $(GRAY)Stop backend infra$(RESET)"
+	@echo -e "  $(CYAN)infra-restart$(RESET)       $(GRAY)Restart backend infra$(RESET)"
+	@echo -e "  $(CYAN)debug-up$(RESET)            $(GRAY)Expose internal infra ports to host for debugging$(RESET)"
+	@echo -e "  $(GOLD)debug-down$(RESET)          $(GRAY)Close debug port forwarder (services keep running)$(RESET)"
+	@echo -e "  $(GOLD)infra-clean$(RESET)         $(GRAY)Wipe ALL infra volumes (interactive); append -postgres/-minio/-clickhouse for specific$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Services:$(RESET)"
-	@echo -e "  $(GREEN)services-up$(RESET)     $(GRAY)Start ingestion, worker, and bff services$(RESET)"
-	@echo -e "  $(GOLD)services-down$(RESET)   $(GRAY)Stop all application services$(RESET)"
-	@echo -e "  $(CYAN)<svc>-up/down$(RESET)   $(GRAY)Manage individual services (e.g., worker-up, bff-down)$(RESET)"
+	@echo -e "  $(GREEN)services-up$(RESET)         $(GRAY)Start ingestion, worker, and bff services$(RESET)"
+	@echo -e "  $(GOLD)services-down$(RESET)       $(GRAY)Stop all application services$(RESET)"
+	@echo -e "  $(CYAN)services-restart$(RESET)    $(GRAY)Restart all application services$(RESET)"
+	@echo -e "  $(CYAN)<svc>-up/down/restart$(RESET) $(GRAY)Manage individual services: ingestion, worker, bff$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
-	@echo -e "  $(CYAN)logs$(RESET)            $(GRAY)Tail live logs for all application services$(RESET)"
-	@echo -e "  $(GREEN)crawl$(RESET)           $(GRAY)Build and run the RSS crawler (requires stack + debug-up)$(RESET)"
-	@echo -e "  $(CYAN)build-services$(RESET)  $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
-	@echo -e "  $(CYAN)codegen$(RESET)         $(GRAY)Generate Go code from OpenAPI contracts$(RESET)"
-	@echo -e "  $(CYAN)tidy$(RESET)            $(GRAY)Run 'go mod tidy' across all modules$(RESET)"
+	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
+	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Build and run the RSS crawler (requires stack + debug-up)$(RESET)"
+	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
+	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
+	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"
+	@echo -e "  $(CYAN)openapi-lint$(RESET)        $(GRAY)Enforce two-style \$$ref convention across all OpenAPI files$(RESET)"
+	@echo -e "  $(GREEN)swagger-up$(RESET)          $(GRAY)Bundle OpenAPI specs and start Swagger UI (dev, http://localhost:8089)$(RESET)"
+	@echo -e "  $(GOLD)swagger-down$(RESET)        $(GRAY)Stop the Swagger UI dev container$(RESET)"
+	@echo -e "  $(CYAN)tidy$(RESET)                $(GRAY)Run 'go mod tidy' across all modules$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Testing & Linting:$(RESET)"
-	@echo -e "  $(GREEN)test$(RESET)            $(GRAY)Run all unit/integration tests (Go & Python)$(RESET)"
-	@echo -e "  $(GREEN)test-e2e$(RESET)        $(GRAY)Run Docker Compose end-to-end smoke test$(RESET)"
-	@echo -e "  $(CYAN)lint$(RESET)            $(GRAY)Run linters across all Go and Python code$(RESET)"
-	@echo -e "  $(GREEN)audit$(RESET)           $(GRAY)Run dependency vulnerability scanners (govulncheck + pip-audit)$(RESET)"
-	@echo -e "  $(GREEN)deps-refresh$(RESET)    $(GRAY)Refresh base image digests, pip lock, and SentiWS hash (runbook in playbook)$(RESET)"
-	@echo -e "  $(GREEN)setup$(RESET)           $(GRAY)Install all required developer tools (pinned to CI versions)$(RESET)"
+	@echo -e "  $(GREEN)test$(RESET)                $(GRAY)Full suite: Go integration + pkg + crawlers + Python unit$(RESET)"
+	@echo -e "  $(GREEN)test-go$(RESET)             $(GRAY)Go integration tests — ingestion-api + bff-api (Testcontainers)$(RESET)"
+	@echo -e "  $(GREEN)test-go-pkg$(RESET)         $(GRAY)Go tests for shared pkg/ module$(RESET)"
+	@echo -e "  $(GREEN)test-go-crawlers$(RESET)    $(GRAY)Go tests for rss-crawler$(RESET)"
+	@echo -e "  $(GREEN)test-python$(RESET)         $(GRAY)Python unit tests (pytest, analysis-worker)$(RESET)"
+	@echo -e "  $(GREEN)test-e2e$(RESET)            $(GRAY)Docker Compose end-to-end smoke test$(RESET)"
+	@echo -e "  $(CYAN)smoke-host$(RESET)          $(GRAY)Host-mode startup smoke test (validates scripts/start.sh path)$(RESET)"
+	@echo -e "  $(CYAN)lint$(RESET)                $(GRAY)All linters: ruff (Python) + golangci-lint (all Go modules) + openapi-lint$(RESET)"
+	@echo -e "  $(CYAN)lint-go-pkg$(RESET)         $(GRAY)golangci-lint for shared pkg/ only$(RESET)"
+	@echo -e "  $(GREEN)audit$(RESET)               $(GRAY)Dependency vulnerability scanners: govulncheck + pip-audit$(RESET)"
+	@echo -e "  $(CYAN)audit-go$(RESET)            $(GRAY)govulncheck across all Go modules$(RESET)"
+	@echo -e "  $(CYAN)audit-python$(RESET)        $(GRAY)pip-audit for analysis-worker$(RESET)"
+	@echo -e "  $(GREEN)deps-refresh$(RESET)        $(GRAY)Rotate base image digests, pip lock, SentiWS hash (see playbook)$(RESET)"
+	@echo -e "  $(GREEN)setup$(RESET)               $(GRAY)Install all developer tools pinned to .tool-versions$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"

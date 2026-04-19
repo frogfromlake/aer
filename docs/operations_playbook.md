@@ -824,18 +824,15 @@ Introduced in Phase 96. The BFF and Ingestion APIs each own a modular OpenAPI 3.
 ### Start, stop, refresh
 
 ```bash
-# 1. Produce the bundles consumed by Swagger UI.
-make openapi-bundle
+# Start: bundle specs and launch the container in one step.
+make swagger-up          # bundles both specs, then: docker compose --profile dev up -d swagger-ui
 
-# 2. Start the dev-only swagger-ui container.
-docker compose --profile dev up -d swagger-ui
-
-# 3. Browse. Use the spec dropdown (top-right) to switch between
-#    "BFF API" and "Ingestion API".
+# Browse. Use the spec dropdown (top-right) to switch between
+# "BFF API" and "Ingestion API".
 open http://localhost:8089
 
-# 4. Stop when done.
-docker compose --profile dev down swagger-ui
+# Stop when done.
+make swagger-down
 ```
 
 ### Editing workflow
@@ -1027,3 +1024,4 @@ The following table indexes every point where scientific judgment enters the AĒ
 | BFF API              | `http://localhost:8080`           | `$BFF_API_KEY`                                 |
 | OTel Collector       | `localhost:4317` (gRPC) / `4318`  | none                                           |
 | Arc42 Docs           | `http://localhost:8000`           | none                                           |
+| Swagger UI (dev)     | `http://localhost:8089`           | none — `make swagger-up` to start             |
