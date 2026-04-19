@@ -1,0 +1,17 @@
+type: object
+description: A single document to ingest. Raw payload is stored verbatim in Bronze under `key`.
+required:
+  - key
+  - data
+properties:
+  key:
+    type: string
+    description: >
+      Deterministic object key under the configured source prefix in
+      MinIO Bronze (e.g., `news/wikipedia/2026-04-19T12-00-00Z.json`).
+      Must be stable across retries to preserve storage-level idempotency.
+    example: news/tagesschau/2026-04-19T12-00-00Z.json
+  data:
+    description: >
+      Raw document payload. Passed through to Bronze without interpretation.
+      Typically a JSON object, but any JSON value is accepted.

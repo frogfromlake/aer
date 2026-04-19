@@ -1,0 +1,9 @@
+type: object
+description: >
+  Health probe payload. `/healthz` returns `{"status":"alive"}`; `/readyz`
+  returns a map of each dependency to `ok` or `unavailable`.
+additionalProperties:
+  type: string
+example:
+  postgres: ok
+  minio: ok

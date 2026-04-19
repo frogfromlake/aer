@@ -1,0 +1,42 @@
+get:
+  summary: Resolve a source by name
+  description: >
+    Returns the PostgreSQL source record that matches the `name` query
+    parameter. Crawlers call this once per configured feed at startup to
+    discover their `source_id` rather than hardcoding numeric IDs.
+  operationId: getSourceByName
+  parameters:
+    - name: name
+      in: query
+      required: true
+      description: Canonical source name (as seeded in PostgreSQL).
+      schema:
+        type: string
+        example: tagesschau
+  responses:
+    '200':
+      description: Matching source record.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SourceLookup'
+    '400':
+      description: Missing `name` query parameter.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '401':
+      description: Missing or invalid `X-API-Key`.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: No source record matches the requested name.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

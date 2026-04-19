@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: AĒR Ingestion API
+  description: >
+    Source-agnostic HTTP receiver. Crawlers and other upstream producers
+    POST document batches to `/api/v1/ingest`; the service persists raw
+    bytes to MinIO Bronze, records metadata in PostgreSQL, and fires a
+    NATS event to trigger downstream analysis. A read endpoint resolves
+    source IDs by name so crawlers stay source-agnostic.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8081/api/v1
+    description: Local Development Server
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /ingest:
+    $ref: './paths/ingest.yaml'
+  /sources:
+    $ref: './paths/sources.yaml'
+  /healthz:
+    $ref: './paths/healthz.yaml'
+  /readyz:
+    $ref: './paths/readyz.yaml'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Static API key shared with the producer (crawler). Compared via
+        `crypto/subtle.ConstantTimeCompare` in `pkg/middleware/apikey.go`.
+  schemas:
+    IngestRequest:
+      $ref: './schemas/IngestRequest.yaml'
+    IngestDocument:
+      $ref: './schemas/IngestDocument.yaml'
+    IngestResult:
+      $ref: './schemas/IngestResult.yaml'
+    SourceLookup:
+      $ref: './schemas/SourceLookup.yaml'
+    HealthStatus:
+      $ref: './schemas/HealthStatus.yaml'
+    Error:
+      $ref: './schemas/Error.yaml'

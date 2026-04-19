@@ -1,0 +1,21 @@
+type: object
+description: Batch of documents submitted by a crawler for Bronze ingestion.
+required:
+  - source_id
+  - documents
+properties:
+  source_id:
+    type: integer
+    format: int32
+    minimum: 1
+    description: >
+      Numeric identifier of the source in the PostgreSQL `sources` table.
+      Resolve the ID via `GET /sources?name=<name>` — crawlers should not
+      hardcode IDs.
+    example: 1
+  documents:
+    type: array
+    minItems: 1
+    description: Documents to ingest. Empty arrays are rejected with 400.
+    items:
+      $ref: '../schemas/IngestDocument.yaml'

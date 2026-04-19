@@ -1,0 +1,23 @@
+type: object
+description: >
+  Per-batch ingestion outcome. `failed > 0` produces a 207 Multi-Status
+  response so the crawler can retry only the offending documents.
+required:
+  - job_id
+  - uploaded
+  - failed
+properties:
+  job_id:
+    type: integer
+    format: int32
+    description: Numeric identifier of the ingestion job in PostgreSQL.
+  uploaded:
+    type: integer
+    format: int32
+    minimum: 0
+    description: Number of documents successfully persisted to Bronze.
+  failed:
+    type: integer
+    format: int32
+    minimum: 0
+    description: Number of documents that failed to persist.

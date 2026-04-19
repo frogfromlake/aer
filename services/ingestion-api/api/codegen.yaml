@@ -1,0 +1,4 @@
+package: apicontract
+generate:
+  - types
+output: internal/apicontract/generated.go

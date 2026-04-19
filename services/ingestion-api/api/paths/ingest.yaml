@@ -1,0 +1,48 @@
+post:
+  summary: Ingest a batch of documents
+  description: >
+    Accepts a batch of raw documents under a known source, persists each
+    payload to MinIO Bronze, records metadata in PostgreSQL, and (on full
+    success) fires a NATS event to trigger downstream analysis. Body is
+    capped at `INGESTION_MAX_BODY_BYTES` (default 16 MiB). A batch with
+    at least one failed upload returns 207 Multi-Status.
+  operationId: ingestDocuments
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/IngestRequest.yaml'
+  responses:
+    '200':
+      description: All documents persisted successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IngestResult'
+    '207':
+      description: Partial success — at least one document failed to persist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IngestResult'
+    '400':
+      description: Malformed request body or invalid source / documents.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '401':
+      description: Missing or invalid `X-API-Key`.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '413':
+      description: Request body exceeds `INGESTION_MAX_BODY_BYTES`.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

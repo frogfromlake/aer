@@ -1,0 +1,5 @@
+description: Internal server error. Details are logged server-side only.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Error.yaml'

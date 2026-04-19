@@ -1,0 +1,11 @@
+type: object
+description: >
+  Opaque error envelope. Server-side details are logged with full context;
+  clients never see stack traces, SQL fragments, or dependency names.
+required:
+  - error
+properties:
+  error:
+    type: string
+    description: Human-readable error message suitable for display.
+    example: request body exceeds size limit

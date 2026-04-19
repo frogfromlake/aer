@@ -1,0 +1,19 @@
+get:
+  summary: Readiness probe
+  description: >
+    Returns 200 if PostgreSQL and MinIO are reachable, 503 otherwise.
+    Response body maps each dependency to `ok` or `unavailable`.
+  operationId: getReadyz
+  responses:
+    '200':
+      description: All dependencies are reachable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HealthStatus'
+    '503':
+      description: One or more dependencies are unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HealthStatus'
