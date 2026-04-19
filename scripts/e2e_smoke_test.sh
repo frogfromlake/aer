@@ -380,3 +380,77 @@ else
     log_fail "languages endpoint returned HTTP $LANG_STATUS."
     log_info "Response: $(cat /tmp/aer_e2e_lang.json 2>/dev/null || echo '<empty>')"
 fi
+
+# ── Step 10: Assert GET /api/v1/content — Dual-Register Content Catalog (Phase 95) ─
+log_step "Step 10: GET /api/v1/content — Dual-Register Content Catalog (Phase 95)"
+
+# Helper: assert one content endpoint call
+assert_content() {
+    local label="$1" url="$2" tmp="$3"
+    local status
+    status=$(curl -sf \
+        -o "$tmp" \
+        -w "%{http_code}" \
+        -H "X-API-Key: ${BFF_API_KEY}" \
+        "${BFF_URL}/${url}" 2>/dev/null) || status="000"
+
+    if [[ "$status" == "200" ]]; then
+        local ok
+        ok=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$tmp'))
+    sem = d.get('registers', {}).get('semantic', {})
+    meth = d.get('registers', {}).get('methodological', {})
+    if d.get('entityId') and sem.get('short') and meth.get('long'):
+        print('ok')
+    else:
+        print('incomplete_body')
+except Exception as e:
+    print('parse_error:' + str(e))
+" 2>/dev/null || echo "error")
+        if [[ "$ok" == "ok" ]]; then
+            log_ok "content[$label]: 200 with both registers present."
+        else
+            log_fail "content[$label]: 200 but body is incomplete: $ok"
+            log_info "Response: $(cat $tmp)"
+        fi
+    else
+        log_fail "content[$label]: expected 200, got HTTP $status."
+        log_info "Response: $(cat $tmp 2>/dev/null || echo '<empty>')"
+    fi
+}
+
+# EN + DE for one metric
+assert_content "metric/sentiment_score?locale=en" \
+    "content/metric/sentiment_score?locale=en" /tmp/aer_e2e_content_metric_en.json
+assert_content "metric/sentiment_score?locale=de" \
+    "content/metric/sentiment_score?locale=de" /tmp/aer_e2e_content_metric_de.json
+
+# EN probe
+assert_content "probe/probe-0-de-institutional-rss?locale=en" \
+    "content/probe/probe-0-de-institutional-rss?locale=en" /tmp/aer_e2e_content_probe_en.json
+
+# EN discourse function
+assert_content "discourse_function/epistemic_authority?locale=en" \
+    "content/discourse_function/epistemic_authority?locale=en" /tmp/aer_e2e_content_df_en.json
+
+# EN refusal
+assert_content "refusal/normalization_equivalence_missing?locale=en" \
+    "content/refusal/normalization_equivalence_missing?locale=en" /tmp/aer_e2e_content_refusal_en.json
+
+# DE refusal
+assert_content "refusal/normalization_equivalence_missing?locale=de" \
+    "content/refusal/normalization_equivalence_missing?locale=de" /tmp/aer_e2e_content_refusal_de.json
+
+# 404 for unknown entity
+CONTENT_404_STATUS=$(curl -s \
+    -o /dev/null \
+    -w "%{http_code}" \
+    -H "X-API-Key: ${BFF_API_KEY}" \
+    "${BFF_URL}/content/metric/does_not_exist?locale=en" 2>/dev/null)
+if [[ "$CONTENT_404_STATUS" == "404" ]]; then
+    log_ok "content: unknown entity correctly returns 404."
+else
+    log_fail "content: unknown entity returned HTTP $CONTENT_404_STATUS (expected 404)."
+fi
