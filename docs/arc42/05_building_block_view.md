@@ -136,6 +136,14 @@ A central Go module providing cross-cutting functionality imported by all Go ser
 **`pkg/telemetry/`** — OpenTelemetry tracer initialization (OTLP gRPC exporter, configurable endpoint).
 **`pkg/testutils/`** — SSoT compose parser (`GetImageFromCompose`) for Testcontainers image tag resolution.
 
+### 5.1.4b Dashboard (planned — Phase 96)
+
+**Responsibility:** User-facing dashboard serving three surfaces (Atmosphere, Function Lanes, Reflection) across five layers of progressive descent. Renders scientific metrics, methodological provenance, and emic documentation sourced exclusively from the BFF API.
+
+**Implementation:** TypeScript/Svelte 5 static SvelteKit build. Deployed behind Traefik on the `aer-frontend` network. Framework-agnostic visualization modules (three.js, MapLibre GL JS, Observable Plot, D3) handle rendering; Svelte handles chrome only. High-Fidelity and Low-Fidelity rendering modes preserve identical scientific depth on different hardware classes. See Arc42 §8.17 and ADR-020.
+
+**Key interfaces:** BFF API only (`GET /api/v1/*`). No direct access to ClickHouse, PostgreSQL, or MinIO.
+
 ### 5.1.7 External Crawlers
 
 **Responsibility:** Fetch data from public APIs and translate it into the generic AĒR Ingestion Contract before submitting it to the Ingestion API.

@@ -16,6 +16,7 @@
 | **Polyglot Stack** | Go (Golang) is restricted to data ingestion, networking, and the API layer (BFF). Python is strictly reserved for data processing and deterministic analysis. |
 | **Runtime Versions** | Go **1.26.2** or higher and Python **3.12** or higher are required. These versions are enforced in `go.work`, all `go.mod` files, the CI pipeline (`ci.yml`), and the Dockerfiles. |
 | **No Direct Inter-Service HTTP** | Microservices must never call each other directly via synchronous HTTP. All inter-service communication is mediated exclusively through shared storage (MinIO) and the NATS JetStream message broker. |
+| **Frontend Stack** | TypeScript 5.5+, Svelte 5, SvelteKit static adapter. Enforced by ADR-020, `package.json` engines field, CI workflow. |
 
 ## 2.3 Operational Constraints
 

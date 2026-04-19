@@ -122,6 +122,7 @@ All three application services are built from multi-stage Dockerfiles. Go servic
 | `ingestion-api` | `golang:1.26.2-alpine3.23` → `alpine:3.23.3` | `8081` | backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8081/api/v1/healthz` |
 | `analysis-worker` | `python:3.14.3-slim-bookworm` | — (no port exposed) | backend | 512 MB | 0.50 | `python -c "urllib.request.urlopen('http://localhost:8001/metrics')"` |
 | `bff-api` | `golang:1.26.2-alpine3.23` → `alpine:3.23.3` | `8080` | frontend + backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8080/api/v1/healthz` |
+| `dashboard` | TBD (Phase 96) | TBD (Phase 96) | frontend | TBD (Phase 96) | TBD (Phase 96) | TBD (Phase 96) |
 
 The `bff-api` is the only application service that bridges both networks. It is protected by an API-key middleware (`X-API-Key` header or `Authorization: Bearer`) on all routes except the unauthenticated probe endpoints `/healthz` and `/readyz`. Traefik labels route external HTTPS traffic on `PathPrefix(/api)` to this service.
 
