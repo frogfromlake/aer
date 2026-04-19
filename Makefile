@@ -5,7 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
-.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
 
 SHELL := /bin/bash
 
@@ -164,9 +164,26 @@ tidy:
 	@cd crawlers/rss-crawler && go mod tidy
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
 
+openapi-bundle:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling modular OpenAPI specs (scripts/openapi_bundle.py)...$(RESET)"
+	@for svc in services/bff-api services/ingestion-api; do \
+		if [ -f $$svc/api/openapi.yaml ]; then \
+			echo -e "$(SYMBOL_INFO) $(GRAY)→ $$svc/api/openapi.yaml$(RESET)"; \
+			python3 scripts/openapi_bundle.py $$svc/api/openapi.yaml $$svc/api/openapi.bundle.yaml; \
+		fi; \
+	done
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)OpenAPI bundles produced.$(RESET)"
+
+openapi-lint:
+	@./scripts/openapi_ref_style_check.sh
+
 codegen:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
 	@cd services/bff-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml
+	@if [ -f services/ingestion-api/api/codegen.yaml ]; then \
+		echo -e "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for Ingestion API...$(RESET)"; \
+		cd services/ingestion-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml; \
+	fi
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)API contracts generated successfully.$(RESET)"
 
 build-services:
@@ -239,6 +256,7 @@ lint:
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
 	@cd crawlers/rss-crawler && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (RSS Crawler) lint passed!$(RESET)"
+	@$(MAKE) --no-print-directory openapi-lint
 
 lint-go-pkg:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running golangci-lint for pkg/...$(RESET)"
