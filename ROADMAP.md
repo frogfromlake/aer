@@ -1295,17 +1295,12 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 **Exit criteria:** The Design Brief is discoverable from the MkDocs landing page in two clicks. ADR-020 is findable both via Arc42 §9 and from the Design section's cross-links. `arc42/08_concepts.md` has a §8.17 entry that connects Arc42 readers to the Design Brief without requiring them to read the full brief first. Every glossary term used anywhere in the new docs is defined in §12. Any document inside the docs/ directory is visible via `mkdocs`. CLAUDE.md is ont the most recent state.
 
----
 
-# Open Phases
-
----
-
-## Phase 95: Content Catalog — BFF Backend for Dual-Register Content [P1] - [ ] TODO
+## Phase 95: Content Catalog — BFF Backend for Dual-Register Content [P1] - [x] Done
 
 *The Dual-Register content required by Design Brief §5.7 lives outside the frontend. The BFF serves both semantic and methodological register text for every metric, probe, discourse function, and refusal type — from YAML source files under `services/bff-api/configs/content/`. This phase implements the backend side only; the frontend integrates it in Phase 96+. Content authoring happens as a separate scientific workflow, not code.*
 
-* [ ] **Content directory structure.** Create `services/bff-api/configs/content/` with subdirectories:
+* [x] **Content directory structure.** Create `services/bff-api/configs/content/` with subdirectories:
   ```
   configs/content/
   ├── en/
@@ -1330,7 +1325,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
       └── (same structure, German content)
   ```
 
-* [ ] **Content schema (Pydantic / Go struct).** Define the content record schema for each entity type. Both registers must exist; both have a `short` (≤ 200 characters, for hover/badge surfaces) and `long` variant (prose, ≤ 2000 characters, for Layer 4). Required metadata: `entityId`, `entityType`, `locale`, `contentVersion` (semver-like string), `lastReviewedBy`, `lastReviewedDate` (ISO 8601), optional `workingPaperAnchors` (list of strings like `"WP-002 §3"`). Shape:
+* [x] **Content schema (Pydantic / Go struct).** Define the content record schema for each entity type. Both registers must exist; both have a `short` (≤ 200 characters, for hover/badge surfaces) and `long` variant (prose, ≤ 2000 characters, for Layer 4). Required metadata: `entityId`, `entityType`, `locale`, `contentVersion` (semver-like string), `lastReviewedBy`, `lastReviewedDate` (ISO 8601), optional `workingPaperAnchors` (list of strings like `"WP-002 §3"`). Shape:
   ```yaml
   entityId: sentiment_score
   entityType: metric
@@ -1350,17 +1345,17 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
     - "WP-002 §4"
   ```
 
-* [ ] **Seed content for Phase 42 metrics (EN + DE).** Draft the initial semantic and methodological registers for all five current metrics (`word_count`, `sentiment_score`, `language_confidence`, `temporal_distribution`, `entity_count`). Draft from WP-002 §3 (known limitations), `services/bff-api/configs/metric_provenance.yaml` (existing methodology), and the Working Papers. EN drafts first; DE translations in a single commit after EN review passes. Both registers need to be pedagogically honest — the semantic register explains *what* without dumbing down; the methodological register explains *how* without assuming familiarity with the pipeline.
+* [x] **Seed content for Phase 42 metrics (EN + DE).** Draft the initial semantic and methodological registers for all five current metrics (`word_count`, `sentiment_score`, `language_confidence`, `temporal_distribution`, `entity_count`). Draft from WP-002 §3 (known limitations), `services/bff-api/configs/metric_provenance.yaml` (existing methodology), and the Working Papers. EN drafts first; DE translations in a single commit after EN review passes. Both registers need to be pedagogically honest — the semantic register explains *what* without dumbing down; the methodological register explains *how* without assuming familiarity with the pipeline.
 
-* [ ] **Seed content for Probe 0 (EN + DE).** Draft the probe dossier content for `probe-0-de-institutional-rss`. Pull from existing `docs/probes/probe-0-de-institutional-rss/README.md` and related dossier files. This content is consumed by Surface III (Reflection) when the probe is inspected.
+* [x] **Seed content for Probe 0 (EN + DE).** Draft the probe dossier content for `probe-0-de-institutional-rss`. Pull from existing `docs/probes/probe-0-de-institutional-rss/README.md` and related dossier files. This content is consumed by Surface III (Reflection) when the probe is inspected.
 
-* [ ] **Seed content for four discourse functions (EN + DE).** Draft semantic and methodological registers for Epistemic Authority, Power Legitimation, Cohesion & Identity, and Subversion & Friction. Source: WP-001 §3. These content entries populate the empty-lane captions on Surface II (Design Brief §3.2, §5.7 example).
+* [x] **Seed content for four discourse functions (EN + DE).** Draft semantic and methodological registers for Epistemic Authority, Power Legitimation, Cohesion & Identity, and Subversion & Friction. Source: WP-001 §3. These content entries populate the empty-lane captions on Surface II (Design Brief §3.2, §5.7 example).
 
-* [ ] **Seed content for refusal types (EN + DE).** Three refusals must be authored first: (1) `normalization_equivalence_missing` (HTTP 400 from z-score gate), (2) `validation_missing` (metric accessed at a confidence claim above its validation tier), (3) `k_anonymity_threshold_not_met` (L5 descent refused due to WP-006 §7). Follow the refusal pattern from Design Brief §5.4 + §5.7: semantic = plain-language explanation, methodological = exact gate + WP anchor + alternatives.
+* [x] **Seed content for refusal types (EN + DE).** Three refusals must be authored first: (1) `normalization_equivalence_missing` (HTTP 400 from z-score gate), (2) `validation_missing` (metric accessed at a confidence claim above its validation tier), (3) `k_anonymity_threshold_not_met` (L5 descent refused due to WP-006 §7). Follow the refusal pattern from Design Brief §5.4 + §5.7: semantic = plain-language explanation, methodological = exact gate + WP anchor + alternatives.
 
-* [ ] **BFF content loader.** Extend the BFF API's configuration package to load `configs/content/**/*.yaml` at startup into an in-memory read-through cache. The loader validates each file against the content schema; malformed files abort startup with a clear error. Files are hot-reloadable in the `docs` dev container via an fs-watcher (optional; defer if adds complexity).
+* [x] **BFF content loader.** Extend the BFF API's configuration package to load `configs/content/**/*.yaml` at startup into an in-memory read-through cache. The loader validates each file against the content schema; malformed files abort startup with a clear error. Files are hot-reloadable in the `docs` dev container via an fs-watcher (optional; defer if adds complexity).
 
-* [ ] **OpenAPI contract extension.** Add to `services/bff-api/api/openapi.yaml`:
+* [x] **OpenAPI contract extension.** Add to `services/bff-api/api/openapi.yaml`:
   ```yaml
   /content/{entityType}/{entityId}:
     get:
@@ -1398,19 +1393,23 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   ```
   Define the `ContentResponse` schema matching the YAML record shape.
 
-* [ ] **BFF handler implementation.** Implement `GET /api/v1/content/{entityType}/{entityId}` in `services/bff-api/internal/handler/`. Dispatch to the content loader; return 404 if no matching entry for the requested locale (with a `Content-Language` header). Include trace instrumentation consistent with existing BFF endpoints.
+* [x] **BFF handler implementation.** Implement `GET /api/v1/content/{entityType}/{entityId}` in `services/bff-api/internal/handler/`. Dispatch to the content loader; return 404 if no matching entry for the requested locale (with a `Content-Language` header). Include trace instrumentation consistent with existing BFF endpoints.
 
-* [ ] **Content contract test.** Add tests in `services/bff-api/internal/handler/` covering: (a) successful fetch for each entity type, (b) 404 on missing entity, (c) 404 on missing locale, (d) invalid entity type → 400. Tests use fixture content files under a test configs directory.
+* [x] **Content contract test.** Add tests in `services/bff-api/internal/handler/` covering: (a) successful fetch for each entity type, (b) 404 on missing entity, (c) 404 on missing locale, (d) invalid entity type → 400. Tests use fixture content files under a test configs directory.
 
-* [ ] **E2E smoke test extension.** Extend `scripts/e2e_smoke_test.sh` with assertions against the new content endpoints for at least one metric (sentiment_score), one probe (probe-0-de-institutional-rss), one discourse function (epistemic_authority), and one refusal (normalization_equivalence_missing). Both locales (en, de) verified.
+* [x] **E2E smoke test extension.** Extend `scripts/e2e_smoke_test.sh` with assertions against the new content endpoints for at least one metric (sentiment_score), one probe (probe-0-de-institutional-rss), one discourse function (epistemic_authority), and one refusal (normalization_equivalence_missing). Both locales (en, de) verified.
 
-* [ ] **Codegen regeneration.** `make codegen` to regenerate the Go server stubs from the updated OpenAPI. Verify that the CI drift check (`git diff --exit-code`) passes.
+* [x] **Codegen regeneration.** `make codegen` to regenerate the Go server stubs from the updated OpenAPI. Verify that the CI drift check (`git diff --exit-code`) passes.
 
-* [ ] **Arc42 documentation.** Add §8.18 to `docs/arc42/08_concepts.md` describing the Content Catalog subsystem — storage format, API shape, i18n model, versioning, and the relationship to the Dual-Register content in Design Brief §5.7. Cross-reference in §12 Glossary ("Content Catalog" entry from Phase 94 gets a §8.18 link appended).
+* [x] **Arc42 documentation.** Add §8.18 to `docs/arc42/08_concepts.md` describing the Content Catalog subsystem — storage format, API shape, i18n model, versioning, and the relationship to the Dual-Register content in Design Brief §5.7. Cross-reference in §12 Glossary ("Content Catalog" entry from Phase 94 gets a §8.18 link appended).
 
-* [ ] **Validation.** `make lint` green, `make test` green, `make codegen` clean, `scripts/e2e_smoke_test.sh` green, `mkdocs build --strict` green.
+* [x] **Validation.** `make lint` green, `make test` green, `make codegen` clean, `scripts/e2e_smoke_test.sh` green, `mkdocs build --strict` green.
 
 **Exit criteria:** `curl -H 'X-API-Key: ...' http://localhost:8080/api/v1/content/metric/sentiment_score?locale=de` returns a well-formed JSON response with both registers and content metadata. All current Phase 42 metrics, Probe 0, four discourse functions, and three refusal types are authored in EN and DE.
+
+---
+
+# Open Phases
 
 ---
 

@@ -467,3 +467,40 @@ The AĒR dashboard is a static SvelteKit application (ADR-020) deployed behind T
 **Network posture.** The frontend container sits on `aer-frontend` only. It never holds API credentials in the browser — the static API key is injected server-side through Traefik (short-term) or replaced by an OIDC flow (ADR-018, medium-term). The BFF is the sole backend dependency; the dashboard makes no direct calls to ClickHouse, PostgreSQL, or MinIO.
 
 See [Design Brief](../design/design_brief.md) for the full architecture, interaction grammar, and extensibility commitments. See ADR-020 for the technology stack rationale.
+
+## 8.18 Content Catalog (Phase 95)
+
+The Content Catalog is the BFF subsystem that serves Dual-Register content — paired semantic and methodological text — for every entity that the dashboard must explain: metrics, probes, discourse functions, and refusal types. It implements the architectural commitment from Design Brief §5.7 and §8.17: no Dual-Register copy may be hardcoded in frontend source; all copy arrives via API.
+
+**Storage format.** Content is authored in YAML files under `services/bff-api/configs/content/`, organized by locale and entity type:
+
+```
+configs/content/
+├── en/
+│   ├── metrics/           # one file per metric (word_count.yaml, …)
+│   ├── probes/            # one file per probe (probe-0-de-institutional-rss.yaml)
+│   ├── discourse_functions/  # one file per function
+│   └── refusals/          # one file per refusal type
+└── de/
+    └── (same structure)
+```
+
+Each YAML file is a `ContentRecord` with: `entityId`, `entityType`, `locale`, `registers.semantic.{short,long}`, `registers.methodological.{short,long}`, `contentVersion` (semver-like string), `lastReviewedBy`, `lastReviewedDate`, and optional `workingPaperAnchors`. The `short` register variant is ≤ 200 characters (for hover/badge surfaces); the `long` variant is ≤ 2000 characters (for Layer 4 Provenance panels).
+
+**Startup loading and validation.** `config.LoadContentCatalog(rootPath)` walks the directory tree, parses each `.yaml` file, and validates required fields and character limits. A malformed or invalid file aborts startup with a clear error — the service must not start with broken content. The in-memory catalog is keyed by `locale:entityType:entityId` and held for the process lifetime. There is no runtime file watching in Phase 95.
+
+**API shape.** The catalog is exposed via:
+
+```
+GET /api/v1/content/{entityType}/{entityId}?locale=en|de
+```
+
+`entityType` is one of `metric`, `probe`, `discourse_function`, `refusal`. `locale` defaults to `en`. The response is a `ContentResponse` JSON object containing both registers and all metadata. Returns 404 if no entry exists for the requested entity and locale; 400 if `entityType` is not a valid enum value.
+
+**i18n model.** Locale is a per-record attribute, not a shared index. EN and DE records are independent files with independent `contentVersion` and `lastReviewedDate` fields. A DE record that lags behind its EN counterpart carries an older `lastReviewedDate` — the frontend can use this to surface a "translation may be outdated" indicator without coupling the two files.
+
+**Versioning.** `contentVersion` is a semver-like string (e.g., `v2026-04-a`) that is incremented on every editorial update. Consumers who cache content responses can compare `contentVersion` to detect staleness. There is no server-side caching of the catalog beyond the startup load — updates require a service restart.
+
+**Relationship to other subsystems.** The Content Catalog is the authoritative source for all Dual-Register copy. The metric provenance endpoint (`GET /api/v1/metrics/{metricName}/provenance`) serves structured methodological metadata (tier classification, known limitations, extractor hash) from `metric_provenance.yaml` — these are machine-readable fields for programmatic use. The Content Catalog serves human-authored prose for the same metrics — these are the reading copy for the frontend's Layer 4 panels. Both serve different facets of the reflexive architecture; neither replaces the other.
+
+See [Design Brief §5.7](../design/design_brief.md) for the Dual-Register communication pattern. See §8.17 for the frontend architecture that consumes this subsystem. See the Glossary for the **Content Catalog** entry (§12).
