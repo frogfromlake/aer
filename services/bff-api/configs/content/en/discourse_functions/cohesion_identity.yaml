@@ -1,0 +1,38 @@
+entityId: cohesion_identity
+entityType: discourse_function
+locale: en
+registers:
+  semantic:
+    short: "A discourse function where sources produce and reinforce shared identity — communities telling each other who they are, what they value, and who belongs."
+    long: >
+      Cohesion & Identity describes sources whose primary role is to produce and sustain a
+      shared sense of community. A source with this function speaks to insiders about themselves:
+      it reinforces shared values, delineates group membership, and produces the narratives
+      through which a community understands its own identity and place in the world. Fan
+      communities, diaspora news outlets, religious publications, and affinity group media
+      often carry this function. The function is not defined by community size or by whether
+      the identity in question is normative or marginal — it is defined by the source's role
+      in identity production and maintenance. AĒR currently has no active Probe 0 source
+      classified under Cohesion & Identity; this lane is present in the interface as an empty
+      lane, representing a structural absence that is itself analytically significant.
+  methodological:
+    short: "WP-001 §3 universal function: identity cohesion through discourse. Includes fan communities, diaspora media, religious outlets, and affinity networks."
+    long: >
+      Cohesion & Identity is one of the four universal discourse functions defined in WP-001 §3.
+      A source carries this function when its information output primarily serves to bind a
+      community together through shared narrative, value affirmation, and boundary definition.
+      Classification follows the WP-001 §4.4 five-step process. No Probe 0 source has been
+      classified under this function. The empty Cohesion & Identity lane in AĒR's interface
+      is not a rendering gap — it is the system's honest representation of the current probe
+      coverage. According to WP-006 §3.4, making structural absences visible is a core
+      principle of the reflexive architecture. A second probe (e.g., a diaspora news outlet,
+      a community forum) would need to be ingested and classified under WP-001 before this lane
+      contains data. The empty state is accompanied by a Dual-Register explanation of why the
+      absence exists and what it would take to fill it — this is the Dual-Register invitation
+      pattern (Design Brief §5.7).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-006 §3.4"

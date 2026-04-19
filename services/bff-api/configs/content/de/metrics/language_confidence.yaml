@@ -1,0 +1,35 @@
+entityId: language_confidence
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Die Wahrscheinlichkeit (0–1), dass die Sprache des Artikels korrekt erkannt wurde. Hohe Werte zeigen zuverlässige Erkennung; niedrige Werte signalisieren Mehrdeutigkeit."
+    long: >
+      Die Spracherkennungskonfidenz misst, wie sicher AĒR bei der Sprachidentifikation eines
+      Artikels ist. Ein Wert nahe 1,0 bedeutet hohe Konfidenz — das Vokabular ist eindeutig
+      genug für eine zuverlässige Identifikation. Werte unter 0,7 deuten auf Mehrdeutigkeit
+      hin: der Text könnte sehr kurz sein, mehrere Sprachen mischen (Code-Switching) oder
+      vorwiegend aus Eigennamen und Abkürzungen bestehen. Die erkannte Sprache wird immer
+      zusammen mit der Konfidenz angegeben; beide Werte sollten gemeinsam gelesen werden.
+      Niedrige Konfidenz ist kein Fehler — sie ist ein Signal, dass die Sprachannotation
+      unzuverlässig sein könnte und nachgelagerte Analysen (z. B. sprachspezifische Metriken
+      wie Sentiment) entsprechend vorsichtig interpretiert werden sollten.
+  methodological:
+    short: "langdetect v1.0.9 Top-Kandidaten-Wahrscheinlichkeit, fixer Seed. Tier 1 (deterministisch). Verschlechtert sich bei Texten unter ~200 Zeichen. WP-002 §3."
+    long: >
+      language_confidence ist die höchste Posterior-Wahrscheinlichkeit, die langdetect v1.0.9
+      dem erstplatzierten Sprachkandidaten zuweist. langdetect verwendet Zeichen-n-Gramm-Profile
+      und einen Naive-Bayes-Klassifikator, trainiert auf Wikipedia-Texten in 55 Sprachen. Der
+      Extraktor fixiert den Zufallsseed auf 0, um identische Ausgaben für identische Eingaben
+      sicherzustellen. Tier-1-Metrik gemäß WP-002 §3. Drei dokumentierte Einschränkungen:
+      (1) Kurztext-Degradation — Texte unter ca. 200 Zeichen liefern unzuverlässige
+      Wahrscheinlichkeitswerte; AĒR wendet kein Mindestlängen-Gate an; (2) Code-Switching-
+      Blindheit — der Klassifikator gibt eine einzige Top-Sprache zurück und kann mehrsprachige
+      Passagen nicht identifizieren; (3) der fixe Seed gewährleistet Reproduzierbarkeit,
+      kann aber bei ambigen Eingaben künstlich hohe Konfidenz erzeugen. Extraktor:
+      langdetect-1.0.9. Validierungsstatus: nicht validiert.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"

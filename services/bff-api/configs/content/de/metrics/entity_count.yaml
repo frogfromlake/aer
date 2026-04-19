@@ -1,0 +1,36 @@
+entityId: entity_count
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Die Anzahl erkannter Named Entities (Personen, Organisationen, Orte) in einem Artikel. Ein Näherungswert für die Dichte von Akteursreferenzen im Text."
+    long: >
+      Die Named-Entity-Anzahl misst, wie viele benannte Entitäten — Personen, Organisationen,
+      Orte, Daten und andere Eigennamen — ein Sprachmodell im Text eines Artikels identifiziert.
+      Eine hohe Anzahl deutet auf dichte Akteursreferenzen hin: Der Artikel nennt viele benannte
+      Parteien, Institutionen oder Orte. Eine niedrige Anzahl kann auf abstrakte Argumentation,
+      redaktionellen Kommentar oder inhaltsfokussierte (nicht akteursfokussierte) Berichterstattung
+      hinweisen. Die Entity-Anzahl ist ein grober Näherungswert — sie zählt Erwähnungs-Spans,
+      keine eindeutigen Entitäten, und unterscheidet nicht zwischen zentralen und beiläufigen
+      Referenzen. Einzelne Entity-Datensätze (mit Label und Text) sind separat in der
+      `entities`-Tabelle gespeichert und über den `/entities`-Endpunkt zugänglich.
+  methodological:
+    short: "spaCy de_core_news_lg-3.8.0 NER-Span-Anzahl pro Dokument. Tier 1 (deterministisch). Kein Entity-Linking; westlicher Namens-Bias im Trainingskorpus. WP-002 §3."
+    long: >
+      entity_count wird berechnet, indem die spaCy de_core_news_lg-3.8.0 German NER-Pipeline
+      auf cleaned_text angewendet und die resultierenden Entity-Spans gezählt werden. Die
+      Pipeline ist deterministisch bei identischen Eingaben — Tier-1-Metrik gemäß WP-002 §3.
+      Vier dokumentierte Einschränkungen: (1) Kein Entity-Linking — "Merkel", "Angela Merkel"
+      und "Bundeskanzlerin Merkel" werden als separate Spans gezählt, nicht als eine Entität;
+      (2) Westlicher Namens-Bias — der Trainingskorpus überrepräsentiert westeuropäische
+      Institutionen und unterrepräsentiert Organisationen aus anderen Kulturkreisen, was zu
+      niedrigerem Recall bei nicht-westlichen Eigennamen führt; (3) Modell-Drift — das Modell
+      ist bei Version 3.8.0 eingefroren; Sprachgebrauch und Eigennamen-Muster nach dem
+      Trainings-Cutoff können erhöhte False Negatives erzeugen; (4) Keine Koreferenzauflösung
+      — Pronomen und Definitbeschreibungen ("die Kanzlerin", "sie") werden nicht gezählt.
+      Extraktor: de_core_news_lg-3.8.0. Validierungsstatus: nicht validiert.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"

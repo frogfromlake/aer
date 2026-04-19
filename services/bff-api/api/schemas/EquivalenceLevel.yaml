@@ -1,0 +1,11 @@
+type: string
+description: >
+  The level of cross-cultural equivalence established for this metric.
+  "temporal" means only temporal patterns are comparable, "deviation"
+  means deviation from baseline is comparable, "absolute" means raw
+  values are directly comparable across contexts.
+enum:
+  - temporal
+  - deviation
+  - absolute
+example: deviation

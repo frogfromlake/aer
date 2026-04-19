@@ -1,0 +1,38 @@
+entityId: probe-0-de-institutional-rss
+entityType: probe
+locale: de
+registers:
+  semantic:
+    short: "Deutschlands erste Engineering-Kalibrierungssonde — zwei öffentliche institutionelle RSS-Feeds (tagesschau.de, bundesregierung.de). Nicht wissenschaftlich motiviert."
+    long: >
+      Probe 0 ist AĒRs erste reale Datenquelle. Ihr Zweck ist die Kalibrierung der
+      Engineering-Pipeline, nicht wissenschaftliche Repräsentativität oder Hypothesentestung.
+      Die zwei deutschen institutionellen RSS-Feeds wurden gewählt, weil sie öffentlich,
+      strukturiert, in einer einzigen Sprache und frei von Authentifizierung, Engagement-Signalen
+      und algorithmischer Verstärkung sind — die einfachste mögliche End-to-End-Last für die
+      Bronze → Silver → Gold-Pipeline. tagesschau.de (ARD, ca. 50 Artikel/Tag) ist primär als
+      Epistemische Autorität mit sekundärer Machtlegitimation klassifiziert. bundesregierung.de
+      (Bundespresseamt, ca. 5 Artikel/Tag) ist primär als Machtlegitimation mit sekundärer
+      Epistemischer Autorität klassifiziert. Beide Klassifikationen sind vorläufig und wurden
+      nicht nach WP-001 §4.4 peer-reviewed.
+  methodological:
+    short: "Nur-Engineering-Sonde: Quellenauswahl durch Zweckmäßigkeit bedingt. Etic-Klassifikation ist provisional_engineering; function_weights = NULL. WP-001 §4.4 unvollständig."
+    long: >
+      Probe 0 trägt review_status = 'provisional_engineering' in source_classifications.
+      Der fünfstufige WP-001-§4.4-Klassifikationsprozess (Fachnomination, Peer-Review,
+      quantifizierte function_weights) wurde nicht durchgeführt. function_weights = NULL
+      bis dieser Prozess quantifizierte Anteile liefert. Die etic Diskursfunktions-Zuweisungen
+      (Epistemische Autorität für tagesschau.de, Machtlegitimation für bundesregierung.de)
+      wurden vom Engineering-Team auf Basis öffentlich bekannter Betreibereigenschaften
+      vorgenommen — ohne unabhängiges Experten-Review. Für keinen Extraktor im Probe-0-Kontext
+      wurden Validierungsstudien durchgeführt — jede Metrik meldet validation_status =
+      unvalidated. Die min_meaningful_resolution-Werte sind Heuristiken aus der Division
+      der Publikationsrate (WP-005 §3.3), keine gemessenen Signal-Rausch-Studien. Vollständiges
+      Dossier: docs/probes/probe-0-de-institutional-rss/. Arc42 §13.10.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §4.4"
+  - "WP-005 §3.3"
+  - "WP-006 §3.4"

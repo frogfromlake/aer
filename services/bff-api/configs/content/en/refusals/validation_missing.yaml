@@ -1,0 +1,35 @@
+entityId: validation_missing
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "The requested view requires a level of methodological validation that has not yet been established for this metric in this context."
+    long: >
+      The system has data for the metric you requested, but the confidence claim implied by
+      your request — that this metric reliably measures what it claims to measure — has not
+      been independently validated in this context. AĒR distinguishes between a metric being
+      technically operational (producing numbers) and being scientifically validated (producing
+      numbers whose meaning has been confirmed through independent review). This metric is
+      technically operational. Its validation status is recorded as "unvalidated", meaning
+      no Krippendorff's α or Fleiss's κ study has been completed and accepted for this
+      metric in this observation context. You can still view the raw data — the refusal
+      applies only to interpretive claims that depend on validation, not to the data itself.
+  methodological:
+    short: "HTTP 400: no metric_validity row with valid_until in the future exists for this metric and context key. WP-002 §4 validation gate."
+    long: >
+      This refusal is triggered when a request depends on a validation guarantee — specifically,
+      when no row exists in aer_gold.metric_validity with valid_until > NOW() for the relevant
+      (metric_name, context_key) pair. The context_key encodes the cultural and methodological
+      context of the measurement (e.g., 'de:rss:epistemic_authority'). Validation is established
+      through an inter-rater reliability study under WP-002 §4: two or more coders independently
+      annotate a sample, agreement is measured via Krippendorff's α (target ≥ 0.80 for nominal
+      scales), and the result is recorded in metric_validity with an expiry date. Once expired,
+      the metric reverts to 'unvalidated' until re-validation occurs. The resolution path is
+      Workflow 3 in the Scientific Operations Guide: design the annotation study, run it,
+      compute α, and insert the metric_validity row. Raw data and provisional metrics remain
+      accessible at all times — this gate protects interpretive claims, not data access.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §4"

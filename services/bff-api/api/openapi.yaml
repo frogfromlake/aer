@@ -24,166 +24,28 @@ paths:
     $ref: './paths/healthz.yaml'
   /readyz:
     $ref: './paths/readyz.yaml'
+  /content/{entityType}/{entityId}:
+    $ref: './paths/content.yaml'
 
 components:
   schemas:
     ValidationStatus:
-      type: string
-      description: >
-        Validation status derived from the metric_validity table.
-        "unvalidated" if no entry exists, "validated" if a current entry
-        exists with valid_until in the future, "expired" if the most
-        recent entry has valid_until in the past.
-      enum:
-        - unvalidated
-        - validated
-        - expired
-      example: unvalidated
+      $ref: './schemas/ValidationStatus.yaml'
     Resolution:
-      type: string
-      description: >
-        Temporal aggregation resolution. "5min" is the finest grain stored
-        in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month
-        at query time.
-      enum:
-        - 5min
-        - hourly
-        - daily
-        - weekly
-        - monthly
-      example: hourly
+      $ref: './schemas/Resolution.yaml'
     EquivalenceLevel:
-      type: string
-      description: >
-        The level of cross-cultural equivalence established for this metric.
-        "temporal" means only temporal patterns are comparable, "deviation"
-        means deviation from baseline is comparable, "absolute" means raw
-        values are directly comparable across contexts.
-      enum:
-        - temporal
-        - deviation
-        - absolute
-      example: deviation
+      $ref: './schemas/EquivalenceLevel.yaml'
     AvailableMetric:
-      type: object
-      required:
-        - metricName
-        - validationStatus
-      properties:
-        metricName:
-          type: string
-          description: The name of the metric.
-          example: word_count
-        validationStatus:
-          $ref: '#/components/schemas/ValidationStatus'
-        eticConstruct:
-          type: string
-          nullable: true
-          description: >
-            The etic construct this metric maps to in the equivalence registry
-            (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
-          example: null
-        equivalenceLevel:
-          nullable: true
-          description: >
-            The highest equivalence level established for this metric.
-            Null if no equivalence entry exists.
-          allOf:
-            - $ref: '#/components/schemas/EquivalenceLevel'
-        minMeaningfulResolution:
-          nullable: true
-          description: >
-            The finest temporal resolution at which this (metric, source) pair
-            yields statistically meaningful aggregates. Derived from a static
-            BFF config map seeded by Probe 0 publication rates. Null if no
-            heuristic has been recorded for the metric-source pair.
-          allOf:
-            - $ref: '#/components/schemas/Resolution'
+      $ref: './schemas/AvailableMetric.yaml'
     TierClassification:
-      type: integer
-      description: >
-        Methodological tier of the metric as defined in WP-002. Tier 1 =
-        deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3
-        = model-based/interpretive. The tier bounds the kind of claim the
-        metric can support and is a primary signal for reflexive
-        interpretation.
-      enum:
-        - 1
-        - 2
-        - 3
-      example: 1
+      $ref: './schemas/TierClassification.yaml'
     MetricProvenance:
-      type: object
-      required:
-        - metricName
-        - tierClassification
-        - algorithmDescription
-        - knownLimitations
-        - validationStatus
-        - extractorVersionHash
-      properties:
-        metricName:
-          type: string
-          description: The canonical metric name.
-          example: sentiment_score
-        tierClassification:
-          $ref: '#/components/schemas/TierClassification'
-        algorithmDescription:
-          type: string
-          description: >
-            Plain-language description of the algorithm or lexicon that
-            produces this metric.
-        knownLimitations:
-          type: array
-          description: >
-            Enumerated methodological limitations documented in the
-            relevant Working Paper. May be empty for deterministic
-            metrics with no known limitations.
-          items:
-            type: string
-        validationStatus:
-          $ref: '#/components/schemas/ValidationStatus'
-        extractorVersionHash:
-          type: string
-          description: >
-            Short hash or version tag identifying the extractor
-            implementation that produced the metric definition. Lets
-            downstream consumers bind analytical results to a specific
-            extractor revision.
-          example: v1
-        culturalContextNotes:
-          type: string
-          nullable: true
-          description: >
-            Contextual notes on cross-cultural applicability, sourced from
-            the `metric_equivalence` table when an entry exists. Null when
-            no equivalence entry has been registered.
+      $ref: './schemas/MetricProvenance.yaml'
     Source:
-      type: object
-      required:
-        - name
-        - type
-      properties:
-        name:
-          type: string
-          description: Canonical source identifier.
-          example: tagesschau
-        type:
-          type: string
-          description: Source type discriminator (e.g., "rss", "scraper").
-          example: rss
-        url:
-          type: string
-          nullable: true
-          description: Origin URL (feed, API, or seed page).
-        documentationUrl:
-          type: string
-          nullable: true
-          description: >
-            Link to the probe dossier directory for this source (under
-            `docs/probes/<probe-id>/`). The dossier groups WP-001
-            classification, WP-003 bias assessment, WP-005 temporal
-            profile, and WP-006 observer-effect assessment for the
-            probe to which this source belongs. Null when no dossier
-            has been written.
-          example: docs/probes/probe-0-de-institutional-rss/
+      $ref: './schemas/Source.yaml'
+    ContentRegister:
+      $ref: './schemas/ContentRegister.yaml'
+    ContentRegisters:
+      $ref: './schemas/ContentRegisters.yaml'
+    ContentResponse:
+      $ref: './schemas/ContentResponse.yaml'

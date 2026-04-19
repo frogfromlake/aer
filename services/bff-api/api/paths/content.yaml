@@ -1,0 +1,59 @@
+get:
+  summary: Get Dual-Register content for an entity
+  description: >
+    Returns the semantic and methodological register text for a single entity
+    (metric, probe, discourse function, or refusal type). Content is sourced
+    from versioned YAML files under `services/bff-api/configs/content/` and
+    loaded at startup. The `locale` query parameter selects the language;
+    defaults to `en`. Returns 404 if no content entry exists for the requested
+    entity and locale combination.
+  operationId: getContent
+  parameters:
+    - name: entityType
+      in: path
+      required: true
+      description: The category of the entity.
+      schema:
+        type: string
+        enum:
+          - metric
+          - probe
+          - discourse_function
+          - refusal
+    - name: entityId
+      in: path
+      required: true
+      description: The canonical identifier of the entity (e.g., "sentiment_score").
+      schema:
+        type: string
+    - name: locale
+      in: query
+      required: false
+      description: The language of the content to return. Defaults to "en".
+      schema:
+        type: string
+        enum:
+          - en
+          - de
+        default: en
+  responses:
+    '200':
+      description: Content found for the requested entity and locale.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ContentResponse'
+    '404':
+      description: No content found for the requested entity or locale.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '400':
+      description: Invalid entityType value.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

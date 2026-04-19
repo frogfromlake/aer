@@ -1,0 +1,39 @@
+entityId: probe-0-de-institutional-rss
+entityType: probe
+locale: en
+registers:
+  semantic:
+    short: "Germany's first engineering calibration probe — two public institutional RSS feeds (tagesschau.de, bundesregierung.de). Not scientifically motivated."
+    long: >
+      Probe 0 is AĒR's first real data source. Its purpose is engineering pipeline calibration,
+      not scientific representativeness or hypothesis testing. The two German institutional RSS
+      feeds were chosen because they are public, structured, low-volume, in a single language,
+      and free of authentication, engagement signals, and algorithmic amplification — the
+      simplest possible end-to-end load for the Bronze → Silver → Gold pipeline. tagesschau.de
+      (ARD public broadcasting, ~50 articles/day) is classified primarily as Epistemic Authority
+      with a secondary Power Legitimation function. bundesregierung.de (Federal Press Office,
+      ~5 articles/day) is classified primarily as Power Legitimation with a secondary Epistemic
+      Authority function. Both classifications are provisional and have not been peer-reviewed
+      under WP-001 §4.4.
+  methodological:
+    short: "Engineering-only probe: source selection driven by convenience. Etic classification is provisional_engineering; function_weights = NULL. WP-001 §4.4 incomplete."
+    long: >
+      Probe 0 carries review_status = 'provisional_engineering' in source_classifications.
+      The WP-001 §4.4 five-step classification process (area expert nomination, peer review,
+      quantified function_weights) has not been executed. function_weights = NULL until that
+      process produces quantified shares. The etic discourse function assignments (Epistemic
+      Authority for tagesschau.de, Power Legitimation for bundesregierung.de) were made by
+      the engineering team based on publicly known operator characteristics, not independent
+      expert review. No validation studies have been conducted for any extractor in the Probe 0
+      context — every metric reports validation_status = unvalidated. The min_meaningful_resolution
+      values are heuristics derived from publication-rate division (WP-005 §3.3), not from a
+      measured signal-to-noise study. Probe 0 graduates from provisional_engineering only when
+      WP-001 §4.4 Steps 1–2 are completed and function_weights are populated. Full dossier:
+      docs/probes/probe-0-de-institutional-rss/. Arc42 §13.10.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §4.4"
+  - "WP-005 §3.3"
+  - "WP-006 §3.4"

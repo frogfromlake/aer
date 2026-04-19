@@ -1,0 +1,38 @@
+entityId: power_legitimation
+entityType: discourse_function
+locale: en
+registers:
+  semantic:
+    short: "A discourse function where sources exercise institutional power through agenda-setting and framing — defining which issues matter and how they are understood."
+    long: >
+      Power Legitimation describes sources whose information output serves to establish,
+      maintain, or reinforce the authority of institutional actors. A source with this function
+      does not merely communicate — it frames: it selects which events become issues, which
+      actors are positioned as authorities, and which interpretations are treated as legitimate.
+      Government communication offices, corporate press departments, and party-aligned media
+      often carry this function. The function is structural, not moral: it describes what the
+      source does, not whether that is good or bad. AĒR tracks Power Legitimation as one of
+      four universal discourse functions from WP-001 §3. In Probe 0, bundesregierung.de
+      (Federal Press Office) carries this as its primary function; tagesschau.de carries it
+      as a secondary function due to its governance structure.
+  methodological:
+    short: "WP-001 §3 universal function: structural power through information production. Includes state, corporate, and institutional communication channels."
+    long: >
+      Power Legitimation is one of the four universal discourse functions defined in WP-001 §3.
+      A source is classified as carrying this function when its information output systematically
+      legitimates the authority of specific institutional actors — through framing, agenda-setting,
+      and the production of authoritative interpretations. Classification follows the WP-001 §4.4
+      five-step process. For Probe 0, bundesregierung.de is assigned primary Power Legitimation
+      because it is explicitly the Federal Government's communication channel: its content is
+      authored or approved by the Federal Press Office (BPA) and exists to set the government's
+      agenda. tagesschau.de carries secondary Power Legitimation because its editorial independence
+      is structurally bounded by inter-party proportional governance (Rundfunkrat / Verwaltungsrat).
+      Both classifications are provisional_engineering — the formal WP-001 §4.4 process is
+      incomplete and function_weights = NULL. Power Legitimation does not imply propaganda or
+      intentional manipulation; it describes discourse function, not editorial intent.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §4.4"

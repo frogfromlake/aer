@@ -1,0 +1,37 @@
+entityId: epistemic_authority
+entityType: discourse_function
+locale: de
+registers:
+  semantic:
+    short: "Eine Diskursfunktion, bei der Quellen die informationelle Grundlage setzen — sie definieren, was im sozialen Kontext als etablierte Tatsache gilt."
+    long: >
+      Epistemische Autorität beschreibt Quellen, die als Normsetter fungieren: Sie definieren
+      die informationelle Grundlage, auf die andere Akteure sich beziehen, die sie paraphrasieren
+      oder widerlegen. Eine Quelle mit dieser Funktion berichtet nicht nur über Ereignisse —
+      sie legt fest, was "das Geschehene" in einem gegebenen Kontext bedeutet. Öffentliche
+      Rundfunksender, Nachrichtenagenturen und offizielle Statistikbehörden tragen diese
+      Funktion oft. Die Autorität ist nicht absolut oder politisch neutral; sie ist relational —
+      diese Quelle wird von anderen als maßgeblich behandelt, unabhängig davon, ob diese
+      Autorität gerechtfertigt ist. AĒR verfolgt Epistemische Autorität als eine von vier
+      universellen Diskursfunktionen aus WP-001 §3. Aktuell ist tagesschau.de (ARD) die
+      primäre Quelle mit Epistemischer Autorität in Probe 0, vorläufig klassifiziert vom
+      Engineering-Team.
+  methodological:
+    short: "WP-001 §3 universelle Funktion: informationelle Normsetzung. Als solche klassifizierte Quellen dienen als Referenzpunkte, anhand derer anderer Diskurs gemessen wird."
+    long: >
+      Epistemische Autorität ist eine der vier universellen Diskursfunktionen aus WP-001 §3
+      als Teil von AĒRs Funktionaler Sonden-Taxonomie. Eine Quelle trägt diese Funktion, wenn
+      ihr Informationsoutput als Baseline dient, die andere Quellen im selben kulturellen
+      Kontext als maßgeblich behandeln. Die Klassifikation folgt dem WP-001-§4.4-Prozess. Für
+      Probe 0 ist der Prozess unvollständig; das Engineering-Team hat Epistemische Autorität
+      tagesschau.de aufgrund struktureller Merkmale (öffentlicher Auftrag, ARD-Governance)
+      zugewiesen — ohne Peer-Review. Das Feld review_status = 'provisional_engineering' in
+      source_classifications dokumentiert diesen Status. Eine Klassifikation als Epistemische
+      Autorität impliziert weder redaktionelle Unabhängigkeit noch Abwesenheit von Bias —
+      die WP-003-Dokumentation findet sich in bias_assessment.md des Probe-Dossiers.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §4.4"

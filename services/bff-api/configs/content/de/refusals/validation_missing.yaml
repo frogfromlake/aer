@@ -1,0 +1,36 @@
+entityId: validation_missing
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Die angeforderte Ansicht erfordert ein Maß an methodischer Validierung, das für diese Metrik in diesem Kontext noch nicht nachgewiesen wurde."
+    long: >
+      Das System verfügt über Daten für die von Ihnen angeforderte Metrik, aber der durch Ihre
+      Anfrage implizierte Vertrauensanspruch — dass diese Metrik zuverlässig misst, was sie
+      zu messen vorgibt — wurde in diesem Kontext nicht unabhängig validiert. AĒR unterscheidet
+      zwischen technischer Funktionsfähigkeit (Zahlen produzieren) und wissenschaftlicher
+      Validierung (Zahlen produzieren, deren Bedeutung durch unabhängige Überprüfung bestätigt
+      wurde). Diese Metrik ist technisch funktionsfähig. Ihr Validierungsstatus ist "nicht
+      validiert", was bedeutet, dass keine Krippendorff-α- oder Fleiss-κ-Studie für diese
+      Metrik in diesem Beobachtungskontext abgeschlossen und akzeptiert wurde. Die Rohdaten
+      sind weiterhin einsehbar — die Verweigerung gilt nur für interpretive Ansprüche, die
+      auf Validierung basieren, nicht für die Daten selbst.
+  methodological:
+    short: "HTTP 400: Kein metric_validity-Eintrag mit valid_until in der Zukunft für diese Metrik und diesen context_key. WP-002 §4 Validierungs-Gate."
+    long: >
+      Diese Verweigerung wird ausgelöst, wenn eine Anfrage eine Validierungsgarantie voraussetzt
+      — konkret, wenn kein Eintrag in aer_gold.metric_validity mit valid_until > NOW() für das
+      relevante (metric_name, context_key)-Paar existiert. Der context_key kodiert den kulturellen
+      und methodischen Kontext der Messung (z. B. 'de:rss:epistemic_authority'). Validierung wird
+      durch eine Inter-Rater-Reliabilitätsstudie nach WP-002 §4 hergestellt: Zwei oder mehr Kodierer
+      annotieren unabhängig eine Stichprobe, die Übereinstimmung wird via Krippendorff-α (Ziel: ≥ 0,80
+      für nominale Skalen) gemessen, und das Ergebnis wird in metric_validity mit einem Ablaufdatum
+      eingetragen. Nach Ablauf kehrt die Metrik zu "nicht validiert" zurück, bis eine Re-Validierung
+      erfolgt. Der Lösungsweg ist Workflow 3 im Scientific Operations Guide. Rohdaten und vorläufige
+      Metriken bleiben jederzeit zugänglich — dieses Gate schützt interpretive Ansprüche, nicht den
+      Datenzugang.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §4"

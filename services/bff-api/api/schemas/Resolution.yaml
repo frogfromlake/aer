@@ -1,0 +1,12 @@
+type: string
+description: >
+  Temporal aggregation resolution. "5min" is the finest grain stored
+  in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month
+  at query time.
+enum:
+  - 5min
+  - hourly
+  - daily
+  - weekly
+  - monthly
+example: hourly

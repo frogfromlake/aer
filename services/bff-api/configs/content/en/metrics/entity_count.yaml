@@ -1,0 +1,36 @@
+entityId: entity_count
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "The number of named entities (persons, organizations, locations) identified in an article. A proxy for the density of actor references in the text."
+    long: >
+      Named entity count measures how many distinct named entities — people, organizations,
+      places, dates, and other proper nouns — a language model identifies in an article's text.
+      A high entity count suggests dense actor references: the article mentions many named
+      parties, institutions, or locations. A low count may indicate abstract argumentation,
+      editorial commentary, or content focused on events rather than actors. Entity count is a
+      coarse proxy — it counts mention spans, not unique entities, and does not distinguish
+      central actors from incidental references. Individual entity records (with label and text)
+      are stored separately in the `entities` table and accessible via the `/entities` endpoint
+      for deeper exploration.
+  methodological:
+    short: "spaCy de_core_news_lg-3.8.0 NER span count per document. Tier 1 (deterministic). No entity linking; Western naming bias in training data. WP-002 §3."
+    long: >
+      entity_count is computed by running the spaCy de_core_news_lg-3.8.0 German NER pipeline
+      on cleaned_text and counting the resulting entity spans. The pipeline is deterministic
+      given identical input and model weights — it is a Tier 1 metric under WP-002 §3. Four
+      documented methodological limitations: (1) no entity linking — "Merkel", "Angela Merkel",
+      and "Bundeskanzlerin Merkel" are counted as separate spans, not unified as one entity;
+      (2) Western naming bias — the training corpus overrepresents Western European institutions
+      and underrepresents organizations from other cultural regions, leading to lower recall for
+      non-Western proper nouns; (3) model drift — the model was frozen at version 3.8.0;
+      language use and named entity patterns that postdate the training corpus may produce
+      increased false negatives; (4) no coreference resolution — pronouns and definite
+      descriptions referring to a named entity ("the Chancellor", "she") are not counted.
+      Extractor: de_core_news_lg-3.8.0. Validation status: unvalidated.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"

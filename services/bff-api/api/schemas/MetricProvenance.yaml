@@ -1,0 +1,44 @@
+type: object
+required:
+  - metricName
+  - tierClassification
+  - algorithmDescription
+  - knownLimitations
+  - validationStatus
+  - extractorVersionHash
+properties:
+  metricName:
+    type: string
+    description: The canonical metric name.
+    example: sentiment_score
+  tierClassification:
+    $ref: './TierClassification.yaml'
+  algorithmDescription:
+    type: string
+    description: >
+      Plain-language description of the algorithm or lexicon that
+      produces this metric.
+  knownLimitations:
+    type: array
+    description: >
+      Enumerated methodological limitations documented in the
+      relevant Working Paper. May be empty for deterministic
+      metrics with no known limitations.
+    items:
+      type: string
+  validationStatus:
+    $ref: './ValidationStatus.yaml'
+  extractorVersionHash:
+    type: string
+    description: >
+      Short hash or version tag identifying the extractor implementation
+      that produced the metric definition. Lets downstream consumers bind
+      analytical results to a specific extractor revision.
+    example: v1
+  culturalContextNotes:
+    type: string
+    nullable: true
+    description: >
+      Contextual notes on cross-cultural applicability, sourced from
+      the metric_equivalence table when an entry exists. Null when
+      no equivalence entry has been registered.

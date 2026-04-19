@@ -1,0 +1,38 @@
+entityId: temporal_distribution
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Wann Artikel veröffentlicht werden: die UTC-Stunde und der ISO-Wochentag. Zeigt redaktionelle Rhythmen, institutionelle Zeitplanung und Veröffentlichungsmuster."
+    long: >
+      Die zeitliche Verteilung beschreibt die Zeitstruktur der Inhaltsproduktion: Zu welchen
+      Stunden des Tages und an welchen Wochentagen erscheinen Artikel? Diese Muster offenbaren
+      redaktionelle Routinen und institutionelle Rhythmen. Eine Quelle, die fast ausschließlich
+      während der Bürozeiten an Werktagen veröffentlicht, wird wahrscheinlich durch institutionelle
+      Kommunikationspläne gesteuert. Eine gleichmäßige Veröffentlichung über alle Stunden deutet
+      auf automatisierte oder kontinuierlich besetzte Produktion hin. Veröffentlichungszeiten
+      sind kein Maß für Inhaltsqualität oder Framing — sie sind ein Struktursignal über den
+      organisatorischen Kontext der Inhaltsproduktion. AĒR erfasst zwei Metriken:
+      publication_hour (UTC-Stunde des Zeitstempels, 0–23) und publication_weekday
+      (ISO-Wochentag, 1 = Montag, 7 = Sonntag).
+  methodological:
+    short: "UTC-Stunde und ISO-Wochentag aus dem Quell-Zeitstempel extrahiert. Tier 1 (deterministisch). Keine bekannten Einschränkungen für gut gestempelte RSS-Quellen."
+    long: >
+      publication_hour und publication_weekday werden deterministisch aus dem Zeitstempelfeld
+      der Silver-Layer (Veröffentlichungszeitpunkt laut RSS-Feed) extrahiert. Beide sind
+      Tier-1-Metriken gemäß WP-002 §3 — sie benötigen keine NLP-Modelle. Vorbehalte:
+      (1) Der Zeitstempel gibt an, wann das RSS-Feed-Item veröffentlicht wurde, nicht wann
+      das Ereignis stattfand oder der Artikel geschrieben wurde; bei institutionellen Quellen
+      mit redaktioneller Warteschlange kann der Unterschied erheblich sein; (2) Zeitstempel
+      werden in UTC gespeichert und verglichen — lokale Zeitzonen-Offsets werden nicht
+      angewendet; für deutsche Quellen sind publication_hour-Werte um +1 (MEZ) oder +2
+      (MESZ) von der scheinbaren Ortszeit verschoben; (3) Für den Probe-0-Korpus
+      (tagesschau.de, bundesregierung.de) liefern beide Quellen zuverlässige,
+      maschinengenerierte Zeitstempel ohne bekannte Manipulations- oder Verzögerungsartefakte.
+      Validierungsstatus: nicht validiert.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

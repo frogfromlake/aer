@@ -1,0 +1,33 @@
+entityId: word_count
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Die Anzahl der Wörter in einem Artikel, gezählt als Leerzeichen-getrennte Tokens. Ein Näherungswert für Artikellänge und redaktionellen Umfang."
+    long: >
+      Die Wortanzahl ist die einfachste quantitative Eigenschaft eines Textes: Wie viele
+      durch Leerzeichen getrennte Tokens enthält er? In AĒR fungiert sie als Näherungswert
+      für redaktionellen Umfang — längere Artikel beinhalten typischerweise ausführlichere
+      Berichterstattung, mehr kontextuelles Framing oder eine breitere thematische Abdeckung.
+      Muster in der Wortanzahl über Quellen und Zeit hinweg können Veränderungen in
+      redaktionellen Formaten, Ressourcenbeschränkungen oder Kommunikationsnormen signalisieren.
+      AĒR zählt rohe Tokens ohne Lemmatisierung oder sprachspezifische Segmentierung. Die
+      Metrik wird auf cleaned_text berechnet, aus dem strukturelle Auszeichnungen entfernt
+      wurden, ohne linguistische Normalisierung.
+  methodological:
+    short: "Leerzeichen-Tokenisierung auf cleaned_text. Tier 1 (deterministisch). Bekannte Einschränkung: Unterschätzung bei agglutinierenden und logografischen Sprachen."
+    long: >
+      word_count wird berechnet, indem cleaned_text an Unicode-Leerzeichen aufgeteilt und
+      die resultierenden Tokens gezählt werden. Der Extraktor ist zustandslos und liefert
+      für identische Eingaben identische Ausgaben — Tier-1-Metrik gemäß WP-002 §3. Die
+      primäre methodische Einschränkung: Leerzeichen-Tokenisierung ist ungeeignet für
+      agglutinierende Sprachen (Türkisch, Finnisch) und logografische Schriftsysteme (Chinesisch,
+      Japanisch, Koreanisch). Für den Probe-0-Korpus (deutschsprachige institutionelle RSS-Feeds)
+      ist diese Einschränkung latent, aber nicht aktiv: Deutsch verwendet Leerzeichen konsistent,
+      und Komposita werden als einzelne Tokens gezählt (Bundesregierung = 1 Token). Extraktor:
+      word-count-v1. Validierungsstatus: nicht validiert.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"

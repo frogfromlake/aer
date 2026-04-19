@@ -1,0 +1,37 @@
+entityId: sentiment_score
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Ein Wert von −1 bis +1, der die emotionale Polarität des Artikelvokabulars misst. Positive Werte deuten auf positiv besetzte Sprache hin, negative auf kritische."
+    long: >
+      Der Sentiment-Score weist jedem Artikel einen Polaritätswert zu, der auf dem emotionalen
+      Gewicht der enthaltenen Wörter basiert. Ein Wert nahe +1 bedeutet, dass das Vokabular
+      des Artikels positiv besetzt ist (optimistisch, bekräftigend, feierlich); ein Wert nahe
+      −1 steht für negativ besetztes Vokabular (kritisch, alarmierend, konfliktiv). Werte
+      nahe 0 sind typisch für neutrale oder gemischte Berichterstattung. Der Score aggregiert
+      einzelne Wortpolaritäten, ohne Satzstruktur oder Diskurskontext zu berücksichtigen — er
+      misst, welche Wörter vorhanden sind, nicht wie sie verwendet werden. Da er auf einem
+      deutschen Lexikon basiert, gilt der Score nur für deutschsprachige Texte. Als "vorläufig"
+      markierte Ergebnisse tragen diesen Vorbehalt explizit: die Metrik ist technisch
+      funktionsfähig, aber wissenschaftlich nicht validiert.
+  methodological:
+    short: "SentiWS v2.0 Lexikon-Lookup, polaritätsgewichtete Summe normiert auf gematchte Tokens. Tier 1 (deterministisch). Negationsblind; keine Kompositionalität. WP-002 §3."
+    long: >
+      sentiment_score wird berechnet, indem jedes Token in cleaned_text gegen das SentiWS v2.0
+      Deutsch-Sentiment-Lexikon (~16.000 Lemma–PoS-Paare mit Polaritätsgewichten in [−1, +1])
+      abgeglichen wird. Der Score ist die Summe der gematchten Token-Gewichte geteilt durch die
+      Anzahl der Matches. Ungematchte Tokens tragen null bei. Tier-1-Metrik gemäß WP-002 §3.
+      Fünf dokumentierte Einschränkungen: (1) Negationsblindheit — "nicht gut" wird bewertet
+      als ob "gut" erscheint; (2) Kompositum-Versagen — Komposita wie "Regierungskrise"
+      werden ggf. nicht auf ihre Lemma-Einträge aufgelöst; (3) Genre-Drift — SentiWS wurde
+      auf Zeitungstext trainiert; Gewichte übertragen sich möglicherweise nicht auf
+      Regierungspressemitteilungen; (4) keine Kompositionalität — Dokument-Sentiment ist
+      ein Durchschnitt, kein modelliertes Ganzes; (5) keine Ironie- oder Sarkasmuserkennung.
+      Extraktor: sentiws-2.0. Validierungsstatus: nicht validiert.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-002 §4"

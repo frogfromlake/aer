@@ -1,0 +1,38 @@
+entityId: power_legitimation
+entityType: discourse_function
+locale: de
+registers:
+  semantic:
+    short: "Eine Diskursfunktion, bei der Quellen institutionelle Macht durch Agenda-Setting und Framing ausüben — sie definieren, welche Themen wichtig sind und wie sie zu verstehen sind."
+    long: >
+      Machtlegitimation beschreibt Quellen, deren Informationsoutput die Autorität
+      institutioneller Akteure herstellt, aufrechterhält oder verstärkt. Eine Quelle mit
+      dieser Funktion kommuniziert nicht nur — sie rahmt: Sie wählt aus, welche Ereignisse
+      zu Themen werden, welche Akteure als Autoritäten positioniert werden und welche
+      Interpretationen als legitim gelten. Regierungskommunikationsstellen, Corporate-Pressestellen
+      und parteinahe Medien tragen diese Funktion oft. Die Funktion ist strukturell, nicht
+      moralisch: Sie beschreibt, was die Quelle tut, nicht ob das gut oder schlecht ist.
+      In Probe 0 trägt bundesregierung.de (Bundespresseamt) diese als Primärfunktion;
+      tagesschau.de trägt sie als Sekundärfunktion aufgrund ihrer Governance-Struktur.
+  methodological:
+    short: "WP-001 §3 universelle Funktion: strukturelle Macht durch Informationsproduktion. Umfasst staatliche, korporative und institutionelle Kommunikationskanäle."
+    long: >
+      Machtlegitimation ist eine der vier universellen Diskursfunktionen aus WP-001 §3. Eine
+      Quelle trägt diese Funktion, wenn ihr Informationsoutput die Autorität spezifischer
+      institutioneller Akteure systematisch legitimiert — durch Framing, Agenda-Setting und
+      die Produktion autoritativer Interpretationen. Die Klassifikation folgt dem
+      WP-001-§4.4-Prozess. Für Probe 0 ist bundesregierung.de primäre Machtlegitimation,
+      weil sie explizit der Kommunikationskanal der Bundesregierung ist: Ihre Inhalte werden
+      vom Bundespresseamt autorisiert und existieren zur Agenda-Setzung der Regierung.
+      tagesschau.de trägt sekundäre Machtlegitimation, weil ihre redaktionelle Unabhängigkeit
+      strukturell durch proportionale Parteiengovernance (Rundfunkrat/Verwaltungsrat) begrenzt
+      ist. Beide Klassifikationen sind provisional_engineering — der formale WP-001-§4.4-Prozess
+      ist unvollständig und function_weights = NULL. Machtlegitimation impliziert keine
+      Propaganda oder absichtliche Manipulation; sie beschreibt Diskursfunktion, nicht
+      redaktionelle Intention.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §4.4"

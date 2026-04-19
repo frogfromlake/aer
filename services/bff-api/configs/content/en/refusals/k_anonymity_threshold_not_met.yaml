@@ -1,0 +1,37 @@
+entityId: k_anonymity_threshold_not_met
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "Layer 5 access to source-level detail requires a minimum number of observations to protect against re-identification and observer-effect distortion."
+    long: >
+      You requested a view that would expose individual-source detail at a resolution finer
+      than AĒR's privacy and reflexivity thresholds allow. This is not a technical limit —
+      it is a principled one. When an observation context contains too few sources or articles,
+      showing per-source breakdowns creates two problems: first, individual authors or sources
+      become effectively re-identifiable, which AĒR's observer-effect commitments (WP-006)
+      prohibit; second, aggregate metrics become dominated by individual outliers, making
+      them statistically unreliable. The system protects you from drawing conclusions from
+      data that cannot support them. To unlock Layer 5 access, increase the time range to
+      accumulate more observations, or wait until more sources are active in this probe context.
+  methodological:
+    short: "HTTP 403: k-anonymity threshold not met for this query scope. WP-006 §7 gate. Increase time range or source count to unlock. No individual-article data exposed."
+    long: >
+      This refusal is triggered when a Layer 5 descent request (individual source-level detail)
+      is made for a query scope where the number of contributing sources k < k_min, as defined
+      in WP-006 §7 (Observer Effect & Reflexivity). The threshold is a configurable system
+      parameter (default: k_min = 5 unique sources per context window). The gate exists because
+      AĒR's observer-effect commitments forbid exposing individual-source resolution when the
+      anonymization set is too small — an adversary with external knowledge could re-identify
+      specific authors, editors, or institutional actors. The threshold also serves a statistical
+      purpose: at low k, aggregate metrics (means, distributions) are dominated by single-source
+      variance and are not meaningful population estimates. The gate is enforced server-side by
+      the BFF; it cannot be bypassed by the frontend. Resolution: expand the time range
+      (increasing the observation count), wait for additional sources to be ingested, or
+      accept Layer 3–4 aggregate views which are always available. WP-006 §7 documents the
+      exact threshold formula and the privacy rationale.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-006 §7"

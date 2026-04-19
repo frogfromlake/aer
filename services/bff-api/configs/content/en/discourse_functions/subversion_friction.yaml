@@ -1,0 +1,39 @@
+entityId: subversion_friction
+entityType: discourse_function
+locale: en
+registers:
+  semantic:
+    short: "A discourse function where sources contest dominant narratives, produce friction, or amplify counter-hegemonic perspectives that challenge the established informational order."
+    long: >
+      Subversion & Friction describes sources whose role is to contest, complicate, or
+      undermine dominant discourse. A source with this function does not merely report
+      differently — it systematically challenges what established sources present as settled:
+      it names what is not named, questions what is treated as given, and amplifies voices
+      excluded from the informational mainstream. Investigative journalism outlets, activist
+      media, satirical publications, and dissident communities often carry this function.
+      The function is structural and relational — it is defined by a source's systematic
+      orientation toward the dominant discourse in its context, not by any particular
+      political alignment. AĒR currently has no active Probe 0 source classified under
+      Subversion & Friction; this lane is present in the interface as an empty lane.
+  methodological:
+    short: "WP-001 §3 universal function: counter-hegemonic discourse production. Currently absent from Probe 0. WP-006 §3.4 requires this absence to be made visible."
+    long: >
+      Subversion & Friction is one of the four universal discourse functions defined in WP-001 §3.
+      A source carries this function when its information output systematically contests or
+      disrupts the informational authority of sources classified as Epistemic Authority or Power
+      Legitimation in the same context. Classification follows the WP-001 §4.4 five-step process.
+      The structural absence of this function from Probe 0 is methodologically significant:
+      Probe 0's two sources (tagesschau.de, bundesregierung.de) both carry institutional
+      functions (Epistemic Authority, Power Legitimation). Without a Subversion & Friction
+      source, AĒR's current corpus observes institutional discourse in isolation — the space
+      of contestation is visible as an empty lane. WP-006 §3.4 (Reflexive Architecture)
+      requires this absence to be represented rather than elided. Adding a source with this
+      function would require a new probe, classification under WP-001 §4.4, and a separate
+      bias assessment under WP-003.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §4.4"
+  - "WP-006 §3.4"

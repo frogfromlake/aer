@@ -1,0 +1,36 @@
+entityId: epistemic_authority
+entityType: discourse_function
+locale: en
+registers:
+  semantic:
+    short: "A discourse function where sources set the informational baseline — defining what counts as established fact within a social context."
+    long: >
+      Epistemic Authority describes sources that function as norm-setters: they define the
+      informational baseline that other actors reference, paraphrase, or rebut. A source with
+      this function does not merely report events — it establishes what counts as "what happened"
+      in a given context. Public broadcasters, wire services, and official statistical agencies
+      often carry this function. The authority is not absolute or politically neutral; it is
+      relational — this source is treated as authoritative by others, regardless of whether that
+      authority is warranted. AĒR tracks Epistemic Authority as one of four universal discourse
+      functions from WP-001 §3. Currently, tagesschau.de (ARD) is the primary Epistemic
+      Authority source in Probe 0, classified provisionally by the engineering team.
+  methodological:
+    short: "WP-001 §3 universal function: informational norm-setting. Sources classified here are treated as reference points against which other discourse is measured."
+    long: >
+      Epistemic Authority is one of the four universal discourse functions defined in WP-001 §3
+      as part of AĒR's Functional Probe Taxonomy. A source is classified as carrying this function
+      when its information output serves as the baseline that other sources in the same cultural
+      context treat as authoritative — citations, rebuttals, and reformulations cluster around it.
+      Classification is performed by the WP-001 §4.4 process: area expert nomination, peer review,
+      and quantified function_weights. For Probe 0, this process is incomplete; the engineering
+      team assigned primary Epistemic Authority to tagesschau.de based on structural characteristics
+      (public mandate, ARD governance, citation patterns) without peer review. The
+      review_status = 'provisional_engineering' field in source_classifications records this
+      status explicitly. An Epistemic Authority classification does not imply editorial
+      independence or absence of bias — see the probe's bias_assessment.md for WP-003 documentation.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §4.4"

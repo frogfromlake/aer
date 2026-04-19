@@ -1,0 +1,12 @@
+type: object
+description: >
+  The paired semantic and methodological registers for one entity. Both
+  registers are always present; the frontend decides which is prominent.
+required:
+  - semantic
+  - methodological
+properties:
+  semantic:
+    $ref: './ContentRegister.yaml'
+  methodological:
+    $ref: './ContentRegister.yaml'

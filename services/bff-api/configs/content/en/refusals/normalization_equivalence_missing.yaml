@@ -1,0 +1,38 @@
+entityId: normalization_equivalence_missing
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "Cross-source comparison (z-score normalization) requires established equivalence between observation contexts — not yet validated for this metric."
+    long: >
+      You requested a normalized view of this metric. Normalization allows you to compare
+      values across different sources or time periods by expressing each value as a distance
+      from its own baseline, measured in standard deviations. But this comparison is only
+      meaningful when the system has established that the metric measures the same underlying
+      phenomenon across contexts — a condition called cross-cultural equivalence. For this
+      metric, that equivalence has not yet been validated. The system is being honest with
+      you: it can compute the numbers, but it cannot yet guarantee they are comparing the
+      same thing. The raw (unnormalized) view is still available. Equivalence validation
+      requires interdisciplinary review — see the methodology panel for the specific
+      condition that must be met and the workflow that leads there.
+  methodological:
+    short: "HTTP 400: no metric_equivalence row with deviation-level or higher equivalence exists for this metric. Gate enforced by ADR-016. WP-004 §5."
+    long: >
+      This refusal is triggered when GET /api/v1/metrics?normalization=zscore is requested
+      for a metric that has no row in aer_gold.metric_equivalence with equivalence_level IN
+      ('deviation', 'absolute'). The gate is enforced in the BFF handler (GetMetrics) and
+      is specified in ADR-016 (Hybrid Tier Architecture). The gate exists to prevent silent
+      scientific claims: a z-score comparison across contexts implicitly asserts that the
+      metric is measuring the same etic construct in each context — an empirical claim that
+      must be established through a validation study, not assumed. The resolution path is:
+      (1) establish baselines via scripts/compute_baselines.py for each relevant context;
+      (2) run a cross-cultural equivalence study documented in WP-004 §5; (3) insert a row
+      into aer_gold.metric_equivalence with equivalence_level = 'deviation' or 'absolute'.
+      The Scientific Operations Guide (Workflow 4) documents this process step by step.
+      Until then, the raw time series remains accessible without restriction.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-004 §5"
+  - "ADR-016"

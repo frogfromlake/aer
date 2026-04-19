@@ -1,0 +1,19 @@
+type: object
+description: One register variant — either semantic or methodological.
+required:
+  - short
+  - long
+properties:
+  short:
+    type: string
+    description: >
+      Concise single-sentence summary (≤ 200 characters). Suitable for
+      hover tooltips, badges, and compact surfaces.
+    maxLength: 200
+  long:
+    type: string
+    description: >
+      Full prose explanation (≤ 2000 characters). Rendered in Layer 4
+      (Provenance) panels where the user has descended to methodological
+      detail.
+    maxLength: 2000

@@ -1,0 +1,37 @@
+entityId: cohesion_identity
+entityType: discourse_function
+locale: de
+registers:
+  semantic:
+    short: "Eine Diskursfunktion, bei der Quellen gemeinsame Identität produzieren — Gemeinschaften, die sich gegenseitig erzählen, wer sie sind und was sie verbindet."
+    long: >
+      Kohäsion & Identität beschreibt Quellen, deren Hauptrolle die Produktion und Aufrechterhaltung
+      eines gemeinsamen Gemeinschaftsgefühls ist. Eine Quelle mit dieser Funktion spricht
+      Insider über sich selbst an: Sie bestärkt gemeinsame Werte, definiert Gruppenzugehörigkeit
+      und produziert die Narrative, durch die eine Gemeinschaft ihre eigene Identität und ihren
+      Platz in der Welt versteht. Fan-Gemeinschaften, Diaspora-Medien, religiöse Publikationen
+      und Affinitätsgruppen-Medien tragen diese Funktion oft. Die Funktion ist nicht durch die
+      Gemeinschaftsgröße definiert, sondern durch die Rolle der Quelle in der Identitätsproduktion.
+      AĒR hat aktuell keine aktive Probe-0-Quelle, die unter Kohäsion & Identität klassifiziert
+      ist; diese Lane ist als leere Lane in der Oberfläche präsent und repräsentiert eine
+      strukturelle Abwesenheit, die selbst analytisch bedeutsam ist.
+  methodological:
+    short: "WP-001 §3 universelle Funktion: Identitätskohäsion durch Diskurs. Aktuell in Probe 0 nicht belegt. WP-006 §3.4 verlangt, diese Abwesenheit sichtbar zu machen."
+    long: >
+      Kohäsion & Identität ist eine der vier universellen Diskursfunktionen aus WP-001 §3.
+      Eine Quelle trägt diese Funktion, wenn ihr Informationsoutput primär dazu dient, eine
+      Gemeinschaft durch gemeinsame Narrative, Wertbestätigung und Grenzziehung zusammenzuhalten.
+      Die Klassifikation folgt dem WP-001-§4.4-Prozess. Keine Probe-0-Quelle wurde unter dieser
+      Funktion klassifiziert. Die leere Kohäsion-&-Identität-Lane in AĒRs Oberfläche ist keine
+      Rendering-Lücke — sie ist die ehrliche Darstellung der aktuellen Sondenabdeckung. Gemäß
+      WP-006 §3.4 (Reflexive Architektur) müssen strukturelle Abwesenheiten dargestellt, nicht
+      ausgeblendet werden. Eine zweite Sonde (z. B. ein Diaspora-Nachrichtenportal, ein
+      Community-Forum) müsste ingestioniert und nach WP-001 §4.4 klassifiziert werden, bevor
+      diese Lane Daten enthält. Der leere Zustand wird mit einer Dual-Register-Erklärung
+      begleitet, warum die Abwesenheit besteht und was nötig wäre, sie zu füllen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-006 §3.4"

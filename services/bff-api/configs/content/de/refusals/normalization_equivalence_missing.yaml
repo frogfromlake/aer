@@ -1,0 +1,38 @@
+entityId: normalization_equivalence_missing
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Quellenübergreifender Vergleich (z-Score-Normalisierung) erfordert nachgewiesene Äquivalenz zwischen Beobachtungskontexten — für diese Metrik noch nicht validiert."
+    long: >
+      Sie haben eine normalisierte Ansicht dieser Metrik angefordert. Normalisierung ermöglicht
+      den Vergleich von Werten über verschiedene Quellen oder Zeiträume, indem jeder Wert als
+      Abstand vom eigenen Durchschnitt, gemessen in Standardabweichungen, ausgedrückt wird.
+      Dieser Vergleich ist jedoch nur sinnvoll, wenn das System nachgewiesen hat, dass die
+      Metrik über Kontexte hinweg dasselbe zugrundeliegende Phänomen misst — eine Bedingung
+      namens transkulturelle Äquivalenz. Für diese Metrik wurde diese Äquivalenz noch nicht
+      validiert. Das System ist ehrlich: Es kann die Zahlen berechnen, aber es kann noch nicht
+      garantieren, dass sie dasselbe vergleichen. Die Roh- (nicht normalisierte) Ansicht ist
+      weiterhin verfügbar. Die Äquivalenzvalidierung erfordert interdisziplinäre Überprüfung —
+      das Methodologie-Panel zeigt die spezifische Bedingung und den Workflow.
+  methodological:
+    short: "HTTP 400: Kein metric_equivalence-Eintrag mit Deviation-Level oder höher für diese Metrik. Gate per ADR-016. WP-004 §5."
+    long: >
+      Diese Verweigerung wird ausgelöst, wenn GET /api/v1/metrics?normalization=zscore für eine
+      Metrik angefordert wird, die keinen Eintrag in aer_gold.metric_equivalence mit
+      equivalence_level IN ('deviation', 'absolute') hat. Das Gate ist im BFF-Handler (GetMetrics)
+      implementiert und in ADR-016 (Hybrid-Tier-Architektur) spezifiziert. Das Gate verhindert
+      implizite wissenschaftliche Behauptungen: Ein z-Score-Vergleich über Kontexte setzt voraus,
+      dass die Metrik dasselbe etic Konstrukt in jedem Kontext misst — eine empirische Behauptung,
+      die durch eine Validierungsstudie, nicht durch Annahme, belegt werden muss. Der Lösungsweg:
+      (1) Baselines via scripts/compute_baselines.py für jeden relevanten Kontext berechnen;
+      (2) Äquivalenzstudie nach WP-004 §5 durchführen; (3) Eintrag in aer_gold.metric_equivalence
+      mit equivalence_level = 'deviation' oder 'absolute' einfügen. Der Scientific Operations
+      Guide (Workflow 4) dokumentiert diesen Prozess. Die Rohdaten-Zeitreihe bleibt ohne
+      Einschränkung zugänglich.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-004 §5"
+  - "ADR-016"

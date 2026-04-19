@@ -1,0 +1,11 @@
+type: integer
+description: >
+  Methodological tier of the metric as defined in WP-002. Tier 1 =
+  deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3
+  = model-based/interpretive. The tier bounds the kind of claim the
+  metric can support and is a primary signal for reflexive interpretation.
+enum:
+  - 1
+  - 2
+  - 3
+example: 1

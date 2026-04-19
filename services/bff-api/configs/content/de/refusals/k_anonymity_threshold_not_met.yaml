@@ -1,0 +1,37 @@
+entityId: k_anonymity_threshold_not_met
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Layer-5-Zugang zu quellenspezifischen Details erfordert eine Mindestanzahl von Beobachtungen zum Schutz vor Re-Identifikation und Beobachtereffekt-Verzerrung."
+    long: >
+      Sie haben eine Ansicht angefordert, die quellenspezifische Details in einer Auflösung
+      exponiert, die AĒRs Datenschutz- und Reflexivitätsschwellen überschreitet. Das ist
+      keine technische Einschränkung — es ist eine prinzipielle. Wenn ein Beobachtungskontext
+      zu wenige Quellen oder Artikel enthält, schafft die Anzeige von quellspezifischen
+      Aufschlüsselungen zwei Probleme: Erstens werden einzelne Autoren oder Quellen faktisch
+      re-identifizierbar, was AĒRs Beobachtereffekt-Verpflichtungen (WP-006) verbieten.
+      Zweitens werden aggregierte Metriken von einzelnen Ausreißern dominiert und sind
+      statistisch nicht mehr verlässlich. Das System schützt Sie davor, Schlüsse aus Daten
+      zu ziehen, die diese nicht stützen können. Um Layer-5-Zugang freizuschalten, erweitern
+      Sie den Zeitraum oder warten Sie, bis mehr Quellen im Sondenkontext aktiv sind.
+  methodological:
+    short: "HTTP 403: k-Anonymitätsschwelle für diesen Abfragebereich nicht erfüllt. WP-006 §7 Gate. Zeitraum oder Quellenanzahl erhöhen. Keine Einzelartikel-Daten exponiert."
+    long: >
+      Diese Verweigerung wird ausgelöst, wenn eine Layer-5-Abstiegsanfrage (quellenspezifische
+      Details) für einen Abfragebereich gestellt wird, in dem die Anzahl der beitragenden Quellen
+      k < k_min ist, wie in WP-006 §7 (Beobachtereffekt & Reflexivität) definiert. Der Schwellenwert
+      ist ein konfigurierbarer Systemparameter (Standard: k_min = 5 eindeutige Quellen pro
+      Kontextfenster). Das Gate existiert, weil AĒRs Beobachtereffekt-Verpflichtungen die Exposition
+      von Einzelquellen-Auflösung verbieten, wenn die Anonymisierungsmenge zu klein ist — ein
+      Angreifer mit Außenwissen könnte spezifische Autoren, Redakteure oder institutionelle Akteure
+      re-identifizieren. Der Schwellenwert dient auch einem statistischen Zweck: Bei niedrigem k
+      werden aggregierte Metriken von Einzelquellen-Varianz dominiert und sind keine sinnvollen
+      Populationsschätzungen. Das Gate wird serverseitig vom BFF durchgesetzt. Auflösung: Zeitraum
+      erweitern, auf weitere ingestierte Quellen warten oder Layer-3–4-Aggregatansichten akzeptieren,
+      die immer verfügbar sind. WP-006 §7 dokumentiert die genaue Schwellenwertformel.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-006 §7"

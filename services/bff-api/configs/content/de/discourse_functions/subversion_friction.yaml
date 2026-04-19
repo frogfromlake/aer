@@ -1,0 +1,38 @@
+entityId: subversion_friction
+entityType: discourse_function
+locale: de
+registers:
+  semantic:
+    short: "Eine Diskursfunktion, bei der Quellen dominante Narrative anfechten oder gegenhegemoniale Perspektiven verstärken, die die etablierte Informationsordnung herausfordern."
+    long: >
+      Subversion & Reibung beschreibt Quellen, deren Rolle es ist, dominanten Diskurs
+      anzufechten, zu verkomplizieren oder zu untergraben. Eine Quelle mit dieser Funktion
+      berichtet nicht nur anders — sie stellt systematisch in Frage, was etablierte Quellen
+      als gesetzt präsentieren: Sie benennt das Unbenannte, hinterfragt das Selbstverständliche
+      und verstärkt Stimmen, die aus dem informationellen Mainstream ausgeschlossen sind.
+      Investigativer Journalismus, Aktivisten-Medien, satirische Publikationen und dissidente
+      Gemeinschaften tragen diese Funktion oft. Die Funktion ist strukturell und relational —
+      sie ist durch die systematische Orientierung einer Quelle gegenüber dem dominanten
+      Diskurs in ihrem Kontext definiert, nicht durch eine bestimmte politische Ausrichtung.
+      AĒR hat aktuell keine aktive Probe-0-Quelle unter Subversion & Reibung.
+  methodological:
+    short: "WP-001 §3 universelle Funktion: gegenhegemoniale Diskursproduktion. Aktuell in Probe 0 nicht belegt. WP-006 §3.4 verlangt, diese Abwesenheit sichtbar zu machen."
+    long: >
+      Subversion & Reibung ist eine der vier universellen Diskursfunktionen aus WP-001 §3.
+      Eine Quelle trägt diese Funktion, wenn ihr Informationsoutput die Informationsautorität
+      von Quellen, die als Epistemische Autorität oder Machtlegitimation klassifiziert sind,
+      systematisch anficht oder stört. Die Klassifikation folgt dem WP-001-§4.4-Prozess. Die
+      strukturelle Abwesenheit dieser Funktion in Probe 0 ist methodisch bedeutsam: Die zwei
+      Probe-0-Quellen (tagesschau.de, bundesregierung.de) tragen beide institutionelle
+      Funktionen. Ohne eine Quelle mit Subversions- & Reibungsfunktion beobachtet AĒRs
+      aktueller Korpus institutionellen Diskurs in Isolation — der Raum der Anfechtung ist
+      als leere Lane sichtbar. WP-006 §3.4 verlangt, diese Abwesenheit darzustellen, nicht
+      zu überblenden. Das Hinzufügen einer Quelle mit dieser Funktion erfordert eine neue
+      Sonde, eine WP-001-§4.4-Klassifikation und eine separate Bias-Bewertung nach WP-003.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §4.4"
+  - "WP-006 §3.4"

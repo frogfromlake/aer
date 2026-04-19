@@ -1,0 +1,34 @@
+type: object
+required:
+  - metricName
+  - validationStatus
+properties:
+  metricName:
+    type: string
+    description: The name of the metric.
+    example: word_count
+  validationStatus:
+    $ref: './ValidationStatus.yaml'
+  eticConstruct:
+    type: string
+    nullable: true
+    description: >
+      The etic construct this metric maps to in the equivalence registry
+      (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
+    example: null
+  equivalenceLevel:
+    nullable: true
+    description: >
+      The highest equivalence level established for this metric.
+      Null if no equivalence entry exists.
+    allOf:
+      - $ref: './EquivalenceLevel.yaml'
+  minMeaningfulResolution:
+    nullable: true
+    description: >
+      The finest temporal resolution at which this (metric, source) pair
+      yields statistically meaningful aggregates. Derived from a static
+      BFF config map seeded by Probe 0 publication rates. Null if no
+      heuristic has been recorded for the metric-source pair.
+    allOf:
+      - $ref: './Resolution.yaml'

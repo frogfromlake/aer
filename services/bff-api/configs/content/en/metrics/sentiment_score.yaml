@@ -1,0 +1,36 @@
+entityId: sentiment_score
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "A score from −1 to +1 measuring the emotional polarity of an article's vocabulary. Positive values suggest positive language; negative values suggest critical language."
+    long: >
+      Sentiment score assigns a polarity value to each article based on the emotional weight
+      of the words it contains. A score near +1 indicates that the article's vocabulary skews
+      toward positively-loaded terms (optimistic, affirmative, celebratory); a score near −1
+      indicates negatively-loaded vocabulary (critical, alarming, conflictual). Values near 0
+      are typical of neutral or mixed reporting. The score aggregates individual word polarities
+      rather than analyzing sentence structure or discourse context — it measures what words are
+      present, not how they are used. Because it relies on a German lexicon, the score is valid
+      only for German-language text. Results labeled "provisional" carry this caveat explicitly:
+      the metric is technically operational but not scientifically validated for research use.
+  methodological:
+    short: "SentiWS v2.0 lexicon, polarity-weighted sum normalized by matched tokens. Tier 1 (deterministic). Negation-blind; no compositionality. WP-002 §3."
+    long: >
+      sentiment_score is computed by matching each token in cleaned_text against the SentiWS
+      v2.0 German sentiment lexicon (~16,000 lemma–PoS pairs with polarity weights in [−1, +1]).
+      The score is the sum of matched token weights divided by the number of matched tokens,
+      producing a normalized average polarity. Unmatched tokens contribute zero. The extractor
+      is stateless and reproducible — Tier 1 deterministic under WP-002 §3. Five documented
+      methodological limitations: (1) negation blindness — "nicht gut" is scored as if "gut"
+      appeared; (2) compound word failure — German compounds like "Regierungskrise" may not
+      resolve to their component lemma entries; (3) genre drift — SentiWS was trained on
+      newspaper text; weights may not transfer to government press releases; (4) no
+      compositionality — document-level sentiment is an average, not a modeled whole;
+      (5) no irony or sarcasm detection. Extractor: sentiws-2.0. Validation status: unvalidated.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-002 §4"

@@ -1,0 +1,33 @@
+entityId: word_count
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "The number of words in an article, counted as whitespace-separated tokens. A proxy for article length and editorial scope."
+    long: >
+      Word count is the simplest quantitative property of a text: how many space-separated
+      tokens does it contain? In AĒR, it functions as a proxy for editorial scope — longer
+      articles typically involve more detailed reporting, more contextual framing, or broader
+      subject coverage. Patterns in word count across sources and time can signal shifts in
+      editorial formats, resource constraints, or communication norms. AĒR counts raw tokens
+      without lemmatization, stopword removal, or language-specific segmentation. The metric
+      is computed on cleaned_text, which has had structural markup removed but no linguistic
+      normalization applied.
+  methodological:
+    short: "Whitespace tokenization on cleaned_text. Tier 1 (deterministic). Known limitation: undercounts in agglutinative and logographic languages."
+    long: >
+      word_count is computed by splitting cleaned_text on Unicode whitespace boundaries and
+      counting the resulting tokens. The extractor is stateless, requires no external models,
+      and produces identical output for identical input — it is a Tier 1 deterministic metric
+      under WP-002 §3. Its primary methodological limitation is that whitespace tokenization
+      is a poor segmentation strategy for agglutinative languages (Turkish, Finnish) and does
+      not apply to logographic writing systems (Chinese, Japanese, Korean), where words are
+      not separated by spaces. For the current Probe 0 corpus (German-language institutional
+      RSS), this limitation is latent but not active: German uses whitespace consistently, and
+      compound words are counted as single tokens (Bundesregierung = 1 token). Extractor:
+      word-count-v1. Validation status: unvalidated.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"

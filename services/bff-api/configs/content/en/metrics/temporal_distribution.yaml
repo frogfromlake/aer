@@ -1,0 +1,37 @@
+entityId: temporal_distribution
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "When articles are published: the UTC hour of day and ISO day of week. Reveals editorial rhythms, institutional timing conventions, and scheduling patterns."
+    long: >
+      Temporal distribution describes the time structure of content production: at which hours
+      of the day and which days of the week do articles appear? These patterns reveal editorial
+      routines and institutional rhythms. A source that publishes almost exclusively during
+      office hours on weekdays is likely governed by institutional communication schedules.
+      One with near-uniform publication across hours suggests automated or continuously-staffed
+      production. Publication timing is not a measure of content quality or framing — it is a
+      structural signal about the organizational context in which content is produced. AĒR
+      records two temporal metrics: publication_hour (the UTC hour of the article's timestamp,
+      0–23) and publication_weekday (the ISO weekday, 1 = Monday, 7 = Sunday).
+  methodological:
+    short: "UTC hour and ISO weekday extracted from the source timestamp. Tier 1 (deterministic). No known limitations for well-stamped RSS sources."
+    long: >
+      publication_hour and publication_weekday are extracted deterministically from the
+      timestamp field of the Silver layer (the article's publication timestamp as reported by
+      the RSS feed). Both are Tier 1 metrics under WP-002 §3 — they require no NLP models and
+      produce identical output for identical timestamps. Caveats: (1) the timestamp reflects
+      when the RSS feed item was published, not when the underlying event occurred or when the
+      article was written; for institutional sources with editorial queuing, the difference can
+      be significant; (2) timestamps are stored and compared in UTC — local timezone offsets
+      are not applied; for German sources, publication_hour values are shifted by +1 (CET) or
+      +2 (CEST) from the apparent local time; (3) for the Probe 0 corpus (tagesschau.de,
+      bundesregierung.de), both sources provide reliable, machine-generated timestamps with no
+      known manipulation or delay artifacts. Validation status: unvalidated (no known
+      limitations requiring validation for engineering purposes).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-19"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

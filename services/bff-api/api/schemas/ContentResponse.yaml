@@ -1,0 +1,61 @@
+type: object
+description: >
+  Dual-Register content record for one entity. Sourced from versioned
+  YAML files under configs/content/. Both registers are guaranteed
+  present when the record is returned.
+required:
+  - entityId
+  - entityType
+  - locale
+  - registers
+  - contentVersion
+  - lastReviewedBy
+  - lastReviewedDate
+properties:
+  entityId:
+    type: string
+    description: Canonical identifier of the entity.
+    example: sentiment_score
+  entityType:
+    type: string
+    description: Category of the entity.
+    enum:
+      - metric
+      - probe
+      - discourse_function
+      - refusal
+    example: metric
+  locale:
+    type: string
+    description: Language of the returned content.
+    enum:
+      - en
+      - de
+    example: en
+  registers:
+    $ref: './ContentRegisters.yaml'
+  contentVersion:
+    type: string
+    description: >
+      Semver-style version string for the content record, e.g. "v2026-04-a".
+      Incremented on every editorial update so consumers can detect staleness.
+    example: "v2026-04-a"
+  lastReviewedBy:
+    type: string
+    description: Name or role of the last reviewer.
+    example: "Engineering Team"
+  lastReviewedDate:
+    type: string
+    format: date
+    description: ISO 8601 date of last review.
+    example: "2026-04-19"
+  workingPaperAnchors:
+    type: array
+    nullable: true
+    description: >
+      Optional list of Working Paper section references (e.g., "WP-002 §3")
+      for downstream citation linking.
+    items:
+      type: string
+    example:
+      - "WP-002 §3"

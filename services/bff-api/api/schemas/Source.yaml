@@ -1,0 +1,27 @@
+type: object
+required:
+  - name
+  - type
+properties:
+  name:
+    type: string
+    description: Canonical source identifier.
+    example: tagesschau
+  type:
+    type: string
+    description: Source type discriminator (e.g., "rss", "scraper").
+    example: rss
+  url:
+    type: string
+    nullable: true
+    description: Origin URL (feed, API, or seed page).
+  documentationUrl:
+    type: string
+    nullable: true
+    description: >
+      Link to the probe dossier directory for this source (under
+      docs/probes/<probe-id>/). The dossier groups WP-001 classification,
+      WP-003 bias assessment, WP-005 temporal profile, and WP-006
+      observer-effect assessment for the probe to which this source
+      belongs. Null when no dossier has been written.
+    example: docs/probes/probe-0-de-institutional-rss/
