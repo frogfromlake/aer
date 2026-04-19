@@ -1254,17 +1254,12 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 **Review note (Phases 89–93):** Five findings are P0 (correctness/safety) — the shutdown timeout arithmetic is the most load-bearing since it can truncate in-flight batches on every deploy. P1 establishes boot-time credential validation symmetry between Go and Python services plus a URL-encoding fix in the crawler. P2 addresses four resilience paths that can cause deadlocks or wasteful reprocessing under stress. P3 is schema polish. Recommended order: 89 → 90 (correctness base), 91 (resilience), 92 (schema), 93 (docs last, after code changes settle). Phase 93 must run after 89–92 so the doc sweep captures all changes.
 
----
 
-# Open Phases
-
----
-
-## Phase 94: Frontend Foundation — Documentation Integration & Arc42 Anchoring [P-Docs] - [ ] TODO
+## Phase 94: Frontend Foundation — Documentation Integration & Arc42 Anchoring [P-Docs] - [x] DONE
 
 *ADR-020 (Frontend Technology Stack) has been ratified. The Design Brief exists under `docs/design/design_brief.md`. Before any frontend code is written, the documentation must be fully integrated into the Arc42 structure, the MkDocs navigation, and the cross-reference graph. This phase is docs-only — zero code changes to services. It establishes the epistemic foundation that the subsequent code phases refer back to.*
 
-* [ ] **MkDocs navigation extension.** Add the Design Brief and visualization guidelines to `mkdocs.yml` under a new top-level tab `Design` (peer to `Architecture (arc42)`, `Methodology`, `Operations`). Structure:
+* [x] **MkDocs navigation extension.** Add the Design Brief and visualization guidelines to `mkdocs.yml` under a new top-level tab `Design` (peer to `Architecture (arc42)`, `Methodology`, `Operations`). Structure:
   ```yaml
   - "Design":
       - "Design Brief": design/design_brief.md
@@ -1272,17 +1267,17 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   ```
   Verify with `mkdocs build --strict` (zero warnings allowed). Verify live-reload picks up the new files in the `docs` container.
 
-* [ ] **Arc42 §8.17 — Frontend Architecture (Cross-cutting Concept).** Add a new section `8.17 Frontend Architecture` to `docs/arc42/08_concepts.md`. Content (short, ~40–60 lines): one-paragraph description of the dashboard as a service, the three surfaces (Atmosphere / Function Lanes / Reflection), the five layers of progressive descent, the four visualization domains (§5.9), and explicit cross-references to the Design Brief and ADR-020. This section is the *bridge* from Arc42 readers to the full Design Brief — it must be brief and direct, not a summary of the brief. Link form: `See [Design Brief](../design/design_brief.md) for the full architecture.`
+* [x] **Arc42 §8.17 — Frontend Architecture (Cross-cutting Concept).** Add a new section `8.17 Frontend Architecture` to `docs/arc42/08_concepts.md`. Content (short, ~40–60 lines): one-paragraph description of the dashboard as a service, the three surfaces (Atmosphere / Function Lanes / Reflection), the five layers of progressive descent, the four visualization domains (§5.9), and explicit cross-references to the Design Brief and ADR-020. This section is the *bridge* from Arc42 readers to the full Design Brief — it must be brief and direct, not a summary of the brief. Link form: `See [Design Brief](../design/design_brief.md) for the full architecture.`
 
-* [ ] **Arc42 §5 — Building Block View update.** Extend `docs/arc42/05_building_block_view.md` to include the `dashboard` service as a new building block alongside `ingestion-api`, `bff-api`, and `analysis-worker`. Single row in the existing service table: responsibility ("User-facing dashboard serving three surfaces"), language (TypeScript/Svelte), dependencies (BFF API only), position in the container network (`aer-frontend` only).
+* [x] **Arc42 §5 — Building Block View update.** Extend `docs/arc42/05_building_block_view.md` to include the `dashboard` service as a new building block alongside `ingestion-api`, `bff-api`, and `analysis-worker`. Single row in the existing service table: responsibility ("User-facing dashboard serving three surfaces"), language (TypeScript/Svelte), dependencies (BFF API only), position in the container network (`aer-frontend` only).
 
-* [ ] **Arc42 §7 — Deployment View placeholder.** Extend `docs/arc42/07_deployment_view.md` §7.4 with a placeholder entry for the `dashboard` service in the service table — image base, port, network, memory, CPU. Values marked as `TBD (Phase 96)` where the Dockerfile does not yet exist. This ensures §7 is consistent with the intended deployment even before Phase 96 implements it.
+* [x] **Arc42 §7 — Deployment View placeholder.** Extend `docs/arc42/07_deployment_view.md` §7.4 with a placeholder entry for the `dashboard` service in the service table — image base, port, network, memory, CPU. Values marked as `TBD (Phase 96)` where the Dockerfile does not yet exist. This ensures §7 is consistent with the intended deployment even before Phase 96 implements it.
 
-* [ ] **Arc42 §2 — Architecture Constraints extension.** Add a row to the Technical Constraints table in `docs/arc42/02_architecture_constraints.md` §2.2: "Frontend Stack — TypeScript 5.5+, Svelte 5, SvelteKit static adapter. Enforced by ADR-020, `package.json` engines field, CI workflow."
+* [x] **Arc42 §2 — Architecture Constraints extension.** Add a row to the Technical Constraints table in `docs/arc42/02_architecture_constraints.md` §2.2: "Frontend Stack — TypeScript 5.5+, Svelte 5, SvelteKit static adapter. Enforced by ADR-020, `package.json` engines field, CI workflow."
 
-* [ ] **Arc42 §9 — ADR-020 is already inserted.** Verify that ADR-020 reads consistently after ADR-019, with the same formatting conventions (Status / Context / Decision / Consequences). Check that all cross-references (ADR-003, ADR-008, ADR-016, ADR-017) resolve to the correct in-document anchors.
+* [x] **Arc42 §9 — ADR-020 is already inserted.** Verify that ADR-020 reads consistently after ADR-019, with the same formatting conventions (Status / Context / Decision / Consequences). Check that all cross-references (ADR-003, ADR-008, ADR-016, ADR-017) resolve to the correct in-document anchors.
 
-* [ ] **Arc42 §12 — Glossary additions.** Add six new glossary entries to `docs/arc42/12_glossary.md`:
+* [x] **Arc42 §12 — Glossary additions.** Add six new glossary entries to `docs/arc42/12_glossary.md`:
   - **Dashboard** — The AĒR user-facing application. A static SvelteKit build serving three surfaces (Atmosphere, Function Lanes, Reflection). Deployed behind Traefik on `aer-frontend` network. See ADR-020 and the Design Brief.
   - **Surface (Dashboard)** — One of three top-level encounter modes: Atmosphere (the 3D globe), Function Lanes (discourse functions from WP-001), Reflection (methodological prose). Surfaces are orthogonal to Layers. See Design Brief §3.
   - **Layer (Progressive Descent)** — One of five depths at which any surface can be viewed: Immersion (L0), Orientation (L1), Exploration (L2), Analysis (L3), Provenance (L4), Evidence (L5). Layers are orthogonal to Surfaces. See Design Brief §4.
@@ -1290,13 +1285,19 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - **Epistemic Weight** — The visual prominence of a rendered metric scales with its methodological backing (Tier 1 unvalidated → moderate weight; Tier 2 validated → full weight; Tier 3 LLM-augmented → distinct styling). See Design Brief §5.8.
   - **Content Catalog** — The BFF subsystem serving Dual-Register content (semantic + methodological text for metrics, probes, discourse functions, and refusal types) from YAML sources under `services/bff-api/configs/content/`. New in Phase 95. See ADR-020 Layer 4.
 
-* [ ] **Cross-reference audit.** `grep -r "docs/design/" docs/` and `grep -r "ADR-020" docs/` — verify that every reference resolves and that the Design Brief is cited from at least `arc42/08_concepts.md §8.17`, `arc42/09_architecture_decisions.md` (ADR-020), `arc42/05_building_block_view.md`, and `arc42/12_glossary.md`.
+* [x] **Cross-reference audit.** `grep -r "docs/design/" docs/` and `grep -r "ADR-020" docs/` — verify that every reference resolves and that the Design Brief is cited from at least `arc42/08_concepts.md §8.17`, `arc42/09_architecture_decisions.md` (ADR-020), `arc42/05_building_block_view.md`, and `arc42/12_glossary.md`.
 
-* [ ] **Update `docs/index.md`.** Add a fourth pillar under "Documentation Structure": "**Design** — The design language of the AĒR dashboard. The Design Brief defines visual identity, interaction architecture, and extensibility commitments; the Visualization Guidelines constrain individual rendering decisions." One paragraph, in the same tone as the existing three pillars.
+* [x] **Update `docs/index.md`.** Add a fourth pillar under "Documentation Structure": "**Design** — The design language of the AĒR dashboard. The Design Brief defines visual identity, interaction architecture, and extensibility commitments; the Visualization Guidelines constrain individual rendering decisions." One paragraph, in the same tone as the existing three pillars.
 
-* [ ] **Validation.** `mkdocs build --strict` green, `make lint` green (any future Python/Go linting still passes — no code changes in this phase), pre-push hooks green.
+* [x] **Update `CLAUDE.md`.** Update CLAUDE.md so it reflects the current repository with the new Frontend plans if necessary or check if it is up to date.
 
-**Exit criteria:** The Design Brief is discoverable from the MkDocs landing page in two clicks. ADR-020 is findable both via Arc42 §9 and from the Design section's cross-links. `arc42/08_concepts.md` has a §8.17 entry that connects Arc42 readers to the Design Brief without requiring them to read the full brief first. Every glossary term used anywhere in the new docs is defined in §12.
+* [x] **Validation.** `mkdocs build --strict` green, `make lint` green (any future Python/Go linting still passes — no code changes in this phase), pre-push hooks green.
+
+**Exit criteria:** The Design Brief is discoverable from the MkDocs landing page in two clicks. ADR-020 is findable both via Arc42 §9 and from the Design section's cross-links. `arc42/08_concepts.md` has a §8.17 entry that connects Arc42 readers to the Design Brief without requiring them to read the full brief first. Every glossary term used anywhere in the new docs is defined in §12. Any document inside the docs/ directory is visible via `mkdocs`. CLAUDE.md is ont the most recent state.
+
+---
+
+# Open Phases
 
 ---
 
