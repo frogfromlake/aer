@@ -24,9 +24,9 @@ class TestValidateRequiredEnv:
             validate_required_env(["POSTGRES_PASSWORD"])
 
     def test_raises_when_var_is_whitespace_only(self, monkeypatch):
-        monkeypatch.setenv("MINIO_ACCESS_KEY", "   ")
-        with pytest.raises(SystemExit, match="MINIO_ACCESS_KEY"):
-            validate_required_env(["MINIO_ACCESS_KEY"])
+        monkeypatch.setenv("WORKER_MINIO_ACCESS_KEY", "   ")
+        with pytest.raises(SystemExit, match="WORKER_MINIO_ACCESS_KEY"):
+            validate_required_env(["WORKER_MINIO_ACCESS_KEY"])
 
     def test_reports_all_missing_vars(self, monkeypatch):
         monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
@@ -37,20 +37,20 @@ class TestValidateRequiredEnv:
 
     def test_passes_when_all_vars_set(self, monkeypatch):
         monkeypatch.setenv("POSTGRES_PASSWORD", "secret1")
-        monkeypatch.setenv("MINIO_ACCESS_KEY", "key")
-        monkeypatch.setenv("MINIO_SECRET_KEY", "secret2")
+        monkeypatch.setenv("WORKER_MINIO_ACCESS_KEY", "key")
+        monkeypatch.setenv("WORKER_MINIO_SECRET_KEY", "secret2")
         monkeypatch.setenv("CLICKHOUSE_PASSWORD", "secret3")
         # Should not raise
         validate_required_env([
             "POSTGRES_PASSWORD",
-            "MINIO_ACCESS_KEY",
-            "MINIO_SECRET_KEY",
+            "WORKER_MINIO_ACCESS_KEY",
+            "WORKER_MINIO_SECRET_KEY",
             "CLICKHOUSE_PASSWORD",
         ])
 
     def test_partial_missing_reports_only_missing(self, monkeypatch):
         monkeypatch.setenv("POSTGRES_PASSWORD", "ok")
-        monkeypatch.delenv("MINIO_SECRET_KEY", raising=False)
-        with pytest.raises(SystemExit, match="MINIO_SECRET_KEY") as exc_info:
-            validate_required_env(["POSTGRES_PASSWORD", "MINIO_SECRET_KEY"])
+        monkeypatch.delenv("WORKER_MINIO_SECRET_KEY", raising=False)
+        with pytest.raises(SystemExit, match="WORKER_MINIO_SECRET_KEY") as exc_info:
+            validate_required_env(["POSTGRES_PASSWORD", "WORKER_MINIO_SECRET_KEY"])
         assert "POSTGRES_PASSWORD" not in str(exc_info.value)

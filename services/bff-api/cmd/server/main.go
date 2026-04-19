@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -77,7 +78,7 @@ func main() {
 
 	// 6. Load static BFF config (metric provenance). Source metadata now
 	// lives in Postgres (Phase 87 — no more YAML mirror).
-	provenance, err := config.LoadMetricProvenance("configs/metric_provenance.yaml")
+	provenance, err := config.LoadMetricProvenance(filepath.Join(cfg.ConfigDir, "metric_provenance.yaml"))
 	if err != nil {
 		slog.Error("Failed to load metric_provenance.yaml", "error", err)
 		os.Exit(1)
@@ -86,7 +87,7 @@ func main() {
 	// 6b. Load the Dual-Register content catalog from the YAML files bundled
 	// with the binary. Malformed files abort startup so broken content is
 	// caught before any request is served.
-	catalog, err := config.LoadContentCatalog("configs/content")
+	catalog, err := config.LoadContentCatalog(filepath.Join(cfg.ConfigDir, "content"))
 	if err != nil {
 		slog.Error("Failed to load content catalog", "error", err)
 		os.Exit(1)

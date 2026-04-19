@@ -40,6 +40,12 @@ type Config struct {
 	BFFDBUser            string `mapstructure:"BFF_DB_USER"`
 	BFFDBPassword        string `mapstructure:"BFF_DB_PASSWORD"`
 	SourcesCacheTTLSecs  int    `mapstructure:"BFF_SOURCES_CACHE_TTL_SECONDS"`
+	// ConfigDir holds the directory containing the bundled BFF config files
+	// (metric_provenance.yaml, content/). The container build copies them to
+	// /app/configs and runs from /app, so the default `configs` resolves
+	// correctly. Host-mode runs invoke the binary from the repo root and must
+	// override to `services/bff-api/configs`.
+	ConfigDir            string `mapstructure:"BFF_CONFIG_DIR"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -69,6 +75,7 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_DB_USER", "")
 	v.SetDefault("BFF_DB_PASSWORD", "")
 	v.SetDefault("BFF_SOURCES_CACHE_TTL_SECONDS", 60)
+	v.SetDefault("BFF_CONFIG_DIR", "configs")
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

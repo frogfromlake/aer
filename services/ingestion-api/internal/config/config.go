@@ -14,8 +14,8 @@ type Config struct {
 	IngestionPort  string `mapstructure:"INGESTION_PORT"`
 	DBUrl          string `mapstructure:"DB_URL"`
 	MinioEndpoint  string `mapstructure:"MINIO_ENDPOINT"`
-	MinioAccessKey string `mapstructure:"MINIO_ACCESS_KEY"`
-	MinioSecretKey string `mapstructure:"MINIO_SECRET_KEY"`
+	MinioAccessKey string `mapstructure:"INGESTION_MINIO_ACCESS_KEY"`
+	MinioSecretKey string `mapstructure:"INGESTION_MINIO_SECRET_KEY"`
 	MinioUseSSL    bool   `mapstructure:"MINIO_USE_SSL"`
 	OTelEndpoint      string  `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	OTelSampleRate    float64 `mapstructure:"OTEL_TRACE_SAMPLE_RATE"`
@@ -50,8 +50,8 @@ func Load() (*Config, error) {
 	v.SetDefault("INGESTION_PORT", "8081")
 	v.SetDefault("DB_URL", "")
 	v.SetDefault("MINIO_ENDPOINT", "")
-	v.SetDefault("MINIO_ACCESS_KEY", "")
-	v.SetDefault("MINIO_SECRET_KEY", "")
+	v.SetDefault("INGESTION_MINIO_ACCESS_KEY", "")
+	v.SetDefault("INGESTION_MINIO_SECRET_KEY", "")
 	v.SetDefault("MINIO_USE_SSL", false)
 	v.SetDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
 	v.SetDefault("OTEL_TRACE_SAMPLE_RATE", 1.0)

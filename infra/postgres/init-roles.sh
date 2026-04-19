@@ -44,7 +44,7 @@ echo "postgres-init-roles: ensuring role '${BFF_DB_USER}' exists with read-only 
 # variable interpolation works (DO $$ blocks suppress interpolation).
 # The password is always (re)synced via ALTER ROLE so rotating
 # BFF_DB_PASSWORD in .env is picked up on the next stack restart.
-psql -v ON_ERROR_STOP=1 \
+psql -q -v ON_ERROR_STOP=1 \
      -v bff_user="${BFF_DB_USER}" \
      -v bff_password="${BFF_DB_PASSWORD}" \
      -v pg_database="${PGDATABASE}" \

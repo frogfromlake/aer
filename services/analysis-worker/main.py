@@ -36,8 +36,8 @@ logger = structlog.get_logger()
 
 REQUIRED_ENV_VARS = [
     "POSTGRES_PASSWORD",
-    "MINIO_ACCESS_KEY",
-    "MINIO_SECRET_KEY",
+    "WORKER_MINIO_ACCESS_KEY",
+    "WORKER_MINIO_SECRET_KEY",
     "CLICKHOUSE_PASSWORD",
 ]
 

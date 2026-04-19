@@ -183,6 +183,7 @@ make        # or: make help — prints a formatted overview of all available tar
 | `make test-go-pkg` | Run Go tests for the shared `pkg/` module |
 | `make test-go-crawlers` | Run Go crawler tests (RSS parser, translator, dedup) |
 | `make test-e2e` | Run Docker Compose end-to-end smoke test |
+| `make smoke-host` | Validate host-mode startup (binaries launched via `scripts/start.sh`); probes `/healthz` and worker PID. Complements `test-e2e` which only covers the container path. |
 | `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
 | `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
 | `make audit` | Run dependency vulnerability scanners (`govulncheck` for Go, `pip-audit` for Python) |

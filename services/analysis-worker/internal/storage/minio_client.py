@@ -28,8 +28,8 @@ def init_minio() -> Minio:
     """
     client = Minio(
         endpoint=os.getenv("MINIO_ENDPOINT", "localhost:9000"),
-        access_key=os.getenv("MINIO_ACCESS_KEY", ""),
-        secret_key=os.getenv("MINIO_SECRET_KEY", ""),
+        access_key=os.getenv("WORKER_MINIO_ACCESS_KEY", ""),
+        secret_key=os.getenv("WORKER_MINIO_SECRET_KEY", ""),
         secure=False
     )
     # Force a network call to verify the connection

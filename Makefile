@@ -5,7 +5,7 @@
 .PHONY: worker-up worker-down worker-restart
 .PHONY: bff-up bff-down bff-restart
 .PHONY: debug-up debug-down
-.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
+.PHONY: logs tidy codegen test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
 
 SHELL := /bin/bash
 
@@ -32,7 +32,14 @@ SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
 up: infra-up debug-up
 	@echo -e "$(BOLD)$(CYAN)Waiting a moment for infrastructure to settle...$(RESET)"
 	@sleep 3
-	@$(MAKE) services-up
+	@$(MAKE) ingestion-up
+	@$(MAKE) worker-up
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Provisioning bff_readonly Postgres role...$(RESET)"
+	@docker compose run --rm --no-deps postgres-init-roles
+	@$(MAKE) bff-up
+	@echo ""
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) All AĒR services are running in the background!$(RESET)"
+	@echo -e "$(GRAY)Use 'make logs' to view the live output.$(RESET)"
 	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack is up and running!$(RESET)"
 
 down: services-down debug-down infra-down
@@ -81,7 +88,7 @@ debug-up:
 
 debug-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING DEBUG PORT FORWARDER ---$(RESET)"
-	@docker compose --profile debug stop debug-ports
+	@docker compose --profile debug rm --stop --force debug-ports 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Debug ports closed. Backend services still running internally.$(RESET)"
 
 infra-clean:
@@ -191,6 +198,10 @@ test: test-go test-go-pkg test-go-crawlers test-python
 test-e2e:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running End-to-End Smoke Test (full Docker Compose stack)...$(RESET)"
 	@./scripts/e2e_smoke_test.sh
+
+smoke-host:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Host-Mode Smoke Test (validates start.sh path)...$(RESET)"
+	@./scripts/smoke_host.sh
 
 test-go:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"

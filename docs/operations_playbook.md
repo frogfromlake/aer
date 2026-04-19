@@ -84,7 +84,19 @@ make debug-up            # Expose backend ports to localhost
 make debug-down          # Close debug ports (services keep running)
 
 make logs                # Tail combined service logs (Ctrl+C safe)
+
+make smoke-host          # Validate host-mode startup (services launched via scripts/start.sh)
+make test-e2e            # Run Docker Compose end-to-end smoke test
 ```
+
+> **Host-mode vs. container-mode startup.** `make up` runs the three application
+> services as **host processes** via `scripts/start.sh` (against infrastructure
+> in Docker). The container path is exercised by `make test-e2e`
+> (`docker compose up`). Host mode reads `.env` directly through viper/dotenv and
+> requires `BFF_CONFIG_DIR=services/bff-api/configs` (set in `.env.example`)
+> because the BFF binary's relative `configs/` path resolves against the repo
+> root, not `/app`. `make smoke-host` is a fast post-`make up` health probe that
+> catches host-mode regressions the container-only `test-e2e` cannot see.
 
 ---
 
