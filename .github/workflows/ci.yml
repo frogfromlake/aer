@@ -121,10 +121,16 @@ jobs:
       - name: Install oapi-codegen
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@${{ env.OAPI_CODEGEN_VERSION }}
 
+      - name: OpenAPI $ref-style lint (ADR-021)
+        run: make openapi-lint
+
       - name: OpenAPI Contract Test (codegen sync check)
         run: |
           make codegen
-          git diff --exit-code services/bff-api/internal/handler/generated.go
+          git diff --exit-code services/bff-api/internal/handler/generated.go services/ingestion-api/internal/apicontract/generated.go
+
+      - name: OpenAPI Bundle (Swagger UI artifact)
+        run: make openapi-bundle
 
       - name: Run Go Crawler Tests
         run: cd crawlers/rss-crawler && go test -v ./...
