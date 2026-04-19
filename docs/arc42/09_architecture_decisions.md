@@ -773,3 +773,59 @@ Each phase is independent and deployable on its own. No phase leaves the dashboa
 * **Proposed:** 2026-04-17 by Fabian Quist (senior architect) in collaborative design session with AĒR.
 * **Ratified:** [date TBD — pending author review]
 * **Review date:** 2027-04 (12-month review) or on any major Svelte / three.js / ecosystem regression.
+
+---
+
+## ADR-021: Contract-First for All HTTP Services
+
+**Status:** Accepted (Phase 96, 2026-04-19)
+
+**Context.**
+Hard Rule 4 ("Contract-first API") originated with the BFF, where an OpenAPI spec drives `oapi-codegen`. The ingestion API predates the rule and had no spec. A code review ahead of the Phase 97 frontend work surfaced three concrete gaps: (1) the crawler → ingestion boundary had no machine-readable contract, so crawlers and the ingestion handler could drift silently; (2) there was no browsable API reference for either service; (3) the modular BFF spec introduced in Phase 95 mixed two `$ref` styles, and a naïve "normalize to one style" effort is technically impossible without regressing generated Go types (see Consequences).
+
+**Decision.**
+Every AĒR HTTP service ships a contract-first OpenAPI 3.0 specification under `services/<service>/api/`. The spec is the SSoT for the service's HTTP surface. Codegen runs against the modular tree; a custom bundler produces a single-file artifact for Swagger UI. A principled two-style `$ref` convention is adopted and enforced by a CI lint gate.
+
+**The two-style `$ref` convention.**
+
+1. **Path-level refs to top-level components** (`api/paths/*.yaml`, pointing at `components/schemas/X`) MAY use `#/components/schemas/X`. This is the only form under which `kin-openapi` (oapi-codegen's loader) emits a **named** Go type — it inlines the path-item into the root document before resolving the ref. Switching such a ref to `../schemas/X.yaml` collapses the schema to an anonymous inline type, materially changing the generated API surface.
+2. **All other refs** — refs inside schemas, parameters, responses, or any external file — MUST use external-file refs (`../schemas/X.yaml`). JSON Reference's `#` means "current document", so `#/components/...` inside an external file does not resolve against the root; strict bundlers (`redocly bundle`, `swagger-cli bundle`) correctly reject it.
+
+Rule 2 is enforced by `scripts/openapi_ref_style_check.sh` (run via `make openapi-lint`). Rule 1 is enforced implicitly by `make codegen && git diff --exit-code`: any regression from a named type to an inline type shows up as a drift diff.
+
+**Tooling.**
+
+* `scripts/openapi_bundle.py` produces `services/<service>/api/openapi.bundle.yaml` by emulating `kin-openapi`'s path-item flattening, then resolving external-file refs. Off-the-shelf bundlers were evaluated and rejected because both (`redocly`, `swagger-cli`) reject the Rule-1 form this repo relies on for named Go types.
+* A `swagger-ui` container is gated behind the `dev` compose profile, bound to `127.0.0.1:8089`, and mounts both bundle files with a multi-spec dropdown.
+* `make codegen` regenerates both services from the modular source directly — the bundle is for human and frontend consumption only.
+
+**Ingestion API scope.**
+The ingestion API ships a types-only codegen target (`internal/apicontract/generated.go`). The existing hand-written handler is not migrated to `strict-server` in this phase; the spec is the normative external contract and the handler implementation will converge on it in a later phase. This avoids scope creep into a handler rewrite while still closing the documentation and drift-prevention gap.
+
+**Alternatives considered.**
+
+* **BFF-only contract-first (status quo).** Rejected: leaves the crawler → ingestion boundary undocumented and unable to drift-check.
+* **Normalize all refs to external-file form.** Rejected: attempted and reverted. Removing path-level `#/components/...` refs from the four BFF path files collapses four named Go types into anonymous inline types, breaking the BFF API's generated surface. The "inconsistency" observed in the Phase 95 spec is in fact the intended behavior of `kin-openapi` — what was missing was a written convention and a lint gate.
+* **Normalize all refs to `#/components/...` form.** Rejected: fundamentally impossible because `#` means "current document" in JSON Reference; the style is only resolvable at path level via `kin-openapi`'s special-case flattening.
+* **Use `redocly bundle` for the bundled artifact.** Rejected: `redocly` correctly refuses path-level `#/components/...` refs in external files. Routes away from either (a) a custom bundler or (b) abandoning named Go types; we chose (a).
+* **Use `strict-server` for ingestion in Phase 96.** Rejected on scope grounds — the contract-first gap is closable without also rewriting the existing handler; the handler convergence is a follow-up.
+
+**Consequences.**
+
+* New contributors must be aware of the two-style convention. §8.19 and the lint gate are the enforcement points; a violation of Rule 2 fails `make lint`.
+* `scripts/openapi_bundle.py` is now a small first-party tool that must be maintained. Its surface is intentionally small (~100 lines) and has no external dependency beyond PyYAML (already present via the analysis worker).
+* The ingestion handler is not yet generated from its contract; drift is possible between the documented surface and the actual handler behavior until a follow-up phase runs the handler through `strict-server`. This is mitigated by the existing ingestion integration tests, which exercise real request shapes.
+* Swagger UI is available but gated behind a compose profile so it never accidentally ships to production.
+
+**References.**
+
+* `services/bff-api/api/openapi.yaml`, `services/ingestion-api/api/openapi.yaml`
+* `scripts/openapi_bundle.py`, `scripts/openapi_ref_style_check.sh`
+* Arc42 §8.19 — API Contract Layout & Tooling.
+* Roadmap Phase 96 — OpenAPI Contract Consolidation.
+
+### Decision Record
+
+* **Proposed:** 2026-04-19 during Phase 96 implementation.
+* **Ratified:** 2026-04-19 by the implementing engineer; ratification pending user/author review.
+* **Review date:** 2027-04 or on any oapi-codegen / kin-openapi major version bump that changes path-item flattening semantics.

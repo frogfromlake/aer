@@ -504,3 +504,45 @@ GET /api/v1/content/{entityType}/{entityId}?locale=en|de
 **Relationship to other subsystems.** The Content Catalog is the authoritative source for all Dual-Register copy. The metric provenance endpoint (`GET /api/v1/metrics/{metricName}/provenance`) serves structured methodological metadata (tier classification, known limitations, extractor hash) from `metric_provenance.yaml` — these are machine-readable fields for programmatic use. The Content Catalog serves human-authored prose for the same metrics — these are the reading copy for the frontend's Layer 4 panels. Both serve different facets of the reflexive architecture; neither replaces the other.
 
 See [Design Brief §5.7](../design/design_brief.md) for the Dual-Register communication pattern. See §8.17 for the frontend architecture that consumes this subsystem. See the Glossary for the **Content Catalog** entry (§12).
+
+## 8.19 API Contract Layout & Tooling (Phase 96)
+
+Every HTTP service owns a contract-first OpenAPI 3.0 specification under `services/<service>/api/`. The layout is modular — paths, schemas, parameters, and responses live in their own files — and codegen runs against the modular tree directly. A custom bundler produces a single-file artifact for Swagger UI. See ADR-021 for the contract-first decision across all HTTP services.
+
+**Modular directory layout.**
+
+```
+services/<service>/api/
+├── openapi.yaml              # root document: info, servers, security, paths, components
+├── codegen.yaml              # oapi-codegen config
+├── paths/                    # one file per path (*.yaml)
+├── schemas/                  # named component schemas
+├── parameters/               # reusable query/path parameters
+└── responses/                # reusable responses (e.g., InternalServerError)
+```
+
+`services/bff-api/` and `services/ingestion-api/` both follow this layout. The BFF uses `chi-server` + `strict-server` + `types` generation into `internal/handler/generated.go`. The ingestion API currently generates `types` only into `internal/apicontract/generated.go` so the contract documents the external surface without forcing a hand-written-handler rewrite in the same phase.
+
+**`$ref` style — the two-style convention.** JSON Reference's `#` means "current document". This produces a non-obvious rule split that AĒR enforces explicitly:
+
+| Location of `$ref` | Allowed form | Reason |
+| :--- | :--- | :--- |
+| `api/paths/*.yaml` (path-level, referencing a top-level schema) | `#/components/schemas/X` | Required for `kin-openapi` (oapi-codegen) to produce a **named** Go type via path-item flattening. Switching to `../schemas/X.yaml` collapses to an anonymous inline type. |
+| `api/paths/*.yaml` (non-component targets — e.g., shared responses) | `../responses/X.yaml` | No top-level component exists to reference. |
+| Inside any `api/schemas/*.yaml`, `api/parameters/*.yaml`, `api/responses/*.yaml` | `../schemas/X.yaml` (external file) | `#/components/...` inside an external file is unresolvable — `#` refers to the file itself, not the root. |
+
+The first row is the only context in which `#/components/...` is sanctioned. `kin-openapi` handles it because it inlines the path-item into the root document before resolving the ref. Strict bundlers (`redocly bundle`, `swagger-cli bundle`) do not — which is why AĒR ships a custom bundler, not one of those off-the-shelf tools.
+
+**Lint gate.** `scripts/openapi_ref_style_check.sh` (wired into `make lint` via `openapi-lint`) fails CI if any file under `services/*/api/{schemas,parameters,responses}/` contains a `$ref: '#/...'`. Path files are intentionally out of scope — the sanctioned `#/components/...` pattern must remain usable there.
+
+**Bundling.** `scripts/openapi_bundle.py` produces `services/<service>/api/openapi.bundle.yaml` by emulating `kin-openapi`'s path-item flattening: it inlines path files into the root first (so their `#/components/...` refs become valid against the combined document), then resolves remaining external-file refs. The bundle is gitignored, rebuilt on demand via `make openapi-bundle`, and consumed by Swagger UI. Codegen does **not** read the bundle — it runs against the modular source directly.
+
+**Swagger UI.** A `swagger-ui` service (`swaggerapi/swagger-ui`, pinned tag) lives in `compose.yaml` under the `dev` compose profile so it is absent in production. It is bound to `127.0.0.1:8089` (loopback-only, not published through Traefik) and mounts both bundle files with a multi-spec dropdown. Start with `docker compose --profile dev up swagger-ui`; see the Operations Playbook for the workflow.
+
+**CI enforcement.** Three independent checks:
+
+1. `make openapi-lint` — ref-style convention.
+2. `make codegen && git diff --exit-code` — spec and generated code are in sync.
+3. `make openapi-bundle` — spec tree bundles successfully for both services (catches structural breaks before they reach Swagger UI).
+
+See [ADR-021](09_architecture_decisions.md#adr-021-contract-first-for-all-http-services).

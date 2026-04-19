@@ -73,6 +73,8 @@ graph LR
 
 **Key interfaces:** PostgreSQL (SQL INSERT/UPDATE, `golang-migrate` on startup), MinIO (S3 PUT), OTel Collector (gRPC traces).
 
+**API contract:** `services/ingestion-api/api/openapi.yaml` (contract-first since Phase 96, see ADR-021). Types are generated into `internal/apicontract/` via `make codegen`. Browse interactively via Swagger UI — see §8.19 and the Operations Playbook.
+
 ### 5.1.2 Analysis Worker (Python)
 
 **Responsibility:** Source-agnostic data harmonization, schema validation, metric extraction, and Dead Letter Queue management. This is the core processing engine of the Medallion Architecture.
@@ -101,6 +103,8 @@ graph LR
 Protected by an API-key middleware on all routes except health probes. Exposed to the internet through Traefik via Docker labels (`PathPrefix(/api)`). Provides `/api/v1/healthz` (liveness) and `/api/v1/readyz` (readiness, checks ClickHouse) endpoints.
 
 **Key interfaces:** ClickHouse (native protocol SELECT on `aer_gold.metrics`, `aer_gold.entities`, and `aer_gold.language_detections`), Traefik (HTTP routing via labels), OTel Collector (gRPC traces).
+
+**API contract:** `services/bff-api/api/openapi.yaml` (modular layout, contract-first per Hard Rule 4 and ADR-021). Server stubs + types regenerated via `make codegen`. Browse interactively via Swagger UI — see §8.19 and the Operations Playbook.
 
 ### 5.1.4 Storage & Event Core
 

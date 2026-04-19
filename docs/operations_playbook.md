@@ -811,6 +811,54 @@ The MkDocs Material container mounts the repository root and serves `docs/` with
 
 ---
 
+## API Contract Reference (Swagger UI)
+
+Introduced in Phase 96. The BFF and Ingestion APIs each own a modular OpenAPI 3.0 spec under `services/<service>/api/`. A dev-only `swagger-ui` container serves a browsable HTML reference backed by bundled single-file artifacts.
+
+| Property       | Value                                |
+| :------------- | :----------------------------------- |
+| URL            | `http://localhost:8089`              |
+| Compose profile | `dev` (absent from default `make up`) |
+| Bind address   | `127.0.0.1` (loopback only; never through Traefik) |
+
+### Start, stop, refresh
+
+```bash
+# 1. Produce the bundles consumed by Swagger UI.
+make openapi-bundle
+
+# 2. Start the dev-only swagger-ui container.
+docker compose --profile dev up -d swagger-ui
+
+# 3. Browse. Use the spec dropdown (top-right) to switch between
+#    "BFF API" and "Ingestion API".
+open http://localhost:8089
+
+# 4. Stop when done.
+docker compose --profile dev down swagger-ui
+```
+
+### Editing workflow
+
+1. Edit the modular source under `services/<service>/api/` (`openapi.yaml`, `paths/*.yaml`, `schemas/*.yaml`, `parameters/*.yaml`, `responses/*.yaml`).
+2. `make openapi-lint` — enforces the two-style `$ref` convention (see §8.19 / ADR-021).
+3. `make codegen` — regenerates Go types from the modular source; CI fails on drift.
+4. `make openapi-bundle` — rebuilds `services/<service>/api/openapi.bundle.yaml`.
+5. Refresh the Swagger UI browser tab — bundles are mounted read-only, no container restart needed.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+| :--- | :--- | :--- |
+| Swagger UI shows "Failed to load API definition" | Bundle is stale or missing | `make openapi-bundle` |
+| `make openapi-lint` fails with `in-document $ref found in external file` | A `$ref: '#/...'` was added inside `schemas/`, `parameters/`, or `responses/` | Rewrite to external-file form (`../schemas/X.yaml`); see §8.19 |
+| `make codegen` produces a diff on `generated.go` after a spec change | Expected if the spec's external surface changed | Inspect the diff; if it collapses a named type to `interface{}` or an inline struct, a path-level `#/components/...` ref was switched to an external-file ref — revert |
+| `make openapi-bundle` crashes with `FileNotFoundError` | An external-file ref points at a missing file | Check the ref target; file paths are relative to the referring file |
+
+See Arc42 §8.19 for the full convention and ADR-021 for the underlying decision.
+
+---
+
 ## Testing
 
 ```bash
