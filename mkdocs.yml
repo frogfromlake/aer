@@ -219,7 +219,8 @@ nav:
   # Design
   # ---------------------------------------------------------------------------
   - "Design":
-      - "Visualization Guidelines (WP-006)": design/visualization_guidelines.md
+      - "Design Brief": design/design_brief.md
+      - "Visualization Guidelines": design/visualization_guidelines.md
 
   # ---------------------------------------------------------------------------
   # Probes

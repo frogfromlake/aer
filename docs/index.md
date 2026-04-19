@@ -26,6 +26,10 @@ The epistemological lens of the system. A series of six interdisciplinary workin
 | **WP-005** | Temporal Granularity | [EN](methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md) | [DE](methodology/de/WP-005-de-temporale_granularitaet_von_diskursverschiebungen.md) |
 | **WP-006** | Observer Effect & Reflexivity | [EN](methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md) | [DE](methodology/de/WP-006-de-beobachtereffekt_reflexivitaet_und_die_ethik_der_diskursmessung.md) |
 
+### Design
+
+The design language of the AĒR dashboard. The [Design Brief](design/design_brief.md) defines visual identity, interaction architecture, and extensibility commitments — the three surfaces, the five layers of progressive descent, the Dual-Register communication pattern, and the performance and equity constraints that any dashboard implementation must satisfy. The [Visualization Guidelines](design/visualization_guidelines.md) constrain individual rendering decisions (color palettes, uncertainty encoding, normative labels). The brief governs; the guidelines express it at the chart level.
+
 ### Operations Playbook
 The practical guide for system operators. It contains [runbooks](operations_playbook.md), infrastructure commands, and observability guidelines (Grafana, Tempo, Prometheus) for deploying and maintaining the stack — the *what to type* reference.
 
