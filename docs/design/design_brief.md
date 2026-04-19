@@ -93,15 +93,27 @@ Cross-context composition is not a fourth surface. As more probes are added, eac
 
 ### 3.1 Surface I: Atmosphere (the first contact)
 
-The default entry. A three-dimensional Earth, slowly rotating, against deep black. Landmasses rendered as restrained gray silhouettes — no political borders, no country labels at the highest altitude. On this globe:
+The default entry. A three-dimensional Earth, slowly rotating, against deep black. Landmasses rendered as restrained gray silhouettes — no political borders, no country labels at the highest altitude.
 
-- **Luminous points** mark active probes. Brightness is publication volume in the selected time window; pulse rate (if motion at all) is long-scale.
-- **The terminator** (day/night boundary) is real and current. Publication rhythms follow it.
+The Atmosphere surface answers one question: *what is the state of AĒR's observation right now?* It is the synchronic face (Aleph) — but the other two pillars are latent here too, by the fractal principle of §4.5. Aleph is dominant; Episteme is implicit in the baseline character of each probe; Rhizome is ready but invisible until multi-probe data makes propagation observable. The user is not watching a scoreboard — they are watching an atmosphere.
+
+On this globe:
+
+- **Luminous probe points** mark active probes. Core brightness reflects publication volume in the selected time window. Pulse rate carries current activity density — a probe publishing 40 documents per hour pulses perceptibly faster than one publishing 5 per hour. The fastest pulse remains slow by human standards: this is still "stillness with motion beneath" (§1.1). Pulse rate is bounded; it does not race.
+
+- **Reach aura** surrounds each probe point — a soft, translucent field that indicates *where the probe observes*, not its impact or influence. The aura's shape is read from the Probe Dossier (§6.4) and may be a simple territorial region (a national probe) or a non-contiguous pattern of cultural affinity (a diasporic or subcultural probe). The aura is static; it does not animate. Multiple overlapping auras compose additively, revealing regions of methodological attention that no single probe dominates.
+
+- **The terminator** (day/night boundary) is real and current. Publication rhythms follow it. The terminator moves at Earth rotation speed — visually almost static, cosmologically alive.
+
 - **Absence regions** — every area where AĒR has no active probe — are marked as *explicitly unmonitored*. Not dim, not greyed, but positively tagged. This is the Coverage Map from WP-001 §5.3 integrated into the first impression.
 
-The Atmosphere surface answers one question: *what is the state of AĒR's observation right now?* It is the synchronic face (Aleph). It is kept minimal; it is the layer where the user breathes.
+- **Propagation arcs** (latent). The engine reserves a rendering slot for Rhizome propagation — arcs tracing how discourse events move between probes. These arcs remain invisible until multi-probe data produces measurable cross-context propagation (WP-005 §6). When they appear, their motion is on the scale of minutes, not seconds. Until then, the slot is inert and carries no visual cost.
 
-With multiple probes active, the globe composes: multiple luminous points, each carrying its own emic context on focus, none of them ranked. The observer sees a *constellation*, not a scoreboard.
+The Atmosphere surface is kept minimal in cognitive weight, not in informational depth. A single glance shows: which cultural contexts are observed, how active each is now, and — negatively — which contexts are absent. The user sees a *constellation*, not a scoreboard. It is the layer where the user breathes.
+```
+
+**Begründung:** Der ursprüngliche §3.1 behandelte L0 als einfache Punkt-Visualisierung und widersprach damit implizit §4.5 (Fractal Cultural Granularity), das fordert, alle drei Pillars auf jeder Tiefe mitwirken zu lassen. Der neue Text verankert Aleph-dominant, Episteme-latent (Pulse-Rate als Aktivitätsdichte), Rhizome-bereit (Propagations-Slot). Das historische Weight-Ring-Konzept ist entfernt — dem Einwand entsprechend, dass es bei vielen Probes überlädt. Stattdessen trägt der Puls selbst die Aleph-Information.
+
 
 ### 3.2 Surface II: Function Lanes (the scientific work)
 

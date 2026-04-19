@@ -1560,72 +1560,37 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-## Phase 98: Surface I Shell — Low-Fidelity Atmosphere [P1] - [ ] TODO
+## Phase 98: Surface I — 3D Atmosphere Engine & First Contact [P1] - [ ] TODO
 
-*The first user-facing feature: a 2D equirectangular map showing Probe 0's two luminous points over Germany, with a live terminator, served from live BFF data. No 3D, no WebGL. This phase proves the end-to-end pipeline — BFF query → typed client → Svelte state → rendering — works under realistic constraints. The low-fidelity atmosphere is deliberately the first feature because Design Brief §5.6 says it must carry full scientific depth on weak hardware. If it works at L0–L1 here, it will work everywhere.*
+*The first user-facing feature. A rotating 3D globe with custom GLSL shaders for terminator and probe glow, served from live BFF data. Built framework-agnostically under `services/dashboard/packages/engine-3d/` per ADR-020 §5.9 consequence. High-Fidelity is the only mode shipped in this phase; a minimal text fallback covers browsers without WebGL2 (no full Low-Fi yet — that is a later phase once we know what we are reducing from). This phase proves the end-to-end pipeline — BFF query → typed client → Svelte state → engine API → WebGL rendering — under realistic constraints.*
 
-* [ ] **Data layer foundation.** `src/lib/api/client.ts` wraps the generated types (from `make codegen-ts`) with a typed fetch client. `src/lib/api/queries.ts` defines query functions using TanStack Query (Svelte adapter). Query keys follow a stable schema: `['probes']`, `['probes', probeId]`, `['metrics', metricName, { source, from, to, resolution }]`. Error handling: typed discriminated unions for success / refusal / network error.
+* [ ] **3D engine package setup.** Create `services/dashboard/packages/engine-3d/` as a pnpm workspace package. `package.json` declares three.js as a peer dependency for correct tree-shaking into the lazy chunk. TypeScript strict mode. Own Histoire stories, own Vitest tests.
 
-* [ ] **Refusal surface primitive.** `src/lib/components/RefusalSurface.svelte` — the component that renders BFF HTTP 400 responses as methodological statements per Design Brief §5.4. Accepts a `refusalType` prop, queries the Content Catalog (from Phase 95) for the corresponding text, renders semantic + methodological registers via Progressive Semantics (§5.7). This is the first component that uses the Content Catalog end-to-end.
+* [ ] **Three.js import discipline.** Import only what is needed: `WebGLRenderer`, `Scene`, `PerspectiveCamera`, `SphereGeometry`, `Mesh`, `ShaderMaterial`, `Vector3`, `Color`, `Clock`, `Raycaster`. `OrbitControls` from `three/examples/jsm/controls/`. Nothing else from `three/examples/*`. Verify: after full engine build, the three.js footprint is < 100 kB gzipped.
 
-* [ ] **Progressive Semantics primitive.** `src/lib/components/ProgressiveSemantics.svelte` — the component that renders any entity (metric value, probe label, refusal) in Dual-Register form. Semantic register primary by default; methodological register accessible via a compact badge affordance. ARIA-Expanded pattern for register transitions. Both registers always present in DOM; CSS controls prominence. Used by most subsequent components.
+* [ ] **Globe geometry and textures.** Blue-Marble-style Earth texture (public domain NASA imagery, baked to 2048×1024 WebP, ~80 kB). Single sphere mesh. Texture loaded lazily after the shell's first paint — the engine canvas shows a dark sphere while the texture streams in, preserving Design Brief §1.1 (stillness).
 
-* [ ] **Low-fidelity map rendering module.** `src/lib/viz/atmosphere-lofi.ts` — framework-agnostic 2D map renderer. Input: probe list, time range, sun position. Output: SVG element. Features:
-  - Equirectangular projection of coastlines (from pre-built SVG at `static/world.svg`, ~15 kB)
-  - Probe points as static circles (luminosity via `visibility` opacity tied to publication volume)
-  - Live terminator as a sine-curve polygon (recomputed on sun-position change, ~60 seconds update cadence)
-  - Absence regions optionally rendered on negative-space overlay (Phase 103, not now — component ready for future extension)
-  Tested in Histoire isolated from the framework.
+* [ ] **Custom terminator shader (GLSL).** `packages/engine-3d/src/shaders/terminator.glsl` — fragment shader computing per-pixel day/night via `dot(normal, sunDirection)`. Smooth transition via `smoothstep` over a ~5° angular band for realistic twilight. Day side: unaltered Earth texture. Night side: darkened texture with subtle city-lights overlay (optional second texture, ~60 kB, lazy-loaded). Uniform `uSunDirection` updated per frame from current Unix timestamp.
 
-* [ ] **Atmosphere route.** `src/routes/+page.svelte` (replacing the Hello AĒR landing):
-  - Queries `/api/v1/probes` for active probes
-  - Queries `/api/v1/metrics/temporal_distribution` for the last 24 hours for each probe
-  - Renders via the low-fidelity map module
-  - On probe hover: tooltip with emic designation (from content catalog)
-  - On probe click: side panel opens with probe metadata (Layer 3 descent — structural; content rendering in later phases)
-  No 3D, no WebGL. This is Surface I at Layer 0–L1 in pure Low-Fidelity.
+* [ ] **Custom probe glow shader (GLSL).** Billboarded quad per probe point with radial gradient glow. Shader uniforms: `uCoreBrightness` (from publication volume), `uPulseRate` (from current activity density — documents per hour in the last rolling window), `uPulsePhase` (time-driven). Pulse modulation is bounded: `uPulseRate` is clamped so the fastest pulse completes no more than one cycle per ~4 seconds, honoring §1.1 "stillness with motion beneath". No post-processing pass — the glow is computed in-shader to respect the frame budget.
 
-* [ ] **Time scrubber component.** `src/lib/components/TimeScrubber.svelte` — horizontal slider for time-range selection. URL-persisted (`?from=...&to=...`). Uses the base Button component. Accessible via keyboard (arrow keys, Home/End).
+* [ ] **Custom reach-aura shader (GLSL).** Translucent volumetric field rendered as a soft sphere-projected geometry per probe. Input: a reach-region descriptor from the Probe Dossier API (polygon in lat/lon space, potentially non-contiguous for diasporic probes). Shader blends additively where multiple auras overlap. Aura is static — no animation. Alpha is low enough that overlapping auras compose without saturating. For Probe 0 (Germany), the reach is a simple country polygon; the engine treats it generically so a diasporic probe later "just works".
 
-* [ ] **URL-state synchronization.** `src/lib/state/url.ts` — a Svelte 5 Runes-based store that reads/writes state (`activeProbe`, `timeRange`, `resolution`, `viewingMode`) to the URL. Design Brief §5.5 mandates deep-linkable state. A conversation about AĒR is a conversation about URLs.
+* [ ] **Propagation-arc shader slot (GLSL, reserved).** `packages/engine-3d/src/shaders/propagation.glsl` — great-circle arc shader wired into the engine from day one but inactive until multi-probe propagation data is available. The engine exposes `setPropagationEvents(events: PropagationEvent[])` in its API; when the array is empty, no geometry is drawn and no fragment cycles are spent. This phase commits only to the plumbing; rendering comes when data arrives in a later phase.
 
-* [ ] **Integration test.** A Playwright E2E test: load the dashboard → verify Germany appears on the map → verify two probe points visible → click one → verify side panel opens with emic content from the Content Catalog → verify trace IDs appear in the Tempo dashboard.
+* [ ] **Atmospheric scattering shader.** Rayleigh/Mie halo around the globe edge. Standard analytic approximation (Bruneton-Neyret or equivalent reference). Ornamental yet informational per Design Brief §5.1 — the halo is real physics.
 
-* [ ] **Accessibility audit for Surface I.** `@axe-core/playwright` against the atmosphere surface in both themes. Keyboard-only navigation: all interactive elements reachable via Tab; focus-visible rings present; ESC closes panels. Screen-reader verification: VoiceOver / NVDA reports meaningful content (not just "SVG"). Zero WCAG 2.2 AA violations.
+* [ ] **Camera controls.** `OrbitControls` with damping. Zoom limits: no closer than 1.2× globe radius, no farther than 8×. Auto-rotation at 0.05 rad/s when the user has not interacted in 10s. Reduced-motion respected: auto-rotation disabled when `prefers-reduced-motion: reduce` is set.
 
-* [ ] **Performance measurement.** Lighthouse CI run: on 50 Mbps connection (Design Brief §7 high-fi target), first contentful paint < 1.5s; on 5 Mbps throttled (low-fi target), first contentful paint < 3s. Bundle size: shell + atmosphere module < 120 kB gzipped. Frame times during scrubber interaction < 33 ms/frame.
+* [ ] **Raycaster for probe interaction.** Per-frame raycast on mouse-move identifies the closest probe point under the cursor. Hover: probe glow intensifies slightly; tooltip shows the emic designation (from the Content Catalog, Phase 95). Click: dispatches a `probe-selected` custom event to the framework shell, which opens the side panel.
 
-* [ ] **Validation.** `make fe-check` green. `make up` brings the full stack up; the atmosphere surface loads with live Probe 0 data. Both themes work. Visual regression snapshots updated.
-
-**Exit criteria:** A researcher can open the dashboard locally, see Probe 0's two sources over Germany on a live 2D map with a live terminator, click a probe to see its emic context, and scrub through time. The full data pipeline BFF → typed client → Svelte state → rendering module is validated. The Content Catalog from Phase 95 is consumed end-to-end. No 3D yet — but everything needed for 3D is now in place.
-
----
-
-## Phase 99: 3D Atmosphere Engine — High-Fidelity Upgrade [P1] - [ ] TODO
-
-*The high-fidelity atmosphere from Design Brief §3.1: a rotating 3D globe with custom GLSL shaders for terminator, probe glow, and atmospheric scattering. The engine is a framework-agnostic vanilla three.js module per §5.9. It lazy-loads after the low-fidelity atmosphere and upgrades the surface in place when ready. The user sees a smooth visual upgrade, not a page reload.*
-
-* [ ] **3D engine package.** Create `services/dashboard/packages/engine-3d/` as a pnpm workspace package. Enables isolated testing and dependency management distinct from the shell. `package.json` declares three.js as a peer dependency so it's tree-shaken correctly into the lazy chunk.
-
-* [ ] **Three.js import discipline.** Import only what's needed: `WebGLRenderer`, `Scene`, `PerspectiveCamera`, `SphereGeometry`, `Mesh`, `ShaderMaterial`, `Vector3`, `Color`, `Clock`. No `three/examples/*` except `OrbitControls`. Verify bundle: after full engine build, the three.js footprint is < 100 kB gzipped.
-
-* [ ] **Globe geometry and textures.** Blue-Marble-style Earth texture (public domain NASA imagery, baked to 2048×1024 WebP, ~80 kB). Single sphere mesh. Texture loaded lazily after first render of the low-fidelity form.
-
-* [ ] **Custom terminator shader (GLSL).** `packages/engine-3d/src/shaders/terminator.glsl` — fragment shader computing per-pixel day/night via `dot(normal, sunDirection)`. Smooth transition via `smoothstep` over a ~5° angular band for realistic twilight. Day side: unaltered Earth texture. Night side: darkened texture with city-lights overlay (optional second texture, further ~60 kB, lazy). Uniform `uSunDirection` updated per frame from current Unix timestamp.
-
-* [ ] **Probe glow shader (GLSL).** Custom shader for luminous probe points. Input: probe position in lat/lon, publication volume (→ brightness), pillar mode (→ hue variation within Viridis). Output: billboarded quad with radial gradient glow + subtle bloom. No post-processing pass — glow is done in the fragment shader directly, respecting the 60fps budget.
-
-* [ ] **Atmospheric scattering shader (GLSL).** Rayleigh/Mie atmospheric halo around the globe edge. Standard analytic approximation (see Bruneton-Neyret or similar references). This is the ornamental-yet-informational element allowed by Design Brief §5.1 — the halo is real physics, not decoration.
-
-* [ ] **Camera controls.** `OrbitControls` from three.js examples: orbit, zoom, tilt. Damping enabled for smooth feel. Zoom limits: no closer than 1.2× globe radius (prevents disorientation), no farther than 8× (keeps Earth visible). Auto-rotation at 0.05 rad/s when user hasn't interacted in 10s (atmospheric "stillness with motion beneath").
-
-* [ ] **Raycaster for probe interaction.** Per-frame raycast on mouse-move identifies the closest probe point under the cursor. Hover: probe glow intensifies slightly; tooltip with emic designation. Click: dispatches a `probe-selected` custom event to the framework shell, which opens the side panel (reusing the Phase 98 infrastructure).
-
-* [ ] **Engine API.** Minimal imperative interface exposed by the engine module:
+* [ ] **Engine imperative API.** Minimal surface exposed to the shell:
   ```typescript
   export interface AtmosphereEngine {
     mount(element: HTMLCanvasElement): void;
-    setProbes(probes: ProbeMarker[]): void;
+    setProbes(probes: ProbeMarker[]): void;        // probes with reach-region data
+    setActivity(activity: ProbeActivity[]): void;  // per-probe pulse and brightness
+    setPropagationEvents(events: PropagationEvent[]): void;  // empty until Rhizome data
     setPillarMode(mode: 'aleph' | 'episteme' | 'rhizome'): void;
     setTimeRange(from: Date, to: Date): void;
     flyTo(lat: number, lon: number, durationMs?: number): void;
@@ -1633,28 +1598,95 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
     dispose(): void;
   }
   ```
-  The framework shell calls this API; the engine never reaches into the shell.
+  The shell calls this API; the engine never reaches into the shell. Per ADR-020 §5.9.
 
-* [ ] **High-Fi / Low-Fi mode switching.** Capability detection on startup: WebGL2 available + GPU passes a simple benchmark (frame time < 20 ms on a test frame) → High-Fi. Otherwise Low-Fi. User can override via a settings toggle persisted in URL (`?fidelity=hi|lo`). When switching: smooth fade transition using the View Transitions API; both modes consume the same data from the query cache so no re-fetch needed.
+* [ ] **Data layer foundation.** `src/lib/api/client.ts` wraps the generated types (from `make codegen-ts`) with a typed fetch client. `src/lib/api/queries.ts` defines query functions using TanStack Query (Svelte adapter). Query keys follow a stable schema. Error handling: typed discriminated unions for success / refusal / network error.
 
-* [ ] **Respect for reduced motion.** If `prefers-reduced-motion: reduce` is set, auto-rotation is disabled; terminator update cadence reduced; atmosphere halo animation disabled. All data still renders.
+* [ ] **Refusal surface primitive.** `src/lib/components/RefusalSurface.svelte` — renders BFF HTTP 400 responses as methodological statements per Design Brief §5.4. Queries the Content Catalog (Phase 95) for the corresponding text. Renders semantic + methodological registers via Progressive Semantics (§5.7). First end-to-end consumer of the Content Catalog.
 
-* [ ] **Isolated engine tests.** Histoire stories for the engine: one with a single probe, one with ten probes, one with the globe paused, one demonstrating fly-to. Each story exercises the imperative API directly, without the SvelteKit shell. Visual regression snapshots of each story captured.
+* [ ] **Progressive Semantics primitive.** `src/lib/components/ProgressiveSemantics.svelte` — renders any entity in Dual-Register form. Semantic register primary; methodological register accessible via a compact badge affordance. ARIA-Expanded for transitions. Both registers always present in DOM; CSS controls prominence.
 
-* [ ] **Performance verification.** Benchmark on 2021 M1 MacBook Air (Design Brief §7 high-fi target): 60fps sustained during orbit with 10 probe points visible. Benchmark on integrated-graphics 2015 ThinkPad: High-Fi fails the capability check → automatic Low-Fi fallback (verified in Phase 98 already). No thermal throttling in a 10-minute session.
+* [ ] **Atmosphere route.** `src/routes/+page.svelte` — replaces the "Hello AĒR" landing.
+  - Queries `/api/v1/probes` for active probes (including reach-region data from the Probe Dossier)
+  - Queries `/api/v1/metrics/temporal_distribution` for the last 24 hours per probe → feeds pulse rate
+  - Mounts the engine into a full-viewport canvas
+  - On probe click: side panel opens with probe metadata rendered via Progressive Semantics
+  - Refusal surfaces render in the panel when queries fail on methodological gates
 
-* [ ] **Bundle impact.** After this phase, Surface I at High-Fidelity is a ~250 kB gzipped lazy chunk (engine + textures). Shell remains ~60 kB. Low-Fi users never download the 3D chunk. Bundle-size gate updated to check both.
+* [ ] **Time scrubber component.** `src/lib/components/TimeScrubber.svelte` — horizontal slider for time-range selection. URL-persisted (`?from=...&to=...`). Keyboard-accessible (arrow keys, Home/End). Uses the base Button from Phase 97.
 
-* [ ] **Integration test.** Playwright test on a WebGL2-capable headless browser (Chromium): load dashboard → verify 3D globe renders → verify terminator visible → verify probes visible → click a probe → verify the side panel opens (same panel as Low-Fi version). Then with WebGL2 disabled: verify Low-Fi fallback activates automatically.
+* [ ] **URL-state synchronization.** `src/lib/state/url.ts` — Svelte 5 Runes store that reads/writes state (`activeProbe`, `timeRange`, `resolution`, `viewingMode`) to the URL. §5.5 mandates deep-linkable state.
 
-* [ ] **Accessibility verification.** The 3D canvas has an ARIA-label describing the scene and fallback text content. Keyboard navigation: Tab moves through probes; Enter opens the selected probe's panel. Screen readers get a textual description of the atmospheric state. The visual experience is enhanced by 3D but does not depend on it.
+* [ ] **WebGL2 fallback.** Capability detection on startup. If WebGL2 is unavailable: render a plain text view listing active probes, their reach regions (as text), their current publication rate, and a clear notice: "This version of AĒR requires WebGL2 for the full experience. A fully accessible alternative is planned." No partial 3D; no canvas 2D substitute — that is the future Low-Fi phase. The fallback is 30 lines of Svelte; it exists to avoid a broken screen, not to be a feature.
 
-* [ ] **Arc42 update.** Update §8.17 (Frontend Architecture) with a brief note on the engine/shell separation and the High-Fi / Low-Fi mode-switching mechanism. Cross-reference the engine package location.
+* [ ] **Isolated engine stories (Histoire).** One story with Probe 0 (Germany), one with three synthetic probes across continents, one with the globe paused, one demonstrating fly-to, one with reach auras overlapping, one with the propagation slot fed synthetic arcs (for visual verification that the plumbing works). Each story exercises the imperative API directly.
 
-* [ ] **Validation.** `make fe-check` green. All tests green. Lighthouse CI: High-Fi first paint on 50 Mbps < 1.5s (low-fi paints first, 3D upgrades within 3s); no frames dropped during orbit. Histoire stories all render correctly. Visual regression snapshots stable.
+* [ ] **Integration test.** Playwright test on WebGL2-capable Chromium: load dashboard → verify 3D globe renders → verify terminator visible → verify Probe 0 visible with reach aura over Germany → verify pulse animates → click the probe → verify the side panel opens with emic content from the Content Catalog → verify the trace appears in Tempo. Second test with WebGL2 disabled: verify the text fallback shows.
 
-**Exit criteria:** The rotating Earth with live terminator, glowing probe points, and atmospheric halo renders at 60fps on capable hardware. Users on weak hardware get the Low-Fi version automatically. Both modes share the same data, the same Content Catalog content, and the same interactive behavior. The engine is fully isolated from the framework — it can be tested, benchmarked, and eventually swapped without touching the shell.
+* [ ] **Performance verification.** Benchmark on 2021 M1 MacBook Air (Design Brief §7 high-fi target): 60fps sustained during orbit with Probe 0 visible + reach aura + terminator. Bundle size after this phase: shell + engine chunk + textures together ≤ 350 kB gzipped (shell remains ≤ 80 kB; engine chunk ≤ 250 kB; textures stream lazily and do not count toward initial paint). Frame times during scrubber interaction < 16 ms/frame.
+
+* [ ] **Accessibility verification.** The 3D canvas has an ARIA-label describing the scene ("AĒR atmosphere: 3D rotating Earth showing active observation probes"). Keyboard navigation: Tab moves through probes; Enter opens the selected probe's panel. Screen readers get a textual state description that updates on meaningful state changes. The text fallback passes full WCAG 2.2 AA on its own.
+
+* [ ] **Arc42 update.** Extend §8.17 (Frontend Architecture) with a brief note on the engine/shell separation and the imperative API. Cross-reference the engine package location.
+
+* [ ] **Validation.** `make fe-check` green. All tests green. `make up` brings the full stack up; the atmosphere surface loads with live Probe 0 data. Lighthouse CI: first paint on 50 Mbps < 1.5s (shell paints first, engine and textures upgrade within ~3s). Histoire stories render correctly. Visual regression snapshots stable.
+
+**Exit criteria:** A researcher can open the dashboard locally and see the 3D Earth rotating slowly, with Probe 0's reach aura over Germany and a gently pulsing luminous point over its source locations. The terminator is live. Clicking a probe opens a side panel with its emic context from the Content Catalog. The full pipeline — BFF → typed client → Svelte → engine → GLSL — is validated end-to-end. No Low-Fi yet (browsers without WebGL2 see a text fallback); that comes later, once there is more to reduce.
 
 ---
 
+## Phase 99: Surface I Enrichment — Multi-Probe Composition & Layer-Depth Transitions [P1] - [ ] TODO
+
+*With the 3D engine running and Probe 0 visible, Phase 99 exercises the architecture at breadth (multiple-probe composition, even if simulated) and depth (descent from L0 to L3 within Surface I). This phase does not add new surfaces — it proves that the L0→L1→L2→L3 descent on Surface I works as specified in Design Brief §4. Rhizome remains latent; the propagation-arc slot from Phase 98 stays empty until a second probe is live.*
+
+* [ ] **Multi-probe rendering verification (synthetic).** Add a build-time flag that loads a small set of synthetic probes (e.g. three probes on three continents) for visual and performance verification. The synthetic data never leaves development builds. Confirms that reach-aura composition, pulse rate variation, and probe distribution render correctly at realistic multi-probe scale.
+
+* [ ] **L1 Orientation overlay.** Soft top-bar overlay (fade-in on first mouse movement): current time range, active probe count, normalization mode, active cultural contexts (emic designations from the Content Catalog). Fade-out after 10s of inactivity. Design Brief §4.2 Atmosphere/L1 cell.
+
+* [ ] **L2 Exploration controls.** Time-range scrubber (already built in Phase 98) becomes the L2 primary control. Add: resolution switch (5min / hourly / daily / weekly / monthly), pillar-mode toggle (Aleph/Episteme/Rhizome — but currently all three default to the same render, since Rhizome has no data and Episteme/Aleph differ only in time-window framing). Region zoom via mouse wheel / pinch.
+
+* [ ] **L3 Analysis companion panel.** On probe click, the panel that opens is no longer just metadata — it becomes the L3 Analysis view. Inside: a small time-series chart (using uPlot, framework-agnostic per §5.9) showing the selected metric for the selected probe over the selected time range. Uncertainty bands. Epistemic Weight styling from Phase 97. The 3D globe stays present behind the panel, dimmed to 30% opacity per §4.1 rule 2 ("no layer replaces").
+
+* [ ] **uPlot integration.** Add `uPlot` to the shell. Build a thin Svelte wrapper `src/lib/components/TimeSeriesChart.svelte` that renders a uPlot instance. Framework-agnostic at its core — the Svelte wrapper is < 30 lines, all actual rendering is uPlot's. Bundle impact: +40 kB gzipped, loaded when L3 activates (intent-based, starts preloading on probe hover).
+
+* [ ] **Descent animation via View Transitions API.** Descending from L0 to L3 (clicking a probe) uses the View Transitions API for a morphing transition: the probe point expands visually into the panel position; the globe fades behind; the panel's chart fades in. Ascent (closing the panel) reverses. Fallback for browsers without View Transitions: instant state change (still correct, just less elegant).
+
+* [ ] **L4 Provenance fly-out (partial).** The L3 panel's "why this shape?" affordance at the chart's corner opens an L4 Provenance fly-out. Content: tier classification, validation status, known limitations, equivalence level — all from the existing `/api/v1/metrics/{metricName}/provenance` endpoint, rendered via Progressive Semantics. This is the first full use of the Content Catalog's methodological register at the layer where it dominates (per §5.7 "primary at Layer 4").
+
+* [ ] **Keyboard navigation across layers.** Tab cycles through visible probes. Enter descends to L3 on the selected probe. Escape ascends one layer at a time (L3 → L0). Shift+Tab at L0 focuses the overlay controls (L1 bar). This is not a bolt-on — it defines the invisible interaction grammar that §4.1 rule 1 ("each layer reachable in one interaction") requires.
+
+* [ ] **URL state extended.** Descent state encoded in URL: `?probe=probe-0-de-institutional-rss&metric=sentiment_score&view=analysis`. Deep-linking into L3 works; refreshing the page preserves descent.
+
+* [ ] **Negative Space overlay toggle (structural only).** Add a keyboard shortcut (e.g. `Shift+N`) and a quiet UI affordance for the Negative Space overlay. In this phase the toggle exists and is hooked up to a Svelte 5 `$state` rune; the actual visual reweighting (Design Brief §3.4, §4.4) is deferred to a later phase along with the demographic-skew annotations from WP-003 §6. The toggle is visible but idempotent until then.
+
+* [ ] **Accessibility across layers.** `@axe-core/playwright` tests against every descent state: L0, L1, L2, L3, L4 fly-out. Zero WCAG 2.2 AA violations at any depth. Screen-reader announcements on descent: "Descending to Analysis view for Tagesschau probe" or equivalent.
+
+* [ ] **Performance across layers.** Lighthouse CI: descent from L0 to L3 under 500 ms (§7 high-fi budget). Ascent equally fast. Frame budget during descent transitions: < 33 ms (below the 60fps hard ceiling is acceptable during active transition; idle state returns to 16 ms).
+
+* [ ] **Integration tests.** Playwright E2E: (a) full descent L0→L1→L2→L3→L4, verifying each layer's state; (b) keyboard-only descent (no mouse); (c) deep-link directly to L4 via URL, verify correct initial render; (d) multi-probe view with synthetic probes — confirm visual non-overlap of reach auras and correct pulse behavior.
+
+* [ ] **Arc42 update.** Extend §8.17 with notes on the descent mechanism and the URL-state encoding. Record the View Transitions API dependency and its graceful-degradation behavior.
+
+* [ ] **Validation.** `make fe-check` green. All tests green. Visual regression snapshots for each layer state captured and stable.
+
+**Exit criteria:** A researcher can click a probe, descend into a time-series analysis view with provenance access, return to the atmospheric view, and share the state via URL. The fractal pillars (Aleph at L0, Episteme tightening at L2-L3) are observable in the interaction. Rhizome remains architecturally ready but latently invisible. The entire Surface I is complete through L4; Surface II and III and the full Negative Space overlay come in subsequent phases.
+
 ---
+
+### Low-Fidelity Mode — deferred
+
+The Low-Fidelity rendering mode from Design Brief §5.6 is **not** part of Phases 94–99. The original plan placed it before the 3D engine; that ordering was reversed because:
+
+1. The Low-Fi mode is a *reduction of* the High-Fi experience. Building it before High-Fi would require guessing what the High-Fi version looks like — introducing rework.
+2. Hardware-equity performance can only be measured against a complete High-Fi baseline.
+3. The minimal WebGL2 text fallback from Phase 98 is sufficient to avoid a broken screen on weak hardware while Low-Fi is developed later.
+
+Low-Fidelity becomes its own phase (tentatively Phase 104 or later, after Surfaces II and III are in place and the full system is a known quantity to reduce from). The commitment from Design Brief §5.6 stands; only the sequencing changes.
+
+---
+
+**Begründung für die Neufassung:**
+- Phase 98 ist jetzt die High-Fi 3D Atmosphere (vorher Phase 99). Sie trägt die vollen fraktalen L0-Aspekte aus dem aktualisierten Brief §3.1 — Reach Aura, Aktivitäts-Pulse, Propagations-Slot.
+- Phase 99 ist neu: sie erweitert die bestehende Surface I um Descent-Mechanik (L0→L4) und erste Multi-Probe-Aspekte. Sie berührt noch nicht Surface II oder III.
+- Low-Fi verschiebt sich — ohne aus dem Brief oder ADR verschwinden. Der Brief-Commitment bleibt.
+- Ein trivialer Text-Fallback in Phase 98 fängt Browser ohne WebGL2 ab, damit keine barriere-freie Lücke entsteht.

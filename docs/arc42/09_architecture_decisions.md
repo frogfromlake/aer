@@ -581,11 +581,11 @@ Rejected alternatives:
 
 ### Layer 2 — 3D Atmosphere Engine: vanilla three.js with custom GLSL shaders
 
-The globe, terminator, probe glow, absence fields, and atmospheric halo are rendered by a **vanilla three.js** engine module. The module is framework-agnostic and receives data through a narrow imperative API.
+> The globe, terminator, probe glow, probe reach auras, absence fields, atmospheric halo, and a reserved slot for Rhizome propagation arcs are rendered by a **vanilla three.js** engine module. The module is framework-agnostic and receives data through a narrow imperative API.
 
 Rationale:
 
-* **Shader control.** Terminator rendering (day/night boundary) is a fragment-shader problem: a per-pixel dot-product between the sun-direction vector and the surface normal. Probe glow requires a bloom-and-scatter shader. Absence fields require custom blending. Rayleigh/Mie atmospheric scattering follows well-documented shader patterns. Declarative framework wrappers (react-three-fiber, Threlte, Solid-Three) add abstraction overhead that impairs shader-level control at the 60fps target.
+* **Shader control.** Terminator rendering (day/night boundary) is a fragment-shader problem: a per-pixel dot-product between the sun-direction vector and the surface normal. Probe glow requires a bloom-and-scatter shader with a bounded pulse driven by activity density. Probe reach auras require a translucent volumetric field sampled from per-probe geometry (not a hardcoded circle). Absence fields require custom blending. Rayleigh/Mie atmospheric scattering follows well-documented shader patterns. The reserved propagation slot uses a curve-along-great-circle shader that is wired into the engine from day one but consumes no fragment cycles while its data input is empty. Declarative framework wrappers (react-three-fiber, Threlte, Solid-Three) add abstraction overhead that impairs shader-level control at the 60fps target.
 * **Framework-agnostic module.** Per Design Brief §5.9, the engine module receives data and produces WebGL output. It does not know the UI framework. This decouples the engine's quality from the framework choice and allows future framework migration without rewriting the engine.
 * **Tree-shakeability.** three.js is large (~650 kB minified) but modular. Only the classes actually imported enter the bundle — for AĒR's expected scope, approximately 80 kB gzipped when the full engine is built. The engine module lazy-loads after the shell: first paint renders the low-fidelity 2D atmosphere, and the WebGL upgrade streams in without blocking.
 * **Maturity and community size.** three.js has been maintained since 2010 and is the default choice for non-game WebGL work. The bus factor is excellent; shader documentation is abundant.
