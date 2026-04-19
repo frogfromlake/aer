@@ -1271,7 +1271,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [x] **Arc42 §5 — Building Block View update.** Extend `docs/arc42/05_building_block_view.md` to include the `dashboard` service as a new building block alongside `ingestion-api`, `bff-api`, and `analysis-worker`. Single row in the existing service table: responsibility ("User-facing dashboard serving three surfaces"), language (TypeScript/Svelte), dependencies (BFF API only), position in the container network (`aer-frontend` only).
 
-* [x] **Arc42 §7 — Deployment View placeholder.** Extend `docs/arc42/07_deployment_view.md` §7.4 with a placeholder entry for the `dashboard` service in the service table — image base, port, network, memory, CPU. Values marked as `TBD (Phase 96)` where the Dockerfile does not yet exist. This ensures §7 is consistent with the intended deployment even before Phase 96 implements it.
+* [x] **Arc42 §7 — Deployment View placeholder.** Extend `docs/arc42/07_deployment_view.md` §7.4 with a placeholder entry for the `dashboard` service in the service table — image base, port, network, memory, CPU. Values marked as `TBD (Phase 97)` where the Dockerfile does not yet exist. This ensures §7 is consistent with the intended deployment even before Phase 97 implements it.
 
 * [x] **Arc42 §2 — Architecture Constraints extension.** Add a row to the Technical Constraints table in `docs/arc42/02_architecture_constraints.md` §2.2: "Frontend Stack — TypeScript 5.5+, Svelte 5, SvelteKit static adapter. Enforced by ADR-020, `package.json` engines field, CI workflow."
 
@@ -1298,7 +1298,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ## Phase 95: Content Catalog — BFF Backend for Dual-Register Content [P1] - [x] Done
 
-*The Dual-Register content required by Design Brief §5.7 lives outside the frontend. The BFF serves both semantic and methodological register text for every metric, probe, discourse function, and refusal type — from YAML source files under `services/bff-api/configs/content/`. This phase implements the backend side only; the frontend integrates it in Phase 96+. Content authoring happens as a separate scientific workflow, not code.*
+*The Dual-Register content required by Design Brief §5.7 lives outside the frontend. The BFF serves both semantic and methodological register text for every metric, probe, discourse function, and refusal type — from YAML source files under `services/bff-api/configs/content/`. This phase implements the backend side only; the frontend integrates it in Phase 97+. Content authoring happens as a separate scientific workflow, not code.*
 
 * [x] **Content directory structure.** Create `services/bff-api/configs/content/` with subdirectories:
   ```
@@ -1407,13 +1407,47 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 **Exit criteria:** `curl -H 'X-API-Key: ...' http://localhost:8080/api/v1/content/metric/sentiment_score?locale=de` returns a well-formed JSON response with both registers and content metadata. All current Phase 42 metrics, Probe 0, four discourse functions, and three refusal types are authored in EN and DE.
 
+
+## Phase 96: OpenAPI Contract Consolidation — Consistency, Coverage & Developer Tooling [P1] - [x] DONE
+
+*A code review of the service contracts surfaced three gaps before the frontend work in Phase 97 consumes them: no browsable API reference, inconsistent `$ref` styles in the modularized BFF spec, and no OpenAPI contract for the ingestion API. This phase closes all three with a principled two-style `$ref` convention (dictated by JSON Reference semantics), a custom bundler, and a Swagger UI entry point. No runtime behavior changes.*
+
+**Principled two-style `$ref` convention.** Investigation revealed the initial "normalize to external-file refs everywhere" plan was technically impossible without regressing `oapi-codegen` output. The convention that actually holds is:
+
+1. **Path-level refs to top-level components** MAY use `#/components/schemas/X`. This is the only way to produce named Go types via `kin-openapi`'s path-item flattening; switching to `../schemas/X.yaml` collapses the schema to an anonymous inline type. These refs are safe because `kin-openapi` resolves them against the root document *after* inlining the path-item.
+2. **All other refs** (schema→schema, response→schema, and any ref *inside* an external file) MUST use external-file refs (`../schemas/X.yaml`). JSON Reference's `#` means "current document", so `#/components/...` inside an external file is unresolvable under strict bundlers (`redocly`, `swagger-cli`).
+
+A CI lint gate enforces rule 2; rule 1 is checked implicitly by `make codegen` drift detection.
+
+* [x] **Ingestion API OpenAPI contract — decision.** Added `services/ingestion-api/api/openapi.yaml` modeled after the BFF layout. Documents `/ingest`, `/sources`, `/healthz`, `/readyz` with `X-API-Key` security and 400/401/404/413/500 error shapes. Codegen emits types-only into `internal/apicontract/` (separate package — avoids colliding with the existing hand-written `handler.Handler` type during the transitional period; full `strict-server` migration can happen in a later phase without re-opening the contract). ADR-021 records the contract-first posture for all HTTP services.
+
+* [x] **`$ref` style convention — two-style, enforced.** BFF spec retains the four legitimate path-level `#/components/...` refs (in `sources.yaml`, `content.yaml`, `metrics_provenance.yaml`, `metrics_available.yaml`) to keep named-type generation. All refs inside external files use `../schemas/X.yaml` form. Zero drift on `services/bff-api/internal/handler/generated.go`.
+
+* [x] **Lint gate for `$ref` style.** `scripts/openapi_ref_style_check.sh` fails if any `*.yaml` under `services/*/api/{schemas,parameters,responses}/` contains a `$ref: '#/...'`. Path files are intentionally exempt (path-level `#/components/...` is the sanctioned form). Wired into `make lint` via the new `openapi-lint` target.
+
+* [x] **Bundled spec artifact.** `scripts/openapi_bundle.py` produces a single-file bundle per service by emulating `kin-openapi`'s path-item flattening — it inlines path files first (so their `#/components/...` refs become valid against the root), then resolves external-file refs. `redocly bundle` could not be used because its strict JSON Reference implementation rejects the path-level `#/components/...` form this repo relies on for named Go types. Bundles are gitignored and rebuilt via `make openapi-bundle`. No new developer-tool dependency: Python + PyYAML (already present via the analysis worker).
+
+* [x] **Swagger UI service.** Added a `swagger-ui` container (`swaggerapi/swagger-ui:v5.17.14`) to `compose.yaml` under the `dev` compose profile so it is absent by default in production (started via `docker compose --profile dev up swagger-ui`). Bound to `127.0.0.1:8089` (loopback-only), mounts both `openapi.bundle.yaml` files, exposes a multi-spec dropdown.
+
+* [x] **Codegen targets.** `make codegen` regenerates both services (BFF → `internal/handler/generated.go`, ingestion → `internal/apicontract/generated.go`) directly from the modular `api/openapi.yaml` sources. Codegen does **not** depend on the bundled artifact — `kin-openapi` resolves the modular tree correctly via path-item flattening. The bundle is for Swagger UI and future TS client codegen.
+
+* [x] **ADR-021 + docs.** ADR-021 ("Contract-first for all HTTP services") added to `docs/arc42/09_architecture_decisions.md`; §8.19 ("API Contract Layout & Tooling") added to `docs/arc42/08_concepts.md` documenting the two-style ref convention, bundler, Swagger UI, and CI checks; "OpenAPI Bundle", "Swagger UI", and "Two-Style `$ref` Convention" entries added to `docs/arc42/12_glossary.md`.
+
+* [x] **Operations playbook + Arc42 cross-refs.** "API Contract Reference (Swagger UI)" section added to `docs/operations_playbook.md` with start/stop/refresh instructions, editing workflow, and troubleshooting table. BFF and Ingestion API entries in `docs/arc42/05_building_block_view.md` now cross-reference the contract, §8.19, and the Operations Playbook.
+
+* [x] **CI integration.** `.github/workflows/ci.yml` (go-pipeline job) runs `make openapi-lint` (ref-style gate), `make codegen && git diff` drift check covering both `services/bff-api/internal/handler/generated.go` and `services/ingestion-api/internal/apicontract/generated.go`, and `make openapi-bundle` to catch structural breaks before they reach Swagger UI.
+
+* [x] **Validation.** `make lint` green (incl. new `openapi-lint`), `make test` green (Go integration tests + 139 Python unit tests), `make test-e2e` green (19/19 assertions, full pipeline), `make codegen` clean for both services, `make openapi-bundle` produces both bundles, `mkdocs build --strict` green. Swagger UI loads both specs from bundles under the `dev` compose profile.
+
+**Exit criteria:** A developer can run `docker compose --profile dev up swagger-ui` and browse both APIs interactively at `http://localhost:8089`. Every external YAML file (schemas, responses, parameters) uses external-file refs only; path-level `#/components/...` refs are retained where kin-openapi requires them for named Go types. ADR-021 captures the contract-first posture. CI fails any future PR that reintroduces an in-document ref inside a schema/parameter/response file, or drifts the generated code from the spec.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 96: Frontend Scaffolding — SvelteKit Static + Infrastructure Integration [P0] - [ ] TODO
+## Phase 97: Frontend Scaffolding — SvelteKit Static + Infrastructure Integration [P0] - [ ] TODO
 
 *This phase creates `services/dashboard/` as a new service in the monorepo. It produces a minimal "Hello AĒR" page that renders through Traefik, emits OTel traces into the existing collector, and passes the same CI/supply-chain rigor as the Go services. No user-facing features yet — this is purely the foundation on which all subsequent frontend work stands.*
 
@@ -1522,7 +1556,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-## Phase 97: Design System Foundation [P1] - [ ] TODO
+## Phase 98: Design System Foundation [P1] - [ ] TODO
 
 *Before rendering any real data, the dashboard needs a design system — typography, color tokens, spacing, focus-rings, dark-mode defaults. This phase establishes those primitives and sets up Histoire for isolated component testing. The design system is additive: later phases extend it, but never rewrite it.*
 
@@ -1556,11 +1590,11 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 * [ ] **Validation.** `make fe-check` green. Histoire builds without errors. All accessibility tests pass. Visual regression baseline captured. Bundle-size gate: initial bundle now ~60–70 kB gzipped (design tokens + base components + fonts); within budget.
 
-**Exit criteria:** Design tokens, typography, color scales, Epistemic Weight classes, base components, and the Histoire environment are all in place. A developer starting Phase 98 can compose features from existing primitives rather than inventing new ones. The a11y gate enforces WCAG 2.2 AA from this phase onward.
+**Exit criteria:** Design tokens, typography, color scales, Epistemic Weight classes, base components, and the Histoire environment are all in place. A developer starting Phase 99 can compose features from existing primitives rather than inventing new ones. The a11y gate enforces WCAG 2.2 AA from this phase onward.
 
 ---
 
-## Phase 98: Surface I — 3D Atmosphere Engine & First Contact [P1] - [ ] TODO
+## Phase 99: Surface I — 3D Atmosphere Engine & First Contact [P1] - [ ] TODO
 
 *The first user-facing feature. A rotating 3D globe with custom GLSL shaders for terminator and probe glow, served from live BFF data. Built framework-agnostically under `services/dashboard/packages/engine-3d/` per ADR-020 §5.9 consequence. High-Fidelity is the only mode shipped in this phase; a minimal text fallback covers browsers without WebGL2 (no full Low-Fi yet — that is a later phase once we know what we are reducing from). This phase proves the end-to-end pipeline — BFF query → typed client → Svelte state → engine API → WebGL rendering — under realistic constraints.*
 
@@ -1613,7 +1647,7 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
   - On probe click: side panel opens with probe metadata rendered via Progressive Semantics
   - Refusal surfaces render in the panel when queries fail on methodological gates
 
-* [ ] **Time scrubber component.** `src/lib/components/TimeScrubber.svelte` — horizontal slider for time-range selection. URL-persisted (`?from=...&to=...`). Keyboard-accessible (arrow keys, Home/End). Uses the base Button from Phase 97.
+* [ ] **Time scrubber component.** `src/lib/components/TimeScrubber.svelte` — horizontal slider for time-range selection. URL-persisted (`?from=...&to=...`). Keyboard-accessible (arrow keys, Home/End). Uses the base Button from Phase 98.
 
 * [ ] **URL-state synchronization.** `src/lib/state/url.ts` — Svelte 5 Runes store that reads/writes state (`activeProbe`, `timeRange`, `resolution`, `viewingMode`) to the URL. §5.5 mandates deep-linkable state.
 
@@ -1635,17 +1669,17 @@ This roadmap defines the steps to transition the AĒR base architecture into a s
 
 ---
 
-## Phase 99: Surface I Enrichment — Multi-Probe Composition & Layer-Depth Transitions [P1] - [ ] TODO
+## Phase 100: Surface I Enrichment — Multi-Probe Composition & Layer-Depth Transitions [P1] - [ ] TODO
 
-*With the 3D engine running and Probe 0 visible, Phase 99 exercises the architecture at breadth (multiple-probe composition, even if simulated) and depth (descent from L0 to L3 within Surface I). This phase does not add new surfaces — it proves that the L0→L1→L2→L3 descent on Surface I works as specified in Design Brief §4. Rhizome remains latent; the propagation-arc slot from Phase 98 stays empty until a second probe is live.*
+*With the 3D engine running and Probe 0 visible, Phase 100 exercises the architecture at breadth (multiple-probe composition, even if simulated) and depth (descent from L0 to L3 within Surface I). This phase does not add new surfaces — it proves that the L0→L1→L2→L3 descent on Surface I works as specified in Design Brief §4. Rhizome remains latent; the propagation-arc slot from Phase 99 stays empty until a second probe is live.*
 
 * [ ] **Multi-probe rendering verification (synthetic).** Add a build-time flag that loads a small set of synthetic probes (e.g. three probes on three continents) for visual and performance verification. The synthetic data never leaves development builds. Confirms that reach-aura composition, pulse rate variation, and probe distribution render correctly at realistic multi-probe scale.
 
 * [ ] **L1 Orientation overlay.** Soft top-bar overlay (fade-in on first mouse movement): current time range, active probe count, normalization mode, active cultural contexts (emic designations from the Content Catalog). Fade-out after 10s of inactivity. Design Brief §4.2 Atmosphere/L1 cell.
 
-* [ ] **L2 Exploration controls.** Time-range scrubber (already built in Phase 98) becomes the L2 primary control. Add: resolution switch (5min / hourly / daily / weekly / monthly), pillar-mode toggle (Aleph/Episteme/Rhizome — but currently all three default to the same render, since Rhizome has no data and Episteme/Aleph differ only in time-window framing). Region zoom via mouse wheel / pinch.
+* [ ] **L2 Exploration controls.** Time-range scrubber (already built in Phase 99) becomes the L2 primary control. Add: resolution switch (5min / hourly / daily / weekly / monthly), pillar-mode toggle (Aleph/Episteme/Rhizome — but currently all three default to the same render, since Rhizome has no data and Episteme/Aleph differ only in time-window framing). Region zoom via mouse wheel / pinch.
 
-* [ ] **L3 Analysis companion panel.** On probe click, the panel that opens is no longer just metadata — it becomes the L3 Analysis view. Inside: a small time-series chart (using uPlot, framework-agnostic per §5.9) showing the selected metric for the selected probe over the selected time range. Uncertainty bands. Epistemic Weight styling from Phase 97. The 3D globe stays present behind the panel, dimmed to 30% opacity per §4.1 rule 2 ("no layer replaces").
+* [ ] **L3 Analysis companion panel.** On probe click, the panel that opens is no longer just metadata — it becomes the L3 Analysis view. Inside: a small time-series chart (using uPlot, framework-agnostic per §5.9) showing the selected metric for the selected probe over the selected time range. Uncertainty bands. Epistemic Weight styling from Phase 98. The 3D globe stays present behind the panel, dimmed to 30% opacity per §4.1 rule 2 ("no layer replaces").
 
 * [ ] **uPlot integration.** Add `uPlot` to the shell. Build a thin Svelte wrapper `src/lib/components/TimeSeriesChart.svelte` that renders a uPlot instance. Framework-agnostic at its core — the Svelte wrapper is < 30 lines, all actual rendering is uPlot's. Bundle impact: +40 kB gzipped, loaded when L3 activates (intent-based, starts preloading on probe hover).
 
@@ -1679,14 +1713,14 @@ The Low-Fidelity rendering mode from Design Brief §5.6 is **not** part of Phase
 
 1. The Low-Fi mode is a *reduction of* the High-Fi experience. Building it before High-Fi would require guessing what the High-Fi version looks like — introducing rework.
 2. Hardware-equity performance can only be measured against a complete High-Fi baseline.
-3. The minimal WebGL2 text fallback from Phase 98 is sufficient to avoid a broken screen on weak hardware while Low-Fi is developed later.
+3. The minimal WebGL2 text fallback from Phase 99 is sufficient to avoid a broken screen on weak hardware while Low-Fi is developed later.
 
 Low-Fidelity becomes its own phase (tentatively Phase 104 or later, after Surfaces II and III are in place and the full system is a known quantity to reduce from). The commitment from Design Brief §5.6 stands; only the sequencing changes.
 
 ---
 
 **Begründung für die Neufassung:**
-- Phase 98 ist jetzt die High-Fi 3D Atmosphere (vorher Phase 99). Sie trägt die vollen fraktalen L0-Aspekte aus dem aktualisierten Brief §3.1 — Reach Aura, Aktivitäts-Pulse, Propagations-Slot.
-- Phase 99 ist neu: sie erweitert die bestehende Surface I um Descent-Mechanik (L0→L4) und erste Multi-Probe-Aspekte. Sie berührt noch nicht Surface II oder III.
+- Phase 99 ist jetzt die High-Fi 3D Atmosphere (vorher Phase 100). Sie trägt die vollen fraktalen L0-Aspekte aus dem aktualisierten Brief §3.1 — Reach Aura, Aktivitäts-Pulse, Propagations-Slot.
+- Phase 100 ist neu: sie erweitert die bestehende Surface I um Descent-Mechanik (L0→L4) und erste Multi-Probe-Aspekte. Sie berührt noch nicht Surface II oder III.
 - Low-Fi verschiebt sich — ohne aus dem Brief oder ADR verschwinden. Der Brief-Commitment bleibt.
-- Ein trivialer Text-Fallback in Phase 98 fängt Browser ohne WebGL2 ab, damit keine barriere-freie Lücke entsteht.
+- Ein trivialer Text-Fallback in Phase 99 fängt Browser ohne WebGL2 ab, damit keine barriere-freie Lücke entsteht.
