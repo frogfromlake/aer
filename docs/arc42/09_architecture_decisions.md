@@ -517,7 +517,7 @@ This mirrors how `minio-init` and `clickhouse-init` already work for their respe
 
 ---
 
-# ADR-020: Frontend Technology Stack for the AĒR Dashboard
+## ADR-020: Frontend Technology Stack for the AĒR Dashboard
 
 **Status:** Proposed
 **Date:** 2026-04-17
@@ -529,7 +529,7 @@ This mirrors how `minio-init` and `clickhouse-init` already work for their respe
 
 ---
 
-## Context
+### Context
 
 The AĒR backend has reached Phase 93 with a stable Bronze → Silver → Gold pipeline, a BFF API with validation gates (ADR-016) and security hardening (Phase 75), full OpenTelemetry observability (Phase 86), supply-chain hardening with SBOM and image signing (Phase 84), and six Working Papers defining the methodological scope. The frontend phase now begins.
 
@@ -555,11 +555,11 @@ Three additional project-wide invariants shape the stack:
 
 ---
 
-## Decision
+### Decision
 
 We adopt the following frontend technology stack, organised in five layers.
 
-### Layer 1 — UI Framework: SvelteKit (static adapter) with Svelte 5 Runes
+#### Layer 1 — UI Framework: SvelteKit (static adapter) with Svelte 5 Runes
 
 **SvelteKit** in static-output mode is the chrome framework. **Svelte 5 Runes** (`$state`, `$derived`, `$effect`) are the reactivity primitives.
 
@@ -579,7 +579,7 @@ Rejected alternatives:
 * **Astro + Islands architecture.** Compelling for prose-first Surface III but rejected because Surfaces I and II require cross-surface state coordination (active probe, time range, pillar mode) that the islands pattern systematically fragments. The impedance mismatch outweighs the partial fit.
 * **Qwik.** Resumability optimises for cold-start time after network transit. AĒR is an analyst tool with long sessions — cold-start optimisation is not a dominant concern. Ecosystem adoption is thinner than the other candidates.
 
-### Layer 2 — 3D Atmosphere Engine: vanilla three.js with custom GLSL shaders
+#### Layer 2 — 3D Atmosphere Engine: vanilla three.js with custom GLSL shaders
 
 > The globe, terminator, probe glow, probe reach auras, absence fields, atmospheric halo, and a reserved slot for Rhizome propagation arcs are rendered by a **vanilla three.js** engine module. The module is framework-agnostic and receives data through a narrow imperative API.
 
@@ -596,7 +596,7 @@ Rejected alternatives:
 * **regl (functional WebGL wrapper).** Minimal and elegant, but reinvents primitives three.js already provides (camera controls, loaders, picking). The bundle saving is modest (~30 kB); the engineering cost is not.
 * **react-three-fiber / Threlte.** Excellent developer experience for common 3D patterns, but adds abstraction between the code and the shader pipeline. Design Brief §5.9 explicitly excludes framework-coupled 3D wrappers for AĒR.
 
-### Layer 3 — Visualisation Domains (per Design Brief §5.9)
+#### Layer 3 — Visualisation Domains (per Design Brief §5.9)
 
 Each domain is served by a framework-agnostic rendering module:
 
@@ -622,7 +622,7 @@ Rejected alternatives:
 * **Mapbox GL JS.** Technically capable but its 2020 licence change ties deployment to a commercial service. Violates the open-source deployment model.
 * **Cytoscape.js for networks.** Capable but larger than D3-force for the network sizes AĒR will render; adds a second graph paradigm without clear gain.
 
-### Layer 4 — Cross-Cutting Infrastructure
+#### Layer 4 — Cross-Cutting Infrastructure
 
 **Build tool.** Vite 6 (via SvelteKit). Dev server with HMR; production build with Rollup. Rollup's bundle analyser is part of CI output for budget enforcement.
 
@@ -642,7 +642,7 @@ Rejected alternatives:
 
 **Linting and formatting.** ESLint with the official Svelte plugin and `@typescript-eslint`. Prettier with Svelte plugin. A single `make fe-check` target runs lint + typecheck + test + bundle-size gate, matching the Go backend's `make lint` and `make test` ergonomics.
 
-### Layer 5 — Architecture Patterns
+#### Layer 5 — Architecture Patterns
 
 The frontend is organised around five conceptual modules, consistent with the Design Brief's separation of chrome and visualisation:
 
@@ -656,9 +656,9 @@ Cross-module communication is explicit: shell → surface → visualisation is a
 
 ---
 
-## Consequences
+### Consequences
 
-### Positive consequences
+#### Positive consequences
 
 * **Bundle budget is comfortable, not tight.** Initial shell at ~60 kB leaves approximately 120 kB of headroom for progressive enhancement of Surface I before code-splitting thresholds are hit.
 * **Framework choice is reversible.** The decision to keep visualisation modules framework-agnostic (§5.9) means a future migration from Svelte to something newer costs only the chrome rewrite — perhaps 30% of the codebase — not the hard engineering in the 3D engine, the charts, and the maps.
@@ -667,7 +667,7 @@ Cross-module communication is explicit: shell → surface → visualisation is a
 * **Observability is end-to-end.** With OTel Web SDK emitting into the Phase 86 collector stack, a single trace can follow a user click through BFF queries, ClickHouse, and back — the same dashboard used to debug worker issues works for the frontend.
 * **Performance budgets are achievable by construction.** Every budget in Design Brief §7 maps to a concrete measurement: initial bundle, surface-level chunk, visualisation-module chunk. Each can be benchmarked in isolation.
 
-### Negative consequences and accepted risks
+#### Negative consequences and accepted risks
 
 * **Svelte ecosystem smaller than React.** Specific libraries (complex date pickers, enterprise form systems) may be unavailable in Svelte-native form. Mitigation: the visualisation-stack separation (§5.9) ensures that scientific and data-viz libraries are framework-agnostic; only chrome-layer libraries are framework-bound, and the chrome-layer requirements are modest. Accepted risk.
 * **Svelte 5 Runes are recent (stable since late 2024).** Some tutorials still reference the older store-based Svelte 3/4 API. Mitigation: the official documentation is excellent and current; LLM-based coding assistants are Runes-aware as of 2026. Accepted risk.
@@ -677,7 +677,7 @@ Cross-module communication is explicit: shell → surface → visualisation is a
 * **Low-fidelity 2D atmosphere must be specified and implemented separately.** The 2D fallback is not automatic — it is a deliberately constructed equirectangular map with terminator and probe markers rendered via Canvas 2D or SVG. This is additional work, but §5.6 requires it regardless of framework choice. Accepted cost.
 * **Frontend OTel emission adds bundle weight (~15 kB gzipped).** The Web SDK is not free. Mitigation: lazy-load the OTel instrumentation after first paint so it does not block initial rendering. Accepted cost — observability parity with backend is an architectural invariant.
 
-### Neutral consequences
+#### Neutral consequences
 
 * The dashboard deploys as a static bundle behind Traefik. No change to ADR-008 Zero-Trust posture.
 * The dashboard is a pure BFF consumer. No new backend responsibilities except the content catalog endpoints.
@@ -686,7 +686,7 @@ Cross-module communication is explicit: shell → surface → visualisation is a
 
 ---
 
-## Compliance check against the Design Brief
+### Compliance check against the Design Brief
 
 The ADR is valid only if the selected stack satisfies every requirement in the Design Brief. This section audits that compliance explicitly.
 
@@ -708,7 +708,7 @@ The ADR is valid only if the selected stack satisfies every requirement in the D
 
 ---
 
-## Implementation Plan (Phase Outline)
+### Implementation Plan (Phase Outline)
 
 This ADR does not fully specify phased implementation — that is scoped in the ROADMAP `Open Phases` section. However, the ADR implies a minimum phase sequence. Phase numbers continue from the current state (Phase 93 is the most recent completed phase).
 
@@ -752,7 +752,7 @@ Each phase is independent and deployable on its own. No phase leaves the dashboa
 
 ---
 
-## References
+### References
 
 * `docs/design/design_brief.md` — the authoritative brief this ADR answers to.
 * `docs/design/visualization_guidelines.md` — visualisation constraints, encompassed by the brief.
@@ -768,7 +768,7 @@ Each phase is independent and deployable on its own. No phase leaves the dashboa
 
 ---
 
-## Decision Record
+### Decision Record
 
 * **Proposed:** 2026-04-17 by Fabian Quist (senior architect) in collaborative design session with AĒR.
 * **Ratified:** [date TBD — pending author review]
