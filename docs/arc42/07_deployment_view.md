@@ -115,16 +115,18 @@ graph TD
 
 ### 7.4.4 Application Services
 
-All three application services are built from multi-stage Dockerfiles. Go services use a `golang:1.26.2-alpine3.23` builder stage and produce a statically linked binary (`CGO_ENABLED=0`) copied into a minimal `alpine:3.23.3` runtime image. The Python worker uses `python:3.14.3-slim-bookworm` for both build and runtime stages, separating dependency installation from application code via `--prefix=/install`. The builder stage installs `gcc`, `libpq-dev`, and `python3-dev` to compile `psycopg2` from source against the system `libpq` — the `psycopg2-binary` package is used only in development/CI environments (`requirements-dev.txt`) to avoid native compilation overhead.
+All four application services are built from multi-stage Dockerfiles. Go services use a `golang:1.26.2-alpine3.23` builder stage and produce a statically linked binary (`CGO_ENABLED=0`) copied into a minimal `alpine:3.23.3` runtime image. The Python worker uses `python:3.14.3-slim-bookworm` for both build and runtime stages, separating dependency installation from application code via `--prefix=/install`. The builder stage installs `gcc`, `libpq-dev`, and `python3-dev` to compile `psycopg2` from source against the system `libpq` — the `psycopg2-binary` package is used only in development/CI environments (`requirements-dev.txt`) to avoid native compilation overhead. The dashboard uses a `node:22-alpine3.23` builder stage to compile the SvelteKit static bundle via `pnpm` (pinned through Corepack) and copies the output into an `nginx:1.29-alpine3.23` runtime image — no Node runtime ships to production (ADR-020).
 
 | Service | Dockerfile Base | Port | Network(s) | Memory | CPU | Healthcheck |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `ingestion-api` | `golang:1.26.2-alpine3.23` → `alpine:3.23.3` | `8081` | backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8081/api/v1/healthz` |
 | `analysis-worker` | `python:3.14.3-slim-bookworm` | — (no port exposed) | backend | 512 MB | 0.50 | `python -c "urllib.request.urlopen('http://localhost:8001/metrics')"` |
 | `bff-api` | `golang:1.26.2-alpine3.23` → `alpine:3.23.3` | `8080` | frontend + backend | 128 MB | 0.25 | `wget --spider -q http://localhost:8080/api/v1/healthz` |
-| `dashboard` | TBD (Phase 96) | TBD (Phase 96) | frontend | TBD (Phase 96) | TBD (Phase 96) | TBD (Phase 96) |
+| `dashboard` | `node:22-alpine3.23` → `nginx:1.29-alpine3.23` | `8080` | frontend | 128 MB | 0.25 | `wget --spider -q http://127.0.0.1:8080/healthz` |
 
 The `bff-api` is the only application service that bridges both networks. It is protected by an API-key middleware (`X-API-Key` header or `Authorization: Bearer`) on all routes except the unauthenticated probe endpoints `/healthz` and `/readyz`. Traefik labels route external HTTPS traffic on `PathPrefix(/api)` to this service.
+
+The `dashboard` is a static SvelteKit bundle served by Nginx on unprivileged port `8080` (runs as the non-root `nginx` user). It is attached to the `aer-frontend` network only and has no direct access to backend services — all data comes from the BFF through the browser. Traefik's catch-all router (`PathPrefix(/)` with `!PathPrefix(/api)` and an explicit lower `priority=1`) ensures `/api/*` continues to reach the BFF while all other paths fall through to the SPA. The SvelteKit static adapter emits `build/index.html` as a fallback, and Nginx's `try_files $uri $uri/ /index.html;` keeps client-side routes resolvable without a server-side router.
 
 The `analysis-worker` does not expose an HTTP port to the host. Its Prometheus metrics endpoint (`:8001/metrics`) is used internally as a healthcheck and scrape target but is not mapped to the host.
 
