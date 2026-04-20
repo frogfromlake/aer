@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/frogfromlake/aer/services/ingestion-api/internal/core"
 )
@@ -54,7 +57,10 @@ func (s *stubMinio) BucketExists(_ context.Context, _ string) (bool, error) {
 	return true, nil
 }
 
-func newTestHandler(t *testing.T, db *stubDB, mio *stubMinio, maxBodyBytes int64) *Handler {
+// newTestRouter creates a chi router wired with the strict handler so tests
+// exercise the full HTTP stack, including body-size enforcement and the
+// custom request-error handler. maxBodyBytes <= 0 disables the body cap.
+func newTestRouter(t *testing.T, db *stubDB, mio *stubMinio, maxBodyBytes int64) http.Handler {
 	t.Helper()
 	if db == nil {
 		db = &stubDB{}
@@ -63,7 +69,20 @@ func newTestHandler(t *testing.T, db *stubDB, mio *stubMinio, maxBodyBytes int64
 		mio = &stubMinio{}
 	}
 	svc := core.NewIngestionService(db, mio, "bronze", serialUploads)
-	return NewHandler(svc, maxBodyBytes)
+	srv := NewServer(svc, maxBodyBytes)
+
+	strictH := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: RequestErrorHandler,
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
+			slog.Error("response encoding failed", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		},
+	})
+
+	r := chi.NewRouter()
+	r.Use(srv.BodyLimitMiddleware)
+	HandlerFromMuxWithBaseURL(strictH, r, "/api/v1")
+	return r
 }
 
 // --- Ingest handler: error-leak guard (Phase 82) ---
@@ -72,7 +91,7 @@ func newTestHandler(t *testing.T, db *stubDB, mio *stubMinio, maxBodyBytes int64
 // request body is answered with a generic 400 and that the decoder's error
 // text (which can echo caller-controlled bytes) never reaches the response.
 func TestIngest_InvalidJSONDoesNotLeakDecoderError(t *testing.T) {
-	h := newTestHandler(t, nil, nil, 16<<20)
+	r := newTestRouter(t, nil, nil, 16<<20)
 
 	// Body includes a distinctive, fake-but-plausible error fragment.
 	// If the decoder error ever reaches the response, the test catches it.
@@ -80,7 +99,7 @@ func TestIngest_InvalidJSONDoesNotLeakDecoderError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", body)
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
@@ -106,13 +125,13 @@ func TestIngest_InvalidJSONDoesNotLeakDecoderError(t *testing.T) {
 // message — not the raw error text.
 func TestIngest_ServiceErrorReturnsGenericMessage(t *testing.T) {
 	db := &stubDB{createJobErr: errors.New("postgres: connection refused to host 10.0.0.42:5432")}
-	h := newTestHandler(t, db, nil, 16<<20)
+	r := newTestRouter(t, db, nil, 16<<20)
 
 	body := strings.NewReader(`{"source_id": 1, "documents": [{"key": "a.json", "data": {}}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", body)
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d: %s", rr.Code, rr.Body.String())
@@ -141,7 +160,7 @@ func TestIngest_ServiceErrorReturnsGenericMessage(t *testing.T) {
 func TestIngest_OversizedBodyReturns413(t *testing.T) {
 	const limit int64 = 512
 
-	h := newTestHandler(t, nil, nil, limit)
+	r := newTestRouter(t, nil, nil, limit)
 
 	// Build a valid JSON envelope whose documents field is a single string
 	// padded well beyond the limit.
@@ -150,7 +169,7 @@ func TestIngest_OversizedBodyReturns413(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", body)
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected 413, got %d: %s", rr.Code, rr.Body.String())
@@ -171,12 +190,12 @@ func TestIngest_BodyAtLimitStillReadsFully(t *testing.T) {
 	body := `{"source_id": 1, "documents": [{"key": "a.json", "data": {}}]}`
 	limit := int64(len(body))
 
-	h := newTestHandler(t, nil, nil, limit)
+	r := newTestRouter(t, nil, nil, limit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", strings.NewReader(body))
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200 at exact limit, got %d: %s", rr.Code, rr.Body.String())
@@ -186,24 +205,24 @@ func TestIngest_BodyAtLimitStillReadsFully(t *testing.T) {
 // --- Ingest handler: happy path ---
 
 func TestIngest_HappyPath(t *testing.T) {
-	h := newTestHandler(t, nil, nil, 16<<20)
+	r := newTestRouter(t, nil, nil, 16<<20)
 
 	body := strings.NewReader(`{"source_id": 7, "documents": [{"key": "a.json", "data": {"id":1}}, {"key": "b.json", "data": {"id":2}}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", body)
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	var result core.IngestResult
+	var result IngestResult
 	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
 		t.Fatalf("response is not a valid IngestResult: %v", err)
 	}
-	if result.Accepted != 2 {
-		t.Errorf("expected 2 accepted, got %d", result.Accepted)
+	if result.Uploaded != 2 {
+		t.Errorf("expected 2 uploaded, got %d", result.Uploaded)
 	}
 	if result.Failed != 0 {
 		t.Errorf("expected 0 failed, got %d", result.Failed)
@@ -215,13 +234,13 @@ func TestIngest_HappyPath(t *testing.T) {
 // the body.
 func TestIngest_PartialFailureReturns207(t *testing.T) {
 	mio := &stubMinio{uploadErr: errors.New("simulated upload failure")}
-	h := newTestHandler(t, nil, mio, 16<<20)
+	r := newTestRouter(t, nil, mio, 16<<20)
 
 	body := strings.NewReader(`{"source_id": 1, "documents": [{"key": "a.json", "data": {}}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", body)
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMultiStatus {
 		t.Fatalf("expected 207, got %d: %s", rr.Code, rr.Body.String())
@@ -243,10 +262,10 @@ func TestIngest_ValidationErrors(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h := newTestHandler(t, nil, nil, 16<<20)
+			r := newTestRouter(t, nil, nil, 16<<20)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", strings.NewReader(tc.body))
 			rr := httptest.NewRecorder()
-			h.Ingest(rr, req)
+			r.ServeHTTP(rr, req)
 
 			if rr.Code != http.StatusBadRequest {
 				t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
@@ -269,12 +288,12 @@ func TestIngest_ValidationErrors(t *testing.T) {
 // Sanity check: the stdlib io.EOF on an empty body still maps to the generic
 // decoder-error path (not a panic).
 func TestIngest_EmptyBodyIsRejected(t *testing.T) {
-	h := newTestHandler(t, nil, nil, 16<<20)
+	r := newTestRouter(t, nil, nil, 16<<20)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest", http.NoBody)
 	rr := httptest.NewRecorder()
 
-	h.Ingest(rr, req)
+	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
