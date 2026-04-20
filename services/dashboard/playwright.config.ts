@@ -7,9 +7,19 @@ export default defineConfig({
   retries: process.env['CI'] ? 2 : 0,
   workers: process.env['CI'] ? 1 : undefined,
   reporter: process.env['CI'] ? 'github' : 'list',
+  snapshotPathTemplate: '{testDir}/__snapshots__/{testFilePath}/{arg}{ext}',
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,
+      animations: 'disabled',
+      caret: 'hide'
+    }
+  },
   use: {
     baseURL: 'http://localhost:4173',
-    trace: 'on-first-retry'
+    trace: 'on-first-retry',
+    viewport: { width: 1280, height: 800 },
+    colorScheme: 'dark'
   },
   projects: [
     {

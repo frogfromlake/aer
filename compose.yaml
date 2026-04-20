@@ -603,6 +603,18 @@ services:
           memory: 32M
           cpus: "0.10"
 
+  # ----------------------------------------------------------------
+  # Playwright test runner (Phase 98c)
+  # Image tag SSoT for `make fe-test-e2e` and the CI visual+a11y gate.
+  # Version MUST match services/dashboard/package.json `@playwright/test`
+  # so the browser bundle matches the client API.
+  # `profiles: ["test"]` keeps it out of `make up`.
+  # ----------------------------------------------------------------
+  playwright-runner:
+    image: mcr.microsoft.com/playwright:v1.59.1-noble
+    profiles: ["test"]
+    command: ["true"]
+
 volumes:
   minio_data:
   postgres_data:

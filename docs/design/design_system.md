@@ -151,7 +151,30 @@ file for the exhaustive list.
 
 ---
 
-## 7. References
+## 7. Visual + a11y gate (Phase 98c)
+
+The story routes double as the harness for two CI gates that run on every
+push:
+
+- **Playwright visual regression.** `services/dashboard/tests/e2e/visual.spec.ts`
+  navigates each story route at both `data-theme="dark"` and `"light"` and
+  compares against committed PNG baselines under
+  `services/dashboard/tests/e2e/__snapshots__/`. Dialog is also captured in
+  its open state. A diff above `maxDiffPixelRatio: 0.01` fails the build.
+- **axe-core a11y gate.** `services/dashboard/tests/e2e/a11y.spec.ts` runs
+  `@axe-core/playwright` against every story route plus `/`, tagged with
+  `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`. Any violation fails the build.
+
+Both tests execute inside the pinned image declared as the
+`playwright-runner` service in `compose.yaml` (SSoT per Hard Rule 1). Running
+inside Docker is mandatory: browser font rendering is OS-sensitive, so
+host-local snapshots cannot be trusted against CI. Use `make fe-test-e2e` to
+run the gate and `make fe-test-e2e-update` to regenerate committed
+baselines after an intentional visual change.
+
+---
+
+## 8. References
 
 - Design Brief §5.2 (No valence, ever)
 - Design Brief §5.5 (Long time, long sessions)

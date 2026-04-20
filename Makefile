@@ -7,7 +7,7 @@
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
-.PHONY: fe-install fe-dev fe-preview fe-lint fe-format fe-typecheck fe-test fe-test-e2e fe-build fe-bundle-size fe-codegen fe-check codegen-ts
+.PHONY: fe-install fe-dev fe-preview fe-lint fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-restart
 
 SHELL := /bin/bash
@@ -379,10 +379,28 @@ fe-test:
 	@cd $(FE_DIR) && pnpm run test:unit
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend unit tests passed!$(RESET)"
 
+# Playwright (visual + a11y) runs inside the pinned image from compose.yaml
+# so baselines match CI byte-for-byte. Browser font rendering is OS-sensitive,
+# so host-local runs are not trusted for snapshot comparison.
+PLAYWRIGHT_IMAGE := $(shell awk '/^  playwright-runner:/{f=1} f && /image:/{print $$2; exit}' compose.yaml)
+
 fe-test-e2e:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend end-to-end tests (Playwright)...$(RESET)"
-	@cd $(FE_DIR) && pnpm run test:e2e
-	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend e2e tests passed!$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend Playwright gate (visual + a11y) inside $(PLAYWRIGHT_IMAGE)...$(RESET)"
+	@docker run --rm --ipc=host \
+		-v $(PWD):/repo -w /repo/$(FE_DIR) \
+		$(PLAYWRIGHT_IMAGE) \
+		bash -lc 'set +e; corepack enable >/dev/null 2>&1; CI=1 pnpm playwright test; status=$$?; chown -R $(shell id -u):$(shell id -g) .svelte-kit build test-results playwright-report 2>/dev/null; exit $$status'
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend Playwright gate passed!$(RESET)"
+
+# Regenerate committed baselines. Runs inside the same pinned image so the
+# snapshots match what CI will compare against. Commit the diff afterwards.
+fe-test-e2e-update:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Updating Playwright baselines inside $(PLAYWRIGHT_IMAGE)...$(RESET)"
+	@docker run --rm --ipc=host \
+		-v $(PWD):/repo -w /repo/$(FE_DIR) \
+		$(PLAYWRIGHT_IMAGE) \
+		bash -lc 'set +e; corepack enable >/dev/null 2>&1; CI=1 pnpm playwright test --update-snapshots; status=$$?; chown -R $(shell id -u):$(shell id -g) .svelte-kit build tests test-results playwright-report 2>/dev/null; exit $$status'
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Playwright baselines updated under $(FE_DIR)/tests/e2e/__snapshots__/$(RESET)"
 
 fe-build:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Building frontend (static adapter)...$(RESET)"
@@ -539,7 +557,8 @@ help:
 	@echo -e "  $(CYAN)fe-lint$(RESET)             $(GRAY)ESLint + Prettier check + svelte-check$(RESET)"
 	@echo -e "  $(CYAN)fe-typecheck$(RESET)        $(GRAY)TypeScript strict typecheck (svelte-check)$(RESET)"
 	@echo -e "  $(GREEN)fe-test$(RESET)             $(GRAY)Vitest unit tests$(RESET)"
-	@echo -e "  $(GREEN)fe-test-e2e$(RESET)         $(GRAY)Playwright end-to-end smoke test$(RESET)"
+	@echo -e "  $(GREEN)fe-test-e2e$(RESET)         $(GRAY)Playwright visual + axe a11y gate (pinned Docker image)$(RESET)"
+	@echo -e "  $(GREEN)fe-test-e2e-update$(RESET)  $(GRAY)Regenerate committed Playwright snapshots (pinned Docker image)$(RESET)"
 	@echo -e "  $(CYAN)fe-build$(RESET)            $(GRAY)Production static build (SvelteKit static adapter)$(RESET)"
 	@echo -e "  $(CYAN)fe-bundle-size$(RESET)      $(GRAY)Enforce the 80 kB initial-bundle budget (Design Brief §7)$(RESET)"
 	@echo -e "  $(CYAN)fe-codegen$(RESET)          $(GRAY)Generate TypeScript API types from bff-api/openapi.yaml$(RESET)"
