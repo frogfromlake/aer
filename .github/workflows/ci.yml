@@ -141,6 +141,54 @@ jobs:
           cd ../bff-api && go test -v ./...
           cd ../../pkg && go test -v ./...
 
+  frontend-pipeline:
+    name: Frontend Lint, Test & Bundle-Size Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Load tool versions from .tool-versions
+        run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack (pnpm from packageManager field)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('services/dashboard/pnpm-lock.yaml') }}
+
+      - name: Install dependencies (frozen lockfile)
+        working-directory: ./services/dashboard
+        run: pnpm install --frozen-lockfile
+
+      - name: Bundle OpenAPI spec (SSoT for TS codegen)
+        run: make openapi-bundle
+
+      - name: OpenAPI TS codegen sync check (ADR-021 parity)
+        run: |
+          make fe-codegen
+          git diff --exit-code services/dashboard/src/lib/api/types.ts
+
+      - name: Lint (ESLint + Prettier + svelte-check)
+        run: make fe-lint
+
+      - name: Unit tests (Vitest)
+        run: make fe-test
+
+      - name: Production build (static adapter)
+        run: make fe-build
+
+      - name: Bundle-size gate (80 kB gzipped, Design Brief §7)
+        run: make fe-bundle-size
+
   dependency-audit:
     name: Dependency Auditing
     runs-on: ubuntu-latest
@@ -215,6 +263,9 @@ jobs:
       - name: Build analysis-worker image
         run: docker build -t aer/analysis-worker:ci -f services/analysis-worker/Dockerfile .
 
+      - name: Build dashboard image
+        run: docker build -t aer/dashboard:ci -f services/dashboard/Dockerfile .
+
       - name: Trivy scan — ingestion-api
         uses: aquasecurity/trivy-action@v0.35.0
         with:
@@ -237,6 +288,15 @@ jobs:
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: 'aer/analysis-worker:ci'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+
+      - name: Trivy scan — dashboard
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: 'aer/dashboard:ci'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
@@ -266,6 +326,15 @@ jobs:
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: 'aer/analysis-worker:ci'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'MEDIUM'
+
+      - name: Trivy scan (MEDIUM, reporting-only) — dashboard
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: 'aer/dashboard:ci'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
