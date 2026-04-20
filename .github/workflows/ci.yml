@@ -127,7 +127,7 @@ jobs:
       - name: OpenAPI Contract Test (codegen sync check)
         run: |
           make codegen
-          git diff --exit-code services/bff-api/internal/handler/generated.go services/ingestion-api/internal/apicontract/generated.go
+          git diff --exit-code services/bff-api/internal/handler/generated.go services/ingestion-api/internal/handler/generated.go
 
       - name: OpenAPI Bundle (Swagger UI artifact)
         run: make openapi-bundle
