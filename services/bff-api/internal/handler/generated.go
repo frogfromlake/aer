@@ -16,6 +16,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+const (
+	ApiKeyAuthScopes = "ApiKeyAuth.Scopes"
+)
+
 // Defines values for AvailableMetricEquivalenceLevel.
 const (
 	Absolute  AvailableMetricEquivalenceLevel = "absolute"
@@ -584,6 +588,12 @@ func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetContentParams
 
@@ -610,6 +620,12 @@ func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Req
 func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetEntitiesParams
@@ -698,6 +714,12 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 
 	var err error
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetLanguagesParams
 
@@ -770,6 +792,12 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetMetricsParams
@@ -852,6 +880,12 @@ func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r 
 
 	var err error
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetMetricsAvailableParams
 
@@ -910,6 +944,12 @@ func (siw *ServerInterfaceWrapper) GetMetricProvenance(w http.ResponseWriter, r 
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetricProvenance(w, r, metricName)
 	}))
@@ -937,6 +977,12 @@ func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Requ
 
 // GetSources operation middleware
 func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSources(w, r)
