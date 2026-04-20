@@ -34,7 +34,9 @@ export function sunDirection(unixMs: number, out: Vector3 = new Vector3()): Vect
   // Mean obliquity of the ecliptic (Meeus, simplified).
   const meanObl =
     23 +
-    (26 + (21.448 - julianCentury * (46.815 + julianCentury * (0.00059 - julianCentury * 0.001813))) / 60) /
+    (26 +
+      (21.448 - julianCentury * (46.815 + julianCentury * (0.00059 - julianCentury * 0.001813))) /
+        60) /
       60;
   const obl = meanObl + 0.00256 * Math.cos(omega * DEG);
 
@@ -49,11 +51,7 @@ export function sunDirection(unixMs: number, out: Vector3 = new Vector3()): Vect
     360;
   // Right ascension of the sun (atan2 with longitude correction).
   const ra =
-    Math.atan2(
-      Math.cos(obl * DEG) * Math.sin(appLong * DEG),
-      Math.cos(appLong * DEG)
-    ) /
-    DEG;
+    Math.atan2(Math.cos(obl * DEG) * Math.sin(appLong * DEG), Math.cos(appLong * DEG)) / DEG;
   const subSolarLon = ((ra - gmst + 540) % 360) - 180;
 
   // Convert (lon, declination) → unit Cartesian using the same projection as

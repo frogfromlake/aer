@@ -1665,9 +1665,6 @@ All versions pinned like in the backend (if best practice)
 
 **Exit criteria:** Design tokens, typography, color scales, Epistemic Weight classes, base components, the route-based story harness, the Playwright visual-regression gate, and the axe-core WCAG 2.2 AA gate are all in place. The OTel build-arg plumbing is live; enabling traces in Grafana Tempo is now a deployment-time decision (set `PUBLIC_OTLP_ENDPOINT` and rebuild), not a code change. A developer starting Phase 99a can compose features from existing primitives rather than inventing new ones, with every new component gated by the visual + a11y suite.
 
-
-# Open Phases
-
 ---
 
 ## Phase 99a: Surface I — 3D Atmosphere Engine Foundation [P1] - [x] DONE
@@ -1680,15 +1677,15 @@ All versions pinned like in the backend (if best practice)
 
 * [x] **Globe geometry and vector landmasses.** Single sphere mesh for the ocean (deep, almost-black blue per Design Brief §3.1). Landmasses are rendered as a separate, slightly inset mesh built from **Natural Earth 1:50m land polygons** (public-domain), simplified and triangulated at build time via `earcut` into a static `BufferGeometry`. Ocean and land colors are uniforms on a shared `ShaderMaterial` (no raster texture; resolution-independent under zoom). Landmass color: a restrained lighter blue. The bake step is a one-shot `scripts/bake-landmass.mjs` that downloads from the canonical Natural Earth source, resizes/simplifies to the chosen tolerance, and emits a compact JSON asset (~60 kB) checked into `static/data/`. The engine canvas shows a dark sphere while the land asset streams in, preserving Design Brief §1.1 (stillness). *Rationale for choosing vectors over Blue-Marble-style raster: the Brief explicitly forbids satellite-photo realism (§3.1, "restrained silhouettes"); vectors stay crisp at country-level zoom (Phase 100+), avoid mipmap blur, and remove a layer of geographic specificity that competes with the discourse signal.*
 
-* [ ] **Optional borders layer (default off).** Engine API exposes `setBordersVisible(visible: boolean)`. Border geometry is built from Natural Earth Admin-0 (public-domain) by the same bake step into a separate `LineSegments` asset (~80 kB), lazy-loaded only on the first toggle-on. Default off; not exposed in the 99a stories beyond a single dedicated story.
+* [x] **Optional borders layer (default off).** Engine API exposes `setBordersVisible(visible: boolean)`. Border geometry is built from Natural Earth Admin-0 (public-domain) by the same bake step into a separate `LineSegments` asset (~80 kB), lazy-loaded only on the first toggle-on. Default off; not exposed in the 99a stories beyond a single dedicated story.
 
-* [ ] **Custom terminator shader (GLSL).** `packages/engine-3d/src/shaders/terminator.glsl` — fragment shader computing per-pixel day/night via `dot(normal, sunDirection)`. Smooth transition via `smoothstep` over a ~5° angular band for realistic twilight. Day side: full ocean/land color. Night side: same colors darkened to a deep night register (no city-lights overlay — the surface is symbolic, not photoreal). Uniform `uSunDirection` updated per frame from the current Unix timestamp via a deterministic NOAA solar-position approximation in `sun.ts`.
+* [x] **Custom terminator shader (GLSL).** `packages/engine-3d/src/shaders/terminator.glsl` — fragment shader computing per-pixel day/night via `dot(normal, sunDirection)`. Smooth transition via `smoothstep` over a ~5° angular band for realistic twilight. Day side: full ocean/land color. Night side: same colors darkened to a deep night register (no city-lights overlay — the surface is symbolic, not photoreal). Uniform `uSunDirection` updated per frame from the current Unix timestamp via a deterministic NOAA solar-position approximation in `sun.ts`.
 
-* [ ] **Atmospheric scattering shader.** Rayleigh/Mie halo around the globe edge. Standard analytic approximation (Bruneton-Neyret or equivalent reference). Ornamental yet informational per Design Brief §5.1 — the halo is real physics.
+* [x] **Atmospheric scattering shader.** Rayleigh/Mie halo around the globe edge. Standard analytic approximation (Bruneton-Neyret or equivalent reference). Ornamental yet informational per Design Brief §5.1 — the halo is real physics.
 
-* [ ] **Camera controls.** `OrbitControls` with damping. Zoom limits: no closer than 1.2× globe radius, no farther than 8×. Auto-rotation at 0.05 rad/s when the user has not interacted in 10s. Reduced-motion respected: auto-rotation disabled when `prefers-reduced-motion: reduce` is set.
+* [x] **Camera controls.** `OrbitControls` with damping. Zoom limits: no closer than 1.2× globe radius, no farther than 8×. Auto-rotation at 0.05 rad/s when the user has not interacted in 10s. Reduced-motion respected: auto-rotation disabled when `prefers-reduced-motion: reduce` is set.
 
-* [ ] **Engine imperative API (skeleton).** Minimal surface exposed to the shell, with the data-driven methods present but accepting empty inputs in 99a — the shader plumbing they drive (probe glow, reach-aura, propagation arcs, raycaster) lands in 99b:
+* [x] **Engine imperative API (skeleton).** Minimal surface exposed to the shell, with the data-driven methods present but accepting empty inputs in 99a — the shader plumbing they drive (probe glow, reach-aura, propagation arcs, raycaster) lands in 99b:
   ```typescript
   export interface AtmosphereEngine {
     mount(element: HTMLCanvasElement): void;
@@ -1704,19 +1701,23 @@ All versions pinned like in the backend (if best practice)
   ```
   The shell calls this API; the engine never reaches into the shell. Per ADR-020 §5.9.
 
-* [ ] **WebGL2 fallback.** Capability detection on startup. If WebGL2 is unavailable: render a plain text view with a clear notice: "This version of AĒR requires WebGL2 for the full experience. A fully accessible alternative is planned." No partial 3D; no canvas 2D substitute — that is the future Low-Fi phase. The fallback is ~30 lines of Svelte; it exists to avoid a broken screen, not to be a feature. In 99a the fallback is static; 99b extends it with live probe data.
+* [x] **WebGL2 fallback.** Capability detection on startup. If WebGL2 is unavailable: render a plain text view with a clear notice: "This version of AĒR requires WebGL2 for the full experience. A fully accessible alternative is planned." No partial 3D; no canvas 2D substitute — that is the future Low-Fi phase. The fallback is ~30 lines of Svelte; it exists to avoid a broken screen, not to be a feature. In 99a the fallback is static; 99b extends it with live probe data.
 
-* [ ] **Isolated engine stories.** Under the Phase 98b route-based story harness: one story with a paused globe, one demonstrating fly-to, one showing the terminator at several fixed sun positions, one exercising the WebGL2-unavailable fallback. Each story exercises the imperative API directly.
+* [x] **Isolated engine stories.** Under the Phase 98b route-based story harness: one story with a paused globe, one demonstrating fly-to, one showing the terminator at several fixed sun positions, one exercising the WebGL2-unavailable fallback. Each story exercises the imperative API directly.
 
-* [ ] **Performance verification (engine in isolation).** Benchmark on 2021 M1 MacBook Air (Design Brief §7 high-fi target): 60fps sustained during orbit with the textured Earth + terminator + atmospheric halo visible. Engine chunk (excluding textures) ≤ 250 kB gzipped. Textures stream lazily and do not count toward initial paint.
+* [x] **Performance verification (engine in isolation).** Benchmark on 2021 M1 MacBook Air (Design Brief §7 high-fi target): 60fps sustained during orbit with the textured Earth + terminator + atmospheric halo visible. Engine chunk (excluding textures) ≤ 250 kB gzipped. Textures stream lazily and do not count toward initial paint.
 
-* [ ] **Accessibility verification (engine in isolation).** The 3D canvas has an ARIA-label describing the scene ("AĒR atmosphere: 3D rotating Earth"). The text fallback passes full WCAG 2.2 AA on its own. (Probe-level keyboard navigation comes in 99b.)
+* [x] **Accessibility verification (engine in isolation).** The 3D canvas has an ARIA-label describing the scene ("AĒR atmosphere: 3D rotating Earth"). The text fallback passes full WCAG 2.2 AA on its own. (Probe-level keyboard navigation comes in 99b.)
 
-* [ ] **Arc42 update.** Extend §8.17 (Frontend Architecture) with a brief note on the engine/shell separation and the imperative API. Cross-reference the engine package location.
+* [x] **Arc42 update.** Extend §8.17 (Frontend Architecture) with a brief note on the engine/shell separation and the imperative API. Cross-reference the engine package location.
 
-* [ ] **Validation.** `make fe-check` green. All tests green. Story harness stories render correctly. Visual regression snapshots stable. Engine bundle size under budget.
+* [x] **Validation.** `make fe-check` green. All tests green. Story harness stories render correctly. Visual regression snapshots stable. Engine bundle size under budget.
 
 **Exit criteria:** The 3D Atmosphere Engine exists as a reviewable standalone package. Running the story harness shows a rotating textured Earth with a live terminator and atmospheric halo, camera controls work, and the WebGL2-unavailable fallback renders on incapable browsers. The engine is not yet wired to the BFF — no probes, no live data. Phase 99b adds those on top.
+
+---
+
+# Open Phases
 
 ---
 

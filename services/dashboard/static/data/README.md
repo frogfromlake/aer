@@ -7,11 +7,11 @@ access and produce byte-identical output.
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `landmass.json` | Triangulated land mesh (positions on the unit sphere + indices). Fed to the globe as a `BufferGeometry`. |
-| `landmass.meta.json` | Sidecar with the exact bake parameters and the ISO date the bake ran. |
-| `borders.json` | Country borders as `gl.LINES` vertex pairs. Lazy-loaded only when `engine.setBordersVisible(true)` is called. |
+| File                 | Purpose                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `landmass.json`      | Triangulated land mesh (positions on the unit sphere + indices). Fed to the globe as a `BufferGeometry`.      |
+| `landmass.meta.json` | Sidecar with the exact bake parameters and the ISO date the bake ran.                                         |
+| `borders.json`       | Country borders as `gl.LINES` vertex pairs. Lazy-loaded only when `engine.setBordersVisible(true)` is called. |
 
 ## Provenance
 

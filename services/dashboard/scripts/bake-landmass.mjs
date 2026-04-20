@@ -159,7 +159,8 @@ function bakeBorders(geojson) {
   for (const feat of geojson.features) {
     const g = feat.geometry;
     if (!g) continue;
-    const lines = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : [];
+    const lines =
+      g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : [];
     for (const line of lines) {
       const simplified = simplifyRing(line, SIMPLIFY_TOLERANCE_DEG);
       // Emit gl.LINES pairs.

@@ -439,7 +439,11 @@ function latLonToCartesian(latDeg: number, lonDeg: number, radius: number): Vect
   const lat = latDeg * DEG;
   const lon = lonDeg * DEG;
   const cosLat = Math.cos(lat);
-  return new Vector3(radius * cosLat * Math.sin(lon), radius * Math.sin(lat), radius * cosLat * Math.cos(lon));
+  return new Vector3(
+    radius * cosLat * Math.sin(lon),
+    radius * Math.sin(lat),
+    radius * cosLat * Math.cos(lon)
+  );
 }
 
 function easeInOutCubic(t: number): number {
