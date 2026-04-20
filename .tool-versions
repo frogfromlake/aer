@@ -7,3 +7,10 @@ GOVULNCHECK_VERSION=v1.1.4
 PIP_AUDIT_VERSION=2.10.0
 # Consumed by scripts/deps_refresh.sh when recompiling requirements.lock.txt.
 PIP_TOOLS_VERSION=7.5.1
+# Frontend toolchain (Phase 97 — services/dashboard/). Activated via Corepack;
+# the dashboard package.json `packageManager` field must match PNPM_VERSION.
+NODE_VERSION=22
+PNPM_VERSION=10.33.0
+# openapi-typescript is shipped as a devDependency of services/dashboard; this
+# entry is the SSoT reference for drift checks in CI (`make codegen-ts`).
+OPENAPI_TYPESCRIPT_VERSION=7.13.0

@@ -30,6 +30,8 @@ Crawler  →  Ingestion API (Go)  →  MinIO Bronze  →  NATS JetStream
 
 **BFF API (Go):** Contract-first REST API generated from OpenAPI 3.0. Queries ClickHouse with server-side downsampling and hard row limits. The only service exposed to the internet, authenticated via API key, TLS-terminated by Traefik.
 
+**Dashboard (SvelteKit, static):** Browser-only static frontend built with SvelteKit's static adapter, Svelte 5 Runes, and strict TypeScript. Served behind Traefik with no Node runtime in production; consumes the BFF API exclusively and holds no credentials in-browser. Phase 97 ships scaffolding only (blank "Hello AĒR" page + quality gates). See [`services/dashboard/README.md`](services/dashboard/README.md) for developer setup and the `make fe-*` targets; full `make frontend-up/-down/-restart` integration lands with Phase 97's Docker/compose step.
+
 **Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service. Currently includes the RSS crawler (German institutional feeds for pipeline calibration).
 
 Full documentation is available at `http://localhost:8000` when the stack is running. The documentation portal has four pillars:
@@ -47,6 +49,7 @@ Full documentation is available at `http://localhost:8000` when the stack is run
 | :--- | :--- | :--- |
 | Ingestion / BFF / Crawlers | Go 1.26.2+ | High-concurrency I/O, minimal memory footprint |
 | Analysis / Processing | Python 3.14+ | Deterministic data science ecosystem (spaCy, Pydantic) |
+| Dashboard (Frontend) | SvelteKit (static) + Svelte 5 + TypeScript 6 | Static assets behind Traefik — no Node runtime in production (ADR-020) |
 | Object Storage / Event Publisher | MinIO | S3-compatible data lake with native JetStream notification |
 | Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling. Streams are declared in [`infra/nats/streams/`](infra/nats/streams/) and provisioned by the `nats-init` container (IaC-only, see ADR-019). |
 | Analytics Database | ClickHouse | Column-oriented OLAP; mandatory for sub-second time-series queries |

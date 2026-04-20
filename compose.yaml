@@ -433,6 +433,44 @@ services:
           cpus: "0.25"
 
   # ----------------------------------------------------
+  # 3.3 DASHBOARD (STATIC FRONTEND, BEHIND TRAEFIK)
+  # ----------------------------------------------------
+  # SvelteKit static bundle served by Nginx. Phase 97 scaffolding — see
+  # services/dashboard/README.md and ADR-020. Frontend-network only: no
+  # route to any backend service except the BFF via Traefik (ADR-008).
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/dashboard/Dockerfile
+    image: aer-dashboard:local
+    container_name: aer_dashboard
+    restart: unless-stopped
+    networks:
+      - aer-frontend
+    labels:
+      - "traefik.enable=true"
+      # Host-catch-all minus /api so the BFF router wins for /api/*.
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+      # BFF router has the longer, more specific rule — Traefik picks it
+      # for /api/*. Set explicit lower priority on the dashboard catch-all
+      # so this is deterministic regardless of rule-length heuristics.
+      - "traefik.http.routers.dashboard.priority=1"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ----------------------------------------------------
   # 4. OBSERVABILITY (OTEL, TEMPO, PROMETHEUS, GRAFANA)
   # ----------------------------------------------------
   otel-collector:

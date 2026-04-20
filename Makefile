@@ -7,6 +7,8 @@
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
+.PHONY: fe-install fe-dev fe-preview fe-lint fe-format fe-typecheck fe-test fe-test-e2e fe-build fe-bundle-size fe-codegen fe-check codegen-ts
+.PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-restart
 
 SHELL := /bin/bash
 
@@ -38,17 +40,27 @@ up: infra-up debug-up
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Provisioning bff_readonly Postgres role...$(RESET)"
 	@docker compose run --rm --no-deps postgres-init-roles
 	@$(MAKE) bff-up
+	@$(MAKE) frontend-up
 	@echo ""
 	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) All AĒR services are running in the background!$(RESET)"
 	@echo -e "$(GRAY)Use 'make logs' to view the live output.$(RESET)"
 	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack is up and running!$(RESET)"
 
-down: services-down debug-down infra-down
+down: frontend-down services-down debug-down infra-down
 	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack has been shut down.$(RESET)"
 
 stop: down
 
 restart: down up
+
+# Convenience aliases so `backend-*` / `frontend-*` reads symmetrically in
+# docs and scripts. `make up` / `make down` remain the canonical "everything"
+# targets (ROADMAP Phase 97 decision).
+backend-up: infra-up debug-up ingestion-up worker-up bff-up
+
+backend-down: services-down debug-down infra-down
+
+backend-restart: backend-down backend-up
 
 # ==========================================
 # 1. INFRASTRUCTURE & OBSERVABILITY
@@ -222,7 +234,7 @@ crawl:
 # 5. TESTING & LINTING
 # ==========================================
 
-test: test-go test-go-pkg test-go-crawlers test-python
+test: test-go test-go-pkg test-go-crawlers test-python fe-test
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
 
 test-e2e:
@@ -270,6 +282,7 @@ lint:
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
 	@cd crawlers/rss-crawler && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (RSS Crawler) lint passed!$(RESET)"
 	@$(MAKE) --no-print-directory openapi-lint
+	@$(MAKE) --no-print-directory fe-lint
 
 lint-go-pkg:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running golangci-lint for pkg/...$(RESET)"
@@ -317,6 +330,118 @@ deps-refresh:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running dependency refresh (see docs/operations_playbook.md)...$(RESET)"
 	@./scripts/deps_refresh.sh $(ARGS)
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)deps-refresh done — review 'git diff' before committing.$(RESET)"
+
+# ==========================================
+# 7b. FRONTEND (services/dashboard/)
+# ==========================================
+#
+# Phase 97 scaffolding. The dashboard is a SvelteKit static bundle — no Node
+# runtime in production (ADR-020). Developer toolchain is Node 22 + pnpm via
+# Corepack, both pinned in .tool-versions (SSoT).
+#
+# These targets assume pnpm is already activated:
+#   corepack enable && corepack prepare pnpm@$(PNPM_VERSION) --activate
+# `make fe-install` is the one-shot bootstrap.
+
+FE_DIR := services/dashboard
+
+fe-install:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Installing frontend dependencies (pnpm $(PNPM_VERSION))...$(RESET)"
+	@cd $(FE_DIR) && pnpm install --frozen-lockfile
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend dependencies installed.$(RESET)"
+
+fe-dev:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting SvelteKit dev server (hot reload)...$(RESET)"
+	@cd $(FE_DIR) && pnpm run dev
+
+fe-preview: fe-build
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting preview server for the production build...$(RESET)"
+	@cd $(FE_DIR) && pnpm run preview
+
+fe-format:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Formatting frontend sources with Prettier...$(RESET)"
+	@cd $(FE_DIR) && pnpm run format
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend sources formatted.$(RESET)"
+
+fe-lint:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend linters (ESLint + Prettier + svelte-check)...$(RESET)"
+	@cd $(FE_DIR) && pnpm run lint
+	@cd $(FE_DIR) && pnpm run check
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend lint passed!$(RESET)"
+
+fe-typecheck:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend TypeScript strict typecheck...$(RESET)"
+	@cd $(FE_DIR) && pnpm run check
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend typecheck passed!$(RESET)"
+
+fe-test:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend unit tests (Vitest)...$(RESET)"
+	@cd $(FE_DIR) && pnpm run test:unit
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend unit tests passed!$(RESET)"
+
+fe-test-e2e:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend end-to-end tests (Playwright)...$(RESET)"
+	@cd $(FE_DIR) && pnpm run test:e2e
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend e2e tests passed!$(RESET)"
+
+fe-build:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Building frontend (static adapter)...$(RESET)"
+	@cd $(FE_DIR) && pnpm run build
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend build complete: $(FE_DIR)/build/$(RESET)"
+
+fe-bundle-size: fe-build
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Enforcing initial-bundle size budget (80 kB gzipped)...$(RESET)"
+	@cd $(FE_DIR) && pnpm run bundle-size
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Bundle-size gate passed!$(RESET)"
+
+# TypeScript codegen from the BFF OpenAPI spec. Peer of `make codegen` (Go).
+# Requires the OpenAPI bundle to exist (see openapi-bundle target).
+fe-codegen: openapi-bundle
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running openapi-typescript for BFF API → dashboard...$(RESET)"
+	@cd $(FE_DIR) && pnpm run codegen
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)TypeScript API types generated.$(RESET)"
+
+# Root-level alias mirroring the ROADMAP's naming (`make codegen-ts`).
+codegen-ts: fe-codegen
+
+# Composite gate mirroring Go's `make lint && make test` ergonomics.
+fe-check: fe-lint fe-typecheck fe-test fe-build fe-bundle-size
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Frontend check suite passed!$(RESET)"
+
+# Image budget — ROADMAP Phase 97 requires the dashboard image to stay
+# under 50 MB. Enforced post-build; Docker itself cannot gate on size.
+FE_IMAGE_MAX_MB := 50
+
+fe-image-build:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Building dashboard container image (aer-dashboard:local)...$(RESET)"
+	@docker compose build dashboard
+	@$(MAKE) --no-print-directory fe-image-size
+
+fe-image-size:
+	@size_mb=$$(docker image inspect aer-dashboard:local --format '{{.Size}}' | awk '{printf "%d", $$1/1048576}'); \
+	if [ -z "$$size_mb" ]; then \
+		echo -e "\033[1m\033[38;5;196mERROR:\033[0m aer-dashboard:local not built. Run \`make fe-image-build\`."; \
+		exit 1; \
+	fi; \
+	echo -e "$(SYMBOL_INFO) $(GRAY)Dashboard image size: $$size_mb MB  (budget: $(FE_IMAGE_MAX_MB) MB)$(RESET)"; \
+	if [ $$size_mb -gt $(FE_IMAGE_MAX_MB) ]; then \
+		echo -e "\033[1m\033[38;5;196mERROR:\033[0m dashboard image exceeds $(FE_IMAGE_MAX_MB) MB budget."; \
+		exit 1; \
+	fi; \
+	echo -e "$(SYMBOL_SUCCESS) $(GREEN)Dashboard image under budget.$(RESET)"
+
+frontend-up:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting dashboard container...$(RESET)"
+	@docker compose up -d dashboard
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Dashboard routed via Traefik (https://localhost/).$(RESET)"
+
+frontend-down:
+	@echo -e "$(BOLD)$(GRAY)--- STOPPING DASHBOARD ---$(RESET)"
+	@docker compose stop dashboard 2>/dev/null || true
+	@docker compose rm --force dashboard 2>/dev/null || true
+	@echo -e "$(SYMBOL_STOP) $(GRAY)Dashboard stopped.$(RESET)"
+
+frontend-restart: frontend-down frontend-up
 
 # ==========================================
 # 8. DEVELOPER SETUP
@@ -405,4 +530,29 @@ help:
 	@echo -e "  $(CYAN)audit-python$(RESET)        $(GRAY)pip-audit for analysis-worker$(RESET)"
 	@echo -e "  $(GREEN)deps-refresh$(RESET)        $(GRAY)Rotate base image digests, pip lock, SentiWS hash (see playbook)$(RESET)"
 	@echo -e "  $(GREEN)setup$(RESET)               $(GRAY)Install all developer tools pinned to .tool-versions$(RESET)"
+	@echo -e ""
+	@echo -e "$(BOLD)Frontend (services/dashboard/):$(RESET)"
+	@echo -e "  $(GREEN)fe-install$(RESET)          $(GRAY)Install frontend dependencies (pnpm, frozen lockfile)$(RESET)"
+	@echo -e "  $(CYAN)fe-dev$(RESET)              $(GRAY)Start SvelteKit dev server (hot reload, localhost:5173)$(RESET)"
+	@echo -e "  $(CYAN)fe-preview$(RESET)          $(GRAY)Build and serve the production bundle locally (localhost:4173)$(RESET)"
+	@echo -e "  $(CYAN)fe-format$(RESET)           $(GRAY)Auto-format frontend sources with Prettier$(RESET)"
+	@echo -e "  $(CYAN)fe-lint$(RESET)             $(GRAY)ESLint + Prettier check + svelte-check$(RESET)"
+	@echo -e "  $(CYAN)fe-typecheck$(RESET)        $(GRAY)TypeScript strict typecheck (svelte-check)$(RESET)"
+	@echo -e "  $(GREEN)fe-test$(RESET)             $(GRAY)Vitest unit tests$(RESET)"
+	@echo -e "  $(GREEN)fe-test-e2e$(RESET)         $(GRAY)Playwright end-to-end smoke test$(RESET)"
+	@echo -e "  $(CYAN)fe-build$(RESET)            $(GRAY)Production static build (SvelteKit static adapter)$(RESET)"
+	@echo -e "  $(CYAN)fe-bundle-size$(RESET)      $(GRAY)Enforce the 80 kB initial-bundle budget (Design Brief §7)$(RESET)"
+	@echo -e "  $(CYAN)fe-codegen$(RESET)          $(GRAY)Generate TypeScript API types from bff-api/openapi.yaml$(RESET)"
+	@echo -e "  $(CYAN)codegen-ts$(RESET)          $(GRAY)Alias of fe-codegen (peer of \`make codegen\` for Go)$(RESET)"
+	@echo -e "  $(GREEN)fe-check$(RESET)            $(GRAY)Composite: fe-lint + fe-typecheck + fe-test + fe-build + fe-bundle-size$(RESET)"
+	@echo -e "  $(CYAN)fe-image-build$(RESET)      $(GRAY)Build dashboard container image (enforces 50 MB budget)$(RESET)"
+	@echo -e "  $(CYAN)fe-image-size$(RESET)       $(GRAY)Check existing dashboard image against the 50 MB budget$(RESET)"
+	@echo -e "  $(GREEN)frontend-up$(RESET)         $(GRAY)Start dashboard container (served via Traefik)$(RESET)"
+	@echo -e "  $(GOLD)frontend-down$(RESET)       $(GRAY)Stop and remove the dashboard container$(RESET)"
+	@echo -e "  $(CYAN)frontend-restart$(RESET)    $(GRAY)Restart the dashboard container$(RESET)"
+	@echo -e ""
+	@echo -e "$(BOLD)Split stack (aliases of \`make up\` / \`make down\`):$(RESET)"
+	@echo -e "  $(GREEN)backend-up$(RESET)          $(GRAY)Start infra + debug ports + all backend services (no dashboard)$(RESET)"
+	@echo -e "  $(GOLD)backend-down$(RESET)        $(GRAY)Stop backend services + debug ports + infra$(RESET)"
+	@echo -e "  $(CYAN)backend-restart$(RESET)     $(GRAY)Restart backend stack$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"

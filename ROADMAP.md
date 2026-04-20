@@ -1550,9 +1550,12 @@ Contract-Drift-Check in CI deckt beide generierten Dateien byte-genau.
   └── README.md
   ```
 
-* [ ] **Svelte / SvelteKit configuration.** Install Svelte 5, SvelteKit with `@sveltejs/adapter-static`, TypeScript 5.5+. `svelte.config.js` configures the static adapter with `prerender: true` and fallback `index.html` for SPA routing. `tsconfig.json` has strict mode enabled (`"strict": true`, `"noUncheckedIndexedAccess": true`, `"exactOptionalPropertyTypes": true`).
+Before installing anything, check if it is already installed and update to its below desired version.
+All versions pinned like in the backend (if best practice)
 
-* [ ] **pnpm and lockfile.** pnpm 9+ as the package manager. `pnpm install --frozen-lockfile` enforced in CI. `.npmrc` with `strict-peer-dependencies=true`. Pin all dev dependencies to exact versions — no caret ranges in `package.json`.
+* [ ] **Svelte / SvelteKit configuration.** Install Svelte 5, SvelteKit with `@sveltejs/adapter-static`, TypeScript 6.0+. `svelte.config.js` configures the static adapter with `prerender: true` and fallback `index.html` for SPA routing. `tsconfig.json` has strict mode enabled (`"strict": true`, `"noUncheckedIndexedAccess": true`, `"exactOptionalPropertyTypes": true`).
+
+* [ ] **pnpm and lockfile.** pnpm 10.33+ as the package manager. `pnpm install --frozen-lockfile` enforced in CI. `.npmrc` with `strict-peer-dependencies=true`. Pin all dev dependencies to exact versions — no caret ranges in `package.json`.
 
 * [ ] **TypeScript API client codegen.** Install `openapi-typescript`. Add `make codegen-ts` target to the root `Makefile` that runs `openapi-typescript services/bff-api/api/openapi.yaml -o services/dashboard/src/lib/api/types.ts`. Add a `.tool-versions` entry for `openapi-typescript`. CI workflow step: `make codegen-ts && git diff --exit-code` — mirror of the existing Go drift check.
 
@@ -1568,7 +1571,9 @@ Contract-Drift-Check in CI deckt beide generierten Dateien byte-genau.
   fe-build:      ## Production build
   fe-check:      ## Composite: lint + typecheck + test + bundle-size gate
   ```
-  Extend the existing `make lint` target to include `fe-lint`. Extend `make test` to include `fe-test`. The existing `make codegen` target remains Go-only; `make codegen-ts` is its frontend peer.
+  Maybe also think of `make frontend-up , down, restart`.
+
+  Extend the existing `make lint` target to include `fe-lint`. Extend `make test` to include `fe-test`. The existing `make codegen` target remains Go-only; `make codegen-ts` is its frontend peer. Decide if we rename `make up, make down, make restart` etc. to specify for backend (e.g. make backend-up etc.) and do the same for the frontend OR/AND if we add the Frontend rules in `make up` so it starts after the backend.
 
 * [ ] **Bundle-size gate.** Add a Vite plugin (`rollup-plugin-visualizer` or equivalent) that emits bundle stats. Add a CI step that fails the build if the initial bundle (shell + router + runtime) exceeds 80 kB gzipped. Budget exists with headroom — the 180 kB total budget (Design Brief §7) is enforced at phase 98 when actual Surface I code lands.
 
