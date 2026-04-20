@@ -1518,7 +1518,6 @@ Contract-Drift-Check in CI deckt beide generierten Dateien byte-genau.
 
 ---
 
-# Open Phases
 
 ## Phase 97: Frontend Scaffolding — SvelteKit Static + Infrastructure Integration [P0] - [x] DONE
 
@@ -1630,6 +1629,9 @@ All versions pinned like in the backend (if best practice)
 * [x] **Validation.** `make up` brings the stack up including the dashboard; `make fe-check`, `make lint` and `make test` all green; the dashboard loads in a browser through Traefik at `https://localhost/` with `<title>AĒR</title>` and the BFF stays reachable at `https://localhost/api/*`. End-to-end OTel traces in Grafana Tempo are carried over to Phase 98 alongside the build-arg plumbing for `PUBLIC_OTLP_ENDPOINT` / `PUBLIC_DEPLOYMENT_ENVIRONMENT` — the SvelteKit static adapter resolves these at build time, so they have to ship as Docker `ARG`s once the first consuming component lands.
 
 **Exit criteria:** A blank but fully instrumented dashboard service runs alongside the existing stack, emits traces, follows the monorepo's supply-chain hardening, and passes the same quality gates as the Go services. Zero user-facing features — but the foundation is production-grade.
+
+
+# Open Phases
 
 ---
 
