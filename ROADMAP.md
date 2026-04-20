@@ -1441,12 +1441,88 @@ A CI lint gate enforces rule 2; rule 1 is checked implicitly by `make codegen` d
 
 **Exit criteria:** A developer can run `docker compose --profile dev up swagger-ui` and browse both APIs interactively at `http://localhost:8089`. Every external YAML file (schemas, responses, parameters) uses external-file refs only; path-level `#/components/...` refs are retained where kin-openapi requires them for named Go types. ADR-021 captures the contract-first posture. CI fails any future PR that reintroduces an in-document ref inside a schema/parameter/response file, or drifts the generated code from the spec.
 
+
+## Phase 96a: Query-Parameter Enum Validation Gate [P2] - [x] DONE
+
+*Der BFF-Handler prüft `?normalization` und `?resolution` aktuell nur auf
+Exaktmatch gegen den Happy-Path-Enum. Jeder andere Wert fällt still auf den
+Default zurück statt `400` zu liefern. Die generierten `Valid()`-Methoden
+existieren in `generated.go`, werden aber nicht aufgerufen. Für das
+kommende Frontend-Debugging macht stiller Fallback Fehlerdiagnose
+unnötig teuer.*
+
+* [x] **`GetMetrics`: explicit enum gate.** In `handler.go` vor der
+  `useZscore`-Ableitung: `if request.Params.Normalization != nil &&
+  !request.Params.Normalization.Valid()` → `GetMetrics400JSONResponse`
+  mit klarem Message (`"invalid normalization; must be one of raw, zscore"`).
+  Analog für `Resolution`.
+* [x] **Audit der übrigen Enum-Parameter.** `GetContent` prüft bereits
+  via `request.EntityType.Valid()`. `GetEntities.Label`, `GetLanguages.Language`
+  sind freie Strings laut OpenAPI (keine Enums) — OK. Keine weiteren Stellen.
+* [x] **Tests.** Jeweils einen Fall pro Parameter mit Garbage-Wert →
+  assert 400 mit dem spezifischen Message-Prefix.
+* [x] **Validate.** `make test`, `make codegen && git diff --exit-code`.
+
+**Exit criteria:** Ein `curl .../metrics?normalization=zcore` (Typo) liefert
+`400` mit deskriptiver Message statt `200` mit Raw-Daten.
+
+
+## Phase 96b: ADR-020 & ADR-021 Ratification Hygiene [P-Docs] - [x] DONE
+
+*ADR-020 (Frontend Stack) und ADR-021 (Contract-first) tragen noch
+"pending author review"-Marker obwohl die Phasen 94–96 bereits auf
+beiden aufgebaut haben. Vor Phase 97 ratifizieren, damit der FE-Code
+gegen ein formell beschlossenes Stack-Commitment geschrieben wird.*
+
+* [x] **ADR-020 Decision Record.** `Ratified: [date TBD]` → konkretes
+  Datum, Status auf `Accepted` heben.
+* [x] **ADR-021 Decision Record.** "ratification pending user/author
+  review" → konkretes Ratifizierungsdatum.
+* [x] **Cross-Ref-Check.** `grep -r "TBD" docs/arc42/09_architecture_decisions.md`
+  muss leer sein (ausser ausdrücklich geplanten Tier-3-Defers).
+* [x] **Validate.** `mkdocs build --strict`.
+
 ---
 
 # Open Phases
 
 ---
 
+## Phase 96c: Ingestion API strict-server Konvergenz [P2] - [ ] TODO
+
+*ADR-021 hat bewusst die `types`-only-Codegen-Strategie für ingestion-api
+gewählt um Scope-Creep zu vermeiden. Der hand-written Handler kann vom
+Contract driften; aktuell fangen nur Integration-Tests das ab. Vor Phase 97
+ist die FE-Seite des Contracts (`openapi-typescript`) der BFF zugewandt,
+daher hat diese Phase niedrigere Dringlichkeit — aber sie schliesst die
+letzte Asymmetrie in ADR-021.*
+
+* [ ] **codegen-Konfiguration.** `services/ingestion-api/api/codegen.yaml`
+  von `types`-only auf `strict-server + types + chi-server` umstellen
+  (analog BFF). Output: `internal/apicontract/generated.go` (ggf.
+  Rename auf `internal/handler/generated.go` für Konsistenz).
+* [ ] **Handler-Migration.** Den bestehenden `Handler.Ingest` auf das
+  `StrictServerInterface`-Pattern heben (Request/Response-Objects
+  statt `http.ResponseWriter`/`*http.Request`). Existierende Tests
+  bleiben fast unverändert — der HTTP-Router-Eintrittspunkt ist der
+  einzige Unterschied.
+* [ ] **Router-Wiring.** `cmd/api/main.go`: `handler.HandlerFromMuxWithBaseURL(
+  handler.NewStrictHandler(serverLogic, nil), r, "/api/v1")` statt
+  direktem `r.Post("/ingest", h.Ingest)`.
+* [ ] **Drift-Check.** Nach Migration muss `make codegen && git diff
+  --exit-code` ingestion-api-generated-Datei nicht mehr rot.
+* [ ] **Tests.** Existierende Handler-Tests laufen gegen die neue
+  Interface-Form. Neu: ein Contract-Drift-Test (Handler-Methode fehlt
+  im Interface → Compile-Error).
+* [ ] **ADR-021 Update.** Den "Ingestion handler is not yet generated
+  from its contract"-Satz in Consequences auf "Resolved in Phase 96c"
+  setzen, Non-Goal-Abschnitt entsprechend kürzen.
+* [ ] **Validate.** `make test`, `make test-e2e`, `make codegen` clean.
+
+**Exit criteria:** Beide HTTP-Services nutzen `strict-server`. Der
+Contract-Drift-Check in CI deckt beide generierten Dateien byte-genau.
+
+---
 ## Phase 97: Frontend Scaffolding — SvelteKit Static + Infrastructure Integration [P0] - [ ] TODO
 
 *This phase creates `services/dashboard/` as a new service in the monorepo. It produces a minimal "Hello AĒR" page that renders through Traefik, emits OTel traces into the existing collector, and passes the same CI/supply-chain rigor as the Go services. No user-facing features yet — this is purely the foundation on which all subsequent frontend work stands.*

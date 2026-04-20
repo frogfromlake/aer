@@ -519,7 +519,7 @@ This mirrors how `minio-init` and `clickhouse-init` already work for their respe
 
 ## ADR-020: Frontend Technology Stack for the AĒR Dashboard
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-17
 **Supersedes:** None
 **Superseded by:** None
@@ -771,7 +771,7 @@ Each phase is independent and deployable on its own. No phase leaves the dashboa
 ### Decision Record
 
 * **Proposed:** 2026-04-17 by Fabian Quist (senior architect) in collaborative design session with AĒR.
-* **Ratified:** [date TBD — pending author review]
+* **Ratified:** 2026-04-20 by the implementing engineer (Fabian Quist).
 * **Review date:** 2027-04 (12-month review) or on any major Svelte / three.js / ecosystem regression.
 
 ---
@@ -827,5 +827,5 @@ The ingestion API ships a types-only codegen target (`internal/apicontract/gener
 ### Decision Record
 
 * **Proposed:** 2026-04-19 during Phase 96 implementation.
-* **Ratified:** 2026-04-19 by the implementing engineer; ratification pending user/author review.
+* **Ratified:** 2026-04-19 by the implementing engineer; confirmed 2026-04-20 by the author (Fabian Quist).
 * **Review date:** 2027-04 or on any oapi-codegen / kin-openapi major version bump that changes path-item flattening semantics.
