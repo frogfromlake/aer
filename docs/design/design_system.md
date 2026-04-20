@@ -124,10 +124,21 @@ Landed in Phase 98b:
 - `Badge.svelte` — status chips consuming Epistemic Weight classes.
 - `SkipLink.svelte` — the first focusable element on every page.
 
-Each primitive has an accompanying `.story.svelte` in Histoire
-(`pnpm histoire dev`). Stories are the ground truth for the accessible,
-visual behavior of each component — any new component must land with a story
-demonstrating all variants before a later phase can depend on it.
+Each primitive has an accompanying route-based story under
+`services/dashboard/src/routes/stories/<component>/+page.svelte`. The stories
+sidebar at `/stories` lists every component and exposes a dark/light theme
+toggle that sets `data-theme` on `document.documentElement`. Stories are the
+ground truth for the accessible, visual behavior of each component — any new
+component must land with a story demonstrating all variants before a later
+phase can depend on it.
+
+The route-based harness is first-class: Histoire is not used. At the time of
+Phase 98b its Svelte 5 support still lives on the `add-svelte5-support`
+feature branch of `histoire-dev/histoire`, and the published
+`@histoire/plugin-svelte@1.0.0-beta.1` ships precompiled artifacts that
+import from `svelte/internal` (forbidden on Svelte 5). Route stories build
+with the same Vite pipeline as the app, which also gives the Phase 98c
+Playwright + axe gate a single surface to drive.
 
 ---
 
