@@ -98,6 +98,13 @@ func (s *Server) GetReadyz(ctx context.Context, _ GetReadyzRequestObject) (GetRe
 // (b) at least deviation-level equivalence must be confirmed in metric_equivalence.
 // This prevents normalized comparisons before interdisciplinary validation.
 func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error) {
+	if request.Params.Normalization != nil && !request.Params.Normalization.Valid() {
+		return GetMetrics400JSONResponse{Message: "invalid normalization; must be one of raw, zscore"}, nil
+	}
+	if request.Params.Resolution != nil && !request.Params.Resolution.Valid() {
+		return GetMetrics400JSONResponse{Message: "invalid resolution; must be one of 5min, hourly, daily, weekly, monthly"}, nil
+	}
+
 	useZscore := request.Params.Normalization != nil && *request.Params.Normalization == Zscore
 
 	if useZscore {

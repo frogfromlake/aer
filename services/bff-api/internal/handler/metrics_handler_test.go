@@ -483,6 +483,28 @@ func TestGetMetrics_ResolutionParamPropagatesToStore(t *testing.T) {
 	}
 }
 
+func TestGetMetrics_Returns400OnInvalidNormalization(t *testing.T) {
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics?startDate=2025-01-01T00:00:00Z&endDate=2025-01-02T00:00:00Z&normalization=zcore", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid normalization, got %d", w.Code)
+	}
+}
+
+func TestGetMetrics_Returns400OnInvalidResolution(t *testing.T) {
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics?startDate=2025-01-01T00:00:00Z&endDate=2025-01-02T00:00:00Z&resolution=minutely", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid resolution, got %d", w.Code)
+	}
+}
+
 func TestGetMetrics_DefaultResolutionIsFiveMinute(t *testing.T) {
 	store := &mockStore{}
 	s := NewServer(store, nil, nil, nil)
