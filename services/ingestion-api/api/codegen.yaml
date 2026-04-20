@@ -1,4 +1,6 @@
-package: apicontract
+package: handler
 generate:
+  - chi-server
+  - strict-server
   - types
-output: internal/apicontract/generated.go
+output: internal/handler/generated.go

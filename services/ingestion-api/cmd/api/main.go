@@ -129,7 +129,14 @@ func main() {
 
 	// 4. Wire service and handlers
 	svc := core.NewIngestionService(db, minioClient, cfg.BronzeBucket, cfg.MinioUploadConcurrency)
-	h := handler.NewHandler(svc, cfg.MaxBodyBytes)
+	srv := handler.NewServer(svc, cfg.MaxBodyBytes)
+	strictH := handler.NewStrictHandlerWithOptions(srv, nil, handler.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: handler.RequestErrorHandler,
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
+			slog.Error("response encoding failed", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		},
+	})
 
 	// 5. Setup chi router with OTel instrumentation
 	r := chi.NewRouter()
@@ -144,13 +151,12 @@ func main() {
 
 	// API Key Auth: protects all routes except /healthz and /readyz.
 	// Scoped via Group so /metrics above stays unauthenticated.
+	// BodyLimitMiddleware must run before the strict handler decodes the body.
 	r.Group(func(r chi.Router) {
 		r.Use(mw.NewCORSHandler(strings.Split(cfg.CORSOrigins, ","), []string{"GET", "POST", "OPTIONS"}))
 		r.Use(mw.APIKeyAuth(cfg.APIKey))
-		r.Post("/api/v1/ingest", h.Ingest)
-		r.Get("/api/v1/sources", h.GetSources)
-		r.Get("/api/v1/healthz", h.Healthz)
-		r.Get("/api/v1/readyz", h.Readyz)
+		r.Use(srv.BodyLimitMiddleware)
+		handler.HandlerFromMuxWithBaseURL(strictH, r, "/api/v1")
 	})
 
 	// 6. Start background PostgreSQL retention cleanup (runs every 24h)

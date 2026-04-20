@@ -800,7 +800,7 @@ Rule 2 is enforced by `scripts/openapi_ref_style_check.sh` (run via `make openap
 * `make codegen` regenerates both services from the modular source directly — the bundle is for human and frontend consumption only.
 
 **Ingestion API scope.**
-The ingestion API ships a types-only codegen target (`internal/apicontract/generated.go`). The existing hand-written handler is not migrated to `strict-server` in this phase; the spec is the normative external contract and the handler implementation will converge on it in a later phase. This avoids scope creep into a handler rewrite while still closing the documentation and drift-prevention gap.
+The ingestion API initially shipped a types-only codegen target (`internal/apicontract/generated.go`). Resolved in Phase 96c: the handler was migrated to `strict-server` (matching the BFF pattern), the `apicontract` package was removed, and the generated output now lives in `internal/handler/generated.go`. Both HTTP services now use `strict-server`, and the CI drift check covers both generated files byte-for-byte.
 
 **Alternatives considered.**
 
@@ -808,13 +808,13 @@ The ingestion API ships a types-only codegen target (`internal/apicontract/gener
 * **Normalize all refs to external-file form.** Rejected: attempted and reverted. Removing path-level `#/components/...` refs from the four BFF path files collapses four named Go types into anonymous inline types, breaking the BFF API's generated surface. The "inconsistency" observed in the Phase 95 spec is in fact the intended behavior of `kin-openapi` — what was missing was a written convention and a lint gate.
 * **Normalize all refs to `#/components/...` form.** Rejected: fundamentally impossible because `#` means "current document" in JSON Reference; the style is only resolvable at path level via `kin-openapi`'s special-case flattening.
 * **Use `redocly bundle` for the bundled artifact.** Rejected: `redocly` correctly refuses path-level `#/components/...` refs in external files. Routes away from either (a) a custom bundler or (b) abandoning named Go types; we chose (a).
-* **Use `strict-server` for ingestion in Phase 96.** Rejected on scope grounds — the contract-first gap is closable without also rewriting the existing handler; the handler convergence is a follow-up.
+* **Use `strict-server` for ingestion in Phase 96.** Deferred on scope grounds — the contract-first gap was closable without also rewriting the existing handler. The migration was completed in Phase 96c.
 
 **Consequences.**
 
 * New contributors must be aware of the two-style convention. §8.19 and the lint gate are the enforcement points; a violation of Rule 2 fails `make lint`.
 * `scripts/openapi_bundle.py` is now a small first-party tool that must be maintained. Its surface is intentionally small (~100 lines) and has no external dependency beyond PyYAML (already present via the analysis worker).
-* The ingestion handler is not yet generated from its contract; drift is possible between the documented surface and the actual handler behavior until a follow-up phase runs the handler through `strict-server`. This is mitigated by the existing ingestion integration tests, which exercise real request shapes.
+* Both HTTP services (ingestion-api and bff-api) now use `strict-server`. Contract drift between the OpenAPI spec and handler behavior is structurally prevented by the `StrictServerInterface` compile-time check and the `make codegen && git diff --exit-code` CI gate covering both generated files.
 * Swagger UI is available but gated behind a compose profile so it never accidentally ships to production.
 
 **References.**
@@ -827,5 +827,5 @@ The ingestion API ships a types-only codegen target (`internal/apicontract/gener
 ### Decision Record
 
 * **Proposed:** 2026-04-19 during Phase 96 implementation.
-* **Ratified:** 2026-04-19 by the implementing engineer; confirmed 2026-04-20 by the author (Fabian Quist).
+* **Ratified:** 2026-04-19 by the implementing engineer; confirmed 2026-04-20 by the author (Fabian Quist). Extended by Phase 96c (2026-04-20): ingestion `strict-server` convergence resolves the last open consequence.
 * **Review date:** 2027-04 or on any oapi-codegen / kin-openapi major version bump that changes path-item flattening semantics.

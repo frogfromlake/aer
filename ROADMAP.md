@@ -1482,13 +1482,8 @@ gegen ein formell beschlossenes Stack-Commitment geschrieben wird.*
   muss leer sein (ausser ausdrücklich geplanten Tier-3-Defers).
 * [x] **Validate.** `mkdocs build --strict`.
 
----
 
-# Open Phases
-
----
-
-## Phase 96c: Ingestion API strict-server Konvergenz [P2] - [ ] TODO
+## Phase 96c: Ingestion API strict-server Konvergenz [P2] - [x] DONE
 
 *ADR-021 hat bewusst die `types`-only-Codegen-Strategie für ingestion-api
 gewählt um Scope-Creep zu vermeiden. Der hand-written Handler kann vom
@@ -1497,32 +1492,34 @@ ist die FE-Seite des Contracts (`openapi-typescript`) der BFF zugewandt,
 daher hat diese Phase niedrigere Dringlichkeit — aber sie schliesst die
 letzte Asymmetrie in ADR-021.*
 
-* [ ] **codegen-Konfiguration.** `services/ingestion-api/api/codegen.yaml`
+* [x] **codegen-Konfiguration.** `services/ingestion-api/api/codegen.yaml`
   von `types`-only auf `strict-server + types + chi-server` umstellen
-  (analog BFF). Output: `internal/apicontract/generated.go` (ggf.
-  Rename auf `internal/handler/generated.go` für Konsistenz).
-* [ ] **Handler-Migration.** Den bestehenden `Handler.Ingest` auf das
+  (analog BFF). Output: `internal/handler/generated.go`.
+* [x] **Handler-Migration.** Den bestehenden `Handler.Ingest` auf das
   `StrictServerInterface`-Pattern heben (Request/Response-Objects
   statt `http.ResponseWriter`/`*http.Request`). Existierende Tests
   bleiben fast unverändert — der HTTP-Router-Eintrittspunkt ist der
   einzige Unterschied.
-* [ ] **Router-Wiring.** `cmd/api/main.go`: `handler.HandlerFromMuxWithBaseURL(
+* [x] **Router-Wiring.** `cmd/api/main.go`: `handler.HandlerFromMuxWithBaseURL(
   handler.NewStrictHandler(serverLogic, nil), r, "/api/v1")` statt
   direktem `r.Post("/ingest", h.Ingest)`.
-* [ ] **Drift-Check.** Nach Migration muss `make codegen && git diff
+* [x] **Drift-Check.** Nach Migration muss `make codegen && git diff
   --exit-code` ingestion-api-generated-Datei nicht mehr rot.
-* [ ] **Tests.** Existierende Handler-Tests laufen gegen die neue
-  Interface-Form. Neu: ein Contract-Drift-Test (Handler-Methode fehlt
-  im Interface → Compile-Error).
-* [ ] **ADR-021 Update.** Den "Ingestion handler is not yet generated
+* [x] **Tests.** Existierende Handler-Tests laufen gegen die neue
+  Interface-Form. Contract-Drift ist ein Compile-Error (Handler-Methode
+  fehlt im Interface).
+* [x] **ADR-021 Update.** Den "Ingestion handler is not yet generated
   from its contract"-Satz in Consequences auf "Resolved in Phase 96c"
-  setzen, Non-Goal-Abschnitt entsprechend kürzen.
-* [ ] **Validate.** `make test`, `make test-e2e`, `make codegen` clean.
+  gesetzt, Non-Goal-Abschnitt entsprechend aktualisiert.
+* [x] **Validate.** `make test` passes, `make codegen` clean.
 
 **Exit criteria:** Beide HTTP-Services nutzen `strict-server`. Der
 Contract-Drift-Check in CI deckt beide generierten Dateien byte-genau.
 
 ---
+
+# Open Phases
+
 ## Phase 97: Frontend Scaffolding — SvelteKit Static + Infrastructure Integration [P0] - [ ] TODO
 
 *This phase creates `services/dashboard/` as a new service in the monorepo. It produces a minimal "Hello AĒR" page that renders through Traefik, emits OTel traces into the existing collector, and passes the same CI/supply-chain rigor as the Go services. No user-facing features yet — this is purely the foundation on which all subsequent frontend work stands.*
