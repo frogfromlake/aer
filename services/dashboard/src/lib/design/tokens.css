@@ -1,0 +1,177 @@
+/*
+ * AĒR Design Tokens (Phase 98a)
+ *
+ * All primitives are CSS custom properties — no Tailwind, no framework lock-in.
+ * Dark-mode is the primary theme (Design Brief §5.5); light-mode is an accessible
+ * fallback. System preference is honored at first load via prefers-color-scheme;
+ * an explicit data-theme="dark|light" on <html> always wins.
+ *
+ * Token families:
+ *   - color     viridis-family palette stops, UI grays, accent cyan, semantic colors
+ *   - type      Inter Variable (UI) + IBM Plex Mono (numbers), modular scale
+ *   - space     4px baseline grid
+ *   - radius    surface rounding
+ *   - elevation shadow stack
+ *   - motion    durations + easings (reduced-motion honored at bottom)
+ */
+
+:root {
+  /* --- Viridis-family palette stops (perceptually uniform, colorblind-safe) --- */
+  /* Five anchor stops; the full 256-step scale lives in viridis.ts. */
+  --color-viridis-0: #440154;
+  --color-viridis-25: #3b528b;
+  --color-viridis-50: #21918c;
+  --color-viridis-75: #5ec962;
+  --color-viridis-100: #fde725;
+
+  /* --- Accent (single cyan, used sparingly for interactive affordances) --- */
+  --color-accent: #7ddce5;
+  --color-accent-muted: #3a7f87;
+
+  /* --- Semantic colors for validation status (not valence — §5.2) --- */
+  /* These colors encode *methodological state*, never value judgment on content. */
+  --color-status-unvalidated: #c8a85a; /* warm neutral — Tier 1 unvalidated */
+  --color-status-validated: #7ec4a0; /* muted green — validated tier */
+  --color-status-expired: #c47e7e; /* muted terracotta — expired validation */
+  --color-status-refused: #9a8fb8; /* lavender gray — methodological refusal */
+
+  /* --- Type: font families (self-hosted, no Google Fonts — Zero-Trust) --- */
+  --font-ui: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, 'Liberation Mono', monospace;
+
+  /* --- Type: modular scale (ratio 1.25, base 16 px) --- */
+  --font-size-xs: 0.75rem; /* 12 px */
+  --font-size-sm: 0.875rem; /* 14 px */
+  --font-size-base: 1rem; /* 16 px */
+  --font-size-md: 1.125rem; /* 18 px */
+  --font-size-lg: 1.25rem; /* 20 px */
+  --font-size-xl: 1.563rem; /* 25 px */
+  --font-size-2xl: 1.953rem; /* 31 px */
+  --font-size-3xl: 2.441rem; /* 39 px */
+  --font-size-4xl: 3.052rem; /* 49 px */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --line-height-tight: 1.15;
+  --line-height-base: 1.5;
+  --line-height-loose: 1.7;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-base: 0;
+  --letter-spacing-wide: 0.04em;
+
+  /* --- Spacing: 4 px baseline grid --- */
+  --space-0: 0;
+  --space-1: 0.25rem; /* 4 px */
+  --space-2: 0.5rem; /* 8 px */
+  --space-3: 0.75rem; /* 12 px */
+  --space-4: 1rem; /* 16 px */
+  --space-5: 1.5rem; /* 24 px */
+  --space-6: 2rem; /* 32 px */
+  --space-7: 3rem; /* 48 px */
+  --space-8: 4rem; /* 64 px */
+  --space-9: 6rem; /* 96 px */
+
+  /* --- Radius --- */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* --- Motion: durations + easings --- */
+  --motion-duration-instant: 80ms;
+  --motion-duration-fast: 160ms;
+  --motion-duration-base: 240ms;
+  --motion-duration-slow: 400ms;
+  --motion-duration-stately: 720ms;
+
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --motion-ease-linear: linear;
+
+  /* --- Focus ring (minimum 3:1 contrast against any background) --- */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-accent);
+}
+
+/* --- Theme: dark (primary, Design Brief §5.5) --- */
+:root,
+:root[data-theme='dark'] {
+  --color-bg: #0b0d10;
+  --color-bg-elevated: #14181d;
+  --color-bg-overlay: rgba(11, 13, 16, 0.72);
+
+  --color-surface: #1a1f26;
+  --color-surface-hover: #222932;
+
+  --color-border: #2a313b;
+  --color-border-strong: #3a424e;
+
+  --color-fg: #e6e8eb;
+  --color-fg-muted: #a8aeb8;
+  --color-fg-subtle: #6e7682;
+
+  --color-link: var(--color-accent);
+
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.55);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* --- Theme: light (accessible fallback) --- */
+:root[data-theme='light'] {
+  --color-bg: #fafbfc;
+  --color-bg-elevated: #ffffff;
+  --color-bg-overlay: rgba(255, 255, 255, 0.82);
+
+  --color-surface: #ffffff;
+  --color-surface-hover: #f2f4f7;
+
+  --color-border: #d9dde2;
+  --color-border-strong: #b4bac3;
+
+  --color-fg: #15181d;
+  --color-fg-muted: #464c55;
+  --color-fg-subtle: #6e7682;
+
+  --color-link: var(--color-accent-muted);
+
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+/* --- System preference: honor prefers-color-scheme when no explicit theme set --- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg: #fafbfc;
+    --color-bg-elevated: #ffffff;
+    --color-bg-overlay: rgba(255, 255, 255, 0.82);
+    --color-surface: #ffffff;
+    --color-surface-hover: #f2f4f7;
+    --color-border: #d9dde2;
+    --color-border-strong: #b4bac3;
+    --color-fg: #15181d;
+    --color-fg-muted: #464c55;
+    --color-fg-subtle: #6e7682;
+    --color-link: var(--color-accent-muted);
+    --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --elevation-2: 0 2px 6px rgba(0, 0, 0, 0.08);
+    --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* --- Reduced motion: collapse all motion scale to near-zero --- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-instant: 0.01ms;
+    --motion-duration-fast: 0.01ms;
+    --motion-duration-base: 0.01ms;
+    --motion-duration-slow: 0.01ms;
+    --motion-duration-stately: 0.01ms;
+  }
+}

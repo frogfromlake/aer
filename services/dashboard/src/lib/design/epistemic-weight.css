@@ -1,0 +1,119 @@
+/*
+ * Epistemic Weight (Design Brief §5.8, Phase 98a)
+ *
+ * Visual prominence of a metric scales with its methodological backing.
+ * These classes are consumed directly by visualization modules and badges —
+ * no visualization module hardcodes line-weight / opacity / decoration.
+ *
+ * Tier mapping (from §5.8):
+ *   - tier1-unvalidated  Today's default. Moderate weight, status badge visible.
+ *   - tier1-validated    Post-Workflow-2. Full weight, validation badge.
+ *   - tier2-validated    Cross-context equivalence established. Full weight.
+ *   - tier3              LLM-augmented, non-deterministic. Dashed, never primary.
+ *   - expired            Reverts to unvalidated treatment; expiration shown.
+ *
+ * Reading order: the earlier the class in the cascade, the more provisional
+ * the treatment. A renderer that needs to pick between tiers chooses the
+ * single matching class — classes are never combined.
+ */
+
+/* --- Line-weight / opacity / decoration primitives --- */
+
+.weight-tier1-unvalidated {
+  --weight-stroke-width: 1.25px;
+  --weight-opacity: 0.85;
+  --weight-dash-array: none;
+  --weight-badge-color: var(--color-status-unvalidated);
+  --weight-badge-label: 'Tier 1 · unvalidated';
+  stroke-width: var(--weight-stroke-width);
+  opacity: var(--weight-opacity);
+  stroke-dasharray: var(--weight-dash-array);
+}
+
+.weight-tier1-validated {
+  --weight-stroke-width: 1.75px;
+  --weight-opacity: 1;
+  --weight-dash-array: none;
+  --weight-badge-color: var(--color-status-validated);
+  --weight-badge-label: 'Tier 1 · validated';
+  stroke-width: var(--weight-stroke-width);
+  opacity: var(--weight-opacity);
+  stroke-dasharray: var(--weight-dash-array);
+}
+
+.weight-tier2-validated {
+  --weight-stroke-width: 2px;
+  --weight-opacity: 1;
+  --weight-dash-array: none;
+  --weight-badge-color: var(--color-status-validated);
+  --weight-badge-label: 'Tier 2 · validated';
+  stroke-width: var(--weight-stroke-width);
+  opacity: var(--weight-opacity);
+  stroke-dasharray: var(--weight-dash-array);
+}
+
+.weight-tier3 {
+  --weight-stroke-width: 1.25px;
+  --weight-opacity: 0.7;
+  --weight-dash-array: 4 3;
+  --weight-badge-color: var(--color-fg-subtle);
+  --weight-badge-label: 'Tier 3 · non-deterministic';
+  stroke-width: var(--weight-stroke-width);
+  opacity: var(--weight-opacity);
+  stroke-dasharray: var(--weight-dash-array);
+}
+
+.weight-expired {
+  --weight-stroke-width: 1.25px;
+  --weight-opacity: 0.65;
+  --weight-dash-array: none;
+  --weight-badge-color: var(--color-status-expired);
+  --weight-badge-label: 'Validation expired';
+  stroke-width: var(--weight-stroke-width);
+  opacity: var(--weight-opacity);
+  stroke-dasharray: var(--weight-dash-array);
+  /* expired validations also receive a diagonal hatch overlay when rendered as
+     a filled region — consumers apply `.weight-expired-region` in that case. */
+}
+
+.weight-expired-region {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 4px,
+    var(--color-status-expired) 4px,
+    var(--color-status-expired) 5px
+  );
+  opacity: 0.3;
+}
+
+/* --- Badge styling for status chips next to rendered metrics --- */
+
+.weight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  color: var(--color-fg);
+  background: color-mix(
+    in oklab,
+    var(--weight-badge-color, var(--color-fg-subtle)) 20%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(in oklab, var(--weight-badge-color, var(--color-fg-subtle)) 50%, transparent);
+}
+
+.weight-badge::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--weight-badge-color, var(--color-fg-subtle));
+}

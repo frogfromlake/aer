@@ -572,11 +572,11 @@ The design of the frontend must not foreclose either path. No design principle i
 ## 9. What is deliberately not decided here
 
 - **Framework, library, rendering strategy.** Deferred to a technical ADR after this brief is ratified.
-- **Specific color values.** The brief commits to Viridis-family palettes on dark backgrounds; the exact stops, UI grays, and typographic scale will be resolved in the design system specification that follows.
+- **Specific color values.** The brief commits to Viridis-family palettes on dark backgrounds; the exact stops, UI grays, and typographic scale are resolved in `design_system.md` (Phase 98).
 - **Specific component inventory.** The brief names surfaces, layers, and overlays; the component tree will be derived from them.
 - **Exact Low-Fidelity rendering strategy.** The brief commits to the principle (§5.6) and the performance budgets (§7); the specific 2D projection, tile strategy, and asset pipeline are resolved in the implementation phase.
 - **Content catalog format.** The brief commits to the principle that Dual-Register semantic content (§5.7) is not hard-coded in frontend source; the specific storage format (API-served, versioned JSON, CMS, or other) is an implementation decision.
-- **Specific Epistemic Weight visual mappings.** §5.8 defines the principle (weight scales with backing) and the tier-to-treatment table at a conceptual level; the exact line thicknesses, opacity values, and badge designs are design system decisions.
+- **Specific Epistemic Weight visual mappings.** §5.8 defines the principle (weight scales with backing) and the tier-to-treatment table at a conceptual level; the exact line thicknesses, opacity values, and badge designs are resolved in `design_system.md` §4 (Phase 98).
 - **The k-anonymity threshold for L5.** §4.5 commits to the principle (WP-006 §7 applies at Evidence layer) and names *k* = 10 from WP-006 §7.2 as today's default. The exact value per probe type is an operational parameter that may evolve as privacy research develops.
 - **Accessibility specifics.** Full WCAG 2.2 AA conformance is a baseline assumption, not a design decision. Specifics (keyboard-only navigation paths, screen-reader semantics at Layer 0, reduced-motion modes) are resolved in the accessibility spec that accompanies implementation.
 
