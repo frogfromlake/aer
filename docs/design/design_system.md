@@ -47,7 +47,7 @@ paint time.
 `prefers-reduced-motion: reduce` collapses every motion-duration token to
 `0.01ms`. Components that depend on a meaningful animation simply complete
 instantly. Imperative animation loops (e.g. the 3D globe's auto-rotation in
-Phase 99) must additionally check the media query at runtime — CSS alone
+Phase 99a) must additionally check the media query at runtime — CSS alone
 cannot disable a JS animation loop.
 
 ---

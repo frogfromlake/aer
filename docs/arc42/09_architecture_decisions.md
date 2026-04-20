@@ -588,6 +588,7 @@ Rationale:
 * **Shader control.** Terminator rendering (day/night boundary) is a fragment-shader problem: a per-pixel dot-product between the sun-direction vector and the surface normal. Probe glow requires a bloom-and-scatter shader with a bounded pulse driven by activity density. Probe reach auras require a translucent volumetric field sampled from per-probe geometry (not a hardcoded circle). Absence fields require custom blending. Rayleigh/Mie atmospheric scattering follows well-documented shader patterns. The reserved propagation slot uses a curve-along-great-circle shader that is wired into the engine from day one but consumes no fragment cycles while its data input is empty. Declarative framework wrappers (react-three-fiber, Threlte, Solid-Three) add abstraction overhead that impairs shader-level control at the 60fps target.
 * **Framework-agnostic module.** Per Design Brief §5.9, the engine module receives data and produces WebGL output. It does not know the UI framework. This decouples the engine's quality from the framework choice and allows future framework migration without rewriting the engine.
 * **Tree-shakeability.** three.js is large (~650 kB minified) but modular. Only the classes actually imported enter the bundle — for AĒR's expected scope, approximately 80 kB gzipped when the full engine is built. The engine module lazy-loads after the shell: first paint renders the low-fidelity 2D atmosphere, and the WebGL upgrade streams in without blocking.
+* **Vector-first landmass rendering.** The globe surface is built from Natural Earth 1:50m land polygons triangulated at build time, not from a satellite-imagery texture. This keeps landmasses crisp under the country-level zoom that later phases will require, removes a raster asset stream-in path from the first paint, and aligns with Design Brief §3.1 ("restrained silhouettes ... no satellite imagery"). Country borders are an optional, lazy-loaded line mesh (default off) so the atmospheric register dominates by default.
 * **Maturity and community size.** three.js has been maintained since 2010 and is the default choice for non-game WebGL work. The bus factor is excellent; shader documentation is abundant.
 
 Rejected alternatives:
@@ -708,47 +709,50 @@ The ADR is valid only if the selected stack satisfies every requirement in the D
 
 ---
 
-### Implementation Plan (Phase Outline)
+### Implementation Outline
 
-This ADR does not fully specify phased implementation — that is scoped in the ROADMAP `Open Phases` section. However, the ADR implies a minimum phase sequence. Phase numbers continue from the current state (Phase 93 is the most recent completed phase).
+Phased implementation — including exact phase numbers, ordering, scope, and splits — is scoped in `ROADMAP.md` under `Open Phases`. That file is the single source of truth; as surfaces have matured, phases have been split and renumbered (for example, the original single "3D Atmosphere Engine" phase was later split into an engine-foundation phase and a first-contact/live-data phase). Duplicating phase numbers here produced drift, so this section is deliberately number-free and captures only the *architectural increments* the ADR commits to — in the rough sequence in which they will be built. ROADMAP.md binds each increment to a concrete phase.
 
-**Phase 94 — Content Catalog (Backend).**
+**Content Catalog (Backend).**
 YAML structure under `services/bff-api/configs/content/` with `en/` and `de/` locale subdirectories. Content entries for the Phase 42 metrics, the Probe 0 dossier, the four discourse functions (WP-001), and the refusal types (WP-004 normalisation gate, k-anonymity, missing validation). New BFF endpoints `GET /api/v1/content/{entityType}/{entityId}?locale=...`. OpenAPI documentation updated. Integration tests against the new endpoints.
 
-**Phase 95 — Frontend Scaffolding.**
+**Frontend Scaffolding.**
 SvelteKit static project setup under `apps/dashboard/`. TypeScript strict mode. `openapi-typescript` integration with `make codegen-ts` target. CI workflow for lint + typecheck + test + bundle-size gate. OTel Web SDK wired into the Phase 86 collector. Supply-chain automation (Trivy + Cosign + Syft) for the production image on par with Phase 84.
 
-**Phase 96 — Surface I Shell.**
-Atmosphere in low-fidelity form (2D Canvas equirectangular map, probe markers, terminator). Content layer with local-JSON fallback. First deploy behind Traefik. Accessibility baseline passes.
+**Surface I Shell.**
+Shell layer of the Atmosphere surface with a minimal landing view, the content layer wired in, first deploy behind Traefik, accessibility baseline passing, and the route-based story harness + visual/a11y gates in place. (The original plan placed a 2D Canvas low-fi map here; that ordering was reversed — see the Low-Fidelity deferral note in ROADMAP.md.)
 
-**Phase 97 — 3D Atmosphere Engine.**
-Vanilla three.js engine module under `packages/engine-3d/`. Terminator shader, probe glow, basic camera control (orbit, zoom, fly-to). High-Fi mode activates automatically on capable hardware. Engine tested in isolation via Histoire.
+**3D Atmosphere Engine.**
+Vanilla three.js engine module under `packages/engine-3d/`. Terminator shader, atmospheric scattering, globe geometry + texture, basic camera control (orbit, zoom, fly-to), imperative engine API, WebGL2 capability detection + minimal text fallback. Engine tested in isolation via the story harness. High-Fi mode activates automatically on capable hardware.
 
-**Phase 98 — Progressive Descent Infrastructure.**
-Layer transitions via View Transitions API. Progressive Semantics content switching. Refusal surfaces. Dual-register renderers. Keyboard navigation for all five layers. URL-state persistence.
+**First Contact (Live Data on the Atmosphere).**
+Probe glow shader, reach-aura shader, reserved propagation-arc shader slot, raycaster for probe interaction, typed data layer against the BFF, Refusal Surface and Progressive Semantics primitives, the live Atmosphere route driven by `/api/v1/probes` and temporal_distribution queries, time scrubber, URL-state synchronisation.
 
-**Phase 99 — Surface II (Function Lanes).**
+**Progressive Descent Infrastructure.**
+Layer transitions via View Transitions API. Progressive Semantics content switching across descent. Refusal surfaces rendered at every layer they can occur on. Dual-register renderers. Keyboard navigation for all five layers. URL-state persistence across descent and ascent. Multi-probe composition verification (synthetic at first) and the L3 analysis companion with uPlot.
+
+**Surface II (Function Lanes).**
 Four-lane layout. uPlot time series per lane. Observable Plot for detail charts. Empty-lane Dual-Register invitations. Code-split from Surface I.
 
-**Phase 100 — Surface III (Reflection).**
+**Surface III (Reflection).**
 Long-form prose rendering. Observable Plot embedded inline (Distill-style). Probe dossier rendering. WP cross-references. Code-split from Surfaces I and II.
 
-**Phase 101 — Geo-Analytics (Layer 3 on Surface I/II).**
+**Geo-Analytics (Layer 3 on Surface I/II).**
 MapLibre + deck.gl integration. Probe-specific maps driven by emic structure. Intent-based preload.
 
-**Phase 102 — Relational Networks (Rhizome pillar mode).**
+**Relational Networks (Rhizome pillar mode).**
 D3-force for 2D, three.js reuse for 3D. Activated under Rhizome mode with multi-probe data.
 
-**Phase 103 — Negative Space Overlay.**
+**Negative Space Overlay.**
 "What AĒR doesn't see" toggle. Demographic-opacity layer (WP-003 §6). Coverage-map foregrounding.
 
-**Phase 104 — Accessibility Audit and Performance Verification.**
+**Accessibility Audit and Performance Verification.**
 Full WCAG 2.2 AA audit. Lighthouse CI on every PR. Hardware-class performance testing on both target devices (M1 Air, 2015 ThinkPad). Low-Fi mode verification.
 
-**Phase 105 — Documentation Sweep.**
+**Documentation Sweep.**
 Arc42 chapters updated with §8.x for the frontend architecture. `docs/arc42/09_architecture_decisions.md` references this ADR. MkDocs navigation updated. Probe Dossier pattern extended to document any frontend-specific probe content.
 
-Each phase is independent and deployable on its own. No phase leaves the dashboard in a non-functional state.
+Each increment is independent and deployable on its own. No increment leaves the dashboard in a non-functional state.
 
 ---
 

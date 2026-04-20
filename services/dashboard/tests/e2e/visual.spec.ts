@@ -32,6 +32,10 @@ for (const theme of ['dark', 'light'] as const) {
       });
     }
 
+    // The atmosphere/fallback story uses a layout reset (no theme toggle); the
+    // fallback panel is theme-independent dark, so we snapshot it once outside
+    // the theme loop. This still exercises the route's static markup + tokens.
+
     test(`visual: dialog-open`, async ({ page }) => {
       await page.goto('/stories/dialog');
       await setTheme(page, theme);
@@ -43,3 +47,9 @@ for (const theme of ['dark', 'light'] as const) {
     });
   });
 }
+
+test('visual: atmosphere-fallback', async ({ page }) => {
+  await page.goto('/stories/atmosphere/fallback');
+  await settle(page);
+  await expect(page).toHaveScreenshot('atmosphere-fallback.png', { fullPage: true });
+});

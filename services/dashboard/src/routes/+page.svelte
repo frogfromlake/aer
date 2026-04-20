@@ -1,33 +1,43 @@
+<script lang="ts">
+  // Phase 99a landing: full-bleed 3D atmosphere with WebGL2 capability gate.
+  // The shell stays light by dynamic-importing the engine inside AtmosphereCanvas.
+  import { onMount } from 'svelte';
+  import { hasWebGL2 } from '@aer/engine-3d/capability';
+  import AtmosphereCanvas from '$lib/components/atmosphere/AtmosphereCanvas.svelte';
+  import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
+
+  let decision: 'pending' | 'engine' | 'fallback' = $state('pending');
+
+  onMount(() => {
+    const params = new URLSearchParams(window.location.search);
+    const forceFallback = params.get('fallback') === '1';
+    decision = !forceFallback && hasWebGL2() ? 'engine' : 'fallback';
+  });
+</script>
+
 <svelte:head>
-  <title>AĒR — Dashboard</title>
+  <title>AĒR — Atmosphere</title>
 </svelte:head>
 
-<section>
-  <h1>ἀήρ</h1>
-  <p class="lede">Atmospheric sensor for human discourse.</p>
-  <p class="phase">Phase 98 design-system foundation. No user-facing features yet.</p>
-</section>
+{#if decision === 'engine'}
+  <div class="stage" aria-hidden="false">
+    <AtmosphereCanvas />
+  </div>
+{:else if decision === 'fallback'}
+  <div class="centered">
+    <WebGLFallback />
+  </div>
+{/if}
 
 <style>
-  section {
-    text-align: center;
-    max-width: 40rem;
+  .stage {
+    position: fixed;
+    inset: 0;
+    background: #000;
   }
-
-  h1 {
-    font-size: var(--font-size-4xl);
-    margin: 0 0 var(--space-4);
-    color: var(--color-fg);
-  }
-
-  .lede {
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-md);
-    margin: 0 0 var(--space-6);
-  }
-
-  .phase {
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
+  .centered {
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
   }
 </style>

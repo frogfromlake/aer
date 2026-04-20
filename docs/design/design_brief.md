@@ -93,7 +93,7 @@ Cross-context composition is not a fourth surface. As more probes are added, eac
 
 ### 3.1 Surface I: Atmosphere (the first contact)
 
-The default entry. A three-dimensional Earth, slowly rotating, against deep black. Landmasses rendered as restrained gray silhouettes — no political borders, no country labels at the highest altitude.
+The default entry. A three-dimensional Earth, slowly rotating, against deep black. Ocean is a deep, almost-black blue; landmasses are restrained, slightly lighter blue silhouettes — rendered from vector polygons rather than satellite imagery, so the surface stays crisp at any zoom and never competes with the discourse signal it carries. No political borders, no country labels at the highest altitude. An optional borders layer (default off) can be revealed at Layer 2 once the user has descended below the atmospheric register.
 
 The Atmosphere surface answers one question: *what is the state of AĒR's observation right now?* It is the synchronic face (Aleph) — but the other two pillars are latent here too, by the fractal principle of §4.5. Aleph is dominant; Episteme is implicit in the baseline character of each probe; Rhizome is ready but invisible until multi-probe data makes propagation observable. The user is not watching a scoreboard — they are watching an atmosphere.
 

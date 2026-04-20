@@ -13,7 +13,11 @@
     { href: '/stories/dialog', title: 'Dialog' },
     { href: '/stories/tooltip', title: 'Tooltip' },
     { href: '/stories/badge', title: 'Badge' },
-    { href: '/stories/skiplink', title: 'SkipLink' }
+    { href: '/stories/skiplink', title: 'SkipLink' },
+    { href: '/stories/atmosphere/paused', title: 'Atmosphere · Paused' },
+    { href: '/stories/atmosphere/terminator', title: 'Atmosphere · Terminator' },
+    { href: '/stories/atmosphere/flyto', title: 'Atmosphere · Fly-to' },
+    { href: '/stories/atmosphere/fallback', title: 'Atmosphere · Fallback' }
   ];
 
   let theme = $state<'dark' | 'light'>('dark');

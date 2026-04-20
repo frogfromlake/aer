@@ -1,0 +1,7 @@
+{
+  "source": "Natural Earth 1:50m (public-domain) — https://www.naturalearthdata.com/",
+  "builtAt": "2026-04-20",
+  "simplifyToleranceDeg": 0.35,
+  "landRadius": 1.0015,
+  "borderRadius": 1.0025
+}

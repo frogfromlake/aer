@@ -1,0 +1,13 @@
+packages:
+  - '.'
+  - 'packages/*'
+
+# Pre-existing peer-dep mismatch: openapi-typescript@7 declares peer
+# typescript@^5.x but the project intentionally tracks typescript@6.0.3
+# (per .tool-versions, OPENAPI_TYPESCRIPT_VERSION is the SSoT pin and
+# typescript 6 is the project baseline). The mismatch is benign because
+# openapi-typescript only uses the typescript compiler API surface that
+# is stable across the 5.x → 6.x boundary.
+peerDependencyRules:
+  allowedVersions:
+    'openapi-typescript>typescript': '6.x'
