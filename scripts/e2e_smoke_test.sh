@@ -58,6 +58,11 @@ trap cleanup EXIT
 
 # ── Step 1: Start full stack and wait for health ─────────────────────────
 log_step "Step 1: Starting full Docker Compose stack (waiting for health)"
+# The dashboard image build copies services/bff-api/api/openapi.bundle.yaml
+# into its build stage. The bundle is a generated artifact (gitignored), so
+# regenerate it here to keep `docker compose up --build` hermetic on fresh
+# checkouts (CI, first-time devs).
+make openapi-bundle
 docker compose up --build --wait -d
 log_ok "Stack started. All services are healthy!"
 

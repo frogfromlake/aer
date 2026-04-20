@@ -254,6 +254,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Set up Python (for OpenAPI bundler)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install PyYAML (openapi_bundle.py dependency)
+        run: pip install pyyaml
+
+      # The dashboard image COPYs services/bff-api/api/openapi.bundle.yaml
+      # during its build stage. The bundle is a generated artifact
+      # (gitignored), so materialize it before any docker build.
+      - name: Bundle OpenAPI spec (required for dashboard image build)
+        run: make openapi-bundle
+
       - name: Build ingestion-api image
         run: docker build -t aer/ingestion-api:ci -f services/ingestion-api/Dockerfile .
 
