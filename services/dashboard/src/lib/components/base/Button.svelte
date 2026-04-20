@@ -76,12 +76,12 @@
   }
 
   .btn-primary {
-    background: var(--color-accent);
-    color: var(--color-bg);
-    border-color: var(--color-accent);
+    background: var(--color-accent-solid);
+    color: var(--color-on-accent);
+    border-color: var(--color-accent-solid);
   }
   .btn-primary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--color-accent) 88%, white);
+    background: color-mix(in oklab, var(--color-accent-solid) 88%, white);
   }
 
   .btn-secondary {
@@ -105,7 +105,7 @@
   }
 
   .label-hidden {
-    visibility: hidden;
+    opacity: 0;
   }
 
   .spinner {

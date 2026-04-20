@@ -38,7 +38,7 @@
   }
 </script>
 
-<span class="weight-badge {tierClass}" aria-label={accessibleLabel}>
+<span class="weight-badge {tierClass}" role="img" aria-label={accessibleLabel}>
   {#if children}
     {@render children()}
   {:else}
