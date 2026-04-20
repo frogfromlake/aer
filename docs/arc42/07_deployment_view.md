@@ -128,6 +128,8 @@ The `bff-api` is the only application service that bridges both networks. It is 
 
 The `dashboard` is a static SvelteKit bundle served by Nginx on unprivileged port `8080` (runs as the non-root `nginx` user). It is attached to the `aer-frontend` network only and has no direct access to backend services — all data comes from the BFF through the browser. Traefik's catch-all router (`PathPrefix(/)` with `!PathPrefix(/api)` and an explicit lower `priority=1`) ensures `/api/*` continues to reach the BFF while all other paths fall through to the SPA. The SvelteKit static adapter emits `build/index.html` as a fallback, and Nginx's `try_files $uri $uri/ /index.html;` keeps client-side routes resolvable without a server-side router.
 
+Because the adapter is `@sveltejs/adapter-static`, SvelteKit resolves `$env/dynamic/public` at **build time**, not at runtime. The two browser-observability values — `PUBLIC_OTLP_ENDPOINT` and `PUBLIC_DEPLOYMENT_ENVIRONMENT` — are therefore promoted to Docker build args in `services/dashboard/Dockerfile` and wired through the `args:` block of the `dashboard` service in `compose.yaml` (Phase 98d). Changing either value requires rebuilding the image (`docker compose build dashboard`) — setting them in the runtime container has no effect. An empty `PUBLIC_OTLP_ENDPOINT` disables browser trace emission entirely and is the recommended default outside of observability-enabled environments.
+
 The `analysis-worker` does not expose an HTTP port to the host. Its Prometheus metrics endpoint (`:8001/metrics`) is used internally as a healthcheck and scrape target but is not mapped to the host.
 
 ### 7.4.5 Observability Stack

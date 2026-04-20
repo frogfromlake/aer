@@ -10,6 +10,8 @@ Governing documents:
 
 Phase 97 delivers scaffolding only — no user-facing features. A blank "Hello AĒR" page, TypeScript strict mode, ESLint + Prettier, Vitest + Playwright, OpenTelemetry Web SDK, and an 80 kB initial-bundle gate — all at parity with the Go services' quality gates.
 
+Phase 98 adds the design-system foundation on top of that scaffolding: design tokens (`src/lib/design/tokens.css`), self-hosted Inter + IBM Plex Mono, Viridis/Cividis scales, Epistemic Weight visual treatments, five base Svelte components (`src/lib/components/base/`), a route-based story harness at `/stories`, and a Playwright visual + `@axe-core/playwright` WCAG 2.2 AA gate (`make fe-test-e2e`). See `docs/design/design_system.md` for details.
+
 ## One-time setup
 
 Requires Node 22 (see `.nvmrc`) and pnpm 10 via Corepack. Both versions are pinned in the repo-root `.tool-versions` (SSoT).
@@ -24,27 +26,28 @@ make fe-install        # reads pnpm-lock.yaml with --frozen-lockfile
 
 **Use `make` targets from the repo root — not `pnpm` directly.** The Makefile is the uniform developer interface across Go, Python, and TypeScript services; the package.json scripts are implementation detail that the Makefile wraps. This keeps CI, pre-commit hooks, and local development on the same commands.
 
-| Command               | What it does                                                            |
-| :-------------------- | :---------------------------------------------------------------------- |
-| `make fe-install`     | Install dependencies from the frozen lockfile                           |
-| `make fe-dev`         | Start the SvelteKit dev server (hot reload, `http://localhost:5173`)    |
-| `make fe-preview`     | Build and serve the production bundle locally (`http://localhost:4173`) |
-| `make fe-format`      | Auto-format sources with Prettier                                       |
-| `make fe-lint`        | ESLint + Prettier check + `svelte-check`                                |
-| `make fe-typecheck`   | TypeScript strict typecheck (via `svelte-check`)                        |
-| `make fe-test`        | Vitest unit tests                                                       |
-| `make fe-test-e2e`    | Playwright end-to-end smoke test                                        |
-| `make fe-build`       | Production static build (`build/`)                                      |
-| `make fe-bundle-size` | Enforce the 80 kB initial-bundle budget (Design Brief §7)               |
-| `make fe-codegen`     | Regenerate TypeScript types from the BFF OpenAPI spec                   |
-| `make codegen-ts`     | Repo-root alias of `fe-codegen` (peer of `make codegen` for Go)         |
-| `make fe-check`       | Composite: lint + typecheck + test + build + bundle-size gate           |
+| Command                   | What it does                                                                           |
+| :------------------------ | :------------------------------------------------------------------------------------- |
+| `make fe-install`         | Install dependencies from the frozen lockfile                                          |
+| `make fe-dev`             | Start the SvelteKit dev server (hot reload, `http://localhost:5173`)                   |
+| `make fe-preview`         | Build and serve the production bundle locally (`http://localhost:4173`)                |
+| `make fe-format`          | Auto-format sources with Prettier                                                      |
+| `make fe-lint`            | ESLint + Prettier check + `svelte-check`                                               |
+| `make fe-typecheck`       | TypeScript strict typecheck (via `svelte-check`)                                       |
+| `make fe-test`            | Vitest unit tests                                                                      |
+| `make fe-test-e2e`        | Playwright visual + axe a11y gate (runs inside the pinned Playwright image; Phase 98c) |
+| `make fe-test-e2e-update` | Regenerate the committed Playwright snapshots after intentional visual changes         |
+| `make fe-build`           | Production static build (`build/`)                                                     |
+| `make fe-bundle-size`     | Enforce the 80 kB initial-bundle budget (Design Brief §7)                              |
+| `make fe-codegen`         | Regenerate TypeScript types from the BFF OpenAPI spec                                  |
+| `make codegen-ts`         | Repo-root alias of `fe-codegen` (peer of `make codegen` for Go)                        |
+| `make fe-check`           | Composite: lint + typecheck + test + build + bundle-size gate                          |
 
 `make fe-lint` is automatically included in `make lint`, and `make fe-test` in `make test` — the repo-wide gates already cover the frontend.
 
 ## Configuration
 
-Build-time environment variables (prefix `PUBLIC_` per SvelteKit's static rules):
+Build-time environment variables (prefix `PUBLIC_` per SvelteKit's static rules). Because the static adapter inlines these at build time, **changing a value requires rebuilding the image** — `docker compose build dashboard`. Both values are promoted to Docker build args in `services/dashboard/Dockerfile` and wired via the `args:` block of the `dashboard` service in `compose.yaml` (Phase 98d). Defaults live in the repo-root `.env.example`; see Arc42 §7.4.4 for the deployment-view rationale.
 
 | Variable                        | Purpose                                                    | Default       |
 | :------------------------------ | :--------------------------------------------------------- | :------------ |

@@ -31,6 +31,15 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # Sources + build.
 COPY services/dashboard/ ./
+# SvelteKit's $env/dynamic/public is resolved at build time for the static
+# adapter (ADR-020). Promote the two PUBLIC_* values used by
+# src/hooks.client.ts → src/lib/observability/otel.ts to build args so the
+# image is self-contained and does not depend on runtime env (Phase 98d).
+# Empty PUBLIC_OTLP_ENDPOINT disables browser trace emission entirely.
+ARG PUBLIC_OTLP_ENDPOINT=""
+ARG PUBLIC_DEPLOYMENT_ENVIRONMENT="development"
+ENV PUBLIC_OTLP_ENDPOINT=${PUBLIC_OTLP_ENDPOINT} \
+    PUBLIC_DEPLOYMENT_ENVIRONMENT=${PUBLIC_DEPLOYMENT_ENVIRONMENT}
 # Use the bundle we copied above so the image build is hermetic — not
 # dependent on the in-tree bundle file existing at build time.
 RUN pnpm exec openapi-typescript /workspace/bff-openapi.bundle.yaml -o src/lib/api/types.ts \

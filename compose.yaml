@@ -442,6 +442,11 @@ services:
     build:
       context: .
       dockerfile: services/dashboard/Dockerfile
+      # PUBLIC_* values are inlined at build time by the SvelteKit static
+      # adapter (Phase 98d). Changing them requires rebuilding the image.
+      args:
+        PUBLIC_OTLP_ENDPOINT: ${PUBLIC_OTLP_ENDPOINT-}
+        PUBLIC_DEPLOYMENT_ENVIRONMENT: ${PUBLIC_DEPLOYMENT_ENVIRONMENT-development}
     image: aer-dashboard:local
     container_name: aer_dashboard
     restart: unless-stopped
