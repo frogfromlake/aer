@@ -44,15 +44,14 @@ const browser = typeof window !== 'undefined';
 // `urlState` rune object below; direct mutation goes through `setUrl`.
 let internalState = $state<UrlState>({ ...EMPTY_URL_STATE });
 
-let hydrated = false;
-
-function hydrateOnce(): void {
-  if (hydrated || !browser) return;
+// Hydrate eagerly at module-load time (not inside urlState()) so that
+// the mutation of `internalState` never occurs inside a $derived context,
+// which Svelte 5 forbids (state_unsafe_mutation).
+if (browser) {
   internalState = readFromSearch(window.location.search);
   window.addEventListener('popstate', () => {
     internalState = readFromSearch(window.location.search);
   });
-  hydrated = true;
 }
 
 /**
@@ -60,7 +59,6 @@ function hydrateOnce(): void {
  * value; assign through `setUrl`/`patchUrl` to update both state and URL.
  */
 export function urlState(): UrlState {
-  hydrateOnce();
   return internalState;
 }
 
@@ -69,7 +67,6 @@ export function urlState(): UrlState {
  * rapid scrubber drags do not flood the history stack.
  */
 export function setUrl(next: Partial<UrlState>): void {
-  hydrateOnce();
   const merged: UrlState = { ...internalState, ...next };
   internalState = merged;
   if (!browser) return;

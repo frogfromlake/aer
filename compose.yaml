@@ -447,6 +447,7 @@ services:
       args:
         PUBLIC_OTLP_ENDPOINT: ${PUBLIC_OTLP_ENDPOINT-}
         PUBLIC_DEPLOYMENT_ENVIRONMENT: ${PUBLIC_DEPLOYMENT_ENVIRONMENT-development}
+        PUBLIC_BFF_API_KEY: ${BFF_API_KEY}
     image: aer-dashboard:local
     container_name: aer_dashboard
     restart: unless-stopped

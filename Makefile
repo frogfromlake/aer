@@ -3,7 +3,7 @@
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
-.PHONY: bff-up bff-down bff-restart
+.PHONY: bff-up bff-down bff-restart bff-image-build bff-dev bff-dev-down
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
@@ -137,12 +137,22 @@ worker-down:
 worker-restart: worker-down worker-up
 
 bff-up:
-	@./scripts/start.sh bff
+	@docker compose up -d bff-api
+
+bff-image-build:
+	@docker compose build bff-api
 
 bff-down:
-	@./scripts/stop.sh bff
+	@docker compose stop bff-api
 
 bff-restart: bff-down bff-up
+
+# Host-process alternatives for rapid iteration without a Docker rebuild.
+bff-dev:
+	@./scripts/start.sh bff
+
+bff-dev-down:
+	@./scripts/stop.sh bff
 
 # ==========================================
 # 3. APPLICATION SERVICES (ALL TOGETHER)
