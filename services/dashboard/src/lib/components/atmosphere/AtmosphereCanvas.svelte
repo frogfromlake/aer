@@ -11,18 +11,11 @@
     sunOverrideMs?: number | null;
     /** Disable the 10s-idle auto-rotation (for paused stories). */
     disableAutoRotate?: boolean;
-    /** Whether to load and reveal the optional borders layer. */
-    showBorders?: boolean;
     /** Notified once the engine has mounted; receives the imperative API for story-level control. */
     onready?: (engine: AtmosphereEngine) => void;
   }
 
-  let {
-    sunOverrideMs = null,
-    disableAutoRotate = false,
-    showBorders = false,
-    onready
-  }: Props = $props();
+  let { sunOverrideMs = null, disableAutoRotate = false, onready }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let engine: AtmosphereEngine | null = null;
@@ -32,8 +25,7 @@
     const mod = await import('@aer/engine-3d');
     if (!canvas) return; // unmounted while the chunk was downloading
     const config: EngineConfig = {
-      landmassUrl: '/data/landmass.json',
-      bordersUrl: '/data/borders.json',
+      landSdfUrl: '/data/landmass.sdf.png',
       disableAutoRotate
     };
     engine = mod.createEngine(config);
@@ -41,16 +33,11 @@
     if (sunOverrideMs !== null && sunOverrideMs !== undefined) {
       engine.setSunPosition(sunOverrideMs);
     }
-    if (showBorders) await engine.setBordersVisible(true);
     onready?.(engine);
   });
 
   $effect(() => {
     engine?.setSunPosition(sunOverrideMs ?? null);
-  });
-
-  $effect(() => {
-    void engine?.setBordersVisible(showBorders);
   });
 
   onDestroy(() => {

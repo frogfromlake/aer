@@ -1,7 +1,11 @@
 {
-  "source": "Natural Earth 1:50m (public-domain) — https://www.naturalearthdata.com/",
-  "builtAt": "2026-04-20",
-  "simplifyToleranceDeg": 0.35,
-  "landRadius": 1.0015,
-  "borderRadius": 1.0025
+  "source": "Natural Earth 1:10m (public-domain) — https://www.naturalearthdata.com/",
+  "builtAt": "2026-04-21",
+  "encoding": "sdf-equirectangular",
+  "width": 4096,
+  "height": 2048,
+  "rangePx": 32,
+  "rangeDeg": 2.8125,
+  "coastValue": 0.5,
+  "note": "Grayscale red channel. value > 0.5 = land, value < 0.5 = ocean. Distance saturates at ±rangePx pixels from the coast."
 }

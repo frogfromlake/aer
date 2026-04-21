@@ -39,10 +39,12 @@ export interface EngineEvents {
 }
 
 export interface EngineConfig {
-  /** Path (relative to the static origin) of the baked landmass mesh. */
-  readonly landmassUrl: string;
-  /** Path of the borders mesh. Loaded only on the first `setBordersVisible(true)`. */
-  readonly bordersUrl: string;
+  /**
+   * Path (relative to the static origin) of the baked landmass SDF PNG.
+   * See scripts/bake-landmass.mjs for the encoding — equirectangular,
+   * red channel, 0.5 at the coastline.
+   */
+  readonly landSdfUrl: string;
   /** Override the device pixel ratio cap. Defaults to `min(devicePixelRatio, 2)`. */
   readonly pixelRatioCap?: number;
   /** Disable the auto-rotate idle behaviour entirely (in addition to prefers-reduced-motion). */
@@ -60,8 +62,6 @@ export interface AtmosphereEngine {
   setTimeRange(from: Date, to: Date): void;
   /** Static-position override for the sun direction (for terminator stories). Pass `null` to resume live tracking. */
   setSunPosition(unixMs: number | null): void;
-  /** Reveal or hide the country-borders layer. Lazy-loads the asset on first `true`. */
-  setBordersVisible(visible: boolean): Promise<void>;
   flyTo(target: FlyToTarget): void;
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void;
   /** Tear down: stop the loop, dispose geometries/materials, release the GL context. */

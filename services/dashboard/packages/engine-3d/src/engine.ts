@@ -1,25 +1,22 @@
 import {
+  ClampToEdgeWrapping,
   Clock,
   Color,
-  LineBasicMaterial,
-  LineSegments,
+  DataTexture,
+  LinearFilter,
   Mesh,
   PerspectiveCamera,
+  RepeatWrapping,
   Scene,
   ShaderMaterial,
   SphereGeometry,
+  type Texture,
+  TextureLoader,
   Vector3,
   WebGLRenderer
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-import {
-  bordersToGeometry,
-  landmassToGeometry,
-  loadBorders,
-  loadLandmass,
-  type LandmassMesh
-} from './landmass';
 import { sunDirection } from './sun';
 import atmosphereFrag from './shaders/atmosphere.glsl?raw';
 import atmosphereVert from './shaders/atmosphere.vert.glsl?raw';
@@ -36,14 +33,34 @@ import type {
   PropagationEvent
 } from './types';
 
-const OCEAN_COLOR = new Color('#050a14');
-const LAND_COLOR = new Color('#1a2a44');
-const HALO_COLOR = new Color('#5687c8');
-const BORDER_COLOR = new Color('#2c3f60');
+// Palette tuned for optimal data contrast in Phase 99b (Abyssal Palette).
+// Ocean fades almost into the pure black backdrop to create depth. Land is
+// a muted slate — dark enough to maximize the luminance contrast of glowing
+// data points (e.g., Viridis), yet distinct enough from the ocean to clearly
+// read as continental regions. No political borders are rendered — region
+// identity is expressed by probe-bound activity (99b).
+const OCEAN_COLOR = new Color('#060d16');
+const LAND_COLOR = new Color('#132133');
+const HALO_COLOR = new Color('#5283b8');
+
+// --- NEW SHADER CONFIGURATION ---
+// The color of the atmospheric rim light applied to the edge of the globe
+const RIM_COLOR = new Color('#5283b8');
+const RIM_INTENSITY = 0.1;
+
+// Visibility factors for the night side (1.0 = full daylight brightness, 0.0 = pitch black)
+const NIGHT_OCEAN_FACTOR = 0.20;
+
+// FIX: Set to 1.0 so land is exactly as bright at night as it is during the day.
+// This completely uncouples the continents from the sun, creating a perfect, uniform canvas.
+const NIGHT_LAND_FACTOR = 1.0; 
+
+// Disabled. We no longer need artificial glow because NIGHT_LAND_FACTOR handles the uniformity.
+const LAND_ILLUMINATION = 0.5;
 
 const SPHERE_RADIUS = 1.0;
-const ATMOSPHERE_RADIUS = 1.04;
-const SPHERE_SEGMENTS = 64;
+const ATMOSPHERE_RADIUS = 1.011;
+const SPHERE_SEGMENTS = 96;
 
 const MIN_DISTANCE = SPHERE_RADIUS * 1.2;
 const MAX_DISTANCE = SPHERE_RADIUS * 8;
@@ -52,7 +69,7 @@ const INITIAL_DISTANCE = SPHERE_RADIUS * 3;
 const AUTO_ROTATE_SPEED_RAD_S = 0.05;
 const IDLE_BEFORE_AUTOROTATE_MS = 10_000;
 
-const TWILIGHT_HALF_DEG = 2.5;
+const TWILIGHT_HALF_DEG = 4.0;
 
 const DEG = Math.PI / 180;
 
@@ -64,13 +81,16 @@ class Engine implements AtmosphereEngine {
   private camera: PerspectiveCamera | null = null;
   private controls: OrbitControls | null = null;
   private oceanMesh: Mesh | null = null;
-  private landMesh: Mesh | null = null;
-  private bordersMesh: LineSegments | null = null;
   private haloMesh: Mesh | null = null;
 
   private oceanMaterial: ShaderMaterial | null = null;
-  private landMaterial: ShaderMaterial | null = null;
   private haloMaterial: ShaderMaterial | null = null;
+
+  // The SDF starts as a 1×1 ocean-coloured placeholder so the ocean shader
+  // renders correctly during the ~100 ms texture fetch, then gets swapped
+  // for the real baked texture in place.
+  private sdfTexture: Texture | null = null;
+  private placeholderSdf: DataTexture | null = null;
 
   private readonly clock = new Clock();
   private readonly tmpSun = new Vector3(1, 0, 0);
@@ -87,10 +107,6 @@ class Engine implements AtmosphereEngine {
   private mediaQuery: MediaQueryList | null = null;
   private readonly mediaListener = (): void => this.refreshReducedMotion();
 
-  private bordersLoadPromise: Promise<void> | null = null;
-  private bordersWanted = false;
-  private bordersAbort: AbortController | null = null;
-
   private flyTween: FlyTween | null = null;
 
   // Phase 99b will consume these. Stored here so a 99b PR is data-flow only.
@@ -101,8 +117,7 @@ class Engine implements AtmosphereEngine {
 
   constructor(config: EngineConfig) {
     this.config = {
-      landmassUrl: config.landmassUrl,
-      bordersUrl: config.bordersUrl,
+      landSdfUrl: config.landSdfUrl,
       pixelRatioCap: config.pixelRatioCap ?? Math.min(globalThis.devicePixelRatio ?? 1, 2),
       disableAutoRotate: config.disableAutoRotate ?? false
     };
@@ -142,9 +157,9 @@ class Engine implements AtmosphereEngine {
     this.installReducedMotionListener();
     this.lastInteractionMs = performance.now();
 
-    this.buildOcean();
+    this.buildGlobe();
     this.buildAtmosphere();
-    this.beginLandmassLoad();
+    this.beginSdfLoad();
 
     this.handleResize();
     if (typeof ResizeObserver !== 'undefined') {
@@ -181,15 +196,6 @@ class Engine implements AtmosphereEngine {
     this.sunOverrideMs = unixMs;
   }
 
-  async setBordersVisible(visible: boolean): Promise<void> {
-    this.bordersWanted = visible;
-    if (visible && !this.bordersLoadPromise) {
-      this.bordersLoadPromise = this.loadBordersOnce();
-    }
-    await this.bordersLoadPromise?.catch(() => undefined);
-    if (this.bordersMesh) this.bordersMesh.visible = this.bordersWanted;
-  }
-
   flyTo(target: FlyToTarget): void {
     if (!this.camera || !this.controls) return;
     const dist = this.camera.position.length();
@@ -214,8 +220,6 @@ class Engine implements AtmosphereEngine {
     this.rafId = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    this.bordersAbort?.abort();
-    this.bordersAbort = null;
     this.controls?.removeEventListener('start', this.onUserInteract);
     this.controls?.removeEventListener('change', this.onUserInteract);
     this.controls?.dispose();
@@ -223,15 +227,13 @@ class Engine implements AtmosphereEngine {
     this.uninstallReducedMotionListener();
 
     disposeMesh(this.oceanMesh);
-    disposeMesh(this.landMesh);
     disposeMesh(this.haloMesh);
-    if (this.bordersMesh) {
-      this.bordersMesh.geometry.dispose();
-      (this.bordersMesh.material as LineBasicMaterial).dispose();
-    }
     this.oceanMaterial?.dispose();
-    this.landMaterial?.dispose();
     this.haloMaterial?.dispose();
+    this.sdfTexture?.dispose();
+    this.placeholderSdf?.dispose();
+    this.sdfTexture = null;
+    this.placeholderSdf = null;
 
     this.scene?.clear();
     this.renderer?.dispose();
@@ -244,17 +246,27 @@ class Engine implements AtmosphereEngine {
 
   // -- internals --------------------------------------------------------------
 
-  private buildOcean(): void {
+  private buildGlobe(): void {
     if (!this.scene) return;
     const geom = new SphereGeometry(SPHERE_RADIUS, SPHERE_SEGMENTS, SPHERE_SEGMENTS);
+    this.placeholderSdf = makeOceanPlaceholderTexture();
     this.oceanMaterial = new ShaderMaterial({
       vertexShader: terminatorVert,
       fragmentShader: terminatorFrag,
+      // `fwidth` is a derivatives function. WebGL2 (three's current default)
+      // has it in core; the WebGL1 fallback uses the
+      // `#extension GL_OES_standard_derivatives` pragma inside the shader
+      // source, so no extensions flag is needed on the material.
       uniforms: {
         uSunDirection: { value: new Vector3(1, 0, 0) },
         uOceanColor: { value: OCEAN_COLOR },
         uLandColor: { value: LAND_COLOR },
-        uIsLand: { value: 0.0 },
+        uRimColor: { value: RIM_COLOR },
+        uRimIntensity: { value: RIM_INTENSITY },
+        uNightOceanFactor: { value: NIGHT_OCEAN_FACTOR },
+        uNightLandFactor: { value: NIGHT_LAND_FACTOR },
+        uLandIllumination: { value: LAND_ILLUMINATION },
+        uLandSdf: { value: this.placeholderSdf },
         uTwilightHalfDeg: { value: TWILIGHT_HALF_DEG }
       }
     });
@@ -270,55 +282,51 @@ class Engine implements AtmosphereEngine {
       fragmentShader: atmosphereFrag,
       transparent: true,
       depthWrite: false,
-      side: 1, // BackSide
+      side: 0, // Frontside
+      blending: 2,
       uniforms: {
         uSunDirection: { value: new Vector3(1, 0, 0) },
         uHaloColor: { value: HALO_COLOR },
-        uIntensity: { value: 1.0 }
+        uIntensity: { value: 1.0 },
+        uCameraDistance: { value: INITIAL_DISTANCE }
       }
     });
     this.haloMesh = new Mesh(geom, this.haloMaterial);
     this.scene.add(this.haloMesh);
   }
 
-  private beginLandmassLoad(): void {
-    void loadLandmass(this.config.landmassUrl)
-      .then((mesh) => this.attachLandmass(mesh))
-      .catch((err: unknown) => {
-        console.warn('[engine-3d] landmass load failed; ocean-only render', err);
-      });
+  private beginSdfLoad(): void {
+    const loader = new TextureLoader();
+    loader.load(
+      this.config.landSdfUrl,
+      (tex) => this.attachSdf(tex),
+      undefined,
+      (err) => console.warn('[engine-3d] landmass SDF load failed; ocean-only render', err)
+    );
   }
 
-  private attachLandmass(mesh: LandmassMesh): void {
-    if (this.disposed || !this.scene) return;
-    this.landMaterial = new ShaderMaterial({
-      vertexShader: terminatorVert,
-      fragmentShader: terminatorFrag,
-      uniforms: {
-        uSunDirection: { value: new Vector3(1, 0, 0) },
-        uOceanColor: { value: OCEAN_COLOR },
-        uLandColor: { value: LAND_COLOR },
-        uIsLand: { value: 1.0 },
-        uTwilightHalfDeg: { value: TWILIGHT_HALF_DEG }
-      }
-    });
-    this.landMesh = new Mesh(landmassToGeometry(mesh), this.landMaterial);
-    this.scene.add(this.landMesh);
-  }
-
-  private async loadBordersOnce(): Promise<void> {
-    this.bordersAbort = new AbortController();
-    try {
-      const mesh = await loadBorders(this.config.bordersUrl, this.bordersAbort.signal);
-      if (this.disposed || !this.scene) return;
-      const geom = bordersToGeometry(mesh);
-      const mat = new LineBasicMaterial({ color: BORDER_COLOR, transparent: true, opacity: 0.7 });
-      this.bordersMesh = new LineSegments(geom, mat);
-      this.bordersMesh.visible = this.bordersWanted;
-      this.scene.add(this.bordersMesh);
-    } catch (err) {
-      console.warn('[engine-3d] borders load failed', err);
+  private attachSdf(tex: Texture): void {
+    if (this.disposed || !this.oceanMaterial) {
+      tex.dispose();
+      return;
     }
+    // RepeatWrapping on S so bilinear sampling across the ±180° longitude
+    // seam stays continuous (the bake script padded the EDT for exactly
+    // this reason). ClampToEdge on T so pole samples never wrap to the
+    // opposite pole. Mipmaps are disabled because lower mip levels would
+    // bleed ocean and land into each other along the coast and undo the
+    // SDF's subpixel precision at high zoom.
+    tex.wrapS = RepeatWrapping;
+    tex.wrapT = ClampToEdgeWrapping;
+    tex.minFilter = LinearFilter;
+    tex.magFilter = LinearFilter;
+    tex.generateMipmaps = false;
+    tex.anisotropy = 1;
+    tex.needsUpdate = true;
+    this.sdfTexture = tex;
+    this.oceanMaterial!.uniforms!.uLandSdf!.value = tex;
+    this.placeholderSdf?.dispose();
+    this.placeholderSdf = null;
   }
 
   private readonly onUserInteract = (): void => {
@@ -359,6 +367,11 @@ class Engine implements AtmosphereEngine {
     this.applyFlyTween();
     this.controls?.update();
     this.updateSunUniform();
+
+    if (this.haloMaterial?.uniforms.uCameraDistance && this.camera) {
+      this.haloMaterial.uniforms.uCameraDistance.value = this.camera.position.length();
+    }
+
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }
@@ -400,7 +413,6 @@ class Engine implements AtmosphereEngine {
     const ms = this.sunOverrideMs ?? Date.now();
     sunDirection(ms, this.tmpSun);
     setVec3(this.oceanMaterial?.uniforms.uSunDirection?.value, this.tmpSun);
-    setVec3(this.landMaterial?.uniforms.uSunDirection?.value, this.tmpSun);
     setVec3(this.haloMaterial?.uniforms.uSunDirection?.value, this.tmpSun);
   }
 }
@@ -433,6 +445,15 @@ function disposeMesh(mesh: Mesh | null): void {
 
 function setVec3(target: unknown, src: Vector3): void {
   if (target instanceof Vector3) target.copy(src);
+}
+
+// 1×1 fully-ocean SDF used before the real texture finishes loading, so the
+// ocean shader samples a defined value instead of WebGL's default white
+// texture (which would flash the entire globe "land"-coloured for ~100 ms).
+function makeOceanPlaceholderTexture(): DataTexture {
+  const tex = new DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function latLonToCartesian(latDeg: number, lonDeg: number, radius: number): Vector3 {

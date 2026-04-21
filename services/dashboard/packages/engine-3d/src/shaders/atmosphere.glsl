@@ -1,38 +1,63 @@
-// Atmospheric halo — analytic Rayleigh approximation rendered on a back-side
-// sphere slightly larger than the globe. This is the Bruneton-Neyret family
-// of approximations, simplified to a single-scattering term: the halo
-// brightens with the cosine of the view-angle to the surface normal and
-// peaks where the sun grazes the limb.
-//
-// It is "ornamental and informational" per Brief §1.1: the colour is real
-// physics (Rayleigh scattering peaks in blue) and the geometry tracks the
-// sun, so the halo always sits on the day-side limb the way Earth's real
-// atmosphere does in orbital photographs.
-
-precision highp float;
+// atmosphere.glsl
+// Renders the atmospheric glow using rim lighting (Fresnel) and a day/night transition.
+// Adapted to adhere to the symbolic, non-prescriptive visual guidelines.
 
 uniform vec3 uSunDirection;
 uniform vec3 uHaloColor;
 uniform float uIntensity;
+uniform float uCameraDistance;
 
-varying vec3 vWorldNormal;
-varying vec3 vViewDir;
+varying vec3 vNormal;
+varying vec3 vViewDirection;
 
 void main() {
-  vec3 n = normalize(vWorldNormal);
-  vec3 v = normalize(vViewDir);
+    // Normalize interpolated vectors
+    vec3 normal = normalize(vNormal);
+    vec3 viewDir = normalize(vViewDirection);
+    vec3 lightDir = normalize(uSunDirection);
 
-  // Limb factor: 1 at the silhouette, 0 facing the camera. fresnel-like.
-  float limb = 1.0 - max(dot(n, v), 0.0);
-  limb = pow(limb, 2.5);
+    // === FrontSide Volumetric Fresnel ===
+    // Calculate how perpendicular the view is to the surface
+    float ndotv = max(dot(normal, viewDir), 0.0);
+    
+    // Base rim effect (strongest at the edge, invisible in the center)
+    float rimPower = pow(1.0 - ndotv, 4.0);
+    
+    // Edge fade. Forces opacity to 0 exactly at the geometric edge (ndotv = 0.0).
+    // This softens the outer boundary and makes the atmosphere look like gas, not a solid shell.
+    float edgeFade = smoothstep(0.0, 0.2, ndotv);
+    
+    float fresnel = rimPower * edgeFade;
 
-  // Sun-side factor: stronger where the sunlit hemisphere meets the limb.
-  float sunFactor = max(dot(n, uSunDirection), 0.0);
+    // === Sunlight incidence ===
+    // Determines how much sunlight hits the surface
+    float lightDot = dot(normal, lightDir);
 
-  // Single-scattering Rayleigh phase function (1 + cos² θ) collapsed against
-  // the view direction. Soft, isotropic-ish.
-  float phase = 0.75 * (1.0 + sunFactor * sunFactor);
+    // === Daylight fade ===
+    float dayFade = smoothstep(-0.1, 0.2, lightDot);
 
-  float a = uIntensity * limb * (0.35 + 0.65 * sunFactor) * phase;
-  gl_FragColor = vec4(uHaloColor, clamp(a, 0.0, 1.0));
+    // === Twilight effect ===
+    // Occurs right at the terminator line
+    float twilight = smoothstep(-0.25, 0.1, lightDot) * (1.0 - dayFade);
+    twilight *= 0.8;
+
+    // Combine fades.
+    float fade = dayFade + twilight * 0.7;
+
+    // Boost the alpha (* 3.0) to compensate for the new edge fade math
+    float alpha = fresnel * fade * uIntensity * 2.0;
+
+    // === Distance-based fade ===
+    // Fades the atmosphere slightly as the camera zooms out.
+    float distanceFade = smoothstep(1.0, 12.0, uCameraDistance);
+    alpha *= (1.0 - distanceFade * 0.6);
+
+    // === Color blending ===
+    vec3 dayColor = uHaloColor * 0.7;
+    vec3 twilightHue = mix(vec3(1.0, 0.5, 0.3), vec3(0.45, 0.25, 0.65), 0.55); // Orange mixed with purple
+    
+    vec3 glowColor = mix(dayColor, twilightHue, twilight);
+
+    // Final output
+    gl_FragColor = vec4(glowColor * alpha, alpha);
 }
