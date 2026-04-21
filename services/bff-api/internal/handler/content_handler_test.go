@@ -65,7 +65,7 @@ func testCatalog() config.ContentCatalog {
 
 // TestGetContent_MetricReturns200 verifies a successful fetch for entity type "metric".
 func TestGetContent_MetricReturns200(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
@@ -105,7 +105,7 @@ func TestGetContent_MetricReturns200(t *testing.T) {
 
 // TestGetContent_ProbeReturns200 verifies a successful fetch for entity type "probe".
 func TestGetContent_ProbeReturns200(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeProbe,
@@ -121,7 +121,7 @@ func TestGetContent_ProbeReturns200(t *testing.T) {
 
 // TestGetContent_DiscourseFunction verifies a successful fetch for entity type "discourse_function".
 func TestGetContent_DiscourseFunction(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeDiscourseFunction,
@@ -141,7 +141,7 @@ func TestGetContent_DiscourseFunction(t *testing.T) {
 
 // TestGetContent_Refusal verifies a successful fetch for entity type "refusal".
 func TestGetContent_Refusal(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeRefusal,
@@ -157,7 +157,7 @@ func TestGetContent_Refusal(t *testing.T) {
 
 // TestGetContent_MissingEntityReturns404 verifies 404 when the entity does not exist.
 func TestGetContent_MissingEntityReturns404(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
@@ -174,7 +174,7 @@ func TestGetContent_MissingEntityReturns404(t *testing.T) {
 // TestGetContent_MissingLocaleReturns404 verifies 404 when the entity exists in "en" but
 // the caller requests "de" and no DE record has been authored.
 func TestGetContent_MissingLocaleReturns404(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	locDE := GetContentParamsLocaleDe
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
@@ -193,7 +193,7 @@ func TestGetContent_MissingLocaleReturns404(t *testing.T) {
 // TestGetContent_LocaleDefaultsToEN verifies that when no locale param is provided,
 // the "en" catalog is used.
 func TestGetContent_LocaleDefaultsToEN(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
@@ -214,7 +214,7 @@ func TestGetContent_LocaleDefaultsToEN(t *testing.T) {
 
 // TestGetContent_GermanLocaleReturns200 verifies that the DE locale is served correctly.
 func TestGetContent_GermanLocaleReturns200(t *testing.T) {
-	s := NewServer(&mockStore{}, nil, nil, testCatalog())
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	locDE := GetContentParamsLocaleDe
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
@@ -237,7 +237,7 @@ func TestGetContent_GermanLocaleReturns200(t *testing.T) {
 // TestGetContent_InvalidEntityTypeHTTP verifies that the router returns 400 for an invalid
 // entityType path param (enum gate enforced by the generated chi router, not the handler).
 func TestGetContent_InvalidEntityTypeHTTP(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}, nil, nil, testCatalog()))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil, testCatalog(), nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/content/invalid_type/word_count", nil)
 	w := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestGetContent_InvalidEntityTypeHTTP(t *testing.T) {
 // TestGetContent_HTTPPathReturns200 verifies the full HTTP path returns a well-formed
 // JSON body with the correct Content-Type header.
 func TestGetContent_HTTPPathReturns200(t *testing.T) {
-	router := newTestRouter(NewServer(&mockStore{}, nil, nil, testCatalog()))
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil, testCatalog(), nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/content/metric/sentiment_score?locale=en", nil)
 	w := httptest.NewRecorder()

@@ -49,11 +49,11 @@ const RIM_COLOR = new Color('#5283b8');
 const RIM_INTENSITY = 0.1;
 
 // Visibility factors for the night side (1.0 = full daylight brightness, 0.0 = pitch black)
-const NIGHT_OCEAN_FACTOR = 0.20;
+const NIGHT_OCEAN_FACTOR = 0.2;
 
 // FIX: Set to 1.0 so land is exactly as bright at night as it is during the day.
 // This completely uncouples the continents from the sun, creating a perfect, uniform canvas.
-const NIGHT_LAND_FACTOR = 1.0; 
+const NIGHT_LAND_FACTOR = 1.0;
 
 // Disabled. We no longer need artificial glow because NIGHT_LAND_FACTOR handles the uniformity.
 const LAND_ILLUMINATION = 0.5;

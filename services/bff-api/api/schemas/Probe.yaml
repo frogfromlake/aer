@@ -1,0 +1,58 @@
+type: object
+description: >
+  A probe is a bundle of one or more data sources that share a
+  methodological identity (language, institutional role, classification
+  tier). Probes are the unit of rendering on the Atmosphere surface.
+
+  This schema intentionally carries no `reach` field. A probe's reach —
+  where its content is consumed and discursively effective — cannot be
+  measured from emission data alone and is not claimed by AĒR. Only the
+  emission origin(s) are asserted here.
+
+  Dual-Register content (emic designation, methodological register) is
+  served separately via `/content/probe/{probeId}` and composed on the
+  client. Keeping structural data and editorial content on different
+  endpoints lets the content catalog evolve (versioning, locale
+  switching) without perturbing the typed geometry feed.
+required:
+  - probeId
+  - language
+  - emissionPoints
+  - sources
+properties:
+  probeId:
+    type: string
+    description: >
+      Canonical identifier, matching the dossier directory under
+      `docs/probes/` and the `probe` content-catalog key.
+    example: probe-0-de-institutional-rss
+  language:
+    type: string
+    description: >
+      Primary publication language as an ISO 639-1 code. Used by the
+      client for content catalog locale fallback and for future
+      language-scoped aggregations. Not a reach claim.
+    example: de
+  emissionPoints:
+    type: array
+    minItems: 1
+    description: >
+      Geographic origins of the probe's bound publishers. Each point is
+      rendered as a glowing marker on the globe. Multiple points allow
+      federated broadcasters or multi-publisher probes to render
+      correctly without implying a reach region between them.
+    items:
+      $ref: './EmissionPoint.yaml'
+  sources:
+    type: array
+    description: >
+      Canonical source names bound to this probe. Each entry corresponds
+      to a row in the `sources` registry served by `/sources`. The
+      client uses this to join per-source metrics back onto the probe
+      marker (e.g., aggregating publication rates across
+      `tagesschau` + `bundesregierung` into one pulse).
+    items:
+      type: string
+    example:
+      - tagesschau
+      - bundesregierung

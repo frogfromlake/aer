@@ -92,6 +92,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 6d. Load the probe registry (structural probe data for the Atmosphere
+	// surface). One YAML per probe; malformed files abort startup so a
+	// broken probe does not silently disappear from the globe.
+	probes, err := config.LoadProbeRegistry(filepath.Join(cfg.ConfigDir, "probes"))
+	if err != nil {
+		slog.Error("Failed to load probe registry", "error", err)
+		os.Exit(1)
+	}
+
 	// 6c. Open the read-only PostgreSQL pool that backs /api/v1/sources.
 	// The pool is intentionally tiny: /sources is served from a TTL cache
 	// so we only need enough capacity to refresh every BFF_SOURCES_CACHE_TTL
@@ -110,7 +119,7 @@ func main() {
 	sourceStore := storage.NewSourceStore(pgDB, sourcesTTL)
 
 	// 7. Setup Handlers and Router
-	serverLogic := handler.NewServer(chStore, provenance, sourceStore, catalog)
+	serverLogic := handler.NewServer(chStore, provenance, sourceStore, catalog, probes)
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
 	r := chi.NewRouter()

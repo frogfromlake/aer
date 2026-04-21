@@ -68,11 +68,12 @@ type Server struct {
 	provenance config.MetricProvenanceMap
 	sources    SourceLister
 	catalog    config.ContentCatalog
+	probes     config.ProbeRegistry
 }
 
 // NewServer creates a new API server instance.
-func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog) *Server {
-	return &Server{db: db, provenance: provenance, sources: sources, catalog: catalog}
+func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog, probes config.ProbeRegistry) *Server {
+	return &Server{db: db, provenance: provenance, sources: sources, catalog: catalog, probes: probes}
 }
 
 // GetHealthz handles GET /healthz — liveness probe, always returns 200 if the process is alive.
@@ -304,6 +305,44 @@ func (s *Server) GetSources(ctx context.Context, _ GetSourcesRequestObject) (Get
 			Url:              src.URL,
 			DocumentationUrl: src.DocumentationURL,
 		})
+	}
+	return response, nil
+}
+
+// GetProbes handles GET /probes — returns the list of active probes
+// with emission geometry and bound sources. Registry is loaded from
+// YAML at startup (no runtime I/O). Dual-Register editorial content is
+// served separately via /content/probe/{probeId}.
+func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProbesResponseObject, error) {
+	entries := s.probes.Ordered()
+	response := make(GetProbes200JSONResponse, 0, len(entries))
+	for _, p := range entries {
+		// The EmissionPoints element is an anonymous struct in the
+		// generated code (oapi-codegen inlines sub-refs). We build it
+		// positionally here rather than introducing a parallel named
+		// type that would have to be kept in sync with the generator.
+		probe := Probe{
+			ProbeId:        p.ProbeID,
+			Language:       p.Language,
+			Sources:        append([]string(nil), p.Sources...),
+			EmissionPoints: make([]struct {
+				Label     string  `json:"label"`
+				Latitude  float64 `json:"latitude"`
+				Longitude float64 `json:"longitude"`
+			}, 0, len(p.EmissionPoints)),
+		}
+		for _, pt := range p.EmissionPoints {
+			probe.EmissionPoints = append(probe.EmissionPoints, struct {
+				Label     string  `json:"label"`
+				Latitude  float64 `json:"latitude"`
+				Longitude float64 `json:"longitude"`
+			}{
+				Label:     pt.Label,
+				Latitude:  pt.Latitude,
+				Longitude: pt.Longitude,
+			})
+		}
+		response = append(response, probe)
 	}
 	return response, nil
 }

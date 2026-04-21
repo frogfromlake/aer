@@ -1,0 +1,37 @@
+type: object
+description: >
+  A single geographic emission origin for a probe — the location from
+  which one of the probe's bound sources publishes. A probe may have
+  multiple emission points (e.g., a federated broadcaster with regional
+  studios, or a probe bound to several institutional publishers in
+  different cities).
+
+  Emission points deliberately make no claim about a probe's *reach* —
+  where its content is consumed, cited, or influential. Reach is not
+  measured; inferring it from language or geography would be a fiction.
+  At L3/L4 the methodological register must make this explicit.
+required:
+  - latitude
+  - longitude
+  - label
+properties:
+  latitude:
+    type: number
+    format: double
+    minimum: -90
+    maximum: 90
+    description: Geographic latitude of the emission origin (WGS84, degrees).
+    example: 53.5511
+  longitude:
+    type: number
+    format: double
+    minimum: -180
+    maximum: 180
+    description: Geographic longitude of the emission origin (WGS84, degrees).
+    example: 9.9937
+  label:
+    type: string
+    description: >
+      Human-readable label for this emission point (e.g., "Hamburg
+      (Tagesschau / NDR)"). Rendered in hover tooltips and the L3 panel.
+    example: Hamburg (Tagesschau / NDR)

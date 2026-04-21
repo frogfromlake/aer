@@ -1,0 +1,16 @@
+probeId: probe-0-de-institutional-rss
+language: de
+sources:
+  - tagesschau
+  - bundesregierung
+emissionPoints:
+  # Tagesschau is produced by ARD-aktuell, the news centre operated by NDR
+  # in Hamburg. ARD is federated, but tagesschau.de originates from the
+  # Hamburg newsroom, so a single point there is a faithful emission claim.
+  - latitude: 53.5511
+    longitude: 9.9937
+    label: "Hamburg (Tagesschau / NDR)"
+  # Bundesregierung = Federal Press and Information Office (BPA), Berlin.
+  - latitude: 52.5170
+    longitude: 13.3888
+    label: "Berlin (Bundesregierung / BPA)"

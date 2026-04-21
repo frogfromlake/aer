@@ -35,6 +35,8 @@ paths:
     $ref: './paths/languages.yaml'
   /sources:
     $ref: './paths/sources.yaml'
+  /probes:
+    $ref: './paths/probes.yaml'
   /healthz:
     $ref: './paths/healthz.yaml'
   /readyz:
@@ -67,6 +69,10 @@ components:
       $ref: './schemas/MetricProvenance.yaml'
     Source:
       $ref: './schemas/Source.yaml'
+    Probe:
+      $ref: './schemas/Probe.yaml'
+    EmissionPoint:
+      $ref: './schemas/EmissionPoint.yaml'
     ContentRegister:
       $ref: './schemas/ContentRegister.yaml'
     ContentRegisters:

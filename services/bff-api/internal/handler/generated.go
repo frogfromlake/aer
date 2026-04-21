@@ -368,6 +368,32 @@ type MetricProvenanceTierClassification int
 // MetricProvenanceValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.
 type MetricProvenanceValidationStatus string
 
+// Probe A probe is a bundle of one or more data sources that share a methodological identity (language, institutional role, classification tier). Probes are the unit of rendering on the Atmosphere surface.
+// This schema intentionally carries no `reach` field. A probe's reach — where its content is consumed and discursively effective — cannot be measured from emission data alone and is not claimed by AĒR. Only the emission origin(s) are asserted here.
+// Dual-Register content (emic designation, methodological register) is served separately via `/content/probe/{probeId}` and composed on the client. Keeping structural data and editorial content on different endpoints lets the content catalog evolve (versioning, locale switching) without perturbing the typed geometry feed.
+type Probe struct {
+	// EmissionPoints Geographic origins of the probe's bound publishers. Each point is rendered as a glowing marker on the globe. Multiple points allow federated broadcasters or multi-publisher probes to render correctly without implying a reach region between them.
+	EmissionPoints []struct {
+		// Label Human-readable label for this emission point (e.g., "Hamburg (Tagesschau / NDR)"). Rendered in hover tooltips and the L3 panel.
+		Label string `json:"label"`
+
+		// Latitude Geographic latitude of the emission origin (WGS84, degrees).
+		Latitude float64 `json:"latitude"`
+
+		// Longitude Geographic longitude of the emission origin (WGS84, degrees).
+		Longitude float64 `json:"longitude"`
+	} `json:"emissionPoints"`
+
+	// Language Primary publication language as an ISO 639-1 code. Used by the client for content catalog locale fallback and for future language-scoped aggregations. Not a reach claim.
+	Language string `json:"language"`
+
+	// ProbeId Canonical identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key.
+	ProbeId string `json:"probeId"`
+
+	// Sources Canonical source names bound to this probe. Each entry corresponds to a row in the `sources` registry served by `/sources`. The client uses this to join per-source metrics back onto the probe marker (e.g., aggregating publication rates across `tagesschau` + `bundesregierung` into one pulse).
+	Sources []string `json:"sources"`
+}
+
 // Source defines model for Source.
 type Source struct {
 	// DocumentationUrl Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
@@ -490,6 +516,9 @@ type ServerInterface interface {
 	// Retrieve provenance metadata for a metric
 	// (GET /metrics/{metricName}/provenance)
 	GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string)
+	// List active probes with emission geometry
+	// (GET /probes)
+	GetProbes(w http.ResponseWriter, r *http.Request)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
@@ -541,6 +570,12 @@ func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Reques
 // Retrieve provenance metadata for a metric
 // (GET /metrics/{metricName}/provenance)
 func (_ Unimplemented) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List active probes with emission geometry
+// (GET /probes)
+func (_ Unimplemented) GetProbes(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -961,6 +996,26 @@ func (siw *ServerInterfaceWrapper) GetMetricProvenance(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetProbes operation middleware
+func (siw *ServerInterfaceWrapper) GetProbes(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetReadyz operation middleware
 func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
 
@@ -1128,6 +1183,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics/{metricName}/provenance", wrapper.GetMetricProvenance)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/probes", wrapper.GetProbes)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
@@ -1457,6 +1515,34 @@ func (response GetMetricProvenance500JSONResponse) VisitGetMetricProvenanceRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetProbesRequestObject struct {
+}
+
+type GetProbesResponseObject interface {
+	VisitGetProbesResponse(w http.ResponseWriter) error
+}
+
+type GetProbes200JSONResponse []Probe
+
+func (response GetProbes200JSONResponse) VisitGetProbesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbes500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetProbes500JSONResponse) VisitGetProbesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetReadyzRequestObject struct {
 }
 
@@ -1533,6 +1619,9 @@ type StrictServerInterface interface {
 	// Retrieve provenance metadata for a metric
 	// (GET /metrics/{metricName}/provenance)
 	GetMetricProvenance(ctx context.Context, request GetMetricProvenanceRequestObject) (GetMetricProvenanceResponseObject, error)
+	// List active probes with emission geometry
+	// (GET /probes)
+	GetProbes(ctx context.Context, request GetProbesRequestObject) (GetProbesResponseObject, error)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
@@ -1745,6 +1834,30 @@ func (sh *strictHandler) GetMetricProvenance(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricProvenanceResponseObject); ok {
 		if err := validResponse.VisitGetMetricProvenanceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbes operation middleware
+func (sh *strictHandler) GetProbes(w http.ResponseWriter, r *http.Request) {
+	var request GetProbesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbes(ctx, request.(GetProbesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbesResponseObject); ok {
+		if err := validResponse.VisitGetProbesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

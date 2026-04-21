@@ -124,6 +124,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/probes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List active probes with emission geometry
+         * @description Returns the canonical list of active probes configured in AĒR with their bound sources and emission origin coordinates. Probes are the unit of rendering on the Atmosphere surface (Design Brief §4.2).
+         *     No reach information is returned. Where a probe's content is consumed or discursively effective is not measured; only the emission origin(s) are asserted. The frontend renders each emission point as a glowing marker — nothing beyond.
+         *     Structural data only. Dual-Register editorial content (emic designation, methodological register) lives on `/content/probe/{probeId}` and is composed on the client.
+         */
+        get: operations["getProbes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -267,6 +289,56 @@ export interface components {
              * @example docs/probes/probe-0-de-institutional-rss/
              */
             documentationUrl?: string | null;
+        };
+        /**
+         * @description A probe is a bundle of one or more data sources that share a methodological identity (language, institutional role, classification tier). Probes are the unit of rendering on the Atmosphere surface.
+         *     This schema intentionally carries no `reach` field. A probe's reach — where its content is consumed and discursively effective — cannot be measured from emission data alone and is not claimed by AĒR. Only the emission origin(s) are asserted here.
+         *     Dual-Register content (emic designation, methodological register) is served separately via `/content/probe/{probeId}` and composed on the client. Keeping structural data and editorial content on different endpoints lets the content catalog evolve (versioning, locale switching) without perturbing the typed geometry feed.
+         */
+        Probe: {
+            /**
+             * @description Canonical identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key.
+             * @example probe-0-de-institutional-rss
+             */
+            probeId: string;
+            /**
+             * @description Primary publication language as an ISO 639-1 code. Used by the client for content catalog locale fallback and for future language-scoped aggregations. Not a reach claim.
+             * @example de
+             */
+            language: string;
+            /** @description Geographic origins of the probe's bound publishers. Each point is rendered as a glowing marker on the globe. Multiple points allow federated broadcasters or multi-publisher probes to render correctly without implying a reach region between them. */
+            emissionPoints: components["schemas"]["EmissionPoint"][];
+            /**
+             * @description Canonical source names bound to this probe. Each entry corresponds to a row in the `sources` registry served by `/sources`. The client uses this to join per-source metrics back onto the probe marker (e.g., aggregating publication rates across `tagesschau` + `bundesregierung` into one pulse).
+             * @example [
+             *       "tagesschau",
+             *       "bundesregierung"
+             *     ]
+             */
+            sources: string[];
+        };
+        /**
+         * @description A single geographic emission origin for a probe — the location from which one of the probe's bound sources publishes. A probe may have multiple emission points (e.g., a federated broadcaster with regional studios, or a probe bound to several institutional publishers in different cities).
+         *     Emission points deliberately make no claim about a probe's *reach* — where its content is consumed, cited, or influential. Reach is not measured; inferring it from language or geography would be a fiction. At L3/L4 the methodological register must make this explicit.
+         */
+        EmissionPoint: {
+            /**
+             * Format: double
+             * @description Geographic latitude of the emission origin (WGS84, degrees).
+             * @example 53.5511
+             */
+            latitude: number;
+            /**
+             * Format: double
+             * @description Geographic longitude of the emission origin (WGS84, degrees).
+             * @example 9.9937
+             */
+            longitude: number;
+            /**
+             * @description Human-readable label for this emission point (e.g., "Hamburg (Tagesschau / NDR)"). Rendered in hover tooltips and the L3 panel.
+             * @example Hamburg (Tagesschau / NDR)
+             */
+            label: string;
         };
         /** @description One register variant — either semantic or methodological. */
         ContentRegister: {
@@ -662,6 +734,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Source"][];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getProbes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The list of active probes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Probe"][];
                 };
             };
             /** @description Internal server error. */

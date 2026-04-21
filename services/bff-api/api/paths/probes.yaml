@@ -1,0 +1,28 @@
+get:
+  tags: [Reference]
+  summary: List active probes with emission geometry
+  description: >
+    Returns the canonical list of active probes configured in AĒR with
+    their bound sources and emission origin coordinates. Probes are the
+    unit of rendering on the Atmosphere surface (Design Brief §4.2).
+
+    No reach information is returned. Where a probe's content is
+    consumed or discursively effective is not measured; only the
+    emission origin(s) are asserted. The frontend renders each
+    emission point as a glowing marker — nothing beyond.
+
+    Structural data only. Dual-Register editorial content (emic
+    designation, methodological register) lives on
+    `/content/probe/{probeId}` and is composed on the client.
+  operationId: getProbes
+  responses:
+    '200':
+      description: The list of active probes.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/Probe'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
