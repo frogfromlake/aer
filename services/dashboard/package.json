@@ -22,7 +22,6 @@
   "devDependencies": {
     "@aer/engine-3d": "workspace:*",
     "@axe-core/playwright": "4.11.2",
-    "@types/three": "0.184.0",
     "@eslint/js": "10.0.1",
     "@fontsource-variable/inter": "5.2.8",
     "@fontsource/ibm-plex-mono": "5.2.7",
@@ -31,6 +30,7 @@
     "@sveltejs/kit": "2.57.1",
     "@sveltejs/vite-plugin-svelte": "7.0.0",
     "@types/node": "22.19.17",
+    "@types/three": "0.184.0",
     "eslint": "10.2.1",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-svelte": "3.17.0",
@@ -61,6 +61,7 @@
     "@opentelemetry/sdk-trace-base": "2.7.0",
     "@opentelemetry/sdk-trace-web": "2.7.0",
     "@opentelemetry/semantic-conventions": "1.40.0",
+    "@tanstack/svelte-query": "6.1.18",
     "three": "0.184.0"
   }
 }

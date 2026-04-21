@@ -3,12 +3,13 @@ export { hasWebGL2, prefersReducedMotion } from './capability';
 export { sunDirection } from './sun';
 export type {
   AtmosphereEngine,
+  EmissionPoint,
   EngineConfig,
   EngineEvents,
   FlyToTarget,
   PillarMode,
-  Probe,
   ProbeActivity,
   ProbeMarker,
+  ProbeSelection,
   PropagationEvent
 } from './types';

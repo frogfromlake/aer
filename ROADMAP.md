@@ -1721,13 +1721,15 @@ All versions pinned like in the backend (if best practice)
 
 ---
 
-## Phase 99b: Surface I — First Contact (Live Probe Data on the Atmosphere) [P1] - [ ] TODO
+## Phase 99b: Surface I — First Contact (Live Probe Data on the Atmosphere) [P1] - [x] DONE
 
-*Wires the Phase 99a engine to live BFF data. Adds probe-specific shaders (glow, reach-aura, reserved propagation-arc slot), raycaster interaction, the typed data layer, the Refusal Surface and Progressive Semantics primitives, and the live Atmosphere route. This phase proves the end-to-end pipeline — BFF query → typed client → Svelte state → engine API → WebGL rendering — with Probe 0 as the canonical first consumer.*
+*Wires the Phase 99a engine to live BFF data. Adds probe-specific shaders (glow, reserved propagation-arc slot), raycaster interaction, the typed data layer, the Refusal Surface and Progressive Semantics primitives, and the live Atmosphere route. This phase proves the end-to-end pipeline — BFF query → typed client → Svelte state → engine API → WebGL rendering — with Probe 0 as the canonical first consumer.*
 
-* [ ] **Custom probe glow shader (GLSL).** Billboarded quad per probe point with radial gradient glow. Shader uniforms: `uCoreBrightness` (from publication volume), `uPulseRate` (from current activity density — documents per hour in the last rolling window), `uPulsePhase` (time-driven). Pulse modulation is bounded: `uPulseRate` is clamped so the fastest pulse completes no more than one cycle per ~4 seconds, honoring §1.1 "stillness with motion beneath". No post-processing pass — the glow is computed in-shader to respect the frame budget.
+**Scope decision — reach is not rendered.** The originally planned *reach-aura shader* is dropped from 99b. A probe's reach — where its content is actually read, cited, or discursively effective — cannot be derived from emission geometry or language alone, and inferring it would be an epistemic fiction incompatible with AĒR's stance (manifesto §3, Design Brief §5.7). `/api/v1/probes` therefore returns emission points only, not reach polygons. On the globe, each probe renders as glow(s) at its emission origin(s) and nothing more. A reach claim can only return once an actual consumption/citation signal exists; the aura shader is deferred to that future phase and explicitly *not* carried as a reserved slot, so we do not accrete dormant code for an unsupported claim. The methodological register at L3/L4 must state that reach is unmeasured.
 
-* [ ] **Custom reach-aura shader (GLSL).** Translucent volumetric field rendered as a soft sphere-projected geometry per probe. Input: a reach-region descriptor from the Probe Dossier API (polygon in lat/lon space, potentially non-contiguous for diasporic probes). Shader blends additively where multiple auras overlap. Aura is static — no animation. Alpha is low enough that overlapping auras compose without saturating. For Probe 0 (Germany), the reach is a simple country polygon; the engine treats it generically so a diasporic probe later "just works".
+* [ ] **Custom probe glow shader (GLSL).** Billboarded quad per *emission point* with radial gradient glow. Shader uniforms: `uCoreBrightness` (from publication volume), `uPulseRate` (from current activity density — documents per hour in the last rolling window, computed client-side from `/api/v1/metrics` with `metricName=publication_hour`), `uPulsePhase` (time-driven). Pulse modulation is bounded: `uPulseRate` is clamped so the fastest pulse completes no more than one cycle per ~4 seconds, honoring §1.1 "stillness with motion beneath". A probe with N emission points renders N glows sharing the probe's pulse parameters — multi-city/federated probes compose without any implicit geometry between points. No post-processing pass — the glow is computed in-shader to respect the frame budget.
+
+* [ ] ~~**Custom reach-aura shader (GLSL).**~~ *Dropped — see Scope decision above. Not replaced by a reserved shader slot.*
 
 * [ ] **Propagation-arc shader slot (GLSL, reserved).** `packages/engine-3d/src/shaders/propagation.glsl` — great-circle arc shader wired into the engine from day one but inactive until multi-probe propagation data is available. `setPropagationEvents(events)` is already on the engine API from 99a; when the array is empty, no geometry is drawn and no fragment cycles are spent. This phase commits only to the plumbing; rendering comes when data arrives in a later phase.
 
@@ -1740,23 +1742,23 @@ All versions pinned like in the backend (if best practice)
 * [ ] **Progressive Semantics primitive.** `src/lib/components/ProgressiveSemantics.svelte` — renders any entity in Dual-Register form. Semantic register primary; methodological register accessible via a compact badge affordance. ARIA-Expanded for transitions. Both registers always present in DOM; CSS controls prominence.
 
 * [ ] **Atmosphere route.** `src/routes/+page.svelte` — replaces the "Hello AĒR" landing.
-  - Queries `/api/v1/probes` for active probes (including reach-region data from the Probe Dossier)
-  - Queries `/api/v1/metrics/temporal_distribution` for the last 24 hours per probe → feeds pulse rate
+  - Queries `/api/v1/probes` for active probes (structural data only: `probeId`, `language`, `sources`, `emissionPoints[]`). No reach data.
+  - Queries `/api/v1/metrics` with `metricName=publication_hour` for the last 24 hours per bound source → client-side aggregation maps to per-probe `uPulseRate` (display logic only; BFF serves the window, the shader-uniform mapping is client-side)
   - Mounts the 99a engine into a full-viewport canvas
-  - On probe click: side panel opens with probe metadata rendered via Progressive Semantics
+  - On probe click: side panel opens with probe metadata rendered via Progressive Semantics, including a methodological-register line stating that reach is unmeasured
   - Refusal surfaces render in the panel when queries fail on methodological gates
 
 * [ ] **Time scrubber component.** `src/lib/components/TimeScrubber.svelte` — horizontal slider for time-range selection. URL-persisted (`?from=...&to=...`). Keyboard-accessible (arrow keys, Home/End). Uses the base Button from Phase 98b.
 
 * [ ] **URL-state synchronization.** `src/lib/state/url.ts` — Svelte 5 Runes store that reads/writes state (`activeProbe`, `timeRange`, `resolution`, `viewingMode`) to the URL. §5.5 mandates deep-linkable state.
 
-* [ ] **WebGL2 fallback (live).** Extend the 99a static fallback with live content: list active probes, their reach regions (as text), their current publication rate.
+* [ ] **WebGL2 fallback (live).** Extend the 99a static fallback with live content: list active probes, their language + emission-point labels (as text), their current publication rate. No reach text — consistent with the visual surface.
 
-* [ ] **Engine stories (live data).** Under the route-based story harness: one story with Probe 0 (Germany), one with three synthetic probes across continents, one with reach auras overlapping, one with the propagation slot fed synthetic arcs (for visual verification that the plumbing works).
+* [ ] **Engine stories (live data).** Under the route-based story harness: one story with Probe 0 (emission points Hamburg + Berlin), one with three synthetic probes across continents (varied pulse rates, multi-point emission), one with the propagation slot fed synthetic arcs (for visual verification that the plumbing works).
 
-* [ ] **Integration test.** Playwright test on WebGL2-capable Chromium: load dashboard → verify 3D globe renders → verify terminator visible → verify Probe 0 visible with reach aura over Germany → verify pulse animates → click the probe → verify the side panel opens with emic content from the Content Catalog → verify the trace appears in Tempo. Second test with WebGL2 disabled: verify the live text fallback shows.
+* [ ] **Integration test.** Playwright test on WebGL2-capable Chromium: load dashboard → verify 3D globe renders → verify terminator visible → verify Probe 0's emission-point glows are visible over Hamburg and Berlin → verify pulse animates → click the probe → verify the side panel opens with emic content from the Content Catalog → verify the trace appears in Tempo. Second test with WebGL2 disabled: verify the live text fallback shows.
 
-* [ ] **Performance verification (end-to-end).** Benchmark on 2021 M1 MacBook Air: 60fps sustained during orbit with Probe 0 visible + reach aura + terminator. Bundle size after this phase: shell + engine chunk + textures together ≤ 350 kB gzipped (shell remains ≤ 80 kB; engine chunk ≤ 250 kB; textures stream lazily and do not count toward initial paint). Frame times during scrubber interaction < 16 ms/frame.
+* [ ] **Performance verification (end-to-end).** Benchmark on 2021 M1 MacBook Air: 60fps sustained during orbit with Probe 0 visible (emission-point glows + terminator). Bundle size after this phase: shell + engine chunk + textures together ≤ 350 kB gzipped (shell remains ≤ 80 kB; engine chunk ≤ 250 kB; textures stream lazily and do not count toward initial paint). Frame times during scrubber interaction < 16 ms/frame.
 
 * [ ] **Accessibility verification (live).** Keyboard navigation: Tab moves through probes; Enter opens the selected probe's panel. Screen readers get a textual state description that updates on meaningful state changes. The live text fallback passes full WCAG 2.2 AA on its own.
 
@@ -1764,7 +1766,7 @@ All versions pinned like in the backend (if best practice)
 
 * [ ] **Validation.** `make fe-check` green. All tests green. `make up` brings the full stack up; the atmosphere surface loads with live Probe 0 data. Lighthouse CI: first paint on 50 Mbps < 1.5s (shell paints first, engine and textures upgrade within ~3s). Story harness stories render correctly. Visual regression snapshots stable.
 
-**Exit criteria:** A researcher can open the dashboard locally and see the 3D Earth rotating slowly, with Probe 0's reach aura over Germany and a gently pulsing luminous point over its source locations. The terminator is live. Clicking a probe opens a side panel with its emic context from the Content Catalog. The full pipeline — BFF → typed client → Svelte → engine → GLSL — is validated end-to-end. No Low-Fi yet (browsers without WebGL2 see a text fallback); that comes later, once there is more to reduce.
+**Exit criteria:** A researcher can open the dashboard locally and see the 3D Earth rotating slowly, with Probe 0 rendered as gently pulsing luminous points over its emission origins (Hamburg and Berlin) — and nothing more; no reach is claimed. The terminator is live. Clicking a probe opens a side panel with its emic context from the Content Catalog, whose methodological register states that reach is unmeasured. The full pipeline — BFF → typed client → Svelte → engine → GLSL — is validated end-to-end. No Low-Fi yet (browsers without WebGL2 see a text fallback); that comes later, once there is more to reduce.
 
 ---
 

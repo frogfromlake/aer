@@ -18,7 +18,9 @@ describe('engine lazy-import boundary', () => {
     // Static `import ... from 'three'` is forbidden.
     expect(src).not.toMatch(/from\s+['"]three['"]/);
     // The engine package may only be referenced via the side-effect-free /capability subpath.
-    const engineImports = src.match(/from\s+['"]@aer\/engine-3d[^'"]*['"]/g) ?? [];
+    // `import type` statements are erased at compile time and are exempt — they bring no runtime.
+    const engineImports =
+      src.match(/^\s*import\s+(?!type\b)[^;]*from\s+['"]@aer\/engine-3d[^'"]*['"]/gm) ?? [];
     for (const line of engineImports) {
       expect(line).toMatch(/@aer\/engine-3d\/capability/);
     }
@@ -32,9 +34,12 @@ describe('engine lazy-import boundary', () => {
     expect(src).toMatch(/await\s+import\(['"]@aer\/engine-3d['"]\)/);
   });
 
-  it('WebGLFallback does not import the engine or three', async () => {
+  it('WebGLFallback does not statically import the engine runtime or three', async () => {
     const src = await read('src/lib/components/atmosphere/WebGLFallback.svelte');
     expect(src).not.toMatch(/from\s+['"]three['"]/);
-    expect(src).not.toMatch(/from\s+['"]@aer\/engine-3d/);
+    // `import type` is erased at compile time and brings no runtime — exempt.
+    const engineImports =
+      src.match(/^\s*import\s+(?!type\b)[^;]*from\s+['"]@aer\/engine-3d[^'"]*['"]/gm) ?? [];
+    expect(engineImports).toEqual([]);
   });
 });
