@@ -238,5 +238,6 @@ nav:
   # Operations
   # ---------------------------------------------------------------------------
   - "Operations":
+      - "Developer Quickstart": developer_quickstart.md
       - "Operations Playbook": operations_playbook.md
       - "Scientific Operations Guide": scientific_operations_guide.md

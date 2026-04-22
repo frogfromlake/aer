@@ -27,12 +27,13 @@
     - [Cultural Calendar Files](#cultural-calendar-files) — *touchpoint*
     - [Probe Dossier](#probe-dossier) — *touchpoint*
 10. [Arc42 Documentation Server](#arc42-documentation-server)
-11. [Testing](#testing)
-12. [Dependency Refresh (Supply-Chain Baseline)](#dependency-refresh-supply-chain-baseline)
-13. [Volume Management](#volume-management)
-14. [Network Architecture](#network-architecture)
-15. [Scientific Touchpoints Index](#scientific-touchpoints-index)
-16. [Quick Reference Card](#quick-reference-card)
+11. [Dashboard / Frontend Iteration](#dashboard-frontend-iteration)
+12. [Testing](#testing)
+13. [Dependency Refresh (Supply-Chain Baseline)](#dependency-refresh-supply-chain-baseline)
+14. [Volume Management](#volume-management)
+15. [Network Architecture](#network-architecture)
+16. [Scientific Touchpoints Index](#scientific-touchpoints-index)
+17. [Quick Reference Card](#quick-reference-card)
 
 Sections marked *touchpoint* are points at which scientific judgment enters the pipeline. Each touchpoint links to the corresponding workflow in the [Scientific Operations Guide](scientific_operations_guide.md), and that guide links back here for the exact commands. The mapping is consolidated in the [Scientific Touchpoints Index](#scientific-touchpoints-index) below.
 
@@ -73,30 +74,32 @@ Since Phase 75, the Go services validate a small set of required secrets at star
 ## Stack Lifecycle
 
 ```bash
-make up                  # Start everything (infra + services)
+make up                  # Start full stack (infra + services + dashboard + debug ports)
 make down                # Stop everything
 make restart             # Full restart
 
 make infra-up            # Infrastructure only (Traefik, databases, NATS, observability)
 make services-up         # Application services only (requires infra running)
+make backend-up          # Stack minus the dashboard container (frontend dev loop)
 
 make debug-up            # Expose backend ports to localhost
 make debug-down          # Close debug ports (services keep running)
 
-make logs                # Tail combined service logs (Ctrl+C safe)
+make logs                # Tail container logs (Ctrl+C safe)
 
-make smoke-host          # Validate host-mode startup (services launched via scripts/start.sh)
 make test-e2e            # Run Docker Compose end-to-end smoke test
 ```
 
-> **Host-mode vs. container-mode startup.** `make up` runs the three application
-> services as **host processes** via `scripts/start.sh` (against infrastructure
-> in Docker). The container path is exercised by `make test-e2e`
-> (`docker compose up`). Host mode reads `.env` directly through viper/dotenv and
-> requires `BFF_CONFIG_DIR=services/bff-api/configs` (set in `.env.example`)
-> because the BFF binary's relative `configs/` path resolves against the repo
-> root, not `/app`. `make smoke-host` is a fast post-`make up` health probe that
-> catches host-mode regressions the container-only `test-e2e` cannot see.
+> **Everything runs in containers.** `make up` brings up the full stack via
+> Docker Compose (infra + ingestion-api + analysis-worker + bff-api + dashboard +
+> debug port forwarder), gated by service healthchecks. For frontend
+> iteration, `make backend-up` skips the dashboard container and `make fe-dev`
+> serves the SvelteKit dev server on `:5173`, proxying `/api` through Traefik
+> on `https://localhost`. The browser never sees `BFF_API_KEY`: Traefik
+> attaches it as `X-API-Key` to every `/api/*` request server-side (see the
+> `bff-api-key` middleware in `compose.yaml`). Non-browser callers (crawlers,
+> `scripts/e2e_smoke_test.sh`) keep sending `X-API-Key` directly to the BFF
+> on `:8080`.
 
 ---
 
@@ -853,6 +856,92 @@ make swagger-down
 | `make openapi-bundle` crashes with `FileNotFoundError` | An external-file ref points at a missing file | Check the ref target; file paths are relative to the referring file |
 
 See Arc42 §8.19 for the full convention and ADR-021 for the underlying decision.
+
+---
+
+## Dashboard / Frontend Iteration
+
+The dashboard (`services/dashboard/`, SvelteKit + static adapter) has two iteration loops and one container build path. All targets live under the `fe-*` / `frontend-*` Makefile prefixes; `pnpm` is the package manager, pinned via `.tool-versions`.
+
+### The two loops
+
+**Loop A — full container** (default, used by `make up` and CI):
+
+```bash
+make up                  # brings up dashboard alongside backend, routed via Traefik
+open https://localhost/  # browser hits the static build served by the dashboard container
+```
+
+The dashboard service is gated behind the `dashboard` Compose profile and is included in `make up`. Use this loop to verify the production build behaves the same as what CI ships.
+
+**Loop B — Vite dev server with containerized backend** (fast frontend iteration):
+
+```bash
+make backend-up          # full stack minus the dashboard container
+make fe-dev              # SvelteKit dev server on http://localhost:5173
+```
+
+`fe-dev` refuses to start unless `bff-api` is running. Vite proxies `/api/*` to Traefik on `https://localhost`, where the `bff-api-key` middleware injects `X-API-Key` server-side. **The browser bundle ships zero secrets** — `BFF_API_KEY` lives only in `.env` and the Traefik label.
+
+### Codegen chain (OpenAPI → typed client)
+
+The frontend's HTTP client is generated from the same BFF spec the Go server uses. Run after every `services/bff-api/api/**` change:
+
+```bash
+make openapi-bundle      # bundles modular spec → services/bff-api/api/openapi.bundle.yaml
+make fe-codegen          # openapi-typescript → services/dashboard/src/lib/api/types.ts
+                         # (alias: make codegen-ts)
+```
+
+`fe-codegen` depends on `openapi-bundle`, so a single `make fe-codegen` is usually enough. Commit the regenerated `types.ts` alongside the spec change. CI fails on drift the same way `make codegen` does for Go.
+
+### Quality gates
+
+```bash
+make fe-format           # Prettier (writes)
+make fe-lint             # ESLint + Prettier check + svelte-check
+make fe-typecheck        # svelte-check strict TypeScript
+make fe-test             # Vitest unit tests
+make fe-test-e2e         # Playwright (visual + a11y) inside pinned image from compose.yaml
+make fe-test-e2e-update  # Refresh visual baselines (commit the diff)
+make fe-build            # Static build → services/dashboard/build/
+make fe-bundle-size      # 80 kB gzipped initial-bundle budget (after fe-build)
+make fe-check            # Composite: lint + typecheck + test + build + bundle-size
+```
+
+`fe-test-e2e` and `fe-test-e2e-update` deliberately run inside the Playwright image pinned in `compose.yaml` — browser font rendering is OS-sensitive, so host-local snapshot runs are not byte-comparable to CI. Always update baselines via `fe-test-e2e-update`, never with a host-local Playwright.
+
+### Container build
+
+```bash
+make fe-image-build      # docker compose build dashboard + size gate
+make fe-image-size       # check aer-dashboard:local against the 50 MB budget
+make frontend-up         # bring up just the dashboard container (dashboard profile)
+make frontend-down
+make frontend-restart
+```
+
+The dashboard image budget (50 MB) is enforced post-build because Docker itself cannot gate on size. `frontend-up` is the quickest way to swap from Loop B back to Loop A without restarting the rest of the stack.
+
+### Auth chain (where the API key flows)
+
+```
+Browser ── /api/* ──► Vite (5173) ──► Traefik (https://localhost)
+                                          │  bff-api-key middleware
+                                          │  injects X-API-Key: $BFF_API_KEY
+                                          ▼
+                                       bff-api
+```
+
+For container Loop A, drop the Vite hop — the browser hits Traefik directly via the `dashboard` router. Non-browser callers (RSS crawler, `scripts/e2e_smoke_test.sh`) keep sending `X-API-Key` themselves, directly to BFF on `:8080`. See `compose.yaml` (`bff-api-key` middleware label) and ADR-018.
+
+### Authoring flow (typical change)
+
+1. Edit `services/dashboard/src/...`.
+2. If the change touches the API: edit `services/bff-api/api/...` first, then `make codegen` (Go) and `make fe-codegen` (TS).
+3. `make fe-lint && make fe-typecheck` while iterating.
+4. `make fe-test` for unit changes; `make fe-test-e2e` if visuals or interaction surfaces moved.
+5. Before pushing: `make fe-check` (full gate), then `make fe-image-build` if you touched `Dockerfile`, dependencies, or anything that could affect image size.
 
 ---
 
