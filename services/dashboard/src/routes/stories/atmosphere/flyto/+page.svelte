@@ -25,8 +25,7 @@
 <svelte:head>
   <title>AĒR Stories — Atmosphere · Fly-to</title>
 </svelte:head>
-
-<AtmosphereCanvas {onready} disableAutoRotate />
+<AtmosphereCanvas {onready} />
 
 <div class="hud" role="group" aria-label="Fly to city">
   {#each targets as target (target.label)}

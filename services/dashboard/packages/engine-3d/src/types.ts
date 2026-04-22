@@ -79,8 +79,6 @@ export interface EngineConfig {
   readonly landSdfUrl: string;
   /** Override the device pixel ratio cap. Defaults to `min(devicePixelRatio, 2)`. */
   readonly pixelRatioCap?: number;
-  /** Disable the auto-rotate idle behaviour entirely (in addition to prefers-reduced-motion). */
-  readonly disableAutoRotate?: boolean;
 }
 
 export interface AtmosphereEngine {
@@ -103,6 +101,7 @@ export interface AtmosphereEngine {
   setTimeRange(from: Date, to: Date): void;
   /** Static-position override for the sun direction (for terminator stories). Pass `null` to resume live tracking. */
   setSunPosition(unixMs: number | null): void;
+  setSelection(selection: ProbeSelection | null): void;
   flyTo(target: FlyToTarget): void;
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void;
   /** Tear down: stop the loop, dispose geometries/materials, release the GL context. */

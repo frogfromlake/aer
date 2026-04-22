@@ -141,6 +141,14 @@
   });
 
   function onProbeSelected(sel: ProbeSelection) {
+    if (
+      selected?.probeId === sel.probeId &&
+      selected.emissionPointIndex === sel.emissionPointIndex
+    ) {
+      // Clicking the already-selected probe closes the panel.
+      onPanelClose();
+      return;
+    }
     selected = sel;
     panelOpen = true;
     setUrl({ probe: sel.probeId });
@@ -148,6 +156,7 @@
 
   function onPanelClose() {
     panelOpen = false;
+    selected = null;
     setUrl({ probe: null });
   }
 
@@ -173,7 +182,7 @@
 
 {#if decision === 'engine'}
   <div class="stage" aria-hidden="false">
-    <AtmosphereCanvas probes={probeMarkers} {activity} {onProbeSelected} />
+    <AtmosphereCanvas probes={probeMarkers} {activity} {onProbeSelected} selection={selected} />
   </div>
 
   <div class="scrubber-slot">

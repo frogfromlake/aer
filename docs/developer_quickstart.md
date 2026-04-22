@@ -106,6 +106,10 @@ make fe-typecheck          # strict TypeScript
 make fe-test               # Vitest unit
 ```
 
+```bash
+make fe-lint-fix           # optional: Auto-fix ESLint + Prettier issues (no svelte-check auto-fix)
+```
+
 **If the change is visible on screen** (markup, styles, story content, copy):
 
 ```bash

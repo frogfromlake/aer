@@ -20,6 +20,7 @@ uniform vec3  uGlowColor;
 varying float vBrightness;
 varying float vPulseRate;
 varying float vHover;
+varying float vSelected;
 
 void main() {
   // gl_PointCoord is (0..1, 0..1) across the disc; recentre to (-1..1).
@@ -29,21 +30,23 @@ void main() {
 
   float r = sqrt(r2);
 
-  // Layered falloff: a tight bright core + a broad soft halo.
-  float core = smoothstep(0.35, 0.0, r);
-  float halo = smoothstep(1.0, 0.15, r) * 0.55;
+  // Exponential falloff for a "shiny" bloom effect.
+  // pow() creates a piercing bright core and a smooth, spreading halo.
+  float core = pow(max(0.0, 1.0 - r), 8.0) * 1.4;
+  float halo = pow(max(0.0, 1.0 - r), 2.5) * 0.8;
 
-  // Pulse between ~0.75× and 1.0× so the glow never fully vanishes.
+  // Pulse and baseline metric logic remains identical
   float pulse = 0.875 + 0.125 * sin(uTime * vPulseRate);
-
   float intensity = (core + halo) * pulse * vBrightness;
 
-  // Hover adds a small extra halo + core lift — enough to read as
-  // feedback without being a visual jump.
-  intensity += vHover * (0.25 * halo + 0.15 * core);
+  // Active state: triggered by EITHER hover or UI selection
+  float activeState = max(vHover, vSelected);
 
-  // Radial alpha taper so disc edges blend cleanly against the globe.
-  float alpha = intensity * (1.0 - smoothstep(0.8, 1.0, r));
+  // Highlight significantly lifts both core and halo
+  intensity += activeState * (0.4 * halo + 0.4 * core);
+
+  // Radial alpha taper so disc edges blend cleanly against the globe
+  float alpha = intensity * smoothstep(1.0, 0.8, r);
 
   gl_FragColor = vec4(uGlowColor * intensity, clamp(alpha, 0.0, 1.0));
 }

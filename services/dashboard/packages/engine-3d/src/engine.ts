@@ -67,11 +67,11 @@ const RIM_INTENSITY = 0.1;
 // Visibility factors for the night side (1.0 = full daylight brightness, 0.0 = pitch black)
 const NIGHT_OCEAN_FACTOR = 0.2;
 
-// FIX: Set to 1.0 so land is exactly as bright at night as it is during the day.
+// Set to 1.0 so land is exactly as bright at night as it is during the day.
 // This completely uncouples the continents from the sun, creating a perfect, uniform canvas.
 const NIGHT_LAND_FACTOR = 1.0;
 
-// Disabled. We no longer need artificial glow because NIGHT_LAND_FACTOR handles the uniformity.
+// Artificial glow on land.
 const LAND_ILLUMINATION = 0.5;
 
 const SPHERE_RADIUS = 1.0;
@@ -85,12 +85,7 @@ const GLOW_RADIUS = 1.003;
 // World-space diameter of a glow at 1 unit from camera. The vertex
 // shader divides by depth so the disc's apparent size is stable as the
 // camera orbits.
-const GLOW_POINT_WORLD_SIZE = 40.0;
-
-// Raycaster threshold, in world units, for Points hit-testing. Roughly
-// matches the rendered disc radius so the cursor picks up a glow when
-// it's visually near it without hijacking drags across empty ocean.
-const RAY_POINT_THRESHOLD = 0.03;
+const GLOW_POINT_WORLD_SIZE = 80.0;
 
 // Emission glow colour. Warm enough to read against the slate land
 // palette; cool enough not to scream — the palette target for 99b is a
@@ -100,9 +95,6 @@ const GLOW_COLOR = new Color('#d8c28a');
 const MIN_DISTANCE = SPHERE_RADIUS * 1.2;
 const MAX_DISTANCE = SPHERE_RADIUS * 8;
 const INITIAL_DISTANCE = SPHERE_RADIUS * 3;
-
-const AUTO_ROTATE_SPEED_RAD_S = 0.05;
-const IDLE_BEFORE_AUTOROTATE_MS = 10_000;
 
 const TWILIGHT_HALF_DEG = 4.0;
 
@@ -169,6 +161,8 @@ class Engine implements AtmosphereEngine {
     readonly position: Vector3;
   }> = [];
   private hoveredSlotIndex = -1;
+  private selectedSlotIndex = -1;
+  private currentSelection: ProbeSelection | null = null;
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
   private pointerInsideCanvas = false;
@@ -176,8 +170,7 @@ class Engine implements AtmosphereEngine {
   constructor(config: EngineConfig) {
     this.config = {
       landSdfUrl: config.landSdfUrl,
-      pixelRatioCap: config.pixelRatioCap ?? Math.min(globalThis.devicePixelRatio ?? 1, 2),
-      disableAutoRotate: config.disableAutoRotate ?? false
+      pixelRatioCap: config.pixelRatioCap ?? Math.min(globalThis.devicePixelRatio ?? 1, 2)
     };
   }
 
@@ -209,11 +202,8 @@ class Engine implements AtmosphereEngine {
     this.controls.maxDistance = MAX_DISTANCE;
     this.controls.rotateSpeed = 0.4;
     this.controls.zoomSpeed = 0.6;
-    this.controls.addEventListener('start', this.onUserInteract);
-    this.controls.addEventListener('change', this.onUserInteract);
 
     this.installReducedMotionListener();
-    this.lastInteractionMs = performance.now();
 
     this.buildGlobe();
     this.buildAtmosphere();
@@ -263,6 +253,35 @@ class Engine implements AtmosphereEngine {
     this.sunOverrideMs = unixMs;
   }
 
+  setSelection(selection: ProbeSelection | null): void {
+    this.currentSelection = selection;
+
+    if (!this.glowGeometry) return;
+    const attr = this.glowGeometry.getAttribute('aSelected') as BufferAttribute | undefined;
+    if (!attr) return;
+
+    // Clear previous selection
+    if (this.selectedSlotIndex !== -1 && this.selectedSlotIndex < this.emissionSlots.length) {
+      attr.setX(this.selectedSlotIndex, 0);
+    }
+
+    this.selectedSlotIndex = -1;
+
+    // Apply new selection if provided
+    if (selection) {
+      const idx = this.emissionSlots.findIndex(
+        (s) =>
+          s.probeId === selection.probeId && s.emissionPointIndex === selection.emissionPointIndex
+      );
+      if (idx !== -1) {
+        this.selectedSlotIndex = idx;
+        attr.setX(idx, 1);
+      }
+    }
+
+    attr.needsUpdate = true;
+  }
+
   flyTo(target: FlyToTarget): void {
     if (!this.camera || !this.controls) return;
     const dist = this.camera.position.length();
@@ -273,7 +292,6 @@ class Engine implements AtmosphereEngine {
       startedAt: performance.now(),
       durationMs: target.durationMs ?? 1200
     };
-    this.lastInteractionMs = performance.now();
   }
 
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void {
@@ -287,8 +305,6 @@ class Engine implements AtmosphereEngine {
     this.rafId = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    this.controls?.removeEventListener('start', this.onUserInteract);
-    this.controls?.removeEventListener('change', this.onUserInteract);
     this.controls?.dispose();
     this.controls = null;
     this.uninstallReducedMotionListener();
@@ -409,10 +425,6 @@ class Engine implements AtmosphereEngine {
     this.placeholderSdf = null;
   }
 
-  private readonly onUserInteract = (): void => {
-    this.lastInteractionMs = performance.now();
-  };
-
   private installReducedMotionListener(): void {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     this.mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -442,8 +454,6 @@ class Engine implements AtmosphereEngine {
 
   private tick = (): void => {
     if (this.disposed) return;
-    const dt = this.clock.getDelta();
-    this.applyAutoRotation(dt);
     this.applyFlyTween();
     this.controls?.update();
     this.updateSunUniform();
@@ -465,24 +475,6 @@ class Engine implements AtmosphereEngine {
     }
     this.rafId = requestAnimationFrame(this.tick);
   };
-
-  private applyAutoRotation(dt: number): void {
-    if (!this.controls || !this.camera) return;
-    if (this.config.disableAutoRotate || this.reducedMotion) return;
-    if (this.flyTween) return;
-    const idle = performance.now() - this.lastInteractionMs;
-    if (idle < IDLE_BEFORE_AUTOROTATE_MS) return;
-    // Rotate the camera around the world Y axis. Mutating the camera position
-    // directly avoids OrbitControls re-emitting a 'change' that would reset
-    // the idle clock.
-    const angle = AUTO_ROTATE_SPEED_RAD_S * dt;
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-    const { x, z } = this.camera.position;
-    this.camera.position.x = x * cos + z * sin;
-    this.camera.position.z = -x * sin + z * cos;
-    this.camera.lookAt(0, 0, 0);
-  }
 
   private applyFlyTween(): void {
     if (!this.flyTween || !this.camera || !this.controls) return;
@@ -556,6 +548,7 @@ class Engine implements AtmosphereEngine {
     const pulseRates = new Float32Array(n);
     const brightness = new Float32Array(n);
     const hover = new Float32Array(n);
+    const selected = new Float32Array(n);
     for (let i = 0; i < n; i++) {
       const slot = slots[i]!;
       const p = slot.position;
@@ -565,6 +558,7 @@ class Engine implements AtmosphereEngine {
       brightness[i] = CORE_BRIGHTNESS_FLOOR;
       pulseRates[i] = 0;
       hover[i] = 0;
+      selected[i] = 0;
     }
 
     // Dispose the previous attribute buffers before swapping so the GL
@@ -575,12 +569,14 @@ class Engine implements AtmosphereEngine {
     this.glowGeometry.setAttribute('aPulseRate', new BufferAttribute(pulseRates, 1));
     this.glowGeometry.setAttribute('aCoreBrightness', new BufferAttribute(brightness, 1));
     this.glowGeometry.setAttribute('aHover', new BufferAttribute(hover, 1));
+    this.glowGeometry.setAttribute('aSelected', new BufferAttribute(selected, 1));
     this.glowMesh.geometry = this.glowGeometry;
     this.glowMesh.visible = true;
 
     // Re-apply any activity we already knew about so a probe re-push
     // does not wipe its pulse.
     this.applyActivityToBuffers();
+    this.setSelection(this.currentSelection);
   }
 
   private applyActivityToBuffers(): void {
@@ -648,7 +644,15 @@ class Engine implements AtmosphereEngine {
   private pickEmissionSlot(): number {
     if (!this.camera || !this.glowMesh || this.emissionSlots.length === 0) return -1;
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
-    this.raycaster.params.Points = { threshold: RAY_POINT_THRESHOLD };
+
+    // Dynamic raycast threshold based on camera distance.
+    // At the initial distance of 3.0, camDist * 0.01 exactly matches the previous
+    // static threshold of 0.03. As the user zooms in (e.g., to distance 1.2),
+    // the world-space threshold shrinks proportionally to 0.012, keeping the
+    // interactive hit area visually stable on the screen.
+    const camDist = this.camera.position.length();
+    this.raycaster.params.Points = { threshold: camDist * 0.01 };
+
     const intersects = this.raycaster.intersectObject(this.glowMesh, false);
     if (intersects.length === 0) return -1;
 

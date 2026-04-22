@@ -18,7 +18,7 @@
   <title>AĒR Stories — Atmosphere · Terminator</title>
 </svelte:head>
 
-<AtmosphereCanvas sunOverrideMs={current.ms} disableAutoRotate />
+<AtmosphereCanvas sunOverrideMs={current.ms} />
 
 <div class="hud" role="group" aria-label="Sun position selector">
   {#each positions as pos, i (pos.ms)}

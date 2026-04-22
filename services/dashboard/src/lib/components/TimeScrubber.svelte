@@ -19,9 +19,15 @@
     maxSpanMs?: number;
     /** Step granularity (ms). Default 5 minutes, matching the BFF's finest resolution. */
     stepMs?: number;
+    /** Minimum allowed window size (ms). Defaults to 1 hour. */
+    minWindowMs?: number;
   }
 
-  let { maxSpanMs = 30 * 24 * 60 * 60 * 1000, stepMs = 5 * 60 * 1000 }: Props = $props();
+  let {
+    maxSpanMs = 30 * 24 * 60 * 60 * 1000,
+    stepMs = 5 * 60 * 1000,
+    minWindowMs = 60 * 60 * 1000
+  }: Props = $props();
 
   // The scrubber anchors to an immutable `endReferenceMs` per mount so a
   // thumb drag does not race with the wall clock moving under the user.
@@ -58,12 +64,12 @@
   }
 
   function setFrom(ms: number): void {
-    const bounded = clamp(snap(ms), windowStartMs, toMs - stepMs);
+    const bounded = clamp(snap(ms), windowStartMs, toMs - minWindowMs);
     setUrl({ from: new Date(bounded).toISOString() });
   }
 
   function setTo(ms: number): void {
-    const bounded = clamp(snap(ms), fromMs + stepMs, endReferenceMs);
+    const bounded = clamp(snap(ms), fromMs + minWindowMs, endReferenceMs);
     setUrl({ to: new Date(bounded).toISOString() });
   }
 
@@ -102,17 +108,36 @@
     const d = new Date(ms);
     return d.toISOString().slice(0, 16).replace('T', ' ') + 'Z';
   }
+
+  const rangeSpan = $derived(endReferenceMs - windowStartMs);
+  const leftPct = $derived(((fromMs - windowStartMs) / rangeSpan) * 100);
+  const rightPct = $derived(((toMs - windowStartMs) / rangeSpan) * 100);
 </script>
 
 <div class="scrubber" role="group" aria-label="Time range">
-  <div class="readout">
-    <span class="label">From</span>
-    <time datetime={new Date(fromMs).toISOString()}>{fmt(fromMs)}</time>
-    <span class="label">To</span>
-    <time datetime={new Date(toMs).toISOString()}>{fmt(toMs)}</time>
+  <div class="scrubber-header">
+    <div class="readout">
+      <span class="label">From</span>
+      <time datetime={new Date(fromMs).toISOString()}>{fmt(fromMs)}</time>
+      <span class="label">To</span>
+      <time datetime={new Date(toMs).toISOString()}>{fmt(toMs)}</time>
+    </div>
+
+    {#if url.from || url.to}
+      <button
+        class="reset-btn"
+        aria-label="Reset time range"
+        onclick={() => setUrl({ from: null, to: null })}
+      >
+        Reset
+      </button>
+    {/if}
   </div>
 
-  <div class="track" role="presentation">
+  <div class="track" role="presentation" style="--left: {leftPct}%; --right: {100 - rightPct}%">
+    <div class="track-bg"></div>
+    <div class="track-highlight"></div>
+
     <input
       type="range"
       class="thumb from"
@@ -164,25 +189,120 @@
   time {
     color: var(--color-fg);
   }
+
   .track {
     position: relative;
     height: 1.5rem;
+    display: flex;
+    align-items: center;
   }
+
+  .track-bg {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    z-index: 1;
+  }
+
+  .scrubber-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-fg-muted);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .reset-btn:hover {
+    color: var(--color-fg);
+    border-color: var(--color-fg-subtle);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .track-highlight {
+    position: absolute;
+    left: var(--left);
+    right: var(--right);
+    height: 4px;
+    background: #5283b8;
+    border-radius: 2px;
+    z-index: 2;
+  }
+
   .thumb {
     position: absolute;
     inset: 0;
     width: 100%;
     margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
     background: transparent;
-    pointer-events: auto;
-    /* Stack the two native sliders so their thumbs overlap the same bar. */
+    pointer-events: none;
+    z-index: 3;
+    outline: none;
   }
+
   .thumb::-webkit-slider-runnable-track {
-    height: 2px;
-    background: var(--color-border);
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
   }
+
   .thumb::-moz-range-track {
-    height: 2px;
-    background: var(--color-border);
+    appearance: none;
+    background: transparent;
+    border: none;
+  }
+
+  .thumb::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #5283b8;
+    cursor: grab;
+    transform: translateY(-6px);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .thumb::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: translateY(-6px) scale(1.2);
+    transition: transform 0.1s ease;
+  }
+
+  .thumb::-moz-range-thumb {
+    appearance: none;
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #5283b8;
+    cursor: grab;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .thumb::-moz-range-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.2);
+    transition: transform 0.1s ease;
   }
 </style>

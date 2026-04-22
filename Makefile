@@ -7,7 +7,7 @@
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
-.PHONY: fe-install fe-dev fe-preview fe-lint fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
+.PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-restart
 
 SHELL := /bin/bash
@@ -407,6 +407,12 @@ fe-lint:
 	@cd $(FE_DIR) && pnpm run check
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend lint passed!$(RESET)"
 
+fe-lint-fix:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Auto-fixing frontend linters (Prettier + ESLint)...$(RESET)"
+	@cd $(FE_DIR) && pnpm exec prettier --write .
+	@cd $(FE_DIR) && pnpm exec eslint --fix .
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend auto-fix completed!$(RESET)"
+
 fe-typecheck:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend TypeScript strict typecheck...$(RESET)"
 	@cd $(FE_DIR) && pnpm run check
@@ -594,6 +600,7 @@ help:
 	@echo -e "  $(CYAN)fe-preview$(RESET)          $(GRAY)Build and serve the production bundle locally (localhost:4173)$(RESET)"
 	@echo -e "  $(CYAN)fe-format$(RESET)           $(GRAY)Auto-format frontend sources with Prettier$(RESET)"
 	@echo -e "  $(CYAN)fe-lint$(RESET)             $(GRAY)ESLint + Prettier check + svelte-check$(RESET)"
+	@echo -e "  $(CYAN)fe-lint-fix$(RESET)         $(GRAY)Auto-fix ESLint + Prettier issues (no svelte-check auto-fix)$(RESET)"
 	@echo -e "  $(CYAN)fe-typecheck$(RESET)        $(GRAY)TypeScript strict typecheck (svelte-check)$(RESET)"
 	@echo -e "  $(GREEN)fe-test$(RESET)             $(GRAY)Vitest unit tests$(RESET)"
 	@echo -e "  $(GREEN)fe-test-e2e$(RESET)         $(GRAY)Playwright visual + axe a11y gate (pinned Docker image)$(RESET)"

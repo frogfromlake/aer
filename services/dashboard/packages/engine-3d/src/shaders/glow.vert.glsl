@@ -15,6 +15,7 @@
 attribute float aPulseRate;
 attribute float aCoreBrightness;
 attribute float aHover;
+attribute float aSelected;
 
 uniform float uPixelRatio;
 uniform float uPointWorldSize;
@@ -22,6 +23,7 @@ uniform float uPointWorldSize;
 varying float vBrightness;
 varying float vPulseRate;
 varying float vHover;
+varying float vSelected;
 
 void main() {
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -35,4 +37,5 @@ void main() {
   vBrightness = aCoreBrightness;
   vPulseRate = aPulseRate;
   vHover = aHover;
+  vSelected = aSelected;
 }

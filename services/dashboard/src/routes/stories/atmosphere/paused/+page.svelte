@@ -11,4 +11,4 @@
   <title>AĒR Stories — Atmosphere · Paused</title>
 </svelte:head>
 
-<AtmosphereCanvas sunOverrideMs={PINNED_SUN_MS} disableAutoRotate />
+<AtmosphereCanvas sunOverrideMs={PINNED_SUN_MS} />

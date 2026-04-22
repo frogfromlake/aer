@@ -37,7 +37,7 @@
   <title>AĒR Stories — Atmosphere · Probe 0</title>
 </svelte:head>
 
-<AtmosphereCanvas {onready} disableAutoRotate />
+<AtmosphereCanvas {onready} />
 
 <div class="hud" role="status" aria-live="polite">
   <strong>Probe 0 — DE institutional RSS</strong>

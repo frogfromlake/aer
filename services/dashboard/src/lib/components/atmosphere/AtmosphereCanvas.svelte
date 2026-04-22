@@ -15,8 +15,6 @@
   interface Props {
     /** Override the live sun for stories: a fixed Unix timestamp pins the terminator. */
     sunOverrideMs?: number | null;
-    /** Disable the 10s-idle auto-rotation (for paused stories). */
-    disableAutoRotate?: boolean;
     /** Notified once the engine has mounted; receives the imperative API for story-level control. */
     onready?: (engine: AtmosphereEngine) => void;
     /** Probes to render as emission-point glows. Reactive: re-assigning pushes through to `setProbes`. */
@@ -25,15 +23,17 @@
     activity?: readonly ProbeActivity[];
     /** Fired when the user clicks an emission point. */
     onProbeSelected?: (selection: ProbeSelection) => void;
+    /** The currently selected probe. Reactive: drives `setSelection` to keep the glow highlighted. */
+    selection?: ProbeSelection | null;
   }
 
   let {
     sunOverrideMs = null,
-    disableAutoRotate = false,
     onready,
     probes,
     activity,
-    onProbeSelected
+    onProbeSelected,
+    selection = null
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -45,8 +45,7 @@
     const mod = await import('@aer/engine-3d');
     if (!canvas) return; // unmounted while the chunk was downloading
     const config: EngineConfig = {
-      landSdfUrl: '/data/landmass.sdf.png',
-      disableAutoRotate
+      landSdfUrl: '/data/landmass.sdf.png'
     };
     const e = mod.createEngine(config);
     e.mount(canvas);
@@ -70,6 +69,26 @@
 
   $effect(() => {
     if (engine && activity) engine.setActivity(activity);
+  });
+
+  // Synchronize the selection state to the 3D engine and animate the camera
+  $effect(() => {
+    if (!engine) return;
+
+    engine.setSelection(selection ?? null);
+
+    if (selection && probes) {
+      const activeProbe = probes.find((p) => p.id === selection.probeId);
+      const emissionPoint = activeProbe?.emissionPoints[selection.emissionPointIndex];
+
+      if (emissionPoint) {
+        engine.flyTo({
+          latitude: emissionPoint.latitude,
+          longitude: emissionPoint.longitude,
+          durationMs: 900
+        });
+      }
+    }
   });
 
   onDestroy(() => {

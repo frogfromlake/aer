@@ -42,7 +42,7 @@
   <title>AĒR Stories — Atmosphere · Propagation slot</title>
 </svelte:head>
 
-<AtmosphereCanvas {onready} disableAutoRotate />
+<AtmosphereCanvas {onready} />
 
 <div class="hud" role="note">
   <strong>Propagation slot</strong>
