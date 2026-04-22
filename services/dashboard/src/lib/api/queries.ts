@@ -65,10 +65,10 @@ export type QueryOutcome<T> = SuccessOutcome<T> | RefusalOutcome | NetworkErrorO
 // -------------------------------------------------------------------------
 
 export interface FetchContext {
-  /** BFF base URL. In dev this is `/api/v1` (Traefik-proxied). */
+  /** BFF base URL. In every deployment this is `/api/v1` — Traefik routes
+   *  same-origin requests to the BFF and injects the X-API-Key header
+   *  server-side, so the browser bundle never carries a secret. */
   readonly baseUrl: string;
-  /** API key, if required by the deployment. */
-  readonly apiKey?: string;
   /** Fetch override (tests). */
   readonly fetch?: typeof fetch;
 }
@@ -88,7 +88,6 @@ async function fetchJson<T>(
       method: 'GET',
       headers: {
         Accept: 'application/json',
-        ...(ctx.apiKey ? { 'X-API-Key': ctx.apiKey } : {}),
         ...(init?.headers ?? {})
       }
     });

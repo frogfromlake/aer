@@ -23,7 +23,6 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
   import { SidePanel } from '$lib/components/base';
-  import { env } from '$env/dynamic/public';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import {
     contentQuery,
@@ -36,13 +35,11 @@
     type QueryOutcome
   } from '$lib/api/queries';
 
-  // The BFF is reachable at `/api/v1` via Traefik in every deployment
-  // that matters. PUBLIC_BFF_API_KEY is baked into the static bundle at
-  // image build time from the root .env — acceptable for local/internal
-  // deployments until a proper session-auth phase replaces it.
+  // The BFF is reachable at `/api/v1` via Traefik in every deployment.
+  // Traefik attaches X-API-Key to every /api/* request (see compose.yaml
+  // bff-api labels), so the static bundle ships with no secret.
   const ctx: FetchContext = {
-    baseUrl: '/api/v1',
-    ...(env.PUBLIC_BFF_API_KEY ? { apiKey: env.PUBLIC_BFF_API_KEY } : {})
+    baseUrl: '/api/v1'
   };
 
   let decision: 'pending' | 'engine' | 'fallback' = $state('pending');

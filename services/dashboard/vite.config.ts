@@ -3,9 +3,9 @@ import { defineConfig, loadEnv } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig(({ mode }) => {
-  // Load the root .env (two directories up) so the dev proxy can inject
-  // BFF_API_KEY without requiring a separate dashboard/.env file.
-  // The empty prefix loads all vars, not just VITE_* ones.
+  // Load the root .env (two directories up) so the proxy target is
+  // overridable per-developer via DEV_API_TARGET. The empty prefix loads
+  // all vars, not just VITE_* ones.
   const rootEnv = loadEnv(mode, '../..', '');
 
   return {
@@ -30,17 +30,16 @@ export default defineConfig(({ mode }) => {
         allow: ['.']
       },
       proxy: {
-        // Forward /api requests to Traefik (which routes to the BFF) so the
-        // Vite dev server doesn't 404 on API calls. Requires the full Docker
-        // stack to be running (`make up`). The self-signed Traefik cert is
-        // accepted for local dev only (secure: false).
+        // Forward /api requests to Traefik so the dev server matches the
+        // production request path exactly. Traefik attaches X-API-Key
+        // server-side (see bff-api labels in compose.yaml), so no secret
+        // is injected here. Requires `make backend-up` first. The
+        // self-signed Traefik cert is accepted for local dev (secure:
+        // false).
         '/api': {
           target: rootEnv.DEV_API_TARGET || 'https://localhost',
           changeOrigin: true,
-          secure: false,
-          headers: {
-            ...(rootEnv.BFF_API_KEY ? { 'X-API-Key': rootEnv.BFF_API_KEY } : {})
-          }
+          secure: false
         }
       }
     },

@@ -20,7 +20,7 @@ function mockFetch(response: { status: number; body?: unknown; throws?: unknown 
 }
 
 function ctxWith(fetchFn: FetchFn): FetchContext {
-  return { baseUrl: '/api/v1', apiKey: 'secret', fetch: fetchFn };
+  return { baseUrl: '/api/v1', fetch: fetchFn };
 }
 
 describe('probesQuery', () => {

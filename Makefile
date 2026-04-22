@@ -3,10 +3,10 @@
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
-.PHONY: bff-up bff-down bff-restart bff-image-build bff-dev bff-dev-down
+.PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e smoke-host lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-restart
 
@@ -31,34 +31,60 @@ SYMBOL_INFO    := $(CYAN)ℹ$(RESET)
 # ==========================================
 # 0. GLOBAL STACK COMMANDS
 # ==========================================
+#
+# Orchestration model:
+#   - Everything is a container. `compose.yaml` is the single source of
+#     truth for what runs and how it's wired.
+#   - `make up` brings up infra + backend services + dashboard + debug
+#     port forwarder, gated by Compose healthchecks (`--wait`).
+#   - `make backend-up` is the same minus the dashboard container — used
+#     in the frontend iteration loop together with `make fe-dev`, which
+#     serves the SvelteKit dev server on :5173 and proxies /api through
+#     Traefik.
+#
+# The `dashboard` profile (declared on the dashboard service in
+# compose.yaml) is the mechanism: it must be activated explicitly so
+# `backend-up` can omit it without a separate compose file.
 
-up: infra-up debug-up
-	@echo -e "$(BOLD)$(CYAN)Waiting a moment for infrastructure to settle...$(RESET)"
-	@sleep 3
-	@$(MAKE) ingestion-up
-	@$(MAKE) worker-up
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Provisioning bff_readonly Postgres role...$(RESET)"
-	@docker compose run --rm --no-deps postgres-init-roles
-	@$(MAKE) bff-up
-	@$(MAKE) frontend-up
+# Compose profile that gates the static dashboard container.
+COMPOSE_DASHBOARD_PROFILE := --profile dashboard
+# Always-on debug port forwarder for host-side tooling (psql, mc, curl).
+COMPOSE_DEBUG_PROFILE := --profile debug
+
+up:
+	@echo -e "$(BOLD)$(GRAY)--- STARTING FULL STACK (containerized) ---$(RESET)"
+	@docker compose $(COMPOSE_DEBUG_PROFILE) $(COMPOSE_DASHBOARD_PROFILE) up -d --wait
 	@echo ""
-	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) All AĒR services are running in the background!$(RESET)"
-	@echo -e "$(GRAY)Use 'make logs' to view the live output.$(RESET)"
-	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack is up and running!$(RESET)"
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) AĒR stack is healthy.$(RESET)"
+	@echo -e "$(GRAY)  Dashboard:  $(CYAN)https://localhost/$(RESET)"
+	@echo -e "$(GRAY)  BFF API:    $(CYAN)https://localhost/api/v1/healthz$(RESET) (X-API-Key injected by Traefik)"
+	@echo -e "$(GRAY)  Docs:       $(CYAN)http://localhost:8000$(RESET)"
+	@echo -e "$(GRAY)  Use '$(BOLD)make logs$(RESET)$(GRAY)' to tail container logs.$(RESET)"
 
-down: frontend-down services-down debug-down infra-down
-	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) The entire AĒR stack has been shut down.$(RESET)"
+down:
+	@echo -e "$(BOLD)$(GRAY)--- STOPPING FULL STACK ---$(RESET)"
+	@docker compose $(COMPOSE_DEBUG_PROFILE) $(COMPOSE_DASHBOARD_PROFILE) down --remove-orphans
+	@echo -e "$(SYMBOL_STOP) $(GRAY)AĒR stack stopped.$(RESET)"
 
 stop: down
 
 restart: down up
 
-# Convenience aliases so `backend-*` / `frontend-*` reads symmetrically in
-# docs and scripts. `make up` / `make down` remain the canonical "everything"
-# targets (ROADMAP Phase 97 decision).
-backend-up: infra-up debug-up ingestion-up worker-up bff-up
+# Backend-only flow for the frontend iteration loop:
+#   make backend-up && make fe-dev
+# Skips the dashboard container so Vite owns the browser-facing surface
+# on :5173 with a /api proxy → https://localhost (Traefik).
+backend-up:
+	@echo -e "$(BOLD)$(GRAY)--- STARTING BACKEND (no dashboard container) ---$(RESET)"
+	@docker compose $(COMPOSE_DEBUG_PROFILE) up -d --wait
+	@echo ""
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) Backend is healthy.$(RESET)"
+	@echo -e "$(GRAY)  Run '$(BOLD)make fe-dev$(RESET)$(GRAY)' to start the SvelteKit dev server on :5173.$(RESET)"
 
-backend-down: services-down debug-down infra-down
+backend-down:
+	@echo -e "$(BOLD)$(GRAY)--- STOPPING BACKEND ---$(RESET)"
+	@docker compose $(COMPOSE_DEBUG_PROFILE) down --remove-orphans
+	@echo -e "$(SYMBOL_STOP) $(GRAY)Backend stopped.$(RESET)"
 
 backend-restart: backend-down backend-up
 
@@ -67,16 +93,16 @@ backend-restart: backend-down backend-up
 # ==========================================
 
 infra-up:
-	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ---$(RESET)"
-	@docker compose up -d traefik nats nats-init minio postgres clickhouse minio-init clickhouse-init otel-collector tempo prometheus grafana docs
+	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ONLY ---$(RESET)"
+	@docker compose up -d --wait \
+		traefik nats nats-init minio minio-init postgres clickhouse clickhouse-init \
+		otel-collector tempo prometheus grafana docs
 	@echo -e "$(SYMBOL_SUCCESS) Docs:       $(CYAN)http://localhost:8000$(RESET)"
-	@echo -e "$(GRAY)  Backend services (PostgreSQL, ClickHouse, NATS, MinIO, OTel, Grafana) are internal only.$(RESET)"
-	@echo -e "$(GRAY)  Grafana and MinIO Console are routed through Traefik (HTTPS).$(RESET)"
-	@echo -e "$(GRAY)  Run '$(BOLD)make debug-up$(RESET)$(GRAY)' to expose all ports to the host for debugging.$(RESET)"
+	@echo -e "$(GRAY)  Backend application services are NOT started by this target — use 'make up' or 'make backend-up'.$(RESET)"
 
 infra-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING INFRASTRUCTURE ---$(RESET)"
-	@docker compose stop traefik nats minio postgres clickhouse minio-init clickhouse-init otel-collector tempo prometheus grafana docs
+	@docker compose stop traefik nats minio postgres clickhouse otel-collector tempo prometheus grafana docs 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Infrastructure stopped.$(RESET)"
 
 infra-restart: infra-down infra-up
@@ -90,7 +116,7 @@ debug-up:
 		fi; \
 	fi
 	@echo -e "$(BOLD)$(GRAY)--- STARTING DEBUG PORT FORWARDER ---$(RESET)"
-	@docker compose --profile debug up -d debug-ports
+	@docker compose $(COMPOSE_DEBUG_PROFILE) up -d debug-ports
 	@echo -e "$(SYMBOL_SUCCESS) PostgreSQL: $(CYAN)localhost:5432$(RESET)"
 	@echo -e "$(SYMBOL_SUCCESS) ClickHouse: $(CYAN)http://localhost:8123/play$(RESET)"
 	@echo -e "$(SYMBOL_SUCCESS) NATS:       $(CYAN)localhost:4222$(RESET)  Monitor: $(CYAN)http://localhost:8222$(RESET)"
@@ -101,7 +127,7 @@ debug-up:
 
 debug-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING DEBUG PORT FORWARDER ---$(RESET)"
-	@docker compose --profile debug rm --stop --force debug-ports 2>/dev/null || true
+	@docker compose $(COMPOSE_DEBUG_PROFILE) rm --stop --force debug-ports 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Debug ports closed. Backend services still running internally.$(RESET)"
 
 infra-clean:
@@ -119,40 +145,44 @@ infra-clean-clickhouse:
 # ==========================================
 # 2. APPLICATION SERVICES (INDIVIDUAL)
 # ==========================================
+#
+# Every application service runs in a container. Individual targets are
+# thin wrappers around `docker compose` so a single rebuild flow works:
+#
+#   make ingestion-restart  # rebuild image + recreate container
+#
+# Use these for tightening the loop on one service without bouncing the
+# whole stack. The compose `depends_on` graph still applies.
 
 ingestion-up:
-	@./scripts/start.sh ingestion
+	@docker compose up -d --wait ingestion-api
 
 ingestion-down:
-	@./scripts/stop.sh ingestion
+	@docker compose stop ingestion-api 2>/dev/null || true
 
-ingestion-restart: ingestion-down ingestion-up
+ingestion-restart:
+	@docker compose up -d --build --force-recreate --wait ingestion-api
 
 worker-up:
-	@./scripts/start.sh worker
+	@docker compose up -d --wait analysis-worker
 
 worker-down:
-	@./scripts/stop.sh worker
+	@docker compose stop analysis-worker 2>/dev/null || true
 
-worker-restart: worker-down worker-up
+worker-restart:
+	@docker compose up -d --build --force-recreate --wait analysis-worker
 
 bff-up:
-	@docker compose up -d bff-api
+	@docker compose up -d --wait bff-api
 
 bff-image-build:
 	@docker compose build bff-api
 
 bff-down:
-	@docker compose stop bff-api
+	@docker compose stop bff-api 2>/dev/null || true
 
-bff-restart: bff-down bff-up
-
-# Host-process alternatives for rapid iteration without a Docker rebuild.
-bff-dev:
-	@./scripts/start.sh bff
-
-bff-dev-down:
-	@./scripts/stop.sh bff
+bff-restart:
+	@docker compose up -d --build --force-recreate --wait bff-api
 
 # ==========================================
 # 3. APPLICATION SERVICES (ALL TOGETHER)
@@ -160,10 +190,10 @@ bff-dev-down:
 
 services-up: ingestion-up worker-up bff-up
 	@echo ""
-	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) All AĒR services are running in the background!$(RESET)"
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) All AĒR services are running.$(RESET)"
 	@echo -e "$(GRAY)Use 'make logs' to view the live output.$(RESET)"
 
-services-down: ingestion-down worker-down bff-down
+services-down: bff-down worker-down ingestion-down
 	@echo -e "$(BOLD)$(GOLD)$(SYMBOL_STOP) All AĒR services stopped.$(RESET)"
 
 services-restart: services-down services-up
@@ -176,10 +206,8 @@ services-clean: services-down
 # ==========================================
 
 logs:
-	@echo -e "$(BOLD)$(CYAN)Showing live logs for all services (Ctrl+C to exit)...$(RESET)"
-	@mkdir -p .pids
-	@touch .pids/ingestion.log .pids/worker.log .pids/bff.log
-	@tail -f .pids/*.log
+	@echo -e "$(BOLD)$(CYAN)Tailing container logs (Ctrl+C to exit)...$(RESET)"
+	@docker compose $(COMPOSE_DEBUG_PROFILE) $(COMPOSE_DASHBOARD_PROFILE) logs -f --tail=100
 
 tidy:
 	@cd services/ingestion-api && go mod tidy
@@ -250,10 +278,6 @@ test: test-go test-go-pkg test-go-crawlers test-python fe-test
 test-e2e:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running End-to-End Smoke Test (full Docker Compose stack)...$(RESET)"
 	@./scripts/e2e_smoke_test.sh
-
-smoke-host:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Host-Mode Smoke Test (validates start.sh path)...$(RESET)"
-	@./scripts/smoke_host.sh
 
 test-go:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"
@@ -361,7 +385,11 @@ fe-install:
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend dependencies installed.$(RESET)"
 
 fe-dev:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting SvelteKit dev server (hot reload)...$(RESET)"
+	@if ! docker compose ps --status=running --services | grep -qx bff-api; then \
+		echo -e "\033[1m\033[38;5;214m!  Backend is not running.\033[0m Run '$(BOLD)make backend-up$(RESET)' first."; \
+		exit 1; \
+	fi
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting SvelteKit dev server on http://localhost:5173 (proxying /api to Traefik)...$(RESET)"
 	@cd $(FE_DIR) && pnpm run dev
 
 fe-preview: fe-build
@@ -460,13 +488,13 @@ fe-image-size:
 
 frontend-up:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Starting dashboard container...$(RESET)"
-	@docker compose up -d dashboard
+	@docker compose $(COMPOSE_DASHBOARD_PROFILE) up -d --wait dashboard
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Dashboard routed via Traefik (https://localhost/).$(RESET)"
 
 frontend-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING DASHBOARD ---$(RESET)"
-	@docker compose stop dashboard 2>/dev/null || true
-	@docker compose rm --force dashboard 2>/dev/null || true
+	@docker compose $(COMPOSE_DASHBOARD_PROFILE) stop dashboard 2>/dev/null || true
+	@docker compose $(COMPOSE_DASHBOARD_PROFILE) rm --force dashboard 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Dashboard stopped.$(RESET)"
 
 frontend-restart: frontend-down frontend-up
@@ -515,7 +543,7 @@ help:
 	@echo -e "$(GRAY)================================================================================$(RESET)"
 	@echo -e "$(BOLD)Global Commands:$(RESET)"
 	@echo -e "  $(GREEN)up$(RESET)                  $(GRAY)Start the entire stack (infrastructure + services)$(RESET)"
-	@echo -e "  $(GOLD)down$(RESET)                $(GRAY)Stop the entire stack$(RESET)"
+	@echo -e "  $(GOLD)down$(RESET)                $(GRAY)Stop the entire stack (alias: stop)$(RESET)"
 	@echo -e "  $(CYAN)restart$(RESET)             $(GRAY)Restart the entire stack$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Infrastructure:$(RESET)"
@@ -531,6 +559,8 @@ help:
 	@echo -e "  $(GOLD)services-down$(RESET)       $(GRAY)Stop all application services$(RESET)"
 	@echo -e "  $(CYAN)services-restart$(RESET)    $(GRAY)Restart all application services$(RESET)"
 	@echo -e "  $(CYAN)<svc>-up/down/restart$(RESET) $(GRAY)Manage individual services: ingestion, worker, bff$(RESET)"
+	@echo -e "  $(GOLD)services-clean$(RESET)      $(GRAY)Stop services and wipe their state (./scripts/clean.sh)$(RESET)"
+	@echo -e "  $(CYAN)bff-image-build$(RESET)     $(GRAY)Build the bff-api container image$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
@@ -550,7 +580,6 @@ help:
 	@echo -e "  $(GREEN)test-go-crawlers$(RESET)    $(GRAY)Go tests for rss-crawler$(RESET)"
 	@echo -e "  $(GREEN)test-python$(RESET)         $(GRAY)Python unit tests (pytest, analysis-worker)$(RESET)"
 	@echo -e "  $(GREEN)test-e2e$(RESET)            $(GRAY)Docker Compose end-to-end smoke test$(RESET)"
-	@echo -e "  $(CYAN)smoke-host$(RESET)          $(GRAY)Host-mode startup smoke test (validates scripts/start.sh path)$(RESET)"
 	@echo -e "  $(CYAN)lint$(RESET)                $(GRAY)All linters: ruff (Python) + golangci-lint (all Go modules) + openapi-lint$(RESET)"
 	@echo -e "  $(CYAN)lint-go-pkg$(RESET)         $(GRAY)golangci-lint for shared pkg/ only$(RESET)"
 	@echo -e "  $(GREEN)audit$(RESET)               $(GRAY)Dependency vulnerability scanners: govulncheck + pip-audit$(RESET)"
@@ -580,8 +609,8 @@ help:
 	@echo -e "  $(GOLD)frontend-down$(RESET)       $(GRAY)Stop and remove the dashboard container$(RESET)"
 	@echo -e "  $(CYAN)frontend-restart$(RESET)    $(GRAY)Restart the dashboard container$(RESET)"
 	@echo -e ""
-	@echo -e "$(BOLD)Split stack (aliases of \`make up\` / \`make down\`):$(RESET)"
-	@echo -e "  $(GREEN)backend-up$(RESET)          $(GRAY)Start infra + debug ports + all backend services (no dashboard)$(RESET)"
-	@echo -e "  $(GOLD)backend-down$(RESET)        $(GRAY)Stop backend services + debug ports + infra$(RESET)"
+	@echo -e "$(BOLD)Frontend iteration loop:$(RESET)"
+	@echo -e "  $(GREEN)backend-up$(RESET)          $(GRAY)Containerized backend stack (no dashboard container) — pair with make fe-dev$(RESET)"
+	@echo -e "  $(GOLD)backend-down$(RESET)        $(GRAY)Stop backend stack$(RESET)"
 	@echo -e "  $(CYAN)backend-restart$(RESET)     $(GRAY)Restart backend stack$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"

@@ -38,10 +38,8 @@ COPY services/dashboard/ ./
 # Empty PUBLIC_OTLP_ENDPOINT disables browser trace emission entirely.
 ARG PUBLIC_OTLP_ENDPOINT=""
 ARG PUBLIC_DEPLOYMENT_ENVIRONMENT="development"
-ARG PUBLIC_BFF_API_KEY=""
 ENV PUBLIC_OTLP_ENDPOINT=${PUBLIC_OTLP_ENDPOINT} \
-    PUBLIC_DEPLOYMENT_ENVIRONMENT=${PUBLIC_DEPLOYMENT_ENVIRONMENT} \
-    PUBLIC_BFF_API_KEY=${PUBLIC_BFF_API_KEY}
+    PUBLIC_DEPLOYMENT_ENVIRONMENT=${PUBLIC_DEPLOYMENT_ENVIRONMENT}
 # Use the bundle we copied above so the image build is hermetic — not
 # dependent on the in-tree bundle file existing at build time.
 RUN pnpm exec openapi-typescript /workspace/bff-openapi.bundle.yaml -o src/lib/api/types.ts \

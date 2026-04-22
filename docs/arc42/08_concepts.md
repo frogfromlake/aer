@@ -299,7 +299,7 @@ AĒR enforces code quality at the Git level via hooks in `scripts/hooks/`:
 
 ### 8.9.2 Makefile
 
-The central `Makefile` is the single interface for all developer operations. It abstracts Docker Compose commands, local process management (via `scripts/start.sh` / `scripts/stop.sh`), and build tooling into memorable targets. Key targets: `make up` (full stack), `make infra-up` (infrastructure only), `make services-up` (application services), `make test`, `make lint`, `make audit`, `make codegen`, `make build-services`, `make tidy`. Individual services are controllable via `make {ingestion,worker,bff}-{up,down,restart}`.
+The central `Makefile` is the single interface for all developer operations. It is a thin wrapper over Docker Compose plus the build/test toolchain. Key targets: `make up` (full containerized stack), `make backend-up` (containerized backend only — for the `make fe-dev` frontend iteration loop), `make infra-up` (infrastructure only), `make services-up` (application services), `make test`, `make lint`, `make audit`, `make codegen`, `make build-services`, `make tidy`. Individual services are controllable via `make {ingestion,worker,bff}-{up,down,restart}`.
 
 ### 8.9.3 Configuration Management
 

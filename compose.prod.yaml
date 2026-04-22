@@ -31,6 +31,17 @@ services:
       - "traefik.http.routers.bff-api.entrypoints=websecure"
       - "traefik.http.routers.bff-api.tls.certresolver=myresolver"
       - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
+      - "traefik.http.routers.bff-api.middlewares=bff-api-key@docker"
+      - "traefik.http.middlewares.bff-api-key.headers.customrequestheaders.X-API-Key=${BFF_API_KEY}"
+
+  dashboard:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
+      - "traefik.http.routers.dashboard.priority=1"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
 
   grafana:
     labels:

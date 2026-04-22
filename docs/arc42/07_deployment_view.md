@@ -223,7 +223,7 @@ Individual services can be controlled independently via `make {ingestion,worker,
 
 ### 7.7.2 Local Development Mode
 
-For local development, the infrastructure runs in Docker while the application services run as native host processes (Go binaries and Python via `venv`). This is managed by `scripts/start.sh` and `scripts/stop.sh`, which handle PID tracking, virtual environment setup, and background process management.
+Every service runs in a container; the development environment is the same container topology as production minus the ACME-issued TLS overlay. `make up` brings up the full stack via `docker compose up -d --wait`, gated by service healthchecks. For frontend iteration, `make backend-up` skips the dashboard container and `make fe-dev` runs the SvelteKit dev server on `:5173`, proxying `/api` through Traefik to the BFF.
 
 The `.env` file (copied from `.env.example`) serves as the central configuration source for both Docker Compose environment variables and the application services (loaded via `viper` in Go and `python-dotenv` in Python).
 

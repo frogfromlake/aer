@@ -412,6 +412,13 @@ services:
       - "traefik.http.routers.bff-api.entrypoints=websecure"
       - "traefik.http.routers.bff-api.tls=true"
       - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
+      # Gateway-injected API key. Browsers never see BFF_API_KEY: Traefik
+      # adds the header to every /api/* request server-side, and the
+      # static bundle ships with no secret. Non-browser callers (crawlers,
+      # smoke tests) keep sending X-API-Key directly to the BFF on :8080.
+      # Replace with proper session auth once a login surface exists.
+      - "traefik.http.routers.bff-api.middlewares=bff-api-key@docker"
+      - "traefik.http.middlewares.bff-api-key.headers.customrequestheaders.X-API-Key=${BFF_API_KEY}"
     networks:
       - aer-frontend
       - aer-backend
@@ -447,10 +454,13 @@ services:
       args:
         PUBLIC_OTLP_ENDPOINT: ${PUBLIC_OTLP_ENDPOINT-}
         PUBLIC_DEPLOYMENT_ENVIRONMENT: ${PUBLIC_DEPLOYMENT_ENVIRONMENT-development}
-        PUBLIC_BFF_API_KEY: ${BFF_API_KEY}
     image: aer-dashboard:local
     container_name: aer_dashboard
     restart: unless-stopped
+    # `dashboard` profile lets `make backend-up` skip this service so
+    # `make fe-dev` can serve the SvelteKit dev server on :5173 without
+    # a Traefik route conflict on `/`.
+    profiles: ["dashboard"]
     networks:
       - aer-frontend
     labels:
@@ -578,6 +588,7 @@ services:
       - "4317:4317"     # OTel Collector gRPC
       - "4318:4318"     # OTel Collector HTTP
       - "3000:3000"     # Grafana
+      - "8081:8081"     # Ingestion API
     entrypoint: ["sh", "-c"]
     command:
       - |
@@ -591,6 +602,7 @@ services:
         socat TCP-LISTEN:4317,fork,reuseaddr TCP-CONNECT:otel-collector:4317 &
         socat TCP-LISTEN:4318,fork,reuseaddr TCP-CONNECT:otel-collector:4318 &
         socat TCP-LISTEN:3000,fork,reuseaddr TCP-CONNECT:grafana:3000 &
+        socat TCP-LISTEN:8081,fork,reuseaddr TCP-CONNECT:ingestion-api:8081 &
         wait
     networks:
       - aer-backend
