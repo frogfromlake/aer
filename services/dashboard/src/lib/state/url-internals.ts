@@ -10,6 +10,11 @@ export interface UrlState {
   from: string | null;
   to: string | null;
   probe: string | null;
+  // Zero-based index into the selected probe's emissionPoints array.
+  // A probe like probe-0-de-institutional-rss bundles multiple publishers
+  // at distinct origins (Tagesschau/Hamburg, Bundesregierung/Berlin), so
+  // probeId alone does not deep-link a click — we also encode which point.
+  emissionPoint: number | null;
   resolution: Resolution | null;
   viewingMode: ViewingMode | null;
 }
@@ -18,6 +23,7 @@ export const EMPTY_URL_STATE: UrlState = {
   from: null,
   to: null,
   probe: null,
+  emissionPoint: null,
   resolution: null,
   viewingMode: null
 };
@@ -36,12 +42,20 @@ function parseEnum<T extends string>(v: string | null, allowed: readonly T[]): T
   return (allowed as readonly string[]).includes(v) ? (v as T) : null;
 }
 
+function parseNonNegativeInt(v: string | null): number | null {
+  if (v === null) return null;
+  if (!/^\d+$/.test(v)) return null;
+  const n = Number.parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function readFromSearch(search: string): UrlState {
   const p = new URLSearchParams(search);
   return {
     from: parseIso(p.get('from')),
     to: parseIso(p.get('to')),
     probe: p.get('probe'),
+    emissionPoint: parseNonNegativeInt(p.get('ep')),
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
     viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES)
   };
@@ -52,6 +66,11 @@ export function writeToSearch(state: UrlState): string {
   if (state.from) p.set('from', state.from);
   if (state.to) p.set('to', state.to);
   if (state.probe) p.set('probe', state.probe);
+  // `ep` is only meaningful when a probe is selected; drop it otherwise
+  // so reload-after-close does not restore a phantom emission point.
+  if (state.probe && state.emissionPoint !== null && state.emissionPoint >= 0) {
+    p.set('ep', String(state.emissionPoint));
+  }
   if (state.resolution) p.set('resolution', state.resolution);
   if (state.viewingMode) p.set('viewingMode', state.viewingMode);
   const qs = p.toString();

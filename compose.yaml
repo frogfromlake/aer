@@ -374,6 +374,45 @@ services:
           cpus: "1.00"
 
   # ----------------------------------------------------
+  # 3.1d RSS CRAWLER (ONE-SHOT JOB)
+  # ----------------------------------------------------
+  # Standalone Go binary that fetches configured RSS feeds and submits
+  # documents to the Ingestion API. Runs on the internal `aer-backend`
+  # network so it reaches `ingestion-api:8081` directly — no host port
+  # exposure required, identical in dev and prod.
+  #
+  # `profiles: ["crawlers"]` keeps it out of `make up`. Invoke via
+  # `make crawl` (wraps `docker compose run --rm rss-crawler`) or from
+  # a host cron / systemd timer in production.
+  rss-crawler:
+    build:
+      context: .
+      dockerfile: crawlers/rss-crawler/Dockerfile
+    image: aer-rss-crawler:local
+    container_name: aer_rss_crawler
+    profiles: ["crawlers"]
+    restart: "no"
+    environment:
+      - INGESTION_URL=http://ingestion-api:8081/api/v1/ingest
+      - SOURCES_URL=http://ingestion-api:8081/api/v1/sources
+      - INGESTION_API_KEY=${INGESTION_API_KEY}
+    volumes:
+      # Dedup state survives across runs so re-running `make crawl`
+      # doesn't re-ingest items. Clear with `docker volume rm
+      # aer_rss_crawler_state` when you want a full re-crawl.
+      - rss_crawler_state:/state
+    networks:
+      - aer-backend
+    depends_on:
+      ingestion-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ----------------------------------------------------
   # 3.2 BFF API (PUBLIC-FACING, BEHIND TRAEFIK)
   # ----------------------------------------------------
   bff-api:
@@ -638,6 +677,7 @@ volumes:
   postgres_data:
   clickhouse_data:
   tempo_data:
+  rss_crawler_state:
 
 networks:
   aer-frontend:

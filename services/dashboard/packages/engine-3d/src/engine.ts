@@ -86,6 +86,14 @@ const GLOW_RADIUS = 1.003;
 // shader divides by depth so the disc's apparent size is stable as the
 // camera orbits.
 const GLOW_POINT_WORLD_SIZE = 80.0;
+// Tune this to scale all glow rings up (> 1.0) or down (< 1.0).
+const GLOW_BRIGHTNESS_SCALE = 1.0;
+// Halo spread coefficient — baked as 0.8 in the shader originally.
+// Raise to widen/brighten the outer halo; lower to tighten it.
+const GLOW_HALO_BRIGHTNESS = 0.7;
+// Gaussian ring centred at r≈0.85 — only affects the very outer edge.
+// Zero at the core and inner halo (r < 0.5). Safe to raise independently.
+const GLOW_OUTER_RING_BRIGHTNESS = 0.35;
 
 // Emission glow colour. Warm enough to read against the slate land
 // palette; cool enough not to scream — the palette target for 99b is a
@@ -160,7 +168,8 @@ class Engine implements AtmosphereEngine {
     readonly label: string;
     readonly position: Vector3;
   }> = [];
-  private hoveredSlotIndex = -1;
+  private pointerHoveredSlotIndex = -1;
+  private externalHoveredSlotIndex = -1;
   private selectedSlotIndex = -1;
   private currentSelection: ProbeSelection | null = null;
   private readonly raycaster = new Raycaster();
@@ -251,6 +260,18 @@ class Engine implements AtmosphereEngine {
 
   setSunPosition(unixMs: number | null): void {
     this.sunOverrideMs = unixMs;
+  }
+
+  setHover(selection: ProbeSelection | null): void {
+    if (selection === null) {
+      this.setExternalHoverSlot(-1);
+      return;
+    }
+    const idx = this.emissionSlots.findIndex(
+      (s) =>
+        s.probeId === selection.probeId && s.emissionPointIndex === selection.emissionPointIndex
+    );
+    this.setExternalHoverSlot(idx);
   }
 
   setSelection(selection: ProbeSelection | null): void {
@@ -463,7 +484,7 @@ class Engine implements AtmosphereEngine {
     }
 
     if (this.glowMaterial?.uniforms.uTime) {
-      this.glowMaterial.uniforms.uTime.value = this.clock.elapsedTime;
+      this.glowMaterial.uniforms.uTime.value = this.clock.getElapsedTime();
     }
 
     if (this.pointerInsideCanvas) {
@@ -511,7 +532,10 @@ class Engine implements AtmosphereEngine {
         uTime: { value: 0 },
         uPixelRatio: { value: this.config.pixelRatioCap },
         uPointWorldSize: { value: GLOW_POINT_WORLD_SIZE },
-        uGlowColor: { value: GLOW_COLOR }
+        uGlowColor: { value: GLOW_COLOR },
+        uBrightnessScale: { value: GLOW_BRIGHTNESS_SCALE },
+        uHaloBrightness: { value: GLOW_HALO_BRIGHTNESS },
+        uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS }
       }
     });
     this.glowMesh = new Points(this.glowGeometry, this.glowMaterial);
@@ -536,7 +560,8 @@ class Engine implements AtmosphereEngine {
       });
     }
     this.emissionSlots = slots;
-    this.hoveredSlotIndex = -1;
+    this.pointerHoveredSlotIndex = -1;
+    this.externalHoveredSlotIndex = -1;
 
     const n = slots.length;
     if (n === 0) {
@@ -606,8 +631,8 @@ class Engine implements AtmosphereEngine {
 
   private readonly onPointerLeave = (): void => {
     this.pointerInsideCanvas = false;
-    if (this.hoveredSlotIndex !== -1) {
-      this.setHoveredSlot(-1);
+    if (this.pointerHoveredSlotIndex !== -1) {
+      this.setPointerHoverSlot(-1);
       this.emitter.emit('probe-hovered', null);
     }
   };
@@ -632,8 +657,8 @@ class Engine implements AtmosphereEngine {
 
   private updateHover(): void {
     const hit = this.pickEmissionSlot();
-    if (hit === this.hoveredSlotIndex) return;
-    this.setHoveredSlot(hit);
+    if (hit === this.pointerHoveredSlotIndex) return;
+    this.setPointerHoverSlot(hit);
     if (hit === -1) {
       this.emitter.emit('probe-hovered', null);
     } else {
@@ -665,24 +690,37 @@ class Engine implements AtmosphereEngine {
     return pickNearSideHit(candidates, this.camera.position);
   }
 
-  private setHoveredSlot(idx: number): void {
-    if (!this.glowGeometry) {
-      this.hoveredSlotIndex = idx;
-      return;
-    }
+  private setPointerHoverSlot(idx: number): void {
+    if (idx === this.pointerHoveredSlotIndex) return;
+    const prev = this.pointerHoveredSlotIndex;
+    this.pointerHoveredSlotIndex = idx;
+    this.refreshHoverAttr(prev);
+  }
+
+  private setExternalHoverSlot(idx: number): void {
+    if (idx === this.externalHoveredSlotIndex) return;
+    const prev = this.externalHoveredSlotIndex;
+    this.externalHoveredSlotIndex = idx;
+    this.refreshHoverAttr(prev);
+  }
+
+  private refreshHoverAttr(previouslyLit: number): void {
+    if (!this.glowGeometry) return;
     const attr = this.glowGeometry.getAttribute('aHover') as BufferAttribute | undefined;
-    if (!attr) {
-      this.hoveredSlotIndex = idx;
-      return;
+    if (!attr) return;
+    const p = this.pointerHoveredSlotIndex;
+    const x = this.externalHoveredSlotIndex;
+    if (
+      previouslyLit !== -1 &&
+      previouslyLit < this.emissionSlots.length &&
+      previouslyLit !== p &&
+      previouslyLit !== x
+    ) {
+      attr.setX(previouslyLit, 0);
     }
-    if (this.hoveredSlotIndex !== -1 && this.hoveredSlotIndex < this.emissionSlots.length) {
-      attr.setX(this.hoveredSlotIndex, 0);
-    }
-    if (idx !== -1 && idx < this.emissionSlots.length) {
-      attr.setX(idx, 1);
-    }
+    if (p !== -1 && p < this.emissionSlots.length) attr.setX(p, 1);
+    if (x !== -1 && x < this.emissionSlots.length) attr.setX(x, 1);
     attr.needsUpdate = true;
-    this.hoveredSlotIndex = idx;
   }
 }
 

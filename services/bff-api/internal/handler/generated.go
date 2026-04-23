@@ -1385,6 +1385,9 @@ type GetMetricsResponseObject interface {
 type GetMetrics200JSONResponse struct {
 	// Data The aggregated time-series data points for the requested window.
 	Data []struct {
+		// Count Number of gold-layer rows (i.e. per-document metric emissions) that contributed to `value` in this bucket. Distinct from `value`, which is the aggregated statistic (typically avg). Callers needing a document rate — e.g. the Atmosphere's per-probe pulse — must use `count / window_hours`, not the metric value itself, because most metrics store a per-document *measurement* (hour-of-day, sentiment, word count), not a document tally.
+		Count *int64 `json:"count,omitempty"`
+
 		// MetricName The name of the metric (e.g., "word_count", "sentiment_score").
 		MetricName string `json:"metricName"`
 

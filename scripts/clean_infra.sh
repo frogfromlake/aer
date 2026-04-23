@@ -20,11 +20,22 @@ confirm_deletion() {
     fi
 }
 
+# The crawler's dedup state is logically tied to bronze (MinIO) and the
+# documents table (Postgres). If either is wiped, the state must go too —
+# otherwise the next `make crawl` skips every item as "already seen" and
+# silently re-ingests nothing.
+wipe_crawler_state() {
+    docker volume rm ${PROJECT_NAME}_rss_crawler_state 2>/dev/null \
+        && echo -e "${GREEN}✔ rss-crawler dedup state cleared.${RESET}" \
+        || echo -e "${CYAN}ℹ rss-crawler dedup state volume did not exist (already clean).${RESET}"
+}
+
 if [ "$TARGET" == "all" ]; then
     confirm_deletion "ALL DATABASES (Postgres, MinIO, ClickHouse)"
     echo "Stopping infrastructure and deleting volumes..."
     docker compose down -v
     echo -e "${GREEN}✔ All infrastructure data deleted.${RESET}"
+    wipe_crawler_state
 
 elif [ "$TARGET" == "postgres" ]; then
     confirm_deletion "PostgreSQL"
@@ -32,6 +43,7 @@ elif [ "$TARGET" == "postgres" ]; then
     docker compose rm -f postgres
     docker volume rm ${PROJECT_NAME}_postgres_data 2>/dev/null || true
     echo -e "${GREEN}✔ PostgreSQL data deleted.${RESET}"
+    wipe_crawler_state
 
 elif [ "$TARGET" == "minio" ]; then
     confirm_deletion "MinIO (Data Lake)"
@@ -39,6 +51,7 @@ elif [ "$TARGET" == "minio" ]; then
     docker compose rm -f minio minio-init
     docker volume rm ${PROJECT_NAME}_minio_data 2>/dev/null || true
     echo -e "${GREEN}✔ MinIO data deleted.${RESET}"
+    wipe_crawler_state
 
 elif [ "$TARGET" == "clickhouse" ]; then
     confirm_deletion "ClickHouse"

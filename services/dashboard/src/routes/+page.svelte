@@ -110,9 +110,14 @@
   let activity = $derived.by<ProbeActivity[]>(() => {
     const m = metricsQ.data;
     if (m?.kind !== 'success' || probeDtos.length === 0) return [];
+    // Pulse rate is documents-per-hour, not metric value. `publication_hour`
+    // stores hour-of-day (0–23) as its value, so summing values and dividing
+    // by window hours produced garbage. The BFF now returns per-bucket
+    // `count` (number of gold rows contributing to the bucket's avg), which
+    // is the right numerator for a rate.
     const perSource: Record<string, number> = {};
     for (const row of m.data.data) {
-      perSource[row.source] = (perSource[row.source] ?? 0) + row.value;
+      perSource[row.source] = (perSource[row.source] ?? 0) + (row.count ?? 0);
     }
     return probeDtos.map((p) => {
       const total = p.sources.reduce((sum, s) => sum + (perSource[s] ?? 0), 0);
@@ -124,18 +129,21 @@
   let selected: ProbeSelection | null = $state(null);
   let panelOpen = $state(false);
 
-  // If the URL carries `?probe=<id>` on load, surface the panel for that
-  // probe once probes land. Emission-point index is not URL-encoded in
-  // 99b (only the probe is deep-linkable), so we open on point index 0.
+  // If the URL carries `?probe=<id>&ep=<n>` on load, surface the panel
+  // for that emission point once probes land. Probes bundle multiple
+  // publishers (Tagesschau vs. Bundesregierung on probe 0) so `ep`
+  // disambiguates which emission origin was opened. Fallback: index 0.
   $effect(() => {
     if (!url.probe || selected) return;
     const hit = probeDtos.find((p) => p.probeId === url.probe);
-    const firstEp = hit?.emissionPoints[0];
-    if (!hit || !firstEp) return;
+    if (!hit || hit.emissionPoints.length === 0) return;
+    const rawIdx = url.emissionPoint ?? 0;
+    const idx = rawIdx >= 0 && rawIdx < hit.emissionPoints.length ? rawIdx : 0;
+    const ep = hit.emissionPoints[idx]!;
     selected = {
       probeId: hit.probeId,
-      emissionPointIndex: 0,
-      emissionPointLabel: firstEp.label
+      emissionPointIndex: idx,
+      emissionPointLabel: ep.label
     };
     panelOpen = true;
   });
@@ -151,14 +159,65 @@
     }
     selected = sel;
     panelOpen = true;
-    setUrl({ probe: sel.probeId });
+    setUrl({ probe: sel.probeId, emissionPoint: sel.emissionPointIndex });
   }
 
   function onPanelClose() {
     panelOpen = false;
     selected = null;
-    setUrl({ probe: null });
+    setUrl({ probe: null, emissionPoint: null });
   }
+
+  // --- Hover tooltip ---------------------------------------------------
+  // `EmissionPoint.label` is the designated tooltip content per schema
+  // ("Rendered in hover tooltips and the L3 panel."). It already
+  // disambiguates bundled publishers (e.g. Hamburg/Tagesschau vs.
+  // Berlin/Bundesregierung on probe 0).
+  let hovered: ProbeSelection | null = $state(null);
+  let pointerX = $state(0);
+  let pointerY = $state(0);
+
+  function onProbeHovered(sel: ProbeSelection | null) {
+    hovered = sel;
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    pointerX = e.clientX;
+    pointerY = e.clientY;
+  }
+
+  // --- Keyboard navigation --------------------------------------------
+  // A canvas has no native keyboard story. We mirror the emission points
+  // into an sr-only list of buttons whose order matches visual/DOM order;
+  // Tab cycles through them, Enter/Space fires onProbeSelected, and the
+  // focused item is announced via aria-label. Visual focus feedback on
+  // the globe itself would require a new engine API (setKeyboardFocus);
+  // deferred — correct keyboard reach is the 99b commitment.
+  interface FlatProbePoint {
+    probeId: string;
+    emissionPointIndex: number;
+    label: string;
+    language: string;
+  }
+  let flatPoints = $derived.by<FlatProbePoint[]>(() => {
+    const out: FlatProbePoint[] = [];
+    for (const p of probeDtos) {
+      p.emissionPoints.forEach((ep, i) => {
+        out.push({
+          probeId: p.probeId,
+          emissionPointIndex: i,
+          label: ep.label,
+          language: p.language
+        });
+      });
+    }
+    return out;
+  });
+
+  let selectedProbeDto = $derived(probeDtos.find((p) => p.probeId === selected?.probeId) ?? null);
+  let selectedRate = $derived(
+    activity.find((a) => a.probeId === selected?.probeId)?.documentsPerHour ?? null
+  );
 
   const contentQ = createQuery<
     QueryOutcome<ContentResponseDto>,
@@ -181,8 +240,66 @@
 </svelte:head>
 
 {#if decision === 'engine'}
-  <div class="stage" aria-hidden="false">
-    <AtmosphereCanvas probes={probeMarkers} {activity} {onProbeSelected} selection={selected} />
+  <div
+    class="stage"
+    aria-hidden="false"
+    onpointermove={onPointerMove}
+    onpointerleave={() => onProbeHovered(null)}
+    role="presentation"
+  >
+    <AtmosphereCanvas
+      probes={probeMarkers}
+      {activity}
+      {onProbeSelected}
+      {onProbeHovered}
+      selection={selected}
+      hover={hovered}
+    />
+
+    {#if hovered}
+      <div
+        class="probe-tooltip"
+        role="tooltip"
+        style:left="{pointerX + 14}px"
+        style:top="{pointerY + 14}px"
+      >
+        {hovered.emissionPointLabel}
+      </div>
+    {/if}
+
+    <!--
+      Keyboard-accessible mirror of the emission points on the globe.
+      Visually hidden but reachable via Tab; Enter/Space on a button opens
+      the corresponding probe's panel exactly as a mouse click would.
+      Focus also drives hover highlight so sighted keyboard users see the
+      focused point glow on the globe.
+    -->
+    <ul class="sr-probe-nav" aria-label="Probes on the globe">
+      {#each flatPoints as pt (pt.probeId + '#' + pt.emissionPointIndex)}
+        <li>
+          <button
+            type="button"
+            class="sr-only"
+            aria-label="Probe {pt.probeId}, {pt.language}, emission point {pt.label}"
+            onfocus={() =>
+              onProbeHovered({
+                probeId: pt.probeId,
+                emissionPointIndex: pt.emissionPointIndex,
+                emissionPointLabel: pt.label
+              })}
+            onblur={() => onProbeHovered(null)}
+            onclick={() =>
+              onProbeSelected({
+                probeId: pt.probeId,
+                emissionPointIndex: pt.emissionPointIndex,
+                emissionPointLabel: pt.label
+              })}
+          >
+            {pt.label}
+          </button>
+        </li>
+      {/each}
+    </ul>
   </div>
 
   <div class="scrubber-slot">
@@ -201,6 +318,10 @@
           <dd><code>{selected.probeId}</code></dd>
           <dt>Emission point</dt>
           <dd>{selected.emissionPointLabel}</dd>
+          <dt>Language</dt>
+          <dd>{selectedProbeDto?.language ?? '—'}</dd>
+          <dt>Publication rate</dt>
+          <dd>{selectedRate !== null ? `${selectedRate.toFixed(1)} docs/h` : '—'}</dd>
         </dl>
       </section>
 
@@ -244,6 +365,53 @@
     position: fixed;
     inset: 0;
     background: #000;
+  }
+  .probe-tooltip {
+    position: fixed;
+    z-index: 600;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-fg);
+    font-size: var(--font-size-sm);
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+  .sr-probe-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .sr-only:focus,
+  .sr-only:focus-visible {
+    position: fixed;
+    top: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+    height: auto;
+    padding: var(--space-1) var(--space-3);
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    z-index: 700;
+    background: var(--color-surface);
+    color: var(--color-fg);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
   }
   .centered {
     min-height: 100dvh;

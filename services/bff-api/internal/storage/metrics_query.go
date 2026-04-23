@@ -13,6 +13,11 @@ type MetricRow struct {
 	Value      float64
 	Source     string
 	MetricName string
+	// Count is the number of gold-layer rows contributing to Value in this
+	// bucket. Required for any caller that needs a document rate (e.g.
+	// the Atmosphere's per-probe pulse): Value is an average of the
+	// per-document metric, not a document tally. UInt64 in ClickHouse.
+	Count uint64
 }
 
 // Resolution selects the temporal bucketing applied at query time.
@@ -77,7 +82,8 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 			%s as TS,
 			avg(value) as Value,
 			source as Source,
-			metric_name as MetricName
+			metric_name as MetricName,
+			count() as Count
 		FROM aer_gold.metrics
 		WHERE timestamp >= $1 AND timestamp <= $2
 	`, resolution.bucketExpr("timestamp"))
@@ -392,7 +398,8 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 			%s AS TS,
 			avg((m.value - b.baseline_value) / b.baseline_std) AS Value,
 			m.source AS Source,
-			m.metric_name AS MetricName
+			m.metric_name AS MetricName,
+			count() AS Count
 		FROM aer_gold.metrics AS m
 		LEFT JOIN aer_gold.language_detections AS ld
 			ON m.article_id = ld.article_id AND ld.rank = 1

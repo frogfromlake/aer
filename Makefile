@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl setup deps-refresh
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset setup deps-refresh
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-restart
 
@@ -258,15 +258,21 @@ build-services:
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete. Binaries in ./bin/$(RESET)"
 
 crawl:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Building RSS crawler...$(RESET)"
-	@go build -o bin/rss-crawler ./crawlers/rss-crawler
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running RSS crawler (feeds: crawlers/rss-crawler/feeds.yaml)...$(RESET)"
 	@if [ ! -f .env ]; then \
 		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env file not found. Copy .env.example to .env and set INGESTION_API_KEY before running make crawl."; \
 		exit 1; \
 	fi
-	@set -a; source .env; set +a; ./bin/rss-crawler -config crawlers/rss-crawler/feeds.yaml -state crawlers/rss-crawler/.rss-crawler-state.json
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running RSS crawler (containerized, on aer-backend network)...$(RESET)"
+	@docker compose --profile crawlers run --rm --build rss-crawler
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Crawl complete.$(RESET)"
+
+# Clears the crawler's dedup state volume so the next `make crawl` re-
+# processes every feed item. Useful after a volume wipe has emptied
+# bronze/gold but the host-side state still thinks everything's seen.
+crawl-reset:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Removing rss-crawler dedup state volume...$(RESET)"
+	@docker volume rm aer_rss_crawler_state 2>/dev/null || true
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)State cleared. Next `make crawl` will re-ingest every feed item.$(RESET)"
 
 # ==========================================
 # 5. TESTING & LINTING
@@ -570,7 +576,8 @@ help:
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
-	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Build and run the RSS crawler (requires stack + debug-up)$(RESET)"
+	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Run the RSS crawler as a one-shot container on aer-backend$(RESET)"
+	@echo -e "  $(GOLD)crawl-reset$(RESET)         $(GRAY)Wipe crawler dedup state volume so next crawl re-ingests everything$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"

@@ -16,6 +16,9 @@ precision highp float;
 
 uniform float uTime;
 uniform vec3  uGlowColor;
+uniform float uBrightnessScale;
+uniform float uHaloBrightness;
+uniform float uOuterRingBrightness;
 
 varying float vBrightness;
 varying float vPulseRate;
@@ -33,20 +36,42 @@ void main() {
   // Exponential falloff for a "shiny" bloom effect.
   // pow() creates a piercing bright core and a smooth, spreading halo.
   float core = pow(max(0.0, 1.0 - r), 8.0) * 1.4;
-  float halo = pow(max(0.0, 1.0 - r), 2.5) * 0.8;
+  float halo = pow(max(0.0, 1.0 - r), 2.5) * uHaloBrightness;
 
-  // Pulse and baseline metric logic remains identical
-  float pulse = 0.875 + 0.125 * sin(uTime * vPulseRate);
-  float intensity = (core + halo) * pulse * vBrightness;
+  // Minimum ~8 s baseline breath; active probes run faster via vPulseRate.
+  float effectivePulseRate = max(vPulseRate, 0.8);
+
+  // ±12 % amplitude — perceptible but not alarming (§1.1 "stillness with motion beneath").
+  float pulse     = 0.88 + 0.12 * sin(uTime * effectivePulseRate);
+  // Outer ring lags core by π/2 for a ripple-outward feel.
+  float ringPulse = 0.88 + 0.12 * sin(uTime * effectivePulseRate - 1.5708);
+
+  // Layered Gaussian ring centred at r = 0.35.
+  float distToRing = r - 0.35;
+  float distSq     = distToRing * distToRing;
+  float ringSharp  = exp(-1000.0 * distSq);       // razor-thin bright line
+  float ringGlow   = exp(-100.0  * distSq) * 0.5; // wider soft glow around it
+  
+  float outerRing = (ringSharp + ringGlow) * uOuterRingBrightness;
+  // -----------------------------
+
+  float coreI     = core      * uBrightnessScale    * pulse     * vBrightness;
+  float haloI     = halo                            * pulse     * vBrightness;
+  // Apply the phase-shifted ringPulse here instead of the base pulse
+  float outerI    = outerRing                       * ringPulse * vBrightness;
+  
+  float intensity = coreI + haloI + outerI;
 
   // Active state: triggered by EITHER hover or UI selection
   float activeState = max(vHover, vSelected);
 
   // Highlight significantly lifts both core and halo
-  intensity += activeState * (0.4 * halo + 0.4 * core);
+  intensity += activeState * (0.4 * haloI + 0.4 * coreI);
 
-  // Radial alpha taper so disc edges blend cleanly against the globe
-  float alpha = intensity * smoothstep(1.0, 0.8, r);
+  // Radial alpha taper — extend to 0.3 so the outer halo is not clipped
+  // before it reaches the disc edge (the old 0.8 cutoff zeroed alpha at
+  // r=0.8, killing the region where the halo spread lives).
+  float alpha = intensity * smoothstep(1.0, 0.3, r);
 
   gl_FragColor = vec4(uGlowColor * intensity, clamp(alpha, 0.0, 1.0));
 }

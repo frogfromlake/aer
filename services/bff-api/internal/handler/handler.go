@@ -148,18 +148,25 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	}
 
 	points := make([]struct {
+		Count      *int64    `json:"count,omitempty"`
 		MetricName string    `json:"metricName"`
 		Source     string    `json:"source"`
 		Timestamp  time.Time `json:"timestamp"`
 		Value      float64   `json:"value"`
 	}, 0, len(data))
 	for _, d := range data {
+		// Narrow ClickHouse's UInt64 into the generated int64 DTO field.
+		// Gold-layer bucket counts in a bounded time window fit well under
+		// math.MaxInt64, but we clamp defensively rather than trust the type.
+		count := max(int64(d.Count), 0) //nolint:gosec // clamped above
 		points = append(points, struct {
+			Count      *int64    `json:"count,omitempty"`
 			MetricName string    `json:"metricName"`
 			Source     string    `json:"source"`
 			Timestamp  time.Time `json:"timestamp"`
 			Value      float64   `json:"value"`
 		}{
+			Count:      &count,
 			Timestamp:  d.TS,
 			Value:      d.Value,
 			Source:     d.Source,

@@ -693,33 +693,24 @@ make logs   # Combined logs of all services
 
 ### RSS Crawler
 
-The RSS crawler is a standalone Go binary under `crawlers/rss-crawler/`. It fetches German institutional RSS feeds and submits documents to the Ingestion API. It is **not** part of the Docker Compose stack — you run it manually or via a cron job.
+The RSS crawler is a standalone Go binary under `crawlers/rss-crawler/` with its own `go.mod` (no `pkg/` dependency). It fetches German institutional RSS feeds and submits documents to the Ingestion API. **Module ownership** is independent of the service modules — but **at runtime** it executes as a one-shot container on the internal `aer-backend` Docker network under Compose profile `crawlers`, reaching `ingestion-api:8081` directly. No host port exposure is required; dev and prod invocations are identical.
 
 ```bash
-# Quick start (builds and runs with defaults from .env)
+# Standard path: builds the image if needed, runs once, removes the container.
 make crawl
 
-# Or manually: build + run with explicit flags
-go build -o bin/rss-crawler ./crawlers/rss-crawler
-./bin/rss-crawler \
-  -config crawlers/rss-crawler/feeds.yaml \
-  -api-url http://localhost:8081/api/v1/ingest \
-  -sources-url http://localhost:8081/api/v1/sources \
-  -api-key $INGESTION_API_KEY
+# Equivalent raw form:
+docker compose --profile crawlers run --rm --build rss-crawler
+
+# Wipe dedup state (re-ingests every feed item on the next run):
+make crawl-reset
 ```
 
-`make crawl` requires `make debug-up` (so the Ingestion API is reachable on `localhost:8081`). It automatically sources `.env` to load `INGESTION_API_KEY` and any other configured values — if `.env` is missing, the target exits with an error before running the binary.
+`make crawl` reads `INGESTION_API_KEY` from `.env` via Compose interpolation — if `.env` is missing, the target exits with an error before invoking Compose. Profile-gated, so `make up` never starts the crawler automatically.
 
-**CLI flags:**
+**Production scheduling.** The same command runs under any host-side scheduler — cron, systemd timer, Kubernetes `CronJob` wrapping `docker compose run --rm rss-crawler`, or a long-running scheduler sidecar (e.g. Ofelia) on the Compose project. No scheduler is bundled today; pick one per deployment target.
 
-| Flag | Description | Default |
-| :--- | :--- | :--- |
-| `-config` | Path to `feeds.yaml` | *(required)* |
-| `-api-url` | Ingestion API ingest endpoint | *(required)* |
-| `-sources-url` | Ingestion API sources endpoint | *(required)* |
-| `-api-key` | `INGESTION_API_KEY` value | *(required)* |
-
-**Feed configuration** (`crawlers/rss-crawler/feeds.yaml`):
+**Feed configuration** (`crawlers/rss-crawler/feeds.yaml`, baked into the image at build time):
 
 ```yaml
 feeds:
@@ -729,12 +720,23 @@ feeds:
     url: https://www.tagesschau.de/index~rss2.xml
 ```
 
+Changing `feeds.yaml` requires rebuilding the image (`make crawl` passes `--build` so the next invocation picks it up automatically; CI pipelines should rebuild explicitly).
+
 Adding a new RSS feed requires:
 1. A new entry in `feeds.yaml`.
 2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
 3. A Probe Dossier and Probe Classification workflow (see [Scientific Operations Guide → Workflow 1](scientific_operations_guide.md#workflow-1-classifying-a-new-probe)).
 
-**Deduplication:** The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs. State is written to disk immediately after each feed's batch is successfully submitted — not once at the end — so a crash or interruption mid-run does not cause re-ingestion of already-processed feeds.
+**Deduplication.** The crawler maintains a JSON state file at `/state/rss-crawler-state.json` inside the container, persisted in the named volume `rss_crawler_state`. State is written immediately after each feed's batch is successfully submitted — not once at the end — so a crash or interruption mid-run does not cause re-ingestion of already-processed feeds. `make infra-clean`, `make infra-clean-postgres`, and `make infra-clean-minio` wipe this volume automatically, because they invalidate bronze or the `documents` / `sources` tables that dedup state is logically tied to. `make infra-clean-clickhouse` does *not* touch it (gold is downstream, bronze stays authoritative). If you wipe backend volumes by any other means — raw `docker compose down -v`, `docker volume rm`, manual prune — run `make crawl-reset` afterwards so the crawler doesn't skip every item as "already seen" against state that no longer matches what's in bronze.
+
+**Environment variables** (injected by the `rss-crawler` Compose service):
+
+| Variable | Purpose | Default |
+| :--- | :--- | :--- |
+| `INGESTION_URL` | Ingest endpoint | `http://ingestion-api:8081/api/v1/ingest` |
+| `SOURCES_URL` | Sources lookup endpoint | `http://ingestion-api:8081/api/v1/sources` |
+| `INGESTION_API_KEY` | `X-API-Key` header value | from `.env` |
+| `STATE_FILE` | Path inside `rss_crawler_state` volume | `/state/rss-crawler-state.json` (set via CMD) |
 
 **HTTP timeouts:** All outbound HTTP clients enforce strict timeouts — 10 s for source ID lookup, 30 s for ingestion API posts, and 30 s for RSS feed fetches — to prevent the crawler from hanging indefinitely on unresponsive upstreams.
 

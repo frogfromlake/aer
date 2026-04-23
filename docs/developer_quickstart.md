@@ -45,6 +45,24 @@ middleware — the browser bundle ships zero secrets.
 
 Switch back to Loop A any time with `make frontend-up`.
 
+### Feeding real data into either loop
+
+Both loops come up with empty bronze/silver/gold — the atmosphere has
+nothing to display until you ingest something. Kick off a one-shot crawl:
+
+```bash
+make crawl          # runs rss-crawler as a one-shot container on aer-backend
+make crawl-reset    # wipes dedup state when backend volumes were cleared
+```
+
+`make crawl` builds and runs the crawler under Compose profile `crawlers` — no
+`debug-up` required, identical command in dev and prod. The dedup state lives
+in the `rss_crawler_state` named volume. `make infra-clean`, `-postgres`, and
+`-minio` wipe it automatically (bronze / documents are gone, so dedup must go
+too). If you wipe volumes any other way (raw `docker compose down -v`,
+`docker volume rm`), run `make crawl-reset` manually — otherwise the next
+crawl skips every item as "already seen" and silently ingests nothing.
+
 ---
 
 ## Implementing a change — order of operations
@@ -194,7 +212,8 @@ make openapi-bundle             # bundle modular OpenAPI specs
 make codegen                    # Go server stubs from BFF spec
 
 # Misc
-make crawl                      # one-shot RSS crawl (needs stack + debug-up)
+make crawl                      # one-shot RSS crawl (containerized, runs on aer-backend)
+make crawl-reset                # wipe crawler dedup state so next crawl re-ingests everything
 make swagger-up | swagger-down  # API reference at http://localhost:8089
 ```
 
@@ -221,6 +240,11 @@ make swagger-up | swagger-down  # API reference at http://localhost:8089
   run inside the pinned image so byte-comparison matches CI.
 - **`make codegen` shows a diff in CI** — you edited a generated file or forgot
   to run codegen after editing the OpenAPI spec.
+- **Edited a Go service but the old behavior persists** — `make backend-restart`
+  only re-launches existing images; it does not rebuild. After changing service
+  code, run the per-service restart target (e.g. `make bff-restart`,
+  `make ingestion-restart`, `make worker-restart`) — these pass `--build
+  --force-recreate` so the new binary lands in the container.
 - **Service won't start with "required env empty"** — see the boot-secret table
   in `operations_playbook.md` (Phase 75 guard).
 - **Need to talk to Postgres/ClickHouse/MinIO from the host** — run `make debug-up`

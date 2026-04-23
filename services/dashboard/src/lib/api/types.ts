@@ -450,6 +450,11 @@ export interface operations {
                             source: string;
                             /** @description The name of the metric (e.g., "word_count", "sentiment_score"). */
                             metricName: string;
+                            /**
+                             * Format: int64
+                             * @description Number of gold-layer rows (i.e. per-document metric emissions) that contributed to `value` in this bucket. Distinct from `value`, which is the aggregated statistic (typically avg). Callers needing a document rate — e.g. the Atmosphere's per-probe pulse — must use `count / window_hours`, not the metric value itself, because most metrics store a per-document *measurement* (hour-of-day, sentiment, word count), not a document tally.
+                             */
+                            count?: number;
                         }[];
                         /**
                          * Format: int64

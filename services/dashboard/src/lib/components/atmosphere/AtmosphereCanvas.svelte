@@ -23,8 +23,15 @@
     activity?: readonly ProbeActivity[];
     /** Fired when the user clicks an emission point. */
     onProbeSelected?: (selection: ProbeSelection) => void;
+    /** Fired on pointer-hover over an emission point (null when leaving). */
+    onProbeHovered?: (selection: ProbeSelection | null) => void;
     /** The currently selected probe. Reactive: drives `setSelection` to keep the glow highlighted. */
     selection?: ProbeSelection | null;
+    /**
+     * Forced hover highlight (keyboard focus driver). Pointer moves
+     * override this on the engine side. Null clears the highlight.
+     */
+    hover?: ProbeSelection | null;
   }
 
   let {
@@ -33,12 +40,15 @@
     probes,
     activity,
     onProbeSelected,
-    selection = null
+    onProbeHovered,
+    selection = null,
+    hover = null
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let engine: AtmosphereEngine | null = $state(null);
   let unsubscribeSelected: (() => void) | null = null;
+  let unsubscribeHovered: (() => void) | null = null;
 
   onMount(async () => {
     if (!canvas) return;
@@ -55,6 +65,7 @@
     if (probes) e.setProbes(probes);
     if (activity) e.setActivity(activity);
     unsubscribeSelected = e.on('probe-selected', (sel) => onProbeSelected?.(sel));
+    unsubscribeHovered = e.on('probe-hovered', (sel) => onProbeHovered?.(sel));
     engine = e;
     onready?.(e);
   });
@@ -69,6 +80,10 @@
 
   $effect(() => {
     if (engine && activity) engine.setActivity(activity);
+  });
+
+  $effect(() => {
+    engine?.setHover(hover ?? null);
   });
 
   // Synchronize the selection state to the 3D engine and animate the camera
@@ -93,6 +108,7 @@
 
   onDestroy(() => {
     unsubscribeSelected?.();
+    unsubscribeHovered?.();
     engine?.dispose();
     engine = null;
   });

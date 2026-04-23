@@ -102,6 +102,14 @@ export interface AtmosphereEngine {
   /** Static-position override for the sun direction (for terminator stories). Pass `null` to resume live tracking. */
   setSunPosition(unixMs: number | null): void;
   setSelection(selection: ProbeSelection | null): void;
+  /**
+   * Force-set the hover highlight. Used by keyboard navigation so a
+   * focused emission point glows on the globe even though the pointer is
+   * not over it. Pass `null` to clear. The pointer-driven raycaster
+   * overrides this on the next `pointermove`, which is the intended
+   * precedence (pointer-over-keyboard while both are active).
+   */
+  setHover(selection: ProbeSelection | null): void;
   flyTo(target: FlyToTarget): void;
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void;
   /** Tear down: stop the loop, dispose geometries/materials, release the GL context. */

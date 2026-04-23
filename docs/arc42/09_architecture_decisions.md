@@ -177,11 +177,11 @@ AĒR's long-term vision is to ingest data from hundreds of diverse sources — W
 We adopt a **"Dumb Pipes, Smart Endpoints"** architecture where crawlers are strictly external to the AĒR system boundary:
 1. **Crawlers** are standalone programs (typically Go binaries) that live under `crawlers/` in the monorepo. Each crawler is a self-contained executable responsible for fetching data from one specific external source, transforming it into the generic AĒR Ingestion Contract format, and submitting it via `HTTP POST` to the Ingestion API (`POST /api/v1/ingest`).
 2. **The Ingestion API** is source-agnostic. It accepts a `source_id` and an array of opaque JSON documents. It stores them verbatim in MinIO (Bronze layer) without inspecting the content. The crawlers are the adapters that translate source-specific formats into the generic contract.
-3. **Crawlers are not orchestrated by `compose.yaml`.** They run ad-hoc (manually, via cron, or via external schedulers) and communicate with AĒR exclusively over HTTP.
+3. **Crawlers run as one-shot containers, never as long-running services.** Each crawler has its own Dockerfile and is declared in `compose.yaml` behind the `crawlers` profile, so `make up` never starts one. Invocation is explicit and ad-hoc — `make crawl`, host cron, systemd timer, or any external scheduler wrapping `docker compose run --rm <crawler>`. Containers join the internal `aer-backend` network so they can reach `ingestion-api:8081` without exposing host ports; this is purely an ops placement and does not change the HTTP-only coupling contract above.
 
 ### Consequences
-* **Positive:** Adding a new data source requires only writing a new standalone crawler — zero changes to any AĒR microservice. Crawlers can be written in any language. They can run on different machines, on different schedules, and can be independently tested. The Ingestion API remains small and stable.
-* **Negative:** There is no centralized orchestration or monitoring of crawler execution within AĒR itself. Crawler failures are invisible to the system unless the crawlers implement their own logging/alerting.
+* **Positive:** Adding a new data source requires only writing a new standalone crawler — zero changes to any AĒR microservice. Crawlers can be written in any language, have independent release cadences, and be scheduled per deployment target. Dev and prod invocations are identical (`docker compose run` in both), so there's no "dev-only shortcut" to maintain. The Ingestion API remains small and stable.
+* **Negative:** There is no centralized orchestration or monitoring of crawler execution within AĒR itself — Compose is the packaging/networking story, not a scheduler. Crawler failures are invisible to the system unless the crawlers implement their own logging/alerting, or the host scheduler captures exit codes.
 
 ---
 
