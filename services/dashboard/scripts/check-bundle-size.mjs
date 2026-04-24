@@ -20,6 +20,11 @@ const BUDGET_BYTES = 80 * 1024; // 80 kB gzipped — shell budget (Phase 97)
 // Phase 99a — engine chunk (three.js + shaders + landmass loader). Lazy-loaded
 // on the WebGL2 path only. The shell budget above remains intact.
 const ENGINE_CHUNK_BUDGET_BYTES = 250 * 1024;
+// Phase 100a — L3 chart chunk (uPlot + thin Svelte wrapper). Lazy-loaded
+// when the user descends to the L3 Analysis panel (preloaded on probe
+// hover). Tracked as the second-largest lazy chunk so future L3 growth
+// (e.g. a second chart library) surfaces as a regression here.
+const L3_CHUNK_BUDGET_BYTES = 80 * 1024;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BUILD_DIR = resolve(__dirname, '..', 'build');
@@ -84,7 +89,7 @@ if (total > BUDGET_BYTES) {
 // the intent.
 const CHUNKS_DIR = resolve(BUILD_DIR, '_app', 'immutable', 'chunks');
 const shellRefs = new Set([...refs].map((r) => r.replace(/^\/+/, '')));
-let engineChunk = null;
+const lazyChunks = [];
 try {
   for (const entry of readdirSync(CHUNKS_DIR)) {
     if (!entry.endsWith('.js')) continue;
@@ -92,15 +97,17 @@ try {
     if (shellRefs.has(rel)) continue;
     const bytes = readFileSync(join(CHUNKS_DIR, entry));
     const gzipped = gzipSync(bytes).length;
-    if (engineChunk === null || gzipped > engineChunk.gzip) {
-      engineChunk = { ref: rel, raw: bytes.length, gzip: gzipped };
-    }
+    lazyChunks.push({ ref: rel, raw: bytes.length, gzip: gzipped });
   }
 } catch (err) {
   fail(`could not enumerate chunks dir ${CHUNKS_DIR}: ${err.message}`);
 }
 
-if (engineChunk === null) {
+lazyChunks.sort((a, b) => b.gzip - a.gzip);
+const engineChunk = lazyChunks[0];
+const l3Chunk = lazyChunks[1];
+
+if (!engineChunk) {
   fail('no lazy chunks found — expected the engine-3d chunk to be present');
 }
 
@@ -115,6 +122,25 @@ if (engineChunk.gzip > ENGINE_CHUNK_BUDGET_BYTES) {
   fail(
     `engine chunk is ${fmt(engineChunk.gzip)} gzipped, exceeds budget of ${fmt(ENGINE_CHUNK_BUDGET_BYTES)} by ${fmt(engineChunk.gzip - ENGINE_CHUNK_BUDGET_BYTES)}`
   );
+}
+
+// Phase 100a — L3 chart chunk gate. Enforced only once a second lazy
+// chunk exists (i.e. uPlot has shipped). Before Phase 100a lands in
+// production there may only be a single lazy chunk, so the absence of
+// a second chunk is not a failure.
+if (l3Chunk) {
+  console.log('');
+  console.log('L3 chart chunk (lazy, loaded on L3 descent):');
+  console.log(`  ${fmt(l3Chunk.gzip).padStart(10)} gz  ${l3Chunk.ref}`);
+  console.log(`  ${'-'.repeat(10)}`);
+  console.log(
+    `  ${fmt(l3Chunk.gzip).padStart(10)} gz  second-largest lazy chunk  (budget: ${fmt(L3_CHUNK_BUDGET_BYTES)})`
+  );
+  if (l3Chunk.gzip > L3_CHUNK_BUDGET_BYTES) {
+    fail(
+      `L3 chart chunk is ${fmt(l3Chunk.gzip)} gzipped, exceeds budget of ${fmt(L3_CHUNK_BUDGET_BYTES)} by ${fmt(l3Chunk.gzip - L3_CHUNK_BUDGET_BYTES)}`
+    );
+  }
 }
 
 console.log('\x1b[32m✔ bundle-size gate passed.\x1b[0m');

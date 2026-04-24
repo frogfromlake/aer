@@ -1,34 +1,45 @@
 <script lang="ts">
-  // Atmosphere route (Phase 99b): full-bleed 3D globe with live probe data.
+  // Atmosphere route (Phases 99b → 100a).
+  //
+  // 100a adds the L0→L4 descent grammar on top of 99b's live-data
+  // Atmosphere. Layer mapping:
+  //   L0 Immersion  — 3D globe, always rendered
+  //   L1 Orientation — soft top-bar overlay (fade on idle)
+  //   L2 Exploration — TimeScrubber + resolution/pillar controls
+  //   L3 Analysis    — SidePanel with TimeSeriesChart (uPlot)
+  //   L4 Provenance  — fly-out overlay anchored to L3
+  //
+  // Descent via `document.startViewTransition()` with graceful
+  // degradation on browsers without the API. Keyboard descent grammar:
+  //   Tab           cycles through probes (sr-only nav)
+  //   Enter/Space   descends to L3 on the focused probe
+  //   Escape        ascends one layer (L4 → L3 → L0)
+  //   Shift+Tab @L0 focuses the L1 overlay
+  //   Shift+N       toggles Negative Space overlay (structural only)
   //
   // Shell-chunk rules (enforced by tests/unit/lazy-engine.test.ts):
-  //   - MUST NOT statically import three or @aer/engine-3d (except
-  //     /capability, which is side-effect free).
+  //   - MUST NOT statically import three, @aer/engine-3d, or uplot.
   //   - The engine is dynamic-imported inside AtmosphereCanvas.
-  //
-  // Data flow:
-  //   /api/v1/probes             → engine.setProbes(...)
-  //   /api/v1/metrics            → per-probe docs/hour → engine.setActivity(...)
-  //                                (display-logic mapping; no data transform
-  //                                 beyond summation and division)
-  //   click → /api/v1/content/probe/{id} → SidePanel + ProgressiveSemantics
-  //   400 on any query → RefusalSurface via the QueryOutcome union
+  //   - uPlot is dynamic-imported inside TimeSeriesChart (L3 chunk).
   import { onMount } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import { hasWebGL2 } from '@aer/engine-3d/capability';
   import type { ProbeActivity, ProbeMarker, ProbeSelection } from '@aer/engine-3d';
   import AtmosphereCanvas from '$lib/components/atmosphere/AtmosphereCanvas.svelte';
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
-  import ProgressiveSemantics from '$lib/components/ProgressiveSemantics.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
+  import L1Overlay from '$lib/components/L1Overlay.svelte';
+  import L2Controls from '$lib/components/L2Controls.svelte';
+  import L3AnalysisPanel from '$lib/components/L3AnalysisPanel.svelte';
+  import L4ProvenanceFlyout from '$lib/components/L4ProvenanceFlyout.svelte';
+  import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
   import { SidePanel } from '$lib/components/base';
   import { setUrl, urlState } from '$lib/state/url.svelte';
+  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import {
-    contentQuery,
     metricsQuery,
     probesQuery,
-    type ContentResponseDto,
     type FetchContext,
     type MetricsResponseDto,
     type ProbeDto,
@@ -74,16 +85,12 @@
   );
 
   // --- Time window (URL-backed) ---------------------------------------
-  // The /metrics query is parameterised on the URL-persisted time range.
-  // When no URL params are present we fall back to a 24 h window ending
-  // now so a cold page load still renders activity.
   const url = $derived(urlState());
-  const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
   const windowMs = $derived.by<{ start: string; end: string; hours: number }>(() => {
     const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_WINDOW_MS;
+    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
     const toMs = url.to ? Date.parse(url.to) : now;
-    const safeFrom = Number.isFinite(fromMs) ? fromMs : now - DEFAULT_WINDOW_MS;
+    const safeFrom = Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS;
     const safeTo = Number.isFinite(toMs) ? toMs : now;
     return {
       start: new Date(safeFrom).toISOString(),
@@ -110,11 +117,6 @@
   let activity = $derived.by<ProbeActivity[]>(() => {
     const m = metricsQ.data;
     if (m?.kind !== 'success' || probeDtos.length === 0) return [];
-    // Pulse rate is documents-per-hour, not metric value. `publication_hour`
-    // stores hour-of-day (0–23) as its value, so summing values and dividing
-    // by window hours produced garbage. The BFF now returns per-bucket
-    // `count` (number of gold rows contributing to the bucket's avg), which
-    // is the right numerator for a rate.
     const perSource: Record<string, number> = {};
     for (const row of m.data.data) {
       perSource[row.source] = (perSource[row.source] ?? 0) + (row.count ?? 0);
@@ -125,14 +127,31 @@
     });
   });
 
-  // --- Selection -------------------------------------------------------
+  // --- Selection + descent layer --------------------------------------
   let selected: ProbeSelection | null = $state(null);
   let panelOpen = $state(false);
+  let provenanceOpen = $state(false);
 
-  // If the URL carries `?probe=<id>&ep=<n>` on load, surface the panel
-  // for that emission point once probes land. Probes bundle multiple
-  // publishers (Tagesschau vs. Bundesregierung on probe 0) so `ep`
-  // disambiguates which emission origin was opened. Fallback: index 0.
+  /**
+   * Run a transition wrapped in the View Transitions API when available.
+   * The callback mutates reactive state that drives layout; Svelte's
+   * next commit provides the "after" frame uPlot/the engine draw into.
+   * Browsers without the API fall through to an instant state change —
+   * still correct, just less elegant (Roadmap Phase 100a exit criterion).
+   */
+  function descend(mutator: () => void) {
+    const doc = typeof document !== 'undefined' ? document : null;
+    const startViewTransition = (
+      doc as unknown as { startViewTransition?: (cb: () => void) => unknown } | null
+    )?.startViewTransition;
+    if (typeof startViewTransition === 'function') {
+      startViewTransition.call(doc, mutator);
+    } else {
+      mutator();
+    }
+  }
+
+  // --- URL → state hydration (deep links) -----------------------------
   $effect(() => {
     if (!url.probe || selected) return;
     const hit = probeDtos.find((p) => p.probeId === url.probe);
@@ -145,40 +164,58 @@
       emissionPointIndex: idx,
       emissionPointLabel: ep.label
     };
-    panelOpen = true;
+    // Opening the panel on deep-link when a probe is carried by the URL
+    // preserves the Phase 99b contract. The `view` parameter is an
+    // additive explicit marker: if it's present and not `analysis` the
+    // user has opted out of auto-descent, otherwise we default to open.
+    panelOpen = url.view !== 'atmosphere';
   });
 
   function onProbeSelected(sel: ProbeSelection) {
     if (
       selected?.probeId === sel.probeId &&
-      selected.emissionPointIndex === sel.emissionPointIndex
+      selected.emissionPointIndex === sel.emissionPointIndex &&
+      panelOpen
     ) {
-      // Clicking the already-selected probe closes the panel.
       onPanelClose();
       return;
     }
-    selected = sel;
-    panelOpen = true;
-    setUrl({ probe: sel.probeId, emissionPoint: sel.emissionPointIndex });
+    descend(() => {
+      selected = sel;
+      panelOpen = true;
+    });
+    setUrl({
+      probe: sel.probeId,
+      emissionPoint: sel.emissionPointIndex,
+      view: 'analysis',
+      metric: url.metric ?? 'sentiment_score'
+    });
   }
 
   function onPanelClose() {
-    panelOpen = false;
-    selected = null;
-    setUrl({ probe: null, emissionPoint: null });
+    descend(() => {
+      provenanceOpen = false;
+      panelOpen = false;
+      selected = null;
+    });
+    setUrl({
+      probe: null,
+      emissionPoint: null,
+      view: null,
+      metric: null
+    });
   }
 
   // --- Hover tooltip ---------------------------------------------------
-  // `EmissionPoint.label` is the designated tooltip content per schema
-  // ("Rendered in hover tooltips and the L3 panel."). It already
-  // disambiguates bundled publishers (e.g. Hamburg/Tagesschau vs.
-  // Berlin/Bundesregierung on probe 0).
   let hovered: ProbeSelection | null = $state(null);
   let pointerX = $state(0);
   let pointerY = $state(0);
 
   function onProbeHovered(sel: ProbeSelection | null) {
     hovered = sel;
+    // Intent-based preload: once the user hovers a probe, warm the
+    // uPlot chunk so the descent feels instantaneous.
+    if (sel) void import('$lib/components/TimeSeriesChart.svelte').catch(() => void 0);
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -186,13 +223,8 @@
     pointerY = e.clientY;
   }
 
-  // --- Keyboard navigation --------------------------------------------
-  // A canvas has no native keyboard story. We mirror the emission points
-  // into an sr-only list of buttons whose order matches visual/DOM order;
-  // Tab cycles through them, Enter/Space fires onProbeSelected, and the
-  // focused item is announced via aria-label. Visual focus feedback on
-  // the globe itself would require a new engine API (setKeyboardFocus);
-  // deferred — correct keyboard reach is the 99b commitment.
+  // --- Keyboard descent grammar ---------------------------------------
+  let l1El: HTMLElement | undefined = $state();
   interface FlatProbePoint {
     probeId: string;
     emissionPointIndex: number;
@@ -214,25 +246,62 @@
     return out;
   });
 
+  function onGlobalKeydown(e: KeyboardEvent) {
+    // Escape ascends one layer. SidePanel's own Escape handler also
+    // closes the panel, but we want L4-first precedence so L4 → L3
+    // ascent lands correctly even though the L4 overlay is not inside
+    // the SidePanel DOM.
+    if (e.key === 'Escape') {
+      if (provenanceOpen) {
+        e.preventDefault();
+        descend(() => {
+          provenanceOpen = false;
+        });
+        return;
+      }
+      if (panelOpen) {
+        e.preventDefault();
+        onPanelClose();
+        return;
+      }
+    }
+    // Shift+Tab at L0 focuses the L1 overlay. When the panel is open or
+    // the user is already inside a form field, yield to native Tab.
+    if (e.key === 'Tab' && e.shiftKey && !panelOpen) {
+      const t = e.target as HTMLElement | null;
+      const inForm = t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.tagName === 'SELECT';
+      const inPanel = !!t?.closest?.('[role="dialog"]');
+      if (!inForm && !inPanel && l1El) {
+        e.preventDefault();
+        l1El.focus();
+      }
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('keydown', onGlobalKeydown);
+    return () => window.removeEventListener('keydown', onGlobalKeydown);
+  });
+
   let selectedProbeDto = $derived(probeDtos.find((p) => p.probeId === selected?.probeId) ?? null);
   let selectedRate = $derived(
     activity.find((a) => a.probeId === selected?.probeId)?.documentsPerHour ?? null
   );
 
-  const contentQ = createQuery<
-    QueryOutcome<ContentResponseDto>,
-    Error,
-    QueryOutcome<ContentResponseDto>
-  >(() => {
-    const probeId = selected?.probeId ?? '';
-    const o = contentQuery(ctx, 'probe', probeId, 'en');
-    return {
-      queryKey: [...o.queryKey],
-      queryFn: o.queryFn,
-      staleTime: o.staleTime,
-      enabled: selected !== null
-    };
-  });
+  // Negative Space overlay — structural only (see component comment).
+  let negativeSpaceActive = $state(false);
+
+  let windowLabel = $derived(
+    `${new Date(windowMs.start).toISOString().slice(0, 16).replace('T', ' ')}Z → ${new Date(
+      windowMs.end
+    )
+      .toISOString()
+      .slice(0, 16)
+      .replace('T', ' ')}Z`
+  );
+
+  let resolutionForL3 = $derived(url.resolution ?? 'hourly');
+  let metricForL4 = $derived(url.metric ?? 'sentiment_score');
 </script>
 
 <svelte:head>
@@ -242,6 +311,7 @@
 {#if decision === 'engine'}
   <div
     class="stage"
+    class:dimmed={panelOpen}
     aria-hidden="false"
     onpointermove={onPointerMove}
     onpointerleave={() => onProbeHovered(null)}
@@ -267,13 +337,6 @@
       </div>
     {/if}
 
-    <!--
-      Keyboard-accessible mirror of the emission points on the globe.
-      Visually hidden but reachable via Tab; Enter/Space on a button opens
-      the corresponding probe's panel exactly as a mouse click would.
-      Focus also drives hover highlight so sighted keyboard users see the
-      focused point glow on the globe.
-    -->
     <ul class="sr-probe-nav" aria-label="Probes on the globe">
       {#each flatPoints as pt (pt.probeId + '#' + pt.emissionPointIndex)}
         <li>
@@ -302,46 +365,48 @@
     </ul>
   </div>
 
-  <div class="scrubber-slot">
+  <div class="l1-slot" bind:this={l1El}>
+    <L1Overlay probes={probeDtos} {windowLabel} normalization="raw" {ctx} />
+  </div>
+
+  <div class="l2-slot">
+    <L2Controls />
     <TimeScrubber />
+  </div>
+
+  <div class="chrome-slot">
+    <NegativeSpaceToggle
+      active={negativeSpaceActive}
+      onToggle={(next) => (negativeSpaceActive = next)}
+    />
   </div>
 
   <SidePanel
     bind:open={panelOpen}
     title={selected?.emissionPointLabel ?? 'Probe'}
     onClose={onPanelClose}
+    size="dashboard"
   >
-    {#if selected}
-      <section class="probe-meta" aria-label="Probe metadata">
-        <dl>
-          <dt>Probe</dt>
-          <dd><code>{selected.probeId}</code></dd>
-          <dt>Emission point</dt>
-          <dd>{selected.emissionPointLabel}</dd>
-          <dt>Language</dt>
-          <dd>{selectedProbeDto?.language ?? '—'}</dd>
-          <dt>Publication rate</dt>
-          <dd>{selectedRate !== null ? `${selectedRate.toFixed(1)} docs/h` : '—'}</dd>
-        </dl>
-      </section>
-
-      {#if contentQ.isPending}
-        <p class="muted" aria-busy="true">Loading probe content…</p>
-      {:else if contentQ.data?.kind === 'success'}
-        <ProgressiveSemantics registers={contentQ.data.data.registers} emphasis="semantic" />
-      {:else if contentQ.data?.kind === 'refusal'}
-        <RefusalSurface refusal={contentQ.data} {ctx} />
-      {:else if contentQ.isError}
-        <p class="muted">Content Catalog unavailable.</p>
-      {/if}
-
-      <p class="reach-note">
-        Reach is not rendered. This probe's emission points mark where its bound publishers emit —
-        not where their content is consumed or influential. No reach claim is made by AĒR (Design
-        Brief §5.7).
-      </p>
+    {#if selected && selectedProbeDto}
+      <L3AnalysisPanel
+        probe={selectedProbeDto}
+        {ctx}
+        windowStart={windowMs.start}
+        windowEnd={windowMs.end}
+        resolution={resolutionForL3}
+        publicationRate={selectedRate}
+        onOpenProvenance={() => descend(() => (provenanceOpen = true))}
+      />
     {/if}
   </SidePanel>
+
+  {#if provenanceOpen && panelOpen}
+    <L4ProvenanceFlyout
+      metricName={metricForL4}
+      {ctx}
+      onClose={() => descend(() => (provenanceOpen = false))}
+    />
+  {/if}
 
   {#if probesQ.data?.kind === 'refusal'}
     <div class="refusal-slot">
@@ -365,6 +430,12 @@
     position: fixed;
     inset: 0;
     background: #000;
+    transition: opacity 320ms ease-in-out;
+  }
+  .stage.dimmed {
+    /* §4.1 rule 2: "no layer replaces". Globe stays visible at 30 %
+       opacity behind the L3 panel so the reader never loses its place. */
+    opacity: 0.3;
   }
   .probe-tooltip {
     position: fixed;
@@ -425,40 +496,26 @@
     max-width: 28rem;
     z-index: 500;
   }
-  .scrubber-slot {
+  .l1-slot {
+    /* No positioning of its own — L1Overlay is fixed-positioned. */
+    display: contents;
+  }
+  .l2-slot {
     position: fixed;
     bottom: var(--space-5);
     left: 50%;
     transform: translateX(-50%);
     width: min(90vw, 36rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: stretch;
     z-index: 400;
   }
-  .probe-meta {
-    margin-bottom: var(--space-5);
-  }
-  dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-1) var(--space-3);
-    margin: 0;
-    font-size: var(--font-size-sm);
-  }
-  dt {
-    color: var(--color-fg-muted);
-  }
-  dd {
-    margin: 0;
-  }
-  .muted {
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-sm);
-  }
-  .reach-note {
-    margin-top: var(--space-5);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--color-border);
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-xs);
-    line-height: 1.55;
+  .chrome-slot {
+    position: fixed;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 460;
   }
 </style>

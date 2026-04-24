@@ -19,13 +19,15 @@
   // itself — that is the caller's responsibility. A separate variant
   // (`emphasis='methodological'`) flips the visual weighting at L4.
   import type { components } from '$lib/api/types';
+  import { SegmentedControl } from '$lib/components/base';
 
   type Registers = components['schemas']['ContentRegisters'];
+  type RegisterId = 'semantic' | 'methodological';
 
   interface Props {
     registers: Registers;
     /** Which register is the default primary surface. Flip at L4. */
-    emphasis?: 'semantic' | 'methodological';
+    emphasis?: RegisterId;
     /** Pass through a stable id so labels elsewhere can point at this block. */
     id?: string;
     /** Render the secondary register as "short" (hover-tooltip scale) or "long" (full paragraph). */
@@ -34,45 +36,64 @@
 
   let { registers, emphasis = 'semantic', id, detail = 'long' }: Props = $props();
 
-  let expanded = $state(false);
-  const toggleId = `ps-toggle-${Math.random().toString(36).slice(2, 10)}`;
+  // Active register is user-controllable via the segmented toggle. We
+  // initialise to `emphasis` so L3 lands on plain language and L4 used
+  // to land on methodological — but the reader can always flip at any
+  // surface without losing either register (both stay in the DOM for a
+  // screen-reader pass).
+  let active: RegisterId = $state(emphasis);
   const fallbackRegionId = `ps-region-${Math.random().toString(36).slice(2, 10)}`;
   let regionId = $derived(id ?? fallbackRegionId);
 
-  let primary = $derived(emphasis === 'semantic' ? registers.semantic : registers.methodological);
-  let secondary = $derived(emphasis === 'semantic' ? registers.methodological : registers.semantic);
-  let secondaryLabel = $derived(emphasis === 'semantic' ? 'Methodological' : 'Plain language');
+  const OPTIONS: readonly { id: RegisterId; label: string; hint: string }[] = [
+    { id: 'semantic', label: 'Plain language', hint: 'Reader-first summary' },
+    { id: 'methodological', label: 'Methodology', hint: 'Algorithm, gate, limits' }
+  ];
+
+  let activeRegister = $derived(
+    active === 'semantic' ? registers.semantic : registers.methodological
+  );
+  let hiddenRegister = $derived(
+    active === 'semantic' ? registers.methodological : registers.semantic
+  );
 </script>
 
 <div class="progressive-semantics" {id}>
-  <p class="primary">{primary.long}</p>
-  <button
-    type="button"
-    class="toggle"
-    id={toggleId}
-    aria-expanded={expanded}
-    aria-controls={regionId}
-    onclick={() => (expanded = !expanded)}
-  >
-    {secondaryLabel} register
-  </button>
+  <div class="register-toolbar">
+    <SegmentedControl
+      options={OPTIONS}
+      value={active}
+      onChange={(next) => (active = next)}
+      ariaLabel="Register"
+      size="sm"
+    />
+  </div>
   <div
     id={regionId}
-    class="secondary"
-    class:visible={expanded}
+    class="register-body"
     role="region"
-    aria-labelledby={toggleId}
-    hidden={!expanded}
+    aria-label="{active === 'semantic' ? 'Plain-language' : 'Methodological'} register"
   >
-    <p>{detail === 'short' ? secondary.short : secondary.long}</p>
+    <p class="primary">{detail === 'short' ? activeRegister.short : activeRegister.long}</p>
   </div>
+  <!-- Screen-reader-only copy of the inactive register so both remain
+       addressable (Design Brief §5.7 "both registers in DOM"). -->
+  <p class="sr-only">{hiddenRegister.long}</p>
 </div>
 
 <style>
   .progressive-semantics {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-3);
+  }
+  .register-toolbar {
+    display: flex;
+    align-items: center;
+  }
+  .register-body {
+    border-left: 2px solid var(--color-accent);
+    padding-left: var(--space-3);
   }
   .primary {
     margin: 0;
@@ -80,33 +101,15 @@
     font-size: var(--font-size-base);
     line-height: 1.55;
   }
-  .toggle {
-    align-self: flex-start;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-xs);
-    padding: var(--space-1) var(--space-3);
-    cursor: pointer;
-  }
-  .toggle:hover,
-  .toggle:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-accent);
-  }
-  .toggle[aria-expanded='true'] {
-    color: var(--color-fg);
-    border-color: var(--color-accent);
-  }
-  .secondary {
-    border-left: 2px solid var(--color-border);
-    padding-left: var(--space-3);
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-sm);
-    line-height: 1.55;
-  }
-  .secondary p {
-    margin: 0;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>

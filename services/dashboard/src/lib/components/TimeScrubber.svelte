@@ -13,6 +13,7 @@
   // own time range, only reads from and writes to the URL store.
   import { onMount } from 'svelte';
   import { setUrl, urlState } from '$lib/state/url.svelte';
+  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
 
   interface Props {
     /** Total span of the scrubber (ms). Defaults to 30 days ending "now". */
@@ -41,10 +42,9 @@
 
   const url = $derived(urlState());
 
-  // Defaults: if the URL is empty, show the last 7 days. This keeps the
-  // first render non-jarring and matches the ROADMAP's 24h activity
-  // window by straddling it.
-  const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+  // Defaults: if the URL is empty, show the last DEFAULT_LOOKBACK_MS
+  // (SSoT in url-internals.ts) so the scrubber and L1 Window agree on
+  // what "reset" means.
   const fromMs = $derived.by<number>(() => {
     const parsed = url.from ? Date.parse(url.from) : NaN;
     return Number.isFinite(parsed) ? parsed : endReferenceMs - DEFAULT_LOOKBACK_MS;
@@ -112,6 +112,26 @@
   const rangeSpan = $derived(endReferenceMs - windowStartMs);
   const leftPct = $derived(((fromMs - windowStartMs) / rangeSpan) * 100);
   const rightPct = $derived(((toMs - windowStartMs) / rangeSpan) * 100);
+
+  // Wheel zoom (L2): contracts/expands the selected window around its
+  // center. WheelEvent.deltaY >0 is "scroll down" → zoom out; <0 → zoom
+  // in. We preventDefault so the outer page does not scroll. The
+  // scrubber track is a small fixed-position element, so hijacking the
+  // wheel while pointer is over it is safe and expected.
+  function onWheel(e: WheelEvent) {
+    if (e.ctrlKey) return; // leave pinch-zoom gestures to the browser
+    e.preventDefault();
+    const center = (fromMs + toMs) / 2;
+    const half = (toMs - fromMs) / 2;
+    const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    const nextHalf = Math.max(minWindowMs / 2, half * factor);
+    const nextFrom = clamp(snap(center - nextHalf), windowStartMs, endReferenceMs - minWindowMs);
+    const nextTo = clamp(snap(center + nextHalf), nextFrom + minWindowMs, endReferenceMs);
+    setUrl({
+      from: new Date(nextFrom).toISOString(),
+      to: new Date(nextTo).toISOString()
+    });
+  }
 </script>
 
 <div class="scrubber" role="group" aria-label="Time range">
@@ -134,7 +154,12 @@
     {/if}
   </div>
 
-  <div class="track" role="presentation" style="--left: {leftPct}%; --right: {100 - rightPct}%">
+  <div
+    class="track"
+    role="presentation"
+    style="--left: {leftPct}%; --right: {100 - rightPct}%"
+    onwheel={onWheel}
+  >
     <div class="track-bg"></div>
     <div class="track-highlight"></div>
 

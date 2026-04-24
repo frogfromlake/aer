@@ -4,3 +4,4 @@ export { default as Tooltip } from './Tooltip.svelte';
 export { default as Badge } from './Badge.svelte';
 export { default as SkipLink } from './SkipLink.svelte';
 export { default as SidePanel } from './SidePanel.svelte';
+export { default as SegmentedControl } from './SegmentedControl.svelte';

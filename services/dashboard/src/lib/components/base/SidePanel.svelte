@@ -20,6 +20,14 @@
     footer?: Snippet;
     /** Override the default "Close" button aria-label (e.g. for i18n). */
     closeLabel?: string;
+    /**
+     * Panel width. `default` keeps the 28rem probe-dossier width used
+     * since Phase 99b; `wide` (64rem) and `dashboard` (min 72ch / 72vw)
+     * give analysis views room for side-by-side charts while still
+     * leaving the Atmosphere visible behind the panel per Design Brief
+     * §4.1 rule 2 ("no layer replaces").
+     */
+    size?: 'default' | 'wide' | 'dashboard';
   }
 
   let {
@@ -29,7 +37,8 @@
     onClose,
     children,
     footer,
-    closeLabel = 'Close panel'
+    closeLabel = 'Close panel',
+    size = 'default'
   }: Props = $props();
 
   let panelEl: HTMLElement | undefined = $state();
@@ -89,7 +98,7 @@
 {#if open}
   <div
     bind:this={panelEl}
-    class="sidepanel"
+    class="sidepanel size-{size}"
     role="dialog"
     aria-modal="false"
     aria-labelledby={titleId}
@@ -117,7 +126,6 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(92vw, 28rem);
     display: flex;
     flex-direction: column;
     background: var(--color-surface);
@@ -126,6 +134,19 @@
     box-shadow: var(--elevation-3);
     z-index: 1000;
     /* No backdrop: the Atmosphere must remain visible and legible. */
+  }
+  .size-default {
+    width: min(92vw, 28rem);
+  }
+  .size-wide {
+    width: min(92vw, 64rem);
+  }
+  /* `dashboard` leaves roughly a quarter of the viewport for the
+     Atmosphere behind the panel (~25vw) so Design Brief §4.1 rule 2
+     stays honoured while analysis views get real working room. */
+  .size-dashboard {
+    width: min(96vw, 75vw);
+    max-width: 1280px;
   }
 
   header {

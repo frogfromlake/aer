@@ -22,6 +22,7 @@ export type ContentResponseDto = components['schemas']['ContentResponse'];
 export type MetricsResponseDto =
   paths['/metrics']['get']['responses'][200]['content']['application/json'];
 export type MetricsParams = paths['/metrics']['get']['parameters']['query'];
+export type MetricProvenanceDto = components['schemas']['MetricProvenance'];
 
 // Canonical refusal kinds currently authored in the Content Catalog
 // (see ROADMAP Phase 94 seed content). A query hook names the kind it
@@ -180,6 +181,25 @@ export function metricsQuery(
     queryKey: ['aer', 'metrics', params] as const,
     queryFn: () => fetchJson<MetricsResponseDto>(ctx, `/metrics?${qs.toString()}`, expected),
     staleTime: FIVE_MINUTES
+  };
+}
+
+export function provenanceQuery(
+  ctx: FetchContext,
+  metricName: string
+): QueryOptions<MetricProvenanceDto> {
+  return {
+    queryKey: ['aer', 'provenance', metricName] as const,
+    queryFn: () =>
+      fetchJson<MetricProvenanceDto>(
+        ctx,
+        `/metrics/${encodeURIComponent(metricName)}/provenance`,
+        'validation_missing'
+      ),
+    // Provenance changes only when the operator re-publishes the
+    // metric_provenance.yaml or a validation study lands — daily is
+    // conservative enough that a stale panel is never the bottleneck.
+    staleTime: 60 * 60 * 1000
   };
 }
 

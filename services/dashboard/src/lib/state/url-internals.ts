@@ -5,6 +5,12 @@
 
 export type Resolution = '5min' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export type ViewingMode = 'aleph' | 'episteme' | 'rhizome';
+// Descent layer on the Atmosphere surface. Only `atmosphere` (L0/L1/L2)
+// and `analysis` (L3 panel open) are URL-addressable; L4 is a transient
+// fly-out inside L3 and intentionally not encoded (closing the browser
+// tab and returning should land at L3, not inside the provenance
+// overlay — the overlay is a disclosure, not a descent).
+export type ViewLayer = 'atmosphere' | 'analysis';
 
 export interface UrlState {
   from: string | null;
@@ -17,7 +23,18 @@ export interface UrlState {
   emissionPoint: number | null;
   resolution: Resolution | null;
   viewingMode: ViewingMode | null;
+  // Metric the L3 Analysis view is locked onto. A free-form string so
+  // new gold metrics land without a schema bump; the L3 panel falls
+  // back to a sensible default when this is null.
+  metric: string | null;
+  // Current descent layer. `null` is treated as `atmosphere` by consumers.
+  view: ViewLayer | null;
 }
+
+// SSoT default lookback used when ?from/?to are absent. Both the page
+// (for the L1 Window readout + activity query) and the TimeScrubber
+// (for thumb positions) read this so a reset converges on one range.
+export const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const EMPTY_URL_STATE: UrlState = {
   from: null,
@@ -25,11 +42,18 @@ export const EMPTY_URL_STATE: UrlState = {
   probe: null,
   emissionPoint: null,
   resolution: null,
-  viewingMode: null
+  viewingMode: null,
+  metric: null,
+  view: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
+const VIEW_LAYERS: readonly ViewLayer[] = ['atmosphere', 'analysis'];
+// A metric name must be short, ascii, and identifier-shaped to avoid
+// smuggling structure into the URL. The BFF's `metric_name` is already
+// snake-case ascii, so this matches the wire contract exactly.
+const METRIC_NAME_RE = /^[a-z0-9_]{1,64}$/i;
 
 function parseIso(v: string | null): string | null {
   if (v === null) return null;
@@ -57,8 +81,15 @@ export function readFromSearch(search: string): UrlState {
     probe: p.get('probe'),
     emissionPoint: parseNonNegativeInt(p.get('ep')),
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
-    viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES)
+    viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES),
+    metric: parseMetric(p.get('metric')),
+    view: parseEnum(p.get('view'), VIEW_LAYERS)
   };
+}
+
+function parseMetric(v: string | null): string | null {
+  if (v === null) return null;
+  return METRIC_NAME_RE.test(v) ? v : null;
 }
 
 export function writeToSearch(state: UrlState): string {
@@ -73,6 +104,10 @@ export function writeToSearch(state: UrlState): string {
   }
   if (state.resolution) p.set('resolution', state.resolution);
   if (state.viewingMode) p.set('viewingMode', state.viewingMode);
+  // `metric` is only meaningful inside the analysis view — a stray
+  // metric param on the bare atmosphere would be a non-restorable state.
+  if (state.metric && state.view === 'analysis') p.set('metric', state.metric);
+  if (state.view && state.view !== 'atmosphere') p.set('view', state.view);
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

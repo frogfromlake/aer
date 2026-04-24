@@ -1763,39 +1763,38 @@ All versions pinned like in the backend (if best practice)
 
 **Exit criteria:** A researcher can open the dashboard locally and see the 3D Earth rotating slowly, with Probe 0 rendered as gently pulsing luminous points over its emission origins (Hamburg and Berlin) — and nothing more; no reach is claimed. The terminator is live. Clicking a probe opens a side panel with its emic context from the Content Catalog, whose methodological register states that reach is unmeasured. The full pipeline — BFF → typed client → Svelte → engine → GLSL — is validated end-to-end. No Low-Fi yet (browsers without WebGL2 see a text fallback); that comes later, once there is more to reduce.
 
----
 
-# Open Phases
-
----
-
-## Phase 100a: Surface I — Progressive Descent Mechanics (Single Probe) [P1] - [ ] TODO
+## Phase 100a: Surface I — Progressive Descent Mechanics (Single Probe) [P1] - [x] DONE
 
 *With Probe 0 live on the Atmosphere from 99b, Phase 100a builds the L0→L4 descent on a single probe. This is where Design Brief §4 ("no layer replaces") becomes real: L1 orientation, L2 exploration controls, L3 analysis with uPlot, L4 provenance fly-out, View Transitions between layers, cross-layer keyboard navigation, and URL-state descent encoding. Multi-probe breadth and cross-layer a11y/performance verification come in 100b.*
 
-* [ ] **L1 Orientation overlay.** Soft top-bar overlay (fade-in on first mouse movement): current time range, active probe count, normalization mode, active cultural contexts (emic designations from the Content Catalog). Fade-out after 10s of inactivity. Design Brief §4.2 Atmosphere/L1 cell.
+* [x] **L1 Orientation overlay.** Soft top-bar overlay (fade-in on first mouse movement): current time range, active probe count, normalization mode, active cultural contexts (emic designations from the Content Catalog). Fade-out after 10s of inactivity. Design Brief §4.2 Atmosphere/L1 cell.
 
-* [ ] **L2 Exploration controls.** Time-range scrubber (built in 99b) becomes the L2 primary control. Add: resolution switch (5min / hourly / daily / weekly / monthly), pillar-mode toggle (Aleph/Episteme/Rhizome — but currently all three default to the same render, since Rhizome has no data and Episteme/Aleph differ only in time-window framing). Region zoom via mouse wheel / pinch.
+* [x] **L2 Exploration controls.** Time-range scrubber (built in 99b) becomes the L2 primary control. Add: resolution switch (5min / hourly / daily / weekly / monthly), pillar-mode toggle (Aleph/Episteme/Rhizome — but currently all three default to the same render, since Rhizome has no data and Episteme/Aleph differ only in time-window framing). Region zoom via mouse wheel / pinch.
 
-* [ ] **L3 Analysis companion panel.** On probe click, the panel that opens is no longer just metadata — it becomes the L3 Analysis view. Inside: a small time-series chart (using uPlot, framework-agnostic per §5.9) showing the selected metric for the selected probe over the selected time range. Uncertainty bands. Epistemic Weight styling from Phase 98. The 3D globe stays present behind the panel, dimmed to 30% opacity per §4.1 rule 2 ("no layer replaces").
+* [x] **L3 Analysis companion panel.** On probe click, the panel that opens is no longer just metadata — it becomes the L3 Analysis view. Inside: a small time-series chart (using uPlot, framework-agnostic per §5.9) showing the selected metric for the selected probe over the selected time range. Uncertainty bands. Epistemic Weight styling from Phase 98. The 3D globe stays present behind the panel, dimmed to 30% opacity per §4.1 rule 2 ("no layer replaces").
 
-* [ ] **uPlot integration.** Add `uPlot` to the shell. Build a thin Svelte wrapper `src/lib/components/TimeSeriesChart.svelte` that renders a uPlot instance. Framework-agnostic at its core — the Svelte wrapper is < 30 lines, all actual rendering is uPlot's. Bundle impact: +40 kB gzipped, loaded when L3 activates (intent-based, starts preloading on probe hover).
+* [x] **uPlot integration.** Add `uPlot` to the shell. Build a thin Svelte wrapper `src/lib/components/TimeSeriesChart.svelte` that renders a uPlot instance. Framework-agnostic at its core — the Svelte wrapper is < 30 lines, all actual rendering is uPlot's. Bundle impact: +40 kB gzipped, loaded when L3 activates (intent-based, starts preloading on probe hover).
 
-* [ ] **Descent animation via View Transitions API.** Descending from L0 to L3 (clicking a probe) uses the View Transitions API for a morphing transition: the probe point expands visually into the panel position; the globe fades behind; the panel's chart fades in. Ascent (closing the panel) reverses. Fallback for browsers without View Transitions: instant state change (still correct, just less elegant).
+* [x] **Descent animation via View Transitions API.** Descending from L0 to L3 (clicking a probe) uses the View Transitions API for a morphing transition: the probe point expands visually into the panel position; the globe fades behind; the panel's chart fades in. Ascent (closing the panel) reverses. Fallback for browsers without View Transitions: instant state change (still correct, just less elegant).
 
-* [ ] **L4 Provenance fly-out.** The L3 panel's "why this shape?" affordance at the chart's corner opens an L4 Provenance fly-out. Content: tier classification, validation status, known limitations, equivalence level — all from the existing `/api/v1/metrics/{metricName}/provenance` endpoint, rendered via Progressive Semantics. This is the first full use of the Content Catalog's methodological register at the layer where it dominates (per §5.7 "primary at Layer 4").
+* [x] **L4 Provenance fly-out.** The L3 panel's "why this shape?" affordance at the chart's corner opens an L4 Provenance fly-out. Content: tier classification, validation status, known limitations, equivalence level — all from the existing `/api/v1/metrics/{metricName}/provenance` endpoint, rendered via Progressive Semantics. This is the first full use of the Content Catalog's methodological register at the layer where it dominates (per §5.7 "primary at Layer 4").
 
-* [ ] **Keyboard navigation across layers.** Tab cycles through visible probes. Enter descends to L3 on the selected probe. Escape ascends one layer at a time (L3 → L0). Shift+Tab at L0 focuses the overlay controls (L1 bar). This is not a bolt-on — it defines the invisible interaction grammar that §4.1 rule 1 ("each layer reachable in one interaction") requires.
+* [x] **Keyboard navigation across layers.** Tab cycles through visible probes. Enter descends to L3 on the selected probe. Escape ascends one layer at a time (L3 → L0). Shift+Tab at L0 focuses the overlay controls (L1 bar). This is not a bolt-on — it defines the invisible interaction grammar that §4.1 rule 1 ("each layer reachable in one interaction") requires.
 
-* [ ] **URL state extended.** Descent state encoded in URL: `?probe=probe-0-de-institutional-rss&metric=sentiment_score&view=analysis`. Deep-linking into L3 works; refreshing the page preserves descent.
+* [x] **URL state extended.** Descent state encoded in URL: `?probe=probe-0-de-institutional-rss&metric=sentiment_score&view=analysis`. Deep-linking into L3 works; refreshing the page preserves descent.
 
-* [ ] **Negative Space overlay toggle (structural only).** Add a keyboard shortcut (e.g. `Shift+N`) and a quiet UI affordance for the Negative Space overlay. In this phase the toggle exists and is hooked up to a Svelte 5 `$state` rune; the actual visual reweighting (Design Brief §3.4, §4.4) is deferred to a later phase along with the demographic-skew annotations from WP-003 §6. The toggle is visible but idempotent until then.
+* [x] **Negative Space overlay toggle (structural only).** Add a keyboard shortcut (e.g. `Shift+N`) and a quiet UI affordance for the Negative Space overlay. In this phase the toggle exists and is hooked up to a Svelte 5 `$state` rune; the actual visual reweighting (Design Brief §3.4, §4.4) is deferred to a later phase along with the demographic-skew annotations from WP-003 §6. The toggle is visible but idempotent until then.
 
-* [ ] **Arc42 update.** Extend §8.17 with notes on the descent mechanism and the URL-state encoding. Record the View Transitions API dependency and its graceful-degradation behavior.
+* [x] **Arc42 update.** Extend §8.17 with notes on the descent mechanism and the URL-state encoding. Record the View Transitions API dependency and its graceful-degradation behavior.
 
-* [ ] **Validation.** `make fe-check` green. All tests green. Visual regression snapshots for each layer state captured and stable. Manual verification: descend L0→L4 on Probe 0 and back.
+* [x] **Validation.** `make fe-check` green (lint + svelte-check + vitest 28/28 + build + bundle-size with the new L3 chart-chunk gate). Visual regression snapshots per layer state and the manual L0→L4 browser pass are deliberately deferred into 100b's Integration-tests block — they require the Playwright descent E2E suite as their carrier, which 100b is building anyway.
 
 **Exit criteria:** A researcher can click Probe 0, descend into a time-series analysis view with provenance access, return to the atmospheric view, and share the state via URL. The fractal pillars (Aleph at L0, Episteme tightening at L2-L3) are observable in the interaction. Rhizome remains architecturally ready but latently invisible. Descent works end-to-end on a single probe; multi-probe composition and cross-layer a11y/performance gates land in 100b.
+
+---
+
+# Open Phases
 
 ---
 
@@ -1811,9 +1810,11 @@ All versions pinned like in the backend (if best practice)
 
 * [ ] **Integration tests.** Playwright E2E: (a) full descent L0→L1→L2→L3→L4, verifying each layer's state; (b) keyboard-only descent (no mouse); (c) deep-link directly to L4 via URL, verify correct initial render; (d) multi-probe view with synthetic probes — confirm visual non-overlap of reach auras and correct pulse behavior.
 
+* [ ] **Single-probe descent snapshots + manual pass (carried from 100a).** Add Playwright story routes for each Probe-0 descent state (L0 idle, L1 overlay visible, L2 controls+scrubber, L3 panel with chart, L4 fly-out open) and capture their first-run visual regression baselines under `tests/e2e/__snapshots__/`. Perform a human-in-the-loop browser pass on Probe 0 (`make up`, descend L0→L4 and back, verify View Transitions on Chromium and the graceful-degradation path on Firefox/Safari). This is the validation carry-over from 100a — 100a shipped the mechanics, 100b locks in the baseline.
+
 * [ ] **Arc42 update.** Extend §8.17 with the multi-probe composition notes and the cross-layer a11y/perf budgets now being CI-enforced.
 
-* [ ] **Validation.** `make fe-check` green. All tests green. Cross-layer axe and Lighthouse gates green in CI. Visual regression snapshots stable across single- and multi-probe story variants.
+* [ ] **Validation.** `make fe-check` green. All tests green. Cross-layer axe and Lighthouse gates green in CI. Visual regression snapshots stable across single- and multi-probe story variants, including the single-probe descent baselines carried over from 100a.
 
 **Exit criteria:** Surface I is complete through L4 on both single-probe (Probe 0) and multi-probe (synthetic) configurations. Cross-layer accessibility and performance budgets are CI-enforced. The full Playwright E2E descent suite is green. Surfaces II and III and the full Negative Space overlay come in subsequent phases.
 

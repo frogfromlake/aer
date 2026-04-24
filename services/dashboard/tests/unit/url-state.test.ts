@@ -10,7 +10,9 @@ describe('readFromSearch', () => {
       probe: null,
       emissionPoint: null,
       resolution: null,
-      viewingMode: null
+      viewingMode: null,
+      metric: null,
+      view: null
     });
   });
 
@@ -41,6 +43,20 @@ describe('readFromSearch', () => {
     expect(state.probe).toBe('probe-0-de-institutional-rss');
   });
 
+  it('validates view against the descent-layer enum', () => {
+    expect(readFromSearch('?view=analysis').view).toBe('analysis');
+    expect(readFromSearch('?view=atmosphere').view).toBe('atmosphere');
+    expect(readFromSearch('?view=sideways').view).toBeNull();
+  });
+
+  it('accepts identifier-shaped metric names and rejects garbage', () => {
+    expect(readFromSearch('?metric=sentiment_score').metric).toBe('sentiment_score');
+    expect(readFromSearch('?metric=word_count').metric).toBe('word_count');
+    expect(readFromSearch('?metric=has%20space').metric).toBeNull();
+    expect(readFromSearch('?metric=drop%3Btable').metric).toBeNull();
+    expect(readFromSearch(`?metric=${'a'.repeat(200)}`).metric).toBeNull();
+  });
+
   it('parses ep as a non-negative integer and rejects garbage', () => {
     expect(readFromSearch('?probe=p&ep=0').emissionPoint).toBe(0);
     expect(readFromSearch('?probe=p&ep=2').emissionPoint).toBe(2);
@@ -59,7 +75,9 @@ describe('writeToSearch', () => {
         probe: null,
         emissionPoint: null,
         resolution: null,
-        viewingMode: null
+        viewingMode: null,
+        metric: null,
+        view: null
       })
     ).toBe('');
   });
@@ -71,7 +89,9 @@ describe('writeToSearch', () => {
       probe: 'probe-0',
       emissionPoint: null,
       resolution: 'hourly',
-      viewingMode: null
+      viewingMode: null,
+      metric: null,
+      view: null
     });
     expect(qs).toContain('from=2026-04-01');
     expect(qs).toContain('to=2026-04-22');
@@ -88,7 +108,9 @@ describe('writeToSearch', () => {
       probe: 'probe-0',
       emissionPoint: 1,
       resolution: null,
-      viewingMode: null
+      viewingMode: null,
+      metric: null,
+      view: null
     });
     expect(withProbe).toContain('probe=probe-0');
     expect(withProbe).toContain('ep=1');
@@ -99,7 +121,9 @@ describe('writeToSearch', () => {
       probe: null,
       emissionPoint: 1,
       resolution: null,
-      viewingMode: null
+      viewingMode: null,
+      metric: null,
+      view: null
     });
     expect(orphan).not.toContain('ep=');
   });
@@ -111,9 +135,39 @@ describe('writeToSearch', () => {
       probe: 'probe-0-de-institutional-rss',
       emissionPoint: 1,
       resolution: 'daily' as const,
-      viewingMode: 'aleph' as const
+      viewingMode: 'aleph' as const,
+      metric: 'sentiment_score',
+      view: 'analysis' as const
     };
     const qs = writeToSearch(original);
     expect(readFromSearch(qs)).toEqual(original);
+  });
+
+  it('drops metric when not in the analysis view', () => {
+    const qs = writeToSearch({
+      from: null,
+      to: null,
+      probe: 'probe-0',
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: 'sentiment_score',
+      view: null
+    });
+    expect(qs).not.toContain('metric=');
+  });
+
+  it('omits view when it is the default atmosphere layer', () => {
+    const qs = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: 'atmosphere'
+    });
+    expect(qs).not.toContain('view=');
   });
 });
