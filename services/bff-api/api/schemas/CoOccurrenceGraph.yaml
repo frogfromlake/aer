@@ -1,0 +1,72 @@
+type: object
+description: >
+  Aggregated entity-pair co-occurrence graph for the Network Science x
+  force-directed-graph view mode. Edges are the top-N pairs by summed
+  cooccurrence_count over the window; nodes are the union of incident
+  entities, sized by their per-window total mention count.
+required:
+  - windowStart
+  - windowEnd
+  - topN
+  - nodes
+  - edges
+properties:
+  scope:
+    type: string
+  scopeId:
+    type: string
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
+  topN:
+    type: integer
+    format: int64
+    description: The effective top-N applied (post-clamp).
+  nodes:
+    type: array
+    items:
+      type: object
+      required: [text, label, degree, totalCount]
+      properties:
+        text:
+          type: string
+        label:
+          type: string
+        degree:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Number of distinct neighbours in the returned edge set.
+        totalCount:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Sum of edge weights incident on this node.
+  edges:
+    type: array
+    items:
+      type: object
+      required: [a, b, weight, articleCount]
+      properties:
+        a:
+          type: string
+          description: Lexicographically smaller entity text in the pair.
+        b:
+          type: string
+        aLabel:
+          type: string
+        bLabel:
+          type: string
+        weight:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Sum of cooccurrence_count over articles in the window.
+        articleCount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Number of distinct articles contributing to this edge.

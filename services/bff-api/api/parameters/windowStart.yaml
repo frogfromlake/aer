@@ -1,0 +1,7 @@
+name: start
+in: query
+description: Inclusive start of the query window (RFC 3339).
+required: true
+schema:
+  type: string
+  format: date-time

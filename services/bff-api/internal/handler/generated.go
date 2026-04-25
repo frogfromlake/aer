@@ -314,6 +314,24 @@ func (e GetContentParamsEntityType) Valid() bool {
 	}
 }
 
+// Defines values for GetEntityCoOccurrenceParamsScope.
+const (
+	GetEntityCoOccurrenceParamsScopeProbe  GetEntityCoOccurrenceParamsScope = "probe"
+	GetEntityCoOccurrenceParamsScopeSource GetEntityCoOccurrenceParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetEntityCoOccurrenceParamsScope enum.
+func (e GetEntityCoOccurrenceParamsScope) Valid() bool {
+	switch e {
+	case GetEntityCoOccurrenceParamsScopeProbe:
+		return true
+	case GetEntityCoOccurrenceParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMetricsParamsNormalization.
 const (
 	Raw    GetMetricsParamsNormalization = "raw"
@@ -353,6 +371,114 @@ func (e GetMetricsParamsResolution) Valid() bool {
 	case GetMetricsParamsResolutionN5min:
 		return true
 	case GetMetricsParamsResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricCorrelationParamsScope.
+const (
+	GetMetricCorrelationParamsScopeProbe  GetMetricCorrelationParamsScope = "probe"
+	GetMetricCorrelationParamsScopeSource GetMetricCorrelationParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricCorrelationParamsScope enum.
+func (e GetMetricCorrelationParamsScope) Valid() bool {
+	switch e {
+	case GetMetricCorrelationParamsScopeProbe:
+		return true
+	case GetMetricCorrelationParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricDistributionParamsScope.
+const (
+	GetMetricDistributionParamsScopeProbe  GetMetricDistributionParamsScope = "probe"
+	GetMetricDistributionParamsScopeSource GetMetricDistributionParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricDistributionParamsScope enum.
+func (e GetMetricDistributionParamsScope) Valid() bool {
+	switch e {
+	case GetMetricDistributionParamsScopeProbe:
+		return true
+	case GetMetricDistributionParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricHeatmapParamsScope.
+const (
+	GetMetricHeatmapParamsScopeProbe  GetMetricHeatmapParamsScope = "probe"
+	GetMetricHeatmapParamsScopeSource GetMetricHeatmapParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricHeatmapParamsScope enum.
+func (e GetMetricHeatmapParamsScope) Valid() bool {
+	switch e {
+	case GetMetricHeatmapParamsScopeProbe:
+		return true
+	case GetMetricHeatmapParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricHeatmapParamsXDimension.
+const (
+	GetMetricHeatmapParamsXDimensionDayOfWeek   GetMetricHeatmapParamsXDimension = "dayOfWeek"
+	GetMetricHeatmapParamsXDimensionEntityLabel GetMetricHeatmapParamsXDimension = "entityLabel"
+	GetMetricHeatmapParamsXDimensionHour        GetMetricHeatmapParamsXDimension = "hour"
+	GetMetricHeatmapParamsXDimensionLanguage    GetMetricHeatmapParamsXDimension = "language"
+	GetMetricHeatmapParamsXDimensionSource      GetMetricHeatmapParamsXDimension = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricHeatmapParamsXDimension enum.
+func (e GetMetricHeatmapParamsXDimension) Valid() bool {
+	switch e {
+	case GetMetricHeatmapParamsXDimensionDayOfWeek:
+		return true
+	case GetMetricHeatmapParamsXDimensionEntityLabel:
+		return true
+	case GetMetricHeatmapParamsXDimensionHour:
+		return true
+	case GetMetricHeatmapParamsXDimensionLanguage:
+		return true
+	case GetMetricHeatmapParamsXDimensionSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricHeatmapParamsYDimension.
+const (
+	GetMetricHeatmapParamsYDimensionDayOfWeek   GetMetricHeatmapParamsYDimension = "dayOfWeek"
+	GetMetricHeatmapParamsYDimensionEntityLabel GetMetricHeatmapParamsYDimension = "entityLabel"
+	GetMetricHeatmapParamsYDimensionHour        GetMetricHeatmapParamsYDimension = "hour"
+	GetMetricHeatmapParamsYDimensionLanguage    GetMetricHeatmapParamsYDimension = "language"
+	GetMetricHeatmapParamsYDimensionSource      GetMetricHeatmapParamsYDimension = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricHeatmapParamsYDimension enum.
+func (e GetMetricHeatmapParamsYDimension) Valid() bool {
+	switch e {
+	case GetMetricHeatmapParamsYDimensionDayOfWeek:
+		return true
+	case GetMetricHeatmapParamsYDimensionEntityLabel:
+		return true
+	case GetMetricHeatmapParamsYDimensionHour:
+		return true
+	case GetMetricHeatmapParamsYDimensionLanguage:
+		return true
+	case GetMetricHeatmapParamsYDimensionSource:
 		return true
 	default:
 		return false
@@ -719,6 +845,27 @@ type GetEntitiesParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetEntityCoOccurrenceParams defines parameters for GetEntityCoOccurrence.
+type GetEntityCoOccurrenceParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetEntityCoOccurrenceParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// Start Inclusive start of the query window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the query window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+
+	// TopN Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound.
+	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+}
+
+// GetEntityCoOccurrenceParamsScope defines parameters for GetEntityCoOccurrence.
+type GetEntityCoOccurrenceParamsScope string
+
 // GetLanguagesParams defines parameters for GetLanguages.
 type GetLanguagesParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
@@ -773,6 +920,78 @@ type GetMetricsAvailableParams struct {
 	EndDate time.Time `form:"endDate" json:"endDate"`
 }
 
+// GetMetricCorrelationParams defines parameters for GetMetricCorrelation.
+type GetMetricCorrelationParams struct {
+	// Metrics Comma-separated list of metric names to include in the correlation matrix (e.g. `sentiment_score,word_count,entity_count`). Required; must contain between 2 and 10 names.
+	Metrics string `form:"metrics" json:"metrics"`
+
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetricCorrelationParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// Start Inclusive start of the query window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the query window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+}
+
+// GetMetricCorrelationParamsScope defines parameters for GetMetricCorrelation.
+type GetMetricCorrelationParamsScope string
+
+// GetMetricDistributionParams defines parameters for GetMetricDistribution.
+type GetMetricDistributionParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetricDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// Start Inclusive start of the query window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the query window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+
+	// Bins Number of histogram bins to request for the distribution. Server clamps values outside [1, 200] to the nearest bound.
+	Bins *int `form:"bins,omitempty" json:"bins,omitempty"`
+}
+
+// GetMetricDistributionParamsScope defines parameters for GetMetricDistribution.
+type GetMetricDistributionParamsScope string
+
+// GetMetricHeatmapParams defines parameters for GetMetricHeatmap.
+type GetMetricHeatmapParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetricHeatmapParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// XDimension X-axis dimension for the heatmap. `dayOfWeek` and `hour` bin on the metric timestamp; `source` groups by source name; `entityLabel` joins against `aer_gold.entities`; `language` joins against `aer_gold.language_detections`.
+	XDimension GetMetricHeatmapParamsXDimension `form:"xDimension" json:"xDimension"`
+
+	// YDimension Y-axis dimension for the heatmap. Same enum as xDimension.
+	YDimension GetMetricHeatmapParamsYDimension `form:"yDimension" json:"yDimension"`
+
+	// Start Inclusive start of the query window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the query window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+}
+
+// GetMetricHeatmapParamsScope defines parameters for GetMetricHeatmap.
+type GetMetricHeatmapParamsScope string
+
+// GetMetricHeatmapParamsXDimension defines parameters for GetMetricHeatmap.
+type GetMetricHeatmapParamsXDimension string
+
+// GetMetricHeatmapParamsYDimension defines parameters for GetMetricHeatmap.
+type GetMetricHeatmapParamsYDimension string
+
 // GetProbeDossierParams defines parameters for GetProbeDossier.
 type GetProbeDossierParams struct {
 	// WindowStart Start of the article-count window (RFC 3339). When omitted the per-source `articlesInWindow` counts equal the total counts.
@@ -815,6 +1034,9 @@ type ServerInterface interface {
 	// Retrieve aggregated named entities
 	// (GET /entities)
 	GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams)
+	// Entity co-occurrence graph (Network Science x force-directed graph)
+	// (GET /entities/cooccurrence)
+	GetEntityCoOccurrence(w http.ResponseWriter, r *http.Request, params GetEntityCoOccurrenceParams)
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -827,6 +1049,15 @@ type ServerInterface interface {
 	// List available metric names
 	// (GET /metrics/available)
 	GetMetricsAvailable(w http.ResponseWriter, r *http.Request, params GetMetricsAvailableParams)
+	// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
+	// (GET /metrics/correlation)
+	GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams)
+	// Per-scope distribution of a metric (EDA x ridgeline / violin / density)
+	// (GET /metrics/{metricName}/distribution)
+	GetMetricDistribution(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricDistributionParams)
+	// 2D binning of a metric (EDA x heatmap)
+	// (GET /metrics/{metricName}/heatmap)
+	GetMetricHeatmap(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricHeatmapParams)
 	// Retrieve provenance metadata for a metric
 	// (GET /metrics/{metricName}/provenance)
 	GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string)
@@ -869,6 +1100,12 @@ func (_ Unimplemented) GetEntities(w http.ResponseWriter, r *http.Request, param
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Entity co-occurrence graph (Network Science x force-directed graph)
+// (GET /entities/cooccurrence)
+func (_ Unimplemented) GetEntityCoOccurrence(w http.ResponseWriter, r *http.Request, params GetEntityCoOccurrenceParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Liveness probe
 // (GET /healthz)
 func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
@@ -890,6 +1127,24 @@ func (_ Unimplemented) GetMetrics(w http.ResponseWriter, r *http.Request, params
 // List available metric names
 // (GET /metrics/available)
 func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Request, params GetMetricsAvailableParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
+// (GET /metrics/correlation)
+func (_ Unimplemented) GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-scope distribution of a metric (EDA x ridgeline / violin / density)
+// (GET /metrics/{metricName}/distribution)
+func (_ Unimplemented) GetMetricDistribution(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricDistributionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// 2D binning of a metric (EDA x heatmap)
+// (GET /metrics/{metricName}/heatmap)
+func (_ Unimplemented) GetMetricHeatmap(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricHeatmapParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1101,6 +1356,92 @@ func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetEntities(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEntityCoOccurrence operation middleware
+func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEntityCoOccurrenceParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "topN" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEntityCoOccurrence(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1336,6 +1677,311 @@ func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetricsAvailable(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetricCorrelation operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricCorrelationParams
+
+	// ------------- Required query parameter "metrics" -------------
+
+	if paramValue := r.URL.Query().Get("metrics"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "metrics"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "metrics", r.URL.Query(), &params.Metrics, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metrics", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricCorrelation(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetricDistribution operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricDistribution(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "metricName" -------------
+	var metricName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "metricName", chi.URLParam(r, "metricName"), &metricName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metricName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricDistributionParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "bins" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "bins", r.URL.Query(), &params.Bins, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bins", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricDistribution(w, r, metricName, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetricHeatmap operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricHeatmap(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "metricName" -------------
+	var metricName string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "metricName", chi.URLParam(r, "metricName"), &metricName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metricName", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricHeatmapParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "xDimension" -------------
+
+	if paramValue := r.URL.Query().Get("xDimension"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "xDimension"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "xDimension", r.URL.Query(), &params.XDimension, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "xDimension", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "yDimension" -------------
+
+	if paramValue := r.URL.Query().Get("yDimension"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "yDimension"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "yDimension", r.URL.Query(), &params.YDimension, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "yDimension", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricHeatmap(w, r, metricName, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1693,6 +2339,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/entities", wrapper.GetEntities)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/entities/cooccurrence", wrapper.GetEntityCoOccurrence)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
 	r.Group(func(r chi.Router) {
@@ -1703,6 +2352,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics/available", wrapper.GetMetricsAvailable)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/correlation", wrapper.GetMetricCorrelation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/{metricName}/distribution", wrapper.GetMetricDistribution)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/{metricName}/heatmap", wrapper.GetMetricHeatmap)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics/{metricName}/provenance", wrapper.GetMetricProvenance)
@@ -1885,6 +2543,89 @@ func (response GetEntities500JSONResponse) VisitGetEntitiesResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetEntityCoOccurrenceRequestObject struct {
+	Params GetEntityCoOccurrenceParams
+}
+
+type GetEntityCoOccurrenceResponseObject interface {
+	VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error
+}
+
+type GetEntityCoOccurrence200JSONResponse struct {
+	Edges []struct {
+		// A Lexicographically smaller entity text in the pair.
+		A      string  `json:"a"`
+		ALabel *string `json:"aLabel,omitempty"`
+
+		// ArticleCount Number of distinct articles contributing to this edge.
+		ArticleCount int64   `json:"articleCount"`
+		B            string  `json:"b"`
+		BLabel       *string `json:"bLabel,omitempty"`
+
+		// Weight Sum of cooccurrence_count over articles in the window.
+		Weight int64 `json:"weight"`
+	} `json:"edges"`
+	Nodes []struct {
+		// Degree Number of distinct neighbours in the returned edge set.
+		Degree int64  `json:"degree"`
+		Label  string `json:"label"`
+		Text   string `json:"text"`
+
+		// TotalCount Sum of edge weights incident on this node.
+		TotalCount int64 `json:"totalCount"`
+	} `json:"nodes"`
+	Scope   *string `json:"scope,omitempty"`
+	ScopeId *string `json:"scopeId,omitempty"`
+
+	// TopN The effective top-N applied (post-clamp).
+	TopN        int64     `json:"topN"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+}
+
+func (response GetEntityCoOccurrence200JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEntityCoOccurrence400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetEntityCoOccurrence400JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEntityCoOccurrence404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetEntityCoOccurrence404JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEntityCoOccurrence500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetEntityCoOccurrence500JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetHealthzRequestObject struct {
 }
 
@@ -2051,6 +2792,238 @@ type GetMetricsAvailable500JSONResponse struct {
 }
 
 func (response GetMetricsAvailable500JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricCorrelationRequestObject struct {
+	Params GetMetricCorrelationParams
+}
+
+type GetMetricCorrelationResponseObject interface {
+	VisitGetMetricCorrelationResponse(w http.ResponseWriter) error
+}
+
+type GetMetricCorrelation200JSONResponse struct {
+	// BucketCount Number of time buckets used to compute the correlation.
+	BucketCount int64 `json:"bucketCount"`
+
+	// Matrix NxN matrix of correlations; outer index matches `metrics`.
+	Matrix  [][]*float64 `json:"matrix"`
+	Metrics []string     `json:"metrics"`
+
+	// Resolution Bucket resolution used (e.g. `5m`).
+	Resolution  string    `json:"resolution"`
+	Scope       *string   `json:"scope,omitempty"`
+	ScopeId     *string   `json:"scopeId,omitempty"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+}
+
+func (response GetMetricCorrelation200JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricCorrelation400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricCorrelation400JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricCorrelation404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricCorrelation404JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricCorrelation500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricCorrelation500JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricDistributionRequestObject struct {
+	MetricName string `json:"metricName"`
+	Params     GetMetricDistributionParams
+}
+
+type GetMetricDistributionResponseObject interface {
+	VisitGetMetricDistributionResponse(w http.ResponseWriter) error
+}
+
+type GetMetricDistribution200JSONResponse struct {
+	// Bins Histogram bins ordered ascending by `lower`.
+	Bins []struct {
+		Count int64 `json:"count"`
+
+		// Lower Inclusive lower edge of the bin.
+		Lower float64 `json:"lower"`
+
+		// Upper Exclusive upper edge of the bin (inclusive on the last bin).
+		Upper float64 `json:"upper"`
+	} `json:"bins"`
+
+	// MetricName The metric name that was queried.
+	MetricName string `json:"metricName"`
+
+	// Scope The resolved scope (`probe` or `source`).
+	Scope *string `json:"scope,omitempty"`
+
+	// ScopeId The resolved scope identifier.
+	ScopeId *string `json:"scopeId,omitempty"`
+
+	// Summary Quantile and basic statistics for the same window.
+	Summary struct {
+		Count  int64   `json:"count"`
+		Max    float64 `json:"max"`
+		Mean   float64 `json:"mean"`
+		Median float64 `json:"median"`
+		Min    float64 `json:"min"`
+		P05    float64 `json:"p05"`
+		P25    float64 `json:"p25"`
+		P75    float64 `json:"p75"`
+		P95    float64 `json:"p95"`
+	} `json:"summary"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+}
+
+func (response GetMetricDistribution200JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricDistribution400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricDistribution400JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricDistribution404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricDistribution404JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricDistribution500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricDistribution500JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricHeatmapRequestObject struct {
+	MetricName string `json:"metricName"`
+	Params     GetMetricHeatmapParams
+}
+
+type GetMetricHeatmapResponseObject interface {
+	VisitGetMetricHeatmapResponse(w http.ResponseWriter) error
+}
+
+type GetMetricHeatmap200JSONResponse struct {
+	// Cells One row per non-empty (x, y) cell.
+	Cells []struct {
+		// Count Number of source rows aggregated into this cell.
+		Count int64 `json:"count"`
+
+		// Value Mean metric value across rows in this cell.
+		Value float64 `json:"value"`
+
+		// X The x-axis bucket label (string-encoded so int / category fit one shape).
+		X string `json:"x"`
+
+		// Y The y-axis bucket label.
+		Y string `json:"y"`
+	} `json:"cells"`
+	MetricName  string    `json:"metricName"`
+	Scope       *string   `json:"scope,omitempty"`
+	ScopeId     *string   `json:"scopeId,omitempty"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+	XDimension  string    `json:"xDimension"`
+	YDimension  string    `json:"yDimension"`
+}
+
+func (response GetMetricHeatmap200JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricHeatmap400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricHeatmap400JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricHeatmap404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricHeatmap404JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricHeatmap500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetMetricHeatmap500JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -2298,6 +3271,9 @@ type StrictServerInterface interface {
 	// Retrieve aggregated named entities
 	// (GET /entities)
 	GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error)
+	// Entity co-occurrence graph (Network Science x force-directed graph)
+	// (GET /entities/cooccurrence)
+	GetEntityCoOccurrence(ctx context.Context, request GetEntityCoOccurrenceRequestObject) (GetEntityCoOccurrenceResponseObject, error)
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
@@ -2310,6 +3286,15 @@ type StrictServerInterface interface {
 	// List available metric names
 	// (GET /metrics/available)
 	GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error)
+	// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
+	// (GET /metrics/correlation)
+	GetMetricCorrelation(ctx context.Context, request GetMetricCorrelationRequestObject) (GetMetricCorrelationResponseObject, error)
+	// Per-scope distribution of a metric (EDA x ridgeline / violin / density)
+	// (GET /metrics/{metricName}/distribution)
+	GetMetricDistribution(ctx context.Context, request GetMetricDistributionRequestObject) (GetMetricDistributionResponseObject, error)
+	// 2D binning of a metric (EDA x heatmap)
+	// (GET /metrics/{metricName}/heatmap)
+	GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapRequestObject) (GetMetricHeatmapResponseObject, error)
 	// Retrieve provenance metadata for a metric
 	// (GET /metrics/{metricName}/provenance)
 	GetMetricProvenance(ctx context.Context, request GetMetricProvenanceRequestObject) (GetMetricProvenanceResponseObject, error)
@@ -2440,6 +3425,32 @@ func (sh *strictHandler) GetEntities(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// GetEntityCoOccurrence operation middleware
+func (sh *strictHandler) GetEntityCoOccurrence(w http.ResponseWriter, r *http.Request, params GetEntityCoOccurrenceParams) {
+	var request GetEntityCoOccurrenceRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEntityCoOccurrence(ctx, request.(GetEntityCoOccurrenceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEntityCoOccurrence")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEntityCoOccurrenceResponseObject); ok {
+		if err := validResponse.VisitGetEntityCoOccurrenceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealthz operation middleware
 func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthzRequestObject
@@ -2535,6 +3546,86 @@ func (sh *strictHandler) GetMetricsAvailable(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricsAvailableResponseObject); ok {
 		if err := validResponse.VisitGetMetricsAvailableResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetricCorrelation operation middleware
+func (sh *strictHandler) GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams) {
+	var request GetMetricCorrelationRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricCorrelation(ctx, request.(GetMetricCorrelationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricCorrelation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricCorrelationResponseObject); ok {
+		if err := validResponse.VisitGetMetricCorrelationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetricDistribution operation middleware
+func (sh *strictHandler) GetMetricDistribution(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricDistributionParams) {
+	var request GetMetricDistributionRequestObject
+
+	request.MetricName = metricName
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricDistribution(ctx, request.(GetMetricDistributionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricDistribution")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricDistributionResponseObject); ok {
+		if err := validResponse.VisitGetMetricDistributionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetricHeatmap operation middleware
+func (sh *strictHandler) GetMetricHeatmap(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricHeatmapParams) {
+	var request GetMetricHeatmapRequestObject
+
+	request.MetricName = metricName
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricHeatmap(ctx, request.(GetMetricHeatmapRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricHeatmap")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricHeatmapResponseObject); ok {
+		if err := validResponse.VisitGetMetricHeatmapResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

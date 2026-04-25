@@ -1,0 +1,11 @@
+name: scope
+in: query
+description: >
+  Scope of the query. `probe` resolves the scopeId against the probe registry
+  and applies the probe's full source list. `source` filters by a single source.
+  Defaults to `probe` per Design Brief §4.2.4.
+required: false
+schema:
+  type: string
+  enum: [probe, source]
+  default: probe

@@ -1,0 +1,7 @@
+name: yDimension
+in: query
+description: Y-axis dimension for the heatmap. Same enum as xDimension.
+required: true
+schema:
+  type: string
+  enum: [dayOfWeek, hour, source, entityLabel, language]

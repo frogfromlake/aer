@@ -1,0 +1,7 @@
+name: end
+in: query
+description: Exclusive end of the query window (RFC 3339).
+required: true
+schema:
+  type: string
+  format: date-time

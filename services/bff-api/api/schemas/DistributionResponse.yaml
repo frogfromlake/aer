@@ -1,0 +1,79 @@
+type: object
+description: >
+  Per-scope distribution of a metric over a time window. Includes both
+  histogram bins and a quantile summary so the frontend can render
+  histogram, density, ridgeline, or violin without a second round-trip.
+required:
+  - metricName
+  - windowStart
+  - windowEnd
+  - bins
+  - summary
+properties:
+  metricName:
+    type: string
+    description: The metric name that was queried.
+  scope:
+    type: string
+    description: The resolved scope (`probe` or `source`).
+  scopeId:
+    type: string
+    description: The resolved scope identifier.
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
+  bins:
+    type: array
+    description: Histogram bins ordered ascending by `lower`.
+    items:
+      type: object
+      required: [lower, upper, count]
+      properties:
+        lower:
+          type: number
+          format: double
+          description: Inclusive lower edge of the bin.
+        upper:
+          type: number
+          format: double
+          description: Exclusive upper edge of the bin (inclusive on the last bin).
+        count:
+          type: integer
+          format: int64
+          minimum: 0
+  summary:
+    type: object
+    required: [count, min, max, mean, median, p05, p25, p75, p95]
+    description: Quantile and basic statistics for the same window.
+    properties:
+      count:
+        type: integer
+        format: int64
+        minimum: 0
+      min:
+        type: number
+        format: double
+      max:
+        type: number
+        format: double
+      mean:
+        type: number
+        format: double
+      median:
+        type: number
+        format: double
+      p05:
+        type: number
+        format: double
+      p25:
+        type: number
+        format: double
+      p75:
+        type: number
+        format: double
+      p95:
+        type: number
+        format: double

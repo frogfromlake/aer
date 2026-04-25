@@ -1,0 +1,10 @@
+name: scopeId
+in: query
+description: >
+  Identifier of the scope target. For `scope=probe`, a probe id (e.g.
+  `probe-0-de-institutional-rss`); for `scope=source`, a source name
+  (e.g. `tagesschau`). Required.
+required: true
+schema:
+  type: string
+  minLength: 1

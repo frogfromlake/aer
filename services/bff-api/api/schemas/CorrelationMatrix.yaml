@@ -1,0 +1,46 @@
+type: object
+description: >
+  Pairwise Pearson correlation matrix over the requested metrics, computed
+  from per-bucket means within the window. `matrix[i][j]` is the
+  correlation of `metrics[i]` and `metrics[j]`. The diagonal is 1.0 when
+  defined; cells with insufficient overlapping samples are returned as
+  `null`.
+required:
+  - metrics
+  - matrix
+  - bucketCount
+  - resolution
+  - windowStart
+  - windowEnd
+properties:
+  metrics:
+    type: array
+    items:
+      type: string
+    minItems: 2
+  matrix:
+    type: array
+    description: NxN matrix of correlations; outer index matches `metrics`.
+    items:
+      type: array
+      items:
+        type: number
+        format: double
+        nullable: true
+  bucketCount:
+    type: integer
+    format: int64
+    description: Number of time buckets used to compute the correlation.
+  resolution:
+    type: string
+    description: Bucket resolution used (e.g. `5m`).
+  scope:
+    type: string
+  scopeId:
+    type: string
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time

@@ -1,0 +1,11 @@
+name: topN
+in: query
+description: >
+  Maximum number of co-occurrence edges to return, ranked by aggregated
+  weight. Server clamps values outside [1, 500] to the nearest bound.
+required: false
+schema:
+  type: integer
+  default: 50
+  minimum: 1
+  maximum: 500

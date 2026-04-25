@@ -51,6 +51,11 @@ type Store interface {
 	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]storage.AvailableMetricRow, error)
 	GetMetricValidationStatus(ctx context.Context, metricName string) (string, error)
 	GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error)
+	// Phase 102: view-mode query endpoints.
+	GetMetricDistribution(ctx context.Context, metricName string, sources []string, start, end time.Time, bins int) (storage.DistributionResult, error)
+	GetMetricHeatmap(ctx context.Context, metricName string, sources []string, xDim, yDim storage.HeatmapDimension, start, end time.Time) ([]storage.HeatmapCell, error)
+	GetMetricCorrelation(ctx context.Context, metricNames []string, sources []string, start, end time.Time) (storage.CorrelationResult, error)
+	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int) (storage.CoOccurrenceResult, error)
 }
 
 // SourceLister abstracts the source-metadata read path so the handler

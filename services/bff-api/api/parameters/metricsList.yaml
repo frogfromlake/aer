@@ -1,0 +1,10 @@
+name: metrics
+in: query
+description: >
+  Comma-separated list of metric names to include in the correlation
+  matrix (e.g. `sentiment_score,word_count,entity_count`). Required;
+  must contain between 2 and 10 names.
+required: true
+schema:
+  type: string
+  minLength: 1

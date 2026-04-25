@@ -26,3 +26,22 @@ analysis_worker_poison_messages_total = Counter(
     "Messages that exhausted NATS redeliveries and were routed to the poison-pill DLQ.",
     ["reason"],
 )
+
+corpus_extraction_runs_total = Counter(
+    "corpus_extraction_runs_total",
+    "Number of corpus-extraction sweeps started, by extractor and outcome.",
+    ["extractor", "outcome"],
+)
+
+corpus_extraction_duration_seconds = Histogram(
+    "corpus_extraction_duration_seconds",
+    "Duration of a single corpus-extraction sweep in seconds.",
+    ["extractor"],
+    buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 300.0),
+)
+
+corpus_extraction_rows_written_total = Counter(
+    "corpus_extraction_rows_written_total",
+    "Total rows written by corpus extractors, by extractor and target table.",
+    ["extractor", "table"],
+)

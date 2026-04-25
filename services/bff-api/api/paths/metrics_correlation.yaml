@@ -1,0 +1,35 @@
+get:
+  tags: [Metrics]
+  summary: Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
+  description: >
+    Computes per-bucket means for every metric in the requested set, then
+    Pearson `corr` over each pair. Bucket resolution is fixed at 5 minutes,
+    matching the `metrics` time-series endpoint.
+  operationId: getMetricCorrelation
+  parameters:
+    - $ref: '../parameters/metricsList.yaml'
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+  responses:
+    '200':
+      description: NxN correlation matrix.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/CorrelationMatrix.yaml'
+    '400':
+      description: Invalid scope, fewer than two metrics, or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

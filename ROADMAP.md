@@ -1805,6 +1805,18 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §5.1.4 notes the eligibility columns; §8.x adds the Probe Dossier and article endpoints.
 * [x] **Validation.** `make lint && make test` green; integration tests cover k-anon gate triggering.
 
+
+## Phase 102: Iteration 5 — View-Mode Query Endpoints + EntityCoOccurrenceExtractor [P1] - [x] DONE (2026-04-25)
+
+*Backend baseline B. Delivers the view-mode query surface and the single CorpusExtractor that unblocks Network Science view modes (per ADR-020 §Backend-Work). Keeps the non-goal "no new per-document NLP extractors" intact; relaxes only to allow one corpus-level aggregation over existing Gold entity data.*
+
+* [x] **ClickHouse migration.** Create `aer_gold.entity_cooccurrences` (window_start, window_end, source, article_id, entity_a_text, entity_a_label, entity_b_text, entity_b_label, cooccurrence_count, ingestion_version), `ReplacingMergeTree(ingestion_version)`, ORDER BY (window_start, source, entity_a_text, entity_b_text), 365-day TTL on `window_start`. Migration in `infra/clickhouse/migrations/`.
+* [x] **EntityCoOccurrenceExtractor.** New corpus-level extractor in `services/analysis-worker/internal/extractors/entity_cooccurrence.py`. Reads `aer_gold.entities` per configured window + source, emits pairwise co-occurrence rows. Protocol-compliant with existing extractor pattern (but corpus-level, batched, NATS-triggered on the same schedule as per-document extractors). Idempotent via `ingestion_version`. Unit tests for windowing, pair enumeration, label-pair ordering, idempotency.
+* [x] **BFF endpoints.** `GET /api/v1/metrics/{metricName}/distribution?scope=probe|source&scopeId=…&start=…&end=…&bins=…` (per-source histogram or raw-value arrays). `GET /api/v1/metrics/{metricName}/heatmap?xDimension=dayOfWeek|hour|source|entityLabel|language&yDimension=…` (2D binning). `GET /api/v1/metrics/correlation?metrics=m1,m2,m3&scope=…` (pairwise correlation matrix). `GET /api/v1/entities/cooccurrence?scope=…&topN=…` (co-occurrence nodes + edges). All endpoints accept `probeId` or `sourceId` with probe as default.
+* [x] **Contract + codegen.** OpenAPI diff + `make codegen`.
+* [x] **Arc42 update.** §5.1.4 notes the new Gold table and corpus-level extractor; §8.x describes the view-mode query endpoints.
+* [x] **Validation.** `make lint && make test` green; integration tests cover each view-mode endpoint on Probe 0 fixture data.
+
 ---
 
 # Open Phases
@@ -1814,19 +1826,6 @@ All versions pinned like in the backend (if best practice)
 ## Phase 100b: Surface I — Multi-Probe Composition & Cross-Layer Verification [P1] — SUPERSEDED
 
 *Superseded on 2026-04-25 by the Iteration 5 reframing (Phases 101–116 below). The 2026-04-24 Reframing Note and the Iteration 5 Design Brief rewrite demoted Surface I to a landing overview and moved L3/L4/L5 off the globe onto Surfaces II and III. Multi-probe composition and cross-layer a11y/perf verification still happen — but they belong in the new phases (110 for Surface I refinement, 114 for a11y/perf, and incrementally inside each surface phase) rather than as a dedicated Surface I push. The visual-regression snapshotting of Phase 100a's L3/L4 companion panels is orphaned because those panels are deprecated by Phase 110; no snapshot baseline is captured for them.*
-
----
-
-## Phase 102: Iteration 5 — View-Mode Query Endpoints + EntityCoOccurrenceExtractor [P1] - [ ] TODO
-
-*Backend baseline B. Delivers the view-mode query surface and the single CorpusExtractor that unblocks Network Science view modes (per ADR-020 §Backend-Work). Keeps the non-goal "no new per-document NLP extractors" intact; relaxes only to allow one corpus-level aggregation over existing Gold entity data.*
-
-* [ ] **ClickHouse migration.** Create `aer_gold.entity_cooccurrences` (window_start, window_end, source, article_id, entity_a_text, entity_a_label, entity_b_text, entity_b_label, cooccurrence_count, ingestion_version), `ReplacingMergeTree(ingestion_version)`, ORDER BY (window_start, source, entity_a_text, entity_b_text), 365-day TTL on `window_start`. Migration in `infra/clickhouse/migrations/`.
-* [ ] **EntityCoOccurrenceExtractor.** New corpus-level extractor in `services/analysis-worker/internal/extractors/entity_cooccurrence.py`. Reads `aer_gold.entities` per configured window + source, emits pairwise co-occurrence rows. Protocol-compliant with existing extractor pattern (but corpus-level, batched, NATS-triggered on the same schedule as per-document extractors). Idempotent via `ingestion_version`. Unit tests for windowing, pair enumeration, label-pair ordering, idempotency.
-* [ ] **BFF endpoints.** `GET /api/v1/metrics/{metricName}/distribution?scope=probe|source&scopeId=…&start=…&end=…&bins=…` (per-source histogram or raw-value arrays). `GET /api/v1/metrics/{metricName}/heatmap?xDimension=dayOfWeek|hour|source|entityLabel|language&yDimension=…` (2D binning). `GET /api/v1/metrics/correlation?metrics=m1,m2,m3&scope=…` (pairwise correlation matrix). `GET /api/v1/entities/cooccurrence?scope=…&topN=…` (co-occurrence nodes + edges). All endpoints accept `probeId` or `sourceId` with probe as default.
-* [ ] **Contract + codegen.** OpenAPI diff + `make codegen`.
-* [ ] **Arc42 update.** §5.1.4 notes the new Gold table and corpus-level extractor; §8.x describes the view-mode query endpoints.
-* [ ] **Validation.** `make lint && make test` green; integration tests cover each view-mode endpoint on Probe 0 fixture data.
 
 ---
 

@@ -33,6 +33,15 @@ type mockStore struct {
 	validationStatusErr       error
 	culturalContextNotes      string
 	culturalContextNotesErr   error
+	// Phase 102 view-mode mocks.
+	distribution         storage.DistributionResult
+	distributionErr      error
+	heatmap              []storage.HeatmapCell
+	heatmapErr           error
+	correlation          storage.CorrelationResult
+	correlationErr       error
+	cooccurrence         storage.CoOccurrenceResult
+	cooccurrenceErr      error
 	// captured args
 	capturedStart      time.Time
 	capturedEnd        time.Time
@@ -42,6 +51,12 @@ type mockStore struct {
 	capturedLanguage   *string
 	capturedLimit      int
 	capturedResolution storage.Resolution
+	capturedSources    []string
+	capturedBins       int
+	capturedTopN       int
+	capturedXDim       storage.HeatmapDimension
+	capturedYDim       storage.HeatmapDimension
+	capturedMetrics    []string
 }
 
 func (m *mockStore) Ping(_ context.Context) error {
@@ -102,6 +117,41 @@ func (m *mockStore) GetMetricValidationStatus(_ context.Context, _ string) (stri
 
 func (m *mockStore) GetMetricCulturalContextNotes(_ context.Context, _ string) (string, error) {
 	return m.culturalContextNotes, m.culturalContextNotesErr
+}
+
+func (m *mockStore) GetMetricDistribution(_ context.Context, metricName string, sources []string, start, end time.Time, bins int) (storage.DistributionResult, error) {
+	m.capturedMetricName = &metricName
+	m.capturedSources = sources
+	m.capturedStart = start
+	m.capturedEnd = end
+	m.capturedBins = bins
+	return m.distribution, m.distributionErr
+}
+
+func (m *mockStore) GetMetricHeatmap(_ context.Context, metricName string, sources []string, xDim, yDim storage.HeatmapDimension, start, end time.Time) ([]storage.HeatmapCell, error) {
+	m.capturedMetricName = &metricName
+	m.capturedSources = sources
+	m.capturedXDim = xDim
+	m.capturedYDim = yDim
+	m.capturedStart = start
+	m.capturedEnd = end
+	return m.heatmap, m.heatmapErr
+}
+
+func (m *mockStore) GetMetricCorrelation(_ context.Context, metricNames []string, sources []string, start, end time.Time) (storage.CorrelationResult, error) {
+	m.capturedMetrics = metricNames
+	m.capturedSources = sources
+	m.capturedStart = start
+	m.capturedEnd = end
+	return m.correlation, m.correlationErr
+}
+
+func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int) (storage.CoOccurrenceResult, error) {
+	m.capturedSources = sources
+	m.capturedStart = start
+	m.capturedEnd = end
+	m.capturedTopN = topN
+	return m.cooccurrence, m.cooccurrenceErr
 }
 
 // newTestRouter builds the full chi router for HTTP-level tests.

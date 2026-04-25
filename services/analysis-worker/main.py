@@ -28,7 +28,9 @@ from internal.extractors import (
     LanguageDetectionExtractor,
     SentimentExtractor,
     NamedEntityExtractor,
+    EntityCoOccurrenceExtractor,
 )
+from internal.corpus import CorpusConfig, corpus_extraction_loop
 
 load_dotenv()
 
@@ -318,6 +320,20 @@ async def main(config: WorkerConfig | None = None):
     loop.add_signal_handler(signal.SIGINT, shutdown_signal)
     loop.add_signal_handler(signal.SIGTERM, shutdown_signal)
 
+    # Phase 102: corpus-extraction loop (entity co-occurrence). Runs in the
+    # same process as the per-document workers; idempotent via
+    # ReplacingMergeTree(ingestion_version).
+    corpus_config = CorpusConfig()
+    corpus_task = asyncio.create_task(
+        corpus_extraction_loop(
+            ch_client,
+            pg_pool,
+            EntityCoOccurrenceExtractor(),
+            corpus_config,
+            stop_event,
+        )
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -335,6 +351,9 @@ async def main(config: WorkerConfig | None = None):
         logger.info("Waiting for workers to complete current tasks...")
         # Gracefully wait for all workers to finish instead of cancelling them
         await asyncio.gather(*workers)
+
+        logger.info("Waiting for corpus-extraction loop to drain...")
+        await corpus_task
 
         await nc.close()
 

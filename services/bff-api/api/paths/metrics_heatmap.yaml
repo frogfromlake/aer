@@ -1,0 +1,43 @@
+get:
+  tags: [Metrics]
+  summary: 2D binning of a metric (EDA x heatmap)
+  description: >
+    Two-dimensional aggregation of a metric over the window, bucketed by the
+    requested xDimension and yDimension. `dayOfWeek` and `hour` bin on the
+    metric timestamp; `source` groups by source; `entityLabel` and
+    `language` join against `aer_gold.entities` /
+    `aer_gold.language_detections`.
+  operationId: getMetricHeatmap
+  parameters:
+    - name: metricName
+      in: path
+      required: true
+      schema:
+        type: string
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - $ref: '../parameters/xDimension.yaml'
+    - $ref: '../parameters/yDimension.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+  responses:
+    '200':
+      description: Heatmap cells for the requested dimensions.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/HeatmapResponse.yaml'
+    '400':
+      description: Invalid scope, dimensions, or window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

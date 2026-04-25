@@ -4,6 +4,11 @@ from internal.extractors.temporal import TemporalDistributionExtractor
 from internal.extractors.language import LanguageDetectionExtractor
 from internal.extractors.sentiment import SentimentExtractor
 from internal.extractors.entities import NamedEntityExtractor
+from internal.extractors.entity_cooccurrence import (
+    EntityCoOccurrenceExtractor,
+    CoOccurrenceRow,
+    EntityRecord,
+)
 
 __all__ = [
     "MetricExtractor",
@@ -19,4 +24,7 @@ __all__ = [
     "LanguageDetectionExtractor",
     "SentimentExtractor",
     "NamedEntityExtractor",
+    "EntityCoOccurrenceExtractor",
+    "CoOccurrenceRow",
+    "EntityRecord",
 ]

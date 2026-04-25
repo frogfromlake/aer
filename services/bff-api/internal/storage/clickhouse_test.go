@@ -140,5 +140,28 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create metric_equivalence table: %v", err)
 	}
 
+	// Phase 102: entity co-occurrence table for view-mode queries. Uses
+	// ReplacingMergeTree to mirror production semantics (the query reads
+	// FINAL to collapse re-sweep duplicates) — Memory engine does not
+	// support the FINAL modifier.
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.entity_cooccurrences (
+			window_start DateTime,
+			window_end DateTime,
+			source String,
+			article_id String,
+			entity_a_text String,
+			entity_a_label String,
+			entity_b_text String,
+			entity_b_label String,
+			cooccurrence_count UInt32,
+			ingestion_version UInt64 DEFAULT 0
+		) ENGINE = ReplacingMergeTree(ingestion_version)
+		ORDER BY (window_start, source, article_id, entity_a_text, entity_b_text)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create entity_cooccurrences table: %v", err)
+	}
+
 	return store, ctx
 }

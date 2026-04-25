@@ -1,0 +1,35 @@
+get:
+  tags: [Analysis]
+  summary: Entity co-occurrence graph (Network Science x force-directed graph)
+  description: >
+    Aggregates `aer_gold.entity_cooccurrences` over the window, returns the
+    top-N edges by summed `cooccurrence_count` plus the union of incident
+    nodes. Backs the Network Science discipline view-mode cell.
+  operationId: getEntityCoOccurrence
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - $ref: '../parameters/topN.yaml'
+  responses:
+    '200':
+      description: Top-N co-occurrence subgraph.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/CoOccurrenceGraph.yaml'
+    '400':
+      description: Invalid scope or window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

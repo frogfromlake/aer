@@ -1,0 +1,41 @@
+get:
+  tags: [Metrics]
+  summary: Per-scope distribution of a metric (EDA x ridgeline / violin / density)
+  description: >
+    Returns histogram bins plus a quantile summary for the given metric over
+    the window, restricted to the resolved scope (probe or source). Backs
+    the EDA x distributional view-mode cells (ADR-020 §View-mode queries).
+  operationId: getMetricDistribution
+  parameters:
+    - name: metricName
+      in: path
+      required: true
+      description: Metric name (e.g. `sentiment_score`).
+      schema:
+        type: string
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - $ref: '../parameters/bins.yaml'
+  responses:
+    '200':
+      description: Distribution payload.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/DistributionResponse.yaml'
+    '400':
+      description: Invalid scope, unknown probe / source, or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

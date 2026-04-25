@@ -1,0 +1,50 @@
+type: object
+description: >
+  Two-dimensional binning of a metric over a time window. `xDimension` and
+  `yDimension` are echoed back for the frontend's axis labelling.
+required:
+  - metricName
+  - xDimension
+  - yDimension
+  - windowStart
+  - windowEnd
+  - cells
+properties:
+  metricName:
+    type: string
+  xDimension:
+    type: string
+  yDimension:
+    type: string
+  scope:
+    type: string
+  scopeId:
+    type: string
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
+  cells:
+    type: array
+    description: One row per non-empty (x, y) cell.
+    items:
+      type: object
+      required: [x, y, value, count]
+      properties:
+        x:
+          type: string
+          description: The x-axis bucket label (string-encoded so int / category fit one shape).
+        y:
+          type: string
+          description: The y-axis bucket label.
+        value:
+          type: number
+          format: double
+          description: Mean metric value across rows in this cell.
+        count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Number of source rows aggregated into this cell.

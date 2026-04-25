@@ -1,0 +1,11 @@
+name: xDimension
+in: query
+description: >
+  X-axis dimension for the heatmap. `dayOfWeek` and `hour` bin on the
+  metric timestamp; `source` groups by source name; `entityLabel` joins
+  against `aer_gold.entities`; `language` joins against
+  `aer_gold.language_detections`.
+required: true
+schema:
+  type: string
+  enum: [dayOfWeek, hour, source, entityLabel, language]
