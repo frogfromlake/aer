@@ -635,3 +635,46 @@ The response always carries `aggregationType`, `source`, `windowStart`, `windowE
 **Eligibility gate.** The endpoint reuses Phase 103's `Server.requireSilverEligible` — non-eligible sources return HTTP 403 with the same `RefusalPayload` shape (`gate=silver_eligibility`, `workingPaperAnchor=WP-006#section-5.2`). Eligibility is granted out-of-band by a one-off Postgres migration after the WP-006 §5.2 review; it is never a request parameter.
 
 **Implementation notes.** The aggregation queries live in `internal/storage/silver_aggregation_query.go` (`GetSilverDistribution`, `GetSilverHeatmap`, `GetSilverCorrelation`). `IsSilverDistributionKind` / `IsSilverHeatmapKind` / `IsSilverCorrelationKind` route the path-param enum to the correct query shape. Heatmap queries currently expose two fixed (xDim, yDim, valueField) triples; additional cells register by extending the same dispatch helpers — no new endpoint per cell. Tests in `internal/handler/silver_handlers_test.go` cover each aggregation type plus the eligibility-gate, source-not-found, and bad-window paths. The worker's projection logic is covered in `tests/test_silver_projection.py`.
+
+## 8.24 Content Catalog Expansion (Phase 104)
+
+Phase 104 grows the Dual-Register content catalog from the Phase 95 foundation (metrics, probes, discourse functions, refusals) to the full set required by Iteration 5's expanded surface.
+
+**New entity types.** The catalog now supports eight entity types (previously four):
+
+| Entity type | Purpose | Count (en+de) |
+|---|---|---|
+| `metric` | Per-metric Dual-Register prose | 6 × 2 = 12 |
+| `probe` | Per-probe emic/etic context | 1 × 2 = 2 |
+| `discourse_function` | Four WP-001 function descriptions | 4 × 2 = 8 |
+| `refusal` | Methodological gate explanations | 6 × 2 = 12 |
+| `view_mode` | Per-cell × per-metric analytical guidance | 18 × 2 = 36 |
+| `empty_lane` | Invitation text for lanes with no active source | 4 × 2 = 8 |
+| `open_research_question` | WP §7/§8 open question summaries | 6 × 2 = 12 |
+| `primer` | Structured reference documents | 1 × 2 = 2 |
+
+Total: 92 YAML files across `services/bff-api/configs/content/{en,de}/`.
+
+**Metric entries (Phase 104 delta).** `temporal_distribution` (combined) is superseded by separate `publication_hour` and `publication_weekday` entries matching the actual Gold metric names. Both are Tier 1 with UTC-offset and circular-variable caveats documented.
+
+**View-mode cell entries.** Eighteen entries cover the three Phase 107 MVP cells (`time_series`, `distribution`, `cooccurrence_network`) × six metrics. Entries for metric × cell combinations that are not analytically meaningful (e.g., `cooccurrence_network_word_count`) explain the mismatch and redirect to appropriate alternatives — this is substantive UX content, not placeholder text.
+
+**Refusal entries (Phase 104 additions).** Three new refusals complement the existing three:
+- `silver_non_eligible` — WP-006 §5.2 eligibility gate; referenced by Phase 103 BFF gate and Phase 111 toggle UX.
+- `pillar_unavailable` — informational gate for when Aleph/Episteme/Rhizome data is absent for the requested scope.
+- `cross_source_without_equivalence` — WP-004 §3 measurement equivalence gate; blocks absolute direct comparison of NLP metrics across sources; allows temporal deviation comparison.
+
+**Empty-lane invitations.** One entry per WP-001 discourse function (epistemic authority, power legitimation, cohesion identity, subversion friction). Each explains what the function observes, why its absence is analytically significant, and how to add a source via the probe registration process. These are consumed by the Phase 106 function-lane shell.
+
+**Open research questions.** Six entries, one per Working Paper §7 or §8 open-questions section (WP-001 §8 through WP-006 §8). Each entry names the disciplinary scope, the key questions, and the concrete pipeline hooks where external collaboration can contribute. These populate the Phase 109 Surface III `/reflection/open-questions` hub.
+
+**Globe primer.** The `globe_primer` entry for `primer` entity type is a structured Markdown document (with `## ` headings and inline `<!-- PARAM:... -->` placeholders rendered by Phase 109 Surface III). It explains the Atmosphere surface, what probe glyphs and source satellites represent, how to descend to Surface II, and — importantly — what AĒR does *not* show (the Negative Space framing). The primer is reachable from Surface I's scope bar and from the Phase 110 satellite interaction.
+
+**Validation limits.** The `short` field limit was raised from 200 to 300 characters and the `long` limit from 2000 to 4000 characters. The original 200/2000 limits served single-metric prose; the new entity types (primers, research questions) require more space while still being bounded. Both limits remain enforced by `LoadContentCatalog` and by the new `TestContentCatalogLoads` test.
+
+**Validation tests.** `internal/config/content_catalog_test.go` (new) provides three checks:
+1. `TestContentCatalogLoads` — the real `configs/content/` tree loads without error (schema conformance, duplicate key check).
+2. `TestContentCatalogLocaleParity` — every `en` record has a `de` counterpart with the same entityType and entityId.
+3. `TestContentCatalogCrossReferences` — every `WP-NNN §M` or `WP-NNN §M.K` anchor in any content field resolves to a heading in the English WP markdown under `docs/methodology/en/`. This test catches drift when WP documents are restructured.
+
+**OpenAPI / codegen.** `api/paths/content.yaml` and `api/schemas/ContentResponse.yaml` now enumerate all eight entity types. `make codegen` regenerates `GetContentParamsEntityType` and `ContentResponseEntityType` accordingly.

@@ -1,0 +1,34 @@
+entityId: cooccurrence_network_sentiment_score
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Die Netzwerkansicht ist für Sentimentscore allein nicht sinnvoll — Sentiment kann jedoch Entitätsnetzwerke einfärben. Für die Entitäts-Co-Occurrence-Netzwerkansicht auswählen und Sentiment als Kanten- oder Knotenfarb-Dimension verwenden."
+    long: >
+      sentiment_score ist ein dokumentenweites Aggregat — er erzeugt keine benannten Entitäten
+      oder Paare, sodass ein reines Co-Occurrence-Netzwerk von sentiment_score-Knoten nicht
+      wohldefiniert ist. Sentiment ist jedoch wertvoll als Einfärbungsdimension im
+      Entitäts-Co-Occurrence-Netzwerk: Knoten (Entitäten) können nach dem mittleren Sentiment
+      der Artikel eingefärbt werden, in denen sie erscheinen — so wird sichtbar, welche
+      Akteure mit positiver oder negativer Rahmung assoziiert sind. Diese Kombination ist
+      in der Entitäts-Co-Occurrence-Netzwerkansicht (entity_count als Basismetrik auswählen)
+      mit aktivierter Sentiment-Einfärbung verfügbar. Zur Nutzung zur Entitätsnetzwerkansicht
+      wechseln. Die Co-Occurrence-Netzwerkansicht für sentiment_score allein rendert einen
+      leeren Graphen — dies ist entwurfsbedingt.
+  methodological:
+    short: "Nicht anwendbar als eigenständiges Netzwerk. sentiment_score hat keine relationale Struktur. Stattdessen als Einfärbungsdimension in der entity_count-Netzwerkansicht verwenden."
+    long: >
+      Die Co-Occurrence-Netzwerkzelle erfordert benannte Entitätspaare als strukturellen
+      Input. sentiment_score liefert keinen: Er ist ein Per-Dokument-Skalar, erzeugt durch
+      lexikonbasierte Aggregation, ohne Akteurs- oder relationale Dimension. Die Abfrage für
+      diese Kombination gibt ein leeres Ergebnis zurück. Dies ist korrektes Verhalten. Um
+      Sentiment in die Netzwissenschaftsanalyse einzubeziehen, die Entitäts-Co-Occurrence-
+      Netzwerkansicht mit Sentiment-als-Farbe-Modus verwenden, das Entitäts-Co-Occurrence-
+      Paare mit Per-Entitäts-Sentiment-Mittelwerten verbindet. Dies ist methodologisch eine
+      reichhaltigere Frage (WP-002 §5, WP-004 §3 für quellenübergreifende Vergleiche) und
+      als visuelle Kodierungsoption implementiert, nicht als eigenständige Metrik.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

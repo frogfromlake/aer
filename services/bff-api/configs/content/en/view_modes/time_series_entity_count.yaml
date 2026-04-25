@@ -1,0 +1,33 @@
+entityId: time_series_entity_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Named entity density over time. Shows whether articles are becoming more or less entity-rich — a proxy for the density of references to specific people, places, and organisations."
+    long: >
+      This view plots entity_count — the number of named entities detected per article —
+      as a time series. Rising entity density over time may indicate increasing concreteness
+      in reporting (more specific actors, places, and institutions named); falling density
+      may indicate more abstract, generic, or opinion-driven content. Spikes often align with
+      complex multi-actor events (elections, crises, summits). This metric provides a rough
+      proxy for the specificity and factual grounding of discourse. It complements but does
+      not replace network-level co-occurrence analysis, which reveals how entities relate
+      to each other rather than how many appear.
+  methodological:
+    short: "5-minute downsampled mean entity_count from spaCy de_core_news_lg. Provisional (Tier 3). Known limitations: NER errors, entity merging gaps, domain coverage."
+    long: >
+      entity_count is the count of named entity spans detected by spaCy's de_core_news_lg
+      model per article, displayed here as a downsampled time series. Tier 3 (provisional)
+      under WP-002 §5. Caveats: (1) spaCy's German NER was trained on news text and performs
+      best on newswire-style prose; government press release style may produce more false
+      negatives for organisation names; (2) entity count does not distinguish between entity
+      types (persons, locations, organisations are merged) — use the entity distribution or
+      network views for type-level analysis; (3) sentence length and text complexity affect
+      detection rate in ways not captured by the count; (4) the model version (de_core_news_lg
+      3.8.0) may diverge from future spaCy releases. Trend interpretation should account for
+      the possibility that model updates cause discontinuous shifts in the count baseline.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

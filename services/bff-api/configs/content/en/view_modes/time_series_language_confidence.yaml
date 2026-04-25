@@ -1,0 +1,32 @@
+entityId: time_series_language_confidence
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Language detection confidence over time. For multilingual or mixed-language sources, shows whether the linguistic composition of published content shifts across the observation window."
+    long: >
+      This view plots language_confidence as a time series. For monolingual sources like
+      Probe 0 (consistently German), this curve will be flat and high — near-constant
+      detection certainty. Its value emerges when monitoring sources with mixed-language
+      output, code-switching, or significant quotation of foreign-language material. Drops
+      in confidence can indicate structural changes in a source (new editorial voice, content
+      imports, machine translation artifacts). This metric is most interesting as a background
+      check on the corpus's linguistic consistency, not as a primary analytical target.
+  methodological:
+    short: "5-minute downsampled mean of langdetect confidence for the primary detected language. Provisional (Tier 3). Seed-fixed for reproducibility; short texts unreliable."
+    long: >
+      language_confidence is the detection probability returned by langdetect for the
+      primary language detected in the article's cleaned_text, displayed here as a downsampled
+      time series. The langdetect library uses a Naive Bayes character n-gram model with a
+      fixed random seed for reproducibility — Tier 3 (provisional) under WP-002 §5. Caveats:
+      (1) texts under ~50 tokens have unreliable detection; (2) closely related languages
+      (German vs. Dutch, Serbian vs. Croatian) may be confused; (3) confidence near 1.0 for
+      consistently German sources is expected and does not indicate anything unusual;
+      (4) this metric is meaningful as a data-quality signal, not a primary discourse indicator.
+      For Probe 0 monolingual German sources, the time-series view is expected to be flat
+      near 1.0 and is primarily useful as a corpus health check.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

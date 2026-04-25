@@ -1,0 +1,40 @@
+entityId: cross_source_without_equivalence
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "Cross-source comparison requires demonstrating that the metric means the same thing across sources. AĒR refuses direct comparison when measurement equivalence has not been established."
+    long: >
+      You requested a view that directly compares the same metric across two or more sources.
+      AĒR applies a measurement equivalence gate: before two sources can be directly compared
+      on a given metric, there must be evidence that the metric is measuring the same
+      underlying phenomenon in both contexts. Without this, a difference in the numbers may
+      reflect a real discourse difference, a methodological artefact, or a language/genre
+      effect — and the three cannot be distinguished. This matters most for NLP metrics
+      (sentiment, entity density) where the model's behaviour may differ systematically
+      between source types. Structural metrics (word count, temporal distribution) are more
+      robust to cross-source comparison. The Probe Dossier's source cards show which metrics
+      carry an equivalence warning for each pairing. You can still view each source's data
+      separately; the restriction applies only to direct overlay comparisons.
+  methodological:
+    short: "HTTP 403 or warning: cross-source comparison requested for metrics without established scalar equivalence (WP-004 §3). Allowed: temporal deviation; restricted: absolute cross-source comparison."
+    long: >
+      This gate is triggered when a query requests a metric comparison across two or more
+      sources without a prior equivalence assessment establishing scalar equivalence (WP-004 §3).
+      The gate applies differentially by metric tier and comparison type:
+      (1) Tier 1 metrics (word_count, publication_hour, publication_weekday) allow temporal
+      deviation comparisons (how has source A changed relative to its own baseline, vs. how
+      has source B?) but flag absolute cross-source comparisons with a methodology warning;
+      (2) Tier 3 NLP metrics (sentiment_score, entity_count, language_confidence) block direct
+      cross-source comparison without equivalence documentation, because model performance
+      differences across register and genre are well-documented (WP-002 §5, WP-004 §4);
+      (3) probe-scope aggregations that pool sources are unaffected, as they produce a
+      probe-level composite, not a side-by-side comparison.
+      Resolution: use temporal-deviation comparison mode, or consult WP-004 for the
+      measurement invariance protocol.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-004 §3"
+  - "WP-004 §4"

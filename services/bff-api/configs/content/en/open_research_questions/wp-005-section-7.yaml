@@ -1,0 +1,42 @@
+entityId: wp-005-section-7
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "How should AĒR reason about time? WP-005 §7 asks: what temporal decomposition method suits irregular RSS sampling, how should change points be detected, and what temporal resolution is appropriate for different discourse phenomena?"
+    long: >
+      WP-005's open research questions address the temporal analysis challenge — how to
+      extract meaningful time-based patterns from discourse data with irregular sampling,
+      structural breaks, and overlapping periodicities. The core questions from §7 are:
+      Which temporal decomposition method (classical, STL, wavelets) best suits AĒR's
+      irregularly sampled time series with potential structural breaks? Which change-point
+      detection algorithm (CUSUM, PELT, Bayesian) is appropriate for AĒR's data characteristics
+      — and what sensitivity parameters prevent false positives from seasonal effects?
+      What is the minimum temporal resolution at which discourse shifts become statistically
+      reliable — when does 5-minute downsampling obscure meaningful hourly patterns, and
+      when does daily aggregation lose important intraday structure? How should AĒR handle
+      the multiple-comparisons problem when scanning for change points across many metrics
+      and sources simultaneously? These questions require collaboration from time series
+      analysts, statisticians, and researchers familiar with event-study methodology.
+  methodological:
+    short: "Open: temporal decomposition method selection, change-point detection, resolution trade-offs, multiple comparisons control. Hooks: BFF downsampling parameters, NATS trigger schedule, 5-minute bucket in aer_gold.metrics. See WP-005 §7."
+    long: >
+      WP-005 §7 has direct implications for AĒR's time-series query infrastructure.
+      Contribution hooks: (1) Decomposition method evaluation — a time series statistics
+      collaboration could produce a comparative evaluation on Probe 0 data; outcome would
+      inform a new decomposition endpoint or add decomposition preprocessing to existing
+      time-series responses; (2) Change-point detection — a statistical collaboration could
+      specify a validated change-point algorithm and its parameters; outcome would be a new
+      BFF endpoint (GET /api/v1/metrics/{name}/changepoints) backed by a new ClickHouse query;
+      (3) Resolution specification — a CSS methodology collaboration could specify minimum
+      observation counts and time windows for each metric tier; outcome would gate time-series
+      requests with corpus-size warnings (related to WP-002 §7 minimum corpus threshold);
+      (4) Multiple comparisons protocol — a statistical collaboration could specify a
+      correction procedure for AĒR's simultaneous scanning scenario; outcome would inform
+      how the correlation matrix (Phase 102) reports significance. AĒR's current 5-minute
+      downsampling is an engineering default that may require revision following this work.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-005 §7"

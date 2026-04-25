@@ -1,0 +1,33 @@
+entityId: time_series_publication_hour
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Publication hour over time. Reveals whether the clock-time of a source's output is shifting — useful for detecting editorial schedule changes, seasonal daylight-saving transitions, or automation events."
+    long: >
+      This view plots publication_hour as a time series — showing not individual article
+      timestamps but the moving average of the hour-of-day at which a source publishes.
+      For most stable institutional sources, this curve is remarkably flat: organisations
+      publish at consistent times. Structural breaks (sudden shift in average publication
+      hour) can indicate editorial schedule changes, handover to automated systems, or
+      major organisational events. The annual CET/CEST transition (daylight saving) produces
+      a predictable one-hour step in UTC-expressed times each spring and autumn — this is
+      a known artifact, not an editorial shift.
+  methodological:
+    short: "5-minute downsampled mean of publication_hour (UTC, 0–23). Tier 1 — interpret as mean UTC clock-time. Seasonal UTC offset shifts are expected artifacts, not editorial events."
+    long: >
+      publication_hour in this time-series view is the downsampled mean of the UTC hour
+      field. As a Tier 1 metric (WP-002 §3), it is fully deterministic. The primary
+      interpretive consideration is the UTC vs. local time distinction: for German sources,
+      the mean will shift by approximately one hour in spring (CET to CEST) and one hour
+      back in autumn — these are timezone artifacts, not editorial changes. Because hour-of-day
+      is a circular quantity (hour 23 is adjacent to hour 0), a simple mean across midnight
+      is misleading — the time-series view uses a linear mean for simplicity. For near-midnight
+      publishing sources, consult the distribution view instead, which can reveal the bimodal
+      nature of cross-midnight distributions.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

@@ -1,0 +1,40 @@
+entityId: cohesion_identity
+entityType: empty_lane
+locale: de
+registers:
+  semantic:
+    short: "Diese Spur überwacht Quellen, die gemeinsame kollektive Identität aufbauen und verstärken — das Wir einer Gesellschaft: ihre gemeinsamen Werte, nationalen Narrative, kulturellen Referenzpunkte und Gruppengrenzen."
+    long: >
+      Die Kohäsions-und-Identitäts-Spur verfolgt Quellen, deren primäre Diskursfunktion darin
+      besteht, ein Gefühl kollektiver Zugehörigkeit zu artikulieren und zu stärken: nationale
+      Rundfunkanstalten, die gemeinsames kulturelles Erbe rahmen, religiöse Institutionen, die
+      ihre Gemeinschaften ansprechen, Kulturpublikationen, die Traditionen bewahren, und
+      Sportmedien, die teambasierte Identitätsnarrative konstruieren. Diese Quellen handeln
+      nicht primär von Fakten (epistemische Autorität) oder Macht (Machtlegitimation) — sie
+      handeln davon, wer wir sind. Die Analyse dieser Funktion offenbart die Identitätsinfrastruktur
+      eines Diskurses: Welche Narrative kollektiver Zugehörigkeit sind aktiv, welche Gruppen
+      werden zentriert oder marginalisiert, und wie reagiert identitätskonstruierender Diskurs
+      auf sozialen Stress. Diese Spur ist derzeit leer — fügen Sie eine als cohesion_identity
+      klassifizierte Quelle hinzu, um diese analytische Perspektive zu aktivieren.
+  methodological:
+    short: "Spur leer: keine als cohesion_identity klassifizierte Quelle in dieser Probe aktiv. Diese Funktion umfasst oft kulturelle, religiöse oder Gemeinschaftspublikationen. WP-001 §3.3 für Klassifikationskriterien konsultieren."
+    long: >
+      cohesion_identity in WP-001s Taxonomie erfasst Quellen, deren primäre Diskursfunktion
+      der Aufbau und die Pflege kollektiver Identität ist — WP-001 §3.3. Dazu gehören nationale
+      öffentlich-rechtliche Rundfunkanstalten mit kulturellem Auftrag, religiöse Medien,
+      Gemeinschaftspublikationen, Kulturinstitutionen und Sportmedien. Die Klassifikation ist
+      etisch; Quellen müssen sich nicht als identitätsproduzierend verstehen — viele präsentieren
+      sich als neutrale Informationsdienste, erfüllen strukturell aber eine Identitätspflegefunktion.
+      Eine leere Spur zeigt an, dass keine registrierte Quelle für diese Funktion in der
+      aktuellen Probe vorhanden ist. Aus der Perspektive der Diskursvollständigkeit bedeutet
+      eine fehlende Kohäsions-Identitäts-Stimme, dass die Probe nicht beobachten kann, wie
+      kollektive Identität in der Zielgesellschaft produziert und angefochten wird. Diese
+      Abwesenheit ist selbst analytisch bedeutsam und sollte im Probe-Registrierungsdatensatz
+      dokumentiert werden (WP-001 Anhang B).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §3.3"
+  - "WP-001 §5.3"

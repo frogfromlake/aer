@@ -1,0 +1,33 @@
+entityId: time_series_entity_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Benannte Entitätsdichte über die Zeit. Zeigt, ob Artikel entitätsreicher oder -ärmer werden — ein Proxy für die Dichte von Verweisen auf bestimmte Personen, Orte und Organisationen."
+    long: >
+      Diese Ansicht stellt entity_count — die Anzahl erkannter benannter Entitäten pro Artikel —
+      als Zeitreihe dar. Steigende Entitätsdichte kann auf zunehmende Konkretheit in der
+      Berichterstattung hinweisen (mehr spezifische Akteure, Orte und Institutionen werden
+      benannt); sinkende Dichte kann abstrakteren, allgemeineren oder meinungsorientierten
+      Inhalt widerspiegeln. Spitzen korrelieren häufig mit komplexen Mehrparteien-Ereignissen
+      (Wahlen, Krisen, Gipfel). Diese Metrik liefert einen groben Proxy für die Spezifizität
+      und faktische Verwurzelung des Diskurses. Sie ergänzt die Netzwerk-Co-Occurrence-Analyse,
+      sagt aber nichts darüber aus, wie die Entitäten miteinander in Beziehung stehen.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert von entity_count aus spaCy de_core_news_lg. Vorläufig (Tier 3). Bekannte Einschränkungen: NER-Fehler, Entitätsfusionierungslücken, Domänenabdeckung."
+    long: >
+      entity_count ist die Anzahl benannter Entitäts-Spans, die das spaCy-Modell de_core_news_lg
+      pro Artikel erkennt; hier als Downsampling-Zeitreihe dargestellt. Tier 3 (vorläufig)
+      gemäß WP-002 §5. Vorbehalte: (1) spaCys deutsches NER wurde auf Nachrichtentext trainiert
+      und liefert die besten Ergebnisse bei nachrichtenagenturtypischem Stil; staatliche
+      Pressemitteilungen können mehr falsch-negative Organisationsnamen erzeugen; (2) entity_count
+      unterscheidet nicht zwischen Entitätstypen (Personen, Orte, Organisationen werden zusammengefasst)
+      — für Typebenen-Analysen eignen sich die Entitätsverteilungs- oder Netzwerkansichten;
+      (3) Satzlänge und Textkomplexität beeinflussen die Erkennungsrate; (4) Modell-Updates
+      können diskontinuierliche Sprünge im Zählbasislevel verursachen. Trendinterpretation
+      sollte diese Möglichkeit berücksichtigen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

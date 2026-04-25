@@ -1,0 +1,42 @@
+entityId: wp-001-section-8
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Wer füllt den Probe-Katalog? WP-001 §8 fragt: Welche Quellen erfüllen für welche Kulturregion welche Diskursfunktionen — und reichen vier Funktionen aus, oder muss die Taxonomie verfeinert werden?"
+    long: >
+      Die offenen Forschungsfragen von WP-001 befassen sich mit der grundlegenden Herausforderung,
+      einen kulturell agnostischen Probe-Katalog aufzubauen: AĒRs Funktionstaxonomie
+      (epistemische Autorität, Machtlegitimation, Kohäsionsidentität, Subversionreibung) wurde
+      aus einer eurozentrisch geprägten theoretischen Grundlage konstruiert, und ihre
+      transkulturelle Validität ist eine offene empirische Frage. Die zentralen Fragen aus §8:
+      Welche Quellen erfüllen in jeder wichtigen Kulturregion welche Diskursfunktionen? Sind vier
+      Funktionen ausreichend, oder muss die Taxonomie für nicht-westliche Diskurslandschaften
+      verfeinert werden? Wie sollte AĒR mit Quellen umgehen, die ihre Diskursfunktion im
+      Zeitverlauf wechseln? Wie sollten Proben innerhalb einer Probe-Konstellation für
+      intrafunktionale Aggregation gewichtet werden? Kann die Diskursfunktion rechnerisch
+      erkannt werden, oder erfordert sie menschliche Experteneinordnung? Welche Metriken
+      erfassen interfunktionale Dynamiken? Diese Fragen erfordern Zusammenarbeit von
+      Kulturanthropologen, Regionalwissenschaftlern, vergleichenden Politikwissenschaftlern
+      und Computational Social Scientists.
+  methodological:
+    short: "Offen: kulturelle Abdeckung, Taxonomievalidität, interfunktionale Dynamiken, automatisierte Funktionsklassifikation. Hooks: Probe-Registrierung, WP-001 Anhang B, discourse_function-Tag in aer_gold.metrics. Siehe WP-001 §8."
+    long: >
+      WP-001 §8 identifiziert drei disziplinäre Cluster offener Fragen mit konkreten
+      Lieferformaten. Pipeline-Hooks, an denen externe Zusammenarbeit beitragen kann:
+      (1) Regionale Probe-Nominierung — Regionalexperten erstellen Probe-Nominerungsberichte
+      (WP-001 Anhang B Format) mit Kandidatenquellen pro Funktion pro Kulturregion; diese
+      werden als neue Probe-Seeds ingested; (2) Taxonomiekritik — CSS-Forscher mit nicht-
+      westlicher Korpuserfahrung überprüfen die Vier-Funktionen-Taxonomie und erstellen
+      formale Kritiken; Ergebnis ist entweder eine validierte Taxonomie oder eine überarbeitete
+      Spezifikation, die zu einer discourse_function-Schema-Migration führt; (3) Interfunktionale
+      Metriken — Computational Researchers schlagen Kreuzfunktionsmetriken vor; diese sind
+      Kandidaten für neue GoldMetric-Extraktoren, sobald sie mathematisch spezifiziert und
+      rechnerisch bewertet wurden. Das AĒR-System ist für all dies bereits instrumentiert:
+      die discourse_function-Spalte in aer_gold.metrics ermöglicht Kreuzfunktionsabfragen;
+      der Probe-Registrierungsprozeß in WP-001 Anhang B definiert das Beitragsformat.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §8"

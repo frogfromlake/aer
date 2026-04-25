@@ -1,0 +1,34 @@
+entityId: cooccurrence_network_word_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Network view is not meaningful for word count. Word count is a document-level scalar — it does not identify relational actors. Use the time-series or distribution view for this metric."
+    long: >
+      The co-occurrence network view requires named entities as nodes and article-level
+      co-occurrence as edge weights. word_count is a document-level scalar — it counts tokens,
+      not actors. Applying a network layout to this metric would produce an empty or meaningless
+      graph: there are no entities to place as nodes, no pairs to connect. This is not a
+      limitation of the data; it reflects a fundamental mismatch between the network-science
+      analytical form and what word_count measures. To understand word_count, use the
+      time-series view (longitudinal trends in article length) or the distribution view
+      (the shape of article length across the corpus). To explore which topics and actors
+      are associated with longer articles, combine the entity network view (select entity_count)
+      with source-scope filtering.
+  methodological:
+    short: "Not applicable: word_count is a document scalar with no relational structure. Recommended alternatives: time_series_word_count (trend), distribution_word_count (shape)."
+    long: >
+      word_count is computed per document (whitespace token count on cleaned_text) and has no
+      entity or pair dimension. The co-occurrence network cell requires a relational data
+      structure — pairs of named entities with co-occurrence counts. word_count provides no
+      such structure; the backend query for this combination returns an empty result set by
+      design. This is the correct behaviour: the system accurately reflects what the data can
+      and cannot support. There is no workaround or alternative parameterisation that makes
+      a network meaningful for this metric. Redirect to entity_count for network-science
+      analysis, or to word_count's own time-series or distribution views for editorial scope
+      analysis.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

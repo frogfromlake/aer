@@ -1,0 +1,42 @@
+entityId: epistemic_authority
+entityType: empty_lane
+locale: de
+registers:
+  semantic:
+    short: "Diese Spur überwacht Quellen, die die Gesellschaft als Schiedsrichter der faktischen Wirklichkeit behandelt — Institutionen, deren Aussagen als zuverlässig gelten und deren Korrekturen ernst genommen werden."
+    long: >
+      Die Epistemic-Authority-Spur verfolgt Quellen, die eine privilegierte Position in der
+      wissensproduktiven Infrastruktur einer Gesellschaft einnehmen: wissenschaftliche
+      Institutionen, Forschungseinrichtungen, etablierte Nachrichtenorganisationen mit
+      redaktionellen Standards und technische Regulierungsbehörden. Dies sind die Stimmen,
+      auf die Menschen sich berufen, wenn sie behaupten, etwas sei wahr. Die Beobachtung
+      dieser Funktion zeigt, wie die faktische Grundlage des öffentlichen Diskurses gepflegt
+      und angefochten wird: Wann sprechen epistemische Autoritäten, und zu welchen Themen?
+      Wann beschleunigt sich ihr Output, was auf ein umstrittenes Faktenumfeld hinweist?
+      Diese Spur ist für die ausgewählte Probe derzeit leer — es wurde keine Quelle mit
+      einer Epistemic-Authority-Klassifikation hinzugefügt. Wenn Sie eine Quelle kennen,
+      die diese Rolle in der relevanten Gesellschaft spielt, erwägen Sie eine Nominierung
+      über den Probe-Beitragsprozeß (WP-001 §8).
+  methodological:
+    short: "Spur leer: keine als epistemic_authority klassifizierte Quelle in dieser Probe aktiv. Das Hinzufügen einer Quelle erfordert eine WP-001-Funktionstaxonomie-Beurteilung und Probe-Registrierung. WP-001 §2–§3 konsultieren."
+    long: >
+      In WP-001s Funktionstaxonomie wird epistemic_authority Quellen zugewiesen, deren
+      primäre soziale Funktion darin besteht, Faktenansprüche zu produzieren oder zu
+      validieren — wissenschaftliche Verlage, Faktencheck-Organisationen, Qualitätsnachrichteninstitutionen
+      und technische Regulierungsbehörden. Die Klassifikation ist etisch (strukturell),
+      nicht emisch (selbstzugeschrieben). Eine leere Spur bedeutet, dass die aktuelle Probe
+      keine registrierte Quelle mit dieser Klassifikation hat. Um diese Spur zu füllen:
+      (1) eine Kandidatenquelle identifizieren, die diese Funktion für die Zielgesellschaft
+      plausibel erfüllt; (2) einen Probe-Registrierungsdatensatz (WP-001 Anhang B) mit etischer
+      Klassifikation und emischem Kontext ausfüllen; (3) einen Pull Request gegen den
+      Probe-Katalog öffnen. Diskurs ohne sichtbare epistemische Autoritätsquelle ist analytisch
+      unvollständig — die Abwesenheit selbst ist ein Befund, der dokumentiert werden sollte
+      (WP-001 §5.3).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §2"
+  - "WP-001 §3"
+  - "WP-001 §5.3"
+  - "WP-001 §8"

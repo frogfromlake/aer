@@ -1,0 +1,41 @@
+entityId: wp-002-section-7
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "How valid are AĒR's metrics? WP-002 §7 asks: which sentiment method is appropriate for German institutional text, how should entity salience be measured beyond NER counts, and when can metrics be trusted for cross-institutional comparison?"
+    long: >
+      WP-002's open research questions address the metric validity challenge at the heart of
+      AĒR's scientific claims. The core questions from §7 are: Is SentiWS lexicon-based
+      sentiment the right method for German institutional RSS text, or is there a validated
+      deterministic alternative that handles negation and compositionality? At what point does
+      a corpus become large enough to trust metric aggregates — what is the minimum article
+      count for reliable sentiment or entity distributions? How should AĒR handle temporal
+      autocorrelation in discourse time series — consecutive articles from the same source
+      on the same topic are not independent observations? How should the Tier system be
+      operationalised — what constitutes sufficient interdisciplinary validation for a metric
+      to advance from Tier 3 (provisional) to Tier 2 (evaluated) or Tier 1 (validated)?
+      These questions require collaboration from computational social scientists,
+      corpus linguists, and statisticians familiar with dependent-data inference.
+  methodological:
+    short: "Open: sentiment validity for German institutional text, minimum corpus size thresholds, temporal autocorrelation handling, Tier advancement protocol. Hooks: SentimentExtractor, NamedEntityExtractor, WP-002 §3 Tier framework. See WP-002 §7."
+    long: >
+      WP-002 §7 identifies open validation questions with direct pipeline implications.
+      Contribution hooks: (1) Sentiment methodology review — a computational linguistics
+      collaboration could provide a comparative evaluation of SentiWS vs. alternative
+      German lexica or models on an institutional-text gold standard; outcome would update
+      the SentimentExtractor or introduce a validated alternative alongside it; (2) Minimum
+      corpus size protocol — a statistical collaboration could establish n_min thresholds
+      by metric type; outcome would gate the BFF API's aggregation endpoints with a
+      methodological warning when the corpus is below threshold; (3) Autocorrelation
+      handling — a time-series statistics collaboration could specify correction procedures
+      for AĒR's time series; outcome would add uncertainty bands to the time-series view
+      that properly account for within-source correlation; (4) Tier advancement protocol —
+      a CSS methodology collaboration could specify the validation criteria and review
+      process for promoting metrics from Tier 3 to Tier 2; this outcome would be recorded
+      in an ADR and reflected in the metric entries' contentVersion and workingPaperAnchors.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §7"

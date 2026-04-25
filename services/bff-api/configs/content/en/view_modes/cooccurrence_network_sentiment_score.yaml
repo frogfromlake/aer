@@ -1,0 +1,32 @@
+entityId: cooccurrence_network_sentiment_score
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Network view is not meaningful for sentiment score alone — but sentiment can colour entity networks. Select the entity co-occurrence network and use sentiment as an edge or node colour dimension."
+    long: >
+      sentiment_score is a document-level aggregate — it does not produce named entities
+      or pairs, so a pure co-occurrence network of sentiment_score nodes is not well-defined.
+      However, sentiment is valuable as a colouring dimension on the entity co-occurrence
+      network: nodes (entities) can be coloured by the mean sentiment of articles in which
+      they appear, revealing which actors are associated with positive or negative framing.
+      This combination is available in the entity co-occurrence network view (select
+      entity_count as the base metric) with sentiment-colouring enabled. To use it, switch
+      to the entity network view. The co-occurrence network view for sentiment_score alone
+      will render an empty graph — this is by design.
+  methodological:
+    short: "Not applicable as a standalone network. sentiment_score has no relational structure. Use it as a colouring dimension on the entity_count network view instead."
+    long: >
+      The co-occurrence network cell requires named entity pairs as structural input.
+      sentiment_score provides none: it is a per-document scalar produced by lexicon-based
+      aggregation, with no actor or relational dimension. The query for this combination
+      returns an empty result set. To incorporate sentiment into network-science analysis,
+      use the entity co-occurrence network view with sentiment-as-colour mode, which joins
+      entity co-occurrence pairs with per-entity sentiment averages. This is a methodologically
+      richer question (WP-002 §5, WP-004 §3 for cross-source comparison) and is implemented
+      as a visual encoding option, not a separate metric.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

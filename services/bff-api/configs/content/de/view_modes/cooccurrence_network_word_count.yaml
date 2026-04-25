@@ -1,0 +1,35 @@
+entityId: cooccurrence_network_word_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Die Netzwerkansicht ist für Wortanzahl nicht sinnvoll. Wortanzahl ist ein dokumentenweites Skalar — sie identifiziert keine relationalen Akteure. Für diese Metrik die Zeitreihen- oder Verteilungsansicht verwenden."
+    long: >
+      Die Co-Occurrence-Netzwerkansicht erfordert benannte Entitäten als Knoten und
+      dokumentenweite Co-Occurrence als Kantengewichte. word_count ist ein dokumentenweites
+      Skalar — es zählt Token, keine Akteure. Die Anwendung eines Netzwerklayouts auf diese
+      Metrik würde einen leeren oder bedeutungslosen Graphen erzeugen: Es gibt keine Entitäten,
+      die als Knoten platziert, und keine Paare, die als Kanten verbunden werden können.
+      Dies ist keine Datenbeschränkung; es spiegelt einen fundamentalen Widerspruch zwischen
+      der netzwissenschaftlichen Analyseform und dem wider, was word_count misst. Zur
+      Analyse von word_count die Zeitreihenansicht (Langzeittrends der Artikellänge) oder die
+      Verteilungsansicht (Form der Artikellängen im Korpus) verwenden. Zur Untersuchung, welche
+      Themen und Akteure mit längeren Artikeln assoziiert sind, die Entitätsnetzwerkansicht
+      (entity_count auswählen) mit Quellbereichseingrenzung kombinieren.
+  methodological:
+    short: "Nicht anwendbar: word_count ist ein Dokumentenskalar ohne relationale Struktur. Empfohlene Alternativen: time_series_word_count (Trend), distribution_word_count (Form)."
+    long: >
+      word_count wird pro Dokument berechnet (Leerzeichen-Token-Anzahl auf cleaned_text) und
+      hat keine Entitäts- oder Paardimension. Die Co-Occurrence-Netzwerkzelle erfordert eine
+      relationale Datenstruktur — Paare benannter Entitäten mit Co-Occurrence-Zählungen.
+      word_count liefert keine solche Struktur; die Backend-Abfrage für diese Kombination gibt
+      entwurfsbedingt ein leeres Ergebnis zurück. Dies ist das korrekte Verhalten: Das System
+      spiegelt akkurat wider, was die Daten stützen können und was nicht. Es gibt keine
+      Problemumgehung oder alternative Parametrisierung, die ein Netzwerk für diese Metrik
+      sinnvoll macht. Für Netzwissenschaftsanalysen entity_count verwenden, für die Analyse
+      des redaktionellen Umfangs die Zeitreihen- oder Verteilungsansichten von word_count.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

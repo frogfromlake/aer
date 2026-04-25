@@ -1,0 +1,44 @@
+entityId: publication_hour
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Die UTC-Stunde (0–23) der Artikelveröffentlichung. Zeigt redaktionelle Planungsrhythmen, institutionelle Zeitkonventionen und Muster zwischen Rund-um-die-Uhr- und Bürozeiten-Publikation."
+    long: >
+      publication_hour ist die Stundenkomponente des Veröffentlichungszeitstempels eines
+      Artikels, ausgedrückt in UTC auf einer 0–23-Skala. Im Verlauf eines Korpus zeigt sie
+      die zeitliche Struktur der redaktionellen Produktion: Veröffentlicht die Quelle in
+      konzentrierten Morgenschüben, folgt sie dem Nachrichtenzyklus mit Abendspitzen oder
+      verteilt sie ihren Output gleichmäßig über den Tag? Institutionelle Quellen, die von
+      Kommunikationsabteilungen gesteuert werden, neigen zur Konzentration auf Bürozeiten;
+      öffentlich-rechtliche Sender mit kontinuierlichen Nachrichtendesks zeigen flachere
+      Verteilungen mit Spitzen um die großen Sendungszeiten. Für deutsche Quellen entspricht
+      die UTC-Stunde der Lokalzeit durch Addition von +1 (MEZ, Winter) oder +2 (MESZ, Sommer).
+      Dies ist ein Struktursignal über die Produktionsweise einer Organisation, nicht über
+      deren Inhalte.
+  methodological:
+    short: "UTC-Stunde aus Silver-Layer-Zeitstempel extrahiert. Tier 1 (deterministisch). Hauptvorbehalt: UTC ≠ Lokalzeit — für deutsche Quellen +1/+2 addieren."
+    long: >
+      publication_hour ist das ganzzahlige Stundenfeld des Veröffentlichungszeitstempels
+      eines Artikels, wie er in der Silver-Layer gespeichert ist (aus pubDate des RSS-Feeds
+      oder Äquivalent). Die Extraktion ist deterministisch: identische Zeitstempel erzeugen
+      identische Ausgabe ohne Modellabhängigkeit. Tier 1 gemäß WP-002 §3. Methodologische
+      Vorbehalte: (1) AĒR speichert und vergleicht alle Zeitstempel in UTC — lokale
+      Zeitzonen-Offsets werden nicht angewendet. Für den Probe-0-Korpus (tagesschau.de,
+      bundesregierung.de) entspricht die Lokalzeit UTC+1 (MEZ) im Winter und UTC+2 (MESZ)
+      im Sommer; Tageszeit-Muster im Dashboard erscheinen gegenüber dem deutschen
+      Nachrichtenzyklus verschoben, sofern der Betrachter diesen Offset nicht mental
+      anwendet. (2) Der Zeitstempel gibt an, wann das RSS-Item veröffentlicht wurde, nicht
+      wann das zugrundeliegende Ereignis stattfand oder der Artikel verfasst wurde. Bei
+      institutionellen Quellen mit gereihten Redaktionsabläufen kann die Veröffentlichungszeit
+      der Verfassungszeit um Stunden oder Tage nachhinken. (3) Bei Probe-0-Quellen sind
+      Zeitstempel maschinengeneriert und zuverlässig; bei Quellen mit unregelmäßigen oder
+      manipulierten Zeitstempeln spiegelt publication_hour möglicherweise nicht die
+      tatsächliche redaktionelle Planung wider. Validierungsstatus: nicht validiert
+      (keine bekannten aktiven Einschränkungen für Probe 0).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

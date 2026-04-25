@@ -1,0 +1,32 @@
+entityId: distribution_language_confidence
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Language detection confidence distribution. Shows how consistently the source publishes in a single detectable language — a data-quality and corpus-composition signal."
+    long: >
+      The distribution view for language_confidence shows the spread of detection certainty
+      across all articles in the selected window. For a stable monolingual source, the
+      distribution will be tightly packed near 1.0 — this is the expected profile for Probe 0.
+      A long left tail (many articles with lower confidence) suggests short articles, mixed-
+      language content, quotation-heavy text, or model uncertainty about a particular linguistic
+      register. This view is primarily a data-quality instrument: it tells you how trustworthy
+      language-conditional analyses of the corpus are, not something about the discourse itself.
+  methodological:
+    short: "Histogram / density of langdetect confidence scores (0–1). Provisional (Tier 3). For monolingual German sources, expect a spike near 1.0; left tail indicates low-confidence articles."
+    long: >
+      The distribution is a histogram of langdetect confidence values for the primary detected
+      language, computed across all articles in the selected scope and window. Tier 3
+      (provisional) under WP-002 §5. Interpretation: (1) for consistently German sources, the
+      distribution is expected to show a sharp right-side spike near 1.0 — any articles with
+      confidence below 0.9 warrant manual inspection; (2) short texts (< 50 tokens) produce
+      unreliable confidence values and inflate the left tail; (3) the distribution reflects
+      per-article confidence, not per-sentence — mixed-language paragraphs may produce medium
+      confidence values that obscure their actual structure; (4) changes in this distribution
+      over time (visible in the time-series view) may indicate content type changes in the
+      source, not genuine linguistic shifts.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

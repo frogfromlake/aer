@@ -1,0 +1,37 @@
+entityId: power_legitimation
+entityType: empty_lane
+locale: en
+registers:
+  semantic:
+    short: "This lane monitors sources that speak on behalf of or in support of formal institutional power — governments, ruling parties, official bodies — whose primary function is to justify existing authority."
+    long: >
+      The Power Legitimation lane tracks sources that articulate, defend, and normalise the
+      exercise of formal institutional authority. These are the voices of state, governance,
+      and dominant institutional power: official government communications, ruling-party
+      media, state broadcasters operating under political direction, and institutional bodies
+      that frame policy decisions as rational and necessary. Monitoring this function reveals
+      how power justifies itself: which narratives are deployed, which actors are named as
+      responsible, how crisis is framed, and whether the legitimating discourse intensifies
+      around elections or policy conflicts. This lane is currently empty for the selected
+      probe — add a source with a power legitimation classification to activate this perspective.
+  methodological:
+    short: "Lane empty: no source classified as power_legitimation is active in this probe. Power legitimation is an etic classification — the source need not self-identify this way. Consult WP-001 §3."
+    long: >
+      power_legitimation in WP-001's taxonomy identifies sources whose structural function
+      is to legitimate incumbent institutional power — regardless of whether they self-identify
+      as neutral, informational, or authoritative. The classification is strictly etic: it
+      describes what the source does in the discourse ecosystem, not what it claims to do.
+      Government ministries, official party communications, and state-sponsored news channels
+      are the canonical examples. An empty lane indicates no source performing this function
+      has been registered for this probe. This creates a structural gap in the analytical
+      coverage: the probe cannot observe the power-legitimating register of discourse for the
+      target society. To add a source: complete a probe registration record, assign
+      primary_function = power_legitimation with supporting etic rationale, and open a PR
+      against the probe catalog. Note that for Probe 0, bundesregierung.de RSS is classified
+      as power_legitimation and should populate this lane when active.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §5.2"

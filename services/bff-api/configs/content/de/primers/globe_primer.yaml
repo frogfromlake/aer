@@ -1,0 +1,81 @@
+entityId: globe_primer
+entityType: primer
+locale: de
+registers:
+  semantic:
+    short: "So lesen Sie die Atmosphäre. Der Globus zeigt, wo AĒR zuhört — Proben als beschriftete Punkte, deren Leuchten die Diskursaktivität widerspiegelt. Dies ist eine Beobachtungskarte, keine Wahrheitskarte."
+    long: >
+      # So lesen Sie den Globus
+
+      ## Was Sie sehen
+
+      Der dreidimensionale Globus ist AĒRs Atmosphären-Oberfläche (Surface I) — eine Live-Karte,
+      wo das System zuhört. Jeder beschriftete Punkt ist eine **Probe**: eine strukturierte
+      Quellensammlung, die eine bestimmte Kulturregion und Diskursökologie abdeckt. Die Probe ist
+      kein Land; sie ist ein analytisches Engagement, einen bestimmten Ausschnitt öffentlichen
+      Diskurses mit einem spezifischen Quellensatz zu beobachten, klassifiziert nach den vier
+      Diskursfunktionen (Epistemische Autorität, Machtlegitimation, Kohäsion & Identität,
+      Subversion & Reibung).
+
+      ## Was das Leuchten bedeutet
+
+      Die visuelle Intensität eines Proben-Glyphs spiegelt die jüngste Diskursaktivität wider —
+      wie viele Artikel die Quellen der Probe im letzten Beobachtungsfenster veröffentlicht haben.
+      Hellere Glyphen sind aktivere Proben. Dies ist ein Maß für Datendichte, nicht für Wichtigkeit,
+      Brisanz oder gesellschaftliche Bedeutung. Eine schwach leuchtende Probe kann eine
+      volumenarme Quelle sein, keine ruhige Gesellschaft.
+
+      ## Was Satelliten sind
+
+      Kleinere, gedämpfte Punkte, die einen Proben-Glyph umkreisen, sind **Quellsatelliten** —
+      die einzelnen Quellen, aus denen die Probe besteht. Beim Hovering über einem Satelliten
+      wird die Quelle benannt. Ein Klick auf einen Satelliten navigiert zum Probe-Dossier mit
+      vorausgewählter Quelle. Satelliten können auf dieser Oberfläche nicht als unabhängige
+      analytische Geltungsbereiche ausgewählt werden; sie sind kontextuelle Markierungen.
+
+      ## So steigen Sie ab
+
+      Die Auswahl eines Proben-Glyphs öffnet das **Probe-Dossier** auf Surface II
+      (Funktionsspuren) — der primären wissenschaftlichen Oberfläche. Der Globus ist ein
+      Einstiegspunkt, nicht der primäre Arbeitsbereich. Alle Metrik-Analysen, View-Modus-
+      Erkundungen und Artikelnavigation finden auf Surface II statt.
+
+      ## Was AĒR nicht zeigt
+
+      Der Globus zeigt, wo AĒR überwacht, nicht wo Diskurs stattfindet. Weite Gebiete des
+      Globus — der größte Teil Afrikas, Zentralasiens, Teile Südostasiens — sind nicht überwacht.
+      Nicht weil dort nichts passiert; sondern weil für diese Regionen keine Probe in Auftrag
+      gegeben wurde. Der **Negativraum-Overlay** (über den Schalter in der linken Leiste
+      verfügbar) macht diese Abwesenheiten explizit — die nicht überwachten Bereiche werden zu
+      sichtbaren positiven Markierungen. AĒRs Karte seiner eigenen Unwissenheit ist
+      wissenschaftlich ebenso wichtig wie seine Karte des Beobachteten.
+
+      ## Interaktive Parameter
+
+      <!-- PARAM:probeCount --> aktive Proben laufen derzeit.
+      <!-- PARAM:totalSources --> Quellen werden überwacht.
+      <!-- PARAM:observationWindowDays -->-Tage-Beobachtungsfenster wird angezeigt.
+  methodological:
+    short: "Surface-I-Architektur: Proben-Glyphen (keine Länder-Pins) spiegeln aktive Quellenmengen mit Diskursfunktions-Abdeckung wider. Glyph-Intensität = Artikelvolumen (Datendichte, nicht Bedeutung). Negativraum-Overlay zeigt nicht überwachte Regionen."
+    long: >
+      Die Atmosphären-Oberfläche rendert Probe-Punkte mit Three.js (3D-Engine in packages/engine-3d/).
+      Jede Glyph-Position ist der geografische Schwerpunkt der primären Kulturregion der Probe —
+      es ist ein Navigationspunkt, kein präziser Ortungsanspruch. Die Glyph-Intensität wird aus der
+      Artikelanzahl im aktuellen Beobachtungsfenster berechnet: articles_last_window normiert auf
+      [0,1] über alle aktiven Proben und auf einen Luminanzwert abgebildet. Diese Kodierung wurde
+      gewählt, um zu zeigen, welche Proben derzeit Daten erzeugen, nicht welche Gesellschaften am
+      aktivsten sind — die Unterscheidung ist wichtig, weil Datenerzeugung eine Funktion der
+      Crawler-Konfiguration und des Quellvolumens ist, nicht gesellschaftlicher Bedeutung.
+      Quellsatelliten werden als sekundäre Geometrie gerendert (kleiner, niedrigere Opazität,
+      nicht raycaster-selektierbar) — sie sind informative Markierungen, keine interaktiven
+      Navigationsziele auf dieser Oberfläche. Die primäre Funktion des Globus ist Orientierung
+      und Kontextsetzung; die analytische Arbeit findet auf Surface II statt. Proben-erste
+      Emission (nicht Quell-erste) ist das kanonische Interaktionsmodell gemäß ADR-020 und dem
+      Iteration-5-Design-Brief §4.1 — ein Klick auf einzelne Quellsatelliten leitet zum
+      Probe-Dossier mit vorgefilterter Quelle, nie zu einer nur-Quell-Ansicht, die den
+      Probe-Kontext umgeht.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §5.3"

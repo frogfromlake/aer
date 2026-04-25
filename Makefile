@@ -8,7 +8,7 @@
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset setup deps-refresh
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
-.PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-restart
+.PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
 SHELL := /bin/bash
 
@@ -85,6 +85,13 @@ backend-down:
 	@echo -e "$(BOLD)$(GRAY)--- STOPPING BACKEND ---$(RESET)"
 	@docker compose $(COMPOSE_DEBUG_PROFILE) down --remove-orphans
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Backend stopped.$(RESET)"
+
+backend-rebuild:
+	@echo -e "$(BOLD)$(GRAY)--- REBUILDING BACKEND (no dashboard container) ---$(RESET)"
+	@docker compose $(COMPOSE_DEBUG_PROFILE) up -d --build --force-recreate --wait
+	@echo ""
+	@echo -e "$(BOLD)$(GREEN)$(SYMBOL_SUCCESS) Backend rebuilt and healthy.$(RESET)"
+	@echo -e "$(GRAY)  Run '$(BOLD)make fe-dev$(RESET)$(GRAY)' to start the SvelteKit dev server on :5173.$(RESET)"
 
 backend-restart: backend-down backend-up
 
@@ -626,5 +633,6 @@ help:
 	@echo -e "$(BOLD)Frontend iteration loop:$(RESET)"
 	@echo -e "  $(GREEN)backend-up$(RESET)          $(GRAY)Containerized backend stack (no dashboard container) — pair with make fe-dev$(RESET)"
 	@echo -e "  $(GOLD)backend-down$(RESET)        $(GRAY)Stop backend stack$(RESET)"
+	@echo -e "  $(GOLD)backend-rebuild$(RESET)        $(GRAY)Rebuild backend stack$(RESET)"
 	@echo -e "  $(CYAN)backend-restart$(RESET)     $(GRAY)Restart backend stack$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"

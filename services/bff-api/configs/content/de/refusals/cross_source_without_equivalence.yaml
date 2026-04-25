@@ -1,0 +1,41 @@
+entityId: cross_source_without_equivalence
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Quellenübergreifender Vergleich setzt voraus, dass die Metrik in allen Quellen dasselbe bedeutet. AĒR verweigert direkten Vergleich, wenn Messäquivalenz nicht nachgewiesen wurde."
+    long: >
+      Sie haben eine Ansicht angefordert, die dieselbe Metrik über zwei oder mehr Quellen
+      direkt vergleicht. AĒR wendet ein Messäquivalenz-Gate an: Bevor zwei Quellen bei einer
+      bestimmten Metrik direkt verglichen werden können, muss nachgewiesen sein, dass die
+      Metrik in beiden Kontexten dasselbe zugrundeliegende Phänomen misst. Ohne diesen Nachweis
+      kann ein numerischer Unterschied einen echten Diskursunterschied, ein methodologisches
+      Artefakt oder einen Sprach-/Genreeffekt widerspiegeln — und die drei lassen sich nicht
+      unterscheiden. Dies ist besonders wichtig für NLP-Metriken (Sentiment, Entitätsdichte),
+      bei denen das Modellverhalten zwischen Quellentypen systematisch variieren kann.
+      Strukturelle Metriken (Wortanzahl, zeitliche Verteilung) sind robuster gegenüber
+      quellenübergreifendem Vergleich. Das Probe-Dossier zeigt, welche Metriken für jede
+      Paarung eine Äquivalenzwarnung tragen. Daten der einzelnen Quellen können weiterhin
+      separat eingesehen werden; die Einschränkung gilt nur für direkte Überlagerungsvergleiche.
+  methodological:
+    short: "HTTP 403 oder Warnung: quellenübergreifender Vergleich für Metriken ohne nachgewiesene skalare Äquivalenz angefordert (WP-004 §3). Erlaubt: temporale Abweichung; eingeschränkt: absoluter quellenübergreifender Vergleich."
+    long: >
+      Dieses Gate wird ausgelöst, wenn eine Abfrage einen Metrikvergleich über zwei oder mehr
+      Quellen ohne vorherige Äquivalenzbeurteilung anfordert, die skalare Äquivalenz
+      nachweist (WP-004 §3). Das Gate wirkt nach Metrik-Tier und Vergleichstyp differenziert:
+      (1) Tier-1-Metriken (word_count, publication_hour, publication_weekday) erlauben
+      Temporal-Abweichungsvergleiche (wie hat sich Quelle A relativ zu ihrer eigenen Basislinie
+      verändert, vs. wie hat sich Quelle B verändert?), markieren aber absolute quellenübergreifende
+      Vergleiche mit einer Methodologie-Warnung; (2) Tier-3-NLP-Metriken (sentiment_score,
+      entity_count, language_confidence) sperren direkte quellenübergreifende Vergleiche ohne
+      Äquivalenzdokumentation, da Modell-Performance-Unterschiede über Register und Genre
+      gut belegt sind (WP-002 §5, WP-004 §4); (3) Probe-Scope-Aggregationen, die Quellen
+      zusammenführen, sind nicht betroffen, da sie ein Probe-Level-Komposit erzeugen, keinen
+      Seite-an-Seite-Vergleich. Lösung: Temporal-Abweichungsvergleich-Modus verwenden oder
+      WP-004 für das Messungsinvarianz-Protokoll konsultieren.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-004 §3"
+  - "WP-004 §4"

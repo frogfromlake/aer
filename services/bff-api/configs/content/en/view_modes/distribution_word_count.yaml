@@ -1,0 +1,32 @@
+entityId: distribution_word_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Word count distribution. Shows the full shape of article lengths for a source or probe — revealing whether the source publishes short bulletins, long analyses, or a bimodal mix of both."
+    long: >
+      The distribution view renders word_count as a ridgeline, violin, or density plot —
+      showing the full probability mass across article lengths rather than a mean trend.
+      A narrow, symmetric distribution indicates a source with a consistent format (e.g.,
+      fixed-length agency bulletins). A wide or right-skewed distribution suggests a mix
+      of short news items and long features. A bimodal distribution — two distinct peaks —
+      points to two structurally different content types coexisting in the same feed (e.g.,
+      terse ticker posts and full articles). When comparing sources within a probe, this view
+      reveals structural editorial divergence that would be invisible in a time-series average.
+  methodological:
+    short: "Histogram / density estimate of word_count values within the selected window. Tier 1. Bin count adjustable (default 30). Right-tail truncation recommended for outlier-heavy corpora."
+    long: >
+      The distribution is computed as a histogram over word_count values in the selected scope
+      and time window, with bin count adjustable between 1 and 200 (default 30). The underlying
+      metric is Tier 1 deterministic (WP-002 §3). Practical considerations: (1) very long
+      articles (> 2000 words) may dominate the right tail, compressing the visual density of
+      the main distribution; the UI offers optional right-tail truncation; (2) the optimal bin
+      count depends on corpus size — with fewer than 100 articles, fine binning produces noisy
+      estimates; (3) probe-scope distributions aggregate all sources and may mask bimodal
+      structure visible only at source scope. Use source-scope narrowing to investigate
+      per-source shapes.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

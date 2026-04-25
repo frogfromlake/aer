@@ -1,0 +1,34 @@
+entityId: distribution_word_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Wortanzahlverteilung. Zeigt die vollständige Form der Artikellängen einer Quelle oder Probe — ob die Quelle kurze Meldungen, lange Analysen oder eine bimodale Mischung aus beidem veröffentlicht."
+    long: >
+      Die Verteilungsansicht stellt word_count als Ridgeline-, Violin- oder Dichte-Plot dar —
+      sie zeigt die vollständige Wahrscheinlichkeitsmasse über Artikellängen, nicht einen
+      Mittelwerttrend. Eine enge, symmetrische Verteilung zeigt eine Quelle mit konsistentem
+      Format an (z. B. Agenturmeldungen fixer Länge). Eine breite oder rechtsschiefe
+      Verteilung deutet auf eine Mischung kurzer Nachrichten und langer Features hin. Eine
+      bimodale Verteilung — zwei deutliche Gipfel — weist auf zwei strukturell verschiedene
+      Inhaltstypen im selben Feed hin (z. B. knappe Ticker-Meldungen und vollständige
+      Artikel). Im Vergleich zwischen Quellen einer Probe macht diese Ansicht strukturelle
+      redaktionelle Unterschiede sichtbar, die in einem Zeitreihenmittelwert unsichtbar wären.
+  methodological:
+    short: "Histogramm / Dichteschätzung von word_count-Werten im ausgewählten Fenster. Tier 1. Bin-Anzahl anpassbar (Standard 30). Rechte-Tail-Kürzung bei Ausreißer-lastigen Korpora empfohlen."
+    long: >
+      Die Verteilung wird als Histogramm über word_count-Werte im ausgewählten Geltungsbereich
+      und Zeitfenster berechnet, mit einstellbarer Bin-Anzahl zwischen 1 und 200 (Standard 30).
+      Die zugrundeliegende Metrik ist Tier-1-deterministisch (WP-002 §3). Praktische Hinweise:
+      (1) sehr lange Artikel (> 2000 Wörter) können den rechten Tail dominieren und die
+      visuelle Dichte der Hauptverteilung komprimieren; die Benutzeroberfläche bietet optionale
+      rechte-Tail-Kürzung; (2) die optimale Bin-Anzahl hängt vom Korpusumfang ab — bei weniger
+      als 100 Artikeln erzeugt feine Unterteilung verrauschte Schätzungen; (3) Probe-Scope-
+      Verteilungen aggregieren alle Quellen und können bimodale Struktur verbergen, die nur
+      auf Quellenebene sichtbar ist. Zur Untersuchung von Per-Quellen-Formen die
+      Quellbereichseingrenzung verwenden.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

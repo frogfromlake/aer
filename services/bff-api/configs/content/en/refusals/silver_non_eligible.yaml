@@ -1,0 +1,40 @@
+entityId: silver_non_eligible
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "This source has not been reviewed for Silver-layer access. AĒR does not expose individual article text for sources that have not completed a methodological and ethical review."
+    long: >
+      You requested access to Silver-layer content (article text, cleaned text, or per-article
+      metadata) for a source that has not been granted Silver-layer eligibility. This is not
+      a technical restriction — it is a principled governance gate. The Silver layer contains
+      individual article text, which can carry personally identifying information (author
+      names, bylines, named sources), commercially sensitive content, or material whose
+      redistribution is legally constrained by copyright or terms of service. AĒR exposes
+      Silver content only after a reviewer has assessed the source against WP-006 §5.2:
+      re-identification risk, observer-effect considerations, and legal compliance.
+      Until that review is complete, Silver content for this source is withheld. The Gold
+      layer (aggregated metrics) remains fully accessible — you can observe this source's
+      discourse patterns without reading individual articles. To request a Silver eligibility
+      review, consult the governance process in WP-006 §5.2.
+  methodological:
+    short: "HTTP 403: source not Silver-eligible (WP-006 §5.2 gate). Gold metrics are unaffected. Silver access requires a completed eligibility review — see WP-006 §5.2 for the review protocol."
+    long: >
+      This refusal is triggered when a request is made to a Silver endpoint
+      (GET /api/v1/silver/documents or GET /api/v1/silver/documents/{id}) for a source whose
+      silver_eligible flag is false. The flag is set per-source in the PostgreSQL sources
+      table; it defaults to false for all sources and is only set to true by a one-off
+      database migration following a completed WP-006 §5.2 review. The review assesses:
+      (1) re-identification risk — can individual article text be used to identify authors,
+      sources, or subjects? (2) observer-effect risk — would exposing article-level detail
+      to analysis tools change the source's behaviour in ways that invalidate the corpus?
+      (3) legal and terms-of-service compliance — does the source permit this level of access?
+      Probe 0 sources (tagesschau.de RSS, bundesregierung.de RSS) have been auto-approved as
+      institutional public-broadcaster and government data with no re-identification risk.
+      All other sources require individual review. The Gold layer is unaffected by this gate
+      and remains accessible. Gate anchor: WP-006 §5.2.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-006 §5.2"

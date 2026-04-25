@@ -1,0 +1,30 @@
+entityId: time_series_word_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Word count over time. Shows how article length evolves across the observation window — useful for spotting shifts in editorial scope or format changes."
+    long: >
+      This view plots word_count as a time series, showing how average article length changes
+      across the selected time range and scope. Sustained increases may signal editorial
+      expansion or a shift toward long-form reporting; sustained decreases may reflect format
+      compression, automation, or resource constraints. Sudden spikes often correspond to
+      specific events requiring extended coverage. Compare across sources to identify whether
+      length patterns are probe-wide (structural) or source-specific (editorial).
+  methodological:
+    short: "5-minute downsampled mean of word_count. Tier 1 — no known limitations for German RSS. Uncertainty bands show sample variance within each bucket."
+    long: >
+      The time-series view applies 5-minute bucket downsampling to word_count values, plotting
+      the mean per bucket. Uncertainty bands reflect variance within each bucket. word_count
+      is a Tier 1 deterministic metric (WP-002 §3); temporal patterns in the series are
+      structurally reliable for well-stamped RSS sources. The primary interpretive caveat:
+      word count measures length, not depth — a longer article is not necessarily more
+      informative. Cross-source comparison assumes that all sources produce content in languages
+      where whitespace tokenization is appropriate (see metric entry for the agglutinative
+      language caveat). For Probe 0 (German institutional RSS), no active limitations apply.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

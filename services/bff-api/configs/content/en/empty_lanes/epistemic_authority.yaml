@@ -1,0 +1,38 @@
+entityId: epistemic_authority
+entityType: empty_lane
+locale: en
+registers:
+  semantic:
+    short: "This lane monitors sources that society treats as arbiters of factual reality — institutions whose statements are expected to be accurate and whose corrections are taken seriously."
+    long: >
+      The Epistemic Authority lane tracks sources that occupy a privileged position in the
+      knowledge-producing infrastructure of a society: scientific institutions, research
+      agencies, established news organisations with editorial standards, and technical
+      regulatory bodies. These are the sources people cite when they want to claim that
+      something is true. Monitoring this function reveals how the factual basis of public
+      discourse is maintained and contested: when do epistemic authorities speak, and on
+      what topics? When does their output accelerate, suggesting a contested fact environment?
+      This lane is currently empty for the selected probe — no source with an epistemic
+      authority classification has been added. If you know a source that plays this role in
+      the relevant society, consider nominating it via the probe contribution process (WP-001 §8).
+  methodological:
+    short: "Lane empty: no source classified as epistemic_authority is active in this probe. Adding a source requires a WP-001 functional taxonomy assessment and probe registration. Consult WP-001 §2–§3."
+    long: >
+      In WP-001's functional taxonomy, epistemic_authority is assigned to sources whose
+      primary social function is to produce or validate factual claims — scientific
+      publishers, fact-checking organisations, quality news institutions, and technical
+      regulatory bodies. The classification is etic (structural), not emic (self-assigned).
+      An empty lane means the current probe has no registered source with this classification.
+      To populate this lane: (1) identify a candidate source that plausibly performs this
+      function for the target society; (2) complete a probe registration record (WP-001
+      Appendix B) with etic classification and emic context; (3) open a pull request against
+      the probe catalog. Discourse without a visible epistemic authority source is analytically
+      incomplete — the absence itself is a finding worth documenting (WP-001 §5.3).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §2"
+  - "WP-001 §3"
+  - "WP-001 §5.3"
+  - "WP-001 §8"

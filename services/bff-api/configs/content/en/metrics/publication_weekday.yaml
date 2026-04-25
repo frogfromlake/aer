@@ -1,0 +1,37 @@
+entityId: publication_weekday
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "The ISO weekday (1 = Monday, 7 = Sunday) on which an article was published. Reveals weekly editorial cycles, weekday-vs-weekend patterns, and institutional work rhythms."
+    long: >
+      publication_weekday is the day-of-week component of an article's publication timestamp,
+      using the ISO 8601 numbering where 1 = Monday and 7 = Sunday. Charted as a distribution,
+      it reveals the weekly editorial heartbeat of a source. Sources embedded in institutional
+      work cultures (government, public broadcasting) typically show steep Monday–Friday
+      concentrations and sharp weekend drops; continuous-news operations flatten this curve;
+      purely automated sources produce uniform distributions. The weekday pattern interacts
+      with publication_hour: a source that publishes heavily on weekdays in the morning hours
+      is almost certainly driven by institutional scheduling, not by the news cycle itself.
+      The metric does not measure newsworthiness or editorial judgment — it measures the
+      structural conditions under which content is produced.
+  methodological:
+    short: "ISO weekday extracted from Silver-layer timestamp. Tier 1 (deterministic). Note: UTC date boundary may shift the apparent weekday by one day for late-night publications."
+    long: >
+      publication_weekday is computed from the same Silver-layer timestamp as publication_hour:
+      the ISO weekday of the UTC date of publication. Extraction is stateless and deterministic
+      — Tier 1 under WP-002 §3. Methodological caveats: (1) Because the date boundary is
+      computed in UTC, a German article published at 23:30 local time (CET) appears as 22:30
+      UTC and is assigned to the UTC weekday, which may differ from the local weekday. For
+      most editorial patterns this offset is negligible; for analyses focused specifically on
+      Monday-morning or Sunday-night publications, it deserves attention. (2) The timestamp
+      reflects RSS publication time, not event time or authoring time — see publication_hour
+      for a full discussion of this caveat. (3) For Probe 0 sources, timestamps are
+      machine-generated and reliable. Validation status: unvalidated (no known active
+      limitations for Probe 0).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

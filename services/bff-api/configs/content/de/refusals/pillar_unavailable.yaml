@@ -1,0 +1,38 @@
+entityId: pillar_unavailable
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Der ausgewählte Analysebereich hat für diesen Geltungsbereich keine Daten. AĒRs drei Bereiche — Aleph (NLP), Episteme (Metadaten-Mining), Rhizome (Netzwissenschaft) — erfordern jeweils spezifische Extraktoren. Nicht alle sind für jede Quelle aktiv."
+    long: >
+      AĒR organisiert seine analytischen Perspektiven in drei Bereiche: Aleph (NLP-basierte
+      Metriken: Sentiment, Sprache, Entitäten), Episteme (strukturelle Metadaten: zeitliche
+      Verteilung, Wortanzahl) und Rhizome (Netzwissenschaft: Entitäts-Co-Occurrence). Sie
+      haben einen Bereich ausgewählt, für den im aktuellen Geltungsbereich und Zeitfenster
+      keine Daten verfügbar sind. Dies kann auftreten, weil der relevante Extraktor für diese
+      Quelle im ausgewählten Zeitraum nicht aktiv war; die Quelle im Fenster zu wenige Artikel
+      hat, um eine sinnvolle Aggregation zu erzeugen; oder der ausgewählte Bereich eine
+      Korpus-Level-Berechnung (Rhizome) erfordert, die für diese Quelle noch nicht ausgeführt
+      wurde. Die anderen Bereiche sind nicht betroffen. Das Probe-Dossier nutzen, um zu prüfen,
+      welche Metriken für jede Quelle in dieser Probe aktiv sind.
+  methodological:
+    short: "HTTP 403 oder leere Antwort: der angeforderte Bereich (Aleph/Episteme/Rhizome) hat keine berechneten Daten für diesen Geltungsbereich/Zeitfenster. Metrikverfügbarkeit über GET /api/v1/metrics/available prüfen."
+    long: >
+      Diese Verweigerung erscheint, wenn eine View-Modus-Abfrage auf Metriken oder Aggregationen
+      eines Bereichs zielt, der für den angeforderten Geltungsbereich und Zeitraum keine Zeilen
+      in den entsprechenden Gold-Tabellen aufweist. Häufigste Fälle: (1) Rhizome (Entitäts-
+      Co-Occurrence) — der EntityCoOccurrenceExtractor ist ein Korpus-Level-Batch-Prozess;
+      seine Ausgabe kann hinter dem aktuellen Datum um bis zu einen Extraktionszyklus
+      nachhinken; neu indizierte Quellen haben möglicherweise noch keine Co-Occurrence-Daten;
+      (2) Aleph-NLP-Metriken — falls spaCy- oder SentiWS-Modelle beim Ingestion nicht
+      verfügbar waren, können NLP-basierte Metriken für frühe Artikel fehlen; (3) beliebiger
+      Bereich — für Quellen mit sehr niedrigem Artikelvolumen im ausgewählten Fenster sind
+      möglicherweise keine Zeilen über der minimalen Aggregationsschwelle vorhanden. Lösung:
+      Zeitfenster erweitern, Metrikverfügbarkeit über GET /api/v1/metrics/available prüfen
+      oder auf den nächsten Korpus-Extraktionszyklus warten. Dieses Gate ist informativ —
+      es spiegelt den Korpuszustand wider, keine politische Einschränkung.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

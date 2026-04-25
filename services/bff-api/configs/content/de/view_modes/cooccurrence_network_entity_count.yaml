@@ -1,0 +1,40 @@
+entityId: cooccurrence_network_entity_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Entitäts-Co-Occurrence-Netzwerk. Zeigt, welche benannten Entitäten gemeinsam in denselben Artikeln auftreten — und damit, welche Akteure, Orte und Organisationen im Diskurs strukturell verbunden sind."
+    long: >
+      Die Co-Occurrence-Netzwerkansicht rendert einen kräftegerichteten Graphen, in dem
+      Knoten benannte Entitäten und Kanten Entitäten verbinden, die im selben Artikel
+      auftreten. Die Knotengröße spiegelt wider, wie häufig eine Entität im Korpus erscheint;
+      das Kantengewicht, wie oft das verbundene Paar gemeinsam auftritt. Diese Ansicht ist
+      die primäre Netzwissenschafts-Perspektive auf Diskurs: Sie offenbart nicht, welche
+      Entitäten erwähnt werden, sondern welche gemeinsam erwähnt werden — die relationale
+      Struktur des Diskurses. Dichte Cluster zeigen Themenbereiche mit eng verbundenen
+      Akteursmengen an. Isolierte Knoten sind Entitäten, die in Ein-Entitäts-Artikeln
+      erscheinen. Diese Ansicht ergänzt entity_count: Während entity_count sagt, wie viele
+      Entitäten erscheinen, zeigt das Netzwerk, wie sie organisiert sind.
+  methodological:
+    short: "Kräftegerichteter Graph aus aer_gold.entity_cooccurrences. Berechnet vom EntityCoOccurrenceExtractor über ein konfiguriertes Zeitfenster pro Quelle. Knoten: Entität; Kante: Co-Occurrence-Anzahl. Vorläufig (Tier 3)."
+    long: >
+      Das Co-Occurrence-Netzwerk basiert auf der Tabelle aer_gold.entity_cooccurrences,
+      die vom Corpus-Level-Aggregator EntityCoOccurrenceExtractor befüllt wird. Paarordnung
+      ist lexikografisch; Selbstpaare sind ausgeschlossen; Zählungen spiegeln
+      innerdokumentäre Co-Occurrence innerhalb des konfigurierten Zeitfensters wider. Tier 3
+      (vorläufig) gemäß WP-002 §5, da alle NER-Einschränkungen des NamedEntityExtractors
+      vererbt werden. Kritische Hinweise: (1) der Graph visualisiert Co-Erwähnung, keine
+      Kausalität oder semantische Beziehung — häufiges gemeinsames Auftreten zweier Entitäten
+      bedeutet nicht, dass sie kausal verknüpft sind; (2) hochfrequente Entitäten (Eigennamen
+      wichtiger politischer Akteure, häufig erwähnte Orte) haben viele Kanten und dominieren
+      den Graphen — topN-Filterung verwenden, um strukturell interessante Beziehungen zu
+      fokussieren; (3) im Probe-Scope aggregiert das Netzwerk Co-Occurrences über Quellen,
+      was getrennte Diskursgemeinschaften zu einem scheinbaren Netzwerk zusammenführen kann;
+      (4) Entitätsnamen-Auflösung erfolgt durch exakte Zeichenkettenübereinstimmung — dieselbe
+      Entität, die unter zwei verschiedenen Bezeichnungen erscheint (z. B. „Scholz" vs.
+      „Bundeskanzler Scholz"), erscheint als zwei Knoten.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

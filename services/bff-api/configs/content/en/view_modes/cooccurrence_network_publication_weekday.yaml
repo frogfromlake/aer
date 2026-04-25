@@ -1,0 +1,30 @@
+entityId: cooccurrence_network_publication_weekday
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Network view is not meaningful for publication weekday. Day-of-week is a scheduling property, not a relational actor dimension. Use the distribution view to see the full weekly publishing pattern."
+    long: >
+      publication_weekday describes which day of the week articles are published — a
+      structural scheduling attribute of documents, not a property of named entities or the
+      relationships between them. There are no actors to place as nodes and no co-occurrence
+      pairs to draw as edges. The informative views for this metric are the distribution
+      (the weekly publishing pattern) and the time-series (whether that pattern shifts over
+      an extended observation window). Publication weekday can be used as a filter in entity
+      network analyses — for example, comparing co-occurrence networks built from weekday
+      articles vs. weekend publications — but the metric itself does not drive network structure.
+  methodological:
+    short: "Not applicable: publication_weekday is a document timestamp attribute with no relational structure. Recommended alternatives: distribution_publication_weekday, time_series_publication_weekday."
+    long: >
+      publication_weekday is an integer (1–7, ISO 8601) extracted from a document timestamp.
+      It has no entity dimension and no pair structure. The co-occurrence network cell cannot
+      be populated with this metric; the backend returns an empty result set by design.
+      Temporal stratification by weekday is available as a filter parameter in the entity
+      co-occurrence network query (select entity_count as the metric, then filter by
+      publication_weekday range), but the weekday attribute cannot itself drive the network
+      topology.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

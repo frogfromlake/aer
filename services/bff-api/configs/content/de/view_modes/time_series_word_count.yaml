@@ -1,0 +1,33 @@
+entityId: time_series_word_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Wortanzahl über die Zeit. Zeigt, wie sich die Artikellänge im Beobachtungsfenster verändert — hilfreich, um Verschiebungen im redaktionellen Umfang oder Formatänderungen zu erkennen."
+    long: >
+      Diese Ansicht stellt word_count als Zeitreihe dar und zeigt, wie sich die durchschnittliche
+      Artikellänge im ausgewählten Zeitraum und Geltungsbereich verändert. Anhaltende Anstiege
+      können auf redaktionelle Expansion oder eine Verschiebung zu Long-form-Berichterstattung
+      hinweisen; anhaltende Rückgänge können Formatverdichtung, Automatisierung oder
+      Ressourcenengpässe widerspiegeln. Abrupte Spitzen korrelieren häufig mit spezifischen
+      Ereignissen, die ausführliche Berichterstattung erfordern. Der Vergleich zwischen Quellen
+      ermöglicht es, strukturelle (probenweite) von redaktionellen (quellenspezifischen)
+      Längenmuster zu unterscheiden.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert von word_count. Tier 1 — keine bekannten Einschränkungen für deutsches RSS. Unsicherheitsbänder zeigen Stichprobenvarianz pro Bucket."
+    long: >
+      Die Zeitreihenansicht wendet 5-Minuten-Bucket-Downsampling auf word_count-Werte an und
+      stellt den Mittelwert pro Bucket dar. Unsicherheitsbänder spiegeln die Varianz innerhalb
+      jedes Buckets wider. word_count ist eine deterministische Tier-1-Metrik (WP-002 §3);
+      zeitliche Muster in der Reihe sind strukturell zuverlässig für gut gestempelte
+      RSS-Quellen. Wichtigster Interpretationsvorbehalt: Wortanzahl misst Länge, nicht Tiefe —
+      ein längerer Artikel ist nicht zwangsläufig informativer. Quellenübergreifende Vergleiche
+      setzen voraus, dass alle Quellen Inhalte in Sprachen produzieren, für die
+      Leerzeichen-Tokenisierung geeignet ist. Für Probe 0 (deutsches institutionelles RSS)
+      bestehen keine aktiven Einschränkungen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

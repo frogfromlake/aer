@@ -1,0 +1,37 @@
+entityId: time_series_sentiment_score
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Sentimentpolarität über die Zeit. Zeigt, ob sich der emotionale Register der veröffentlichten Texte — hin zu positiverer oder negativerer Rahmung — im Beobachtungsfenster verschiebt."
+    long: >
+      Diese Ansicht stellt sentiment_score als Zeitreihe dar und zeigt, wie sich der aggregierte
+      emotionale Register einer Quelle im Zeitverlauf verändert. Anhaltende Abwärtstrends können
+      auf zunehmend negative Themensetzung hinweisen; Aufwärtsbewegungen können auf Entspannung,
+      positive Umrahmung oder einen redaktionellen Themenwechsel hindeuten. Abrupte Tagesbewegungen
+      korrelieren häufig mit wichtigen Nachrichtenereignissen. Da das Sentiment auf Quellebene
+      aggregiert wird, identifiziert diese Ansicht nicht, welche Artikel das Muster antreiben —
+      für die Attribution eignen sich die Verteilungs- oder Artikelansichten besser. Diese
+      Metrik ist vorläufig: lexikonbasierte Sentimentanalyse ist eine Ausgangslinie, keine
+      validierte Messung.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert von SentiWS-v2.0-sentiment_score (Bereich −1 bis +1). Vorläufig (Tier 3). Bekannte Einschränkungen: Negation, Ironie, Komposita im Deutschen."
+    long: >
+      sentiment_score wird in dieser Ansicht als 5-Minuten-Downsampling-Zeitreihe dargestellt.
+      Unsicherheitsbänder spiegeln die Varianz innerhalb der Buckets wider. Die Metrik wird
+      vom SentimentExtractor unter Verwendung des deutschen SentiWS-v2.0-Lexikons mit
+      Mittelwert-Polaritätenaggregation berechnet — Tier 3 (vorläufig) gemäß WP-002 §5.
+      Kritische Einschränkungen: (1) SentiWS wurde auf Zeitungstext validiert und überträgt
+      sich möglicherweise nicht sauber auf institutionelle Pressemitteilungen oder
+      Regierungskommunikation; (2) Negation (nicht gut → positiv bewertetes Wort wird als
+      positiv gezählt) wird nicht behandelt; (3) Ironie und rhetorische Umkehrung werden nicht
+      erkannt; (4) die Mittelwertaggregation reagiert empfindlich auf Ausreißer in kurzen
+      Zeitfenstern. Quellenübergreifende Vergleiche sind nur bei ähnlichen sprachlichen
+      Registern valide (WP-004 §3). Diese Ansicht erfordert interdisziplinäre Validierung,
+      bevor sie in veröffentlichten Analysen verwendet wird (WP-002 §7).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"
+  - "WP-004 §3"

@@ -1,0 +1,33 @@
+entityId: time_series_language_confidence
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Spracherkennungskonfidenz über die Zeit. Für mehrsprachige oder gemischtsprachige Quellen zeigt diese Ansicht, ob sich die sprachliche Zusammensetzung des Inhalts im Beobachtungsfenster verschiebt."
+    long: >
+      Diese Ansicht stellt language_confidence als Zeitreihe dar. Für einsprachige Quellen
+      wie Probe 0 (durchgehend deutsch) wird diese Kurve flach und hoch verlaufen — nahezu
+      konstante Erkennungssicherheit. Ihr Wert entfaltet sich bei der Beobachtung von Quellen
+      mit gemischtsprachigem Output, Code-Switching oder signifikantem Anteil fremdsprachiger
+      Zitate. Konfidenzrückgänge können strukturelle Änderungen einer Quelle anzeigen
+      (neue Redaktionsstimme, inhaltliche Importe, Artefakte maschineller Übersetzung).
+      Diese Metrik dient am nützlichsten als Hintergrundcheck zur sprachlichen Konsistenz
+      des Korpus, nicht als primäres Analyseziel.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert der langdetect-Konfidenz für die primär erkannte Sprache. Vorläufig (Tier 3). Saat-fixiert für Reproduzierbarkeit; kurze Texte unzuverlässig."
+    long: >
+      language_confidence ist die Erkennungswahrscheinlichkeit, die langdetect für die
+      primär erkannte Sprache im cleaned_text eines Artikels zurückgibt; hier als
+      Downsampling-Zeitreihe dargestellt. Die langdetect-Bibliothek verwendet ein Naive-Bayes-
+      Zeichen-N-Gramm-Modell mit fixiertem Zufallsseed für Reproduzierbarkeit — Tier 3
+      (vorläufig) gemäß WP-002 §5. Vorbehalte: (1) Texte unter ~50 Token haben unzuverlässige
+      Erkennung; (2) nahverwandte Sprachen (Deutsch vs. Niederländisch, Serbisch vs. Kroatisch)
+      können verwechselt werden; (3) Konfidenz nahe 1,0 für durchgehend deutsche Quellen ist
+      zu erwarten und zeigt nichts Ungewöhnliches an; (4) diese Metrik ist sinnvoll als
+      Datenqualitätssignal, nicht als primärer Diskursindikator. Für einsprachige deutsche
+      Quellen in Probe 0 wird die Zeitreihe erwartungsgemäß flach nahe 1,0 verlaufen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

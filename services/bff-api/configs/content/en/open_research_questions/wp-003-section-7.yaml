@@ -1,0 +1,41 @@
+entityId: wp-003-section-7
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "What does AĒR not see? WP-003 §7 asks: how should algorithmic curation effects be documented, how should AĒR navigate shrinking research API access, and how can non-human actors be detected in automated discourse?"
+    long: >
+      WP-003's open research questions address platform bias, algorithmic amplification, and
+      the non-human actor problem — what AĒR systematically cannot observe through RSS feeds.
+      The core questions from §7 are: For social media and engagement-optimised platforms,
+      what metadata and counterfactual strategies are needed to distinguish algorithmic signal
+      from societal signal? How should AĒR navigate the post-2023 research API landscape
+      where X, Reddit, and Meta have restricted academic access? What detection strategies
+      identify non-human actors (bots, coordinated inauthentic behaviour) in text corpora
+      where no interaction metadata is available? How should demographic skew in digital
+      discourse be documented — RSS feeds over-represent institutions; what populations are
+      structurally absent? These questions require collaboration from platform governance
+      scholars, internet studies researchers, and practitioners familiar with the bot-detection
+      and data-access landscape.
+  methodological:
+    short: "Open: algorithmic curation documentation, API access alternatives, bot/CIB detection in text-only corpora, demographic skew quantification. Hooks: SilverMeta extensibility, bias documentation fields in probe registration. See WP-003 §7."
+    long: >
+      WP-003 §7 raises the structural limits of what AĒR can observe with its current
+      collection methodology. Contribution hooks: (1) Algorithmic curation framework — an
+      internet studies collaboration could specify which SilverMeta fields document platform
+      curation effects; this would be implemented as an adapter extension (RssAdapter or
+      future platform adapters); (2) Bot detection in text-only corpora — a computational
+      linguistics collaboration could propose stylometric or structural features that detect
+      non-human authorship without interaction metadata; outcome would add a new provisional
+      extractor; (3) Alternative access strategies — a platform governance collaboration
+      could evaluate legal and technical alternatives to restricted research APIs (crawling,
+      Wayback Machine, Common Crawl, cooperative partnerships) and their implications for
+      AĒR's medallion architecture; (4) Demographic skew quantification — a CSS collaboration
+      could specify how to document the structural absence of populations not represented by
+      institutional RSS sources; outcome would extend the probe registration format and inform
+      the Negative Space overlay (AĒR Phase 113).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-003 §7"

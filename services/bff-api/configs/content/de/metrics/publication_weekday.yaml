@@ -1,0 +1,40 @@
+entityId: publication_weekday
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Der ISO-Wochentag (1 = Montag, 7 = Sonntag) der Artikelveröffentlichung. Zeigt wöchentliche Redaktionszyklen, Werktag-vs-Wochenend-Muster und institutionelle Arbeitsrhythmen."
+    long: >
+      publication_weekday ist die Wochentags-Komponente des Veröffentlichungszeitstempels
+      eines Artikels nach ISO 8601-Nummerierung (1 = Montag, 7 = Sonntag). Als Verteilung
+      dargestellt, offenbart sie den wöchentlichen redaktionellen Herzschlag einer Quelle.
+      Quellen, die in institutionellen Arbeitskulturen verankert sind (Regierung, öffentlich-
+      rechtlicher Rundfunk), zeigen typischerweise steile Montag–Freitag-Konzentrationen und
+      deutliche Wochenendeinbrüche; Dauerredaktionen flachen diese Kurve ab; rein automatisierte
+      Quellen erzeugen gleichmäßige Verteilungen. Das Wochentags-Muster steht in Wechselwirkung
+      mit publication_hour: Eine Quelle, die stark an Werktagen in den Morgenstunden
+      veröffentlicht, wird fast sicher durch institutionelle Zeitplanung gesteuert, nicht durch
+      den Nachrichtenzyklus selbst. Die Metrik misst keine Nachrichtenwürdigkeit oder
+      redaktionelles Urteil — sie misst die Strukturbedingungen, unter denen Inhalte produziert
+      werden.
+  methodological:
+    short: "ISO-Wochentag aus Silver-Layer-Zeitstempel extrahiert. Tier 1 (deterministisch). Hinweis: UTC-Datumsgrenze kann den scheinbaren Wochentag bei Spätveröffentlichungen um einen Tag verschieben."
+    long: >
+      publication_weekday wird aus demselben Silver-Layer-Zeitstempel wie publication_hour
+      berechnet: der ISO-Wochentag des UTC-Datums der Veröffentlichung. Die Extraktion ist
+      zustandslos und deterministisch — Tier 1 gemäß WP-002 §3. Methodologische Vorbehalte:
+      (1) Da die Datumsgrenze in UTC berechnet wird, erscheint ein um 23:30 Uhr MEZ
+      veröffentlichter deutscher Artikel als 22:30 UTC und wird dem UTC-Wochentag zugeordnet,
+      der vom lokalen Wochentag abweichen kann. Für die meisten redaktionellen Muster ist
+      dieser Offset vernachlässigbar; bei Analysen, die sich speziell auf Montagmorgen- oder
+      Sonntagabend-Veröffentlichungen konzentrieren, verdient er Beachtung. (2) Der Zeitstempel
+      gibt die RSS-Veröffentlichungszeit an, nicht Ereignis- oder Verfassungszeit — siehe
+      publication_hour für eine vollständige Diskussion dieses Vorbehalts. (3) Bei Probe-0-
+      Quellen sind Zeitstempel maschinengeneriert und zuverlässig. Validierungsstatus: nicht
+      validiert (keine bekannten aktiven Einschränkungen für Probe 0).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

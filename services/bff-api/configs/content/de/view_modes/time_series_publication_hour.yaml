@@ -1,0 +1,36 @@
+entityId: time_series_publication_hour
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Veröffentlichungsstunde über die Zeit. Zeigt, ob sich der Uhrzeittakt einer Quelle verschiebt — nützlich zur Erkennung von redaktionellen Planungsänderungen, saisonalen Sommerzeit-Umstellungen oder Automatisierungsereignissen."
+    long: >
+      Diese Ansicht stellt publication_hour als gleitenden Durchschnitt dar — nicht einzelne
+      Artikelzeitstempel, sondern den beweglichen Mittelwert der Tageszeit, zu der eine Quelle
+      veröffentlicht. Für die meisten stabilen institutionellen Quellen ist diese Kurve
+      bemerkenswert flach: Organisationen veröffentlichen zu konsistenten Zeiten.
+      Strukturbrüche (abrupte Verschiebung der durchschnittlichen Veröffentlichungsstunde)
+      können redaktionelle Planungsänderungen, Übergabe an automatisierte Systeme oder
+      wichtige organisatorische Ereignisse anzeigen. Der jährliche MEZ/MESZ-Übergang
+      (Sommerzeit) erzeugt einen vorhersehbaren Ein-Stunden-Schritt in UTC-ausgedrückten
+      Zeiten jeden Frühling und Herbst — dies ist ein bekanntes Artefakt, keine redaktionelle
+      Änderung.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert von publication_hour (UTC, 0–23). Tier 1 — als mittlere UTC-Uhrzeit interpretieren. Saisonale UTC-Versatzsprünge sind erwartete Artefakte, keine redaktionellen Ereignisse."
+    long: >
+      publication_hour wird in dieser Zeitreihenansicht als Downsampling-Mittelwert des
+      UTC-Stundenfelds dargestellt. Als Tier-1-Metrik (WP-002 §3) ist sie vollständig
+      deterministisch. Wichtigster Interpretationsaspekt ist der UTC-vs.-Lokalzeit-Unterschied:
+      Für deutsche Quellen verschiebt sich der Mittelwert im Frühjahr (MEZ zu MESZ) um
+      ca. eine Stunde und im Herbst wieder zurück — dies sind Zeitzonen-Artefakte, keine
+      redaktionellen Änderungen. Da Tageszeit eine zirkuläre Größe ist (Stunde 23 liegt
+      neben Stunde 0), ist ein einfacher Mittelwert über Mitternacht irreführend — die
+      Zeitreihenansicht verwendet der Einfachheit halber einen linearen Mittelwert. Für
+      Quellen, die nahe Mitternacht veröffentlichen, empfiehlt sich die Verteilungsansicht,
+      die die bimodale Natur von Mitternacht-übergreifenden Verteilungen sichtbar machen kann.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

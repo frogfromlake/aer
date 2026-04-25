@@ -1,0 +1,45 @@
+entityId: wp-001-section-8
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "Who populates the probe catalog? WP-001 §8 asks: for each cultural region, which sources serve which discourse functions — and are four functions enough, or does the taxonomy need refinement?"
+    long: >
+      WP-001's open research questions address the foundational challenge of building a
+      culturally agnostic probe catalog: AĒR's functional taxonomy (epistemic authority,
+      power legitimation, cohesion identity, subversion friction) was constructed from a
+      Eurocentric theoretical base, and its cross-cultural validity is an open empirical
+      question. The key questions from §8 are: Which sources in each major cultural region
+      serve each discourse function? Are four functions sufficient, or does the taxonomy
+      need refinement for non-Western discourse landscapes — is there a fifth function (e.g.,
+      mediation), or should functions be split (e.g., religious vs. scientific epistemic
+      authority)? How should AĒR handle sources that shift discourse function over time?
+      How should probes within a probe constellation be weighted for intra-function
+      aggregation? Can discourse function be detected computationally, or does it require
+      human expert assignment? What metrics capture inter-functional dynamics — how counter-
+      discourse responds to power legitimation, how epistemic authority mediates identity
+      conflicts? These questions require collaboration from cultural anthropologists, area
+      studies scholars, comparative political scientists, and computational social scientists.
+  methodological:
+    short: "Open: cultural coverage, taxonomy validity, inter-functional dynamics, automated function classification. Hooks: probe registration, WP-001 Appendix B, discourse_function tag in aer_gold.metrics. See WP-001 §8."
+    long: >
+      WP-001 §8 identifies three disciplinary clusters of open questions with concrete
+      deliverable forms. Pipeline hooks where external collaboration can contribute:
+      (1) Regional Probe Nomination — area experts produce Probe Registration Reports
+      (WP-001 Appendix B format) identifying candidate sources per function per cultural
+      region; these are ingested as new probe seeds; (2) Taxonomy Critique — CSS researchers
+      with non-Western corpus experience review the four-function taxonomy and produce formal
+      critiques; outcome is either a validated taxonomy or a revised specification leading to
+      a discourse_function schema migration; (3) Inter-functional metrics — computational
+      researchers propose cross-function metrics (response latency, topic convergence, entity
+      co-occurrence across functions); these are candidates for new GoldMetric extractors
+      once mathematically specified and computationally assessed. The AĒR system is currently
+      instrumented for all of these: the discourse_function column in aer_gold.metrics enables
+      cross-function queries; the probe registration process in WP-001 Appendix B defines the
+      contribution format; the extractor pipeline (CLAUDE.md MetricExtractor protocol) is the
+      implementation target for new inter-functional metrics.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §8"

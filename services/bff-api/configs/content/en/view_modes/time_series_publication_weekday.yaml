@@ -1,0 +1,33 @@
+entityId: time_series_publication_weekday
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Publication weekday over time. For most stable sources this curve is flat — deviations signal real shifts in editorial scheduling, such as weekend coverage expansion or reduced weekday output."
+    long: >
+      This view plots publication_weekday as a rolling average across the observation window.
+      Because weekday is a weekly-cycle quantity, the time series is most interpretable over
+      multi-week or multi-month ranges where the rolling mean stabilises. For institutional
+      sources with strong Monday–Friday concentration, the mean publication weekday hovers
+      near 3 (Wednesday). Shifts toward higher values (more weekend publishing) or lower
+      values (front-loading the week) are meaningful structural changes. This view is better
+      suited for long-range trend analysis than for short windows, where individual weeks
+      dominate the average.
+  methodological:
+    short: "5-minute downsampled mean of publication_weekday (ISO 1–7). Tier 1. Note: interpreting a mean of a weekly-cycle quantity requires multi-week observation windows to be meaningful."
+    long: >
+      publication_weekday is a Tier 1 deterministic metric (WP-002 §3). In this time-series
+      view, it is plotted as a downsampled mean — which requires careful interpretation.
+      publication_weekday is a categorical quantity with weekly periodicity; its arithmetic
+      mean is only meaningful when computed over spans long enough to average across multiple
+      full weeks. Over short windows (days to a week), the apparent trend is dominated by
+      which day the window happens to start and end on, not by any structural editorial change.
+      Prefer the distribution view for characterising a source's weekday pattern within a
+      fixed window; use this time-series view for detecting shifts in that pattern across
+      extended observation periods.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

@@ -1,0 +1,45 @@
+entityId: wp-006-section-8
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Wie sollte AĒR sich selbst regieren? WP-006 §8 fragt: Wie kann AĒRs Beobachtereffekt empirisch untersucht werden, welche Governance-Strukturen sind für ein Open-Source-Makroskop angemessen, und wie sollte sich die Ethik der Diskursmessung weiterentwickeln?"
+    long: >
+      Die offenen Forschungsfragen von WP-006 befassen sich mit der Reflexivität und Ethik des
+      Betriebs von AĒR als System — Fragen, die dringlicher werden, je mehr der Probe-Katalog
+      wächst und das System für veröffentlichte Analysen eingesetzt wird. Die zentralen Fragen
+      aus §8: Kann ein natürliches Experiment konzipiert werden, das misst, ob AĒRs Veröffentlichung
+      von Diskursmetriken die nachfolgende Diskursproduktion tatsächlich verändert? Welche
+      Governance-Strukturen sind für ein Open-Source-Diskursmakroskop angemessen, das sowohl
+      wissenschaftlich transparent als auch resistent gegen Instrumentalisierung sein soll? Wie
+      sollte AĒR mit Quellen umgehen, die erkennen, dass sie beobachtet werden und entsprechend
+      reagieren? Wie sollte der k-Anonymitätsschwellenwert kalibriert werden, und wer sollte die
+      Befugnis haben, ihn zu ändern? Was sind die ethischen Grenzen bei der Ausdehnung des
+      Probe-Katalogs auf Gesellschaften mit aktiver Unterdrückung der Medienfreiheit? Diese Fragen
+      erfordern Zusammenarbeit von STS-Wissenschaftlern, Wissenschaftssoziologen, Ethikkommissionen
+      und Rechtsexperten für Datenschutz und Meinungsfreiheitsrecht.
+  methodological:
+    short: "Offen: empirische Beobachtereffekt-Studie, Governance-Strukturentwurf, k-Anonymitätskalibrierung, ethische Expansionskriterien für Hochrisikogeografien. Hooks: k_min-Parameter, silver_eligible-Gate, Ethiküberprüfungsfeld in der Probe-Registrierung. Siehe WP-006 §8."
+    long: >
+      WP-006 §8 hat die grundlegendsten Langzeitimplikationen für AĒRs Architektur und Governance.
+      Beitrags-Hooks: (1) Beobachtereffekt-Studiendesign — eine STS-Zusammenarbeit könnte ein
+      Forschungsprotokoll zum Messen entwickeln, ob AĒRs öffentliche Metriken das Verhalten
+      beobachteter Quellen verändern; das Protokoll würde Beobachtungsdesign, Kontrollgruppen und
+      Ergebnismaße spezifizieren; (2) Governance-Strukturentwurf — eine Wissenschafts-Governance-
+      Zusammenarbeit könnte ein Aufsichtsmodell für den Probe-Katalog spezifizieren; Ergebnis wäre
+      ein formales Governance-Dokument, auf das ADR-019 und zukünftige ADRs verweisen können;
+      (3) k-Anonymitätskalibrierung — eine Datenschutz-Engineering- und Sozialwissenschafts-
+      Zusammenarbeit könnte eine prinzipienbasierte Kalibrierung von k_min auf Basis empirischer
+      Re-Identifizierungsrisikomodelle vorschlagen; Ergebnis würde die k_min-Konfiguration und
+      den k_anonymity_threshold_not_met-Verweigerungsinhalt aktualisieren; (4) Ethische
+      Expansionskriterien — eine Forschungsethik-Zusammenarbeit könnte Bedingungen spezifizieren,
+      unter denen AĒR auf Quellen in politisch repressiven Umgebungen ausgedehnt werden darf,
+      einschließlich Risikobewertung für Quellen und Subjekte, mit einem formalen Ethiküberprüfungs-
+      prozeß als Voraussetzung für Hochrisiko-Probe-Ergänzungen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-006 §8"
+  - "WP-006 §7"
+  - "WP-006 §5.2"

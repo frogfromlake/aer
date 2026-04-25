@@ -1,0 +1,35 @@
+entityId: distribution_publication_weekday
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Publication weekday distribution. Shows the full weekly pattern of when a source publishes — the most direct view of the editorial work week."
+    long: >
+      The distribution view for publication_weekday renders publication volume across the
+      seven days of the week as a bar chart. This is typically the most interpretable view for
+      this metric: a single bar chart shows the source's editorial week at a glance. Strong
+      Monday–Friday bars with flat Saturday–Sunday bars are the signature of institutional
+      editorial production. A uniform distribution indicates continuous-operation sources.
+      A distinctive Wednesday spike may reflect a scheduled weekly report series. Within a
+      probe, comparing weekday distributions across sources reveals whether all sources share
+      the same structural calendar or whether some sources operate on a different rhythm —
+      a structural finding about their respective institutional contexts.
+  methodological:
+    short: "Bar chart over publication_weekday (ISO 1=Mon, 7=Sun). Tier 1. Normalise by corpus size when comparing sources of different activity levels. UTC date boundary applies (see metric entry)."
+    long: >
+      The distribution is a frequency count over the seven integer values of publication_weekday
+      (ISO 8601: 1 = Monday, 7 = Sunday). Tier 1 deterministic (WP-002 §3). Methodological
+      notes: (1) raw counts are proportional to source activity level; normalise to publication
+      rates (articles per day of week) when comparing a prolific source with a low-volume one;
+      (2) the UTC date-boundary caveat applies — see the metric entry for publication_weekday;
+      for Probe 0 sources, this affects only a small fraction of articles published near
+      midnight UTC; (3) within a probe scope, the distribution aggregates across sources —
+      a probe-level peak on Monday reflects aggregate Monday volume, which could mask one
+      source publishing heavily on Monday while another peaks on Thursday. Source-scope
+      narrowing reveals per-source patterns.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

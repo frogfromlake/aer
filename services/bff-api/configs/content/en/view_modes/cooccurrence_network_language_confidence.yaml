@@ -1,0 +1,32 @@
+entityId: cooccurrence_network_language_confidence
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Network view is not meaningful for language detection confidence. This metric is a data-quality signal, not a relational actor metric. Use the time-series or distribution view instead."
+    long: >
+      language_confidence measures how certain the language detector is about an article's
+      language — it is a data-quality signal, not a discourse phenomenon. There are no
+      entities to place as nodes and no pairs to connect. A network layout for this metric
+      would produce an empty graph. To understand language confidence patterns, use the
+      distribution view (to see the overall spread of detection certainty) or the time-series
+      view (to detect if confidence drops over time, which would signal corpus quality issues).
+      Language-conditional analysis — filtering all other metrics to articles where a specific
+      language was detected with high confidence — is available as a query filter, not as
+      a network cell.
+  methodological:
+    short: "Not applicable: language_confidence is a document scalar with no relational structure. Recommended alternatives: time_series_language_confidence, distribution_language_confidence."
+    long: >
+      language_confidence is the per-document probability output of the langdetect model for
+      the primary detected language. It has no entity or pair dimension. The co-occurrence
+      network cell cannot be meaningfully populated with this metric; the backend query returns
+      an empty result set. This is correct behaviour — language confidence is a metadata
+      quality signal about corpus composition, not a variable describing the relational
+      structure of discourse actors. Use the distribution view to characterise how well the
+      corpus is linguistically resolved, and use language as a filter on other analyses
+      rather than as a standalone network metric.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

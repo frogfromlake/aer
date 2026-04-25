@@ -1,0 +1,39 @@
+entityId: cohesion_identity
+entityType: empty_lane
+locale: en
+registers:
+  semantic:
+    short: "This lane monitors sources that construct and reinforce shared collective identity — the we of a society: its shared values, national narratives, cultural reference points, and group boundaries."
+    long: >
+      The Cohesion and Identity lane tracks sources whose primary discourse function is to
+      articulate and reinforce a sense of collective belonging: national broadcasters framing
+      shared cultural heritage, religious institutions addressing their communities, cultural
+      publications maintaining traditions, and sports media constructing team-based identity
+      narratives. These sources are not primarily about facts (epistemic authority) or about
+      power (power legitimation) — they are about who we are. Analysing this function reveals
+      the identity infrastructure of a discourse: which narratives of collective belonging
+      are active, which groups are centred or marginalised, and how identity-constructing
+      discourse responds to social stress. This lane is currently empty — add a source
+      classified as cohesion_identity to activate this analytical perspective.
+  methodological:
+    short: "Lane empty: no source classified as cohesion_identity is active in this probe. This function often involves cultural, religious, or community publications. Consult WP-001 §3.3 for classification criteria."
+    long: >
+      cohesion_identity in WP-001's taxonomy covers sources whose primary discourse function
+      is the construction and maintenance of collective identity — WP-001 §3.3. This includes
+      national public broadcasters with a cultural remit, religious media, community
+      publications, cultural institutions, and sports media. The classification is etic;
+      sources need not frame themselves as identity-producing — many present as neutral
+      informational services while structurally performing an identity-maintenance function.
+      An empty lane indicates no registered source for this function in the current probe.
+      From a discourse-completeness standpoint, an absent cohesion-identity voice means the
+      probe cannot observe how collective identity is produced and contested in the target
+      society. This absence is itself analytically significant and should be documented in
+      the probe registration record (WP-001 Appendix B). To add a source, follow the
+      standard probe registration process.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §3.3"
+  - "WP-001 §5.3"

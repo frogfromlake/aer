@@ -1,0 +1,35 @@
+entityId: pillar_unavailable
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "The analytical pillar you selected has no data for this scope. AĒR's three pillars — Aleph (NLP), Episteme (metadata mining), Rhizome (network science) — each require specific extractors. Not all are active for every source."
+    long: >
+      AĒR organises its analytical perspectives into three pillars: Aleph (NLP-based metrics:
+      sentiment, language, entities), Episteme (structural metadata: temporal distribution,
+      word count), and Rhizome (network science: entity co-occurrence). You have selected a
+      pillar for which no data is available in the current scope and time window. This can
+      occur because: the relevant extractor was not active for this source during the selected
+      period; the source has insufficient articles in the window to produce a meaningful
+      aggregation; or the selected pillar requires a corpus-level computation (Rhizome) that
+      has not yet been executed for this source. The other pillars are unaffected. Use the
+      Probe Dossier to check which metrics are active for each source in this probe.
+  methodological:
+    short: "HTTP 403 or empty response: the requested pillar (Aleph/Episteme/Rhizome) has no computed data for this scope/window. Check metric availability via GET /api/v1/metrics/available."
+    long: >
+      This refusal surfaces when a view-mode query targets metrics or aggregations for a pillar
+      that has no rows in the corresponding Gold tables for the requested scope and time window.
+      The most common cases: (1) Rhizome (entity co-occurrence) — the EntityCoOccurrenceExtractor
+      is a corpus-level batch process; its output may lag behind the current date by up to one
+      extraction cycle; newly indexed sources may not have co-occurrence data yet; (2) Aleph
+      NLP metrics — if spaCy or SentiWS models were not available at ingestion time, NLP-based
+      metrics may be absent for early articles; (3) any pillar — for sources with very low
+      article volume in the selected window, no rows may exist above the minimum aggregation
+      threshold. Resolution: widen the time window, check metric availability via
+      GET /api/v1/metrics/available, or wait for the next corpus-extraction cycle. This gate
+      is informational — it reflects corpus state, not a policy restriction.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

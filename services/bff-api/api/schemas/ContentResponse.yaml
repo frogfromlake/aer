@@ -24,6 +24,10 @@ properties:
       - probe
       - discourse_function
       - refusal
+      - view_mode
+      - empty_lane
+      - open_research_question
+      - primer
     example: metric
   locale:
     type: string

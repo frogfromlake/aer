@@ -1,0 +1,48 @@
+entityId: wp-006-section-8
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "How should AĒR govern itself? WP-006 §8 asks: how can AĒR's observer effect be empirically studied, what governance structures are appropriate for an open-source macroscope, and how should the ethics of discourse measurement evolve as the system grows?"
+    long: >
+      WP-006's open research questions address the reflexivity and ethics of running AĒR
+      as a system — questions that become more urgent as the probe catalog grows and the
+      system is used for published analysis. The core questions from §8 are: Can we design
+      a natural experiment to measure whether AĒR's publication of discourse metrics actually
+      alters subsequent discourse production? What governance structures are appropriate for
+      an open-source discourse macroscope that aims to be both scientifically transparent and
+      resistant to weaponisation? How should AĒR handle sources that detect and respond to
+      being monitored — a form of Goodhart's Law applied to discourse? How should the k-
+      anonymity threshold (currently k_min = 5) be calibrated, and who should be empowered
+      to change it? What are the ethical boundaries of expanding the probe catalog to cover
+      societies with active repression of media — where monitoring itself could create risk
+      for sources or subjects? These questions require collaboration from STS scholars,
+      sociologists of science, ethics boards, and legal experts in data governance and
+      freedom-of-expression law.
+  methodological:
+    short: "Open: observer effect empirical study, governance structure design, k-anonymity calibration, ethical expansion criteria for high-risk geographies. Hooks: k_min parameter, silver_eligible gate, probe registration ethics review field. See WP-006 §8."
+    long: >
+      WP-006 §8 has the most fundamental long-term implications for AĒR's architecture and
+      governance. Contribution hooks: (1) Observer effect study design — an STS collaboration
+      could produce a research protocol for measuring whether AĒR's public metrics alter the
+      discourse of monitored sources; the protocol would specify monitoring design, matched
+      controls, and outcome measures; if the effect is confirmed, the result would inform the
+      observer-effect warning content in the methodology tray; (2) Governance structure design —
+      a science governance collaboration could specify an oversight model for the probe catalog:
+      who may add sources, what review process applies, how disputes about eligibility or
+      classification are resolved; outcome would be a formal governance document that ADR-019
+      and future ADRs can reference; (3) k-anonymity calibration — a privacy engineering and
+      social science collaboration could propose a principled calibration of k_min based on
+      empirical re-identification risk models; outcome would update the k_min configuration
+      and the k_anonymity_threshold_not_met refusal content; (4) Ethical expansion criteria —
+      a research ethics collaboration could specify the conditions under which AĒR may be
+      extended to cover sources in politically repressive environments, including risk assessment
+      for sources and subjects, with a formal ethics review process as a prerequisite for
+      high-risk probe additions.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-006 §8"
+  - "WP-006 §7"
+  - "WP-006 §5.2"

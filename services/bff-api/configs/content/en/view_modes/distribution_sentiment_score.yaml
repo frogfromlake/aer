@@ -1,0 +1,34 @@
+entityId: distribution_sentiment_score
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Sentiment score distribution. Shows the spread of emotional register across all articles in the window — whether output is uniformly neutral, skewed negative, or split between positive and negative framings."
+    long: >
+      The distribution view for sentiment_score renders the full spread of polarity values
+      across all articles in the selected scope and window. This is often more revealing than
+      a time-series mean: a source with a mean sentiment near zero might produce almost
+      entirely neutral content, or might alternate between sharply positive and sharply negative
+      articles that cancel out in the average. The distribution reveals which case applies.
+      A sharp peak near zero is the typical profile for institutional sources (government
+      communications tend toward neutral framing); a left-skewed distribution (mass at negative
+      values) may indicate crisis reporting or sustained critical coverage.
+  methodological:
+    short: "Histogram / density of sentiment_score values (range −1 to +1). Provisional (Tier 3). Values cluster near zero for institutional German sources; tail shape is the meaningful signal."
+    long: >
+      The distribution is a histogram over sentiment_score values (SentiWS v2.0, mean polarity
+      aggregation, range −1 to +1) for the selected scope and window. Tier 3 (provisional)
+      under WP-002 §5. Interpretive notes: (1) for German institutional RSS sources, the
+      distribution is expected to be tightly peaked near zero — this is not a limitation but
+      a feature of the institutional register; (2) the meaningful signal is in the tail shape
+      and any secondary peaks, not the exact mean; (3) all sentiment limitations (negation,
+      irony, genre mismatch — see metric entry) apply equally to distributional shape;
+      (4) bin count defaults to 30 across the −1 to +1 range; with a narrow distribution,
+      reducing bin count improves readability. Do not compare absolute distribution shapes
+      across sources with different linguistic registers without consulting WP-004 §3.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"
+  - "WP-004 §3"

@@ -1,0 +1,40 @@
+entityId: wp-005-section-7
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Wie sollte AĒR über Zeit nachdenken? WP-005 §7 fragt: Welche temporale Zerlegungsmethode eignet sich für unregelmäßiges RSS-Sampling, wie sollten Wechselpunkte erkannt werden, und welche zeitliche Auflösung ist für verschiedene Diskursphänomene angemessen?"
+    long: >
+      Die offenen Forschungsfragen von WP-005 befassen sich mit der Zeitanalyse-Problematik —
+      wie aus Diskursdaten mit unregelmäßigem Sampling, strukturellen Brüchen und überlappenden
+      Periodizitäten bedeutsame zeitbasierte Muster extrahiert werden können. Die zentralen
+      Fragen aus §7: Welche temporale Zerlegungsmethode (klassisch, STL, Wavelets) eignet sich
+      am besten für AĒRs unregelmäßig abgetastete Zeitreihen mit möglichen strukturellen Brüchen?
+      Welcher Wechselpunkt-Erkennungsalgorithmus (CUSUM, PELT, Bayesianisch) ist für AĒRs
+      Dateneigenschaften angemessen? Was ist die minimale zeitliche Auflösung, bei der Diskurs-
+      verschiebungen statistisch zuverlässig werden? Wie sollte AĒR mit dem Mehrfachvergleichs-
+      problem umgehen, wenn es gleichzeitig über viele Metriken und Quellen nach Wechselpunkten
+      sucht? Diese Fragen erfordern Zusammenarbeit von Zeitreihenanalytikern, Statistikern und
+      Forschern, die mit Ereignisuntersuchungsmethodik vertraut sind.
+  methodological:
+    short: "Offen: Zerlegungsmethode, Wechselpunkt-Erkennung, Auflösungstradeoffs, Mehrfachvergleichskontrolle. Hooks: BFF-Downsampling-Parameter, NATS-Auslöser-Zeitplan, 5-Minuten-Bucket in aer_gold.metrics. Siehe WP-005 §7."
+    long: >
+      WP-005 §7 hat direkte Implikationen für AĒRs Zeitreihen-Abfrage-Infrastruktur.
+      Beitrags-Hooks: (1) Zerlegungsmethoden-Evaluation — eine Zeitreihenstatistik-Zusammenarbeit
+      könnte eine vergleichende Evaluation auf Probe-0-Daten liefern; Ergebnis würde einen neuen
+      Zerlegungsendpunkt informieren oder eine Zerlegungsvorverarbeitung zu bestehenden
+      Zeitreihenantworten hinzufügen; (2) Wechselpunkt-Erkennung — eine statistische Zusammenarbeit
+      könnte einen validierten Algorithmus und dessen Parameter spezifizieren; Ergebnis wäre ein
+      neuer BFF-Endpunkt (GET /api/v1/metrics/{name}/changepoints) mit einer neuen ClickHouse-Abfrage;
+      (3) Auflösungsspezifikation — eine CSS-Methodologie-Zusammenarbeit könnte Mindestbeobachtungs-
+      anzahlen und Zeitfenster nach Metrik-Tier festlegen; Ergebnis würde Zeitreihenanfragen mit
+      Korpusgrößenwarnungen absichern; (4) Mehrfachvergleichsprotokoll — eine statistische
+      Zusammenarbeit könnte ein Korrekturverfahren für AĒRs gleichzeitiges Scan-Szenario
+      spezifizieren; Ergebnis würde informieren, wie die Korrelationsmatrix (Phase 102) Signifikanz
+      ausgibt. AĒRs aktuelles 5-Minuten-Downsampling ist ein Engineering-Standard, der nach
+      dieser Arbeit möglicherweise überarbeitet werden muss.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-005 §7"

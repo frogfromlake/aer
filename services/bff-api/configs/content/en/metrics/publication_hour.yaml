@@ -1,0 +1,39 @@
+entityId: publication_hour
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "The UTC hour (0–23) at which an article was published. Reveals editorial scheduling rhythms, institutional timing conventions, and round-the-clock vs. office-hours publication patterns."
+    long: >
+      publication_hour is the hour component of an article's publication timestamp, expressed
+      in UTC on a 0–23 scale. When charted across a source's corpus, it reveals the temporal
+      texture of editorial production: does the source publish in concentrated morning bursts,
+      follow the news cycle with evening peaks, or distribute output evenly across the clock?
+      Institutional sources governed by communication departments tend to cluster around office
+      hours; public broadcasters with continuous news desks show flatter distributions with
+      peaks around major bulletin times. For German sources, UTC hour maps to local time by
+      adding +1 (CET, winter) or +2 (CEST, summer). This is a structural signal about how
+      an organisation produces content, not about what it says.
+  methodological:
+    short: "UTC hour extracted from Silver-layer timestamp. Tier 1 (deterministic). Key caveat: UTC ≠ local time — add +1/+2 for German sources."
+    long: >
+      publication_hour is the integer hour field of the article's publication timestamp as
+      stored in the Silver layer (sourced from the RSS feed's pubDate or equivalent). Extraction
+      is deterministic: identical timestamps produce identical output with no model dependency.
+      Tier 1 under WP-002 §3. Methodological caveats: (1) AĒR stores and compares all
+      timestamps in UTC — local timezone offsets are not applied. For the Probe 0 corpus
+      (tagesschau.de, bundesregierung.de), the local time is UTC+1 (CET) in winter and UTC+2
+      (CEST) in summer; hour-of-day patterns in the dashboard appear shifted relative to
+      the German news cycle unless the viewer mentally applies this offset. (2) The timestamp
+      is when the RSS item was published, not when the underlying event occurred or when the
+      article was written. For institutional sources with queued editorial workflows, publication
+      time may lag authoring time by hours or days. (3) For Probe 0 sources, timestamps are
+      machine-generated and reliable; for sources with irregular or manipulated timestamps,
+      publication_hour may not reflect actual editorial timing. Validation status: unvalidated
+      (no known active limitations for Probe 0).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

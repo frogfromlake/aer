@@ -39,10 +39,14 @@ type ContentRecord struct {
 type ContentCatalog map[string]ContentRecord
 
 var validEntityTypes = map[string]bool{
-	"metric":             true,
-	"probe":              true,
-	"discourse_function": true,
-	"refusal":            true,
+	"metric":                true,
+	"probe":                 true,
+	"discourse_function":    true,
+	"refusal":               true,
+	"view_mode":             true,
+	"empty_lane":            true,
+	"open_research_question": true,
+	"primer":                true,
 }
 
 var validLocales = map[string]bool{
@@ -107,7 +111,7 @@ func validateContentRecord(r ContentRecord, path string) error {
 		return loc("entityId is required")
 	}
 	if !validEntityTypes[r.EntityType] {
-		return loc(fmt.Sprintf("invalid entityType %q; must be one of metric, probe, discourse_function, refusal", r.EntityType))
+		return loc(fmt.Sprintf("invalid entityType %q; must be one of metric, probe, discourse_function, refusal, view_mode, empty_lane, open_research_question, primer", r.EntityType))
 	}
 	if !validLocales[r.Locale] {
 		return loc(fmt.Sprintf("invalid locale %q; must be one of en, de", r.Locale))
@@ -139,14 +143,14 @@ func validateRegister(reg ContentRegister, field, path string) error {
 	if reg.Short == "" {
 		return loc("short is required")
 	}
-	if len([]rune(reg.Short)) > 200 {
-		return loc(fmt.Sprintf("short exceeds 200 characters (%d)", len([]rune(reg.Short))))
+	if len([]rune(reg.Short)) > 300 {
+		return loc(fmt.Sprintf("short exceeds 300 characters (%d)", len([]rune(reg.Short))))
 	}
 	if reg.Long == "" {
 		return loc("long is required")
 	}
-	if len([]rune(reg.Long)) > 2000 {
-		return loc(fmt.Sprintf("long exceeds 2000 characters (%d)", len([]rune(reg.Long))))
+	if len([]rune(reg.Long)) > 4000 {
+		return loc(fmt.Sprintf("long exceeds 4000 characters (%d)", len([]rune(reg.Long))))
 	}
 	return nil
 }

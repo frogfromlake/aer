@@ -1,0 +1,39 @@
+entityId: power_legitimation
+entityType: empty_lane
+locale: de
+registers:
+  semantic:
+    short: "Diese Spur überwacht Quellen, die im Namen oder zur Unterstützung formeller institutioneller Macht sprechen — Regierungen, Regierungsparteien, offizielle Stellen — deren primäre Funktion darin besteht, bestehende Autorität zu rechtfertigen."
+    long: >
+      Die Power-Legitimation-Spur verfolgt Quellen, die die Ausübung formeller institutioneller
+      Autorität artikulieren, verteidigen und normalisieren: offizielle Regierungskommunikation,
+      Medien von Regierungsparteien, unter politischer Leitung operierende staatliche Rundfunker
+      und institutionelle Stellen, die politische Entscheidungen als rational und notwendig
+      rahmen. Diese Quellen sind nicht primär über Fakten (epistemische Autorität) oder Identität
+      (Kohäsion) — sie handeln davon, wie Macht sich selbst rechtfertigt: Welche Narrative werden
+      für die Herrschaft eingesetzt, welche Akteure als verantwortlich benannt, wie werden Krisen
+      gerahmt, und ob die legitimierende Sprache rund um Wahlen oder politische Konflikte intensiver
+      wird. Diese Spur ist derzeit leer — fügen Sie eine als power_legitimation klassifizierte
+      Quelle hinzu, um diese analytische Perspektive zu aktivieren.
+  methodological:
+    short: "Spur leer: keine als power_legitimation klassifizierte Quelle in dieser Probe aktiv. Power Legitimation ist eine etische Klassifikation — die Quelle muss sich nicht selbst so identifizieren. WP-001 §3 konsultieren."
+    long: >
+      power_legitimation in WP-001s Taxonomie identifiziert Quellen, deren strukturelle Funktion
+      darin besteht, die amtierende institutionelle Macht zu legitimieren — unabhängig davon,
+      ob sie sich als neutral, informationsorientiert oder autoritativ selbst bezeichnen. Die
+      Klassifikation ist streng etisch: Sie beschreibt, was die Quelle im Diskurs-Ökosystem
+      tut, nicht was sie zu tun behauptet. Regierungsministerien, offizielle
+      Parteikommunikation und staatlich finanzierte Nachrichtenkanäle sind kanonische
+      Beispiele. Eine leere Spur zeigt an, dass für diese Probe keine Quelle mit dieser
+      Funktion registriert wurde. Dies schafft eine strukturelle Lücke in der analytischen
+      Abdeckung: Die Probe kann den legitimierenden Register des Diskurses für die Zielgesellschaft
+      nicht beobachten. Um eine Quelle hinzuzufügen: einen Probe-Registrierungsdatensatz ausfüllen,
+      primary_function = power_legitimation mit unterstützender etischer Begründung zuweisen und
+      einen PR gegen den Probe-Katalog öffnen. Hinweis: Für Probe 0 ist bundesregierung.de RSS
+      als power_legitimation klassifiziert und sollte diese Spur füllen, wenn aktiv.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §3"
+  - "WP-001 §5.2"

@@ -1,0 +1,41 @@
+entityId: wp-002-section-7
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Wie valide sind AĒRs Metriken? WP-002 §7 fragt: Welche Sentimentmethode ist für deutschen institutionellen Text geeignet, wie sollte Entitätssalienz über NER-Zählungen hinaus gemessen werden, und wann können Metriken für quellenübergreifende Vergleiche vertraut werden?"
+    long: >
+      Die offenen Forschungsfragen von WP-002 befassen sich mit der Metrikvaliditäts-
+      Herausforderung im Kern von AĒRs wissenschaftlichen Ansprüchen. Die zentralen Fragen
+      aus §7: Ist die SentiWS-Lexikon-basierte Sentimentanalyse die richtige Methode für
+      deutschen institutionellen RSS-Text, oder gibt es eine validierte deterministische
+      Alternative, die Negation und Kompositionalität handhabt? Ab welchem Umfang kann einem
+      Korpus vertraut werden, Metrik-Aggregate zu tragen — was ist die Mindestartikelmenge
+      für zuverlässige Sentiment- oder Entitätsverteilungen? Wie sollte AĒR mit temporaler
+      Autokorrelation in Diskurs-Zeitreihen umgehen — aufeinanderfolgende Artikel derselben
+      Quelle zum selben Thema sind keine unabhängigen Beobachtungen? Wie sollte das Tier-System
+      operationalisiert werden — was stellt ausreichende interdisziplinäre Validierung dar, damit
+      eine Metrik von Tier 3 (vorläufig) auf Tier 2 (evaluiert) oder Tier 1 (validiert) aufsteigt?
+      Diese Fragen erfordern Zusammenarbeit von Computational Social Scientists, Korpuslinguisten
+      und Statistikern mit Erfahrung in abhängigen Daten.
+  methodological:
+    short: "Offen: Sentimentvalidität für deutschen institutionellen Text, Mindestkorpusgrößenschwellen, Handhabung temporaler Autokorrelation, Tier-Aufstiegsprotokoll. Hooks: SentimentExtractor, NamedEntityExtractor, WP-002 §3 Tier-Framework. Siehe WP-002 §7."
+    long: >
+      WP-002 §7 identifiziert offene Validierungsfragen mit direkten Pipeline-Implikationen.
+      Beitrags-Hooks: (1) Sentiment-Methodologieüberprüfung — eine Computerlinguistik-
+      Zusammenarbeit könnte eine vergleichende Evaluation von SentiWS vs. alternativen deutschen
+      Lexika oder Modellen auf einem institutionellen Text-Goldstandard liefern; Ergebnis
+      würde den SentimentExtractor aktualisieren oder eine validierte Alternative einführen;
+      (2) Mindestkorpusgrößenprotokoll — eine statistische Zusammenarbeit könnte n_min-Schwellen
+      nach Metrik-Typ festlegen; Ergebnis würde die Aggregationsendpunkte der BFF-API mit einer
+      methodologischen Warnung absichern, wenn der Korpus unter der Schwelle liegt; (3) Auto-
+      korrelationshandhabung — eine Zeitreihenstatistik-Zusammenarbeit könnte Korrekturrechnungen
+      für AĒRs Zeitreihen spezifizieren; Ergebnis würden Unsicherheitsbänder in der Zeitreihen-
+      ansicht hinzufügen, die innersource-Korrelation angemessen berücksichtigen; (4) Tier-
+      Aufstiegsprotokoll — eine CSS-Methodologie-Zusammenarbeit könnte die Validierungskriterien
+      und den Überprüfungsprozeß für die Metrikbeförderung von Tier 3 auf Tier 2 spezifizieren.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §7"

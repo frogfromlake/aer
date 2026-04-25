@@ -1,0 +1,35 @@
+entityId: time_series_sentiment_score
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Sentiment polarity over time. Shows whether the emotional register of published text shifts — toward more positive or negative framing — across the observation window."
+    long: >
+      This view plots sentiment_score as a time series, revealing how the aggregate emotional
+      register of a source's output moves across time. Sustained downward trends may signal
+      escalating negative framing around a topic; upward movements may reflect resolution,
+      positive reframing, or an editorial shift in subject matter. Sharp single-day movements
+      often correlate with major news events. Because sentiment is aggregated at source level,
+      this view does not identify which articles drive the pattern — use the distribution or
+      article-level views for attribution. This metric is provisional: lexicon-based sentiment
+      analysis is a baseline, not a validated measurement.
+  methodological:
+    short: "5-minute downsampled mean of SentiWS v2.0 sentiment_score (range −1 to +1). Provisional (Tier 3). Known limitations: negation, irony, compound adjectives in German."
+    long: >
+      sentiment_score in this view is displayed as a 5-minute downsampled time series.
+      Uncertainty bands reflect within-bucket variance. The metric is computed by the
+      SentimentExtractor using the SentiWS v2.0 German lexicon with mean polarity
+      aggregation — Tier 3 (provisional) under WP-002 §5. The time-series view is appropriate
+      for trend analysis but not for precise event attribution. Critical limitations: (1) SentiWS
+      was validated on newspaper text and may not transfer cleanly to institutional press releases
+      or government communications; (2) negation (nicht gut → positive-scored word counted as
+      positive) is not handled; (3) irony and rhetorical inversion are not detected; (4) the
+      mean aggregation is sensitive to outliers in short time windows. Cross-source comparison
+      is only valid if both sources use similar linguistic registers (WP-004 §3). This view
+      requires interdisciplinary validation before use in published analysis (WP-002 §7).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"
+  - "WP-004 §3"

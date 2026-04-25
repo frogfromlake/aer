@@ -1,0 +1,30 @@
+entityId: cooccurrence_network_publication_hour
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Network view is not meaningful for publication hour. Time-of-day is a scheduling property, not a relational actor dimension. Use the distribution view to see the full daily publishing rhythm."
+    long: >
+      publication_hour describes when articles are published on the clock — it is a scheduling
+      attribute of documents, not a property of named entities or the relationships between
+      them. There are no actors to place as nodes and no co-occurrence pairs to draw as edges.
+      Applying a network layout to publication hour produces an empty graph. The informative
+      views for this metric are the distribution (the 24-hour publishing rhythm) and the
+      time-series (whether that rhythm shifts over months). Publication timing can be used as
+      a stratification variable in other analyses — for example, comparing entity networks
+      built from morning vs. evening publications — but this is a filter, not a network metric.
+  methodological:
+    short: "Not applicable: publication_hour is a document timestamp attribute with no relational structure. Recommended alternatives: distribution_publication_hour, time_series_publication_hour."
+    long: >
+      publication_hour is an integer (0–23) extracted from a document timestamp. It has no
+      entity dimension and no pair structure. The co-occurrence network cell cannot be
+      populated with this metric; the backend returns an empty result set. This is correct
+      behaviour. Temporal stratification (e.g., analysing co-occurrence networks built only
+      from articles published in specific hour ranges) is available by applying time-range
+      filters in the scope parameters of the entity network view, but the metric itself
+      cannot drive the network structure.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

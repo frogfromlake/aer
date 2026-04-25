@@ -1,0 +1,41 @@
+entityId: wp-003-section-7
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Was sieht AĒR nicht? WP-003 §7 fragt: Wie sollten algorithmische Kurationeffekte dokumentiert werden, wie sollte AĒR mit schrumpfenden Forschungs-APIs umgehen, und wie können nicht-menschliche Akteure in automatisiertem Diskurs erkannt werden?"
+    long: >
+      Die offenen Forschungsfragen von WP-003 befassen sich mit Plattform-Bias, algorithmischer
+      Verstärkung und dem Nicht-Menschen-Akteurs-Problem — was AĒR durch RSS-Feeds strukturell
+      nicht beobachten kann. Die zentralen Fragen aus §7: Für engagement-optimierte Plattformen:
+      Welche Metadaten- und kontrafaktischen Strategien sind notwendig, um algorithmisches Signal
+      von gesellschaftlichem Signal zu unterscheiden? Wie sollte AĒR mit der eingeschränkten
+      Forschungs-API-Landschaft nach 2023 umgehen? Welche Erkennungsstrategien identifizieren
+      nicht-menschliche Akteure (Bots, koordiniertes unechtes Verhalten) in Textkorpora ohne
+      Interaktionsmetadaten? Wie sollte demografische Verzerrung in digitalem Diskurs dokumentiert
+      werden — RSS-Feeds überrepräsentieren Institutionen; welche Bevölkerungsgruppen fehlen
+      strukturell? Diese Fragen erfordern Zusammenarbeit von Platform-Governance-Wissenschaftlern,
+      Internet-Studies-Forschern und Praktikern, die mit Bot-Erkennung und Datenzugangsfragen
+      vertraut sind.
+  methodological:
+    short: "Offen: Algorithmische-Kuration-Dokumentation, API-Zugangsalternativen, Bot/CIB-Erkennung in reinen Textkorpora, Demografische-Verzerrung-Quantifizierung. Hooks: SilverMeta-Erweiterbarkeit, Bias-Dokumentationsfelder in der Probe-Registrierung. Siehe WP-003 §7."
+    long: >
+      WP-003 §7 zeigt die strukturellen Grenzen auf, was AĒR mit seiner aktuellen
+      Sammlungsmethodik beobachten kann. Beitrags-Hooks: (1) Algorithmisches Kurationsframework —
+      eine Internet-Studies-Zusammenarbeit könnte spezifizieren, welche SilverMeta-Felder
+      Plattform-Kurationeffekte dokumentieren; dies würde als Adapter-Erweiterung implementiert;
+      (2) Bot-Erkennung in reinen Textkorpora — eine Computerlinguistik-Zusammenarbeit könnte
+      stilometrische oder strukturelle Merkmale vorschlagen, die nicht-menschliche Autorschaft
+      ohne Interaktionsmetadaten erkennen; Ergebnis wäre ein neuer vorläufiger Extraktor;
+      (3) Alternative Zugriffsstrategien — eine Plattform-Governance-Zusammenarbeit könnte
+      rechtliche und technische Alternativen zu eingeschränkten Forschungs-APIs evaluieren
+      (Crawling, Wayback Machine, Common Crawl) und deren Implikationen für AĒRs Medallion-
+      Architektur; (4) Demografische Verzerrungsquantifizierung — eine CSS-Zusammenarbeit
+      könnte spezifizieren, wie die strukturelle Abwesenheit von Bevölkerungsgruppen dokumentiert
+      werden kann, die nicht durch institutionelles RSS repräsentiert sind; Ergebnis würde das
+      Probe-Registrierungsformat erweitern und den Negativraum-Overlay informieren (AĒR Phase 113).
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-003 §7"

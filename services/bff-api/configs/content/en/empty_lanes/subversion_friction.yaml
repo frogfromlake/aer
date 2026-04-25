@@ -1,0 +1,40 @@
+entityId: subversion_friction
+entityType: empty_lane
+locale: en
+registers:
+  semantic:
+    short: "This lane monitors sources that push against dominant discourse — counter-narratives, dissent, alternative framings, and voices that challenge the assumptions of the other three functions."
+    long: >
+      The Subversion and Friction lane tracks sources that occupy the critical, disruptive,
+      or counter-hegemonic position in discourse: investigative journalism challenging power,
+      activist media producing alternative framings, diaspora publications contesting dominant
+      national narratives, and satirical sources that expose the contradictions within
+      established discourse. These are the voices of contestation — the sources that make
+      the other three functions visible by refusing to reproduce their assumptions. Without
+      this lane, the probe can only observe the dominant and the normalising registers;
+      it cannot see what is being resisted, contested, or subverted. This lane is currently
+      empty — add a source classified as subversion_friction to complete the functional
+      coverage of the probe.
+  methodological:
+    short: "Lane empty: no source classified as subversion_friction is active in this probe. This is the hardest function to classify — counter-discourse often presents as neutral. Consult WP-001 §3.4–§3.5."
+    long: >
+      subversion_friction in WP-001's taxonomy identifies sources whose primary function is
+      to contest, subvert, or produce friction against dominant discourse — WP-001 §3.4–§3.5.
+      This is the most methodologically difficult classification: counter-discourse sources
+      rarely self-identify as disruptive, and the structural function must be inferred from
+      their relationship to the other three functions in the probe. A source is classified
+      as subversion_friction when its output systematically challenges the factual claims of
+      epistemic authorities, contests the legitimating narratives of power, or destabilises
+      dominant identity constructions. Investigative newsrooms, activist publications, and
+      diaspora media are common examples. An empty lane is the most analytically significant
+      absence: a probe that can only observe dominant and legitimating discourse is blind to
+      the dynamics of contested power. WP-001 §5.3 specifically addresses the observability
+      challenge — counter-discourse sources are often harder to access via standard RSS/API
+      collection methods.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §3.4"
+  - "WP-001 §3.5"
+  - "WP-001 §5.3"

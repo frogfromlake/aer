@@ -1,0 +1,41 @@
+entityId: subversion_friction
+entityType: empty_lane
+locale: de
+registers:
+  semantic:
+    short: "Diese Spur überwacht Quellen, die gegen den dominanten Diskurs wirken — Gegennarrative, Dissens, alternative Rahmungen und Stimmen, die die Annahmen der anderen drei Funktionen in Frage stellen."
+    long: >
+      Die Subversion-und-Reibungs-Spur verfolgt Quellen, die die kritische, störende oder
+      gegenhegemoniale Position im Diskurs einnehmen: investigativer Journalismus, der Macht
+      herausfordert, Aktivisten-Medien, die alternative Rahmungen produzieren,
+      Diaspora-Publikationen, die dominante nationale Narrative anfechten, und satirische
+      Quellen, die die Widersprüche innerhalb des etablierten Diskurses freilegen. Dies sind
+      die Stimmen der Anfechtung — die Quellen, die die anderen drei Funktionen sichtbar machen,
+      indem sie ihre Annahmen verweigern zu reproduzieren. Ohne diese Spur kann die Probe nur
+      die dominanten und normalisierenden Register beobachten; sie kann nicht sehen, was
+      widerstanden, angefochten oder untergraben wird. Diese Spur ist derzeit leer — fügen Sie
+      eine als subversion_friction klassifizierte Quelle hinzu, um die funktionale Abdeckung
+      der Probe zu vervollständigen.
+  methodological:
+    short: "Spur leer: keine als subversion_friction klassifizierte Quelle in dieser Probe aktiv. Dies ist die schwierigste Funktion zu klassifizieren — Gegendiskurs präsentiert sich oft als neutral. WP-001 §3.4–§3.5 konsultieren."
+    long: >
+      subversion_friction in WP-001s Taxonomie identifiziert Quellen, deren primäre Funktion
+      darin besteht, den dominanten Diskurs anzufechten, zu untergraben oder Reibung dagegen
+      zu erzeugen — WP-001 §3.4–§3.5. Dies ist die methodologisch schwierigste Klassifikation:
+      Gegendiskurs-Quellen identifizieren sich selten selbst als störend, und die strukturelle
+      Funktion muss aus ihrer Beziehung zu den anderen drei Funktionen in der Probe erschlossen
+      werden. Eine Quelle wird als subversion_friction klassifiziert, wenn ihr Output systematisch
+      die Faktenansprüche epistemischer Autoritäten herausfordert, die legitimierenden Narrative
+      der Macht anficht oder dominante Identitätskonstruktionen destabilisiert. Investigative
+      Nachrichtenredaktionen, Aktivistenpublikationen und Diaspora-Medien sind häufige Beispiele.
+      Eine leere Spur ist die analytisch bedeutsamste Abwesenheit: Eine Probe, die nur dominanten
+      und legitimierenden Diskurs beobachten kann, ist blind für die Dynamiken angefochtener
+      Macht. WP-001 §5.3 behandelt speziell die Beobachtbarkeitsproblematik —
+      Gegendiskurs-Quellen sind durch Standard-RSS/API-Methoden oft schwerer zugänglich.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §3.4"
+  - "WP-001 §3.5"
+  - "WP-001 §5.3"

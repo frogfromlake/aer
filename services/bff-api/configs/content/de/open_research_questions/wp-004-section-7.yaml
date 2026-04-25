@@ -1,0 +1,41 @@
+entityId: wp-004-section-7
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Wann kann AĒR kulturübergreifend vergleichen? WP-004 §7 fragt: Welche Metriken haben realistische Wege zu skalarer transkultureller Äquivalenz, welche Validierungsmethodik gilt, und wie sollten inkommensurable Metriken präsentiert werden?"
+    long: >
+      Die offenen Forschungsfragen von WP-004 befassen sich mit der Vergleichbarkeitsproblematik —
+      der schwierigsten wissenschaftlichen Frage, der AĒR gegenübersteht, wenn es jemals für
+      transkulturelle Analysen eingesetzt werden soll. Die zentralen Fragen aus §7: Welche AĒR-
+      Metriken (Sentiment, Entitätssalienz, Themenverbreitung, zeitliche Verteilung) haben für
+      jede Metrik einen realistischen Weg zu skalarer Äquivalenz über Sprachen und Kulturkontexte?
+      Welche Validierungsmethodik — analog zu Messinvarianz-Tests in der Umfrageforschung — ist
+      für Diskursmetriken angemessen? Wie sollte AĒR Metriken präsentieren, die zeitlich
+      vergleichbar (innerhalb einer Kultur über Zeit), aber in absoluten Werten nicht transkulturell
+      kommensurabel sind? Wie sollten transkulturelle Vergleiche nominaler Kategorien (Entitätstypen,
+      Diskursfunktionen) gehandhabt werden, wenn die Kategorien selbst möglicherweise nicht kulturell
+      universal sind? Diese Fragen erfordern Zusammenarbeit von Vergleichssozialwissenschaftlern,
+      transkultureller Psychologie und Methodologen mit Spezialisierung auf Messinvarianz-Tests.
+  methodological:
+    short: "Offen: Metrik-für-Metrik-Äquivalenzbeurteilung, Messinvarianz-Testprotokoll, Präsentationskonventionen für inkommensurable Metriken. Hooks: cross_source_without_equivalence-Gate, WP-004 §3 skalares Äquivalenzframework. Siehe WP-004 §7."
+    long: >
+      WP-004 §7 hat den direktesten Einfluss auf AĒRs cross_source_without_equivalence-Gate.
+      Beitrags-Hooks: (1) Metrik-Äquivalenzaudit — eine Vergleichssozialwissenschaft-Zusammenarbeit
+      könnte eine Metrik-für-Metrik-Beurteilung liefern, die spezifiziert, welches Vergleichsniveau
+      (temporale Abweichung, Rangordnung, absolut) für jede Metrik über welche Sprachpaare valide ist;
+      Ergebnis würde die Per-Metrik-Regeln des Gates und den entsprechenden Verweigerungsinhalt
+      aktualisieren; (2) Messinvarianz-Protokoll — eine CSS-Methodologie-Zusammenarbeit könnte ein
+      formales Protokoll für die Herstellung konfigureraler, metrischer und skalarer Invarianz für
+      AĒR-Metriken spezifizieren; dies würde die empirischen Bedingungen definieren, unter denen das
+      Gate aufgehoben wird; (3) Inkommensurable Metrikpräsentation — eine Datenvisualisierungs-
+      Zusammenarbeit könnte spezifizieren, wie Metriken präsentiert werden, die für temporale
+      Vergleiche, aber nicht für absolute quellenübergreifende Vergleiche valide sind; (4) Kategoriale
+      Vergleichbarkeit — eine transkulturelle Linguistik-Zusammenarbeit könnte prüfen, ob AĒRs
+      Entitätslabels und Diskursfunktionskategorien kulturübergreifend sinnvoll vergleichbar sind.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-004 §7"
+  - "WP-004 §3"

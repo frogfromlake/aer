@@ -1,0 +1,38 @@
+entityId: distribution_sentiment_score
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Sentimentscore-Verteilung. Zeigt die Streuung des emotionalen Registers über alle Artikel im Fenster — ob der Output gleichmäßig neutral ist, negativ tendiert oder zwischen positiver und negativer Rahmung gespalten ist."
+    long: >
+      Die Verteilungsansicht für sentiment_score stellt die vollständige Streuung der
+      Polaritätswerte über alle Artikel im ausgewählten Geltungsbereich und Fenster dar.
+      Dies ist oft aussagekräftiger als ein Zeitreihenmittelwert: Eine Quelle mit einem
+      Mittelwert nahe null könnte fast ausschließlich neutrale Inhalte produzieren oder
+      aber zwischen scharf positiven und scharf negativen Artikeln wechseln, die sich im
+      Mittelwert aufheben. Die Verteilung offenbart, welcher Fall vorliegt. Eine scharfe
+      Spitze nahe null ist das typische Profil institutioneller Quellen (Regierungskommunikation
+      tendiert zu neutraler Rahmung); eine linksschiefe Verteilung (Masse bei negativen
+      Werten) kann auf Krisenberichterstattung oder anhaltende kritische Berichterstattung
+      hinweisen.
+  methodological:
+    short: "Histogramm / Dichte von sentiment_score-Werten (Bereich −1 bis +1). Vorläufig (Tier 3). Werte clustern nahe null für institutionelle deutsche Quellen; die Tail-Form ist das aussagekräftige Signal."
+    long: >
+      Die Verteilung ist ein Histogramm über sentiment_score-Werte (SentiWS v2.0,
+      Mittelwert-Polaritätenaggregation, Bereich −1 bis +1) für den ausgewählten
+      Geltungsbereich und Zeitraum. Tier 3 (vorläufig) gemäß WP-002 §5.
+      Interpretationshinweise: (1) für deutsche institutionelle RSS-Quellen wird die
+      Verteilung erwartungsgemäß eng um null gepeakt — dies ist kein Mangel, sondern ein
+      Merkmal des institutionellen Registers; (2) das aussagekräftige Signal liegt in der
+      Tail-Form und etwaigen Nebengipfeln, nicht im genauen Mittelwert; (3) alle
+      Sentiment-Einschränkungen (Negation, Ironie, Genretransfer — siehe Metrik-Eintrag)
+      gelten gleichermaßen für die Verteilungsform; (4) die Bin-Anzahl hat standardmäßig 30
+      über den Bereich −1 bis +1; bei enger Verteilung verbessert eine Reduktion der
+      Bin-Anzahl die Lesbarkeit. Absolute Verteilungsformen quellenübergreifend ohne
+      WP-004 §3-Äquivalenzprüfung nicht vergleichen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"
+  - "WP-004 §3"

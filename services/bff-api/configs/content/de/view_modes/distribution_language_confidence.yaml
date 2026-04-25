@@ -1,0 +1,33 @@
+entityId: distribution_language_confidence
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Spracherkennungskonfidenz-Verteilung. Zeigt, wie konsistent die Quelle in einer einzigen erkennbaren Sprache veröffentlicht — ein Datenqualitäts- und Korpuszusammensetzungssignal."
+    long: >
+      Die Verteilungsansicht für language_confidence zeigt die Streuung der Erkennungssicherheit
+      über alle Artikel im ausgewählten Fenster. Für eine stabile einsprachige Quelle wird die
+      Verteilung eng nahe 1,0 gepackt sein — dies ist das erwartete Profil für Probe 0. Ein
+      langer linker Tail (viele Artikel mit niedrigerer Konfidenz) deutet auf kurze Artikel,
+      gemischtsprachigen Inhalt, zitatreichen Text oder Modellunsicherheit bezüglich eines
+      bestimmten sprachlichen Registers hin. Diese Ansicht ist primär ein Datenqualitätsinstrument:
+      Sie sagt, wie vertrauenswürdig sprachbedingte Analysen des Korpus sind, nicht etwas
+      über den Diskurs selbst.
+  methodological:
+    short: "Histogramm / Dichte von langdetect-Konfidenzscores (0–1). Vorläufig (Tier 3). Für einsprachige deutsche Quellen wird eine Spitze nahe 1,0 erwartet; linker Tail zeigt Niedrig-Konfidenz-Artikel an."
+    long: >
+      Die Verteilung ist ein Histogramm der langdetect-Konfidenzwerte für die primär erkannte
+      Sprache, berechnet über alle Artikel im ausgewählten Geltungsbereich und Fenster.
+      Tier 3 (vorläufig) gemäß WP-002 §5. Interpretation: (1) für durchgehend deutsche Quellen
+      wird eine scharfe rechtsseitige Spitze nahe 1,0 erwartet — jeder Artikel mit Konfidenz
+      unter 0,9 ist einer manuellen Prüfung wert; (2) kurze Texte (< 50 Token) erzeugen
+      unzuverlässige Konfidenzwerte und vergrößern den linken Tail; (3) die Verteilung
+      spiegelt Per-Artikel-Konfidenz wider, nicht Per-Satz — gemischtsprachige Absätze können
+      mittlere Konfidenzwerte erzeugen, die ihre tatsächliche Struktur verbergen; (4) Änderungen
+      in dieser Verteilung im Zeitverlauf (in der Zeitreihenansicht sichtbar) können auf
+      Inhaltswechsel in der Quelle hinweisen, nicht auf echte sprachliche Verschiebungen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

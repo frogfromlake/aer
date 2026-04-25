@@ -1,0 +1,44 @@
+entityId: wp-004-section-7
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "When can AĒR compare across cultures? WP-004 §7 asks: which metrics have realistic paths to cross-cultural scalar equivalence, what validation methodology applies, and how should incommensurable metrics be presented?"
+    long: >
+      WP-004's open research questions address the comparability challenge — the hardest
+      scientific question AĒR faces if it is ever to be used for cross-cultural analysis.
+      The core questions from §7 are: For each of AĒR's planned metrics (sentiment, entity
+      salience, topic prevalence, temporal distribution), is there a realistic path to
+      establishing scalar equivalence across languages and cultural contexts? What validation
+      methodology — analogous to measurement invariance testing in survey methodology — is
+      appropriate for discourse metrics? How should AĒR present metrics that are temporally
+      comparable (within a culture over time) but not cross-culturally commensurable in
+      absolute terms? How should cross-cultural comparisons of nominal categories (entity
+      types, discourse functions) be handled when the categories themselves may not be
+      culturally universal? These questions require collaboration from comparative social
+      scientists, cross-cultural psychologists, and methodologists specialised in
+      measurement invariance testing.
+  methodological:
+    short: "Open: metric-by-metric equivalence assessment, measurement invariance testing protocol, presentation conventions for incommensurable metrics. Hooks: cross_source_without_equivalence gate, WP-004 §3 scalar equivalence framework. See WP-004 §7."
+    long: >
+      WP-004 §7 has the most direct impact on AĒR's cross_source_without_equivalence gate.
+      Contribution hooks: (1) Metric equivalence audit — a comparative social science
+      collaboration could produce a metric-by-metric assessment specifying which comparison
+      level (temporal deviation, rank order, absolute) is valid for each metric across which
+      language pairs; outcome would update the gate's per-metric rules and the corresponding
+      refusal content; (2) Measurement invariance protocol — a CSS methodology collaboration
+      could specify a formal protocol for establishing configural, metric, and scalar
+      invariance for AĒR metrics; this would define the empirical conditions under which
+      the cross_source_without_equivalence gate is lifted; (3) Incommensurable metric
+      presentation — a data visualisation collaboration could specify how to present metrics
+      that are valid for temporal comparison but not absolute cross-source comparison;
+      outcome would inform the dashboard's cross-source comparison view with appropriate
+      uncertainty framing; (4) Nominal category comparability — a cross-cultural linguistics
+      collaboration could review whether AĒR's entity labels and discourse function categories
+      are meaningfully comparable across cultural contexts.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-004 §7"
+  - "WP-004 §3"

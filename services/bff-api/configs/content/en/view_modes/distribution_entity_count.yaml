@@ -1,0 +1,35 @@
+entityId: distribution_entity_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Named entity density distribution. Shows the full range of how entity-rich articles are — from sparse, abstract pieces to dense, multi-actor reports — and how that range compares across sources."
+    long: >
+      The distribution view for entity_count reveals the structural range of how specifically
+      an article references the social world: how many named people, places, and organisations
+      appear? A tight, low-value distribution indicates a source producing relatively abstract
+      or generic content. A wide right-skewed distribution suggests a mix of brief news items
+      and entity-dense reports (parliamentary debates, summit coverage, multi-party negotiations).
+      Comparing this distribution across sources within a probe can identify which source
+      produces the most referentially specific content — a structurally meaningful difference
+      in discourse function. This view complements the network view, which shows how the
+      entities relate to each other.
+  methodological:
+    short: "Histogram / density of per-article entity_count from spaCy de_core_news_lg. Provisional (Tier 3). Right-tail truncation recommended; outliers are real (long parliamentary articles)."
+    long: >
+      The distribution is a histogram of entity_count values per article in the selected
+      scope and window. Tier 3 (provisional) under WP-002 §5 — entity counts depend on
+      spaCy's German NER model (de_core_news_lg 3.8.0). Interpretation notes: (1) the
+      distribution naturally skews right because entity count is bounded below at zero but
+      unbounded above; very long articles with many actors produce extreme right-tail values
+      (e.g., full parliamentary session transcripts); (2) the mode (most frequent count) is
+      typically more interpretively useful than the mean; (3) all NER limitations apply —
+      government press release style may systematically undercount organisation entities;
+      (4) entity types are merged in this count; for type-stratified distributions, use the
+      entity aggregation endpoints directly. Bin count defaults to 30; right-tail truncation
+      is recommended for corpora with high-count outliers.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

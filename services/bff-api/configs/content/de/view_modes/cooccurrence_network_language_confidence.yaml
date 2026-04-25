@@ -1,0 +1,32 @@
+entityId: cooccurrence_network_language_confidence
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Die Netzwerkansicht ist für Spracherkennungskonfidenz nicht sinnvoll. Diese Metrik ist ein Datenqualitätssignal, keine relationale Akteursdimension. Für die Verteilungs- oder Zeitreihenansicht optieren."
+    long: >
+      language_confidence misst, wie sicher der Spracherkennungsalgorithmus bezüglich der
+      Sprache eines Artikels ist — es handelt sich um ein Datenqualitätssignal, kein
+      Diskursphänomen. Es gibt keine Akteure, die als Knoten platziert, und keine Paare,
+      die als Kanten verbunden werden können. Ein Netzwerklayout für diese Metrik ergibt einen
+      leeren Graphen. Die aussagekräftigen Ansichten für diese Metrik sind die Verteilung
+      (zur Darstellung der Gesamtstreuung der Erkennungssicherheit) und die Zeitreihe (zur
+      Erkennung, ob die Konfidenz im Zeitverlauf sinkt — was auf Korpusqualitätsprobleme
+      hinweisen würde). Sprachbedingte Analyse — das Filtern aller anderen Metriken auf
+      Artikel, bei denen eine bestimmte Sprache mit hoher Konfidenz erkannt wurde — ist als
+      Abfragefilter verfügbar, nicht als Netzwerkzelle.
+  methodological:
+    short: "Nicht anwendbar: language_confidence ist ein Dokumentenskalar ohne relationale Struktur. Empfohlene Alternativen: time_series_language_confidence, distribution_language_confidence."
+    long: >
+      language_confidence ist die Per-Dokument-Wahrscheinlichkeitsausgabe des langdetect-
+      Modells für die primär erkannte Sprache. Sie hat keine Entitäts- und keine Paardimension.
+      Die Co-Occurrence-Netzwerkzelle kann mit dieser Metrik nicht befüllt werden; das Backend
+      gibt ein leeres Ergebnis zurück. Dies ist korrektes Verhalten — Sprachkonfidenz ist ein
+      Metadaten-Qualitätssignal über die Korpuszusammensetzung, keine Variable, die die
+      relationale Struktur von Diskursakteuren beschreibt. Für Analysen, die sprachlich auf
+      Hochkonfidenz-Artikel filtern, den Sprachfilterparameter in anderen Ansichten verwenden.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

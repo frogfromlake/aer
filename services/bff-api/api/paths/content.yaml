@@ -3,7 +3,8 @@ get:
   summary: Get Dual-Register content for an entity
   description: >
     Returns the semantic and methodological register text for a single entity
-    (metric, probe, discourse function, or refusal type). Content is sourced
+    (metric, probe, discourse function, refusal, view-mode cell, empty-lane invitation,
+    open research question, or primer). Content is sourced
     from versioned YAML files under `services/bff-api/configs/content/` and
     loaded at startup. The `locale` query parameter selects the language;
     defaults to `en`. Returns 404 if no content entry exists for the requested
@@ -21,6 +22,10 @@ get:
           - probe
           - discourse_function
           - refusal
+          - view_mode
+          - empty_lane
+          - open_research_question
+          - primer
     - name: entityId
       in: path
       required: true

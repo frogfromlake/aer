@@ -91,10 +91,14 @@ func (e AvailableMetricValidationStatus) Valid() bool {
 
 // Defines values for ContentResponseEntityType.
 const (
-	ContentResponseEntityTypeDiscourseFunction ContentResponseEntityType = "discourse_function"
-	ContentResponseEntityTypeMetric            ContentResponseEntityType = "metric"
-	ContentResponseEntityTypeProbe             ContentResponseEntityType = "probe"
-	ContentResponseEntityTypeRefusal           ContentResponseEntityType = "refusal"
+	ContentResponseEntityTypeDiscourseFunction    ContentResponseEntityType = "discourse_function"
+	ContentResponseEntityTypeEmptyLane            ContentResponseEntityType = "empty_lane"
+	ContentResponseEntityTypeMetric               ContentResponseEntityType = "metric"
+	ContentResponseEntityTypeOpenResearchQuestion ContentResponseEntityType = "open_research_question"
+	ContentResponseEntityTypePrimer               ContentResponseEntityType = "primer"
+	ContentResponseEntityTypeProbe                ContentResponseEntityType = "probe"
+	ContentResponseEntityTypeRefusal              ContentResponseEntityType = "refusal"
+	ContentResponseEntityTypeViewMode             ContentResponseEntityType = "view_mode"
 )
 
 // Valid indicates whether the value is a known member of the ContentResponseEntityType enum.
@@ -102,11 +106,19 @@ func (e ContentResponseEntityType) Valid() bool {
 	switch e {
 	case ContentResponseEntityTypeDiscourseFunction:
 		return true
+	case ContentResponseEntityTypeEmptyLane:
+		return true
 	case ContentResponseEntityTypeMetric:
+		return true
+	case ContentResponseEntityTypeOpenResearchQuestion:
+		return true
+	case ContentResponseEntityTypePrimer:
 		return true
 	case ContentResponseEntityTypeProbe:
 		return true
 	case ContentResponseEntityTypeRefusal:
+		return true
+	case ContentResponseEntityTypeViewMode:
 		return true
 	default:
 		return false
@@ -292,10 +304,14 @@ func (e GetContentParamsLocale) Valid() bool {
 
 // Defines values for GetContentParamsEntityType.
 const (
-	GetContentParamsEntityTypeDiscourseFunction GetContentParamsEntityType = "discourse_function"
-	GetContentParamsEntityTypeMetric            GetContentParamsEntityType = "metric"
-	GetContentParamsEntityTypeProbe             GetContentParamsEntityType = "probe"
-	GetContentParamsEntityTypeRefusal           GetContentParamsEntityType = "refusal"
+	GetContentParamsEntityTypeDiscourseFunction    GetContentParamsEntityType = "discourse_function"
+	GetContentParamsEntityTypeEmptyLane            GetContentParamsEntityType = "empty_lane"
+	GetContentParamsEntityTypeMetric               GetContentParamsEntityType = "metric"
+	GetContentParamsEntityTypeOpenResearchQuestion GetContentParamsEntityType = "open_research_question"
+	GetContentParamsEntityTypePrimer               GetContentParamsEntityType = "primer"
+	GetContentParamsEntityTypeProbe                GetContentParamsEntityType = "probe"
+	GetContentParamsEntityTypeRefusal              GetContentParamsEntityType = "refusal"
+	GetContentParamsEntityTypeViewMode             GetContentParamsEntityType = "view_mode"
 )
 
 // Valid indicates whether the value is a known member of the GetContentParamsEntityType enum.
@@ -303,11 +319,19 @@ func (e GetContentParamsEntityType) Valid() bool {
 	switch e {
 	case GetContentParamsEntityTypeDiscourseFunction:
 		return true
+	case GetContentParamsEntityTypeEmptyLane:
+		return true
 	case GetContentParamsEntityTypeMetric:
+		return true
+	case GetContentParamsEntityTypeOpenResearchQuestion:
+		return true
+	case GetContentParamsEntityTypePrimer:
 		return true
 	case GetContentParamsEntityTypeProbe:
 		return true
 	case GetContentParamsEntityTypeRefusal:
+		return true
+	case GetContentParamsEntityTypeViewMode:
 		return true
 	default:
 		return false

@@ -1,0 +1,37 @@
+entityId: cooccurrence_network_entity_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Entity co-occurrence network. Shows which named entities appear together in the same articles — revealing which actors, places, and organisations are structurally connected in discourse."
+    long: >
+      The co-occurrence network view renders a force-directed graph where nodes are named
+      entities and edges connect entities that appear in the same article. Node size reflects
+      how frequently an entity appears across the corpus; edge weight reflects how often
+      the connected pair co-occurs. This view is the primary network-science perspective
+      on discourse: it reveals not which entities are mentioned, but which ones are mentioned
+      together — the relational structure of the discourse. Dense clusters indicate topic areas
+      with tightly linked actor sets. Isolated nodes are entities that appear in single-entity
+      articles. This view is the natural complement to entity_count: where entity_count tells
+      you how many entities appear, the network tells you how they are organised.
+  methodological:
+    short: "Force-directed graph from aer_gold.entity_cooccurrences. Computed by EntityCoOccurrenceExtractor on a configured time window per source. Node: entity; edge: co-occurrence count. Provisional (Tier 3)."
+    long: >
+      The co-occurrence network is backed by the aer_gold.entity_cooccurrences table, populated
+      by the EntityCoOccurrenceExtractor corpus-level aggregation. Pair ordering is lexicographic;
+      self-pairs are excluded; counts reflect within-document co-occurrence within the configured
+      time window. Tier 3 (provisional) under WP-002 §5, as it inherits all NER limitations
+      from the NamedEntityExtractor. Critical notes: (1) the graph visualises co-mention, not
+      causal or semantic relationship — two entities co-occurring frequently does not mean they
+      are causally linked; (2) high-frequency entities (proper names of major political actors,
+      frequently mentioned locations) will have many edges and dominate the graph — apply topN
+      filtering to focus on structurally interesting relationships; (3) within a probe scope,
+      the network aggregates co-occurrences across sources, which may merge separate discourse
+      communities into one apparent network; (4) entity name resolution is exact-string matching
+      — the same entity referred to by two different strings (e.g., "Scholz" vs. "Bundeskanzler
+      Scholz") appears as two nodes.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

@@ -1,0 +1,30 @@
+entityId: cooccurrence_network_publication_hour
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Die Netzwerkansicht ist für Veröffentlichungsstunden nicht sinnvoll. Uhrzeit ist eine Planungseigenschaft, keine relationale Akteursdimension. Für die Verteilungsansicht optieren, um den vollständigen täglichen Veröffentlichungsrhythmus zu sehen."
+    long: >
+      publication_hour beschreibt, wann Artikel uhrzeitmäßig veröffentlicht werden — es ist
+      ein Planungsattribut von Dokumenten, keine Eigenschaft benannter Entitäten oder der
+      Beziehungen zwischen ihnen. Es gibt keine Akteure als Knoten und keine Co-Occurrence-Paare
+      als Kanten. Die aussagekräftigen Ansichten für diese Metrik sind die Verteilung (der
+      24-Stunden-Veröffentlichungsrhythmus) und die Zeitreihe (ob sich dieser Rhythmus über
+      Monate verschiebt). Die Veröffentlichungsstunde kann als Stratifizierungsvariable in
+      anderen Analysen verwendet werden — z. B. Vergleich von Entitätsnetzwerken aus Morgen-
+      vs. Abendveröffentlichungen — aber die Metrik selbst treibt keine Netzwerkstruktur an.
+  methodological:
+    short: "Nicht anwendbar: publication_hour ist ein Dokument-Zeitstempel-Attribut ohne relationale Struktur. Empfohlene Alternativen: distribution_publication_hour, time_series_publication_hour."
+    long: >
+      publication_hour ist eine ganze Zahl (0–23), aus einem Dokumentzeitstempel extrahiert.
+      Sie hat keine Entitätsdimension und keine Paarstruktur. Die Co-Occurrence-Netzwerkzelle
+      kann mit dieser Metrik nicht befüllt werden; das Backend gibt entwurfsbedingt ein leeres
+      Ergebnis zurück. Zeitliche Stratifikation (z. B. Analyse von Co-Occurrence-Netzwerken,
+      die nur aus Artikeln in bestimmten Stundenranges aufgebaut werden) ist als
+      Filterparameter in der Entitäts-Co-Occurrence-Netzwerkabfrage verfügbar, aber das
+      Stundenattribut selbst kann die Netzwerktopologie nicht antreiben.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"

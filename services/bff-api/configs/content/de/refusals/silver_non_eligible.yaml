@@ -1,0 +1,44 @@
+entityId: silver_non_eligible
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Diese Quelle wurde noch nicht für den Silver-Layer-Zugriff überprüft. AĒR gibt keine einzelnen Artikeltexte für Quellen frei, die keine methodologische und ethische Prüfung abgeschlossen haben."
+    long: >
+      Sie haben Zugriff auf Silver-Layer-Inhalte (Artikeltext, bereinigter Text oder
+      Per-Artikel-Metadaten) für eine Quelle angefordert, der keine Silver-Layer-
+      Zulässigkeit gewährt wurde. Dies ist keine technische Einschränkung — es ist ein
+      prinzipiengeleitetes Governance-Gate. Die Silver-Schicht enthält einzelne Artikeltexte,
+      die personenbezogene Informationen (Autorennamen, Bylines, namentlich genannte Quellen),
+      kommerziell sensible Inhalte oder Material tragen können, dessen Weiterverbreitung durch
+      Urheberrecht oder Nutzungsbedingungen rechtlich eingeschränkt ist. AĒR gibt
+      Silver-Inhalte erst frei, nachdem ein Prüfer die Quelle gemäß WP-006 §5.2 bewertet
+      hat: Reidentifizierungsrisiko, Beobachtereffekt-Überlegungen und rechtliche Compliance.
+      Bis zum Abschluss dieser Prüfung werden Silver-Inhalte für diese Quelle zurückgehalten.
+      Die Gold-Schicht (aggregierte Metriken) ist vollständig zugänglich — die
+      Diskursmuster dieser Quelle können ohne Lektüre einzelner Artikel beobachtet werden.
+      Um eine Silver-Zulässigkeitsprüfung anzufordern, das Governance-Verfahren in
+      WP-006 §5.2 konsultieren.
+  methodological:
+    short: "HTTP 403: Quelle nicht Silver-zulässig (WP-006 §5.2-Gate). Gold-Metriken sind nicht betroffen. Silver-Zugriff erfordert eine abgeschlossene Zulässigkeitsprüfung — siehe WP-006 §5.2 für das Prüfprotokoll."
+    long: >
+      Diese Verweigerung wird ausgelöst, wenn eine Anfrage an einen Silver-Endpunkt
+      (GET /api/v1/silver/documents oder GET /api/v1/silver/documents/{id}) für eine Quelle
+      gestellt wird, deren silver_eligible-Flag auf false gesetzt ist. Das Flag wird
+      Per-Quelle in der PostgreSQL-Quelltabelle gesetzt; es ist für alle Quellen
+      standardmäßig false und wird nur durch eine einmalige Datenbankmigration nach
+      Abschluss einer WP-006 §5.2-Prüfung auf true gesetzt. Die Prüfung bewertet:
+      (1) Reidentifizierungsrisiko — kann individueller Artikeltext zur Identifizierung
+      von Autoren, Quellen oder Subjekten verwendet werden? (2) Beobachtereffektrisiko —
+      würde die Exposition von Artikelebenen-Detail gegenüber Analyse-Tools das Verhalten
+      der Quelle so ändern, dass der Korpus entwertet wird? (3) Rechtliche und
+      Nutzungsbedingungen-Compliance — erlaubt die Quelle diese Zugriffstiefe?
+      Probe-0-Quellen (tagesschau.de RSS, bundesregierung.de RSS) wurden als institutionelle
+      öffentliche Rundfunk- und Regierungsdaten ohne Reidentifizierungsrisiko automatisch
+      freigegeben. Alle anderen Quellen erfordern individuelle Prüfung. Die Gold-Schicht ist
+      von diesem Gate nicht betroffen und bleibt zugänglich. Gate-Anker: WP-006 §5.2.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-006 §5.2"

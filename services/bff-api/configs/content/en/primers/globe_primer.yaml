@@ -1,0 +1,76 @@
+entityId: globe_primer
+entityType: primer
+locale: en
+registers:
+  semantic:
+    short: "How to read the atmosphere. The globe shows where AĒR is listening — probes as labelled points, their glow reflecting discourse activity. This is a map of observation, not a map of truth."
+    long: >
+      # How to Read the Globe
+
+      ## What you are looking at
+
+      The three-dimensional globe is AĒR's Atmosphere surface (Surface I) — a live map of
+      where the system is listening. Each labelled point is a **probe**: a structured set of
+      sources covering a specific cultural region and discourse ecology. The probe is not a
+      country; it is an analytical commitment to observe a particular slice of public discourse
+      with a specific set of sources, classified by the four discourse functions (Epistemic
+      Authority, Power Legitimation, Cohesion & Identity, Subversion & Friction).
+
+      ## What glows mean
+
+      The visual intensity of a probe glyph reflects recent discourse activity — how many
+      articles the probe's sources have published in the last observation window. Brighter
+      glyphs are more active probes. This is a measure of data density, not of importance,
+      controversy, or societal significance. A dim probe may be a low-volume source, not a
+      quiet society.
+
+      ## What satellites are
+
+      Smaller, muted points orbiting a probe glyph are **source satellites** — the individual
+      sources that make up the probe. Hovering over a satellite names the source. Clicking a
+      satellite navigates to the Probe Dossier with that source pre-selected. Satellites cannot
+      be selected as independent analytical scopes on this surface; they are contextual markers.
+
+      ## How to descend
+
+      Selecting a probe glyph opens the **Probe Dossier** on Surface II (Function Lanes) —
+      the primary scientific surface. The globe is an entry point, not the primary workspace.
+      All metric analysis, view-mode exploration, and article browsing happen on Surface II.
+
+      ## What AĒR does not show
+
+      The globe displays where AĒR is monitoring, not where discourse is happening. Large
+      areas of the globe — most of Africa, Central Asia, parts of Southeast Asia — are unmonitored.
+      This is not because nothing is happening there; it is because no probe has been commissioned
+      for those regions. The **Negative Space overlay** (available via the toggle in the left rail)
+      makes these absences explicit — turning the unmonitored areas into visible positive markings.
+      AĒR's map of its own ignorance is as scientifically important as its map of what it knows.
+
+      ## Interactive parameters
+
+      <!-- PARAM:probeCount --> active probes are currently running.
+      <!-- PARAM:totalSources --> sources are being monitored.
+      <!-- PARAM:observationWindowDays -->-day observation window is displayed.
+  methodological:
+    short: "Surface I architecture: probe glyphs (not country pins) reflect active source sets with discourse-function coverage. Glyph intensity = article volume (data density, not significance). Negative Space overlay shows unmonitored regions."
+    long: >
+      The Atmosphere surface renders probe points using Three.js (3D engine in packages/engine-3d/).
+      Each glyph position is the geographic centroid of the probe's primary cultural region —
+      it is a navigational anchor, not a precise location claim. Glyph intensity is computed
+      from article count in the current observation window: articles_last_window normalised
+      to [0,1] across all active probes and mapped to a luminance value. This encoding was
+      chosen to show which probes are currently generating data, not which societies are most
+      active — the distinction is important because data generation is a function of crawler
+      configuration and source volume, not of societal significance. Source satellites are
+      rendered as secondary geometry (smaller, lower opacity, non-raycaster-selectable) — they
+      are informational markers, not interactive navigation targets on this surface. The globe's
+      primary function is wayfinding and context-setting; the analytical work happens on
+      Surface II. Probe-first emission (not source-first) is the canonical interaction model
+      per ADR-020 and the Iteration 5 Design Brief §4.1 — clicking individual source satellites
+      routes to the Probe Dossier with the source pre-filtered, never to a source-only view
+      that bypasses the probe context.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-001 §5.3"

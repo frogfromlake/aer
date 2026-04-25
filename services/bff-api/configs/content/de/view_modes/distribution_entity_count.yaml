@@ -1,0 +1,37 @@
+entityId: distribution_entity_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Benannte Entitätsdichte-Verteilung. Zeigt die volle Bandbreite, wie entitätsreich Artikel sind — von spärlichen, abstrakten Texten bis zu dichten Mehrakteurs-Berichten — und wie diese Bandbreite quellenübergreifend variiert."
+    long: >
+      Die Verteilungsansicht für entity_count offenbart die strukturelle Bandbreite, wie
+      spezifisch ein Artikel auf die soziale Welt verweist: Wie viele benannte Personen,
+      Orte und Organisationen werden erwähnt? Eine enge, niedrige Verteilung zeigt eine
+      Quelle mit eher abstraktem oder allgemeinem Inhalt an. Eine breite, rechtsschiefe
+      Verteilung deutet auf eine Mischung aus kurzen Nachrichten und entitätsdichten Berichten
+      hin (Parlamentsdebatten, Gipfelberichterstattung, Mehrparteiverhandlungen). Der Vergleich
+      dieser Verteilung zwischen Quellen einer Probe kann identifizieren, welche Quelle den
+      referenziell spezifischsten Inhalt produziert — ein strukturell bedeutsamer Unterschied
+      in der Diskursfunktion. Diese Ansicht ergänzt die Netzwerkansicht, die zeigt, wie
+      Entitäten miteinander in Beziehung stehen.
+  methodological:
+    short: "Histogramm / Dichte von Per-Artikel-entity_count aus spaCy de_core_news_lg. Vorläufig (Tier 3). Rechte-Tail-Kürzung empfohlen; Ausreißer sind real (lange Parlamentsartikel)."
+    long: >
+      Die Verteilung ist ein Histogramm der entity_count-Werte pro Artikel im ausgewählten
+      Geltungsbereich und Fenster. Tier 3 (vorläufig) gemäß WP-002 §5 — entity_count hängt
+      vom deutschen NER-Modell de_core_news_lg (spaCy 3.8.0) ab. Interpretationshinweise:
+      (1) die Verteilung weist natürlich eine Rechtsschiefe auf, da entity_count nach unten
+      bei null begrenzt ist, nach oben aber nicht; sehr lange Artikel mit vielen Akteuren
+      erzeugen extreme rechte Tail-Werte (z. B. vollständige Bundestagsprotokolle); (2) der
+      Modalwert (häufigste Anzahl) ist typischerweise aussagekräftiger als der Mittelwert;
+      (3) alle NER-Einschränkungen gelten — staatliche Pressemitteilungen können
+      Organisationsentitäten systematisch unterzählen; (4) Entitätstypen werden in dieser
+      Zählung zusammengefasst; für typenstratifizierte Verteilungen die Entitäts-
+      Aggregationsendpunkte direkt nutzen. Bin-Anzahl standardmäßig 30; rechte-Tail-
+      Kürzung bei hochzähligen Ausreißern empfohlen.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §5"

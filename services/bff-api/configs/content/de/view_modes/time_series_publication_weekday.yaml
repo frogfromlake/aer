@@ -1,0 +1,36 @@
+entityId: time_series_publication_weekday
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Veröffentlichungswochentag über die Zeit. Für die meisten stabilen Quellen ist diese Kurve flach — Abweichungen signalisieren reale Verschiebungen in der redaktionellen Planung, etwa eine Ausweitung der Wochenendberichterstattung."
+    long: >
+      Diese Ansicht stellt publication_weekday als gleitenden Durchschnitt über das
+      Beobachtungsfenster dar. Da Wochentag eine wöchentliche Zyklusgröße ist, ist die
+      Zeitreihe am aussagekräftigsten über Mehrwochen- oder Mehrmonatszeiträume, in denen
+      sich der gleitende Mittelwert stabilisiert. Für institutionelle Quellen mit starker
+      Montag–Freitag-Konzentration schwankt der mittlere Veröffentlichungswochentag nahe 3
+      (Mittwoch). Verschiebungen hin zu höheren Werten (mehr Wochenendveröffentlichungen)
+      oder niedrigeren Werten (Vorziehen in die Wochenmitte) sind bedeutsame strukturelle
+      Veränderungen. Diese Ansicht eignet sich besser für langfristige Trendanalysen als
+      für kurze Fenster, in denen einzelne Wochen den Mittelwert dominieren.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert von publication_weekday (ISO 1–7). Tier 1. Hinweis: die Interpretation eines Mittelwerts einer wöchentlichen Zyklusgröße erfordert Mehrwochen-Beobachtungsfenster."
+    long: >
+      publication_weekday ist eine deterministische Tier-1-Metrik (WP-002 §3). In dieser
+      Zeitreihenansicht wird sie als Downsampling-Mittelwert dargestellt — was sorgfältige
+      Interpretation erfordert. publication_weekday ist eine kategorische Größe mit wöchentlicher
+      Periodizität; ihr arithmetisches Mittel ist nur sinnvoll, wenn es über Zeitspannen
+      berechnet wird, die lang genug sind, um mehrere vollständige Wochen zu mitteln. Über
+      kurze Fenster (Tage bis eine Woche) wird der scheinbare Trend dadurch dominiert, an
+      welchem Tag das Fenster beginnt und endet, nicht durch eine strukturelle redaktionelle
+      Änderung. Die Verteilungsansicht eignet sich besser, um das Wochentags-Muster einer
+      Quelle in einem festen Fenster zu charakterisieren; diese Zeitreihenansicht ist für
+      die Erkennung von Verschiebungen dieses Musters über ausgedehnte Beobachtungszeiträume
+      gedacht.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

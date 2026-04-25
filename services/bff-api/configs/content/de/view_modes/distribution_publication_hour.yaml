@@ -1,0 +1,37 @@
+entityId: distribution_publication_hour
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Veröffentlichungsstunden-Verteilung. Zeigt den vollständigen Tagesrhythmus, wann eine Quelle veröffentlicht — Spitzen, Täler und ob der Output in bestimmten Stunden konzentriert oder über den Tag verteilt ist."
+    long: >
+      Die Verteilungsansicht für publication_hour stellt die Dichte der Veröffentlichungen
+      über die 24-Stunden-Uhr als Balkendiagramm oder Dichtekurve dar. Dies ist typischerweise
+      die aussagekräftigste Ansicht für diese Metrik: Während der Zeitreihenmittelwert anzeigt,
+      ob sich die Durchschnittsstunde verschiebt, zeigt die Verteilung, wie der redaktionelle
+      Tag einer Quelle insgesamt aussieht. Bei institutionellen Quellen ist eine schmale Spitze
+      in den Arbeitsstunden zu erwarten (UTC 07–16 für deutsche Quellen, entsprechend lokal
+      08–17 MEZ). Bei 24-Stunden-Nachrichtenredaktionen ist eine flachere multimodale Kurve
+      zu erwarten. Mehrere scharfe Spitzen entsprechen oft geplanten Sendezeiten. Zu beachten:
+      Diese Ansicht ist zirkulär — Stunde 23 und Stunde 0 sind benachbart, was ein Standard-
+      Balkendiagramm nicht wiedergibt. Polare oder zirkuläre Layouts bevorzugen, wenn verfügbar.
+  methodological:
+    short: "Balkendiagramm / Dichte über publication_hour (UTC, 0–23). Tier 1. Wichtiger Hinweis: Balkendiagramme zeigen keine Zirkularität — Stunde 23 und Stunde 0 sind benachbart. UTC ≠ Lokalzeit (+1/+2 für Deutschland)."
+    long: >
+      Die Verteilung wird als einfache Häufigkeitsauszählung über die 24 ganzzahligen Werte
+      von publication_hour (UTC) berechnet, aggregiert über alle Artikel im ausgewählten
+      Geltungsbereich und Fenster. Tier 1 deterministisch (WP-002 §3). Zwei
+      Interpretationshinweise spezifisch für diese Ansicht: (1) publication_hour ist eine
+      zirkuläre Variable — ein Standard-Histogramm behandelt Stunde 23 und Stunde 0 als
+      maximal entfernt, obwohl sie tatsächlich benachbart sind; Quellen, die um Mitternacht
+      veröffentlichen, erscheinen aufgeteilt an den beiden Enden des Diagramms; (2) UTC-Stunden
+      müssen mental um +1 (MEZ) oder +2 (MESZ) versetzt werden, um als deutsche Lokalzeit
+      lesbar zu sein. Bei Quellen mit Mitternacht-übergreifenden Veröffentlichungsmustern
+      eignen sich zirkuläre Histogramm- oder Rosendiagramm-Darstellungen besser zur Wahrung
+      der Topologie des 24-Stunden-Zyklus.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

@@ -1,0 +1,37 @@
+entityId: distribution_publication_weekday
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Veröffentlichungswochentag-Verteilung. Zeigt das vollständige Wochenmuster, wann eine Quelle veröffentlicht — die direkteste Ansicht der redaktionellen Arbeitswoche."
+    long: >
+      Die Verteilungsansicht für publication_weekday stellt das Veröffentlichungsvolumen
+      über die sieben Wochentage als Balkendiagramm dar. Dies ist typischerweise die
+      interpretierbarste Ansicht für diese Metrik: ein einzelnes Balkendiagramm zeigt die
+      redaktionelle Woche einer Quelle auf einen Blick. Starke Montag–Freitag-Balken mit
+      flachen Samstag–Sonntag-Balken sind die Signatur institutioneller redaktioneller
+      Produktion. Eine gleichmäßige Verteilung zeigt Dauerredaktionsbetrieb an. Eine
+      markante Mittwoch-Spitze kann auf eine geplante wöchentliche Berichtsreihe hinweisen.
+      Im Vergleich zwischen Quellen einer Probe zeigt diese Verteilung, ob alle Quellen
+      denselben strukturellen Kalender teilen oder ob einige Quellen in einem anderen Rhythmus
+      arbeiten — ein struktureller Befund über ihre jeweiligen institutionellen Kontexte.
+  methodological:
+    short: "Balkendiagramm über publication_weekday (ISO 1=Mo, 7=So). Tier 1. Bei Vergleichen zwischen Quellen unterschiedlicher Aktivitätsniveaus nach Korpusgröße normieren. UTC-Datumsgrenze gilt (siehe Metrik-Eintrag)."
+    long: >
+      Die Verteilung ist eine Häufigkeitsauszählung über die sieben ganzzahligen Werte von
+      publication_weekday (ISO 8601: 1 = Montag, 7 = Sonntag). Tier 1 deterministisch
+      (WP-002 §3). Methodologische Hinweise: (1) Rohzählungen sind proportional zum
+      Aktivitätsniveau der Quelle; bei Vergleichen einer aktiven Quelle mit einer
+      volumenarmen normieren (Artikel pro Wochentag); (2) der UTC-Datumsgrenze-Vorbehalt
+      gilt — siehe den Metrik-Eintrag für publication_weekday; für Probe-0-Quellen betrifft
+      dies nur einen kleinen Anteil der Artikel, die nahe Mitternacht UTC veröffentlicht werden;
+      (3) im Probe-Scope aggregiert die Verteilung über alle Quellen — ein Probe-weiter
+      Montag-Gipfel spiegelt aggregiertes Montags-Volumen wider, was verbergen kann, dass eine
+      Quelle stark am Montag veröffentlicht, während eine andere am Donnerstag gipfelt.
+      Quellbereichseingrenzung offenbart Per-Quellen-Muster.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"
