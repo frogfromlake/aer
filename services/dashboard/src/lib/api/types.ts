@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/metrics/correlation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
+         * @description Computes per-bucket means for every metric in the requested set, then Pearson `corr` over each pair. Bucket resolution is fixed at 5 minutes, matching the `metrics` time-series endpoint.
+         */
+        get: operations["getMetricCorrelation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/metrics/{metricName}/provenance": {
         parameters: {
             query?: never;
@@ -64,6 +84,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/metrics/{metricName}/distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-scope distribution of a metric (EDA x ridgeline / violin / density)
+         * @description Returns histogram bins plus a quantile summary for the given metric over the window, restricted to the resolved scope (probe or source). Backs the EDA x distributional view-mode cells (ADR-020 §View-mode queries).
+         */
+        get: operations["getMetricDistribution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/{metricName}/heatmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 2D binning of a metric (EDA x heatmap)
+         * @description Two-dimensional aggregation of a metric over the window, bucketed by the requested xDimension and yDimension. `dayOfWeek` and `hour` bin on the metric timestamp; `source` groups by source; `entityLabel` and `language` join against `aer_gold.entities` / `aer_gold.language_detections`.
+         */
+        get: operations["getMetricHeatmap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/entities": {
         parameters: {
             query?: never;
@@ -76,6 +136,26 @@ export interface paths {
          * @description Fetches named entities (persons, organizations, locations) extracted from processed documents, aggregated by entity text and label.
          */
         get: operations["getEntities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/entities/cooccurrence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Entity co-occurrence graph (Network Science x force-directed graph)
+         * @description Aggregates `aer_gold.entity_cooccurrences` over the window, returns the top-N edges by summed `cooccurrence_count` plus the union of incident nodes. Backs the Network Science discipline view-mode cell.
+         */
+        get: operations["getEntityCoOccurrence"];
         put?: never;
         post?: never;
         delete?: never;
@@ -113,9 +193,99 @@ export interface paths {
         };
         /**
          * List known data sources with methodology documentation
-         * @description Returns the canonical list of data sources configured in AĒR together with optional links to their methodological documentation (e.g., bias profiles under `docs/methodology/`). The list is served from a static BFF config mirroring the PostgreSQL `sources` table so the BFF does not require a direct Postgres connection.
+         * @description Returns the canonical list of data sources configured in AĒR together with optional links to their methodological documentation (e.g. bias profiles under `docs/methodology/`). When `silverOnly=true` (Phase 103) the response is filtered to sources whose `silver_eligible` flag is set, so the dashboard's Silver-layer source picker avoids surfacing sources that the eligibility gate would refuse.
          */
         get: operations["getSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Source detail with Silver-eligibility metadata
+         * @description Returns a single source record with its Silver-layer eligibility state and the WP-006 §5.2 review metadata. Backs the dashboard's per-source side panel so reviewers and operators can see *why* a source is (or is not) Silver-eligible without reading Postgres directly.
+         */
+        get: operations["getSourceById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/silver/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Silver-layer documents for a source
+         * @description Paginated listing of Silver-layer documents (`SilverCore` summaries) for a single source within an optional time window. Subject to the Silver-eligibility gate (Phase 103, ADR-020 §"Silver-layer toggle"): a source whose `silver_eligible` flag is false returns 403 with a RefusalPayload citing WP-006 §5.2.
+         */
+        get: operations["listSilverDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/silver/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Silver-layer document detail
+         * @description Returns the full Silver envelope for a single article — `SilverCore` (cleaned text included), the source-specific `SilverMeta` blob (per ADR-015 explicitly unstable), and the per-extractor provenance map captured at extraction time. Subject to the Silver-eligibility gate (Phase 103): a non-eligible source returns 403 with a RefusalPayload.
+         */
+        get: operations["getSilverDocumentDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/silver/aggregations/{aggregationType}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Silver-layer aggregations (distribution / heatmap / correlation)
+         * @description Aggregate query over `aer_silver.documents` (Phase 103b projection table) for one Silver-eligible source. The `aggregationType` path parameter selects both the projection field(s) and the shape of the response payload:
+         *     * `cleaned_text_length`, `word_count`, `raw_entity_count` — histogram
+         *       bins + quantile summary (the `distribution` payload).
+         *     * `cleaned_text_length_by_hour`, `word_count_by_source` — 2D binning
+         *       (the `heatmap` payload). `word_count_by_source` is degenerate when
+         *       filtered to a single source and is intended for whole-probe queries
+         *       via Phase 111's source toggle.
+         *     * `cleaned_text_length_vs_word_count` — pairwise Pearson correlation
+         *       between two projection fields (the `correlation` payload).
+         *
+         *     Subject to the Silver-eligibility gate (Phase 103, ADR-020 §"Silver- layer toggle"): a non-eligible source returns 403 with a RefusalPayload citing WP-006 §5.2.
+         */
+        get: operations["getSilverAggregation"];
         put?: never;
         post?: never;
         delete?: never;
@@ -138,6 +308,66 @@ export interface paths {
          *     Structural data only. Dual-Register editorial content (emic designation, methodological register) lives on `/content/probe/{probeId}` and is composed on the client.
          */
         get: operations["getProbes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/probes/{id}/dossier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Composite Probe Dossier payload
+         * @description Returns the data backing Surface II's Probe Dossier landing — the probe's structural identity, function coverage, and per-source cards with article counts and Silver-eligibility state. Composed server-side so the dashboard avoids request waterfalls on first paint (Design Brief §4.2.1, ADR-020 §Backend-Work).
+         */
+        get: operations["getProbeDossier"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/{id}/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paginated article listing for a source
+         * @description Returns a paginated list of processed documents for a source, optionally filtered by time window, language, sentiment band, and entity match. Powers the article browser inside the Probe Dossier (Design Brief §4.2.1). Cleaned text and full provenance are not included — fetch `/articles/{id}` for L5 Evidence.
+         */
+        get: operations["getSourceArticles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/articles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * L5 Evidence — article detail with k-anonymity gate
+         * @description Returns the cleaned text, Silver metadata, and per-extractor provenance for a single article. Subject to a k-anonymity gate per WP-006 §7: if the article's aggregation group for the referenced metric is below the configured threshold (k = 10 by default), the BFF returns 403 with a methodological refusal payload instead of the article body. This is the operational expression of "observation over surveillance" at the article level — individual visibility is conditioned on aggregate cover.
+         */
+        get: operations["getArticleDetail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -195,7 +425,7 @@ export interface paths {
         };
         /**
          * Get Dual-Register content for an entity
-         * @description Returns the semantic and methodological register text for a single entity (metric, probe, discourse function, or refusal type). Content is sourced from versioned YAML files under `services/bff-api/configs/content/` and loaded at startup. The `locale` query parameter selects the language; defaults to `en`. Returns 404 if no content entry exists for the requested entity and locale combination.
+         * @description Returns the semantic and methodological register text for a single entity (metric, probe, discourse function, refusal, view-mode cell, empty-lane invitation, open research question, or primer). Content is sourced from versioned YAML files under `services/bff-api/configs/content/` and loaded at startup. The `locale` query parameter selects the language; defaults to `en`. Returns 404 if no content entry exists for the requested entity and locale combination.
          */
         get: operations["getContent"];
         put?: never;
@@ -364,7 +594,7 @@ export interface components {
              * @example metric
              * @enum {string}
              */
-            entityType: "metric" | "probe" | "discourse_function" | "refusal";
+            entityType: "metric" | "probe" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
             /**
              * @description Language of the returned content.
              * @example en
@@ -395,6 +625,432 @@ export interface components {
              *     ]
              */
             workingPaperAnchors?: string[] | null;
+        };
+        /**
+         * @description Composite payload backing Surface II's Probe Dossier (Design Brief §4.2.1 in the Iteration 5 rewrite). The dossier answers a serious user's first question — *what is actually in this probe?* — by combining the probe's structural identity with the per-source counts and frequencies needed to drive the source cards on the Dossier landing.
+         *     The payload is composed server-side rather than fetched as separate resources because the Dossier is the canonical Surface II landing and the client must avoid request waterfalls on first paint.
+         */
+        ProbeDossier: {
+            /**
+             * @description Canonical probe identifier (matches `/probes` and `/content/probe/{probeId}`).
+             * @example probe-0-de-institutional-rss
+             */
+            probeId: string;
+            /**
+             * @description Primary publication language (ISO 639-1).
+             * @example de
+             */
+            language: string;
+            /**
+             * Format: date-time
+             * @description Start of the window over which per-source `articlesInWindow` counts were computed. Null when no window was supplied.
+             */
+            windowStart?: string | null;
+            /**
+             * Format: date-time
+             * @description End of the article-count window. Null when no window was supplied.
+             */
+            windowEnd?: string | null;
+            /** @description Probe-level WP-001 §5.1 function coverage — how many of the four discourse functions the probe's sources collectively address. A derived property; not a constraint on the probe. */
+            functionCoverage: {
+                /**
+                 * @description Number of distinct primary functions present.
+                 * @example 2
+                 */
+                covered: number;
+                /**
+                 * @description Total catalog size (always 4 — the WP-001 functions).
+                 * @example 4
+                 */
+                total: number;
+                /** @description The distinct primary functions present in this probe. */
+                functions: ("epistemic_authority" | "power_legitimation" | "cohesion_identity" | "subversion_friction")[];
+            };
+            /** @description One card per source in the probe, ordered by source name. */
+            sources: components["schemas"]["ProbeDossierSource"][];
+        };
+        /** @description Per-source card on the Probe Dossier. Combines the structural source row with the etic/emic classification (WP-001), the Silver-eligibility flag (Phase 101 §3.4), and the article counts that drive the Dossier UI. */
+        ProbeDossierSource: {
+            /**
+             * @description Canonical source name.
+             * @example tagesschau
+             */
+            name: string;
+            /**
+             * @description Source type discriminator (e.g., "rss").
+             * @example rss
+             */
+            type: string;
+            /** @description Origin URL. */
+            url?: string | null;
+            /** @description Probe dossier directory under `docs/probes/`. */
+            documentationUrl?: string | null;
+            /** @description Total number of processed documents for this source. */
+            articlesTotal: number;
+            /** @description Number of processed documents falling in the requested window. Equal to `articlesTotal` when no window was supplied. */
+            articlesInWindow: number;
+            /** @description Average publications per day across the requested window (or full history when no window is supplied). Null when the source has no processed documents yet. */
+            publicationFrequencyPerDay?: number | null;
+            /**
+             * @description WP-001 etic primary discourse function from the latest classification record. Null when the source has no classification.
+             * @enum {string|null}
+             */
+            primaryFunction?: "epistemic_authority" | "power_legitimation" | "cohesion_identity" | "subversion_friction" | null;
+            /**
+             * @description WP-001 etic secondary discourse function. Null when none.
+             * @enum {string|null}
+             */
+            secondaryFunction?: "epistemic_authority" | "power_legitimation" | "cohesion_identity" | "subversion_friction" | null;
+            /** @description WP-001 emic designation — how the source describes itself. */
+            emicDesignation?: string | null;
+            /** @description WP-001 emic context — the cultural/discursive frame of the source. */
+            emicContext?: string | null;
+            /** @description Whether the source is approved for Silver-layer self-service access per WP-006 §5.2. Probe 0's two sources are auto-eligible; all others default to false until reviewed. */
+            silverEligible: boolean;
+            /**
+             * Format: date
+             * @description Date the Silver-access review was completed (null when not reviewed).
+             */
+            silverReviewDate?: string | null;
+        };
+        /** @description Light-weight article reference returned by the article-browsing endpoint. Carries enough metadata for a list view without leaking cleaned text. Cleaned text and full provenance are served from `/articles/{id}` and are subject to the k-anonymity gate (WP-006 §7). */
+        ArticleListItem: {
+            /**
+             * @description SHA-256 hash of source + bronze_object_key (worker-derived).
+             * @example 7c1c1f...
+             */
+            articleId: string;
+            /** @description Canonical source name. */
+            source: string;
+            /**
+             * Format: date-time
+             * @description Publication timestamp from SilverCore.
+             */
+            timestamp: string;
+            /** @description Top language detection result for the article (ISO 639-1). */
+            language?: string | null;
+            /** @description Word count from `aer_gold.metrics`. */
+            wordCount?: number | null;
+            /** @description Sentiment score from `aer_gold.metrics` (provisional, WP-002). */
+            sentimentScore?: number | null;
+        };
+        /** @description Paginated article-listing response. Cursor-based to keep deep paging stable under late-arriving Gold rows; `nextCursor` is opaque and must be echoed back unchanged on the next request. */
+        ArticlesPage: {
+            items: components["schemas"]["ArticleListItem"][];
+            /** @description True when more results exist beyond this page. */
+            hasMore: boolean;
+            /** @description Opaque pagination token. Pass back via `?cursor=` to fetch the next page. Null when `hasMore` is false. */
+            nextCursor?: string | null;
+        };
+        /** @description Full article payload for L5 Evidence (Design Brief §4.5.5 in the Iteration 5 rewrite). Includes Bronze cleaned text, Silver metadata, and per-extractor provenance. Subject to a k-anonymity gate (WP-006 §7): if the article's aggregation group for the referenced metric is below the configured threshold, the BFF returns 403 with a methodological refusal payload instead of the article body. */
+        ArticleDetail: {
+            articleId: string;
+            source: string;
+            sourceType?: string;
+            /** Format: date-time */
+            timestamp: string;
+            url?: string | null;
+            /** @description Cleaned text from SilverCore — the text the extractors operated on. */
+            cleanedText: string;
+            /** @description Raw text as fetched from the source. May be null when the harmoniser did not preserve it (older Silver schema versions). */
+            rawText?: string | null;
+            language?: string | null;
+            /** @description SilverCore schema version present at extraction time. */
+            schemaVersion: string;
+            wordCount: number;
+            /** @description Source-specific SilverMeta payload (e.g., RSS feed_url, categories). */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+            /** @description Per-extractor version hashes captured at extraction time. */
+            extractionProvenance?: {
+                [key: string]: string;
+            };
+        };
+        /** @description Methodological refusal payload returned when the BFF declines to serve a resource because a methodological gate (k-anonymity, equivalence, Silver-eligibility) is not satisfied. The shape is intentionally separate from the generic Error schema so the frontend can render the refusal as a Surface III-linked methodological surface rather than a bare error toast (Brief §3.3). */
+        RefusalPayload: {
+            /**
+             * @description Machine identifier of the gate that fired.
+             * @example k_anonymity
+             * @enum {string}
+             */
+            gate: "k_anonymity" | "silver_eligibility" | "equivalence";
+            /** @description Human-readable summary of the refusal. */
+            message: string;
+            /** @description Threshold value the gate enforces (e.g., minimum aggregation size for k-anonymity). */
+            threshold?: number | null;
+            /** @description Observed value that fell below the threshold. */
+            observed?: number | null;
+            /** @description Anchor into the methodological surface (e.g., `WP-006#section-7`) that explains the gate. */
+            workingPaperAnchor?: string | null;
+        };
+        /** @description Per-scope distribution of a metric over a time window. Includes both histogram bins and a quantile summary so the frontend can render histogram, density, ridgeline, or violin without a second round-trip. */
+        DistributionResponse: {
+            /** @description The metric name that was queried. */
+            metricName: string;
+            /** @description The resolved scope (`probe` or `source`). */
+            scope?: string;
+            /** @description The resolved scope identifier. */
+            scopeId?: string;
+            /** Format: date-time */
+            windowStart: string;
+            /** Format: date-time */
+            windowEnd: string;
+            /** @description Histogram bins ordered ascending by `lower`. */
+            bins: {
+                /**
+                 * Format: double
+                 * @description Inclusive lower edge of the bin.
+                 */
+                lower: number;
+                /**
+                 * Format: double
+                 * @description Exclusive upper edge of the bin (inclusive on the last bin).
+                 */
+                upper: number;
+                /** Format: int64 */
+                count: number;
+            }[];
+            /** @description Quantile and basic statistics for the same window. */
+            summary: {
+                /** Format: int64 */
+                count: number;
+                /** Format: double */
+                min: number;
+                /** Format: double */
+                max: number;
+                /** Format: double */
+                mean: number;
+                /** Format: double */
+                median: number;
+                /** Format: double */
+                p05: number;
+                /** Format: double */
+                p25: number;
+                /** Format: double */
+                p75: number;
+                /** Format: double */
+                p95: number;
+            };
+        };
+        /** @description Two-dimensional binning of a metric over a time window. `xDimension` and `yDimension` are echoed back for the frontend's axis labelling. */
+        HeatmapResponse: {
+            metricName: string;
+            xDimension: string;
+            yDimension: string;
+            scope?: string;
+            scopeId?: string;
+            /** Format: date-time */
+            windowStart: string;
+            /** Format: date-time */
+            windowEnd: string;
+            /** @description One row per non-empty (x, y) cell. */
+            cells: {
+                /** @description The x-axis bucket label (string-encoded so int / category fit one shape). */
+                x: string;
+                /** @description The y-axis bucket label. */
+                y: string;
+                /**
+                 * Format: double
+                 * @description Mean metric value across rows in this cell.
+                 */
+                value: number;
+                /**
+                 * Format: int64
+                 * @description Number of source rows aggregated into this cell.
+                 */
+                count: number;
+            }[];
+        };
+        /** @description Pairwise Pearson correlation matrix over the requested metrics, computed from per-bucket means within the window. `matrix[i][j]` is the correlation of `metrics[i]` and `metrics[j]`. The diagonal is 1.0 when defined; cells with insufficient overlapping samples are returned as `null`. */
+        CorrelationMatrix: {
+            metrics: string[];
+            /** @description NxN matrix of correlations; outer index matches `metrics`. */
+            matrix: (number | null)[][];
+            /**
+             * Format: int64
+             * @description Number of time buckets used to compute the correlation.
+             */
+            bucketCount: number;
+            /** @description Bucket resolution used (e.g. `5m`). */
+            resolution: string;
+            scope?: string;
+            scopeId?: string;
+            /** Format: date-time */
+            windowStart: string;
+            /** Format: date-time */
+            windowEnd: string;
+        };
+        /** @description Aggregated entity-pair co-occurrence graph for the Network Science x force-directed-graph view mode. Edges are the top-N pairs by summed cooccurrence_count over the window; nodes are the union of incident entities, sized by their per-window total mention count. */
+        CoOccurrenceGraph: {
+            scope?: string;
+            scopeId?: string;
+            /** Format: date-time */
+            windowStart: string;
+            /** Format: date-time */
+            windowEnd: string;
+            /**
+             * Format: int64
+             * @description The effective top-N applied (post-clamp).
+             */
+            topN: number;
+            nodes: {
+                text: string;
+                label: string;
+                /**
+                 * Format: int64
+                 * @description Number of distinct neighbours in the returned edge set.
+                 */
+                degree: number;
+                /**
+                 * Format: int64
+                 * @description Sum of edge weights incident on this node.
+                 */
+                totalCount: number;
+            }[];
+            edges: {
+                /** @description Lexicographically smaller entity text in the pair. */
+                a: string;
+                b: string;
+                aLabel?: string;
+                bLabel?: string;
+                /**
+                 * Format: int64
+                 * @description Sum of cooccurrence_count over articles in the window.
+                 */
+                weight: number;
+                /**
+                 * Format: int64
+                 * @description Number of distinct articles contributing to this edge.
+                 */
+                articleCount: number;
+            }[];
+        };
+        /** @description A single source record carrying the fields from the Source schema plus the Silver-layer eligibility state and the WP-006 §5.2 review metadata recorded at the time `silverEligible` was flipped. Fields beyond `silverEligible` are present only on eligible sources (and may be empty on auto-eligible Probe 0 sources where the metadata is a stub). */
+        SourceDetail: {
+            /** @description Canonical source identifier. */
+            name: string;
+            /** @description Source type discriminator (e.g. `rss`, `scraper`). */
+            type: string;
+            url?: string | null;
+            documentationUrl?: string | null;
+            /** @description Whether this source has passed the WP-006 §5.2 review for Silver-layer self-service access. */
+            silverEligible: boolean;
+            /** @description Reviewer of record (free text). */
+            silverReviewReviewer?: string | null;
+            /** Format: date */
+            silverReviewDate?: string | null;
+            /** @description Free-text justification for the eligibility decision. */
+            silverReviewRationale?: string | null;
+            /** @description Pointer to the canonical reference document for this review (e.g. `docs/arc42/09_architecture_decisions.md#adr-020`). */
+            silverReviewReference?: string | null;
+        };
+        /** @description Compact summary of a Silver-layer document for the paginated list endpoint. The list response is composed from PostgreSQL (`documents` → `ingestion_jobs` → `sources`) joined with ClickHouse Gold-layer rows (word_count metric, rank-1 language detection) so a single page does not require a per-row MinIO read. Use the detail endpoint to retrieve the full SilverEnvelope with `cleanedText`, `rawText`, `meta`, and per-extractor provenance. */
+        SilverDocumentSummary: {
+            articleId: string;
+            source: string;
+            /** Format: date-time */
+            timestamp: string;
+            language?: string | null;
+            wordCount?: number | null;
+        };
+        /** @description Paginated page of Silver-layer documents for a single source. The cursor is opaque (base64 token over an offset today; may evolve without an API break). */
+        SilverDocumentsPage: {
+            /** @description The source name the page is scoped to. */
+            source: string;
+            items: components["schemas"]["SilverDocumentSummary"][];
+            hasMore: boolean;
+            nextCursor?: string | null;
+        };
+        /** @description Full Silver-layer document detail. Returns the SilverCore record (cleaned_text included) plus the SilverMeta blob (source-specific, intentionally unstable per ADR-015) and the per-extractor provenance recorded at extraction time. */
+        SilverDocumentDetail: {
+            articleId: string;
+            source: string;
+            sourceType?: string | null;
+            /** Format: date-time */
+            timestamp: string;
+            schemaVersion: string;
+            language?: string | null;
+            url?: string | null;
+            rawText?: string | null;
+            cleanedText: string;
+            wordCount: number;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+            extractionProvenance?: {
+                [key: string]: string;
+            } | null;
+        };
+        /** @description Result of a Silver aggregation query. Exactly one of `distribution`, `heatmap`, or `correlation` is populated, matching the requested `aggregationType`. The frontend dispatches on `aggregationType` rather than introspecting which payload field is present. */
+        SilverAggregationResponse: {
+            /** @description Echoes the requested aggregation type. */
+            aggregationType: string;
+            /** @description Resolved canonical source name. */
+            source: string;
+            /** Format: date-time */
+            windowStart: string;
+            /** Format: date-time */
+            windowEnd: string;
+            /** @description Populated for `cleaned_text_length`, `word_count`, `raw_entity_count`. */
+            distribution?: {
+                bins: {
+                    /** Format: double */
+                    lower: number;
+                    /** Format: double */
+                    upper: number;
+                    /** Format: int64 */
+                    count: number;
+                }[];
+                summary: {
+                    /** Format: int64 */
+                    count: number;
+                    /** Format: double */
+                    min: number;
+                    /** Format: double */
+                    max: number;
+                    /** Format: double */
+                    mean: number;
+                    /** Format: double */
+                    median: number;
+                    /** Format: double */
+                    p05: number;
+                    /** Format: double */
+                    p25: number;
+                    /** Format: double */
+                    p75: number;
+                    /** Format: double */
+                    p95: number;
+                };
+            };
+            /** @description Populated for `cleaned_text_length_by_hour`, `word_count_by_source`. */
+            heatmap?: {
+                xDimension: string;
+                yDimension: string;
+                cells: {
+                    x: string;
+                    y: string;
+                    /**
+                     * Format: double
+                     * @description Mean of the projection field across rows in this cell.
+                     */
+                    value: number;
+                    /** Format: int64 */
+                    count: number;
+                }[];
+            };
+            /** @description Populated for `cleaned_text_length_vs_word_count`. */
+            correlation?: {
+                /** @description Projection-field names whose pairwise correlation was computed. */
+                fields: string[];
+                /** @description NxN Pearson correlation matrix; outer index matches `fields`. Cells with insufficient samples are `null`. */
+                matrix: (number | null)[][];
+                /**
+                 * Format: int64
+                 * @description Number of documents that contributed to the correlation.
+                 */
+                sampleCount: number;
+            };
         };
     };
     responses: never;
@@ -539,6 +1195,73 @@ export interface operations {
             };
         };
     };
+    getMetricCorrelation: {
+        parameters: {
+            query: {
+                /** @description Comma-separated list of metric names to include in the correlation matrix (e.g. `sentiment_score,word_count,entity_count`). Required; must contain between 2 and 10 names. */
+                metrics: string;
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Inclusive start of the query window (RFC 3339). */
+                start: string;
+                /** @description Exclusive end of the query window (RFC 3339). */
+                end: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description NxN correlation matrix. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrelationMatrix"];
+                };
+            };
+            /** @description Invalid scope, fewer than two metrics, or malformed window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
     getMetricProvenance: {
         parameters: {
             query?: never;
@@ -561,6 +1284,147 @@ export interface operations {
                 };
             };
             /** @description No provenance entry exists for the requested metric. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getMetricDistribution: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Inclusive start of the query window (RFC 3339). */
+                start: string;
+                /** @description Exclusive end of the query window (RFC 3339). */
+                end: string;
+                /** @description Number of histogram bins to request for the distribution. Server clamps values outside [1, 200] to the nearest bound. */
+                bins?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Metric name (e.g. `sentiment_score`). */
+                metricName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Distribution payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DistributionResponse"];
+                };
+            };
+            /** @description Invalid scope, unknown probe / source, or malformed window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getMetricHeatmap: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description X-axis dimension for the heatmap. `dayOfWeek` and `hour` bin on the metric timestamp; `source` groups by source name; `entityLabel` joins against `aer_gold.entities`; `language` joins against `aer_gold.language_detections`. */
+                xDimension: "dayOfWeek" | "hour" | "source" | "entityLabel" | "language";
+                /** @description Y-axis dimension for the heatmap. Same enum as xDimension. */
+                yDimension: "dayOfWeek" | "hour" | "source" | "entityLabel" | "language";
+                /** @description Inclusive start of the query window (RFC 3339). */
+                start: string;
+                /** @description Exclusive end of the query window (RFC 3339). */
+                end: string;
+            };
+            header?: never;
+            path: {
+                metricName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Heatmap cells for the requested dimensions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeatmapResponse"];
+                };
+            };
+            /** @description Invalid scope, dimensions, or window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -629,6 +1493,73 @@ export interface operations {
             };
             /** @description Missing required parameters. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getEntityCoOccurrence: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Inclusive start of the query window (RFC 3339). */
+                start: string;
+                /** @description Exclusive end of the query window (RFC 3339). */
+                end: string;
+                /** @description Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound. */
+                topN?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Top-N co-occurrence subgraph. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoOccurrenceGraph"];
+                };
+            };
+            /** @description Invalid scope or window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -725,7 +1656,10 @@ export interface operations {
     };
     getSources: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description When `true`, returns only sources whose `silver_eligible` flag is set (Phase 103). Use this to populate the dashboard's Silver-layer source picker without surfacing ineligible sources only to refuse them later. */
+                silverOnly?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -739,6 +1673,262 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Source"][];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getSourceById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source identifier — either the canonical name (e.g. `tagesschau`) or the integer source id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Source detail. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDetail"];
+                };
+            };
+            /** @description Source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    listSilverDocuments: {
+        parameters: {
+            query: {
+                /** @description Source identifier — canonical name or integer id. */
+                sourceId: string;
+                /** @description Inclusive start of the timestamp window (RFC 3339). */
+                start?: string;
+                /** @description Exclusive end of the timestamp window (RFC 3339). */
+                end?: string;
+                /** @description Page size. Server clamps to `[1, 200]`; default 50. */
+                limit?: number;
+                /** @description Opaque pagination token returned in the previous page's `nextCursor`. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of Silver document summaries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SilverDocumentsPage"];
+                };
+            };
+            /** @description Invalid query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Source is not Silver-eligible. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefusalPayload"];
+                };
+            };
+            /** @description Source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getSilverDocumentDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Article identifier (deterministic SHA-256 hash assigned by the worker). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Silver document detail. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SilverDocumentDetail"];
+                };
+            };
+            /** @description Source is not Silver-eligible. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefusalPayload"];
+                };
+            };
+            /** @description Article or Silver object not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getSilverAggregation: {
+        parameters: {
+            query: {
+                /** @description Source identifier — canonical name or integer id. */
+                sourceId: string;
+                /** @description Inclusive start of the timestamp window (RFC 3339). */
+                start: string;
+                /** @description Exclusive end of the timestamp window (RFC 3339). */
+                end: string;
+                /** @description Histogram bin count for distributional aggregation types. Server clamps to `[1, 200]`; default 30. */
+                bins?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The aggregation kind. Selects projection column(s) and payload shape. */
+                aggregationType: "cleaned_text_length" | "word_count" | "raw_entity_count" | "cleaned_text_length_by_hour" | "word_count_by_source" | "cleaned_text_length_vs_word_count";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregation payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SilverAggregationResponse"];
+                };
+            };
+            /** @description Invalid query parameters or unsupported aggregation type. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Source is not Silver-eligible. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefusalPayload"];
+                };
+            };
+            /** @description Source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
                 };
             };
             /** @description Internal server error. */
@@ -771,6 +1961,200 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Probe"][];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getProbeDossier: {
+        parameters: {
+            query?: {
+                /** @description Start of the article-count window (RFC 3339). When omitted the per-source `articlesInWindow` counts equal the total counts. */
+                windowStart?: string;
+                /** @description End of the article-count window (RFC 3339). */
+                windowEnd?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Canonical probe identifier. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The composite Probe Dossier payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeDossier"];
+                };
+            };
+            /** @description Invalid window parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Probe not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getSourceArticles: {
+        parameters: {
+            query?: {
+                start?: string;
+                end?: string;
+                /** @description ISO 639-1 language filter applied against the top language detection result. */
+                language?: string;
+                /** @description Substring match (case-insensitive) against any extracted entity for the article. Useful for narrowing the Dossier list to "articles that mention X." */
+                entityMatch?: string;
+                /** @description Filter by sentiment band over the SentiWS score (negative ≤ -0.05, neutral in (-0.05, 0.05), positive ≥ 0.05). */
+                sentimentBand?: "negative" | "neutral" | "positive";
+                limit?: number;
+                /** @description Opaque pagination cursor from a previous response's `nextCursor`. */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Source identifier — either the integer `sources.id` or the canonical source name. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated article listing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticlesPage"];
+                };
+            };
+            /** @description Invalid query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    getArticleDetail: {
+        parameters: {
+            query?: {
+                /** @description Metric whose aggregation group is consulted for the k-anonymity gate. Defaults to `word_count` — the metric every processed document contributes to, so the gate degenerates to "minimum document count for the article's source/window." */
+                metricName?: string;
+            };
+            header?: never;
+            path: {
+                /** @description SHA-256 article_id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Article detail payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetail"];
+                };
+            };
+            /** @description K-anonymity gate not satisfied — methodological refusal. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefusalPayload"];
+                };
+            };
+            /** @description Article not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                    };
                 };
             };
             /** @description Internal server error. */
@@ -851,7 +2235,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description The category of the entity. */
-                entityType: "metric" | "probe" | "discourse_function" | "refusal";
+                entityType: "metric" | "probe" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
                 /** @description The canonical identifier of the entity (e.g., "sentiment_score"). */
                 entityId: string;
             };
