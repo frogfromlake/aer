@@ -1,0 +1,55 @@
+type: object
+description: >
+  Full article payload for L5 Evidence (Design Brief §4.5.5 in the
+  Iteration 5 rewrite). Includes Bronze cleaned text, Silver metadata, and
+  per-extractor provenance. Subject to a k-anonymity gate (WP-006 §7): if
+  the article's aggregation group for the referenced metric is below the
+  configured threshold, the BFF returns 403 with a methodological refusal
+  payload instead of the article body.
+required:
+  - articleId
+  - source
+  - timestamp
+  - cleanedText
+  - schemaVersion
+  - wordCount
+properties:
+  articleId:
+    type: string
+  source:
+    type: string
+  sourceType:
+    type: string
+  timestamp:
+    type: string
+    format: date-time
+  url:
+    type: string
+    nullable: true
+  cleanedText:
+    type: string
+    description: Cleaned text from SilverCore — the text the extractors operated on.
+  rawText:
+    type: string
+    nullable: true
+    description: >
+      Raw text as fetched from the source. May be null when the harmoniser
+      did not preserve it (older Silver schema versions).
+  language:
+    type: string
+    nullable: true
+  schemaVersion:
+    type: string
+    description: SilverCore schema version present at extraction time.
+  wordCount:
+    type: integer
+  meta:
+    type: object
+    nullable: true
+    additionalProperties: true
+    description: Source-specific SilverMeta payload (e.g., RSS feed_url, categories).
+  extractionProvenance:
+    type: object
+    additionalProperties:
+      type: string
+    description: Per-extractor version hashes captured at extraction time.

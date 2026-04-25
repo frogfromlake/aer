@@ -391,6 +391,8 @@ jobs:
           sed -i "s|^INGESTION_MINIO_SECRET_KEY=.*|INGESTION_MINIO_SECRET_KEY=${{ secrets.INGESTION_MINIO_SECRET_KEY }}|" .env
           sed -i "s|^WORKER_MINIO_ACCESS_KEY=.*|WORKER_MINIO_ACCESS_KEY=${{ secrets.WORKER_MINIO_ACCESS_KEY }}|" .env
           sed -i "s|^WORKER_MINIO_SECRET_KEY=.*|WORKER_MINIO_SECRET_KEY=${{ secrets.WORKER_MINIO_SECRET_KEY }}|" .env
+          sed -i "s|^BFF_MINIO_ACCESS_KEY=.*|BFF_MINIO_ACCESS_KEY=${{ secrets.BFF_MINIO_ACCESS_KEY }}|" .env
+          sed -i "s|^BFF_MINIO_SECRET_KEY=.*|BFF_MINIO_SECRET_KEY=${{ secrets.BFF_MINIO_SECRET_KEY }}|" .env
           sed -i "s|^GF_SECURITY_ADMIN_PASSWORD=.*|GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}|" .env
 
       - name: Run E2E Smoke Test

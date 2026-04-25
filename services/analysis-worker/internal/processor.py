@@ -16,7 +16,11 @@ from internal.metrics import (
     dlq_size,
     analysis_worker_poison_messages_total,
 )
-from internal.storage.postgres_client import get_document_status, update_document_status
+from internal.storage.postgres_client import (
+    get_document_status,
+    update_document_article_id,
+    update_document_status,
+)
 from internal import quarantine as _quarantine_module
 from internal import silver as _silver_module
 
@@ -243,6 +247,9 @@ class DataProcessor:
             )
 
         # --- 8. Commit Success ---
+        # Persist the article_id so the BFF L5 Evidence endpoint can resolve
+        # an article_id back to its Bronze/Silver object key (Phase 101).
+        update_document_article_id(self.pg, obj_key, article_id)
         self._update_document_status(obj_key, "processed")
         events_processed_total.inc()
 

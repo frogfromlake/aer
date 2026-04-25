@@ -1,0 +1,54 @@
+get:
+  tags: [Reference]
+  summary: Composite Probe Dossier payload
+  description: >
+    Returns the data backing Surface II's Probe Dossier landing — the
+    probe's structural identity, function coverage, and per-source cards
+    with article counts and Silver-eligibility state. Composed server-side
+    so the dashboard avoids request waterfalls on first paint
+    (Design Brief §4.2.1, ADR-020 §Backend-Work).
+  operationId: getProbeDossier
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: Canonical probe identifier.
+      schema:
+        type: string
+    - name: windowStart
+      in: query
+      required: false
+      description: >
+        Start of the article-count window (RFC 3339). When omitted the
+        per-source `articlesInWindow` counts equal the total counts.
+      schema:
+        type: string
+        format: date-time
+    - name: windowEnd
+      in: query
+      required: false
+      description: End of the article-count window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+  responses:
+    '200':
+      description: The composite Probe Dossier payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProbeDossier'
+    '400':
+      description: Invalid window parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

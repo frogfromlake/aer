@@ -87,6 +87,28 @@ def update_document_status(pg_pool: ThreadedConnectionPool, obj_key: str, status
         pg_pool.putconn(conn)
 
 
+def update_document_article_id(pg_pool: ThreadedConnectionPool, obj_key: str, article_id: str) -> None:
+    """
+    Persists the deterministic SHA-256 article_id alongside the documents row.
+
+    The BFF article-detail endpoint (Phase 101) needs the inverse mapping
+    (article_id → bronze_object_key) so an L5 Evidence request can resolve
+    back to the Silver/Bronze object. The worker computes article_id during
+    harmonization; this writes it to the row that ingestion-api created on
+    upload, identified by the same bronze_object_key.
+    """
+    conn = pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE documents SET article_id = %s WHERE bronze_object_key = %s",
+                (article_id, obj_key),
+            )
+        conn.commit()
+    finally:
+        pg_pool.putconn(conn)
+
+
 def get_source_classification(pg_pool: ThreadedConnectionPool, source_name: str) -> dict | None:
     """
     Fetches the most recent discourse classification for a source by name.

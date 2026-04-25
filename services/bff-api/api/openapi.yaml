@@ -37,6 +37,12 @@ paths:
     $ref: './paths/sources.yaml'
   /probes:
     $ref: './paths/probes.yaml'
+  /probes/{id}/dossier:
+    $ref: './paths/probe_dossier.yaml'
+  /sources/{id}/articles:
+    $ref: './paths/source_articles.yaml'
+  /articles/{id}:
+    $ref: './paths/article_detail.yaml'
   /healthz:
     $ref: './paths/healthz.yaml'
   /readyz:
@@ -79,3 +85,15 @@ components:
       $ref: './schemas/ContentRegisters.yaml'
     ContentResponse:
       $ref: './schemas/ContentResponse.yaml'
+    ProbeDossier:
+      $ref: './schemas/ProbeDossier.yaml'
+    ProbeDossierSource:
+      $ref: './schemas/ProbeDossierSource.yaml'
+    ArticleListItem:
+      $ref: './schemas/ArticleListItem.yaml'
+    ArticlesPage:
+      $ref: './schemas/ArticlesPage.yaml'
+    ArticleDetail:
+      $ref: './schemas/ArticleDetail.yaml'
+    RefusalPayload:
+      $ref: './schemas/RefusalPayload.yaml'

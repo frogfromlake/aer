@@ -1792,6 +1792,19 @@ All versions pinned like in the backend (if best practice)
 
 **Exit criteria:** A researcher can click Probe 0, descend into a time-series analysis view with provenance access, return to the atmospheric view, and share the state via URL. The fractal pillars (Aleph at L0, Episteme tightening at L2-L3) are observable in the interaction. Rhizome remains architecturally ready but latently invisible. Descent works end-to-end on a single probe; multi-probe composition and cross-layer a11y/performance gates land in 100b.
 
+
+## Phase 101: Iteration 5 — Probe Dossier & Article Browsing Endpoints [P1] - [x] DONE
+
+*Backend baseline A for Iteration 5. First of three backend phases that unblock Surface II Foundation and Silver access. Adds the eligibility-flag schema and the Probe Dossier composite endpoint plus the article-browsing surface that powers L5 Evidence.*
+
+* [x] **PostgreSQL migration — eligibility flag.** Add `silver_eligible BOOLEAN NOT NULL DEFAULT false`, `silver_review_reviewer VARCHAR`, `silver_review_date DATE`, `silver_review_rationale TEXT`, `silver_review_reference VARCHAR` to `public.sources`. Seed Probe 0's two sources (`tagesschau.de`, `bundesregierung.de`) as `silver_eligible = true` with auto-eligibility rationale per Manifesto §VI and WP-006 §7. Migration tooling per Phase 29.
+* [x] **Probe Dossier endpoint.** `GET /api/v1/probes/{id}/dossier` composite payload: probe etic classification, emic context, source list, per-source article counts (total + in-window), per-source publication frequency, function coverage (N/4 per WP-001 §5.1). OpenAPI update, handler, storage queries, unit + integration tests.
+* [x] **Article browsing endpoint.** `GET /api/v1/sources/{id}/articles?start=…&end=…&language=…&entityMatch=…&sentimentBand=…&limit=…&cursor=…` — paginated article list with filters. Returns article IDs + light metadata.
+* [x] **Article detail endpoint (L5 Evidence).** `GET /api/v1/articles/{id}` — Bronze cleaned text + Silver metadata + extractor provenance. Enforce k-anonymity gate: if the article's aggregation group < k = 10 documents for the referenced metric, return HTTP 403 with the methodological refusal payload naming the gate and linking to WP-006 §7.
+* [x] **Contract + codegen.** OpenAPI diff committed; `make codegen` runs; two-style `$ref` convention per ADR-021.
+* [x] **Arc42 update.** §5.1.4 notes the eligibility columns; §8.x adds the Probe Dossier and article endpoints.
+* [x] **Validation.** `make lint && make test` green; integration tests cover k-anon gate triggering.
+
 ---
 
 # Open Phases
@@ -1801,20 +1814,6 @@ All versions pinned like in the backend (if best practice)
 ## Phase 100b: Surface I — Multi-Probe Composition & Cross-Layer Verification [P1] — SUPERSEDED
 
 *Superseded on 2026-04-25 by the Iteration 5 reframing (Phases 101–116 below). The 2026-04-24 Reframing Note and the Iteration 5 Design Brief rewrite demoted Surface I to a landing overview and moved L3/L4/L5 off the globe onto Surfaces II and III. Multi-probe composition and cross-layer a11y/perf verification still happen — but they belong in the new phases (110 for Surface I refinement, 114 for a11y/perf, and incrementally inside each surface phase) rather than as a dedicated Surface I push. The visual-regression snapshotting of Phase 100a's L3/L4 companion panels is orphaned because those panels are deprecated by Phase 110; no snapshot baseline is captured for them.*
-
----
-
-## Phase 101: Iteration 5 — Probe Dossier & Article Browsing Endpoints [P1] - [ ] TODO
-
-*Backend baseline A for Iteration 5. First of three backend phases that unblock Surface II Foundation and Silver access. Adds the eligibility-flag schema and the Probe Dossier composite endpoint plus the article-browsing surface that powers L5 Evidence.*
-
-* [ ] **PostgreSQL migration — eligibility flag.** Add `silver_eligible BOOLEAN NOT NULL DEFAULT false`, `silver_review_reviewer VARCHAR`, `silver_review_date DATE`, `silver_review_rationale TEXT`, `silver_review_reference VARCHAR` to `public.sources`. Seed Probe 0's two sources (`tagesschau.de`, `bundesregierung.de`) as `silver_eligible = true` with auto-eligibility rationale per Manifesto §VI and WP-006 §7. Migration tooling per Phase 29.
-* [ ] **Probe Dossier endpoint.** `GET /api/v1/probes/{id}/dossier` composite payload: probe etic classification, emic context, source list, per-source article counts (total + in-window), per-source publication frequency, function coverage (N/4 per WP-001 §5.1). OpenAPI update, handler, storage queries, unit + integration tests.
-* [ ] **Article browsing endpoint.** `GET /api/v1/sources/{id}/articles?start=…&end=…&language=…&entityMatch=…&sentimentBand=…&limit=…&cursor=…` — paginated article list with filters. Returns article IDs + light metadata.
-* [ ] **Article detail endpoint (L5 Evidence).** `GET /api/v1/articles/{id}` — Bronze cleaned text + Silver metadata + extractor provenance. Enforce k-anonymity gate: if the article's aggregation group < k = 10 documents for the referenced metric, return HTTP 403 with the methodological refusal payload naming the gate and linking to WP-006 §7.
-* [ ] **Contract + codegen.** OpenAPI diff committed; `make codegen` runs; two-style `$ref` convention per ADR-021.
-* [ ] **Arc42 update.** §5.1.4 notes the eligibility columns; §8.x adds the Probe Dossier and article endpoints.
-* [ ] **Validation.** `make lint && make test` green; integration tests cover k-anon gate triggering.
 
 ---
 

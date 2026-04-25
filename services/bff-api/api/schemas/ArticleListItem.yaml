@@ -1,0 +1,34 @@
+type: object
+description: >
+  Light-weight article reference returned by the article-browsing endpoint.
+  Carries enough metadata for a list view without leaking cleaned text.
+  Cleaned text and full provenance are served from `/articles/{id}` and are
+  subject to the k-anonymity gate (WP-006 §7).
+required:
+  - articleId
+  - source
+  - timestamp
+properties:
+  articleId:
+    type: string
+    description: SHA-256 hash of source + bronze_object_key (worker-derived).
+    example: 7c1c1f...
+  source:
+    type: string
+    description: Canonical source name.
+  timestamp:
+    type: string
+    format: date-time
+    description: Publication timestamp from SilverCore.
+  language:
+    type: string
+    nullable: true
+    description: Top language detection result for the article (ISO 639-1).
+  wordCount:
+    type: integer
+    nullable: true
+    description: Word count from `aer_gold.metrics`.
+  sentimentScore:
+    type: number
+    nullable: true
+    description: Sentiment score from `aer_gold.metrics` (provisional, WP-002).

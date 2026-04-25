@@ -117,9 +117,22 @@ func main() {
 	}()
 	sourcesTTL := time.Duration(cfg.SourcesCacheTTLSecs) * time.Second
 	sourceStore := storage.NewSourceStore(pgDB, sourcesTTL)
+	dossierStore := storage.NewDossierStore(pgDB)
+
+	// Phase 101: read-only Silver access for L5 Evidence article-detail.
+	silverStore, err := storage.NewSilverStore(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
+	if err != nil {
+		slog.Error("Failed to initialise Silver MinIO client", "error", err)
+		os.Exit(1)
+	}
 
 	// 7. Setup Handlers and Router
-	serverLogic := handler.NewServer(chStore, provenance, sourceStore, catalog, probes)
+	serverLogic := handler.NewServerWithOptions(chStore, provenance, sourceStore, catalog, probes, handler.ServerOptions{
+		Dossier:             dossierStore,
+		Articles:            chStore,
+		Silver:              silverStore,
+		KAnonymityThreshold: cfg.KAnonymityThreshold,
+	})
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
 	r := chi.NewRouter()

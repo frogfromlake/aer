@@ -131,6 +131,8 @@ services:
       - INGESTION_MINIO_SECRET_KEY=${INGESTION_MINIO_SECRET_KEY}
       - WORKER_MINIO_ACCESS_KEY=${WORKER_MINIO_ACCESS_KEY}
       - WORKER_MINIO_SECRET_KEY=${WORKER_MINIO_SECRET_KEY}
+      - BFF_MINIO_ACCESS_KEY=${BFF_MINIO_ACCESS_KEY}
+      - BFF_MINIO_SECRET_KEY=${BFF_MINIO_SECRET_KEY}
     volumes:
       - ./infra/minio/setup.sh:/setup.sh
     entrypoint: /bin/sh /setup.sh
@@ -443,6 +445,12 @@ services:
       - BFF_DB_USER=${BFF_DB_USER}
       - BFF_DB_PASSWORD=${BFF_DB_PASSWORD}
       - BFF_SOURCES_CACHE_TTL_SECONDS=${BFF_SOURCES_CACHE_TTL_SECONDS:-60}
+      # MinIO read-only access for L5 Evidence article-detail (Phase 101).
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
+      - BFF_MINIO_ACCESS_KEY=${BFF_MINIO_ACCESS_KEY}
+      - BFF_MINIO_SECRET_KEY=${BFF_MINIO_SECRET_KEY}
+      - BFF_K_ANONYMITY_THRESHOLD=${BFF_K_ANONYMITY_THRESHOLD:-10}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
     labels:
@@ -465,6 +473,8 @@ services:
       clickhouse:
         condition: service_healthy
       postgres-init-roles:
+        condition: service_completed_successfully
+      minio-init:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v1/healthz"]

@@ -1,0 +1,52 @@
+get:
+  tags: [Reference]
+  summary: L5 Evidence — article detail with k-anonymity gate
+  description: >
+    Returns the cleaned text, Silver metadata, and per-extractor provenance
+    for a single article. Subject to a k-anonymity gate per WP-006 §7: if
+    the article's aggregation group for the referenced metric is below the
+    configured threshold (k = 10 by default), the BFF returns 403 with a
+    methodological refusal payload instead of the article body. This is the
+    operational expression of "observation over surveillance" at the
+    article level — individual visibility is conditioned on aggregate
+    cover.
+  operationId: getArticleDetail
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: SHA-256 article_id.
+      schema:
+        type: string
+    - name: metricName
+      in: query
+      required: false
+      description: >
+        Metric whose aggregation group is consulted for the k-anonymity
+        gate. Defaults to `word_count` — the metric every processed
+        document contributes to, so the gate degenerates to "minimum
+        document count for the article's source/window."
+      schema:
+        type: string
+        default: word_count
+  responses:
+    '200':
+      description: Article detail payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ArticleDetail'
+    '403':
+      description: K-anonymity gate not satisfied — methodological refusal.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RefusalPayload'
+    '404':
+      description: Article not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

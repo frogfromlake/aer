@@ -64,16 +64,47 @@ type SourceLister interface {
 
 // Server implements the generated StrictServerInterface.
 type Server struct {
-	db         Store
-	provenance config.MetricProvenanceMap
-	sources    SourceLister
-	catalog    config.ContentCatalog
-	probes     config.ProbeRegistry
+	db                  Store
+	provenance          config.MetricProvenanceMap
+	sources             SourceLister
+	catalog             config.ContentCatalog
+	probes              config.ProbeRegistry
+	dossier             DossierStore
+	articles            ArticleQuerier
+	silver              SilverFetcher
+	kAnonymityThreshold int
 }
 
-// NewServer creates a new API server instance.
+// ServerOptions carries the optional, Phase 101-introduced dependencies
+// (dossier/articles/silver). They are optional because the existing test
+// suite constructs Server with only the legacy dependencies.
+type ServerOptions struct {
+	Dossier             DossierStore
+	Articles            ArticleQuerier
+	Silver              SilverFetcher
+	KAnonymityThreshold int
+}
+
+// NewServer creates a new API server instance with only the legacy
+// dependencies. Tests that do not exercise the Phase 101 endpoints use
+// this constructor unchanged.
 func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog, probes config.ProbeRegistry) *Server {
 	return &Server{db: db, provenance: provenance, sources: sources, catalog: catalog, probes: probes}
+}
+
+// NewServerWithOptions wires the Phase 101 endpoints alongside the
+// legacy dependencies. The cmd/server entrypoint uses this form once the
+// Postgres dossier store and MinIO Silver store have been initialised.
+func NewServerWithOptions(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog, probes config.ProbeRegistry, opts ServerOptions) *Server {
+	s := NewServer(db, provenance, sources, catalog, probes)
+	s.dossier = opts.Dossier
+	s.articles = opts.Articles
+	s.silver = opts.Silver
+	s.kAnonymityThreshold = opts.KAnonymityThreshold
+	if s.kAnonymityThreshold <= 0 {
+		s.kAnonymityThreshold = 10
+	}
+	return s
 }
 
 // GetHealthz handles GET /healthz — liveness probe, always returns 200 if the process is alive.

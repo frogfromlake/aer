@@ -1,0 +1,76 @@
+type: object
+description: >
+  Per-source card on the Probe Dossier. Combines the structural source row
+  with the etic/emic classification (WP-001), the Silver-eligibility flag
+  (Phase 101 §3.4), and the article counts that drive the Dossier UI.
+required:
+  - name
+  - type
+  - articlesTotal
+  - articlesInWindow
+  - silverEligible
+properties:
+  name:
+    type: string
+    description: Canonical source name.
+    example: tagesschau
+  type:
+    type: string
+    description: Source type discriminator (e.g., "rss").
+    example: rss
+  url:
+    type: string
+    nullable: true
+    description: Origin URL.
+  documentationUrl:
+    type: string
+    nullable: true
+    description: Probe dossier directory under `docs/probes/`.
+  articlesTotal:
+    type: integer
+    minimum: 0
+    description: Total number of processed documents for this source.
+  articlesInWindow:
+    type: integer
+    minimum: 0
+    description: >
+      Number of processed documents falling in the requested window. Equal
+      to `articlesTotal` when no window was supplied.
+  publicationFrequencyPerDay:
+    type: number
+    nullable: true
+    description: >
+      Average publications per day across the requested window (or full
+      history when no window is supplied). Null when the source has no
+      processed documents yet.
+  primaryFunction:
+    type: string
+    nullable: true
+    enum: [epistemic_authority, power_legitimation, cohesion_identity, subversion_friction, null]
+    description: >
+      WP-001 etic primary discourse function from the latest classification
+      record. Null when the source has no classification.
+  secondaryFunction:
+    type: string
+    nullable: true
+    enum: [epistemic_authority, power_legitimation, cohesion_identity, subversion_friction, null]
+    description: WP-001 etic secondary discourse function. Null when none.
+  emicDesignation:
+    type: string
+    nullable: true
+    description: WP-001 emic designation — how the source describes itself.
+  emicContext:
+    type: string
+    nullable: true
+    description: WP-001 emic context — the cultural/discursive frame of the source.
+  silverEligible:
+    type: boolean
+    description: >
+      Whether the source is approved for Silver-layer self-service access
+      per WP-006 §5.2. Probe 0's two sources are auto-eligible; all others
+      default to false until reviewed.
+  silverReviewDate:
+    type: string
+    format: date
+    nullable: true
+    description: Date the Silver-access review was completed (null when not reviewed).

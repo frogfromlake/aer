@@ -58,10 +58,16 @@ GRANT CONNECT ON DATABASE :"pg_database" TO :"bff_user";
 GRANT USAGE ON SCHEMA public TO :"bff_user";
 GRANT SELECT ON TABLE public.sources TO :"bff_user";
 
--- Revoke any incidental privileges that may have accumulated on other
--- public tables so the role stays narrowly scoped to the `sources` SSoT.
+-- Phase 101: extend the read-only role beyond `sources` so the BFF can
+-- compose the Probe Dossier (per-source counts, etic/emic classification)
+-- and the article-browsing endpoint (documents joined back to source via
+-- ingestion_jobs). The new grants are still SELECT-only — write paths
+-- continue to belong to the ingestion-api role.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM :"bff_user";
 GRANT SELECT ON TABLE public.sources TO :"bff_user";
+GRANT SELECT ON TABLE public.documents TO :"bff_user";
+GRANT SELECT ON TABLE public.ingestion_jobs TO :"bff_user";
+GRANT SELECT ON TABLE public.source_classifications TO :"bff_user";
 SQL
 
 echo "postgres-init-roles: done."

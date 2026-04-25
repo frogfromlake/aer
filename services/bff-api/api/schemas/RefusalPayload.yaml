@@ -1,0 +1,36 @@
+type: object
+description: >
+  Methodological refusal payload returned when the BFF declines to serve a
+  resource because a methodological gate (k-anonymity, equivalence,
+  Silver-eligibility) is not satisfied. The shape is intentionally
+  separate from the generic Error schema so the frontend can render the
+  refusal as a Surface III-linked methodological surface rather than a
+  bare error toast (Brief §3.3).
+required:
+  - gate
+  - message
+properties:
+  gate:
+    type: string
+    description: Machine identifier of the gate that fired.
+    enum: [k_anonymity, silver_eligibility, equivalence]
+    example: k_anonymity
+  message:
+    type: string
+    description: Human-readable summary of the refusal.
+  threshold:
+    type: integer
+    nullable: true
+    description: >
+      Threshold value the gate enforces (e.g., minimum aggregation size for
+      k-anonymity).
+  observed:
+    type: integer
+    nullable: true
+    description: Observed value that fell below the threshold.
+  workingPaperAnchor:
+    type: string
+    nullable: true
+    description: >
+      Anchor into the methodological surface (e.g., `WP-006#section-7`)
+      that explains the gate.

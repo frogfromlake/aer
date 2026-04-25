@@ -46,6 +46,18 @@ type Config struct {
 	// correctly. Host-mode runs invoke the binary from the repo root and must
 	// override to `services/bff-api/configs`.
 	ConfigDir            string `mapstructure:"BFF_CONFIG_DIR"`
+	// MinIO read-only access for the L5 Evidence article-detail endpoint
+	// (Phase 101). The BFF connects via a dedicated service account
+	// (BFF_MINIO_ACCESS_KEY / BFF_MINIO_SECRET_KEY) that holds GetObject
+	// on `silver/*` and `bronze/*` only — provisioned by `infra/minio/setup.sh`.
+	MinioEndpoint        string `mapstructure:"MINIO_ENDPOINT"`
+	MinioUseSSL          bool   `mapstructure:"MINIO_USE_SSL"`
+	MinioAccessKey       string `mapstructure:"BFF_MINIO_ACCESS_KEY"`
+	MinioSecretKey       string `mapstructure:"BFF_MINIO_SECRET_KEY"`
+	// KAnonymityThreshold is the minimum aggregation-group size required for
+	// the article-detail endpoint to return cleaned text (WP-006 §7).
+	// Below the threshold, the endpoint returns 403 with a refusal payload.
+	KAnonymityThreshold  int    `mapstructure:"BFF_K_ANONYMITY_THRESHOLD"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -76,6 +88,11 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_DB_PASSWORD", "")
 	v.SetDefault("BFF_SOURCES_CACHE_TTL_SECONDS", 60)
 	v.SetDefault("BFF_CONFIG_DIR", "configs")
+	v.SetDefault("MINIO_ENDPOINT", "localhost:9000")
+	v.SetDefault("MINIO_USE_SSL", false)
+	v.SetDefault("BFF_MINIO_ACCESS_KEY", "")
+	v.SetDefault("BFF_MINIO_SECRET_KEY", "")
+	v.SetDefault("BFF_K_ANONYMITY_THRESHOLD", 10)
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -100,6 +117,12 @@ func Load() (*Config, error) {
 	}
 	if cfg.BFFDBPassword == "" {
 		return nil, fmt.Errorf("BFF_DB_PASSWORD must be set")
+	}
+	if cfg.MinioAccessKey == "" {
+		return nil, fmt.Errorf("BFF_MINIO_ACCESS_KEY must be set")
+	}
+	if cfg.MinioSecretKey == "" {
+		return nil, fmt.Errorf("BFF_MINIO_SECRET_KEY must be set")
 	}
 
 	return &cfg, nil

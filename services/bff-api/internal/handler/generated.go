@@ -173,6 +173,105 @@ func (e MetricProvenanceValidationStatus) Valid() bool {
 	}
 }
 
+// Defines values for ProbeDossierFunctionCoverageFunctions.
+const (
+	ProbeDossierFunctionCoverageFunctionsCohesionIdentity   ProbeDossierFunctionCoverageFunctions = "cohesion_identity"
+	ProbeDossierFunctionCoverageFunctionsEpistemicAuthority ProbeDossierFunctionCoverageFunctions = "epistemic_authority"
+	ProbeDossierFunctionCoverageFunctionsPowerLegitimation  ProbeDossierFunctionCoverageFunctions = "power_legitimation"
+	ProbeDossierFunctionCoverageFunctionsSubversionFriction ProbeDossierFunctionCoverageFunctions = "subversion_friction"
+)
+
+// Valid indicates whether the value is a known member of the ProbeDossierFunctionCoverageFunctions enum.
+func (e ProbeDossierFunctionCoverageFunctions) Valid() bool {
+	switch e {
+	case ProbeDossierFunctionCoverageFunctionsCohesionIdentity:
+		return true
+	case ProbeDossierFunctionCoverageFunctionsEpistemicAuthority:
+		return true
+	case ProbeDossierFunctionCoverageFunctionsPowerLegitimation:
+		return true
+	case ProbeDossierFunctionCoverageFunctionsSubversionFriction:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeDossierSourcesPrimaryFunction.
+const (
+	ProbeDossierSourcesPrimaryFunctionCohesionIdentity   ProbeDossierSourcesPrimaryFunction = "cohesion_identity"
+	ProbeDossierSourcesPrimaryFunctionEpistemicAuthority ProbeDossierSourcesPrimaryFunction = "epistemic_authority"
+	ProbeDossierSourcesPrimaryFunctionLessThannil        ProbeDossierSourcesPrimaryFunction = "<nil>"
+	ProbeDossierSourcesPrimaryFunctionPowerLegitimation  ProbeDossierSourcesPrimaryFunction = "power_legitimation"
+	ProbeDossierSourcesPrimaryFunctionSubversionFriction ProbeDossierSourcesPrimaryFunction = "subversion_friction"
+)
+
+// Valid indicates whether the value is a known member of the ProbeDossierSourcesPrimaryFunction enum.
+func (e ProbeDossierSourcesPrimaryFunction) Valid() bool {
+	switch e {
+	case ProbeDossierSourcesPrimaryFunctionCohesionIdentity:
+		return true
+	case ProbeDossierSourcesPrimaryFunctionEpistemicAuthority:
+		return true
+	case ProbeDossierSourcesPrimaryFunctionLessThannil:
+		return true
+	case ProbeDossierSourcesPrimaryFunctionPowerLegitimation:
+		return true
+	case ProbeDossierSourcesPrimaryFunctionSubversionFriction:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeDossierSourcesSecondaryFunction.
+const (
+	CohesionIdentity   ProbeDossierSourcesSecondaryFunction = "cohesion_identity"
+	EpistemicAuthority ProbeDossierSourcesSecondaryFunction = "epistemic_authority"
+	LessThannil        ProbeDossierSourcesSecondaryFunction = "<nil>"
+	PowerLegitimation  ProbeDossierSourcesSecondaryFunction = "power_legitimation"
+	SubversionFriction ProbeDossierSourcesSecondaryFunction = "subversion_friction"
+)
+
+// Valid indicates whether the value is a known member of the ProbeDossierSourcesSecondaryFunction enum.
+func (e ProbeDossierSourcesSecondaryFunction) Valid() bool {
+	switch e {
+	case CohesionIdentity:
+		return true
+	case EpistemicAuthority:
+		return true
+	case LessThannil:
+		return true
+	case PowerLegitimation:
+		return true
+	case SubversionFriction:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RefusalPayloadGate.
+const (
+	Equivalence       RefusalPayloadGate = "equivalence"
+	KAnonymity        RefusalPayloadGate = "k_anonymity"
+	SilverEligibility RefusalPayloadGate = "silver_eligibility"
+)
+
+// Valid indicates whether the value is a known member of the RefusalPayloadGate enum.
+func (e RefusalPayloadGate) Valid() bool {
+	switch e {
+	case Equivalence:
+		return true
+	case KAnonymity:
+		return true
+	case SilverEligibility:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetContentParamsLocale.
 const (
 	GetContentParamsLocaleDe GetContentParamsLocale = "de"
@@ -258,6 +357,81 @@ func (e GetMetricsParamsResolution) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// Defines values for GetSourceArticlesParamsSentimentBand.
+const (
+	Negative GetSourceArticlesParamsSentimentBand = "negative"
+	Neutral  GetSourceArticlesParamsSentimentBand = "neutral"
+	Positive GetSourceArticlesParamsSentimentBand = "positive"
+)
+
+// Valid indicates whether the value is a known member of the GetSourceArticlesParamsSentimentBand enum.
+func (e GetSourceArticlesParamsSentimentBand) Valid() bool {
+	switch e {
+	case Negative:
+		return true
+	case Neutral:
+		return true
+	case Positive:
+		return true
+	default:
+		return false
+	}
+}
+
+// ArticleDetail Full article payload for L5 Evidence (Design Brief §4.5.5 in the Iteration 5 rewrite). Includes Bronze cleaned text, Silver metadata, and per-extractor provenance. Subject to a k-anonymity gate (WP-006 §7): if the article's aggregation group for the referenced metric is below the configured threshold, the BFF returns 403 with a methodological refusal payload instead of the article body.
+type ArticleDetail struct {
+	ArticleId string `json:"articleId"`
+
+	// CleanedText Cleaned text from SilverCore — the text the extractors operated on.
+	CleanedText string `json:"cleanedText"`
+
+	// ExtractionProvenance Per-extractor version hashes captured at extraction time.
+	ExtractionProvenance *map[string]string `json:"extractionProvenance,omitempty"`
+	Language             *string            `json:"language,omitempty"`
+
+	// Meta Source-specific SilverMeta payload (e.g., RSS feed_url, categories).
+	Meta *map[string]interface{} `json:"meta,omitempty"`
+
+	// RawText Raw text as fetched from the source. May be null when the harmoniser did not preserve it (older Silver schema versions).
+	RawText *string `json:"rawText,omitempty"`
+
+	// SchemaVersion SilverCore schema version present at extraction time.
+	SchemaVersion string    `json:"schemaVersion"`
+	Source        string    `json:"source"`
+	SourceType    *string   `json:"sourceType,omitempty"`
+	Timestamp     time.Time `json:"timestamp"`
+	Url           *string   `json:"url,omitempty"`
+	WordCount     int       `json:"wordCount"`
+}
+
+// ArticlesPage Paginated article-listing response. Cursor-based to keep deep paging stable under late-arriving Gold rows; `nextCursor` is opaque and must be echoed back unchanged on the next request.
+type ArticlesPage struct {
+	// HasMore True when more results exist beyond this page.
+	HasMore bool `json:"hasMore"`
+	Items   []struct {
+		// ArticleId SHA-256 hash of source + bronze_object_key (worker-derived).
+		ArticleId string `json:"articleId"`
+
+		// Language Top language detection result for the article (ISO 639-1).
+		Language *string `json:"language,omitempty"`
+
+		// SentimentScore Sentiment score from `aer_gold.metrics` (provisional, WP-002).
+		SentimentScore *float32 `json:"sentimentScore,omitempty"`
+
+		// Source Canonical source name.
+		Source string `json:"source"`
+
+		// Timestamp Publication timestamp from SilverCore.
+		Timestamp time.Time `json:"timestamp"`
+
+		// WordCount Word count from `aer_gold.metrics`.
+		WordCount *int `json:"wordCount,omitempty"`
+	} `json:"items"`
+
+	// NextCursor Opaque pagination token. Pass back via `?cursor=` to fetch the next page. Null when `hasMore` is false.
+	NextCursor *string `json:"nextCursor,omitempty"`
 }
 
 // AvailableMetric defines model for AvailableMetric.
@@ -394,6 +568,106 @@ type Probe struct {
 	Sources []string `json:"sources"`
 }
 
+// ProbeDossier Composite payload backing Surface II's Probe Dossier (Design Brief §4.2.1 in the Iteration 5 rewrite). The dossier answers a serious user's first question — *what is actually in this probe?* — by combining the probe's structural identity with the per-source counts and frequencies needed to drive the source cards on the Dossier landing.
+// The payload is composed server-side rather than fetched as separate resources because the Dossier is the canonical Surface II landing and the client must avoid request waterfalls on first paint.
+type ProbeDossier struct {
+	// FunctionCoverage Probe-level WP-001 §5.1 function coverage — how many of the four discourse functions the probe's sources collectively address. A derived property; not a constraint on the probe.
+	FunctionCoverage struct {
+		// Covered Number of distinct primary functions present.
+		Covered int `json:"covered"`
+
+		// Functions The distinct primary functions present in this probe.
+		Functions []ProbeDossierFunctionCoverageFunctions `json:"functions"`
+
+		// Total Total catalog size (always 4 — the WP-001 functions).
+		Total int `json:"total"`
+	} `json:"functionCoverage"`
+
+	// Language Primary publication language (ISO 639-1).
+	Language string `json:"language"`
+
+	// ProbeId Canonical probe identifier (matches `/probes` and `/content/probe/{probeId}`).
+	ProbeId string `json:"probeId"`
+
+	// Sources One card per source in the probe, ordered by source name.
+	Sources []struct {
+		// ArticlesInWindow Number of processed documents falling in the requested window. Equal to `articlesTotal` when no window was supplied.
+		ArticlesInWindow int `json:"articlesInWindow"`
+
+		// ArticlesTotal Total number of processed documents for this source.
+		ArticlesTotal int `json:"articlesTotal"`
+
+		// DocumentationUrl Probe dossier directory under `docs/probes/`.
+		DocumentationUrl *string `json:"documentationUrl,omitempty"`
+
+		// EmicContext WP-001 emic context — the cultural/discursive frame of the source.
+		EmicContext *string `json:"emicContext,omitempty"`
+
+		// EmicDesignation WP-001 emic designation — how the source describes itself.
+		EmicDesignation *string `json:"emicDesignation,omitempty"`
+
+		// Name Canonical source name.
+		Name string `json:"name"`
+
+		// PrimaryFunction WP-001 etic primary discourse function from the latest classification record. Null when the source has no classification.
+		PrimaryFunction *ProbeDossierSourcesPrimaryFunction `json:"primaryFunction,omitempty"`
+
+		// PublicationFrequencyPerDay Average publications per day across the requested window (or full history when no window is supplied). Null when the source has no processed documents yet.
+		PublicationFrequencyPerDay *float32 `json:"publicationFrequencyPerDay,omitempty"`
+
+		// SecondaryFunction WP-001 etic secondary discourse function. Null when none.
+		SecondaryFunction *ProbeDossierSourcesSecondaryFunction `json:"secondaryFunction,omitempty"`
+
+		// SilverEligible Whether the source is approved for Silver-layer self-service access per WP-006 §5.2. Probe 0's two sources are auto-eligible; all others default to false until reviewed.
+		SilverEligible bool `json:"silverEligible"`
+
+		// SilverReviewDate Date the Silver-access review was completed (null when not reviewed).
+		SilverReviewDate *openapi_types.Date `json:"silverReviewDate,omitempty"`
+
+		// Type Source type discriminator (e.g., "rss").
+		Type string `json:"type"`
+
+		// Url Origin URL.
+		Url *string `json:"url,omitempty"`
+	} `json:"sources"`
+
+	// WindowEnd End of the article-count window. Null when no window was supplied.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Start of the window over which per-source `articlesInWindow` counts were computed. Null when no window was supplied.
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+}
+
+// ProbeDossierFunctionCoverageFunctions defines model for ProbeDossier.FunctionCoverage.Functions.
+type ProbeDossierFunctionCoverageFunctions string
+
+// ProbeDossierSourcesPrimaryFunction WP-001 etic primary discourse function from the latest classification record. Null when the source has no classification.
+type ProbeDossierSourcesPrimaryFunction string
+
+// ProbeDossierSourcesSecondaryFunction WP-001 etic secondary discourse function. Null when none.
+type ProbeDossierSourcesSecondaryFunction string
+
+// RefusalPayload Methodological refusal payload returned when the BFF declines to serve a resource because a methodological gate (k-anonymity, equivalence, Silver-eligibility) is not satisfied. The shape is intentionally separate from the generic Error schema so the frontend can render the refusal as a Surface III-linked methodological surface rather than a bare error toast (Brief §3.3).
+type RefusalPayload struct {
+	// Gate Machine identifier of the gate that fired.
+	Gate RefusalPayloadGate `json:"gate"`
+
+	// Message Human-readable summary of the refusal.
+	Message string `json:"message"`
+
+	// Observed Observed value that fell below the threshold.
+	Observed *int `json:"observed,omitempty"`
+
+	// Threshold Threshold value the gate enforces (e.g., minimum aggregation size for k-anonymity).
+	Threshold *int `json:"threshold,omitempty"`
+
+	// WorkingPaperAnchor Anchor into the methodological surface (e.g., `WP-006#section-7`) that explains the gate.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+// RefusalPayloadGate Machine identifier of the gate that fired.
+type RefusalPayloadGate string
+
 // Source defines model for Source.
 type Source struct {
 	// DocumentationUrl Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
@@ -407,6 +681,12 @@ type Source struct {
 
 	// Url Origin URL (feed, API, or seed page).
 	Url *string `json:"url,omitempty"`
+}
+
+// GetArticleDetailParams defines parameters for GetArticleDetail.
+type GetArticleDetailParams struct {
+	// MetricName Metric whose aggregation group is consulted for the k-anonymity gate. Defaults to `word_count` — the metric every processed document contributes to, so the gate degenerates to "minimum document count for the article's source/window."
+	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
 }
 
 // GetContentParams defines parameters for GetContent.
@@ -493,8 +773,42 @@ type GetMetricsAvailableParams struct {
 	EndDate time.Time `form:"endDate" json:"endDate"`
 }
 
+// GetProbeDossierParams defines parameters for GetProbeDossier.
+type GetProbeDossierParams struct {
+	// WindowStart Start of the article-count window (RFC 3339). When omitted the per-source `articlesInWindow` counts equal the total counts.
+	WindowStart *time.Time `form:"windowStart,omitempty" json:"windowStart,omitempty"`
+
+	// WindowEnd End of the article-count window (RFC 3339).
+	WindowEnd *time.Time `form:"windowEnd,omitempty" json:"windowEnd,omitempty"`
+}
+
+// GetSourceArticlesParams defines parameters for GetSourceArticles.
+type GetSourceArticlesParams struct {
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+	End   *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// Language ISO 639-1 language filter applied against the top language detection result.
+	Language *string `form:"language,omitempty" json:"language,omitempty"`
+
+	// EntityMatch Substring match (case-insensitive) against any extracted entity for the article. Useful for narrowing the Dossier list to "articles that mention X."
+	EntityMatch *string `form:"entityMatch,omitempty" json:"entityMatch,omitempty"`
+
+	// SentimentBand Filter by sentiment band over the SentiWS score (negative ≤ -0.05, neutral in (-0.05, 0.05), positive ≥ 0.05).
+	SentimentBand *GetSourceArticlesParamsSentimentBand `form:"sentimentBand,omitempty" json:"sentimentBand,omitempty"`
+	Limit         *int                                  `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque pagination cursor from a previous response's `nextCursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetSourceArticlesParamsSentimentBand defines parameters for GetSourceArticles.
+type GetSourceArticlesParamsSentimentBand string
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// L5 Evidence — article detail with k-anonymity gate
+	// (GET /articles/{id})
+	GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
@@ -519,17 +833,29 @@ type ServerInterface interface {
 	// List active probes with emission geometry
 	// (GET /probes)
 	GetProbes(w http.ResponseWriter, r *http.Request)
+	// Composite Probe Dossier payload
+	// (GET /probes/{id}/dossier)
+	GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
 	// List known data sources with methodology documentation
 	// (GET /sources)
 	GetSources(w http.ResponseWriter, r *http.Request)
+	// Paginated article listing for a source
+	// (GET /sources/{id}/articles)
+	GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// L5 Evidence — article detail with k-anonymity gate
+// (GET /articles/{id})
+func (_ Unimplemented) GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Get Dual-Register content for an entity
 // (GET /content/{entityType}/{entityId})
@@ -579,6 +905,12 @@ func (_ Unimplemented) GetProbes(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Composite Probe Dossier payload
+// (GET /probes/{id}/dossier)
+func (_ Unimplemented) GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Readiness probe
 // (GET /readyz)
 func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
@@ -591,6 +923,12 @@ func (_ Unimplemented) GetSources(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Paginated article listing for a source
+// (GET /sources/{id}/articles)
+func (_ Unimplemented) GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
@@ -599,6 +937,48 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetArticleDetail operation middleware
+func (siw *ServerInterfaceWrapper) GetArticleDetail(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetArticleDetailParams
+
+	// ------------- Optional query parameter "metricName" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metricName", r.URL.Query(), &params.MetricName, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metricName", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetArticleDetail(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetContent operation middleware
 func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Request) {
@@ -1016,6 +1396,56 @@ func (siw *ServerInterfaceWrapper) GetProbes(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetProbeDossier operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeDossier(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProbeDossierParams
+
+	// ------------- Optional query parameter "windowStart" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "windowStart", r.URL.Query(), &params.WindowStart, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "windowStart", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "windowEnd" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "windowEnd", r.URL.Query(), &params.WindowEnd, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "windowEnd", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeDossier(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetReadyz operation middleware
 func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
 
@@ -1041,6 +1471,96 @@ func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSources(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSourceArticles operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceArticles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSourceArticlesParams
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "language" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "language", r.URL.Query(), &params.Language, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "language", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "entityMatch" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "entityMatch", r.URL.Query(), &params.EntityMatch, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "entityMatch", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sentimentBand" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sentimentBand", r.URL.Query(), &params.SentimentBand, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sentimentBand", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSourceArticles(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1164,6 +1684,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/articles/{id}", wrapper.GetArticleDetail)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
 	})
 	r.Group(func(r chi.Router) {
@@ -1188,13 +1711,70 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/probes", wrapper.GetProbes)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/probes/{id}/dossier", wrapper.GetProbeDossier)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources", wrapper.GetSources)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sources/{id}/articles", wrapper.GetSourceArticles)
+	})
 
 	return r
+}
+
+type GetArticleDetailRequestObject struct {
+	Id     string `json:"id"`
+	Params GetArticleDetailParams
+}
+
+type GetArticleDetailResponseObject interface {
+	VisitGetArticleDetailResponse(w http.ResponseWriter) error
+}
+
+type GetArticleDetail200JSONResponse ArticleDetail
+
+func (response GetArticleDetail200JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleDetail403JSONResponse RefusalPayload
+
+func (response GetArticleDetail403JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleDetail404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetArticleDetail404JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleDetail500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetArticleDetail500JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type GetContentRequestObject struct {
@@ -1546,6 +2126,60 @@ func (response GetProbes500JSONResponse) VisitGetProbesResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetProbeDossierRequestObject struct {
+	Id     string `json:"id"`
+	Params GetProbeDossierParams
+}
+
+type GetProbeDossierResponseObject interface {
+	VisitGetProbeDossierResponse(w http.ResponseWriter) error
+}
+
+type GetProbeDossier200JSONResponse ProbeDossier
+
+func (response GetProbeDossier200JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeDossier400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetProbeDossier400JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeDossier404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetProbeDossier404JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeDossier500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetProbeDossier500JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetReadyzRequestObject struct {
 }
 
@@ -1599,8 +2233,65 @@ func (response GetSources500JSONResponse) VisitGetSourcesResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetSourceArticlesRequestObject struct {
+	Id     string `json:"id"`
+	Params GetSourceArticlesParams
+}
+
+type GetSourceArticlesResponseObject interface {
+	VisitGetSourceArticlesResponse(w http.ResponseWriter) error
+}
+
+type GetSourceArticles200JSONResponse ArticlesPage
+
+func (response GetSourceArticles200JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceArticles400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSourceArticles400JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceArticles404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSourceArticles404JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceArticles500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSourceArticles500JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// L5 Evidence — article detail with k-anonymity gate
+	// (GET /articles/{id})
+	GetArticleDetail(ctx context.Context, request GetArticleDetailRequestObject) (GetArticleDetailResponseObject, error)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
@@ -1625,12 +2316,18 @@ type StrictServerInterface interface {
 	// List active probes with emission geometry
 	// (GET /probes)
 	GetProbes(ctx context.Context, request GetProbesRequestObject) (GetProbesResponseObject, error)
+	// Composite Probe Dossier payload
+	// (GET /probes/{id}/dossier)
+	GetProbeDossier(ctx context.Context, request GetProbeDossierRequestObject) (GetProbeDossierResponseObject, error)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
 	// List known data sources with methodology documentation
 	// (GET /sources)
 	GetSources(ctx context.Context, request GetSourcesRequestObject) (GetSourcesResponseObject, error)
+	// Paginated article listing for a source
+	// (GET /sources/{id}/articles)
+	GetSourceArticles(ctx context.Context, request GetSourceArticlesRequestObject) (GetSourceArticlesResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -1660,6 +2357,33 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetArticleDetail operation middleware
+func (sh *strictHandler) GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams) {
+	var request GetArticleDetailRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetArticleDetail(ctx, request.(GetArticleDetailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetArticleDetail")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetArticleDetailResponseObject); ok {
+		if err := validResponse.VisitGetArticleDetailResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetContent operation middleware
@@ -1868,6 +2592,33 @@ func (sh *strictHandler) GetProbes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetProbeDossier operation middleware
+func (sh *strictHandler) GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams) {
+	var request GetProbeDossierRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeDossier(ctx, request.(GetProbeDossierRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeDossier")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeDossierResponseObject); ok {
+		if err := validResponse.VisitGetProbeDossierResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetReadyz operation middleware
 func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	var request GetReadyzRequestObject
@@ -1909,6 +2660,33 @@ func (sh *strictHandler) GetSources(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSourcesResponseObject); ok {
 		if err := validResponse.VisitGetSourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSourceArticles operation middleware
+func (sh *strictHandler) GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams) {
+	var request GetSourceArticlesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSourceArticles(ctx, request.(GetSourceArticlesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSourceArticles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSourceArticlesResponseObject); ok {
+		if err := validResponse.VisitGetSourceArticlesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

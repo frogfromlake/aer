@@ -1,0 +1,88 @@
+get:
+  tags: [Reference]
+  summary: Paginated article listing for a source
+  description: >
+    Returns a paginated list of processed documents for a source, optionally
+    filtered by time window, language, sentiment band, and entity match.
+    Powers the article browser inside the Probe Dossier (Design Brief
+    §4.2.1). Cleaned text and full provenance are not included — fetch
+    `/articles/{id}` for L5 Evidence.
+  operationId: getSourceArticles
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: Source identifier — either the integer `sources.id` or the canonical source name.
+      schema:
+        type: string
+    - name: start
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    - name: end
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    - name: language
+      in: query
+      required: false
+      description: ISO 639-1 language filter applied against the top language detection result.
+      schema:
+        type: string
+    - name: entityMatch
+      in: query
+      required: false
+      description: >
+        Substring match (case-insensitive) against any extracted entity for
+        the article. Useful for narrowing the Dossier list to "articles
+        that mention X."
+      schema:
+        type: string
+    - name: sentimentBand
+      in: query
+      required: false
+      description: >
+        Filter by sentiment band over the SentiWS score
+        (negative ≤ -0.05, neutral in (-0.05, 0.05), positive ≥ 0.05).
+      schema:
+        type: string
+        enum: [negative, neutral, positive]
+    - name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    - name: cursor
+      in: query
+      required: false
+      description: Opaque pagination cursor from a previous response's `nextCursor`.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Paginated article listing.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ArticlesPage'
+    '400':
+      description: Invalid query parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

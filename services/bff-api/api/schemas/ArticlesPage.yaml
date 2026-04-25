@@ -1,0 +1,22 @@
+type: object
+description: >
+  Paginated article-listing response. Cursor-based to keep deep paging
+  stable under late-arriving Gold rows; `nextCursor` is opaque and must be
+  echoed back unchanged on the next request.
+required:
+  - items
+  - hasMore
+properties:
+  items:
+    type: array
+    items:
+      $ref: './ArticleListItem.yaml'
+  hasMore:
+    type: boolean
+    description: True when more results exist beyond this page.
+  nextCursor:
+    type: string
+    nullable: true
+    description: >
+      Opaque pagination token. Pass back via `?cursor=` to fetch the next
+      page. Null when `hasMore` is false.
