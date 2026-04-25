@@ -1001,6 +1001,30 @@ type GetProbeDossierParams struct {
 	WindowEnd *time.Time `form:"windowEnd,omitempty" json:"windowEnd,omitempty"`
 }
 
+// ListSilverDocumentsParams defines parameters for ListSilverDocuments.
+type ListSilverDocumentsParams struct {
+	// SourceId Source identifier — canonical name or integer id.
+	SourceId string `form:"sourceId" json:"sourceId"`
+
+	// Start Inclusive start of the timestamp window (RFC 3339).
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the timestamp window (RFC 3339).
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// Limit Page size. Server clamps to `[1, 200]`; default 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque pagination token returned in the previous page's `nextCursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetSourcesParams defines parameters for GetSources.
+type GetSourcesParams struct {
+	// SilverOnly When `true`, returns only sources whose `silver_eligible` flag is set (Phase 103). Use this to populate the dashboard's Silver-layer source picker without surfacing ineligible sources only to refuse them later.
+	SilverOnly *bool `form:"silverOnly,omitempty" json:"silverOnly,omitempty"`
+}
+
 // GetSourceArticlesParams defines parameters for GetSourceArticles.
 type GetSourceArticlesParams struct {
 	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
@@ -1070,9 +1094,18 @@ type ServerInterface interface {
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
+	// List Silver-layer documents for a source
+	// (GET /silver/documents)
+	ListSilverDocuments(w http.ResponseWriter, r *http.Request, params ListSilverDocumentsParams)
+	// Silver-layer document detail
+	// (GET /silver/documents/{id})
+	GetSilverDocumentDetail(w http.ResponseWriter, r *http.Request, id string)
 	// List known data sources with methodology documentation
 	// (GET /sources)
-	GetSources(w http.ResponseWriter, r *http.Request)
+	GetSources(w http.ResponseWriter, r *http.Request, params GetSourcesParams)
+	// Source detail with Silver-eligibility metadata
+	// (GET /sources/{id})
+	GetSourceById(w http.ResponseWriter, r *http.Request, id string)
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams)
@@ -1172,9 +1205,27 @@ func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List Silver-layer documents for a source
+// (GET /silver/documents)
+func (_ Unimplemented) ListSilverDocuments(w http.ResponseWriter, r *http.Request, params ListSilverDocumentsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Silver-layer document detail
+// (GET /silver/documents/{id})
+func (_ Unimplemented) GetSilverDocumentDetail(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List known data sources with methodology documentation
 // (GET /sources)
-func (_ Unimplemented) GetSources(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetSources(w http.ResponseWriter, r *http.Request, params GetSourcesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Source detail with Silver-eligibility metadata
+// (GET /sources/{id})
+func (_ Unimplemented) GetSourceById(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2106,8 +2157,91 @@ func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
-// GetSources operation middleware
-func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Request) {
+// ListSilverDocuments operation middleware
+func (siw *ServerInterfaceWrapper) ListSilverDocuments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSilverDocumentsParams
+
+	// ------------- Required query parameter "sourceId" -------------
+
+	if paramValue := r.URL.Query().Get("sourceId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sourceId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "sourceId", r.URL.Query(), &params.SourceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSilverDocuments(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSilverDocumentDetail operation middleware
+func (siw *ServerInterfaceWrapper) GetSilverDocumentDetail(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
 
 	ctx := r.Context()
 
@@ -2116,7 +2250,71 @@ func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Req
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSources(w, r)
+		siw.Handler.GetSilverDocumentDetail(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSources operation middleware
+func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSourcesParams
+
+	// ------------- Optional query parameter "silverOnly" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "silverOnly", r.URL.Query(), &params.SilverOnly, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "silverOnly", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSources(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSourceById operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceById(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSourceById(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2375,7 +2573,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/silver/documents", wrapper.ListSilverDocuments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/silver/documents/{id}", wrapper.GetSilverDocumentDetail)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources", wrapper.GetSources)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sources/{id}", wrapper.GetSourceById)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources/{id}/articles", wrapper.GetSourceArticles)
@@ -3178,7 +3385,146 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListSilverDocumentsRequestObject struct {
+	Params ListSilverDocumentsParams
+}
+
+type ListSilverDocumentsResponseObject interface {
+	VisitListSilverDocumentsResponse(w http.ResponseWriter) error
+}
+
+type ListSilverDocuments200JSONResponse struct {
+	HasMore bool `json:"hasMore"`
+	Items   []struct {
+		ArticleId string    `json:"articleId"`
+		Language  *string   `json:"language,omitempty"`
+		Source    string    `json:"source"`
+		Timestamp time.Time `json:"timestamp"`
+		WordCount *int      `json:"wordCount,omitempty"`
+	} `json:"items"`
+	NextCursor *string `json:"nextCursor,omitempty"`
+
+	// Source The source name the page is scoped to.
+	Source string `json:"source"`
+}
+
+func (response ListSilverDocuments200JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSilverDocuments400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response ListSilverDocuments400JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSilverDocuments403JSONResponse RefusalPayload
+
+func (response ListSilverDocuments403JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSilverDocuments404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response ListSilverDocuments404JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSilverDocuments500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response ListSilverDocuments500JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverDocumentDetailRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetSilverDocumentDetailResponseObject interface {
+	VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error
+}
+
+type GetSilverDocumentDetail200JSONResponse struct {
+	ArticleId            string                  `json:"articleId"`
+	CleanedText          string                  `json:"cleanedText"`
+	ExtractionProvenance *map[string]string      `json:"extractionProvenance,omitempty"`
+	Language             *string                 `json:"language,omitempty"`
+	Meta                 *map[string]interface{} `json:"meta,omitempty"`
+	RawText              *string                 `json:"rawText,omitempty"`
+	SchemaVersion        string                  `json:"schemaVersion"`
+	Source               string                  `json:"source"`
+	SourceType           *string                 `json:"sourceType,omitempty"`
+	Timestamp            time.Time               `json:"timestamp"`
+	Url                  *string                 `json:"url,omitempty"`
+	WordCount            int                     `json:"wordCount"`
+}
+
+func (response GetSilverDocumentDetail200JSONResponse) VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverDocumentDetail403JSONResponse RefusalPayload
+
+func (response GetSilverDocumentDetail403JSONResponse) VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverDocumentDetail404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSilverDocumentDetail404JSONResponse) VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverDocumentDetail500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSilverDocumentDetail500JSONResponse) VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSourcesRequestObject struct {
+	Params GetSourcesParams
 }
 
 type GetSourcesResponseObject interface {
@@ -3200,6 +3546,69 @@ type GetSources500JSONResponse struct {
 }
 
 func (response GetSources500JSONResponse) VisitGetSourcesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceByIdRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetSourceByIdResponseObject interface {
+	VisitGetSourceByIdResponse(w http.ResponseWriter) error
+}
+
+type GetSourceById200JSONResponse struct {
+	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+
+	// Name Canonical source identifier.
+	Name string `json:"name"`
+
+	// SilverEligible Whether this source has passed the WP-006 §5.2 review for Silver-layer self-service access.
+	SilverEligible   bool                `json:"silverEligible"`
+	SilverReviewDate *openapi_types.Date `json:"silverReviewDate,omitempty"`
+
+	// SilverReviewRationale Free-text justification for the eligibility decision.
+	SilverReviewRationale *string `json:"silverReviewRationale,omitempty"`
+
+	// SilverReviewReference Pointer to the canonical reference document for this review (e.g. `docs/arc42/09_architecture_decisions.md#adr-020`).
+	SilverReviewReference *string `json:"silverReviewReference,omitempty"`
+
+	// SilverReviewReviewer Reviewer of record (free text).
+	SilverReviewReviewer *string `json:"silverReviewReviewer,omitempty"`
+
+	// Type Source type discriminator (e.g. `rss`, `scraper`).
+	Type string  `json:"type"`
+	Url  *string `json:"url,omitempty"`
+}
+
+func (response GetSourceById200JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceById404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSourceById404JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceById500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSourceById500JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -3307,9 +3716,18 @@ type StrictServerInterface interface {
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
+	// List Silver-layer documents for a source
+	// (GET /silver/documents)
+	ListSilverDocuments(ctx context.Context, request ListSilverDocumentsRequestObject) (ListSilverDocumentsResponseObject, error)
+	// Silver-layer document detail
+	// (GET /silver/documents/{id})
+	GetSilverDocumentDetail(ctx context.Context, request GetSilverDocumentDetailRequestObject) (GetSilverDocumentDetailResponseObject, error)
 	// List known data sources with methodology documentation
 	// (GET /sources)
 	GetSources(ctx context.Context, request GetSourcesRequestObject) (GetSourcesResponseObject, error)
+	// Source detail with Silver-eligibility metadata
+	// (GET /sources/{id})
+	GetSourceById(ctx context.Context, request GetSourceByIdRequestObject) (GetSourceByIdResponseObject, error)
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(ctx context.Context, request GetSourceArticlesRequestObject) (GetSourceArticlesResponseObject, error)
@@ -3734,9 +4152,63 @@ func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListSilverDocuments operation middleware
+func (sh *strictHandler) ListSilverDocuments(w http.ResponseWriter, r *http.Request, params ListSilverDocumentsParams) {
+	var request ListSilverDocumentsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSilverDocuments(ctx, request.(ListSilverDocumentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSilverDocuments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSilverDocumentsResponseObject); ok {
+		if err := validResponse.VisitListSilverDocumentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSilverDocumentDetail operation middleware
+func (sh *strictHandler) GetSilverDocumentDetail(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetSilverDocumentDetailRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSilverDocumentDetail(ctx, request.(GetSilverDocumentDetailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSilverDocumentDetail")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSilverDocumentDetailResponseObject); ok {
+		if err := validResponse.VisitGetSilverDocumentDetailResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetSources operation middleware
-func (sh *strictHandler) GetSources(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetSources(w http.ResponseWriter, r *http.Request, params GetSourcesParams) {
 	var request GetSourcesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetSources(ctx, request.(GetSourcesRequestObject))
@@ -3751,6 +4223,32 @@ func (sh *strictHandler) GetSources(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSourcesResponseObject); ok {
 		if err := validResponse.VisitGetSourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSourceById operation middleware
+func (sh *strictHandler) GetSourceById(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetSourceByIdRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSourceById(ctx, request.(GetSourceByIdRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSourceById")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSourceByIdResponseObject); ok {
+		if err := validResponse.VisitGetSourceByIdResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

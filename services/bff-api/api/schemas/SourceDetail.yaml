@@ -1,0 +1,47 @@
+type: object
+description: >
+  A single source record carrying the fields from the Source schema plus
+  the Silver-layer eligibility state and the WP-006 §5.2 review metadata
+  recorded at the time `silverEligible` was flipped. Fields beyond
+  `silverEligible` are present only on eligible sources (and may be empty
+  on auto-eligible Probe 0 sources where the metadata is a stub).
+required:
+  - name
+  - type
+  - silverEligible
+properties:
+  name:
+    type: string
+    description: Canonical source identifier.
+  type:
+    type: string
+    description: Source type discriminator (e.g. `rss`, `scraper`).
+  url:
+    type: string
+    nullable: true
+  documentationUrl:
+    type: string
+    nullable: true
+  silverEligible:
+    type: boolean
+    description: >
+      Whether this source has passed the WP-006 §5.2 review for
+      Silver-layer self-service access.
+  silverReviewReviewer:
+    type: string
+    nullable: true
+    description: Reviewer of record (free text).
+  silverReviewDate:
+    type: string
+    format: date
+    nullable: true
+  silverReviewRationale:
+    type: string
+    nullable: true
+    description: Free-text justification for the eligibility decision.
+  silverReviewReference:
+    type: string
+    nullable: true
+    description: >
+      Pointer to the canonical reference document for this review (e.g.
+      `docs/arc42/09_architecture_decisions.md#adr-020`).

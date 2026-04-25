@@ -3,11 +3,14 @@ get:
   summary: List known data sources with methodology documentation
   description: >
     Returns the canonical list of data sources configured in AĒR together
-    with optional links to their methodological documentation (e.g., bias
-    profiles under `docs/methodology/`). The list is served from a static
-    BFF config mirroring the PostgreSQL `sources` table so the BFF does
-    not require a direct Postgres connection.
+    with optional links to their methodological documentation (e.g. bias
+    profiles under `docs/methodology/`). When `silverOnly=true` (Phase
+    103) the response is filtered to sources whose `silver_eligible`
+    flag is set, so the dashboard's Silver-layer source picker avoids
+    surfacing sources that the eligibility gate would refuse.
   operationId: getSources
+  parameters:
+    - $ref: '../parameters/silverOnly.yaml'
   responses:
     '200':
       description: The list of known sources.

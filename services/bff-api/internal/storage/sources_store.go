@@ -71,7 +71,10 @@ func (s *SourceStore) List(ctx context.Context) ([]config.SourceEntry, error) {
 
 func (s *SourceStore) fetch(ctx context.Context) ([]config.SourceEntry, error) {
 	const query = `
-		SELECT name, type, url, documentation_url
+		SELECT name, type, url, documentation_url,
+		       silver_eligible,
+		       silver_review_reviewer, silver_review_date,
+		       silver_review_rationale, silver_review_reference
 		  FROM sources
 		 ORDER BY name
 	`
@@ -87,11 +90,19 @@ func (s *SourceStore) fetch(ctx context.Context) ([]config.SourceEntry, error) {
 			name, sourceType string
 			url              sql.NullString
 			docURL           sql.NullString
+			eligible         bool
+			reviewer         sql.NullString
+			reviewDate       sql.NullTime
+			rationale        sql.NullString
+			reference        sql.NullString
 		)
-		if err := rows.Scan(&name, &sourceType, &url, &docURL); err != nil {
+		if err := rows.Scan(
+			&name, &sourceType, &url, &docURL,
+			&eligible, &reviewer, &reviewDate, &rationale, &reference,
+		); err != nil {
 			return nil, fmt.Errorf("scan sources row: %w", err)
 		}
-		entry := config.SourceEntry{Name: name, Type: sourceType}
+		entry := config.SourceEntry{Name: name, Type: sourceType, SilverEligible: eligible}
 		if url.Valid {
 			v := url.String
 			entry.URL = &v
@@ -99,6 +110,22 @@ func (s *SourceStore) fetch(ctx context.Context) ([]config.SourceEntry, error) {
 		if docURL.Valid {
 			v := docURL.String
 			entry.DocumentationURL = &v
+		}
+		if reviewer.Valid {
+			v := reviewer.String
+			entry.SilverReviewReviewer = &v
+		}
+		if reviewDate.Valid {
+			t := reviewDate.Time
+			entry.SilverReviewDate = &t
+		}
+		if rationale.Valid {
+			v := rationale.String
+			entry.SilverReviewRationale = &v
+		}
+		if reference.Valid {
+			v := reference.String
+			entry.SilverReviewReference = &v
 		}
 		out = append(out, entry)
 	}

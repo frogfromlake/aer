@@ -1,0 +1,74 @@
+get:
+  tags: [Analysis]
+  summary: List Silver-layer documents for a source
+  description: >
+    Paginated listing of Silver-layer documents (`SilverCore` summaries)
+    for a single source within an optional time window. Subject to the
+    Silver-eligibility gate (Phase 103, ADR-020 §"Silver-layer toggle"):
+    a source whose `silver_eligible` flag is false returns 403 with a
+    RefusalPayload citing WP-006 §5.2.
+  operationId: listSilverDocuments
+  parameters:
+    - name: sourceId
+      in: query
+      required: true
+      description: Source identifier — canonical name or integer id.
+      schema:
+        type: string
+        minLength: 1
+    - name: start
+      in: query
+      required: false
+      description: Inclusive start of the timestamp window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: end
+      in: query
+      required: false
+      description: Exclusive end of the timestamp window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: limit
+      in: query
+      required: false
+      description: Page size. Server clamps to `[1, 200]`; default 50.
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 200
+    - name: cursor
+      in: query
+      required: false
+      description: Opaque pagination token returned in the previous page's `nextCursor`.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: A page of Silver document summaries.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/SilverDocumentsPage.yaml'
+    '400':
+      description: Invalid query parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '403':
+      description: Source is not Silver-eligible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RefusalPayload'
+    '404':
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

@@ -43,6 +43,12 @@ paths:
     $ref: './paths/languages.yaml'
   /sources:
     $ref: './paths/sources.yaml'
+  /sources/{id}:
+    $ref: './paths/source_detail.yaml'
+  /silver/documents:
+    $ref: './paths/silver_documents.yaml'
+  /silver/documents/{id}:
+    $ref: './paths/silver_document_detail.yaml'
   /probes:
     $ref: './paths/probes.yaml'
   /probes/{id}/dossier:
@@ -113,3 +119,11 @@ components:
       $ref: './schemas/CorrelationMatrix.yaml'
     CoOccurrenceGraph:
       $ref: './schemas/CoOccurrenceGraph.yaml'
+    SourceDetail:
+      $ref: './schemas/SourceDetail.yaml'
+    SilverDocumentSummary:
+      $ref: './schemas/SilverDocumentSummary.yaml'
+    SilverDocumentsPage:
+      $ref: './schemas/SilverDocumentsPage.yaml'
+    SilverDocumentDetail:
+      $ref: './schemas/SilverDocumentDetail.yaml'

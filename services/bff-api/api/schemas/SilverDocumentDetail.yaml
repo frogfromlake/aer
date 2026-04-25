@@ -1,0 +1,49 @@
+type: object
+description: >
+  Full Silver-layer document detail. Returns the SilverCore record
+  (cleaned_text included) plus the SilverMeta blob (source-specific,
+  intentionally unstable per ADR-015) and the per-extractor provenance
+  recorded at extraction time.
+required:
+  - articleId
+  - source
+  - timestamp
+  - schemaVersion
+  - cleanedText
+  - wordCount
+properties:
+  articleId:
+    type: string
+  source:
+    type: string
+  sourceType:
+    type: string
+    nullable: true
+  timestamp:
+    type: string
+    format: date-time
+  schemaVersion:
+    type: string
+  language:
+    type: string
+    nullable: true
+  url:
+    type: string
+    nullable: true
+  rawText:
+    type: string
+    nullable: true
+  cleanedText:
+    type: string
+  wordCount:
+    type: integer
+    minimum: 0
+  meta:
+    type: object
+    nullable: true
+    additionalProperties: true
+  extractionProvenance:
+    type: object
+    nullable: true
+    additionalProperties:
+      type: string

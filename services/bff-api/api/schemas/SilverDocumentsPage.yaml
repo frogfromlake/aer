@@ -1,0 +1,22 @@
+type: object
+description: >
+  Paginated page of Silver-layer documents for a single source. The
+  cursor is opaque (base64 token over an offset today; may evolve
+  without an API break).
+required:
+  - source
+  - items
+  - hasMore
+properties:
+  source:
+    type: string
+    description: The source name the page is scoped to.
+  items:
+    type: array
+    items:
+      $ref: './SilverDocumentSummary.yaml'
+  hasMore:
+    type: boolean
+  nextCursor:
+    type: string
+    nullable: true

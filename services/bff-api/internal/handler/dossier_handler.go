@@ -22,6 +22,9 @@ type DossierStore interface {
 	FetchSources(ctx context.Context, sourceNames []string, windowStart, windowEnd *time.Time) ([]storage.DossierSourceRow, error)
 	ResolveSource(ctx context.Context, identifier string) (int64, string, error)
 	ResolveArticle(ctx context.Context, articleID string) (*storage.ArticleResolution, error)
+	// Phase 103: ResolveSourceWithEligibility returns the eligibility tuple
+	// used by both the source-detail endpoint and the Silver-eligibility gate.
+	ResolveSourceWithEligibility(ctx context.Context, identifier string) (*storage.SourceEligibilityRow, error)
 }
 
 // ArticleQuerier abstracts the ClickHouse-side article queries.

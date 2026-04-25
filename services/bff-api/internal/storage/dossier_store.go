@@ -188,6 +188,50 @@ func (s *DossierStore) ResolveSource(ctx context.Context, identifier string) (id
 	return id, name, nil
 }
 
+// SourceEligibilityRow carries the Silver-eligibility tuple for a single
+// source — used by the Phase 103 Silver endpoints' eligibility gate and
+// by the source-detail endpoint.
+type SourceEligibilityRow struct {
+	ID                    int64
+	Name                  string
+	Type                  string
+	URL                   sql.NullString
+	DocumentationURL      sql.NullString
+	SilverEligible        bool
+	SilverReviewReviewer  sql.NullString
+	SilverReviewDate      sql.NullTime
+	SilverReviewRationale sql.NullString
+	SilverReviewReference sql.NullString
+}
+
+// ResolveSourceWithEligibility looks up a source by name or numeric id and
+// returns the eligibility tuple. ErrSourceNotFound is recycled for the
+// not-found case so callers can map cleanly to HTTP 404.
+func (s *DossierStore) ResolveSourceWithEligibility(ctx context.Context, identifier string) (*SourceEligibilityRow, error) {
+	const q = `
+		SELECT id, name, type, url, documentation_url,
+		       silver_eligible,
+		       silver_review_reviewer, silver_review_date,
+		       silver_review_rationale, silver_review_reference
+		  FROM sources
+		 WHERE name = $1 OR (id::text = $1)
+		 LIMIT 1
+	`
+	var r SourceEligibilityRow
+	row := s.db.QueryRowContext(ctx, q, identifier)
+	if err := row.Scan(
+		&r.ID, &r.Name, &r.Type, &r.URL, &r.DocumentationURL,
+		&r.SilverEligible, &r.SilverReviewReviewer, &r.SilverReviewDate,
+		&r.SilverReviewRationale, &r.SilverReviewReference,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrSourceNotFound
+		}
+		return nil, fmt.Errorf("resolve source with eligibility: %w", err)
+	}
+	return &r, nil
+}
+
 // ArticleResolution maps an article_id back to its bronze object key
 // and source so the article-detail handler can fetch Silver content
 // and run the k-anonymity gate.

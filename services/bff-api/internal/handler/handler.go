@@ -329,8 +329,11 @@ func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProve
 // sources with optional methodology documentation URLs. Data comes from
 // the PostgreSQL `sources` table (the SSoT) via a TTL-cached read-only
 // store. A misconfigured stack (nil source lister) or a Postgres outage
-// with no warm cache surfaces as 500.
-func (s *Server) GetSources(ctx context.Context, _ GetSourcesRequestObject) (GetSourcesResponseObject, error) {
+// with no warm cache surfaces as 500. When `silverOnly=true` (Phase 103),
+// the response is filtered to sources whose `silver_eligible` flag is set
+// so the dashboard's Silver-layer source picker does not surface sources
+// the eligibility gate would refuse.
+func (s *Server) GetSources(ctx context.Context, request GetSourcesRequestObject) (GetSourcesResponseObject, error) {
 	if s.sources == nil {
 		slog.Error("handler failure", "op", "GetSources", "error", "source lister is not configured")
 		return GetSources500JSONResponse{Message: genericInternalError}, nil
@@ -340,8 +343,12 @@ func (s *Server) GetSources(ctx context.Context, _ GetSourcesRequestObject) (Get
 		slog.Error("handler failure", "op", "GetSources", "error", err)
 		return GetSources500JSONResponse{Message: genericInternalError}, nil
 	}
+	silverOnly := request.Params.SilverOnly != nil && *request.Params.SilverOnly
 	response := make(GetSources200JSONResponse, 0, len(entries))
 	for _, src := range entries {
+		if silverOnly && !src.SilverEligible {
+			continue
+		}
 		response = append(response, Source{
 			Name:             src.Name,
 			Type:             src.Type,

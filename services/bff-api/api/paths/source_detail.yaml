@@ -1,0 +1,32 @@
+get:
+  tags: [Reference]
+  summary: Source detail with Silver-eligibility metadata
+  description: >
+    Returns a single source record with its Silver-layer eligibility
+    state and the WP-006 §5.2 review metadata. Backs the dashboard's
+    per-source side panel so reviewers and operators can see *why* a
+    source is (or is not) Silver-eligible without reading Postgres
+    directly.
+  operationId: getSourceById
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: Source identifier — either the canonical name (e.g. `tagesschau`) or the integer source id.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Source detail.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/SourceDetail.yaml'
+    '404':
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

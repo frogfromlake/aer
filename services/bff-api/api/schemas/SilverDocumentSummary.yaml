@@ -1,0 +1,28 @@
+type: object
+description: >
+  Compact summary of a Silver-layer document for the paginated list
+  endpoint. The list response is composed from PostgreSQL
+  (`documents` → `ingestion_jobs` → `sources`) joined with ClickHouse
+  Gold-layer rows (word_count metric, rank-1 language detection) so a
+  single page does not require a per-row MinIO read. Use the detail
+  endpoint to retrieve the full SilverEnvelope with `cleanedText`,
+  `rawText`, `meta`, and per-extractor provenance.
+required:
+  - articleId
+  - source
+  - timestamp
+properties:
+  articleId:
+    type: string
+  source:
+    type: string
+  timestamp:
+    type: string
+    format: date-time
+  language:
+    type: string
+    nullable: true
+  wordCount:
+    type: integer
+    nullable: true
+    minimum: 0

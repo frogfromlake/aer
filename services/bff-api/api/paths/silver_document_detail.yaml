@@ -1,0 +1,38 @@
+get:
+  tags: [Analysis]
+  summary: Silver-layer document detail
+  description: >
+    Returns the full Silver envelope for a single article — `SilverCore`
+    (cleaned text included), the source-specific `SilverMeta` blob (per
+    ADR-015 explicitly unstable), and the per-extractor provenance map
+    captured at extraction time. Subject to the Silver-eligibility gate
+    (Phase 103): a non-eligible source returns 403 with a RefusalPayload.
+  operationId: getSilverDocumentDetail
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: Article identifier (deterministic SHA-256 hash assigned by the worker).
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Silver document detail.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/SilverDocumentDetail.yaml'
+    '403':
+      description: Source is not Silver-eligible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RefusalPayload'
+    '404':
+      description: Article or Silver object not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

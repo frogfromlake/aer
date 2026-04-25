@@ -1,0 +1,10 @@
+name: silverOnly
+in: query
+description: >
+  When `true`, returns only sources whose `silver_eligible` flag is set
+  (Phase 103). Use this to populate the dashboard's Silver-layer source
+  picker without surfacing ineligible sources only to refuse them later.
+required: false
+schema:
+  type: boolean
+  default: false

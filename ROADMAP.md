@@ -1793,6 +1793,11 @@ All versions pinned like in the backend (if best practice)
 **Exit criteria:** A researcher can click Probe 0, descend into a time-series analysis view with provenance access, return to the atmospheric view, and share the state via URL. The fractal pillars (Aleph at L0, Episteme tightening at L2-L3) are observable in the interaction. Rhizome remains architecturally ready but latently invisible. Descent works end-to-end on a single probe; multi-probe composition and cross-layer a11y/performance gates land in 100b.
 
 
+## Phase 100b: Surface I — Multi-Probe Composition & Cross-Layer Verification [P1] — SUPERSEDED
+
+*Superseded on 2026-04-25 by the Iteration 5 reframing (Phases 101–116 below). The 2026-04-24 Reframing Note and the Iteration 5 Design Brief rewrite demoted Surface I to a landing overview and moved L3/L4/L5 off the globe onto Surfaces II and III. Multi-probe composition and cross-layer a11y/perf verification still happen — but they belong in the new phases (110 for Surface I refinement, 114 for a11y/perf, and incrementally inside each surface phase) rather than as a dedicated Surface I push. The visual-regression snapshotting of Phase 100a's L3/L4 companion panels is orphaned because those panels are deprecated by Phase 110; no snapshot baseline is captured for them.*
+
+
 ## Phase 101: Iteration 5 — Probe Dossier & Article Browsing Endpoints [P1] - [x] DONE
 
 *Backend baseline A for Iteration 5. First of three backend phases that unblock Surface II Foundation and Silver access. Adds the eligibility-flag schema and the Probe Dossier composite endpoint plus the article-browsing surface that powers L5 Evidence.*
@@ -1817,29 +1822,34 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §5.1.4 notes the new Gold table and corpus-level extractor; §8.x describes the view-mode query endpoints.
 * [x] **Validation.** `make lint && make test` green; integration tests cover each view-mode endpoint on Probe 0 fixture data.
 
+## Phase 103: Iteration 5 — Silver Query Endpoints with Eligibility Enforcement [P1] - [x] DONE (2026-04-25, aggregation endpoints deferred to Phase 103b)
+
+*Backend baseline C. Exposes Silver-layer access gated by the eligibility flag from Phase 101. Small phase, isolated because Silver has distinct governance review requirements.*
+
+* [x] **Silver source filter.** `GET /api/v1/sources?silverOnly=true` returns only Silver-eligible sources. `GET /api/v1/sources/{id}` includes eligibility state + review metadata.
+* [x] **Silver document endpoints.** `GET /api/v1/silver/documents?sourceId=…&start=…&end=…&limit=…&cursor=…` (paginated Silver documents: cleaned_text + SilverMeta summary). `GET /api/v1/silver/documents/{id}` (individual Silver document detail).
+* [x] **Silver aggregation endpoints.** `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&…` — Silver-layer distributional/heatmap/correlation queries analogous to Phase 102 but over Silver fields (token distributions, cleaned-text length distributions, raw entity counts pre-NER).
+* [x] **Eligibility enforcement.** Every Silver endpoint verifies `silver_eligible = true` on the requested source; non-eligible returns HTTP 403 with refusal payload naming the review gate and linking to WP-006 §5.2. Dedicated integration tests for the refusal path.
+* [x] **Contract + codegen.** OpenAPI diff + `make codegen`.
+* [x] **Arc42 update.** §8.x adds the Silver endpoint block with the eligibility-gate semantics.
+* [x] **Validation.** `make lint && make test` green.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 100b: Surface I — Multi-Probe Composition & Cross-Layer Verification [P1] — SUPERSEDED
+## Phase 103b: Iteration 5 — Silver Aggregation Endpoints with Projection Table [P2] - [ ] TODO
 
-*Superseded on 2026-04-25 by the Iteration 5 reframing (Phases 101–116 below). The 2026-04-24 Reframing Note and the Iteration 5 Design Brief rewrite demoted Surface I to a landing overview and moved L3/L4/L5 off the globe onto Surfaces II and III. Multi-probe composition and cross-layer a11y/perf verification still happen — but they belong in the new phases (110 for Surface I refinement, 114 for a11y/perf, and incrementally inside each surface phase) rather than as a dedicated Surface I push. The visual-regression snapshotting of Phase 100a's L3/L4 companion panels is orphaned because those panels are deprecated by Phase 110; no snapshot baseline is captured for them.*
+*Deferred from Phase 103 on 2026-04-25. Silver lives as individual MinIO JSON envelopes with no queryable index, so the aggregation endpoints listed in the original Phase 103 spec (`GET /api/v1/silver/aggregations/{aggregationType}`) have no real query path — implementing them on top of a per-request MinIO scan would be slow, MinIO-bound, and bounded only by ad-hoc per-request limits. This phase lands the aggregation endpoints together with a Silver-projection ClickHouse table so the queries can run as cheap GROUP BYs analogous to the Phase 102 Gold view-mode endpoints, while preserving Silver's distinct governance review (eligibility gate from Phase 103 still applies).*
 
----
-
-## Phase 103: Iteration 5 — Silver Query Endpoints with Eligibility Enforcement [P1] - [ ] TODO
-
-*Backend baseline C. Exposes Silver-layer access gated by the eligibility flag from Phase 101. Small phase, isolated because Silver has distinct governance review requirements.*
-
-* [ ] **Silver source filter.** `GET /api/v1/sources?silverOnly=true` returns only Silver-eligible sources. `GET /api/v1/sources/{id}` includes eligibility state + review metadata.
-* [ ] **Silver document endpoints.** `GET /api/v1/silver/documents?sourceId=…&start=…&end=…&limit=…&cursor=…` (paginated Silver documents: cleaned_text + SilverMeta summary). `GET /api/v1/silver/documents/{id}` (individual Silver document detail).
-* [ ] **Silver aggregation endpoints.** `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&…` — Silver-layer distributional/heatmap/correlation queries analogous to Phase 102 but over Silver fields (token distributions, cleaned-text length distributions, raw entity counts pre-NER).
-* [ ] **Eligibility enforcement.** Every Silver endpoint verifies `silver_eligible = true` on the requested source; non-eligible returns HTTP 403 with refusal payload naming the review gate and linking to WP-006 §5.2. Dedicated integration tests for the refusal path.
+* [ ] **Silver-projection ClickHouse table.** New `aer_silver.documents` (or `aer_silver_projection`) table populated by the analysis worker at the same point Silver is uploaded to MinIO. Columns at minimum: `timestamp`, `source`, `article_id`, `language`, `cleaned_text_length`, `word_count`, `raw_entity_count` (pre-NER token-based count), plus `ingestion_version` for ReplacingMergeTree idempotency. 365-day TTL on `timestamp`. Migration in `infra/clickhouse/migrations/`.
+* [ ] **Worker write path.** Extend the analysis worker's Silver upload step (`internal/silver.py` and the processor) to compute the projection fields and bulk-insert one row per document into `aer_silver.documents` alongside the existing MinIO write. Idempotent via `ingestion_version`.
+* [ ] **BFF aggregation endpoints.** `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&start=…&end=…&bins=…` — supported `aggregationType` ∈ `{cleaned_text_length, word_count, raw_entity_count}` for distributional queries; `{cleaned_text_length_by_hour, word_count_by_source}` for heatmaps; `{cleaned_text_length_vs_word_count}` for correlation. Reuses Phase 103's `requireSilverEligible` gate so non-eligible sources return the same 403 + RefusalPayload.
 * [ ] **Contract + codegen.** OpenAPI diff + `make codegen`.
-* [ ] **Arc42 update.** §8.x adds the Silver endpoint block with the eligibility-gate semantics.
-* [ ] **Validation.** `make lint && make test` green.
+* [ ] **Arc42 update.** §8.x extends the Silver endpoints block to cover the projection table and the aggregation surface.
+* [ ] **Validation.** `make lint && make test` green; integration tests cover each aggregation type on Probe 0 fixture data.
 
 ---
 

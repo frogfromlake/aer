@@ -14,12 +14,14 @@ import (
 
 // fakeDossier is a tiny in-memory DossierStore for handler tests.
 type fakeDossier struct {
-	rows        []storage.DossierSourceRow
-	resolvedID  int64
-	resolved    string
-	resolveErr  error
-	article     *storage.ArticleResolution
-	articleErr  error
+	rows           []storage.DossierSourceRow
+	resolvedID     int64
+	resolved       string
+	resolveErr     error
+	article        *storage.ArticleResolution
+	articleErr     error
+	eligibility    *storage.SourceEligibilityRow
+	eligibilityErr error
 }
 
 func (f *fakeDossier) FetchSources(_ context.Context, _ []string, _, _ *time.Time) ([]storage.DossierSourceRow, error) {
@@ -32,6 +34,10 @@ func (f *fakeDossier) ResolveSource(_ context.Context, _ string) (int64, string,
 
 func (f *fakeDossier) ResolveArticle(_ context.Context, _ string) (*storage.ArticleResolution, error) {
 	return f.article, f.articleErr
+}
+
+func (f *fakeDossier) ResolveSourceWithEligibility(_ context.Context, _ string) (*storage.SourceEligibilityRow, error) {
+	return f.eligibility, f.eligibilityErr
 }
 
 type fakeArticles struct {
