@@ -525,7 +525,9 @@ This mirrors how `minio-init` and `clickhouse-init` already work for their respe
 **Superseded by:** None
 **Related ADRs:** ADR-003 (Progressive Disclosure), ADR-008 (Zero-Trust Networking), ADR-011 (Static API Key), ADR-013, ADR-014 (Database Migration Strategy), ADR-015 (Evolvable Silver Contract), ADR-016 (Hybrid Tier Architecture), ADR-017 (Reflexive Architecture), ADR-018 (Constant-Time API-Key Comparison), ADR-019 (IaC-only NATS Stream Provisioning)
 **Related WPs:** WP-001, WP-002, WP-003, WP-004, WP-005, WP-006
-**Authority:** This ADR is written *against* the Design Brief (`docs/design/design_brief.md`). Every decision below must demonstrate compliance with the brief's §4 (Layers), §4.5 (Fractal Cultural Granularity), §5.6 (Fidelity Modes), §5.7 (Progressive Semantics), §5.8 (Epistemic Weight), §5.9 (Visualization Stack Separation), §6 (Extensibility), and §7 (Performance).
+**Authority:** This ADR is written *against* the Design Brief (`docs/design/design_brief.md`). Every decision below must demonstrate compliance with the brief's §3 (Navigation is First-Class), §4 (Three Surfaces), §5 (Five Layers), §6 (Terminology — Path B), §7.6 (Fidelity Modes), §7.7 (Progressive Semantics), §7.8 (Epistemic Weight), §7.9 (Visualization Stack Separation), §8 (Extensibility), §9 (Silver-Layer Access), and §10 (Performance).
+
+**Iteration 5 addendum (2026-04-25):** The Design Brief was substantially rewritten following the 2026-04-24 Reframing Note. The technology choices below remain validated by the reframing — if anything the reframing leans harder on the non-globe visualization domains. This ADR has been updated in three places: (a) the Compliance check audits the Iteration 5 brief; (b) the Implementation Outline reorders so Surface II and Surface III precede further Surface I deepening; (c) a new Backend Work section enumerates the endpoint, schema, and query work the reframing implies.
 
 ---
 
@@ -687,70 +689,186 @@ Cross-module communication is explicit: shell → surface → visualisation is a
 
 ---
 
-### Compliance check against the Design Brief
+### Compliance check against the Design Brief (Iteration 5)
 
-The ADR is valid only if the selected stack satisfies every requirement in the Design Brief. This section audits that compliance explicitly.
+The ADR is valid only if the selected stack satisfies every requirement in the Design Brief. This section audits that compliance explicitly against the Iteration 5 rewrite.
 
 | Brief requirement | ADR compliance |
 |---|---|
-| §4 — Five layers of descent reachable in one interaction | SvelteKit routing supports nested layouts with in-place expansion. View Transitions API handles descent animations. |
-| §4.5 — Fractal cultural granularity, probe-defined | Granularity is read from `/api/v1/probes/{id}/dossier` at runtime. Frontend has no hardcoded cultural hierarchy. k-anonymity gate at L5 honoured via BFF-returned error on under-k queries. |
-| §5.6 — High-Fi / Low-Fi modes with shared data layer | Shared TanStack Query cache. 3D engine (high-fi) and 2D Canvas renderer (low-fi) consume the same normalised data models. Auto-detection at startup; user override persisted in URL. |
-| §5.7 — Progressive Semantics with both registers in DOM | Content layer prefetches both registers on metric hover. ARIA-Expanded pattern for register transitions. Both registers present in DOM; CSS and ARIA control prominence. |
-| §5.8 — Epistemic Weight from live validation status | Rendering modules receive `validationStatus` from `/api/v1/metrics/available` and apply Weight treatments from a shared style token map. No frontend constant table. |
-| §5.9 — Four visualisation domains, framework-agnostic | All four domain libraries selected are framework-agnostic. Chrome (SvelteKit) wraps but does not penetrate them. |
-| §6 — Extensibility by construction | Metric-agnostic rendering: chart modules read metric type from API and render accordingly. No hardcoded metric names anywhere. |
-| §7 — Performance budgets | Shell ~60 kB; per-surface chunks within budget; three.js engine lazy-loaded; progressive enhancement from low-fi to high-fi. All four frame budgets and initial-load budgets achievable. Bundle-size gate enforced in CI. |
-| §8 — API key handling | Static bundle behind Traefik; key injected server-side (ADR-018 constant-time compare enforces correct handling at the BFF); no browser credentials. |
+| §3 — Navigation is first-class (left rail + top scope bar + right methodology tray) | SvelteKit nested layouts render the left rail and top scope bar as persistent chrome in the root layout. The methodology tray is a layout-level component with push-mode by default (CSS grid resize on tray open) and overlay-mode fallback at narrow viewports. Scope state is URL-backed and carried across surface transitions. No surface or layer can render without the chrome present. |
+| §3.3 — Methodology tray always reachable, binds to active metric | The tray is a framework-bound component (SvelteKit) that subscribes to a `focusedMetric` store. Any chart/lane/probe click updates the store; the tray content updates in place. Tier badges read live from `/api/v1/metrics/{metricName}/provenance`. The Reflection anchor is a SvelteKit `<a href>` to the Surface III route scoped to the metric. |
+| §4 — Three surfaces with redistributed priority (I overview, II primary scientific, III primary methodological) | Three SvelteKit route subtrees (`/atmosphere`, `/lanes`, `/reflection`) with shared layout. Code-splitting at the surface boundary. Surface I disappears during descent by route transition (not overlay); the planet glyph in the left rail returns to `/atmosphere` preserving scope via URL state. |
+| §4.1 — Probe-first emission on the globe with source satellites | The 3D engine (`packages/engine-3d/`) emits one glyph per probe from `/api/v1/probes`. Source satellites are rendered as secondary geometry from the probe's dossier data; raycaster filters select only probe glyphs for scope changes. Satellite clicks open the Probe Dossier with the source pre-filtered via URL param. |
+| §4.2 — Probe Dossier as Surface II landing; function lanes; view-mode matrix | Surface II's default landing route is `/lanes/:probeId/dossier`. Function lanes are a `/lanes/:probeId/:functionKey` subtree. The view-mode matrix is driven by a backend-served catalog (see Backend Work §) consumed through a typed matrix-cell registry; the frontend has no hardcoded cell list. |
+| §4.2.4 — probeId and sourceId both first-class scope parameters | All view-mode endpoints accept either `probeId` or `sourceId`; the frontend's URL state carries both. The scope indicator in the left rail shows which is active. |
+| §4.3 — Reflection as primary methodological surface | Surface III is a SvelteKit route with MDX-style prose rendering + inline interactive Observable Plot cells. Working Papers are authored as MD files under `services/dashboard/content/papers/` and rendered client-side; the Open Research Questions hub is a dedicated route `/reflection/open-questions`. The "How to read the globe" primer is `/reflection/primer/globe`. |
+| §4.5 — Probe concept introduced in context | Probe glyph components implement Progressive Semantics natively: semantic register is the default label, methodological register expands on hover/click. The primer route is linked from the top scope bar of Surface I. First-visit overlay is a Phase-gated enhancement. |
+| §5 — Redistributed Surface × Layer matrix | Route structure mirrors the matrix. Layers are not separate routes; they are states within a surface route governed by URL params (e.g. `?layer=3&metric=sentiment_score`). The methodology tray (L4) is a component, not a route; it is open/closed per URL param. L5 Evidence is a modal-overlay component reachable from Surfaces II and III. |
+| §5.5 — Fractal cultural granularity, probe-defined | Granularity is read from `/api/v1/probes/{id}/dossier` at runtime. Frontend has no hardcoded cultural hierarchy. k-anonymity gate at L5 honoured via BFF-returned error on under-k queries. |
+| §6 — Terminology (Path B) | Engineering usage preserved. API surface uses `probeId`/`sourceId`; PostgreSQL schema unchanged. Brief's §6 documents the WP-001 drift; no code change required. Reconciliation deferred to a post-Iteration-5 ADR. |
+| §7.6 — High-Fi / Low-Fi modes with shared data layer | Shared TanStack Query cache. 3D engine (high-fi) and 2D Canvas renderer (low-fi) consume the same normalised data models. Auto-detection at startup; user override persisted in URL. |
+| §7.7 — Progressive Semantics with both registers in DOM | Content layer prefetches both registers on metric hover. ARIA-Expanded pattern for register transitions. Both registers present in DOM; CSS and ARIA control prominence. |
+| §7.8 — Epistemic Weight from live validation status | Rendering modules receive `validationStatus` from `/api/v1/metrics/available` and apply Weight treatments from a shared style token map. No frontend constant table. |
+| §7.9 — Four visualisation domains, framework-agnostic | All four domain libraries selected are framework-agnostic. Chrome (SvelteKit) wraps but does not penetrate them. Relational Networks domain now has a concrete role articulated in the brief (entity co-occurrence on Surface II, cross-source propagation under Rhizome, exploratory composition reserved). |
+| §8 — Extensibility by construction | Metric-agnostic rendering; view-mode matrix catalog-driven; no hardcoded discourse-function, pillar, metric, tier, resolution, or view-mode enums anywhere. |
+| §9 — Silver-Layer Access with eligibility flag | New Silver query endpoints on the BFF, gated by a `silver_eligible` column on the `sources` table with review metadata. Surface II exposes a data-source toggle; non-eligible sources render an explicit "not Silver-eligible" state with methodological context. See Backend Work below. |
+| §10 — Performance budgets | Shell ~60 kB; per-surface chunks within budget; three.js engine lazy-loaded; progressive enhancement from low-fi to high-fi. All four frame budgets and initial-load budgets achievable. Bundle-size gate enforced in CI. |
+| §11 — API key handling | Static bundle behind Traefik; key injected server-side (ADR-018 constant-time compare enforces correct handling at the BFF); no browser credentials. |
 | `visualization_guidelines.md` | Colour palettes (viridis), uncertainty display, refusal honouring — all handled at the visualisation-module level and enforced by code review, not framework choice. |
-| Arc42 §8.14 Reflexive Architecture (ADR-017) | Surface III renders methodological-transparency content; refusal surfaces realise Principle 5 (Interpretive Humility). |
+| Arc42 §8.14 Reflexive Architecture (ADR-017) | Surface III renders methodological-transparency content; refusal surfaces realise Principle 5 (Interpretive Humility); the always-visible methodology tray (§3.3) operationalizes the reflexive commitment at the interaction level. |
 | Phase 84 Supply-Chain Hardening | Frontend image built with pinned base digest, Trivy-scanned, Cosign-signed, SBOM-attached. |
 | Phase 86 Observability Wiring | Frontend emits OTel traces into the existing collector → Tempo pipeline. Trace context propagates to BFF. |
 
 ---
 
-### Implementation Outline
+### Backend Work Implied by Iteration 5
 
-Phased implementation — including exact phase numbers, ordering, scope, and splits — is scoped in `ROADMAP.md` under `Open Phases`. That file is the single source of truth; as surfaces have matured, phases have been split and renumbered (for example, the original single "3D Atmosphere Engine" phase was later split into an engine-foundation phase and a first-contact/live-data phase). Duplicating phase numbers here produced drift, so this section is deliberately number-free and captures only the *architectural increments* the ADR commits to — in the rough sequence in which they will be built. ROADMAP.md binds each increment to a concrete phase.
+The Iteration 5 brief pressures the BFF (and adjacent backend layers) in several specific ways beyond what earlier iterations anticipated. This section enumerates the scope deltas. The BFF is the correct layer for most of this — it is the query-shaping and authorization surface between the dashboard and Gold/Silver storage. A few items touch PostgreSQL (schema migrations), ClickHouse (query endpoints / views), or the analysis worker (one corpus-level aggregation).
+
+#### Probe Dossier and article browsing
+
+New or expanded endpoints to support Surface II's Probe Dossier (§4.2.1) and L5 Evidence (§5):
+
+- `GET /api/v1/probes/{id}/dossier` — composite payload: probe classification, emic context, source list with per-source article counts and publication frequency, function coverage indicator. Replaces or subsumes the smaller per-resource endpoints from earlier ADR drafts.
+- `GET /api/v1/sources/{id}/articles?start=…&end=…&language=…&entityMatch=…&sentimentBand=…&limit=…&cursor=…` — paginated article list per source with filters. Returns article IDs with light metadata for listing.
+- `GET /api/v1/articles/{id}` — individual article detail. Reads cleaned text from Silver (or raw from Bronze if the source is Silver-eligible) and provenance metadata from ClickHouse Gold. Subject to a k-anonymity gate: the BFF verifies the article is part of an aggregation of at least *k* = 10 documents for the relevant metric before returning; otherwise HTTP 403 with a methodological refusal payload.
+
+#### Silver-Layer access (§9 of the brief)
+
+New schema, new endpoints, new governance:
+
+- **Schema migration.** Add to `public.sources`:
+  - `silver_eligible` (BOOLEAN NOT NULL DEFAULT false) — the flag itself.
+  - `silver_review_reviewer` (VARCHAR) — reviewer identifier.
+  - `silver_review_date` (DATE) — when the review was completed.
+  - `silver_review_rationale` (TEXT) — free-text rationale.
+  - `silver_review_reference` (VARCHAR) — link to a review document under `docs/governance/` or similar.
+
+  Seed migration: Probe 0's two sources (`tagesschau.de` RSS, `bundesregierung.de` RSS) are seeded as `silver_eligible = true` with `silver_review_rationale = 'Probe 0 — institutional public data, government/public-broadcaster RSS, no re-identification risk per Manifesto §VI and WP-006 §7. Auto-eligible.'`. All other sources default to `false`.
+- **Read-only role.** The existing `bff_readonly` Postgres role gains `SELECT` on the new columns; no write access. Review mutations happen via a separate administrative path (out of scope for Iteration 5 — the seed covers Probe 0; later sources are flagged via a one-off migration per review).
+- **Silver eligibility surface.** `GET /api/v1/sources?silverOnly=true` — filter returning only Silver-eligible sources. `GET /api/v1/sources/{id}` includes the eligibility state and review metadata in its response.
+- **Silver query endpoints.** Analogous to the Gold `/metrics`, `/entities`, `/languages` endpoints but scoped to Silver data:
+  - `GET /api/v1/silver/documents?sourceId=…&start=…&end=…&limit=…` — paginated document listing for a Silver-eligible source.
+  - `GET /api/v1/silver/documents/{id}` — individual Silver document (cleaned text + SilverMeta).
+  - `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&…` — aggregate queries analogous to `/metrics/distribution`, `/metrics/heatmap`, etc., but computed on Silver fields (token distributions, cleaned-text length distributions, entity raw counts pre-NER, etc.).
+
+  All Silver endpoints verify the source's `silver_eligible = true` before returning data; non-eligible sources return HTTP 403 with the methodological refusal payload naming the review gate.
+
+#### View-mode queries (§4.2.3 of the brief)
+
+Each view mode is a cell in discipline × presentation. Most map to queries the BFF can compose from existing Gold data; a few require new aggregations:
+
+- `GET /api/v1/metrics/{metricName}/distribution?scope=probe|source&scopeId=…&start=…&end=…&bins=…` — per-source/per-probe distributional data (histogram or raw-value arrays) for ridgeline/violin/density plots.
+- `GET /api/v1/metrics/{metricName}/heatmap?scope=…&scopeId=…&xDimension=dayOfWeek&yDimension=hour&start=…&end=…` — 2D binning for heatmap view modes. Dimensions are enumerable: `dayOfWeek`, `hour`, `source`, `entityLabel`, `language`.
+- `GET /api/v1/metrics/correlation?metrics=m1,m2,m3&scope=…&scopeId=…&start=…&end=…` — pairwise correlation matrix for metadata-mining × correlation-matrix views.
+- `GET /api/v1/entities/cooccurrence?scope=…&scopeId=…&start=…&end=…&topN=…` — entity co-occurrence pair counts for Network Science × force-directed-graph views. **See the CorpusExtractor section below for the data backing this endpoint.**
+
+**Scope parameter convention.** All view-mode endpoints accept either `probeId` or `sourceId` as the scope parameter (with probe scope as the default when ambiguous), preserving source-specific analysis as a first-class mode per Brief §4.2.4.
+
+#### Content catalog expansion
+
+The reframing increases the volume of Dual-Register content substantially, but does not add a new endpoint beyond what earlier ADR drafts anticipated. The existing plan for `GET /api/v1/content/{entityType}/{entityId}?locale=...` stands; the content surface under `services/bff-api/configs/content/` grows to cover:
+
+- A Dual-Register pair (semantic / methodological) per metric, per view-mode cell, per refusal type, per probe, per discourse function, per function-lane empty state.
+- Open-research-question entries for each WP §8 / §7 entry, with cross-links to the Working Paper anchor.
+- The "How to read the globe" primer as a structured Markdown document with inline interactive parameters.
+
+#### CorpusExtractor — entity co-occurrence (the one scope relaxation)
+
+The Brief's view-mode catalog includes Network Science views that require aggregate pair-level data (entity co-occurrence). Computing this at BFF query time over the full `aer_gold.entities` table does not scale for even moderately sized probes. The clean architectural answer is the `CorpusExtractor` protocol already reserved in `CLAUDE.md` (analysis worker, "for future TF-IDF, LDA, co-occurrence").
+
+Iteration 5 implements **one CorpusExtractor**: `EntityCoOccurrenceExtractor`. It reads `aer_gold.entities` in a configured time window per source, computes pairwise co-occurrence counts per document-window, and writes a new Gold table:
+
+```sql
+CREATE TABLE aer_gold.entity_cooccurrences (
+    window_start      DateTime,
+    window_end        DateTime,
+    source            String,
+    article_id        String,
+    entity_a_text     String,
+    entity_a_label    String,
+    entity_b_text     String,
+    entity_b_label    String,
+    cooccurrence_count UInt32,
+    ingestion_version  UInt64
+) ENGINE = ReplacingMergeTree(ingestion_version)
+ORDER BY (window_start, source, entity_a_text, entity_b_text)
+TTL window_start + INTERVAL 365 DAY;
+```
+
+The extractor runs on the same NATS-triggered schedule as the per-document extractors but emits corpus-level rows. The BFF's `GET /api/v1/entities/cooccurrence` endpoint queries this table.
+
+**Explicit non-scope:** topic modelling, article clustering, affect-space clustering, themescape rendering, and diachronic embedding drift all remain deferred beyond Iteration 5. The view-mode catalog's MVP stays within what per-document extractors plus this single corpus-level aggregation can support.
+
+#### What Iteration 5 does *not* add to the backend
+
+For clarity on what stays out:
+
+- No changes to Bronze ingestion or to the Silver harmonisation path (ADR-015 contract unchanged).
+- No changes to per-document extractors already in the pipeline (sentiment, entities, language, temporal distribution, word count).
+- No changes to NATS JetStream, MinIO provisioning, or the Medallion architecture.
+- No changes to authentication (Traefik + static API key per ADR-011/ADR-018).
+- No real-time streaming requirements; the dashboard remains pull-based.
+- No per-user state, saved dashboards, or personal annotations.
+- No topic modelling, article clustering, or diachronic embedding infrastructure.
+
+---
+
+### Implementation Outline (Iteration 5 reordered)
+
+Phased implementation — including exact phase numbers, ordering, scope, and splits — is scoped in `ROADMAP.md` under `Open Phases`. That file is the single source of truth; as surfaces have matured, phases have been split and renumbered. Duplicating phase numbers here produced drift, so this section is deliberately number-free and captures only the *architectural increments* the ADR commits to — in the rough sequence in which they will be built. ROADMAP.md binds each increment to a concrete phase.
+
+**Iteration 5 reordering note (2026-04-25):** The reframing moves Surfaces II and III ahead of further Surface I deepening. Phase 100a's Surface I descent (L0–L4 on the globe) is committed as a reference point; its source-click behaviour is deprecated (Brief §4.1 probe-first emission), and its L3/L4 companion panels are replaced by transitions to Surfaces II and III with the always-visible methodology tray. Phase 100b is deferred pending Iteration 5 shipping. The increments below reflect the reordering.
+
+The increments land in approximately this order. Early increments unblock the chrome; middle increments deliver Surface II and Surface III; later increments return to Surface I for the atmosphere refinements implied by the reframing (probe-first emission, source satellites) and add the cross-cutting overlays.
+
+**Backend Baseline for Iteration 5.**
+PostgreSQL migration adding `silver_eligible` and review-metadata columns to `public.sources`, with Probe 0 seeded as auto-eligible. New BFF endpoints landing together so the frontend can consume them: Probe Dossier composite endpoint, per-source article listing and detail, Silver query endpoints gated on eligibility, view-mode query endpoints (`/metrics/{name}/distribution`, `/metrics/{name}/heatmap`, `/metrics/correlation`, `/entities/cooccurrence`). `EntityCoOccurrenceExtractor` implemented in the analysis worker and wired into the NATS-triggered pipeline, writing to `aer_gold.entity_cooccurrences`. OpenAPI contract updated; `make codegen` runs across BFF and ingestion APIs; integration tests cover the new endpoints. This increment can land before frontend chrome work but must land before Surface II is fed real data.
 
 **Content Catalog (Backend).**
-YAML structure under `services/bff-api/configs/content/` with `en/` and `de/` locale subdirectories. Content entries for the Phase 42 metrics, the Probe 0 dossier, the four discourse functions (WP-001), and the refusal types (WP-004 normalisation gate, k-anonymity, missing validation). New BFF endpoints `GET /api/v1/content/{entityType}/{entityId}?locale=...`. OpenAPI documentation updated. Integration tests against the new endpoints.
+YAML structure under `services/bff-api/configs/content/` with `en/` and `de/` locale subdirectories. Content entries for the Phase 42 metrics, each view-mode cell, the Probe 0 dossier, the four discourse functions (WP-001), the refusal types, and the "How to read the globe" primer. BFF endpoint `GET /api/v1/content/{entityType}/{entityId}?locale=...`. OpenAPI updated; integration tests against the new endpoint.
 
 **Frontend Scaffolding.**
-SvelteKit static project setup under `apps/dashboard/`. TypeScript strict mode. `openapi-typescript` integration with `make codegen-ts` target. CI workflow for lint + typecheck + test + bundle-size gate. OTel Web SDK wired into the Phase 86 collector. Supply-chain automation (Trivy + Cosign + Syft) for the production image on par with Phase 84.
+SvelteKit static project setup under `services/dashboard/` (already in place from Phase 97). TypeScript strict mode. `openapi-typescript` integration with `make codegen-ts` target. CI workflow for lint + typecheck + test + bundle-size gate. OTel Web SDK wired into the Phase 86 collector. Supply-chain automation (Trivy + Cosign + Syft) for the production image on par with Phase 84. The existing scaffolding carries over; extensions land as subsequent increments require.
 
-**Surface I Shell.**
-Shell layer of the Atmosphere surface with a minimal landing view, the content layer wired in, first deploy behind Traefik, accessibility baseline passing, and the route-based story harness + visual/a11y gates in place. (The original plan placed a 2D Canvas low-fi map here; that ordering was reversed — see the Low-Fidelity deferral note in ROADMAP.md.)
+**Navigation Chrome (Iteration 5 new).**
+Left side rail (three surface anchors, scope indicator, pillar toggle, return-to-Atmosphere planet glyph) + top scope bar (surface-local navigation) + right methodology tray (closed/open states, push-mode default, push→overlay fallback at narrow viewports). Implemented as root-layout SvelteKit components; shared `focusedMetric` / scope stores. `design_system.md` gains a Navigation Chrome primitive family for the rail, scope bar, and tray. Accessibility: keyboard-navigable, screen-reader-labeled, reduced-motion-aware. This chrome is the frame in which every subsequent surface work renders.
 
-**3D Atmosphere Engine.**
-Vanilla three.js engine module under `packages/engine-3d/`. Terminator shader, atmospheric scattering, globe geometry + texture, basic camera control (orbit, zoom, fly-to), imperative engine API, WebGL2 capability detection + minimal text fallback. Engine tested in isolation via the story harness. High-Fi mode activates automatically on capable hardware.
+**Surface II Foundation (Function Lanes + Probe Dossier).**
+The Probe Dossier route as Surface II's default landing when a probe is selected. Source cards with per-source counts, publication frequency, etic classification, emic context. Function-lane routes with baseline time-series views driven by uPlot, plus empty-lane Dual-Register invitations. Source-scope narrowing from the Dossier propagating through URL state to view-mode queries. This is the single largest increment of Iteration 5; it delivers the dashboard's primary scientific surface.
 
-**First Contact (Live Data on the Atmosphere).**
-Probe glow shader, reach-aura shader, reserved propagation-arc shader slot, raycaster for probe interaction, typed data layer against the BFF, Refusal Surface and Progressive Semantics primitives, the live Atmosphere route driven by `/api/v1/probes` and temporal_distribution queries, time scrubber, URL-state synchronisation.
+**View-Mode Matrix (Iteration 5 new).**
+The analytical-disciplines × presentation-forms matrix implemented as a backend-served catalog consumed by a typed matrix-cell registry on the frontend. Initial cells: time-series (NLP × time-series), ridgeline (EDA × distributional), heatmap (EDA × heatmap), correlation matrix (metadata mining × correlation-matrix), entity co-occurrence graph (Network Science × force-directed graph). Three MVP cells exposed per metric, chosen from structurally different cells; additional cells register as backend catalog grows. Rendering uses Observable Plot for static scientific charts and D3-force for the Network Science cell.
 
-**Progressive Descent Infrastructure.**
-Layer transitions via View Transitions API. Progressive Semantics content switching across descent. Refusal surfaces rendered at every layer they can occur on. Dual-register renderers. Keyboard navigation for all five layers. URL-state persistence across descent and ascent. Multi-probe composition verification (synthetic at first) and the L3 analysis companion with uPlot.
-
-**Surface II (Function Lanes).**
-Four-lane layout. uPlot time series per lane. Observable Plot for detail charts. Empty-lane Dual-Register invitations. Code-split from Surface I.
+**Methodology Tray Content Binding.**
+The tray subscribes to the `focusedMetric` store set by any chart/lane/Dossier interaction. Content flows from `/api/v1/content/...` and `/api/v1/metrics/{metricName}/provenance` in parallel. Dual-Register rendering (semantic summary primary on non-L4 surfaces; methodological register primary inside the tray). "Read the full Working Paper" anchor deep-links into Surface III.
 
 **Surface III (Reflection).**
-Long-form prose rendering. Observable Plot embedded inline (Distill-style). Probe dossier rendering. WP cross-references. Code-split from Surfaces I and II.
+Long-form prose rendering (MDX-style with inline interactive Observable Plot cells). Working Paper routes (`/reflection/wp/{id}`). Probe Dossier methodology view (`/reflection/probe/{id}`). Metric provenance pages (`/reflection/metric/{metricName}`). Open Research Questions hub (`/reflection/open-questions`). "How to read the globe" primer (`/reflection/primer/globe`). Linked from every relevant affordance across Surfaces I and II. Code-split from Surfaces I and II.
 
-**Geo-Analytics (Layer 3 on Surface I/II).**
-MapLibre + deck.gl integration. Probe-specific maps driven by emic structure. Intent-based preload.
+**Silver-Layer Toggle (Iteration 5 new).**
+Data-source toggle on Surface II (Gold default; Silver when the active source is eligible). Queries routed to Silver endpoints when the toggle is active. Non-eligible sources render an explicit "not Silver-eligible" state with the review-gate explanation drawn from the content catalog. View modes unchanged — the matrix operates identically over Silver, only the data source shifts.
 
-**Relational Networks (Rhizome pillar mode).**
-D3-force for 2D, three.js reuse for 3D. Activated under Rhizome mode with multi-probe data.
+**Surface I Refinement (probe-first emission + source satellites + Progressive Semantics on glyphs).**
+Update the 3D engine and the Surface I shell to emit one glyph per probe (not per source), with source satellites as read-only presentation geometry. Raycaster filters selection to probes only; satellite clicks open the Probe Dossier with the source pre-filtered. Probe glyphs implement Progressive Semantics (semantic label primary, methodological expansion on obvious affordance). Link the "How to read the globe" primer from Surface I's top scope bar. This increment deprecates Phase 100a's source-click descent.
+
+**Progressive Descent Infrastructure.**
+Layer transitions via View Transitions API. Keyboard navigation for all five layers. URL-state persistence across descent and ascent on all three surfaces. L5 Evidence reader-pane overlay reachable from Surface II (chart click) and Surface III (inline citations). k-anonymity gate enforced at the BFF for article-detail requests.
+
+**Geo-Analytics (Layer 3 on Surface II).**
+MapLibre + deck.gl integration for intra-probe geo views when a probe's emic structure has geographic substance. Intent-based preload.
+
+**Relational Networks beyond entity co-occurrence.**
+The entity-co-occurrence cell ships with Surface II foundation. Cross-source propagation under Rhizome pillar mode is implemented when a second probe is live. Exploratory composition mode remains reserved for a later iteration.
 
 **Negative Space Overlay.**
-"What AĒR doesn't see" toggle. Demographic-opacity layer (WP-003 §6). Coverage-map foregrounding.
+"What AĒR doesn't see" toggle. Demographic-opacity layer (WP-003 §6) annotations on Surface II charts. Coverage-map foregrounding on Surface I. Known-limitations-first mode for the methodology tray.
 
 **Accessibility Audit and Performance Verification.**
-Full WCAG 2.2 AA audit. Lighthouse CI on every PR. Hardware-class performance testing on both target devices (M1 Air, 2015 ThinkPad). Low-Fi mode verification.
+Full WCAG 2.2 AA audit. Lighthouse CI on every PR. Hardware-class performance testing on both target devices (M1 Air, 2015 ThinkPad). Low-Fi mode verification (2D equirectangular map replacing the 3D globe while preserving probe-first emission and source satellites).
 
 **Documentation Sweep.**
-Arc42 chapters updated with §8.x for the frontend architecture. `docs/arc42/09_architecture_decisions.md` references this ADR. MkDocs navigation updated. Probe Dossier pattern extended to document any frontend-specific probe content.
+Arc42 chapters updated with §8.x for the frontend architecture (navigation chrome, surfaces, layers, view-mode matrix, Silver-layer toggle). `docs/design/reframing-note.md` deleted once Iteration 5 is shipping (its content has been merged into `design_brief.md` by Step 2). MkDocs navigation updated. Post-Iteration-5 terminology-reconciliation ADR drafted.
 
 Each increment is independent and deployable on its own. No increment leaves the dashboard in a non-functional state.
 
@@ -776,6 +894,7 @@ Each increment is independent and deployable on its own. No increment leaves the
 
 * **Proposed:** 2026-04-17 by Fabian Quist (senior architect) in collaborative design session with AĒR.
 * **Ratified:** 2026-04-20 by the implementing engineer (Fabian Quist).
+* **Iteration 5 update:** 2026-04-25. Following the 2026-04-24 Reframing Note, the Design Brief was rewritten to demote Surface I (the globe) to a landing overview, elevate Surface II (Function Lanes) and Surface III (Reflection) as the primary scientific and methodological surfaces, add Navigation as a first-class concern (§3), introduce the view-mode matrix (§4.2.3), commit Silver-layer access with an eligibility-flag gate (§9), resolve probe-first globe emission with source-satellite presentation (§4.1, §8.4), and record the WP-001 terminology drift with a deferred reconciliation (§6, Path B). The ADR's Authority, Compliance-check, Backend-Work, and Implementation-Outline sections have been updated accordingly; the technology stack decisions are unchanged.
 * **Review date:** 2027-04 (12-month review) or on any major Svelte / three.js / ecosystem regression.
 
 ---

@@ -56,7 +56,7 @@ import type {
 // read as continental regions. No political borders are rendered — region
 // identity is expressed by probe-bound activity (99b).
 const OCEAN_COLOR = new Color('#060d16');
-const LAND_COLOR = new Color('#132133');
+const LAND_COLOR = new Color('#252e3b');
 const HALO_COLOR = new Color('#5283b8');
 
 // --- NEW SHADER CONFIGURATION ---
@@ -65,14 +65,14 @@ const RIM_COLOR = new Color('#5283b8');
 const RIM_INTENSITY = 0.1;
 
 // Visibility factors for the night side (1.0 = full daylight brightness, 0.0 = pitch black)
-const NIGHT_OCEAN_FACTOR = 0.2;
+const NIGHT_OCEAN_FACTOR = 0.5;
 
 // Set to 1.0 so land is exactly as bright at night as it is during the day.
 // This completely uncouples the continents from the sun, creating a perfect, uniform canvas.
 const NIGHT_LAND_FACTOR = 1.0;
 
 // Artificial glow on land.
-const LAND_ILLUMINATION = 0.5;
+const LAND_ILLUMINATION = 4.0;
 
 const SPHERE_RADIUS = 1.0;
 const ATMOSPHERE_RADIUS = 1.011;
@@ -87,7 +87,7 @@ const GLOW_RADIUS = 1.003;
 // camera orbits.
 const GLOW_POINT_WORLD_SIZE = 80.0;
 // Tune this to scale all glow rings up (> 1.0) or down (< 1.0).
-const GLOW_BRIGHTNESS_SCALE = 1.0;
+const GLOW_BRIGHTNESS_SCALE = 1.5;
 // Halo spread coefficient — baked as 0.8 in the shader originally.
 // Raise to widen/brighten the outer halo; lower to tighten it.
 const GLOW_HALO_BRIGHTNESS = 0.7;

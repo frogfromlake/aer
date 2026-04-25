@@ -1798,43 +1798,254 @@ All versions pinned like in the backend (if best practice)
 
 ---
 
-## Phase 100b: Surface I — Multi-Probe Composition & Cross-Layer Verification [P1] - [ ] TODO
+## Phase 100b: Surface I — Multi-Probe Composition & Cross-Layer Verification [P1] — SUPERSEDED
 
-*100a proves the descent grammar on a single probe. 100b exercises breadth (multiple-probe composition, even if simulated), closes the cross-layer accessibility and performance budgets, and lands the full Surface I E2E suite. After this phase, Surface I is complete through L4; Surface II and III and the full Negative Space overlay come in subsequent phases.*
-
-* [ ] **Multi-probe rendering verification (synthetic).** Add a build-time flag that loads a small set of synthetic probes (e.g. three probes on three continents) for visual and performance verification. The synthetic data never leaves development builds. Confirms that reach-aura composition, pulse rate variation, and probe distribution render correctly at realistic multi-probe scale.
-
-* [ ] **Accessibility across layers.** `@axe-core/playwright` tests against every descent state: L0, L1, L2, L3, L4 fly-out. Zero WCAG 2.2 AA violations at any depth. Screen-reader announcements on descent: "Descending to Analysis view for Tagesschau probe" or equivalent.
-
-* [ ] **Performance across layers.** Lighthouse CI: descent from L0 to L3 under 500 ms (§7 high-fi budget). Ascent equally fast. Frame budget during descent transitions: < 33 ms (below the 60fps hard ceiling is acceptable during active transition; idle state returns to 16 ms).
-
-* [ ] **Integration tests.** Playwright E2E: (a) full descent L0→L1→L2→L3→L4, verifying each layer's state; (b) keyboard-only descent (no mouse); (c) deep-link directly to L4 via URL, verify correct initial render; (d) multi-probe view with synthetic probes — confirm visual non-overlap of reach auras and correct pulse behavior.
-
-* [ ] **Single-probe descent snapshots + manual pass (carried from 100a).** Add Playwright story routes for each Probe-0 descent state (L0 idle, L1 overlay visible, L2 controls+scrubber, L3 panel with chart, L4 fly-out open) and capture their first-run visual regression baselines under `tests/e2e/__snapshots__/`. Perform a human-in-the-loop browser pass on Probe 0 (`make up`, descend L0→L4 and back, verify View Transitions on Chromium and the graceful-degradation path on Firefox/Safari). This is the validation carry-over from 100a — 100a shipped the mechanics, 100b locks in the baseline.
-
-* [ ] **Arc42 update.** Extend §8.17 with the multi-probe composition notes and the cross-layer a11y/perf budgets now being CI-enforced.
-
-* [ ] **Validation.** `make fe-check` green. All tests green. Cross-layer axe and Lighthouse gates green in CI. Visual regression snapshots stable across single- and multi-probe story variants, including the single-probe descent baselines carried over from 100a.
-
-**Exit criteria:** Surface I is complete through L4 on both single-probe (Probe 0) and multi-probe (synthetic) configurations. Cross-layer accessibility and performance budgets are CI-enforced. The full Playwright E2E descent suite is green. Surfaces II and III and the full Negative Space overlay come in subsequent phases.
+*Superseded on 2026-04-25 by the Iteration 5 reframing (Phases 101–116 below). The 2026-04-24 Reframing Note and the Iteration 5 Design Brief rewrite demoted Surface I to a landing overview and moved L3/L4/L5 off the globe onto Surfaces II and III. Multi-probe composition and cross-layer a11y/perf verification still happen — but they belong in the new phases (110 for Surface I refinement, 114 for a11y/perf, and incrementally inside each surface phase) rather than as a dedicated Surface I push. The visual-regression snapshotting of Phase 100a's L3/L4 companion panels is orphaned because those panels are deprecated by Phase 110; no snapshot baseline is captured for them.*
 
 ---
 
-### Low-Fidelity Mode — deferred
+## Phase 101: Iteration 5 — Probe Dossier & Article Browsing Endpoints [P1] - [ ] TODO
 
-The Low-Fidelity rendering mode from Design Brief §5.6 is **not** part of Phases 94–100b. The original plan placed it before the 3D engine; that ordering was reversed because:
+*Backend baseline A for Iteration 5. First of three backend phases that unblock Surface II Foundation and Silver access. Adds the eligibility-flag schema and the Probe Dossier composite endpoint plus the article-browsing surface that powers L5 Evidence.*
 
-1. The Low-Fi mode is a *reduction of* the High-Fi experience. Building it before High-Fi would require guessing what the High-Fi version looks like — introducing rework.
-2. Hardware-equity performance can only be measured against a complete High-Fi baseline.
-3. The minimal WebGL2 text fallback from Phase 99a (extended with live data in 99b) is sufficient to avoid a broken screen on weak hardware while Low-Fi is developed later.
-
-Low-Fidelity becomes its own phase, after Surfaces II and III are in place and the full system is a known quantity to reduce from. The commitment from Design Brief §5.6 stands; only the sequencing changes.
+* [ ] **PostgreSQL migration — eligibility flag.** Add `silver_eligible BOOLEAN NOT NULL DEFAULT false`, `silver_review_reviewer VARCHAR`, `silver_review_date DATE`, `silver_review_rationale TEXT`, `silver_review_reference VARCHAR` to `public.sources`. Seed Probe 0's two sources (`tagesschau.de`, `bundesregierung.de`) as `silver_eligible = true` with auto-eligibility rationale per Manifesto §VI and WP-006 §7. Migration tooling per Phase 29.
+* [ ] **Probe Dossier endpoint.** `GET /api/v1/probes/{id}/dossier` composite payload: probe etic classification, emic context, source list, per-source article counts (total + in-window), per-source publication frequency, function coverage (N/4 per WP-001 §5.1). OpenAPI update, handler, storage queries, unit + integration tests.
+* [ ] **Article browsing endpoint.** `GET /api/v1/sources/{id}/articles?start=…&end=…&language=…&entityMatch=…&sentimentBand=…&limit=…&cursor=…` — paginated article list with filters. Returns article IDs + light metadata.
+* [ ] **Article detail endpoint (L5 Evidence).** `GET /api/v1/articles/{id}` — Bronze cleaned text + Silver metadata + extractor provenance. Enforce k-anonymity gate: if the article's aggregation group < k = 10 documents for the referenced metric, return HTTP 403 with the methodological refusal payload naming the gate and linking to WP-006 §7.
+* [ ] **Contract + codegen.** OpenAPI diff committed; `make codegen` runs; two-style `$ref` convention per ADR-021.
+* [ ] **Arc42 update.** §5.1.4 notes the eligibility columns; §8.x adds the Probe Dossier and article endpoints.
+* [ ] **Validation.** `make lint && make test` green; integration tests cover k-anon gate triggering.
 
 ---
 
-**Begründung für die Neufassung:**
-- Die ursprünglich als "Phase 100" geplante High-Fi 3D Atmosphere ist in zwei Phasen gesplittet: **99a** (Engine-Fundament: Globe, Terminator, Scattering, Kamera, API-Skelett, WebGL2-Fallback) und **99b** (First Contact: Probe-Shader, Raycaster, Data Layer, Refusal Surface, Progressive Semantics, live Atmosphere-Route).
-- Die ursprüngliche Phase 100 (Descent + Multi-Probe) ist ebenfalls in zwei Phasen gesplittet: **100a** (Descent-Mechanik L0→L4 auf einer Probe) und **100b** (Multi-Probe-Komposition, Cross-Layer-A11y/Perf-Budgets, vollständige E2E-Suite).
-- ADR-020 § "Implementation Outline" ist entsprechend entkoppelt: die ADR listet nur noch architektonische Inkremente ohne Phasennummern. ROADMAP.md ist die alleinige SSoT für Phasenzuordnung.
-- Low-Fi verschiebt sich — ohne aus dem Brief oder ADR zu verschwinden. Der Brief-Commitment bleibt.
-- Ein trivialer Text-Fallback in 99a (statisch) bzw. 99b (mit Live-Daten) fängt Browser ohne WebGL2 ab, damit keine Barrierelücke entsteht.
+## Phase 102: Iteration 5 — View-Mode Query Endpoints + EntityCoOccurrenceExtractor [P1] - [ ] TODO
+
+*Backend baseline B. Delivers the view-mode query surface and the single CorpusExtractor that unblocks Network Science view modes (per ADR-020 §Backend-Work). Keeps the non-goal "no new per-document NLP extractors" intact; relaxes only to allow one corpus-level aggregation over existing Gold entity data.*
+
+* [ ] **ClickHouse migration.** Create `aer_gold.entity_cooccurrences` (window_start, window_end, source, article_id, entity_a_text, entity_a_label, entity_b_text, entity_b_label, cooccurrence_count, ingestion_version), `ReplacingMergeTree(ingestion_version)`, ORDER BY (window_start, source, entity_a_text, entity_b_text), 365-day TTL on `window_start`. Migration in `infra/clickhouse/migrations/`.
+* [ ] **EntityCoOccurrenceExtractor.** New corpus-level extractor in `services/analysis-worker/internal/extractors/entity_cooccurrence.py`. Reads `aer_gold.entities` per configured window + source, emits pairwise co-occurrence rows. Protocol-compliant with existing extractor pattern (but corpus-level, batched, NATS-triggered on the same schedule as per-document extractors). Idempotent via `ingestion_version`. Unit tests for windowing, pair enumeration, label-pair ordering, idempotency.
+* [ ] **BFF endpoints.** `GET /api/v1/metrics/{metricName}/distribution?scope=probe|source&scopeId=…&start=…&end=…&bins=…` (per-source histogram or raw-value arrays). `GET /api/v1/metrics/{metricName}/heatmap?xDimension=dayOfWeek|hour|source|entityLabel|language&yDimension=…` (2D binning). `GET /api/v1/metrics/correlation?metrics=m1,m2,m3&scope=…` (pairwise correlation matrix). `GET /api/v1/entities/cooccurrence?scope=…&topN=…` (co-occurrence nodes + edges). All endpoints accept `probeId` or `sourceId` with probe as default.
+* [ ] **Contract + codegen.** OpenAPI diff + `make codegen`.
+* [ ] **Arc42 update.** §5.1.4 notes the new Gold table and corpus-level extractor; §8.x describes the view-mode query endpoints.
+* [ ] **Validation.** `make lint && make test` green; integration tests cover each view-mode endpoint on Probe 0 fixture data.
+
+---
+
+## Phase 103: Iteration 5 — Silver Query Endpoints with Eligibility Enforcement [P1] - [ ] TODO
+
+*Backend baseline C. Exposes Silver-layer access gated by the eligibility flag from Phase 101. Small phase, isolated because Silver has distinct governance review requirements.*
+
+* [ ] **Silver source filter.** `GET /api/v1/sources?silverOnly=true` returns only Silver-eligible sources. `GET /api/v1/sources/{id}` includes eligibility state + review metadata.
+* [ ] **Silver document endpoints.** `GET /api/v1/silver/documents?sourceId=…&start=…&end=…&limit=…&cursor=…` (paginated Silver documents: cleaned_text + SilverMeta summary). `GET /api/v1/silver/documents/{id}` (individual Silver document detail).
+* [ ] **Silver aggregation endpoints.** `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&…` — Silver-layer distributional/heatmap/correlation queries analogous to Phase 102 but over Silver fields (token distributions, cleaned-text length distributions, raw entity counts pre-NER).
+* [ ] **Eligibility enforcement.** Every Silver endpoint verifies `silver_eligible = true` on the requested source; non-eligible returns HTTP 403 with refusal payload naming the review gate and linking to WP-006 §5.2. Dedicated integration tests for the refusal path.
+* [ ] **Contract + codegen.** OpenAPI diff + `make codegen`.
+* [ ] **Arc42 update.** §8.x adds the Silver endpoint block with the eligibility-gate semantics.
+* [ ] **Validation.** `make lint && make test` green.
+
+---
+
+## Phase 104: Iteration 5 — Content Catalog Expansion [P2] - [ ] TODO
+
+*Populates the Dual-Register content catalog (Phase 95 infrastructure) for Iteration 5's expanded surface. Pure content work — no new endpoints.*
+
+* [ ] **Dual-Register metric entries.** Semantic + methodological entries (en + de) for each current Gold metric (`word_count`, `sentiment_score`, `language_confidence`, `entity_count`, `publication_hour`, `publication_weekday`). Files under `services/bff-api/configs/content/{locale}/metrics/`.
+* [ ] **View-mode cell entries.** One entry per MVP cell per metric (three cells × six metrics = eighteen pairs) describing what that view mode shows and how to read it.
+* [ ] **Refusal entries.** One entry per refusal type: WP-004 equivalence gate, k-anonymity, missing validation, Silver non-eligible, pillar-unavailable, cross-source without equivalence. Each with alternative-action suggestions.
+* [ ] **Empty-lane invitations.** One entry per WP-001 function for the empty-lane case (what this function is, why it matters, what kind of source would populate it).
+* [ ] **Open Research Questions.** One entry per WP-001 §8, WP-002 §7, WP-003 §7, WP-004 §7, WP-005 §7, WP-006 §8 question — scope, relevant pipeline hooks, contribution invitation.
+* [ ] **"How to read the globe" primer.** Structured Markdown with inline interactive-parameter placeholders (rendered by Phase 109 Surface III).
+* [ ] **Content validation tests.** Schema-conformance, locale completeness (en + de parity), cross-reference integrity (every `[WP-xxx §y]` resolves).
+* [ ] **Arc42 update.** §8.x content catalog scope + cross-link map.
+* [ ] **Validation.** `make lint && make test` green; content catalog tests green.
+
+---
+
+## Phase 105: Iteration 5 — Navigation Chrome (Left Rail + Top Scope Bar + Methodology Tray Component) [P1] - [ ] TODO
+
+*The persistent three-part frame specified in Design Brief §3.2. Blocks every subsequent frontend surface phase — every surface renders inside this chrome. Content binding for the tray lands in Phase 108; this phase delivers the component, its stores, and URL-state wiring.*
+
+* [ ] **Left side rail component.** `src/lib/components/chrome/SideRail.svelte` — three surface anchors (Atmosphere / Function Lanes / Reflection), scope indicator (probe + time range + viewing mode), pillar-mode toggle (Aleph/Episteme/Rhizome), return-to-Atmosphere planet glyph. Keyboard-navigable; screen-reader-labeled; reduced-motion-aware. Integrated styling (not floating, not overlay).
+* [ ] **Top scope bar component.** `src/lib/components/chrome/ScopeBar.svelte` — slot-based component accepting per-surface navigation content (lane switcher on II, section anchor on III, time scrubber on I).
+* [ ] **Methodology tray component (shell).** `src/lib/components/chrome/MethodologyTray.svelte` — closed-state vertical tab with tier-badge slot and "Methodology" label; open-state full-height panel; push-mode default with overlay-mode fallback at narrow viewports (breakpoint tunable in `design_system.md`). Content binding is stubbed here and filled by Phase 108.
+* [ ] **Shared stores.** `scope` store (probeId, sourceId?, timeRange, viewMode, pillarMode); `focusedMetric` store (metricName, chartContext?). URL-state serialization via SvelteKit search params; deep-link restores all state.
+* [ ] **`design_system.md` update.** New section for Navigation Chrome primitives (rail, scope bar, tray); tokens for tray width, breakpoints, push-overlay threshold.
+* [ ] **Story routes + gates.** Playwright story routes for each chrome component; visual regression baselines; axe-core gate passing on every story.
+* [ ] **Arc42 update.** §8.x Frontend Navigation Chrome.
+* [ ] **Validation.** `make fe-check` green including visual-regression + axe gates.
+
+---
+
+## Phase 106: Iteration 5 — Surface II Foundation (Probe Dossier + Function-Lane Shell) [P1] - [ ] TODO
+
+*The Probe Dossier route and the function-lane shell. Delivers the landing-into-Surface-II experience; the view-mode matrix lands in Phase 107 on top of this foundation. Depends on Phases 101 (endpoints) and 105 (chrome).*
+
+* [ ] **Routes.** `/lanes/:probeId/dossier` as Surface II's default landing when a probe is selected. `/lanes/:probeId/:functionKey` per-function-lane route.
+* [ ] **Probe Dossier component.** Consumes `/api/v1/probes/{id}/dossier`. Renders source cards with per-source counts, publication frequency, etic classification, emic context. Function coverage indicator (N/4) with per-function status. Navigable article preview per source.
+* [ ] **Function-lane shell.** Four lane slots matching WP-001's taxonomy. Baseline uPlot time-series view per lane fed from `/api/v1/metrics?scope=…`. Empty-lane Dual-Register invitations drawn from content catalog (Phase 104). Fifth-lane slot reserved but empty (Brief §8.1 extensibility).
+* [ ] **Source-scope narrowing.** Clicking a source card in the Dossier propagates `sourceId` into the URL + scope store; subsequent lane views query at source scope. Scope indicator in the left rail reflects probe vs. source scope.
+* [ ] **L5 Evidence reader-pane component.** Modal overlay opening from article clicks; renders Bronze cleaned text + trace metadata; handles HTTP 403 k-anon refusal gracefully with the methodological panel.
+* [ ] **Arc42 update.** §8.x Surface II architecture; probe scope vs. source scope propagation rule.
+* [ ] **Validation.** `make fe-check` green; Playwright E2E: globe → Dossier → lane → article flow.
+
+---
+
+## Phase 107: Iteration 5 — View-Mode Matrix (MVP Cells) [P1] - [ ] TODO
+
+*Implements the analytical-disciplines × presentation-forms catalog with three MVP cells per metric. Depends on Phases 102 (endpoints), 105 (chrome — view-mode switcher slots into the top scope bar), and 106 (function-lane shell).*
+
+* [ ] **Matrix-cell registry.** `src/lib/viewmodes/` — typed cell definitions; catalog fetched from backend content API; no hardcoded cell list in frontend source (Brief §8.3).
+* [ ] **NLP × time-series cell (uPlot).** Default for numeric metrics. Uncertainty bands. Epistemic Weight treatment (`design_system.md` §4).
+* [ ] **EDA × ridgeline/distribution cell (Observable Plot).** Per-source distributional view consuming `/api/v1/metrics/{name}/distribution`.
+* [ ] **Network Science × force-directed graph cell (D3-force).** Entity co-occurrence network consuming `/api/v1/entities/cooccurrence`. Nodes sized by frequency; edges weighted by co-occurrence count; coloring by sentiment or by source.
+* [ ] **View-mode switcher.** Slots into the top scope bar (Phase 105). URL-state carries selected cell id; deep-link restores.
+* [ ] **Scope parameter wiring.** Every view-mode query uses `probeId` or `sourceId` from the scope store; switcher behavior unchanged across scope modes.
+* [ ] **Tests.** Per-cell rendering stories; axe + visual regression; integration test of scope-select → view-mode-select → render path.
+* [ ] **Arc42 update.** §8.x View-Mode Matrix with the MVP cell list and the extensibility contract.
+* [ ] **Validation.** `make fe-check` green.
+
+---
+
+## Phase 108: Iteration 5 — Methodology Tray Content Binding [P1] - [ ] TODO
+
+*Wires the tray component from Phase 105 to live content. The tray becomes the L4 Provenance surface reachable from every metric on every surface. Depends on Phases 104 (content), 105 (tray component), and 107 (metric focus is set by view-mode interactions).*
+
+* [ ] **`focusedMetric` subscription.** Any chart, lane, or Dossier interaction sets the focused metric; tray updates in place without separate interaction.
+* [ ] **Content flow.** Parallel fetches of `/api/v1/content/metric/{name}?locale=…` and `/api/v1/metrics/{name}/provenance`. Content rendered using `design_system.md` Epistemic Weight classes.
+* [ ] **Closed-state binding.** Tier badge reflects live validation status; known-limitations indicator dot appears when any limitation applies to the current view.
+* [ ] **Open-state binding.** Dual-Register rendering — methodological register primary per Brief §7.7. Known-limitations-first mode activates when Negative Space overlay is on (Phase 113).
+* [ ] **Chart-level focus.** Clicking a specific time point, source, or entity scopes tray content to that selection and exposes only the relevant provenance.
+* [ ] **"Read the full Working Paper" deep link.** Anchor into `/reflection/wp/{id}?section=…` — target route rendered in Phase 109; link works before then (stub target).
+* [ ] **Tests.** Tray opens with correct content per focused metric; push→overlay fallback at narrow viewport; known-limitations-first mode under Negative Space.
+* [ ] **Arc42 update.** §8.x Methodology Tray content binding contract.
+* [ ] **Validation.** `make fe-check` green.
+
+---
+
+## Phase 109: Iteration 5 — Surface III (Reflection) [P1] - [ ] TODO
+
+*The primary methodological surface — prose + inline interactivity + primers + open-research-questions hub. Depends on Phases 104 (content) and 105 (chrome).*
+
+* [ ] **Route tree.** `/reflection` (landing with WP index + primer + open-questions entry), `/reflection/wp/:id` (Working Paper), `/reflection/probe/:id` (Probe Dossier methodology view), `/reflection/metric/:name` (Metric provenance page), `/reflection/open-questions` (Open Research Questions hub), `/reflection/primer/globe` ("How to read the globe").
+* [ ] **Working Paper rendering.** MDX-style rendering from `services/dashboard/content/papers/` with frontmatter + body. Seed with WP-001 through WP-006 (render-only — authoritative source stays in `docs/methodology/en/`).
+* [ ] **Inline interactive cells (Distill-style).** Observable Plot cells embedded in WP prose; manipulating a parameter in the page updates the chart against live Probe 0 data.
+* [ ] **Cross-reference resolution.** `[WP-001 §3]` anchors resolve to `/reflection/wp/wp-001?section=3`. Metric-to-WP and refusal-to-WP cross-links from content catalog.
+* [ ] **Entry points.** Methodology tray "Read the full Working Paper" (Phase 108), refusal surfaces, empty-lane invitations, metric badges all link here.
+* [ ] **Tests.** Prose renders; inline interactives bind to real data; cross-references resolve; primer renders with interactive parameters.
+* [ ] **Arc42 update.** §8.x Surface III architecture + content source layout.
+* [ ] **Validation.** `make fe-check` green; Playwright E2E for tray → Reflection WP navigation.
+
+---
+
+## Phase 110: Iteration 5 — Surface I Refinement (Probe-First Emission + Source Satellites) [P1] - [ ] TODO
+
+*Updates the 3D engine from source-first to probe-first emission, adds read-only source satellites, and introduces Progressive Semantics on probe glyphs. Deprecates Phase 100a's source-click descent. Depends on Phase 101 (dossier endpoint for satellite data) and Phase 106 (Surface II Dossier as descent target).*
+
+* [ ] **Engine update.** `packages/engine-3d/` emits one glyph per probe (not per source). Source satellites as secondary geometry — smaller, muted, non-selectable as scope targets. Raycaster filters selection to probe glyphs.
+* [ ] **Satellite interaction.** Hovering a satellite opens a tooltip naming the source. Clicking a satellite routes to `/lanes/:probeId/dossier?sourceId=…` (Probe Dossier with the source pre-filtered). Never changes scope to "source-only on Surface I".
+* [ ] **Progressive Semantics on glyphs.** Semantic register prominent on hover (plain-language identity); obvious affordance expands methodological register (etic/emic classification per Brief §4.5).
+* [ ] **Primer link.** Surface I's top scope bar (Phase 105) gains a link to `/reflection/primer/globe`.
+* [ ] **Visual regression update.** New baselines for probe-first emission; old source-click baselines deleted (Phase 100a's L3/L4 panel baselines are orphaned per the supersession note above).
+* [ ] **Arc42 update.** §8.x Probe-First Emission + Source Satellite Presentation. Note that Phase 100a's source-click descent is deprecated.
+* [ ] **Validation.** `make fe-check` green; Playwright E2E: globe → probe selection → Dossier flow green end-to-end.
+
+---
+
+## Phase 111: Iteration 5 — Silver-Layer Toggle on Surface II [P2] - [ ] TODO
+
+*Exposes Silver-layer access as a data-source toggle. Depends on Phase 103 (Silver endpoints) and Phase 106 (Surface II Foundation).*
+
+* [ ] **Toggle component.** Gold / Silver data-source toggle on Surface II (location per Brief §9.1 — top scope bar or Dossier header; pick during implementation). URL state carries toggle.
+* [ ] **Eligible routing.** When toggle = Silver and active source is eligible, view-mode queries route to `/api/v1/silver/*`. Same matrix cells render over Silver data without cell-level rewrites.
+* [ ] **Non-eligible rendering.** When toggle = Silver and active source is NOT eligible, an explicit "not Silver-eligible" panel renders with methodological context drawn from content catalog and a link to WP-006 §5.2. No silent omission.
+* [ ] **Scope interactions.** Narrowing to a different source re-evaluates eligibility; panel updates accordingly.
+* [ ] **Tests.** Toggle interaction; eligible vs. non-eligible routing; refusal panel rendering; URL-state round-trip.
+* [ ] **Arc42 update.** §8.x Silver-Layer Toggle + the eligibility-gate UX contract.
+* [ ] **Validation.** `make fe-check` green.
+
+---
+
+## Phase 112: Iteration 5 — Progressive Descent Infrastructure [P2] - [ ] TODO
+
+*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that the three surfaces are in place. Depends on Phases 106, 109, 110.*
+
+* [ ] **View Transitions API wiring.** Atmosphere ↔ Function Lanes ↔ Reflection surface transitions; descent and ascent animations per `prefers-reduced-motion: reduce`.
+* [ ] **Keyboard-nav completeness.** All five layers on all three surfaces reachable via keyboard; surface switching via keyboard shortcuts (documented in `design_system.md`); methodology tray toggle via keyboard.
+* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
+* [ ] **L5 Evidence polish.** Reader-pane overlay rendering refined (trace-ID copy affordance, content-catalog evidence-metadata rendering, reduced-motion fade).
+* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests; `prefers-reduced-motion` verification; L5 reader-pane E2E.
+* [ ] **Arc42 update.** §8.x Progressive Descent Infrastructure + keyboard-nav map.
+* [ ] **Validation.** `make fe-check` green; Playwright keyboard-only E2E green.
+
+---
+
+## Phase 113: Iteration 5 — Negative Space Overlay [P2] - [ ] TODO
+
+*"What AĒR doesn't see" toggle wired across all surfaces per Brief §4.4 and §5.4. Depends on Phases 106 and 108.*
+
+* [ ] **Toggle component.** Negative Space toggle in the left rail (Phase 105). Persistent visible state indicator. URL state carries overlay.
+* [ ] **Surface I behavior.** Absence regions become prominent (positively marked unmonitored areas); coverage map (WP-001 §5.3) becomes legible per region.
+* [ ] **Surface II behavior.** Empty lanes gain prominence; charts gain demographic-skew annotations in the margin from WP-003 §6.1 content entries.
+* [ ] **Surface III behavior.** Absence-prose scrolls into the margin on Working Paper views.
+* [ ] **Methodology tray behavior.** Known-limitations-first mode (bumps limitations to the top of tray content) activates when overlay is on — wired in Phase 108; verified here end-to-end.
+* [ ] **Tests.** Toggle interaction; per-surface rendering differences; URL-state round-trip; axe gate passing with overlay on.
+* [ ] **Arc42 update.** §8.x Negative Space Overlay behavior matrix.
+* [ ] **Validation.** `make fe-check` green.
+
+---
+
+## Phase 114: Iteration 5 — Accessibility Audit + Performance Verification (High-Fi) [P1] - [ ] TODO
+
+*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all Iteration 5 surfaces. Depends on Phases 105–113 being substantially in place. Low-Fi is a separate phase (115).*
+
+* [ ] **Axe audit.** `@axe-core/playwright` covers every route state: three surfaces × reachable layers × methodology-tray open/closed × Negative Space on/off. Zero WCAG 2.2 AA violations.
+* [ ] **Lighthouse CI tightening.** Budgets per Brief §10: first meaningful paint, interactivity, descent latency, frame budgets during transitions. CI fails on regression.
+* [ ] **High-Fi hardware testing.** Manual verification on a 2021 M1 MacBook Air equivalent: all surfaces fluid at 60 fps; descent transitions under 500 ms; chart rendering under 16 ms/frame with ≤10k points. Results recorded in `docs/operations_playbook.md`.
+* [ ] **Screen-reader pass.** Each surface narrated correctly; descent announcements clear ("Entering Probe Dossier for Probe 0", "Methodology tray opened for sentiment_score"); landmarks correct.
+* [ ] **Reduced-motion pass.** Motion removed but all functions preserved; no animation-dependent interactions.
+* [ ] **Arc42 update.** §8.x Accessibility and Performance Envelope for Iteration 5; CI gate specification.
+* [ ] **Validation.** All CI gates green; manual hardware test log filed.
+
+---
+
+## Phase 115: Iteration 5 — Low-Fidelity Mode (2D Map Fallback) [P2] - [ ] TODO
+
+*The Low-Fi mode committed in Brief §7.6. Replaces the 3D globe with a 2D equirectangular map while preserving probe-first emission, source satellites, and identical scientific depth. Standalone phase per size discipline — 2D renderer is non-trivial.*
+
+* [ ] **2D map renderer.** `packages/engine-2d/` (or similar) — Canvas 2D or SVG-based equirectangular projection; terminator overlay; probe-first emission; source satellites; absence regions positively marked.
+* [ ] **Mode selection.** Automatic on WebGL2-unavailable, `prefers-reduced-motion: reduce`, slow-connection signal, or explicit user choice. Toggle persisted in URL. Every automatic trigger overridable by the user.
+* [ ] **Feature parity below the surface.** Progressive Semantics, refusal surfaces, methodology tray, Surfaces II and III — identical in Low-Fi. Only Surface I rendering differs; scientific depth is unchanged.
+* [ ] **Tablet/phone layout.** Low-Fi default on narrow breakpoints; left rail collapses to a bottom tab bar; methodology tray collapses to a modal sheet.
+* [ ] **Hardware testing.** Manual verification on a 2015 ThinkPad equivalent: first meaningful paint < 3 s on 5 Mbps, descent < 1 s, surfaces usable for scientific work. Results recorded in `docs/operations_playbook.md`.
+* [ ] **Arc42 update.** §8.x Low-Fidelity Mode architecture and mode-selection contract.
+* [ ] **Validation.** `make fe-check` green; Low-Fi E2E suite green; hardware test log filed.
+
+---
+
+## Phase 116: Iteration 5 — Documentation Sweep + Terminology Reconciliation ADR [P-Docs] - [ ] TODO
+
+*Final documentation consolidation. Closes out Iteration 5.*
+
+* [ ] **Arc42 updates.** §8.x chapters updated with the Iteration 5 architecture: navigation chrome, three surfaces with their priorities, five-layer redistribution, view-mode matrix, methodology tray, Silver-layer toggle, probe-first emission. Cross-references to the rewritten Design Brief.
+* [ ] **Reframing-note cleanup.** Delete `docs/design/reframing-note.md` — its content was merged into `design_brief.md` by Step 2 of the reframing; the file has served its purpose.
+* [ ] **Terminology ADR draft.** Draft the post-Iteration-5 terminology-reconciliation ADR (Path A evaluation per Brief §6): scope the cost of renaming "Probe" → "Probe Constellation" and "Source" → "Probe" across schema, API, content, and UI; propose either a migration path (Path A) or recommend sticking with Path B permanently. Opens as a PR for review; does not land in this phase.
+* [ ] **MkDocs navigation update.** Any new Arc42 sections reflected in `mkdocs.yml`.
+* [ ] **Operations playbook update.** Any new operational procedures (Silver review workflow, view-mode catalog updates, methodology-tray content authoring) added to `docs/operations_playbook.md`.
+* [ ] **Validation.** MkDocs builds clean; all Arc42 cross-references resolve; terminology ADR PR opened; Completed Phases index in `ROADMAP.md` reflects Iteration 5's landed phases.
+
+---
+
+### Rationale for the Iteration 5 phase layout
+
+- **Three tight backend phases (101, 102, 103) before any frontend surface work.** Iteration 5 requires substantial new BFF endpoints, a schema migration, and one new corpus-level extractor. Splitting the backend into three phases (Probe Dossier + article browsing; view-mode queries + CorpusExtractor; Silver) keeps each phase small and independently deployable. Each phase leaves the pipeline in a consistent state.
+- **Content catalog (104) is its own phase.** The content work is discrete, schema-validated, and can proceed in parallel with the backend. It blocks Surface III and the methodology tray; the surfaces blocked are downstream, so content can land as soon as catalog entries are written.
+- **Navigation Chrome (105) is the foundation of every frontend surface.** It must land before 106, 107, 108, 109, 111, 113 because each of those surfaces renders inside the chrome. It is scoped to deliver the components and stores only; content binding for the methodology tray is Phase 108.
+- **Surface II is split across 106 (foundation: Dossier + lane shell) and 107 (view-mode matrix).** Splitting keeps each phase in scope. 106 delivers the routes, Dossier, empty-lane handling, and scope propagation; 107 delivers the matrix-cell registry and the three MVP cells.
+- **Phase 108 (methodology tray content binding) ties chrome + view modes together.** Cannot land before 105 and 107 because it subscribes to `focusedMetric` set by view-mode interactions.
+- **Phase 109 (Surface III) is one phase.** Long-form prose + inline interactives + primer + open-questions hub share a rendering approach (MDX + Observable Plot); splitting would fragment without value.
+- **Phase 110 (Surface I refinement) comes after Surface II exists.** Probe-first emission only makes sense if the descent target (Surface II Dossier) is in place. Otherwise the globe becomes a dead-end UI.
+- **Phase 111 (Silver toggle) is isolated.** Silver-layer access is governance-gated and should land on a stable Surface II (Phase 106) with clear eligibility semantics (Phase 103). Keeping it separate lets us ship or defer without affecting Gold work.
+- **Phases 112 and 113 are cross-cutting polish.** They depend on multiple surface phases being in place and are small enough to be fast.
+- **Phase 114 (a11y + High-Fi perf) lands before Low-Fi (115).** Brief §7.6 explicitly requires High-Fi as the baseline to reduce from; Low-Fi cannot be meaningfully spec'd before High-Fi is fully measured.
+- **Phase 116 (docs sweep) is last.** It closes the reframing-note lifecycle and opens the terminology-reconciliation ADR as the future-facing follow-up.
+- **ADR-020 §Implementation-Outline is the source for increment scope; ROADMAP.md is the SSoT for phase assignment.** The two are kept in sync by the reordering note in ADR-020 and by this section.
