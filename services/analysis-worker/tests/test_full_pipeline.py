@@ -5,7 +5,7 @@ from internal.extractors import (
     WordCountExtractor, TemporalDistributionExtractor,
     LanguageDetectionExtractor, SentimentExtractor,
 )
-from conftest import VALID_RSS_BRONZE_DATA, _make_processor
+from conftest import VALID_RSS_BRONZE_DATA, _make_processor, gold_insert_calls
 
 
 def test_rss_adapter_happy_path(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, dummy_span):
@@ -53,8 +53,8 @@ def test_rss_adapter_happy_path(mock_minio, mock_clickhouse, mock_pg_pool, adapt
     assert meta["author"] == "tagesschau.de"
     assert meta["feed_title"] == "tagesschau.de - Die Nachrichten der ARD"
 
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, _ = mock_clickhouse.insert.call_args
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    ch_args, _ = gold_insert_calls(mock_clickhouse)[0]
     row = ch_args[1][0]
     assert row[1] == 11.0
     assert row[2] == "tagesschau"
@@ -120,9 +120,9 @@ def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, moc
     proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
 
     # Two inserts: metrics + language_detections
-    assert mock_clickhouse.insert.call_count == 2
+    assert len(gold_insert_calls(mock_clickhouse)) == 2
 
-    insert_calls = mock_clickhouse.insert.call_args_list
+    insert_calls = gold_insert_calls(mock_clickhouse)
     metrics_call = [c for c in insert_calls if c[0][0] == "aer_gold.metrics"][0]
     rows = metrics_call[0][1]
 
@@ -174,9 +174,9 @@ def test_full_pipeline_with_language_detection_persistence(
 
     proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
 
-    assert mock_clickhouse.insert.call_count == 2
+    assert len(gold_insert_calls(mock_clickhouse)) == 2
 
-    insert_calls = mock_clickhouse.insert.call_args_list
+    insert_calls = gold_insert_calls(mock_clickhouse)
     tables = [call[0][0] for call in insert_calls]
     assert "aer_gold.metrics" in tables
     assert "aer_gold.language_detections" in tables

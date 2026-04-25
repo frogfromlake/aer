@@ -23,6 +23,7 @@ from internal.storage.postgres_client import (
 )
 from internal import quarantine as _quarantine_module
 from internal import silver as _silver_module
+from internal import silver_projection as _silver_projection_module
 
 logger = structlog.get_logger()
 
@@ -154,6 +155,11 @@ class DataProcessor:
         # NATS redelivery. Redelivered events share the same event_time → same
         # version → last-write-wins is a no-op on identical payloads.
         ingestion_version = int(event_time.timestamp() * 1_000_000_000)
+
+        # Phase 103b: write the Silver projection row to ClickHouse so the
+        # aggregation endpoints can run as cheap GROUP BYs over
+        # `aer_silver.documents` instead of scanning MinIO per request.
+        _silver_projection_module.upload_silver_projection(self.ch, core, ingestion_version)
 
         # Phase 91: wrap Gold inserts so a partial ClickHouse failure does not
         # NAK the message, causing a full reprocessing cycle.  Successfully

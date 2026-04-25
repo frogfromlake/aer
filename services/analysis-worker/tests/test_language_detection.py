@@ -4,7 +4,7 @@ from internal.models import SilverCore
 from internal.extractors import (
     WordCountExtractor, MetricExtractor, LanguageDetectionExtractor, GoldLanguageDetection,
 )
-from conftest import VALID_BRONZE_DATA, VALID_RSS_BRONZE_DATA, DUMMY_EVENT_TIME, _make_processor
+from conftest import VALID_BRONZE_DATA, VALID_RSS_BRONZE_DATA, DUMMY_EVENT_TIME, _make_processor, gold_insert_calls
 
 
 # ---------------------------------------------------------------------------
@@ -198,9 +198,9 @@ def test_processor_language_detections_insert(
 
     proc.process_event("rss/tagesschau/abc123/2026-04-05.json", "2026-04-05T10:00:00.000Z", dummy_span)
 
-    assert mock_clickhouse.insert.call_count == 2
+    assert len(gold_insert_calls(mock_clickhouse)) == 2
 
-    insert_calls = mock_clickhouse.insert.call_args_list
+    insert_calls = gold_insert_calls(mock_clickhouse)
     tables = [call[0][0] for call in insert_calls]
     assert "aer_gold.metrics" in tables
     assert "aer_gold.language_detections" in tables
@@ -231,5 +231,5 @@ def test_processor_no_language_detection_insert_without_language_extractor(
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    assert mock_clickhouse.insert.call_args[0][0] == "aer_gold.metrics"
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    assert gold_insert_calls(mock_clickhouse)[0][0][0] == "aer_gold.metrics"

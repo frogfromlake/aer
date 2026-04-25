@@ -49,6 +49,8 @@ paths:
     $ref: './paths/silver_documents.yaml'
   /silver/documents/{id}:
     $ref: './paths/silver_document_detail.yaml'
+  /silver/aggregations/{aggregationType}:
+    $ref: './paths/silver_aggregations.yaml'
   /probes:
     $ref: './paths/probes.yaml'
   /probes/{id}/dossier:
@@ -127,3 +129,5 @@ components:
       $ref: './schemas/SilverDocumentsPage.yaml'
     SilverDocumentDetail:
       $ref: './schemas/SilverDocumentDetail.yaml'
+    SilverAggregationResponse:
+      $ref: './schemas/SilverAggregationResponse.yaml'

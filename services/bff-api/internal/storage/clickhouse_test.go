@@ -163,5 +163,30 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create entity_cooccurrences table: %v", err)
 	}
 
+	// Phase 103b: silver projection table. Uses ReplacingMergeTree to
+	// mirror production semantics (queries read FINAL).
+	err = store.conn.Exec(ctx, `
+		CREATE DATABASE IF NOT EXISTS aer_silver
+	`)
+	if err != nil {
+		t.Fatalf("failed to create aer_silver database: %v", err)
+	}
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_silver.documents (
+			timestamp DateTime,
+			source String,
+			article_id String,
+			language String,
+			cleaned_text_length UInt32,
+			word_count UInt32,
+			raw_entity_count UInt32,
+			ingestion_version UInt64 DEFAULT 0
+		) ENGINE = ReplacingMergeTree(ingestion_version)
+		ORDER BY (timestamp, source, article_id)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create silver documents table: %v", err)
+	}
+
 	return store, ctx
 }

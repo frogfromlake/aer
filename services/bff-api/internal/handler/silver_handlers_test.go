@@ -377,3 +377,174 @@ func TestGetSilverDocumentDetail_SilverObjectMissing404(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// /silver/aggregations/{aggregationType} — Phase 103b
+// ---------------------------------------------------------------------------
+
+func newSilverAggServer(dossier *fakeDossier, store *mockStore) *Server {
+	return NewServerWithOptions(
+		store, nil, nil, nil, testProbeRegistry(),
+		ServerOptions{Dossier: dossier, Articles: &fakeArticles{}, Silver: &fakeSilver{}},
+	)
+}
+
+func silverAggURL(kind string) string {
+	return "/silver/aggregations/" + kind +
+		"?sourceId=tagesschau" +
+		"&start=2026-04-24T00:00:00Z" +
+		"&end=2026-04-25T00:00:00Z"
+}
+
+func TestGetSilverAggregation_Distribution(t *testing.T) {
+	store := &mockStore{
+		silverDistribution: storage.DistributionResult{
+			Bins: []storage.DistributionBin{{Lower: 0, Upper: 100, Count: 5}},
+			Summary: storage.DistributionSummary{
+				Count: 5, Min: 0, Max: 100, Mean: 50, Median: 50,
+				P05: 5, P25: 25, P75: 75, P95: 95,
+			},
+		},
+	}
+	router := newTestRouter(newSilverAggServer(&fakeDossier{eligibility: eligibleRow()}, store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, silverAggURL("cleaned_text_length"), nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if store.capturedSilverField != "cleaned_text_length" {
+		t.Fatalf("field not propagated: %s", store.capturedSilverField)
+	}
+	var resp struct {
+		AggregationType string `json:"aggregationType"`
+		Source          string `json:"source"`
+		Distribution    *struct {
+			Bins    []any `json:"bins"`
+			Summary struct{ Count int64 `json:"count"` } `json:"summary"`
+		} `json:"distribution"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.AggregationType != "cleaned_text_length" || resp.Source != "tagesschau" {
+		t.Fatalf("unexpected echo fields: %+v", resp)
+	}
+	if resp.Distribution == nil || resp.Distribution.Summary.Count != 5 {
+		t.Fatalf("distribution payload missing: %+v", resp)
+	}
+}
+
+func TestGetSilverAggregation_Heatmap(t *testing.T) {
+	store := &mockStore{
+		silverHeatmap: []storage.HeatmapCell{{X: "1", Y: "10", Value: 200, Count: 4}},
+		silverHeatmapXDim: "dayOfWeek",
+		silverHeatmapYDim: "hour",
+	}
+	router := newTestRouter(newSilverAggServer(&fakeDossier{eligibility: eligibleRow()}, store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, silverAggURL("cleaned_text_length_by_hour"), nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if store.capturedSilverKind != storage.SilverAggCleanedTextLengthByHour {
+		t.Fatalf("kind not propagated: %s", store.capturedSilverKind)
+	}
+	var resp struct {
+		Heatmap *struct {
+			XDimension string `json:"xDimension"`
+			YDimension string `json:"yDimension"`
+			Cells      []struct{ Count int64 `json:"count"` } `json:"cells"`
+		} `json:"heatmap"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Heatmap == nil || resp.Heatmap.XDimension != "dayOfWeek" || len(resp.Heatmap.Cells) != 1 {
+		t.Fatalf("heatmap payload missing/wrong: %+v", resp)
+	}
+}
+
+func TestGetSilverAggregation_Correlation(t *testing.T) {
+	c := 0.85
+	store := &mockStore{
+		silverCorrelation: storage.SilverCorrelationResult{
+			Fields:      []string{"cleaned_text_length", "word_count"},
+			Matrix:      [][]*float64{{ptrFloat(1), &c}, {&c, ptrFloat(1)}},
+			SampleCount: 42,
+		},
+	}
+	router := newTestRouter(newSilverAggServer(&fakeDossier{eligibility: eligibleRow()}, store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, silverAggURL("cleaned_text_length_vs_word_count"), nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Correlation *struct {
+			Fields      []string     `json:"fields"`
+			Matrix      [][]*float64 `json:"matrix"`
+			SampleCount int64        `json:"sampleCount"`
+		} `json:"correlation"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Correlation == nil || resp.Correlation.SampleCount != 42 || len(resp.Correlation.Fields) != 2 {
+		t.Fatalf("correlation payload missing/wrong: %+v", resp)
+	}
+	if resp.Correlation.Matrix[0][1] == nil || *resp.Correlation.Matrix[0][1] != 0.85 {
+		t.Fatalf("matrix value missing: %+v", resp.Correlation.Matrix)
+	}
+}
+
+func TestGetSilverAggregation_NotEligibleReturns403(t *testing.T) {
+	router := newTestRouter(newSilverAggServer(&fakeDossier{eligibility: ineligibleRow()}, &mockStore{}))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/silver/aggregations/word_count?sourceId=wikipedia&start=2026-04-24T00:00:00Z&end=2026-04-25T00:00:00Z", nil))
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var refusal RefusalPayload
+	_ = json.Unmarshal(rec.Body.Bytes(), &refusal)
+	if refusal.Gate != SilverEligibility {
+		t.Fatalf("expected silver_eligibility gate, got %s", refusal.Gate)
+	}
+	if refusal.WorkingPaperAnchor == nil || *refusal.WorkingPaperAnchor != "WP-006#section-5.2" {
+		t.Fatalf("expected anchor WP-006#section-5.2, got %v", refusal.WorkingPaperAnchor)
+	}
+}
+
+func TestGetSilverAggregation_SourceNotFound404(t *testing.T) {
+	router := newTestRouter(newSilverAggServer(&fakeDossier{eligibilityErr: storage.ErrSourceNotFound}, &mockStore{}))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/silver/aggregations/word_count?sourceId=ghost&start=2026-04-24T00:00:00Z&end=2026-04-25T00:00:00Z", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetSilverAggregation_BadWindow400(t *testing.T) {
+	router := newTestRouter(newSilverAggServer(&fakeDossier{eligibility: eligibleRow()}, &mockStore{}))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/silver/aggregations/word_count?sourceId=tagesschau&start=2026-04-25T00:00:00Z&end=2026-04-24T00:00:00Z", nil))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func ptrFloat(v float64) *float64 { return &v }
+

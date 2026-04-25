@@ -6,7 +6,7 @@ from internal.extractors import (
     WordCountExtractor, GoldEntity, MetricExtractor, ExtractionResult, GoldMetric,
     NamedEntityExtractor,
 )
-from conftest import VALID_BRONZE_DATA, DUMMY_EVENT_TIME, _make_processor
+from conftest import VALID_BRONZE_DATA, DUMMY_EVENT_TIME, _make_processor, gold_insert_calls
 
 
 # ---------------------------------------------------------------------------
@@ -182,13 +182,13 @@ def test_processor_inserts_entities(mock_minio, mock_clickhouse, mock_pg_pool, a
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
     # Two inserts: one for metrics, one for entities
-    assert mock_clickhouse.insert.call_count == 2
+    assert len(gold_insert_calls(mock_clickhouse)) == 2
 
-    metrics_call = mock_clickhouse.insert.call_args_list[0]
+    metrics_call = gold_insert_calls(mock_clickhouse)[0]
     assert metrics_call[0][0] == "aer_gold.metrics"
     assert len(metrics_call[0][1]) == 2  # word_count + entity_count
 
-    entities_call = mock_clickhouse.insert.call_args_list[1]
+    entities_call = gold_insert_calls(mock_clickhouse)[1]
     assert entities_call[0][0] == "aer_gold.entities"
     entity_rows = entities_call[0][1]
     assert len(entity_rows) == 2
@@ -217,5 +217,5 @@ def test_processor_no_entity_insert_without_entity_extractor(mock_minio, mock_cl
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    assert mock_clickhouse.insert.call_args[0][0] == "aer_gold.metrics"
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    assert gold_insert_calls(mock_clickhouse)[0][0][0] == "aer_gold.metrics"

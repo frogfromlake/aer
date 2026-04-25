@@ -1834,22 +1834,21 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x adds the Silver endpoint block with the eligibility-gate semantics.
 * [x] **Validation.** `make lint && make test` green.
 
----
 
-# Open Phases
-
----
-
-## Phase 103b: Iteration 5 — Silver Aggregation Endpoints with Projection Table [P2] - [ ] TODO
+## Phase 103b: Iteration 5 — Silver Aggregation Endpoints with Projection Table [P2] - [x] DONE (2026-04-25)
 
 *Deferred from Phase 103 on 2026-04-25. Silver lives as individual MinIO JSON envelopes with no queryable index, so the aggregation endpoints listed in the original Phase 103 spec (`GET /api/v1/silver/aggregations/{aggregationType}`) have no real query path — implementing them on top of a per-request MinIO scan would be slow, MinIO-bound, and bounded only by ad-hoc per-request limits. This phase lands the aggregation endpoints together with a Silver-projection ClickHouse table so the queries can run as cheap GROUP BYs analogous to the Phase 102 Gold view-mode endpoints, while preserving Silver's distinct governance review (eligibility gate from Phase 103 still applies).*
 
-* [ ] **Silver-projection ClickHouse table.** New `aer_silver.documents` (or `aer_silver_projection`) table populated by the analysis worker at the same point Silver is uploaded to MinIO. Columns at minimum: `timestamp`, `source`, `article_id`, `language`, `cleaned_text_length`, `word_count`, `raw_entity_count` (pre-NER token-based count), plus `ingestion_version` for ReplacingMergeTree idempotency. 365-day TTL on `timestamp`. Migration in `infra/clickhouse/migrations/`.
-* [ ] **Worker write path.** Extend the analysis worker's Silver upload step (`internal/silver.py` and the processor) to compute the projection fields and bulk-insert one row per document into `aer_silver.documents` alongside the existing MinIO write. Idempotent via `ingestion_version`.
-* [ ] **BFF aggregation endpoints.** `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&start=…&end=…&bins=…` — supported `aggregationType` ∈ `{cleaned_text_length, word_count, raw_entity_count}` for distributional queries; `{cleaned_text_length_by_hour, word_count_by_source}` for heatmaps; `{cleaned_text_length_vs_word_count}` for correlation. Reuses Phase 103's `requireSilverEligible` gate so non-eligible sources return the same 403 + RefusalPayload.
-* [ ] **Contract + codegen.** OpenAPI diff + `make codegen`.
-* [ ] **Arc42 update.** §8.x extends the Silver endpoints block to cover the projection table and the aggregation surface.
-* [ ] **Validation.** `make lint && make test` green; integration tests cover each aggregation type on Probe 0 fixture data.
+* [x] **Silver-projection ClickHouse table.** New `aer_silver.documents` (or `aer_silver_projection`) table populated by the analysis worker at the same point Silver is uploaded to MinIO. Columns at minimum: `timestamp`, `source`, `article_id`, `language`, `cleaned_text_length`, `word_count`, `raw_entity_count` (pre-NER token-based count), plus `ingestion_version` for ReplacingMergeTree idempotency. 365-day TTL on `timestamp`. Migration in `infra/clickhouse/migrations/`.
+* [x] **Worker write path.** Extend the analysis worker's Silver upload step (`internal/silver.py` and the processor) to compute the projection fields and bulk-insert one row per document into `aer_silver.documents` alongside the existing MinIO write. Idempotent via `ingestion_version`.
+* [x] **BFF aggregation endpoints.** `GET /api/v1/silver/aggregations/{aggregationType}?sourceId=…&start=…&end=…&bins=…` — supported `aggregationType` ∈ `{cleaned_text_length, word_count, raw_entity_count}` for distributional queries; `{cleaned_text_length_by_hour, word_count_by_source}` for heatmaps; `{cleaned_text_length_vs_word_count}` for correlation. Reuses Phase 103's `requireSilverEligible` gate so non-eligible sources return the same 403 + RefusalPayload.
+* [x] **Contract + codegen.** OpenAPI diff + `make codegen`.
+* [x] **Arc42 update.** §8.x extends the Silver endpoints block to cover the projection table and the aggregation surface.
+* [x] **Validation.** `make lint && make test` green; integration tests cover each aggregation type on Probe 0 fixture data.
+
+---
+
+# Open Phases
 
 ---
 

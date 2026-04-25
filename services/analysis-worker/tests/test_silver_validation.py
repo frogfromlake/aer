@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import MagicMock
 from internal.models import generate_document_id
-from conftest import VALID_BRONZE_DATA, DUMMY_EVENT_TIME, EXPECTED_WORD_COUNT
+from conftest import VALID_BRONZE_DATA, DUMMY_EVENT_TIME, EXPECTED_WORD_COUNT, gold_insert_calls
 
 
 def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dummy_span):
@@ -31,8 +31,8 @@ def test_silver_contract_happy_path(processor, mock_minio, mock_clickhouse, dumm
     assert args[1] == obj_key
 
     # ClickHouse: deterministic timestamp + word count + dimensions
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, ch_kwargs = mock_clickhouse.insert.call_args
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    ch_args, ch_kwargs = gold_insert_calls(mock_clickhouse)[0]
     assert ch_args[0] == "aer_gold.metrics"
     row = ch_args[1][0]
     assert row[0] == EXPECTED_DATETIME
@@ -71,7 +71,7 @@ def test_silver_contract_missing_raw_text(processor, mock_minio, mock_clickhouse
     assert args[0] == "bronze-quarantine"
     assert args[1] == "test-source/incomplete/2023-10-25.json"
 
-    mock_clickhouse.insert.assert_not_called()
+    assert len(gold_insert_calls(mock_clickhouse)) == 0
 
     processor._update_document_status.assert_called_with(
         "test-source/incomplete/2023-10-25.json", "quarantined"
@@ -102,8 +102,8 @@ def test_whitespace_normalization(processor, mock_minio, mock_clickhouse, dummy_
     ws_obj_key = "test-source/whitespace-article/2023-10-25.json"
     processor.process_event(ws_obj_key, DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, ch_kwargs = mock_clickhouse.insert.call_args
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    ch_args, ch_kwargs = gold_insert_calls(mock_clickhouse)[0]
     row = ch_args[1][0]
     assert row[1] == float(EXPECTED_WORD_COUNT)
     assert row[2] == "test-source"
@@ -136,7 +136,7 @@ def test_raw_text_only_whitespace_quarantined(processor, mock_minio, mock_clickh
     mock_minio.put_object.assert_called_once()
     args, _ = mock_minio.put_object.call_args
     assert args[0] == "bronze-quarantine"
-    mock_clickhouse.insert.assert_not_called()
+    assert len(gold_insert_calls(mock_clickhouse)) == 0
     processor._update_document_status.assert_called_with(
         "test-source/empty/2023-10-25.json", "quarantined"
     )
@@ -269,7 +269,7 @@ def test_quarantine_helper_from_validation_failure(
     mock_minio.put_object.assert_called_once()
     args, _ = mock_minio.put_object.call_args
     assert args[0] == "bronze-quarantine"
-    mock_clickhouse.insert.assert_not_called()
+    assert len(gold_insert_calls(mock_clickhouse)) == 0
     proc._update_document_status.assert_called_with(
         "test-source/empty/2023-10-25.json", "quarantined"
     )

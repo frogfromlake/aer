@@ -1,0 +1,106 @@
+type: object
+description: >
+  Result of a Silver aggregation query. Exactly one of `distribution`,
+  `heatmap`, or `correlation` is populated, matching the requested
+  `aggregationType`. The frontend dispatches on `aggregationType` rather
+  than introspecting which payload field is present.
+required:
+  - aggregationType
+  - source
+  - windowStart
+  - windowEnd
+properties:
+  aggregationType:
+    type: string
+    description: Echoes the requested aggregation type.
+  source:
+    type: string
+    description: Resolved canonical source name.
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
+  distribution:
+    type: object
+    description: Populated for `cleaned_text_length`, `word_count`, `raw_entity_count`.
+    required: [bins, summary]
+    properties:
+      bins:
+        type: array
+        items:
+          type: object
+          required: [lower, upper, count]
+          properties:
+            lower:
+              type: number
+              format: double
+            upper:
+              type: number
+              format: double
+            count:
+              type: integer
+              format: int64
+              minimum: 0
+      summary:
+        type: object
+        required: [count, min, max, mean, median, p05, p25, p75, p95]
+        properties:
+          count: { type: integer, format: int64, minimum: 0 }
+          min: { type: number, format: double }
+          max: { type: number, format: double }
+          mean: { type: number, format: double }
+          median: { type: number, format: double }
+          p05: { type: number, format: double }
+          p25: { type: number, format: double }
+          p75: { type: number, format: double }
+          p95: { type: number, format: double }
+  heatmap:
+    type: object
+    description: Populated for `cleaned_text_length_by_hour`, `word_count_by_source`.
+    required: [xDimension, yDimension, cells]
+    properties:
+      xDimension:
+        type: string
+      yDimension:
+        type: string
+      cells:
+        type: array
+        items:
+          type: object
+          required: [x, y, value, count]
+          properties:
+            x: { type: string }
+            y: { type: string }
+            value:
+              type: number
+              format: double
+              description: Mean of the projection field across rows in this cell.
+            count:
+              type: integer
+              format: int64
+              minimum: 0
+  correlation:
+    type: object
+    description: Populated for `cleaned_text_length_vs_word_count`.
+    required: [fields, matrix, sampleCount]
+    properties:
+      fields:
+        type: array
+        description: Projection-field names whose pairwise correlation was computed.
+        items:
+          type: string
+      matrix:
+        type: array
+        description: NxN Pearson correlation matrix; outer index matches `fields`. Cells with insufficient samples are `null`.
+        items:
+          type: array
+          items:
+            type: number
+            format: double
+            nullable: true
+      sampleCount:
+        type: integer
+        format: int64
+        description: Number of documents that contributed to the correlation.

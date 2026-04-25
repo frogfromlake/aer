@@ -42,6 +42,17 @@ VALID_RSS_BRONZE_DATA = json.dumps({
 # Fixtures
 # ---------------------------------------------------------------------------
 
+def gold_insert_calls(mock_ch):
+    """Return mock_ch.insert call_args_list excluding aer_silver projection writes.
+
+    Phase 103b adds a per-document `aer_silver.documents` insert alongside
+    the existing Gold inserts. Tests written before that change asserted
+    only on the Gold call(s); this helper preserves those assertions
+    without baking the projection into every test.
+    """
+    return [c for c in mock_ch.insert.call_args_list if not c.args or c.args[0] != "aer_silver.documents"]
+
+
 @pytest.fixture
 def mock_minio():
     """Provides a mocked MinIO client."""

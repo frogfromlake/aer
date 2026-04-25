@@ -42,6 +42,17 @@ type mockStore struct {
 	correlationErr       error
 	cooccurrence         storage.CoOccurrenceResult
 	cooccurrenceErr      error
+	// Phase 103b silver-aggregation mocks.
+	silverDistribution    storage.DistributionResult
+	silverDistributionErr error
+	silverHeatmap         []storage.HeatmapCell
+	silverHeatmapXDim     string
+	silverHeatmapYDim     string
+	silverHeatmapErr      error
+	silverCorrelation     storage.SilverCorrelationResult
+	silverCorrelationErr  error
+	capturedSilverField   string
+	capturedSilverKind    storage.SilverAggregationKind
 	// captured args
 	capturedStart      time.Time
 	capturedEnd        time.Time
@@ -152,6 +163,33 @@ func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, s
 	m.capturedEnd = end
 	m.capturedTopN = topN
 	return m.cooccurrence, m.cooccurrenceErr
+}
+
+func (m *mockStore) GetSilverDistribution(_ context.Context, field string, source string, start, end time.Time, bins int) (storage.DistributionResult, error) {
+	m.capturedSilverField = field
+	src := source
+	m.capturedSource = &src
+	m.capturedStart = start
+	m.capturedEnd = end
+	m.capturedBins = bins
+	return m.silverDistribution, m.silverDistributionErr
+}
+
+func (m *mockStore) GetSilverHeatmap(_ context.Context, kind storage.SilverAggregationKind, source string, start, end time.Time) ([]storage.HeatmapCell, string, string, error) {
+	m.capturedSilverKind = kind
+	src := source
+	m.capturedSource = &src
+	m.capturedStart = start
+	m.capturedEnd = end
+	return m.silverHeatmap, m.silverHeatmapXDim, m.silverHeatmapYDim, m.silverHeatmapErr
+}
+
+func (m *mockStore) GetSilverCorrelation(_ context.Context, source string, start, end time.Time) (storage.SilverCorrelationResult, error) {
+	src := source
+	m.capturedSource = &src
+	m.capturedStart = start
+	m.capturedEnd = end
+	return m.silverCorrelation, m.silverCorrelationErr
 }
 
 // newTestRouter builds the full chi router for HTTP-level tests.

@@ -343,3 +343,163 @@ func mapSilverGateError(err error) (any, bool) {
 // view_mode_handlers — currently unused but reserved if the eligibility
 // reason set grows.
 var _ = strings.HasPrefix
+
+// silverAggregationRefusal builds the canonical 403 RefusalPayload for the
+// aggregation endpoint. Uses the same eligibility anchor as the document
+// endpoints so the frontend can route every Silver refusal through one
+// methodological-explainer link.
+func silverAggregationRefusal() GetSilverAggregation403JSONResponse {
+	anchor := silverEligibilityAnchor
+	return GetSilverAggregation403JSONResponse(RefusalPayload{
+		Gate:               SilverEligibility,
+		Message:            silverEligibilityRefusalMessage,
+		WorkingPaperAnchor: &anchor,
+	})
+}
+
+// GetSilverAggregation handles GET /silver/aggregations/{aggregationType} —
+// distribution / heatmap / correlation queries over the
+// `aer_silver.documents` projection table for one Silver-eligible source.
+func (s *Server) GetSilverAggregation(ctx context.Context, request GetSilverAggregationRequestObject) (GetSilverAggregationResponseObject, error) {
+	if s.dossier == nil || s.db == nil {
+		slog.Error("handler failure", "op", "GetSilverAggregation", "error", "dossier or db not configured")
+		return GetSilverAggregation500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	// The generated path-param type is enum-validated upstream, but be
+	// defensive: an unknown kind here means a contract drift, not user
+	// error, so 400 with a clear message is correct.
+	kind := storage.SilverAggregationKind(request.AggregationType)
+	if !storage.IsSilverDistributionKind(kind) && !storage.IsSilverHeatmapKind(kind) && !storage.IsSilverCorrelationKind(kind) {
+		return GetSilverAggregation400JSONResponse{Message: fmt.Sprintf("unsupported aggregationType: %s", request.AggregationType)}, nil
+	}
+
+	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+		return GetSilverAggregation400JSONResponse{Message: msg}, nil
+	}
+
+	row, err := s.requireSilverEligible(ctx, request.Params.SourceId)
+	if err != nil {
+		switch {
+		case errors.Is(err, errSilverNotEligible):
+			return silverAggregationRefusal(), nil
+		case errors.Is(err, errSilverSourceNotFound):
+			return GetSilverAggregation404JSONResponse{Message: "source not found"}, nil
+		case errors.Is(err, errSilverNotConfigured):
+			return GetSilverAggregation500JSONResponse{Message: genericInternalError}, nil
+		}
+		slog.Error("handler failure", "op", "GetSilverAggregation.requireSilverEligible", "error", err)
+		return GetSilverAggregation500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetSilverAggregation200JSONResponse{
+		AggregationType: string(request.AggregationType),
+		Source:          row.Name,
+		WindowStart:     request.Params.Start,
+		WindowEnd:       request.Params.End,
+	}
+
+	switch {
+	case storage.IsSilverDistributionKind(kind):
+		bins := 30
+		if request.Params.Bins != nil {
+			bins = *request.Params.Bins
+		}
+		field := string(kind)
+		res, err := s.db.GetSilverDistribution(ctx, field, row.Name, request.Params.Start, request.Params.End, bins)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetSilverAggregation.GetSilverDistribution", "error", err)
+			return GetSilverAggregation500JSONResponse{Message: genericInternalError}, nil
+		}
+		dist := struct {
+			Bins []struct {
+				Count int64   `json:"count"`
+				Lower float64 `json:"lower"`
+				Upper float64 `json:"upper"`
+			} `json:"bins"`
+			Summary struct {
+				Count  int64   `json:"count"`
+				Max    float64 `json:"max"`
+				Mean   float64 `json:"mean"`
+				Median float64 `json:"median"`
+				Min    float64 `json:"min"`
+				P05    float64 `json:"p05"`
+				P25    float64 `json:"p25"`
+				P75    float64 `json:"p75"`
+				P95    float64 `json:"p95"`
+			} `json:"summary"`
+		}{}
+		dist.Bins = make([]struct {
+			Count int64   `json:"count"`
+			Lower float64 `json:"lower"`
+			Upper float64 `json:"upper"`
+		}, len(res.Bins))
+		for i, b := range res.Bins {
+			dist.Bins[i] = struct {
+				Count int64   `json:"count"`
+				Lower float64 `json:"lower"`
+				Upper float64 `json:"upper"`
+			}{Count: b.Count, Lower: b.Lower, Upper: b.Upper}
+		}
+		dist.Summary.Count = res.Summary.Count
+		dist.Summary.Min = res.Summary.Min
+		dist.Summary.Max = res.Summary.Max
+		dist.Summary.Mean = res.Summary.Mean
+		dist.Summary.Median = res.Summary.Median
+		dist.Summary.P05 = res.Summary.P05
+		dist.Summary.P25 = res.Summary.P25
+		dist.Summary.P75 = res.Summary.P75
+		dist.Summary.P95 = res.Summary.P95
+		resp.Distribution = &dist
+	case storage.IsSilverHeatmapKind(kind):
+		cells, xDim, yDim, err := s.db.GetSilverHeatmap(ctx, kind, row.Name, request.Params.Start, request.Params.End)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetSilverAggregation.GetSilverHeatmap", "error", err)
+			return GetSilverAggregation500JSONResponse{Message: genericInternalError}, nil
+		}
+		hm := struct {
+			Cells []struct {
+				Count int64 `json:"count"`
+
+				// Value Mean of the projection field across rows in this cell.
+				Value float64 `json:"value"`
+				X     string  `json:"x"`
+				Y     string  `json:"y"`
+			} `json:"cells"`
+			XDimension string `json:"xDimension"`
+			YDimension string `json:"yDimension"`
+		}{XDimension: xDim, YDimension: yDim}
+		hm.Cells = make([]struct {
+			Count int64   `json:"count"`
+			Value float64 `json:"value"`
+			X     string  `json:"x"`
+			Y     string  `json:"y"`
+		}, len(cells))
+		for i, c := range cells {
+			hm.Cells[i] = struct {
+				Count int64   `json:"count"`
+				Value float64 `json:"value"`
+				X     string  `json:"x"`
+				Y     string  `json:"y"`
+			}{Count: c.Count, Value: c.Value, X: c.X, Y: c.Y}
+		}
+		resp.Heatmap = &hm
+	case storage.IsSilverCorrelationKind(kind):
+		res, err := s.db.GetSilverCorrelation(ctx, row.Name, request.Params.Start, request.Params.End)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetSilverAggregation.GetSilverCorrelation", "error", err)
+			return GetSilverAggregation500JSONResponse{Message: genericInternalError}, nil
+		}
+		resp.Correlation = &struct {
+			Fields      []string     `json:"fields"`
+			Matrix      [][]*float64 `json:"matrix"`
+			SampleCount int64        `json:"sampleCount"`
+		}{
+			Fields:      res.Fields,
+			Matrix:      res.Matrix,
+			SampleCount: res.SampleCount,
+		}
+	}
+
+	return resp, nil
+}

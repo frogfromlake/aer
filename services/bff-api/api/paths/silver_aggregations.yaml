@@ -1,0 +1,93 @@
+get:
+  tags: [Analysis]
+  summary: Silver-layer aggregations (distribution / heatmap / correlation)
+  description: >
+    Aggregate query over `aer_silver.documents` (Phase 103b projection
+    table) for one Silver-eligible source. The `aggregationType` path
+    parameter selects both the projection field(s) and the shape of the
+    response payload:
+
+    * `cleaned_text_length`, `word_count`, `raw_entity_count` — histogram
+      bins + quantile summary (the `distribution` payload).
+    * `cleaned_text_length_by_hour`, `word_count_by_source` — 2D binning
+      (the `heatmap` payload). `word_count_by_source` is degenerate when
+      filtered to a single source and is intended for whole-probe queries
+      via Phase 111's source toggle.
+    * `cleaned_text_length_vs_word_count` — pairwise Pearson correlation
+      between two projection fields (the `correlation` payload).
+
+    Subject to the Silver-eligibility gate (Phase 103, ADR-020 §"Silver-
+    layer toggle"): a non-eligible source returns 403 with a
+    RefusalPayload citing WP-006 §5.2.
+  operationId: getSilverAggregation
+  parameters:
+    - name: aggregationType
+      in: path
+      required: true
+      description: The aggregation kind. Selects projection column(s) and payload shape.
+      schema:
+        type: string
+        enum:
+          - cleaned_text_length
+          - word_count
+          - raw_entity_count
+          - cleaned_text_length_by_hour
+          - word_count_by_source
+          - cleaned_text_length_vs_word_count
+    - name: sourceId
+      in: query
+      required: true
+      description: Source identifier — canonical name or integer id.
+      schema:
+        type: string
+        minLength: 1
+    - name: start
+      in: query
+      required: true
+      description: Inclusive start of the timestamp window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: end
+      in: query
+      required: true
+      description: Exclusive end of the timestamp window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: bins
+      in: query
+      required: false
+      description: Histogram bin count for distributional aggregation types. Server clamps to `[1, 200]`; default 30.
+      schema:
+        type: integer
+        default: 30
+        minimum: 1
+        maximum: 200
+  responses:
+    '200':
+      description: Aggregation payload.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/SilverAggregationResponse.yaml'
+    '400':
+      description: Invalid query parameters or unsupported aggregation type.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '403':
+      description: Source is not Silver-eligible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RefusalPayload'
+    '404':
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

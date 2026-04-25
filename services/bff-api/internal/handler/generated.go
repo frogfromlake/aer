@@ -485,6 +485,36 @@ func (e GetMetricHeatmapParamsYDimension) Valid() bool {
 	}
 }
 
+// Defines values for GetSilverAggregationParamsAggregationType.
+const (
+	CleanedTextLength            GetSilverAggregationParamsAggregationType = "cleaned_text_length"
+	CleanedTextLengthByHour      GetSilverAggregationParamsAggregationType = "cleaned_text_length_by_hour"
+	CleanedTextLengthVsWordCount GetSilverAggregationParamsAggregationType = "cleaned_text_length_vs_word_count"
+	RawEntityCount               GetSilverAggregationParamsAggregationType = "raw_entity_count"
+	WordCount                    GetSilverAggregationParamsAggregationType = "word_count"
+	WordCountBySource            GetSilverAggregationParamsAggregationType = "word_count_by_source"
+)
+
+// Valid indicates whether the value is a known member of the GetSilverAggregationParamsAggregationType enum.
+func (e GetSilverAggregationParamsAggregationType) Valid() bool {
+	switch e {
+	case CleanedTextLength:
+		return true
+	case CleanedTextLengthByHour:
+		return true
+	case CleanedTextLengthVsWordCount:
+		return true
+	case RawEntityCount:
+		return true
+	case WordCount:
+		return true
+	case WordCountBySource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetSourceArticlesParamsSentimentBand.
 const (
 	Negative GetSourceArticlesParamsSentimentBand = "negative"
@@ -1001,6 +1031,24 @@ type GetProbeDossierParams struct {
 	WindowEnd *time.Time `form:"windowEnd,omitempty" json:"windowEnd,omitempty"`
 }
 
+// GetSilverAggregationParams defines parameters for GetSilverAggregation.
+type GetSilverAggregationParams struct {
+	// SourceId Source identifier — canonical name or integer id.
+	SourceId string `form:"sourceId" json:"sourceId"`
+
+	// Start Inclusive start of the timestamp window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the timestamp window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+
+	// Bins Histogram bin count for distributional aggregation types. Server clamps to `[1, 200]`; default 30.
+	Bins *int `form:"bins,omitempty" json:"bins,omitempty"`
+}
+
+// GetSilverAggregationParamsAggregationType defines parameters for GetSilverAggregation.
+type GetSilverAggregationParamsAggregationType string
+
 // ListSilverDocumentsParams defines parameters for ListSilverDocuments.
 type ListSilverDocumentsParams struct {
 	// SourceId Source identifier — canonical name or integer id.
@@ -1094,6 +1142,9 @@ type ServerInterface interface {
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
+	// Silver-layer aggregations (distribution / heatmap / correlation)
+	// (GET /silver/aggregations/{aggregationType})
+	GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams)
 	// List Silver-layer documents for a source
 	// (GET /silver/documents)
 	ListSilverDocuments(w http.ResponseWriter, r *http.Request, params ListSilverDocumentsParams)
@@ -1202,6 +1253,12 @@ func (_ Unimplemented) GetProbeDossier(w http.ResponseWriter, r *http.Request, i
 // Readiness probe
 // (GET /readyz)
 func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Silver-layer aggregations (distribution / heatmap / correlation)
+// (GET /silver/aggregations/{aggregationType})
+func (_ Unimplemented) GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2157,6 +2214,93 @@ func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetSilverAggregation operation middleware
+func (siw *ServerInterfaceWrapper) GetSilverAggregation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "aggregationType" -------------
+	var aggregationType GetSilverAggregationParamsAggregationType
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aggregationType", chi.URLParam(r, "aggregationType"), &aggregationType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "aggregationType", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSilverAggregationParams
+
+	// ------------- Required query parameter "sourceId" -------------
+
+	if paramValue := r.URL.Query().Get("sourceId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sourceId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "sourceId", r.URL.Query(), &params.SourceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "bins" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "bins", r.URL.Query(), &params.Bins, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bins", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSilverAggregation(w, r, aggregationType, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSilverDocuments operation middleware
 func (siw *ServerInterfaceWrapper) ListSilverDocuments(w http.ResponseWriter, r *http.Request) {
 
@@ -2571,6 +2715,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/silver/aggregations/{aggregationType}", wrapper.GetSilverAggregation)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/silver/documents", wrapper.ListSilverDocuments)
@@ -3385,6 +3532,123 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetSilverAggregationRequestObject struct {
+	AggregationType GetSilverAggregationParamsAggregationType `json:"aggregationType"`
+	Params          GetSilverAggregationParams
+}
+
+type GetSilverAggregationResponseObject interface {
+	VisitGetSilverAggregationResponse(w http.ResponseWriter) error
+}
+
+type GetSilverAggregation200JSONResponse struct {
+	// AggregationType Echoes the requested aggregation type.
+	AggregationType string `json:"aggregationType"`
+
+	// Correlation Populated for `cleaned_text_length_vs_word_count`.
+	Correlation *struct {
+		// Fields Projection-field names whose pairwise correlation was computed.
+		Fields []string `json:"fields"`
+
+		// Matrix NxN Pearson correlation matrix; outer index matches `fields`. Cells with insufficient samples are `null`.
+		Matrix [][]*float64 `json:"matrix"`
+
+		// SampleCount Number of documents that contributed to the correlation.
+		SampleCount int64 `json:"sampleCount"`
+	} `json:"correlation,omitempty"`
+
+	// Distribution Populated for `cleaned_text_length`, `word_count`, `raw_entity_count`.
+	Distribution *struct {
+		Bins []struct {
+			Count int64   `json:"count"`
+			Lower float64 `json:"lower"`
+			Upper float64 `json:"upper"`
+		} `json:"bins"`
+		Summary struct {
+			Count  int64   `json:"count"`
+			Max    float64 `json:"max"`
+			Mean   float64 `json:"mean"`
+			Median float64 `json:"median"`
+			Min    float64 `json:"min"`
+			P05    float64 `json:"p05"`
+			P25    float64 `json:"p25"`
+			P75    float64 `json:"p75"`
+			P95    float64 `json:"p95"`
+		} `json:"summary"`
+	} `json:"distribution,omitempty"`
+
+	// Heatmap Populated for `cleaned_text_length_by_hour`, `word_count_by_source`.
+	Heatmap *struct {
+		Cells []struct {
+			Count int64 `json:"count"`
+
+			// Value Mean of the projection field across rows in this cell.
+			Value float64 `json:"value"`
+			X     string  `json:"x"`
+			Y     string  `json:"y"`
+		} `json:"cells"`
+		XDimension string `json:"xDimension"`
+		YDimension string `json:"yDimension"`
+	} `json:"heatmap,omitempty"`
+
+	// Source Resolved canonical source name.
+	Source      string    `json:"source"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+}
+
+func (response GetSilverAggregation200JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverAggregation400JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSilverAggregation400JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverAggregation403JSONResponse RefusalPayload
+
+func (response GetSilverAggregation403JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverAggregation404JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSilverAggregation404JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSilverAggregation500JSONResponse struct {
+	// Message A human-readable error message.
+	Message string `json:"message"`
+}
+
+func (response GetSilverAggregation500JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListSilverDocumentsRequestObject struct {
 	Params ListSilverDocumentsParams
 }
@@ -3716,6 +3980,9 @@ type StrictServerInterface interface {
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
+	// Silver-layer aggregations (distribution / heatmap / correlation)
+	// (GET /silver/aggregations/{aggregationType})
+	GetSilverAggregation(ctx context.Context, request GetSilverAggregationRequestObject) (GetSilverAggregationResponseObject, error)
 	// List Silver-layer documents for a source
 	// (GET /silver/documents)
 	ListSilverDocuments(ctx context.Context, request ListSilverDocumentsRequestObject) (ListSilverDocumentsResponseObject, error)
@@ -4145,6 +4412,33 @@ func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetReadyzResponseObject); ok {
 		if err := validResponse.VisitGetReadyzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSilverAggregation operation middleware
+func (sh *strictHandler) GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams) {
+	var request GetSilverAggregationRequestObject
+
+	request.AggregationType = aggregationType
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSilverAggregation(ctx, request.(GetSilverAggregationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSilverAggregation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSilverAggregationResponseObject); ok {
+		if err := validResponse.VisitGetSilverAggregationResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

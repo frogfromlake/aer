@@ -10,6 +10,7 @@ from internal.extractors import (
 from conftest import (
     VALID_BRONZE_DATA, DUMMY_EVENT_TIME, EXPECTED_WORD_COUNT,
     StubExtractor, FailingExtractor, MalformedExtractor, _make_processor,
+    gold_insert_calls,
 )
 
 
@@ -33,8 +34,8 @@ def test_extractor_pipeline_multiple_extractors(mock_minio, mock_clickhouse, moc
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, ch_kwargs = mock_clickhouse.insert.call_args
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    ch_args, ch_kwargs = gold_insert_calls(mock_clickhouse)[0]
     rows = ch_args[1]
     assert len(rows) == 2
     assert rows[0][3] == "word_count"
@@ -59,8 +60,8 @@ def test_extractor_pipeline_failing_extractor_does_not_block_others(mock_minio, 
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, _ = mock_clickhouse.insert.call_args
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    ch_args, _ = gold_insert_calls(mock_clickhouse)[0]
     rows = ch_args[1]
     assert len(rows) == 1
     assert rows[0][3] == "word_count"
@@ -85,7 +86,7 @@ def test_extractor_pipeline_no_extractors(mock_minio, mock_clickhouse, mock_pg_p
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_not_called()
+    assert len(gold_insert_calls(mock_clickhouse)) == 0
     proc._update_document_status.assert_called_with(
         "test-source/test-article/2023-10-25.json", "processed"
     )
@@ -107,7 +108,7 @@ def test_extractor_pipeline_all_extractors_fail(mock_minio, mock_clickhouse, moc
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_not_called()
+    assert len(gold_insert_calls(mock_clickhouse)) == 0
     proc._update_document_status.assert_called_with(
         "test-source/test-article/2023-10-25.json", "processed"
     )
@@ -150,8 +151,8 @@ def test_extractor_missing_extract_all_is_skipped_gracefully(
 
     proc.process_event("test-source/test-article/2023-10-25.json", DUMMY_EVENT_TIME, dummy_span)
 
-    mock_clickhouse.insert.assert_called_once()
-    ch_args, _ = mock_clickhouse.insert.call_args
+    assert len(gold_insert_calls(mock_clickhouse)) == 1
+    ch_args, _ = gold_insert_calls(mock_clickhouse)[0]
     rows = ch_args[1]
     assert len(rows) == 1
     assert rows[0][3] == "word_count"
