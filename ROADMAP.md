@@ -1846,25 +1846,24 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x extends the Silver endpoints block to cover the projection table and the aggregation surface.
 * [x] **Validation.** `make lint && make test` green; integration tests cover each aggregation type on Probe 0 fixture data.
 
----
-
-# Open Phases
-
----
 
 ## Phase 104: Iteration 5 — Content Catalog Expansion [P2] - [x] DONE (2026-04-25)
 
 *Populates the Dual-Register content catalog (Phase 95 infrastructure) for Iteration 5's expanded surface. Pure content work — no new endpoints.*
 
-* [ ] **Dual-Register metric entries.** Semantic + methodological entries (en + de) for each current Gold metric (`word_count`, `sentiment_score`, `language_confidence`, `entity_count`, `publication_hour`, `publication_weekday`). Files under `services/bff-api/configs/content/{locale}/metrics/`.
-* [ ] **View-mode cell entries.** One entry per MVP cell per metric (three cells × six metrics = eighteen pairs) describing what that view mode shows and how to read it.
-* [ ] **Refusal entries.** One entry per refusal type: WP-004 equivalence gate, k-anonymity, missing validation, Silver non-eligible, pillar-unavailable, cross-source without equivalence. Each with alternative-action suggestions.
-* [ ] **Empty-lane invitations.** One entry per WP-001 function for the empty-lane case (what this function is, why it matters, what kind of source would populate it).
-* [ ] **Open Research Questions.** One entry per WP-001 §8, WP-002 §7, WP-003 §7, WP-004 §7, WP-005 §7, WP-006 §8 question — scope, relevant pipeline hooks, contribution invitation.
-* [ ] **"How to read the globe" primer.** Structured Markdown with inline interactive-parameter placeholders (rendered by Phase 109 Surface III).
-* [ ] **Content validation tests.** Schema-conformance, locale completeness (en + de parity), cross-reference integrity (every `[WP-xxx §y]` resolves).
-* [ ] **Arc42 update.** §8.x content catalog scope + cross-link map.
-* [ ] **Validation.** `make lint && make test` green; content catalog tests green.
+* [x] **Dual-Register metric entries.** Semantic + methodological entries (en + de) for each current Gold metric (`word_count`, `sentiment_score`, `language_confidence`, `entity_count`, `publication_hour`, `publication_weekday`). Files under `services/bff-api/configs/content/{locale}/metrics/`.
+* [x] **View-mode cell entries.** One entry per MVP cell per metric (three cells × six metrics = eighteen pairs) describing what that view mode shows and how to read it.
+* [x] **Refusal entries.** One entry per refusal type: WP-004 equivalence gate, k-anonymity, missing validation, Silver non-eligible, pillar-unavailable, cross-source without equivalence. Each with alternative-action suggestions.
+* [x] **Empty-lane invitations.** One entry per WP-001 function for the empty-lane case (what this function is, why it matters, what kind of source would populate it).
+* [x] **Open Research Questions.** One entry per WP-001 §8, WP-002 §7, WP-003 §7, WP-004 §7, WP-005 §7, WP-006 §8 question — scope, relevant pipeline hooks, contribution invitation.
+* [x] **"How to read the globe" primer.** Structured Markdown with inline interactive-parameter placeholders (rendered by Phase 109 Surface III).
+* [x] **Content validation tests.** Schema-conformance, locale completeness (en + de parity), cross-reference integrity (every `[WP-xxx §y]` resolves).
+* [x] **Arc42 update.** §8.x content catalog scope + cross-link map.
+* [x] **Validation.** `make lint && make test` green; content catalog tests green.
+
+---
+
+# Open Phases
 
 ---
 
