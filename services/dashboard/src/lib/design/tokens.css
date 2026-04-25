@@ -96,6 +96,19 @@
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --focus-ring-color: var(--color-accent);
+
+  /* --- Navigation Chrome (Phase 105) --- */
+  /* Left side rail width (icon-only, no labels). */
+  --rail-width: 52px;
+  /* Top scope bar minimum height. Content may cause it to grow. */
+  --scope-bar-height: 44px;
+  /* Methodology tray widths. Closed = tab strip only; open = full panel. */
+  --tray-closed-width: 28px;
+  --tray-open-width: 360px;
+  /* Right-edge inset seen by the scope bar. Updated by MethodologyTray via JS
+     when the tray opens (push-mode). CSS-only consumers read this property;
+     the 900 px push→overlay threshold is enforced in MethodologyTray.svelte. */
+  --tray-right-edge: var(--tray-closed-width);
 }
 
 /* --- Theme: dark (primary, Design Brief §5.5) --- */

@@ -29,6 +29,10 @@ export interface UrlState {
   metric: string | null;
   // Current descent layer. `null` is treated as `atmosphere` by consumers.
   view: ViewLayer | null;
+  // Source-scope narrowing: set by the Probe Dossier (Phase 106) when
+  // the user clicks a source card. Propagates into view-mode queries.
+  // Only meaningful when `probe` is also set; dropped otherwise in writeToSearch.
+  sourceId: string | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -44,7 +48,8 @@ export const EMPTY_URL_STATE: UrlState = {
   resolution: null,
   viewingMode: null,
   metric: null,
-  view: null
+  view: null,
+  sourceId: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
@@ -83,7 +88,8 @@ export function readFromSearch(search: string): UrlState {
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
     viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES),
     metric: parseMetric(p.get('metric')),
-    view: parseEnum(p.get('view'), VIEW_LAYERS)
+    view: parseEnum(p.get('view'), VIEW_LAYERS),
+    sourceId: p.get('sourceId')
   };
 }
 
@@ -108,6 +114,8 @@ export function writeToSearch(state: UrlState): string {
   // metric param on the bare atmosphere would be a non-restorable state.
   if (state.metric && state.view === 'analysis') p.set('metric', state.metric);
   if (state.view && state.view !== 'atmosphere') p.set('view', state.view);
+  // sourceId is only meaningful when a probe is selected.
+  if (state.probe && state.sourceId) p.set('sourceId', state.sourceId);
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

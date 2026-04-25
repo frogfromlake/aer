@@ -12,7 +12,8 @@ describe('readFromSearch', () => {
       resolution: null,
       viewingMode: null,
       metric: null,
-      view: null
+      view: null,
+      sourceId: null
     });
   });
 
@@ -77,7 +78,8 @@ describe('writeToSearch', () => {
         resolution: null,
         viewingMode: null,
         metric: null,
-        view: null
+        view: null,
+        sourceId: null
       })
     ).toBe('');
   });
@@ -91,7 +93,8 @@ describe('writeToSearch', () => {
       resolution: 'hourly',
       viewingMode: null,
       metric: null,
-      view: null
+      view: null,
+      sourceId: null
     });
     expect(qs).toContain('from=2026-04-01');
     expect(qs).toContain('to=2026-04-22');
@@ -110,7 +113,8 @@ describe('writeToSearch', () => {
       resolution: null,
       viewingMode: null,
       metric: null,
-      view: null
+      view: null,
+      sourceId: null
     });
     expect(withProbe).toContain('probe=probe-0');
     expect(withProbe).toContain('ep=1');
@@ -123,7 +127,8 @@ describe('writeToSearch', () => {
       resolution: null,
       viewingMode: null,
       metric: null,
-      view: null
+      view: null,
+      sourceId: null
     });
     expect(orphan).not.toContain('ep=');
   });
@@ -137,7 +142,8 @@ describe('writeToSearch', () => {
       resolution: 'daily' as const,
       viewingMode: 'aleph' as const,
       metric: 'sentiment_score',
-      view: 'analysis' as const
+      view: 'analysis' as const,
+      sourceId: null
     };
     const qs = writeToSearch(original);
     expect(readFromSearch(qs)).toEqual(original);
@@ -152,7 +158,8 @@ describe('writeToSearch', () => {
       resolution: null,
       viewingMode: null,
       metric: 'sentiment_score',
-      view: null
+      view: null,
+      sourceId: null
     });
     expect(qs).not.toContain('metric=');
   });
@@ -166,7 +173,8 @@ describe('writeToSearch', () => {
       resolution: null,
       viewingMode: null,
       metric: null,
-      view: 'atmosphere'
+      view: 'atmosphere',
+      sourceId: null
     });
     expect(qs).not.toContain('view=');
   });

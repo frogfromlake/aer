@@ -174,6 +174,81 @@ baselines after an intentional visual change.
 
 ---
 
+## 7. Navigation Chrome Primitives (Phase 105)
+
+The three-part chrome frame that wraps every AĒR surface (Design Brief §3.2). Components live under `src/lib/components/chrome/`.
+
+### 7.1 Tokens
+
+Four new CSS custom properties in `tokens.css`:
+
+| Token | Value | Purpose |
+|---|---|---|
+| `--rail-width` | `52px` | Left side rail width (icon-only) |
+| `--scope-bar-height` | `44px` | Minimum top scope bar height |
+| `--tray-closed-width` | `28px` | Methodology tray tab strip width |
+| `--tray-open-width` | `360px` | Methodology tray open panel width |
+| `--tray-right-edge` | `var(--tray-closed-width)` | Right inset for ScopeBar and Surface II content; updated by MethodologyTray via JS on open |
+
+The push-mode / overlay-mode threshold is **900 px viewport width** — enforced in `MethodologyTray.svelte` via JS (`PUSH_BREAKPOINT_PX`) and documented here as the canonical value. Below 900 px the tray slides over content (overlay-mode); at or above it, the tray shifts the scope bar and Surface II content left (push-mode, `--tray-right-edge: var(--tray-open-width)`).
+
+### 7.2 SideRail
+
+`src/lib/components/chrome/SideRail.svelte` — fixed left column, always visible, `z-index: 450`.
+
+| Region | Content | Notes |
+|---|---|---|
+| Top | ◉ planet glyph | Link to `/`. Return-to-Atmosphere affordance. Accent-colored. |
+| Divider | 1 px separator | |
+| Middle | Three surface anchors (●/≡/¶) | `aria-current="page"` on active surface. Links to `/`, `/lanes`, `/reflection`. |
+| Scope | Active probe ID (7 chars max) | Dimmed when no probe selected. |
+| Divider | 1 px separator | |
+| Bottom | Pillar toggle (A / E / R) | `role="radiogroup"` + `role="radio"` per button. Reads/writes `?viewingMode=` URL param. |
+
+All interactive elements are native `<a>` or `<button>` — no custom focus management.
+
+### 7.3 ScopeBar
+
+`src/lib/components/chrome/ScopeBar.svelte` — fixed top strip, `z-index: 440`.
+
+Slot-based component. Surface pages render their own content between the tags. `right: var(--tray-right-edge, var(--tray-closed-width))` tracks the tray's state automatically.
+
+| Surface | Default ScopeBar content |
+|---|---|
+| I — Atmosphere | Time window label (monospace) + resolution `<select>` + Negative Space toggle |
+| II — Function Lanes | Lane switcher (Phase 106) |
+| III — Reflection | Section anchor / reading progress indicator (Phase 109) |
+
+Requires `label` prop (default: `"Surface navigation"`) for the `aria-label` on the `nav` element.
+
+### 7.4 MethodologyTray
+
+`src/lib/components/chrome/MethodologyTray.svelte` — fixed right edge, `z-index: 480`.
+
+**Closed state:** 28 px tab strip with "Methodology" rotated 90° (writing-mode: vertical-lr, rotated 180°) and a `tierBadge` snippet slot. Dimmed at 35% opacity on Surface I when no probe is selected (`url.probe === null`). Tab button: `aria-expanded` + dynamic `aria-label`.
+
+**Open state:** Panel (332 px wide = `--tray-open-width` minus tab strip). Slide-in animation (`slide-in` keyframe, suppressed by `prefers-reduced-motion`). Content body is a stub (Phase 108 wires live provenance content). Shows focused metric name from `focusedMetric()` store when set.
+
+**Push-mode / overlay-mode:** On open, writes `--tray-right-edge: var(--tray-open-width)` to `:root`; ScopeBar and future Surface II layouts automatically compress. Below 900 px, writes `--tray-right-edge: var(--tray-closed-width)` (overlay — no compression). On close or unmount, restores `--tray-right-edge: var(--tray-closed-width)`.
+
+**Not a dialog.** `<aside>` with `aria-label="Methodology"`. No focus trap; the live surface behind it remains interactive per Design Brief §4.1 rule 2 ("no layer replaces").
+
+### 7.5 Route group
+
+The `(app)/` SvelteKit route group (`src/routes/(app)/`) wraps all main surfaces with the chrome layout (`(app)/+layout.svelte`). Story routes (`src/routes/stories/`) sit outside the group and receive only the root layout (QueryClientProvider) — no chrome rendered on component-catalogue pages.
+
+### 7.6 Story routes
+
+Three new story routes:
+
+| Route | Covers |
+|---|---|
+| `/stories/chrome/side-rail` | SideRail — states, a11y notes, inline preview |
+| `/stories/chrome/scope-bar` | ScopeBar — slot demo, Surface I example |
+| `/stories/chrome/methodology-tray` | MethodologyTray — closed/open states, a11y |
+
+---
+
 ## 8. References
 
 - Design Brief §5.2 (No valence, ever)

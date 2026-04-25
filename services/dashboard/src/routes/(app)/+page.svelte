@@ -1,16 +1,20 @@
 <script lang="ts">
-  // Atmosphere route (Phases 99b → 100a).
+  // Atmosphere route (Phases 99b → 105).
   //
-  // 100a adds the L0→L4 descent grammar on top of 99b's live-data
-  // Atmosphere. Layer mapping:
+  // Phase 105 (Navigation Chrome): integrates ScopeBar into Surface I,
+  // relocates the resolution selector and NegativeSpaceToggle from the
+  // bottom L2 strip into the top scope bar, and retires the standalone
+  // L2Controls component (pillar toggle now lives in SideRail; resolution
+  // now lives in ScopeBar).
+  //
+  // Layer mapping:
   //   L0 Immersion  — 3D globe, always rendered
   //   L1 Orientation — soft top-bar overlay (fade on idle)
-  //   L2 Exploration — TimeScrubber + resolution/pillar controls
+  //   L2 Exploration — TimeScrubber (bottom) + controls in ScopeBar (top)
   //   L3 Analysis    — SidePanel with TimeSeriesChart (uPlot)
-  //   L4 Provenance  — fly-out overlay anchored to L3
+  //   L4 Provenance  — fly-out overlay anchored to L3 (Phase 108: moves to MethodologyTray)
   //
-  // Descent via `document.startViewTransition()` with graceful
-  // degradation on browsers without the API. Keyboard descent grammar:
+  // Keyboard descent grammar:
   //   Tab           cycles through probes (sr-only nav)
   //   Enter/Space   descends to L3 on the focused probe
   //   Escape        ascends one layer (L4 → L3 → L0)
@@ -30,13 +34,14 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
   import L1Overlay from '$lib/components/L1Overlay.svelte';
-  import L2Controls from '$lib/components/L2Controls.svelte';
   import L3AnalysisPanel from '$lib/components/L3AnalysisPanel.svelte';
   import L4ProvenanceFlyout from '$lib/components/L4ProvenanceFlyout.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
+  import { ScopeBar } from '$lib/components/chrome';
   import { SidePanel } from '$lib/components/base';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
+  import type { Resolution } from '$lib/state/url-internals';
   import {
     metricsQuery,
     probesQuery,
@@ -52,6 +57,8 @@
   const ctx: FetchContext = {
     baseUrl: '/api/v1'
   };
+
+  const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 
   let decision: 'pending' | 'engine' | 'fallback' = $state('pending');
 
@@ -308,6 +315,28 @@
   <title>AĒR — Atmosphere</title>
 </svelte:head>
 
+<!-- Top scope bar: resolution selector + Negative Space toggle for Surface I -->
+<ScopeBar label="Atmosphere surface controls">
+  <span class="window-label" aria-label="Time window: {windowLabel}">{windowLabel}</span>
+  <label class="resolution-label">
+    <span class="label-text">Resolution</span>
+    <select
+      value={resolutionForL3}
+      onchange={(e) =>
+        setUrl({ resolution: (e.currentTarget as HTMLSelectElement).value as Resolution })}
+      aria-label="Temporal resolution"
+    >
+      {#each RESOLUTIONS as r (r)}
+        <option value={r}>{r}</option>
+      {/each}
+    </select>
+  </label>
+  <NegativeSpaceToggle
+    active={negativeSpaceActive}
+    onToggle={(next) => (negativeSpaceActive = next)}
+  />
+</ScopeBar>
+
 {#if decision === 'engine'}
   <div
     class="stage"
@@ -369,18 +398,6 @@
     <L1Overlay probes={probeDtos} {windowLabel} normalization="raw" {ctx} />
   </div>
 
-  <div class="l2-slot">
-    <L2Controls />
-    <TimeScrubber />
-  </div>
-
-  <div class="chrome-slot">
-    <NegativeSpaceToggle
-      active={negativeSpaceActive}
-      onToggle={(next) => (negativeSpaceActive = next)}
-    />
-  </div>
-
   <SidePanel
     bind:open={panelOpen}
     title={selected?.emissionPointLabel ?? 'Probe'}
@@ -424,6 +441,11 @@
     </div>
   {/if}
 {/if}
+
+<!-- Time scrubber: remains at bottom center (Design Brief §4.2, L2 Exploration) -->
+<div class="l2-slot">
+  <TimeScrubber />
+</div>
 
 <style>
   .stage {
@@ -469,8 +491,8 @@
   .sr-only:focus,
   .sr-only:focus-visible {
     position: fixed;
-    top: var(--space-3);
-    left: var(--space-3);
+    top: calc(var(--scope-bar-height) + var(--space-3));
+    left: calc(var(--rail-width) + var(--space-3));
     width: auto;
     height: auto;
     padding: var(--space-1) var(--space-3);
@@ -492,7 +514,7 @@
   .refusal-slot {
     position: fixed;
     bottom: var(--space-5);
-    left: var(--space-5);
+    left: calc(var(--rail-width) + var(--space-5));
     max-width: 28rem;
     z-index: 500;
   }
@@ -503,7 +525,7 @@
   .l2-slot {
     position: fixed;
     bottom: var(--space-5);
-    left: 50%;
+    left: calc(var(--rail-width) + 50%);
     transform: translateX(-50%);
     width: min(90vw, 36rem);
     display: flex;
@@ -512,10 +534,56 @@
     align-items: stretch;
     z-index: 400;
   }
-  .chrome-slot {
-    position: fixed;
-    top: var(--space-3);
-    right: var(--space-3);
-    z-index: 460;
+
+  /* Scope bar content styles (specific to Surface I) */
+  .window-label {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .resolution-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+  .label-text {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-fg-subtle);
+  }
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: rgba(0, 0, 0, 0.45);
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-fg-muted) 50%),
+      linear-gradient(135deg, var(--color-fg-muted) 50%, transparent 50%);
+    background-position:
+      calc(100% - 14px) 50%,
+      calc(100% - 9px) 50%;
+    background-size:
+      5px 5px,
+      5px 5px;
+    background-repeat: no-repeat;
+    color: var(--color-fg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px 22px 2px var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: pointer;
+  }
+  select:hover,
+  select:focus-visible {
+    border-color: var(--color-accent);
+    outline: none;
+  }
+  select option {
+    background: var(--color-surface);
+    color: var(--color-fg);
   }
 </style>

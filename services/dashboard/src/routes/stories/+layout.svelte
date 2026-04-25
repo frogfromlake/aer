@@ -17,7 +17,10 @@
     { href: '/stories/atmosphere/paused', title: 'Atmosphere · Paused' },
     { href: '/stories/atmosphere/terminator', title: 'Atmosphere · Terminator' },
     { href: '/stories/atmosphere/flyto', title: 'Atmosphere · Fly-to' },
-    { href: '/stories/atmosphere/fallback', title: 'Atmosphere · Fallback' }
+    { href: '/stories/atmosphere/fallback', title: 'Atmosphere · Fallback' },
+    { href: '/stories/chrome/side-rail', title: 'Chrome · SideRail' },
+    { href: '/stories/chrome/scope-bar', title: 'Chrome · ScopeBar' },
+    { href: '/stories/chrome/methodology-tray', title: 'Chrome · MethodologyTray' }
   ];
 
   let theme = $state<'dark' | 'light'>('dark');

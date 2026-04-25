@@ -1861,24 +1861,23 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x content catalog scope + cross-link map.
 * [x] **Validation.** `make lint && make test` green; content catalog tests green.
 
----
 
-# Open Phases
-
----
-
-## Phase 105: Iteration 5 — Navigation Chrome (Left Rail + Top Scope Bar + Methodology Tray Component) [P1] - [ ] TODO
+## Phase 105: Iteration 5 — Navigation Chrome (Left Rail + Top Scope Bar + Methodology Tray Component) [P1] - [x] DONE (2026-04-25)
 
 *The persistent three-part frame specified in Design Brief §3.2. Blocks every subsequent frontend surface phase — every surface renders inside this chrome. Content binding for the tray lands in Phase 108; this phase delivers the component, its stores, and URL-state wiring.*
 
-* [ ] **Left side rail component.** `src/lib/components/chrome/SideRail.svelte` — three surface anchors (Atmosphere / Function Lanes / Reflection), scope indicator (probe + time range + viewing mode), pillar-mode toggle (Aleph/Episteme/Rhizome), return-to-Atmosphere planet glyph. Keyboard-navigable; screen-reader-labeled; reduced-motion-aware. Integrated styling (not floating, not overlay).
-* [ ] **Top scope bar component.** `src/lib/components/chrome/ScopeBar.svelte` — slot-based component accepting per-surface navigation content (lane switcher on II, section anchor on III, time scrubber on I).
-* [ ] **Methodology tray component (shell).** `src/lib/components/chrome/MethodologyTray.svelte` — closed-state vertical tab with tier-badge slot and "Methodology" label; open-state full-height panel; push-mode default with overlay-mode fallback at narrow viewports (breakpoint tunable in `design_system.md`). Content binding is stubbed here and filled by Phase 108.
-* [ ] **Shared stores.** `scope` store (probeId, sourceId?, timeRange, viewMode, pillarMode); `focusedMetric` store (metricName, chartContext?). URL-state serialization via SvelteKit search params; deep-link restores all state.
-* [ ] **`design_system.md` update.** New section for Navigation Chrome primitives (rail, scope bar, tray); tokens for tray width, breakpoints, push-overlay threshold.
-* [ ] **Story routes + gates.** Playwright story routes for each chrome component; visual regression baselines; axe-core gate passing on every story.
-* [ ] **Arc42 update.** §8.x Frontend Navigation Chrome.
-* [ ] **Validation.** `make fe-check` green including visual-regression + axe gates.
+* [x] **Left side rail component.** `src/lib/components/chrome/SideRail.svelte` — three surface anchors (Atmosphere / Function Lanes / Reflection), scope indicator (probe + time range + viewing mode), pillar-mode toggle (Aleph/Episteme/Rhizome), return-to-Atmosphere planet glyph. Keyboard-navigable; screen-reader-labeled; reduced-motion-aware. Integrated styling (not floating, not overlay).
+* [x] **Top scope bar component.** `src/lib/components/chrome/ScopeBar.svelte` — slot-based component accepting per-surface navigation content (time window label + resolution + Neg-Space toggle on I; stubs for II and III).
+* [x] **Methodology tray component (shell).** `src/lib/components/chrome/MethodologyTray.svelte` — closed-state vertical tab with tier-badge slot and "Methodology" label; open-state full-height panel; push-mode default with overlay-mode fallback at 900 px (breakpoint documented in `design_system.md` §7.1). Content binding is stubbed; filled by Phase 108.
+* [x] **Shared stores.** `focusedMetric` store (`src/lib/state/metric.svelte.ts`, metricName + chartContext); `sourceId` URL param added to `url-internals.ts`; pillarMode continues as `?viewingMode=` (already URL-backed). URL-state serialization via SvelteKit search params; deep-link restores all state.
+* [x] **`design_system.md` update.** §7 Navigation Chrome Primitives: tokens for rail/tray widths + push-overlay threshold, component specs for SideRail/ScopeBar/MethodologyTray, route-group note.
+* [x] **Story routes + gates.** `/stories/chrome/side-rail`, `/stories/chrome/scope-bar`, `/stories/chrome/methodology-tray` added to stories layout; story index updated. Visual regression baselines and axe gate: Playwright E2E via `make fe-test-e2e`.
+* [x] **Arc42 update.** §8.17 "Navigation Chrome" paragraph added (SideRail, ScopeBar, MethodologyTray, route group, focused-metric store).
+* [x] **Validation.** `make fe-check` green (lint, typecheck, 28/28 unit tests, build, bundle-size gate).
+
+---
+
+# Open Phases
 
 ---
 

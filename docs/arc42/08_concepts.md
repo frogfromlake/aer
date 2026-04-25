@@ -488,6 +488,18 @@ The AĒR dashboard is a static SvelteKit application (ADR-020) deployed behind T
 
 **Network posture.** The frontend container sits on `aer-frontend` only. It never holds API credentials in the browser — the static API key is injected server-side through Traefik (short-term) or replaced by an OIDC flow (ADR-018, medium-term). The BFF is the sole backend dependency; the dashboard makes no direct calls to ClickHouse, PostgreSQL, or MinIO.
 
+**Navigation Chrome (Phase 105, Design Brief §3.2–3.3).** All three surfaces share a persistent three-part frame:
+
+- **Left side rail** (`src/lib/components/chrome/SideRail.svelte`). A 52 px fixed vertical strip hosting the three surface anchors (Atmosphere ●, Function Lanes ≡, Reflection ¶), a return-to-Atmosphere planet glyph (◉) at the top, a compact scope indicator (active probe ID truncated), and the pillar-mode toggle (A / E / R for Aleph / Episteme / Rhizome). The pillar toggle writes `?viewingMode=` — same parameter previously owned by `L2Controls.svelte`, which is retired from Surface I in Phase 105. All targets are native `<a>` or `<button>` elements; no custom focus management is needed.
+
+- **Top scope bar** (`src/lib/components/chrome/ScopeBar.svelte`). A fixed horizontal strip spanning from the right edge of the rail to the left edge of the tray. Slot-based — each surface provides its own content: time window label + resolution selector + Negative Space toggle on Surface I; lane switcher on Surface II (Phase 106); section anchor on Surface III (Phase 109). Position respects the `--tray-right-edge` custom property so it compresses correctly when the tray opens in push-mode.
+
+- **Methodology tray** (`src/lib/components/chrome/MethodologyTray.svelte`). A right-edge docked element (Design Brief §3.3). Closed state: a 28 px tab strip with "Methodology" rotated 90° and a tier-badge slot; dimmed when no probe is selected on Surface I. Open state: a 360 px full-height panel with a stub content body (Phase 108 wires live content). Push-mode by default — on open, writes `--tray-right-edge: var(--tray-open-width)` to `:root` so the scope bar and Surface II layouts compress; at viewports below 900 px the tray falls back to overlay-mode (no content compression). Not a dialog — no focus trap, because the surface behind it remains live (Design Brief §4.1 rule 2).
+
+**Route group and URL state (Phase 105).** The main surfaces (`/`, `/lanes`, `/reflection`) live under a `(app)/` route group in `src/routes/` that wraps them with the chrome layout (SideRail + MethodologyTray). Story routes under `src/routes/stories/` sit outside the group and inherit only the root layout (QueryClientProvider), keeping chrome off the component-catalogue pages. The URL state (`src/lib/state/url-internals.ts`) gains a `sourceId` parameter for source-scope narrowing in Surface II (Phase 106, Phase 111 Silver toggle): it is only serialised when a probe is selected, dropping cleanly on probe-deselect.
+
+**Focused-metric store (Phase 105).** `src/lib/state/metric.svelte.ts` introduces a module-scoped `$state` store for the currently-focused metric (`metricName` + optional `chartContext`). Chart interactions on any surface write to it via `setFocusedMetric()`; the methodology tray subscribes and updates its content in place (Phase 108 wires the full content fetch). The store is intentionally not URL-backed — focused-metric state is transient UI state, distinct from the persistent `?metric=` URL parameter that encodes the L3 panel's locked metric for deep-linking.
+
 See [Design Brief](../design/design_brief.md) for the full architecture, interaction grammar, and extensibility commitments. See ADR-020 for the technology stack rationale.
 
 ## 8.18 Content Catalog (Phase 95)

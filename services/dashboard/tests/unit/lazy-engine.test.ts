@@ -14,7 +14,7 @@ async function read(rel: string) {
 
 describe('engine lazy-import boundary', () => {
   it('shell route does not statically import three or @aer/engine-3d (besides /capability)', async () => {
-    const src = await read('src/routes/+page.svelte');
+    const src = await read('src/routes/(app)/+page.svelte');
     // Static `import ... from 'three'` is forbidden.
     expect(src).not.toMatch(/from\s+['"]three['"]/);
     // The engine package may only be referenced via the side-effect-free /capability subpath.
@@ -35,7 +35,7 @@ describe('engine lazy-import boundary', () => {
   });
 
   it('shell route does not statically import uplot (L3 chart chunk must stay lazy)', async () => {
-    const src = await read('src/routes/+page.svelte');
+    const src = await read('src/routes/(app)/+page.svelte');
     expect(src).not.toMatch(/from\s+['"]uplot['"]/);
   });
 
