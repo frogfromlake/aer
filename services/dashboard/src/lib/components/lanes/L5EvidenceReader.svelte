@@ -89,7 +89,20 @@
   {:else if detailQ.isPending}
     <p class="muted" aria-busy="true">Loading article…</p>
   {:else if detailQ.isError}
-    <p class="error">Failed to load article. Check network connectivity.</p>
+    {@const err = detailQ.error as { httpStatus?: number; message?: string } | null}
+    {#if err?.httpStatus === 404}
+      <p class="error">
+        Article metadata not found in the metadata store. The article still exists in the analytical
+        layer (Gold) and aggregates remain valid, but the full text cannot be retrieved — most
+        likely because PostgreSQL retention has pruned the document record while ClickHouse and
+        MinIO retain longer. Article ID: <code>{articleId}</code>.
+      </p>
+    {:else}
+      <p class="error">
+        Failed to load article{err?.httpStatus ? ` (HTTP ${err.httpStatus})` : ''}. Check network
+        connectivity.
+      </p>
+    {/if}
   {:else if detailQ.data?.kind === 'refusal'}
     <!-- k-anonymity or silver-eligibility gate -->
     <RefusalSurface refusal={detailQ.data} {ctx} />

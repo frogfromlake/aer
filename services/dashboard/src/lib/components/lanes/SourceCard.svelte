@@ -143,9 +143,15 @@
       onclick={() => (articlesExpanded = !articlesExpanded)}
     >
       {articlesExpanded ? '↑ Hide articles' : '↓ View articles'}
-      {#if source.articlesInWindow > 0}
-        <span class="article-count-badge">{source.articlesInWindow}</span>
-      {/if}
+      <span
+        class="article-count-badge"
+        class:zero={source.articlesInWindow === 0}
+        title={source.articlesInWindow === 0 && source.articlesTotal > 0
+          ? `0 articles in window · ${source.articlesTotal} total`
+          : `${source.articlesInWindow} articles in window`}
+      >
+        {source.articlesInWindow}
+      </span>
     </button>
 
     {#if source.documentationUrl}
@@ -373,6 +379,11 @@
     font-size: 10px;
     font-family: var(--font-mono);
     color: var(--color-fg-muted);
+  }
+
+  .article-count-badge.zero {
+    opacity: 0.6;
+    color: var(--color-fg-subtle);
   }
 
   .article-list-slot {

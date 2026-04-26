@@ -16,6 +16,12 @@
  */
 
 :root {
+  /* --- Native UA form controls: render <select>, <option>, scrollbars in
+     dark chrome by default. Without this, Chromium on Linux renders
+     <option> popups with white backgrounds even when the parent <select>
+     is themed dark. Light theme overrides this in the media query below. --- */
+  color-scheme: dark;
+
   /* --- Viridis-family palette stops (perceptually uniform, colorblind-safe) --- */
   /* Five anchor stops; the full 256-step scale lives in viridis.ts. */
   --color-viridis-0: #440154;
@@ -114,6 +120,7 @@
 /* --- Theme: dark (primary, Design Brief §5.5) --- */
 :root,
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --color-bg: #0b0d10;
   --color-bg-elevated: #14181d;
   --color-bg-overlay: rgba(11, 13, 16, 0.72);
@@ -140,6 +147,7 @@
 
 /* --- Theme: light (accessible fallback) --- */
 :root[data-theme='light'] {
+  color-scheme: light;
   --color-bg: #fafbfc;
   --color-bg-elevated: #ffffff;
   --color-bg-overlay: rgba(255, 255, 255, 0.82);
@@ -167,6 +175,7 @@
 /* --- System preference: honor prefers-color-scheme when no explicit theme set --- */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
+    color-scheme: light;
     --color-bg: #fafbfc;
     --color-bg-elevated: #ffffff;
     --color-bg-overlay: rgba(255, 255, 255, 0.82);

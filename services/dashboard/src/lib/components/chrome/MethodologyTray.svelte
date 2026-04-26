@@ -149,9 +149,22 @@
     onclick={toggle}
   >
     {#if effectiveMetric}
-      <span class="badge-slot" aria-hidden="true">
-        <Badge tier={badgeTier} />
-      </span>
+      <!-- Collapsed tab is narrow; render only a small tier pip + a known-
+           limitations dot here. The full text Badge renders inside the
+           open panel header so it never overflows the closed tab. -->
+      <span
+        class="tier-pip tier-pip-{badgeTier}"
+        aria-label={badgeTier === 'expired'
+          ? 'Validation expired'
+          : badgeTier === 'refused'
+            ? 'Methodological refusal'
+            : `Tier badge: ${badgeTier}`}
+        title={badgeTier === 'expired'
+          ? 'Validation expired — open tray for details'
+          : badgeTier === 'refused'
+            ? 'Methodological refusal — open tray for details'
+            : 'Open tray for tier and provenance details'}
+      ></span>
       {#if hasLimitations}
         <span
           class="limitations-dot"
@@ -189,6 +202,14 @@
           <header class="metric-head">
             <p class="metric-eyebrow">Focused metric</p>
             <code class="metric-name">{effectiveMetric}</code>
+            <div class="metric-badges">
+              <Badge tier={badgeTier} />
+              {#if hasLimitations}
+                <span class="limitations-pill" title="Known limitations apply">
+                  Known limitations
+                </span>
+              {/if}
+            </div>
             {#if chartContext}
               <p class="chart-context" aria-label="Chart-level focus">
                 <span class="ctx-eyebrow">Selection</span>
@@ -306,6 +327,47 @@
 
   .badge-slot {
     writing-mode: horizontal-tb;
+  }
+
+  /* Compact tier indicator for the collapsed tab — replaces the full
+     text Badge so "Validation expired" never overflows the narrow tab. */
+  .tier-pip {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-status-unvalidated);
+    box-shadow: 0 0 0 2px var(--color-bg-elevated);
+    writing-mode: horizontal-tb;
+  }
+  .tier-pip-tier1-validated,
+  .tier-pip-tier2-validated {
+    background: var(--color-status-validated);
+  }
+  .tier-pip-expired {
+    background: var(--color-status-expired);
+  }
+  .tier-pip-refused {
+    background: var(--color-status-refused);
+  }
+
+  .metric-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+  }
+
+  .limitations-pill {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px var(--space-2);
+    border: 1px solid var(--color-status-expired);
+    color: var(--color-status-expired);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-mono);
   }
 
   .limitations-dot {

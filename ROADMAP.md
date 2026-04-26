@@ -1979,23 +1979,35 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x Negative Space Overlay behavior matrix.
 * [x] **Validation.** `make fe-check` green.
 
+
+## Phase 113: Iteration 5 — Bug fixing [P2] - [x] DONE
+*This phase covers all bugs and issues found in Iteration 5 implementation phases. If major changes are required or structural/architectural adjustments are necessary whe have to document it in the ADR-20 that covers the dashboard implementation*
+
+* [x] **Bug 1 - Backend: Medaillon Data** The dashboard shows way less Gold-Metric sources then silver sources. I think the NLP pipeline or something else is failing silently a lot and fails to extract metrics for a lot of silver data. We also need to check if bronze to silver transition is working or if we losing articles.
+* [x] **Bug 2 - Dashboard: A E R Buttons** The bottom left "A", "E", "R" Buttons seem to have no functionality at all. Did we miss something? Or are they deprecated?
+* [x] **Bug 3 - Dashboard** Left side rail with globe, lane, reflection buttons: 1. We have a duplicate button for globe view (top one seems nice since its colored). 2. Those buttons (including neg space and A, E, R if we keep it) are essential but have no labels. The user does not know what es clicks and they are "invisible". We need to make them more visible without growing the rail to much.
+* [x] **Bug 4 - Dashboard** The resolution dropdown needs to be fully darkmode. Its background and options are currently white.
+* [x] **Bug 5 - Dashboard** Right side rail (methodology) shows a red hint which (validation is expired) on probes with expired validation. It is cut off since it is to wide on the collapsed rail. The Methodology label already shows a red dot which could be enough. The validation expires hint should display only inside the rail when it is expanded.
+* [x] **Bug 6 - Dashboard** When clicking a Probe and switch to Lanes view (http://localhost:5173/lanes/probe-0-de-institutional-rss/dossier) we have several issues: 1. bundesregierung source card shows NO article counts on the "View articles" button. 2. All cards "view" source button on the article list returning an error "Failed to load article. Check network connectivity.". 3. All cards show a 404 Not found when clicking on the "Dossier" button.
+* [x] **Bug 6 - Dashboard** The codebase uses the domainlanguage "Surface", "Layer" etc. but the Dashboard does not really reflect this. Only in on hover tooltips. Its a bit confusing because a new user reading the docu does not really see if he is on a surface or on a layer or whatever.
+* [x] **Validation.** `make fe-check` green.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 113: Iteration 5 — Bug fixing [P2] - [ ] TODO
-*This phase covers all bugs and issues found in Iteration 5 implementation phases. If major changes are required or structural/architectural adjustments are necessary whe have to document it in the ADR-20 that covers the dashboard implementation*
+## Phase 113b: PostgreSQL ↔ ClickHouse Retention Divergence (Critical) [P0] - [ ] TODO
 
-* [ ] **Bug 1 - Backend: Medaillon Data** The dashboard shows way less Gold-Metric sources then silver sources. I think the NLP pipeline or something else is failing silently a lot and fails to extract metrics for a lot of silver data. We also need to check if bronze to silver transition is working or if we losing articles.
-* [ ] **Bug 2 - Dashboard: A E R Buttons** The bottom left "A", "E", "R" Buttons seem to have no functionality at all. Did we miss something? Or are they deprecated?
-* [ ] **Bug 3 - Dashboard** Left side rail with globe, lane, reflection buttons: 1. We have a duplicate button for globe view (top one seems nice since its colored). 2. Those buttons (including neg space and A, E, R if we keep it) are essential but have no labels. The user does not know what es clicks and they are "invisible". We need to make them more visible without growing the rail to much.
-* [ ] **Bug 4 - Dashboard** The resolution dropdown needs to be fully darkmode. Its background and options are currently white.
-* [ ] **Bug 5 - Dashboard** Right side rail (methodology) shows a red hint which (validation is expired) on probes with expired validation. It is cut off since it is to wide on the collapsed rail. The Methodology label already shows a red dot which could be enough. The validation expires hint should display only inside the rail when it is expanded.
-* [ ] **Bug 6 - Dashboard** When clicking a Probe and switch to Lanes view (http://localhost:5173/lanes/probe-0-de-institutional-rss/dossier) we have several issues: 1. bundesregierung source card shows NO article counts on the "View articles" button. 2. All cards "view" source button on the article list returning an error "Failed to load article. Check network connectivity.". 3. All cards show a 404 Not found when clicking on the "Dossier" button.
-* [ ] **Bug 6 - Dashboard** The codebase uses the domainlanguage "Surface", "Layer" etc. but the Dashboard does not really reflect this. Only in on hover tooltips. Its a bit confusing because a new user reading the docu does not really see if he is on a surface or on a layer or whatever.
-* [ ] **Validation.** `make fe-check` green.
+*Discovered while fixing Phase 113 / Bug 6. The Postgres `documents` and `ingestion_jobs` rows are pruned on a shorter horizon than MinIO Silver and ClickHouse Gold, so the BFF endpoints that key off Postgres (`GetSourceArticles` count joins, `ResolveArticle` for L5 article detail) become inconsistent with the analytical layer. Today: Postgres has 45 tagesschau docs and 0 bundesregierung docs while ClickHouse Gold has 195 + 25 articles for the same window. Symptom: dossier under-reports counts and `View article` 404s on any article whose Postgres row has been retention-deleted, even though the Silver envelope and Gold metrics still exist. Treat existing Bronze + Silver + Gold + Postgres data as authoritative — do **not** re-ingest, truncate, or reset.*
+
+* [ ] **Reconciliation script.** `scripts/reconcile_documents.py` (or Go equivalent) that walks MinIO Bronze, derives `(article_id, bronze_object_key, ingested_at, source_id)` from object metadata, and re-inserts missing rows into `documents` + a synthetic `ingestion_jobs` row per source/day. Idempotent — safe to re-run. No deletion of existing Postgres rows.
+* [ ] **Schema decision (ADR-021 candidate).** Either (a) align Postgres retention to match Silver/Gold (365 days) and document the storage trade-off, or (b) move the article-resolution source-of-truth to ClickHouse + MinIO and treat Postgres `documents` as a soft cache. Decide before Phase 114 a11y work; the choice gates the BFF change below.
+* [ ] **BFF article resolution path.** Once the ADR lands: either keep `ResolveArticle` on Postgres (option a) or rewrite it to look up `(source, article_id) → bronze_object_key` via ClickHouse + MinIO listing (option b). Add an integration test that asserts an article whose Postgres row is missing still resolves under option b.
+* [ ] **Dossier counts.** `DossierStore.FetchSources` should report the Gold-layer article count when it diverges from Postgres, or surface both numbers so the dashboard can render `In window: N (analytical)` vs `Tracked: M (metadata)`. Pick whichever the ADR mandates.
+* [ ] **Retention runbook.** Document in `docs/operations_playbook.md` the retention windows for each layer and the reconciliation procedure if they drift again.
+* [ ] **Validation.** `make test` green; reconciliation script run against the dev stack restores Postgres counts to match ClickHouse for tagesschau (≥195) and bundesregierung (≥25); `View article` succeeds for an arbitrary article older than the previous Postgres retention window.
 
 ---
 

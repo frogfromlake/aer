@@ -15,24 +15,35 @@
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
 
-  const PILLARS: readonly { id: ViewingMode; abbr: string; label: string; hint: string }[] = [
+  // ROADMAP §1773: pillar modes are URL-tracked but visually identical
+  // today — Episteme/Aleph differ only in framing once L2/L3 panels read
+  // them, and Rhizome has no data source. Tooltips reflect that reality
+  // so the buttons are not silently misleading.
+  const PILLARS: readonly {
+    id: ViewingMode;
+    abbr: string;
+    label: string;
+    hint: string;
+    disabled?: boolean;
+  }[] = [
     {
       id: 'aleph',
       abbr: 'A',
       label: 'Aleph',
-      hint: 'Totality — every observed probe, no filter'
+      hint: 'Aleph — totality (default). Every observed probe, no filter.'
     },
     {
       id: 'episteme',
       abbr: 'E',
       label: 'Episteme',
-      hint: 'Knowledge register — epistemic-authority probes'
+      hint: 'Episteme — knowledge register. Pillar lever wired, dedicated rendering arrives in a later phase.'
     },
     {
       id: 'rhizome',
       abbr: 'R',
       label: 'Rhizome',
-      hint: 'Relational propagation — no data yet'
+      hint: 'Rhizome — relational propagation. No data source yet; selectable but inert.',
+      disabled: true
     }
   ];
 
@@ -50,20 +61,14 @@
 
   const SURFACES = $derived([
     {
-      href: '/',
-      label: 'Atmosphere',
-      glyph: '●',
-      hint: 'Surface I — Atmosphere (3D globe + probe overview)'
-    },
-    {
       href: lanesHref,
-      label: 'Function Lanes',
+      label: 'Lanes',
       glyph: '≡',
       hint: 'Surface II — Function Lanes'
     },
     {
       href: '/reflection',
-      label: 'Reflection',
+      label: 'Reflect',
       glyph: '¶',
       hint: 'Surface III — Reflection (Working Papers, Primers, Open Questions)'
     }
@@ -80,15 +85,18 @@
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- all rail links are internal surface routes -->
 <nav class="rail" aria-label="Primary navigation">
-  <!-- Planet glyph: return to Atmosphere from any surface -->
+  <!-- Planet glyph: Surface I — Atmosphere -->
   <a
     href="/"
     class="planet"
-    aria-label="Return to Atmosphere"
-    title="Return to Atmosphere"
+    class:active={page.url.pathname === '/'}
+    aria-label="Atmosphere"
+    aria-current={page.url.pathname === '/' ? 'page' : undefined}
+    title="Surface I — Atmosphere (3D globe + probe overview)"
     data-sveltekit-preload-data="hover"
   >
-    <span aria-hidden="true">◉</span>
+    <span class="glyph" aria-hidden="true">◉</span>
+    <span class="rail-label">Atmos</span>
   </a>
 
   <div class="divider" role="separator" aria-hidden="true"></div>
@@ -106,7 +114,8 @@
           title={s.hint}
           data-sveltekit-preload-data="hover"
         >
-          <span aria-hidden="true">{s.glyph}</span>
+          <span class="glyph" aria-hidden="true">{s.glyph}</span>
+          <span class="rail-label">{s.label}</span>
         </a>
       </li>
     {/each}
@@ -130,21 +139,29 @@
   <div class="divider" role="separator" aria-hidden="true"></div>
 
   <!-- Pillar-mode toggle -->
-  <div class="pillar-group" role="radiogroup" aria-label="Pillar mode">
-    {#each PILLARS as p (p.id)}
-      <button
-        type="button"
-        role="radio"
-        aria-checked={activePillar === p.id}
-        class="pillar-btn"
-        class:active={activePillar === p.id}
-        title="{p.label}: {p.hint}"
-        onclick={() => setUrl({ viewingMode: p.id })}
-      >
-        <span aria-hidden="true">{p.abbr}</span>
-        <span class="sr-only">{p.label}</span>
-      </button>
-    {/each}
+  <div class="pillar-section">
+    <span class="rail-eyebrow" aria-hidden="true">Pillar</span>
+    <div class="pillar-group" role="radiogroup" aria-label="Pillar mode">
+      {#each PILLARS as p (p.id)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={activePillar === p.id}
+          aria-disabled={p.disabled ? 'true' : undefined}
+          class="pillar-btn"
+          class:active={activePillar === p.id}
+          class:inert={p.disabled}
+          title={p.hint}
+          onclick={() => {
+            if (p.disabled) return;
+            setUrl({ viewingMode: p.id });
+          }}
+        >
+          <span aria-hidden="true">{p.abbr}</span>
+          <span class="sr-only">{p.label}</span>
+        </button>
+      {/each}
+    </div>
   </div>
 
   <div class="divider" role="separator" aria-hidden="true"></div>
@@ -176,18 +193,23 @@
 
   .planet {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    gap: 2px;
+    width: 44px;
+    padding: 4px 0;
     border-radius: var(--radius-md);
     color: var(--color-accent);
     text-decoration: none;
-    font-size: 1.2rem;
     flex-shrink: 0;
     transition:
       background var(--motion-duration-fast) var(--motion-ease-standard),
       color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .planet .glyph {
+    font-size: 1.2rem;
+    line-height: 1;
   }
 
   .planet:hover,
@@ -195,6 +217,10 @@
     background: var(--color-surface-hover);
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
+  }
+
+  .planet.active {
+    background: var(--color-surface);
   }
 
   .divider {
@@ -218,17 +244,45 @@
 
   .surface-link {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    gap: 2px;
+    width: 44px;
+    padding: 4px 0;
     border-radius: var(--radius-md);
     color: var(--color-fg-muted);
     text-decoration: none;
-    font-size: 1.1rem;
     transition:
       background var(--motion-duration-fast) var(--motion-ease-standard),
       color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .surface-link .glyph {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .rail-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-ui);
+    line-height: 1;
+  }
+
+  .pillar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .rail-eyebrow {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-subtle);
+    line-height: 1;
   }
 
   .surface-link:hover,
@@ -309,6 +363,16 @@
     color: var(--color-fg);
     background: rgba(82, 131, 184, 0.2);
     border-color: #5283b8;
+  }
+
+  .pillar-btn.inert {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .pillar-btn.inert:hover {
+    color: var(--color-fg-muted);
+    border-color: var(--color-border);
   }
 
   .pillar-btn:focus-visible {
