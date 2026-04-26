@@ -28,7 +28,8 @@ import {
   type RaycastCandidate,
   computeCoreBrightness,
   computePulseRate,
-  pickNearSideHit
+  pickNearSideHit,
+  probeCentroidLatLon
 } from './glow';
 import { sunDirection } from './sun';
 import atmosphereFrag from './shaders/atmosphere.glsl?raw';
@@ -46,7 +47,8 @@ import type {
   ProbeActivity,
   ProbeMarker,
   ProbeSelection,
-  PropagationEvent
+  PropagationEvent,
+  SatelliteSelection
 } from './types';
 
 // Palette tuned for optimal data contrast in Phase 99b (Abyssal Palette).
@@ -78,14 +80,26 @@ const SPHERE_RADIUS = 1.0;
 const ATMOSPHERE_RADIUS = 1.011;
 const SPHERE_SEGMENTS = 96;
 
-// Emission-point glows sit a hair above the surface so the disc is not
-// z-fought by the globe shader along the rim and so hits on the far side
-// of the sphere can be filtered by a normal-vs-camera check.
-const GLOW_RADIUS = 1.003;
+// Probe glyphs (one per probe at the spherical centroid of its emission
+// points) and source satellites (one per emission point) sit a hair
+// above the surface so the disc is not z-fought by the globe shader and
+// so hits on the far side of the sphere can be filtered by a
+// normal-vs-camera check. Satellites sit fractionally lower so when a
+// satellite happens to coincide with the centroid the probe glyph wins
+// the depth ordering on the additive layer.
+const GLOW_RADIUS = 1.0035;
+const SATELLITE_RADIUS = 1.003;
 // World-space diameter of a glow at 1 unit from camera. The vertex
 // shader divides by depth so the disc's apparent size is stable as the
 // camera orbits.
 const GLOW_POINT_WORLD_SIZE = 80.0;
+// Source satellites are visibly secondary — smaller and dimmer than the
+// probe glyph (Phase 110: "smaller, muted, non-selectable as scope
+// targets"). The size factor keeps satellites readable as origins while
+// the brightness factor pushes them well below the probe glyph so the
+// scope-target reads as the unambiguous primary.
+const SATELLITE_POINT_WORLD_SIZE = 32.0;
+const SATELLITE_BRIGHTNESS_SCALE = 0.6;
 // Tune this to scale all glow rings up (> 1.0) or down (< 1.0).
 const GLOW_BRIGHTNESS_SCALE = 1.5;
 // Halo spread coefficient — baked as 0.8 in the shader originally.
@@ -154,23 +168,38 @@ class Engine implements AtmosphereEngine {
 
   // Glow layer -----------------------------------------------------------
   //
-  // One Points mesh renders every emission point across all probes.
-  // `emissionSlots` is the CPU-side metadata parallel to the geometry's
-  // vertex attributes; index i in the mesh corresponds to entry i here.
-  // The raycaster maps a hit index back to (probeId, emissionPointIndex,
-  // label) through this array.
-  private glowMesh: Points | null = null;
-  private glowGeometry: BufferGeometry | null = null;
-  private glowMaterial: ShaderMaterial | null = null;
-  private emissionSlots: Array<{
+  // Two Points meshes share the glow shader: `probeGlyphMesh` renders one
+  // glyph per probe at the spherical centroid of its emission points and
+  // is the *only* scope-selectable target on Surface I. `satelliteMesh`
+  // renders one smaller, muted disc per emission point — read-only
+  // secondary geometry whose click routes to the Probe Dossier with the
+  // source pre-filtered (Phase 110).
+  //
+  // `probeSlots` and `satelliteSlots` are CPU-side metadata parallel to
+  // each geometry's vertex attributes; index i in a mesh corresponds to
+  // entry i in its slot array. The raycaster maps a hit index back to
+  // (probeId) or (probeId, sourceName, label) accordingly.
+  private probeGlyphMesh: Points | null = null;
+  private probeGlyphGeometry: BufferGeometry | null = null;
+  private probeGlyphMaterial: ShaderMaterial | null = null;
+  private satelliteMesh: Points | null = null;
+  private satelliteGeometry: BufferGeometry | null = null;
+  private satelliteMaterial: ShaderMaterial | null = null;
+  private probeSlots: Array<{
     readonly probeId: string;
-    readonly emissionPointIndex: number;
     readonly label: string;
     readonly position: Vector3;
   }> = [];
-  private pointerHoveredSlotIndex = -1;
-  private externalHoveredSlotIndex = -1;
-  private selectedSlotIndex = -1;
+  private satelliteSlots: Array<{
+    readonly probeId: string;
+    readonly sourceName: string;
+    readonly label: string;
+    readonly position: Vector3;
+  }> = [];
+  private pointerHoveredProbe = -1;
+  private externalHoveredProbe = -1;
+  private pointerHoveredSatellite = -1;
+  private selectedProbeIndex = -1;
   private currentSelection: ProbeSelection | null = null;
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -235,7 +264,7 @@ class Engine implements AtmosphereEngine {
 
   setProbes(probes: readonly ProbeMarker[]): void {
     this.probes = probes;
-    this.rebuildGlowLayer();
+    this.rebuildGlowLayers();
   }
 
   setActivity(activity: readonly ProbeActivity[]): void {
@@ -264,38 +293,32 @@ class Engine implements AtmosphereEngine {
 
   setHover(selection: ProbeSelection | null): void {
     if (selection === null) {
-      this.setExternalHoverSlot(-1);
+      this.setExternalHoverProbe(-1);
       return;
     }
-    const idx = this.emissionSlots.findIndex(
-      (s) =>
-        s.probeId === selection.probeId && s.emissionPointIndex === selection.emissionPointIndex
-    );
-    this.setExternalHoverSlot(idx);
+    const idx = this.probeSlots.findIndex((s) => s.probeId === selection.probeId);
+    this.setExternalHoverProbe(idx);
   }
 
   setSelection(selection: ProbeSelection | null): void {
     this.currentSelection = selection;
 
-    if (!this.glowGeometry) return;
-    const attr = this.glowGeometry.getAttribute('aSelected') as BufferAttribute | undefined;
+    if (!this.probeGlyphGeometry) return;
+    const attr = this.probeGlyphGeometry.getAttribute('aSelected') as BufferAttribute | undefined;
     if (!attr) return;
 
     // Clear previous selection
-    if (this.selectedSlotIndex !== -1 && this.selectedSlotIndex < this.emissionSlots.length) {
-      attr.setX(this.selectedSlotIndex, 0);
+    if (this.selectedProbeIndex !== -1 && this.selectedProbeIndex < this.probeSlots.length) {
+      attr.setX(this.selectedProbeIndex, 0);
     }
 
-    this.selectedSlotIndex = -1;
+    this.selectedProbeIndex = -1;
 
     // Apply new selection if provided
     if (selection) {
-      const idx = this.emissionSlots.findIndex(
-        (s) =>
-          s.probeId === selection.probeId && s.emissionPointIndex === selection.emissionPointIndex
-      );
+      const idx = this.probeSlots.findIndex((s) => s.probeId === selection.probeId);
       if (idx !== -1) {
-        this.selectedSlotIndex = idx;
+        this.selectedProbeIndex = idx;
         attr.setX(idx, 1);
       }
     }
@@ -341,12 +364,18 @@ class Engine implements AtmosphereEngine {
     disposeMesh(this.haloMesh);
     this.oceanMaterial?.dispose();
     this.haloMaterial?.dispose();
-    this.glowGeometry?.dispose();
-    this.glowMaterial?.dispose();
-    this.glowGeometry = null;
-    this.glowMaterial = null;
-    this.glowMesh = null;
-    this.emissionSlots = [];
+    this.probeGlyphGeometry?.dispose();
+    this.probeGlyphMaterial?.dispose();
+    this.satelliteGeometry?.dispose();
+    this.satelliteMaterial?.dispose();
+    this.probeGlyphGeometry = null;
+    this.probeGlyphMaterial = null;
+    this.probeGlyphMesh = null;
+    this.satelliteGeometry = null;
+    this.satelliteMaterial = null;
+    this.satelliteMesh = null;
+    this.probeSlots = [];
+    this.satelliteSlots = [];
     this.sdfTexture?.dispose();
     this.placeholderSdf?.dispose();
     this.sdfTexture = null;
@@ -483,8 +512,12 @@ class Engine implements AtmosphereEngine {
       this.haloMaterial.uniforms.uCameraDistance.value = this.camera.position.length();
     }
 
-    if (this.glowMaterial?.uniforms.uTime) {
-      this.glowMaterial.uniforms.uTime.value = this.clock.getElapsedTime();
+    const t = this.clock.getElapsedTime();
+    if (this.probeGlyphMaterial?.uniforms.uTime) {
+      this.probeGlyphMaterial.uniforms.uTime.value = t;
+    }
+    if (this.satelliteMaterial?.uniforms.uTime) {
+      this.satelliteMaterial.uniforms.uTime.value = t;
     }
 
     if (this.pointerInsideCanvas) {
@@ -521,8 +554,9 @@ class Engine implements AtmosphereEngine {
 
   private buildGlowLayer(): void {
     if (!this.scene) return;
-    this.glowGeometry = new BufferGeometry();
-    this.glowMaterial = new ShaderMaterial({
+
+    this.probeGlyphGeometry = new BufferGeometry();
+    this.probeGlyphMaterial = new ShaderMaterial({
       vertexShader: glowVert,
       fragmentShader: glowFrag,
       transparent: true,
@@ -538,65 +572,87 @@ class Engine implements AtmosphereEngine {
         uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS }
       }
     });
-    this.glowMesh = new Points(this.glowGeometry, this.glowMaterial);
-    // Start with nothing to render until setProbes() supplies data.
-    this.glowMesh.frustumCulled = false;
-    this.glowMesh.visible = false;
-    this.scene.add(this.glowMesh);
+    this.probeGlyphMesh = new Points(this.probeGlyphGeometry, this.probeGlyphMaterial);
+    this.probeGlyphMesh.frustumCulled = false;
+    this.probeGlyphMesh.visible = false;
+    // Higher renderOrder so probe glyphs draw over satellites in the
+    // additive layer (they share radius almost exactly).
+    this.probeGlyphMesh.renderOrder = 2;
+    this.scene.add(this.probeGlyphMesh);
+
+    this.satelliteGeometry = new BufferGeometry();
+    this.satelliteMaterial = new ShaderMaterial({
+      vertexShader: glowVert,
+      fragmentShader: glowFrag,
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: this.config.pixelRatioCap },
+        uPointWorldSize: { value: SATELLITE_POINT_WORLD_SIZE },
+        uGlowColor: { value: GLOW_COLOR },
+        // Muted: probe glyph carries scope identity, satellites are read-only origins.
+        uBrightnessScale: { value: GLOW_BRIGHTNESS_SCALE * SATELLITE_BRIGHTNESS_SCALE },
+        uHaloBrightness: { value: GLOW_HALO_BRIGHTNESS * SATELLITE_BRIGHTNESS_SCALE },
+        uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS * SATELLITE_BRIGHTNESS_SCALE }
+      }
+    });
+    this.satelliteMesh = new Points(this.satelliteGeometry, this.satelliteMaterial);
+    this.satelliteMesh.frustumCulled = false;
+    this.satelliteMesh.visible = false;
+    this.satelliteMesh.renderOrder = 1;
+    this.scene.add(this.satelliteMesh);
   }
 
-  private rebuildGlowLayer(): void {
-    if (!this.glowGeometry || !this.glowMesh) return;
-
-    const slots: typeof this.emissionSlots = [];
-    for (const probe of this.probes) {
-      probe.emissionPoints.forEach((ep, idx) => {
-        slots.push({
-          probeId: probe.id,
-          emissionPointIndex: idx,
-          label: ep.label,
-          position: latLonToCartesian(ep.latitude, ep.longitude, GLOW_RADIUS)
-        });
-      });
-    }
-    this.emissionSlots = slots;
-    this.pointerHoveredSlotIndex = -1;
-    this.externalHoveredSlotIndex = -1;
-
-    const n = slots.length;
-    if (n === 0) {
-      this.glowMesh.visible = false;
+  private rebuildGlowLayers(): void {
+    if (
+      !this.probeGlyphGeometry ||
+      !this.probeGlyphMesh ||
+      !this.satelliteGeometry ||
+      !this.satelliteMesh
+    )
       return;
-    }
 
-    const positions = new Float32Array(n * 3);
-    const pulseRates = new Float32Array(n);
-    const brightness = new Float32Array(n);
-    const hover = new Float32Array(n);
-    const selected = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const slot = slots[i]!;
-      const p = slot.position;
-      positions[i * 3 + 0] = p.x;
-      positions[i * 3 + 1] = p.y;
-      positions[i * 3 + 2] = p.z;
-      brightness[i] = CORE_BRIGHTNESS_FLOOR;
-      pulseRates[i] = 0;
-      hover[i] = 0;
-      selected[i] = 0;
+    const probeSlots: typeof this.probeSlots = [];
+    const satelliteSlots: typeof this.satelliteSlots = [];
+    for (const probe of this.probes) {
+      if (probe.emissionPoints.length === 0) continue;
+      const centroid = probeCentroidLatLon(probe.emissionPoints);
+      probeSlots.push({
+        probeId: probe.id,
+        label: probe.label ?? probe.id,
+        position: latLonToCartesian(centroid.latitude, centroid.longitude, GLOW_RADIUS)
+      });
+      for (const ep of probe.emissionPoints) {
+        if (!ep.sourceName) continue;
+        satelliteSlots.push({
+          probeId: probe.id,
+          sourceName: ep.sourceName,
+          label: ep.label,
+          position: latLonToCartesian(ep.latitude, ep.longitude, SATELLITE_RADIUS)
+        });
+      }
     }
+    this.probeSlots = probeSlots;
+    this.satelliteSlots = satelliteSlots;
+    this.pointerHoveredProbe = -1;
+    this.externalHoveredProbe = -1;
+    this.pointerHoveredSatellite = -1;
+    this.selectedProbeIndex = -1;
 
-    // Dispose the previous attribute buffers before swapping so the GL
-    // resources do not leak across successive setProbes() calls.
-    this.glowGeometry.dispose();
-    this.glowGeometry = new BufferGeometry();
-    this.glowGeometry.setAttribute('position', new BufferAttribute(positions, 3));
-    this.glowGeometry.setAttribute('aPulseRate', new BufferAttribute(pulseRates, 1));
-    this.glowGeometry.setAttribute('aCoreBrightness', new BufferAttribute(brightness, 1));
-    this.glowGeometry.setAttribute('aHover', new BufferAttribute(hover, 1));
-    this.glowGeometry.setAttribute('aSelected', new BufferAttribute(selected, 1));
-    this.glowMesh.geometry = this.glowGeometry;
-    this.glowMesh.visible = true;
+    this.probeGlyphGeometry = this.replaceGlowGeometry(
+      this.probeGlyphGeometry,
+      this.probeGlyphMesh,
+      probeSlots.map((s) => s.position),
+      true
+    );
+    this.satelliteGeometry = this.replaceGlowGeometry(
+      this.satelliteGeometry,
+      this.satelliteMesh,
+      satelliteSlots.map((s) => s.position),
+      false
+    );
 
     // Re-apply any activity we already knew about so a probe re-push
     // does not wipe its pulse.
@@ -604,17 +660,64 @@ class Engine implements AtmosphereEngine {
     this.setSelection(this.currentSelection);
   }
 
-  private applyActivityToBuffers(): void {
-    if (!this.glowGeometry) return;
-    const pulseAttr = this.glowGeometry.getAttribute('aPulseRate') as BufferAttribute | undefined;
-    const brightAttr = this.glowGeometry.getAttribute('aCoreBrightness') as
-      | BufferAttribute
-      | undefined;
-    if (!pulseAttr || !brightAttr) return;
+  private replaceGlowGeometry(
+    previous: BufferGeometry,
+    mesh: Points,
+    positions: readonly Vector3[],
+    withSelection: boolean
+  ): BufferGeometry {
+    previous.dispose();
+    const next = new BufferGeometry();
+    const n = positions.length;
+    if (n === 0) {
+      mesh.geometry = next;
+      mesh.visible = false;
+      return next;
+    }
+    const pos = new Float32Array(n * 3);
+    const pulseRates = new Float32Array(n);
+    const brightness = new Float32Array(n);
+    const hover = new Float32Array(n);
+    const selected = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const p = positions[i]!;
+      pos[i * 3 + 0] = p.x;
+      pos[i * 3 + 1] = p.y;
+      pos[i * 3 + 2] = p.z;
+      brightness[i] = CORE_BRIGHTNESS_FLOOR;
+    }
+    next.setAttribute('position', new BufferAttribute(pos, 3));
+    next.setAttribute('aPulseRate', new BufferAttribute(pulseRates, 1));
+    next.setAttribute('aCoreBrightness', new BufferAttribute(brightness, 1));
+    next.setAttribute('aHover', new BufferAttribute(hover, 1));
+    // The shader expects aSelected on every vertex (varying flow). For
+    // satellites we keep it pinned to 0 — selection only highlights probe
+    // glyphs (Phase 110 contract).
+    next.setAttribute('aSelected', new BufferAttribute(selected, 1));
+    void withSelection;
+    mesh.geometry = next;
+    mesh.visible = true;
+    return next;
+  }
 
-    for (let i = 0; i < this.emissionSlots.length; i++) {
-      const probeId = this.emissionSlots[i]!.probeId;
-      const docsPerHour = this.activityByProbeId.get(probeId) ?? 0;
+  private applyActivityToBuffers(): void {
+    if (this.probeGlyphGeometry) {
+      this.applyActivityToGeometry(this.probeGlyphGeometry, this.probeSlots);
+    }
+    if (this.satelliteGeometry) {
+      this.applyActivityToGeometry(this.satelliteGeometry, this.satelliteSlots);
+    }
+  }
+
+  private applyActivityToGeometry(
+    geom: BufferGeometry,
+    slots: ReadonlyArray<{ probeId: string }>
+  ): void {
+    const pulseAttr = geom.getAttribute('aPulseRate') as BufferAttribute | undefined;
+    const brightAttr = geom.getAttribute('aCoreBrightness') as BufferAttribute | undefined;
+    if (!pulseAttr || !brightAttr) return;
+    for (let i = 0; i < slots.length; i++) {
+      const docsPerHour = this.activityByProbeId.get(slots[i]!.probeId) ?? 0;
       pulseAttr.setX(i, computePulseRate(docsPerHour));
       brightAttr.setX(i, computeCoreBrightness(docsPerHour));
     }
@@ -631,18 +734,28 @@ class Engine implements AtmosphereEngine {
 
   private readonly onPointerLeave = (): void => {
     this.pointerInsideCanvas = false;
-    if (this.pointerHoveredSlotIndex !== -1) {
-      this.setPointerHoverSlot(-1);
+    if (this.pointerHoveredProbe !== -1) {
+      this.setPointerHoverProbe(-1);
       this.emitter.emit('probe-hovered', null);
+    }
+    if (this.pointerHoveredSatellite !== -1) {
+      this.pointerHoveredSatellite = -1;
+      this.emitter.emit('satellite-hovered', null);
     }
   };
 
   private readonly onCanvasClick = (e: MouseEvent): void => {
     this.updatePointerNdc(e);
-    const hit = this.pickEmissionSlot();
-    if (hit !== -1) {
-      const slot = this.emissionSlots[hit]!;
-      this.emitter.emit('probe-selected', toSelection(slot));
+    const probeHit = this.pickProbeSlot();
+    if (probeHit !== -1) {
+      const slot = this.probeSlots[probeHit]!;
+      this.emitter.emit('probe-selected', { probeId: slot.probeId });
+      return;
+    }
+    const satHit = this.pickSatelliteSlot();
+    if (satHit !== -1) {
+      const s = this.satelliteSlots[satHit]!;
+      this.emitter.emit('satellite-selected', toSatelliteSelection(s));
     }
   };
 
@@ -656,18 +769,47 @@ class Engine implements AtmosphereEngine {
   }
 
   private updateHover(): void {
-    const hit = this.pickEmissionSlot();
-    if (hit === this.pointerHoveredSlotIndex) return;
-    this.setPointerHoverSlot(hit);
-    if (hit === -1) {
-      this.emitter.emit('probe-hovered', null);
+    // Probe glyphs take precedence — they are the scope-target. A hover
+    // over a probe suppresses any concurrent satellite-hover so the
+    // tooltip never flickers between two registers.
+    const probeHit = this.pickProbeSlot();
+    if (probeHit !== this.pointerHoveredProbe) {
+      this.setPointerHoverProbe(probeHit);
+      if (probeHit === -1) {
+        this.emitter.emit('probe-hovered', null);
+      } else {
+        this.emitter.emit('probe-hovered', { probeId: this.probeSlots[probeHit]!.probeId });
+      }
+    }
+
+    if (probeHit !== -1) {
+      if (this.pointerHoveredSatellite !== -1) {
+        this.pointerHoveredSatellite = -1;
+        this.emitter.emit('satellite-hovered', null);
+      }
+      return;
+    }
+
+    const satHit = this.pickSatelliteSlot();
+    if (satHit === this.pointerHoveredSatellite) return;
+    this.pointerHoveredSatellite = satHit;
+    if (satHit === -1) {
+      this.emitter.emit('satellite-hovered', null);
     } else {
-      this.emitter.emit('probe-hovered', toSelection(this.emissionSlots[hit]!));
+      this.emitter.emit('satellite-hovered', toSatelliteSelection(this.satelliteSlots[satHit]!));
     }
   }
 
-  private pickEmissionSlot(): number {
-    if (!this.camera || !this.glowMesh || this.emissionSlots.length === 0) return -1;
+  private pickProbeSlot(): number {
+    return this.pickGlowSlot(this.probeGlyphMesh, this.probeSlots);
+  }
+
+  private pickSatelliteSlot(): number {
+    return this.pickGlowSlot(this.satelliteMesh, this.satelliteSlots);
+  }
+
+  private pickGlowSlot(mesh: Points | null, slots: ReadonlyArray<{ position: Vector3 }>): number {
+    if (!this.camera || !mesh || slots.length === 0 || !mesh.visible) return -1;
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
     // Dynamic raycast threshold based on camera distance.
@@ -678,61 +820,61 @@ class Engine implements AtmosphereEngine {
     const camDist = this.camera.position.length();
     this.raycaster.params.Points = { threshold: camDist * 0.01 };
 
-    const intersects = this.raycaster.intersectObject(this.glowMesh, false);
+    const intersects = this.raycaster.intersectObject(mesh, false);
     if (intersects.length === 0) return -1;
 
     const candidates: RaycastCandidate[] = [];
     for (const hit of intersects) {
       const idx = hit.index;
-      if (idx === undefined || idx < 0 || idx >= this.emissionSlots.length) continue;
-      candidates.push({ index: idx, position: this.emissionSlots[idx]!.position });
+      if (idx === undefined || idx < 0 || idx >= slots.length) continue;
+      candidates.push({ index: idx, position: slots[idx]!.position });
     }
     return pickNearSideHit(candidates, this.camera.position);
   }
 
-  private setPointerHoverSlot(idx: number): void {
-    if (idx === this.pointerHoveredSlotIndex) return;
-    const prev = this.pointerHoveredSlotIndex;
-    this.pointerHoveredSlotIndex = idx;
-    this.refreshHoverAttr(prev);
+  private setPointerHoverProbe(idx: number): void {
+    if (idx === this.pointerHoveredProbe) return;
+    const prev = this.pointerHoveredProbe;
+    this.pointerHoveredProbe = idx;
+    this.refreshProbeHoverAttr(prev);
   }
 
-  private setExternalHoverSlot(idx: number): void {
-    if (idx === this.externalHoveredSlotIndex) return;
-    const prev = this.externalHoveredSlotIndex;
-    this.externalHoveredSlotIndex = idx;
-    this.refreshHoverAttr(prev);
+  private setExternalHoverProbe(idx: number): void {
+    if (idx === this.externalHoveredProbe) return;
+    const prev = this.externalHoveredProbe;
+    this.externalHoveredProbe = idx;
+    this.refreshProbeHoverAttr(prev);
   }
 
-  private refreshHoverAttr(previouslyLit: number): void {
-    if (!this.glowGeometry) return;
-    const attr = this.glowGeometry.getAttribute('aHover') as BufferAttribute | undefined;
+  private refreshProbeHoverAttr(previouslyLit: number): void {
+    if (!this.probeGlyphGeometry) return;
+    const attr = this.probeGlyphGeometry.getAttribute('aHover') as BufferAttribute | undefined;
     if (!attr) return;
-    const p = this.pointerHoveredSlotIndex;
-    const x = this.externalHoveredSlotIndex;
+    const p = this.pointerHoveredProbe;
+    const x = this.externalHoveredProbe;
     if (
       previouslyLit !== -1 &&
-      previouslyLit < this.emissionSlots.length &&
+      previouslyLit < this.probeSlots.length &&
       previouslyLit !== p &&
       previouslyLit !== x
     ) {
       attr.setX(previouslyLit, 0);
     }
-    if (p !== -1 && p < this.emissionSlots.length) attr.setX(p, 1);
-    if (x !== -1 && x < this.emissionSlots.length) attr.setX(x, 1);
+    if (p !== -1 && p < this.probeSlots.length) attr.setX(p, 1);
+    if (x !== -1 && x < this.probeSlots.length) attr.setX(x, 1);
     attr.needsUpdate = true;
   }
 }
 
-function toSelection(slot: {
+function toSatelliteSelection(slot: {
   probeId: string;
-  emissionPointIndex: number;
+  sourceName: string;
   label: string;
-}): ProbeSelection {
+}): SatelliteSelection {
   return {
     probeId: slot.probeId,
-    emissionPointIndex: slot.emissionPointIndex,
-    emissionPointLabel: slot.label
+    sourceName: slot.sourceName,
+    label: slot.label
   };
 }
 

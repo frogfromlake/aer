@@ -11,5 +11,6 @@ export type {
   ProbeActivity,
   ProbeMarker,
   ProbeSelection,
-  PropagationEvent
+  PropagationEvent,
+  SatelliteSelection
 } from './types';

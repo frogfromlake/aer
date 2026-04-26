@@ -3,13 +3,19 @@
   // is dynamic-imported so the three.js bundle never enters the shell chunk.
   // Capability detection is the shell's responsibility — see WebGLFallback.svelte
   // for the WebGL2-unavailable path.
+  //
+  // Phase 110: the engine renders one *probe glyph* per probe (selectable
+  // scope target) and one muted *source satellite* per emission point
+  // (read-only — clicking routes to the Probe Dossier with the source
+  // pre-filtered). Probe and satellite events are surfaced separately.
   import { onDestroy, onMount } from 'svelte';
   import type {
     AtmosphereEngine,
     EngineConfig,
     ProbeActivity,
     ProbeMarker,
-    ProbeSelection
+    ProbeSelection,
+    SatelliteSelection
   } from '@aer/engine-3d';
 
   interface Props {
@@ -17,21 +23,28 @@
     sunOverrideMs?: number | null;
     /** Notified once the engine has mounted; receives the imperative API for story-level control. */
     onready?: (engine: AtmosphereEngine) => void;
-    /** Probes to render as emission-point glows. Reactive: re-assigning pushes through to `setProbes`. */
+    /** Probes to render. Reactive: re-assigning pushes through to `setProbes`. */
     probes?: readonly ProbeMarker[];
     /** Per-probe activity (documents per hour). Reactive: drives `setActivity`. */
     activity?: readonly ProbeActivity[];
-    /** Fired when the user clicks an emission point. */
+    /** Fired when the user clicks a probe glyph (scope-target selection). */
     onProbeSelected?: (selection: ProbeSelection) => void;
-    /** Fired on pointer-hover over an emission point (null when leaving). */
+    /** Fired on pointer-hover over a probe glyph (null when leaving). */
     onProbeHovered?: (selection: ProbeSelection | null) => void;
-    /** The currently selected probe. Reactive: drives `setSelection` to keep the glow highlighted. */
+    /** Fired when the user clicks a source satellite (navigation, not scope-change). */
+    onSatelliteSelected?: (selection: SatelliteSelection) => void;
+    /** Fired on pointer-hover over a source satellite (null when leaving). */
+    onSatelliteHovered?: (selection: SatelliteSelection | null) => void;
+    /** The currently selected probe. Reactive: drives `setSelection` to keep the glyph highlighted. */
     selection?: ProbeSelection | null;
     /**
-     * Forced hover highlight (keyboard focus driver). Pointer moves
-     * override this on the engine side. Null clears the highlight.
+     * Forced hover highlight for a probe glyph (keyboard focus driver).
+     * Pointer moves override this on the engine side. Null clears the
+     * highlight.
      */
     hover?: ProbeSelection | null;
+    /** Optional per-probe centroid override for `flyTo` after selection. */
+    flyToOnSelection?: { latitude: number; longitude: number } | null;
   }
 
   let {
@@ -41,14 +54,16 @@
     activity,
     onProbeSelected,
     onProbeHovered,
+    onSatelliteSelected,
+    onSatelliteHovered,
     selection = null,
-    hover = null
+    hover = null,
+    flyToOnSelection = null
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let engine: AtmosphereEngine | null = $state(null);
-  let unsubscribeSelected: (() => void) | null = null;
-  let unsubscribeHovered: (() => void) | null = null;
+  let unsubscribers: Array<() => void> = [];
 
   onMount(async () => {
     if (!canvas) return;
@@ -64,8 +79,10 @@
     }
     if (probes) e.setProbes(probes);
     if (activity) e.setActivity(activity);
-    unsubscribeSelected = e.on('probe-selected', (sel) => onProbeSelected?.(sel));
-    unsubscribeHovered = e.on('probe-hovered', (sel) => onProbeHovered?.(sel));
+    unsubscribers.push(e.on('probe-selected', (sel) => onProbeSelected?.(sel)));
+    unsubscribers.push(e.on('probe-hovered', (sel) => onProbeHovered?.(sel)));
+    unsubscribers.push(e.on('satellite-selected', (sel) => onSatelliteSelected?.(sel)));
+    unsubscribers.push(e.on('satellite-hovered', (sel) => onSatelliteHovered?.(sel)));
     engine = e;
     onready?.(e);
   });
@@ -92,23 +109,18 @@
 
     engine.setSelection(selection ?? null);
 
-    if (selection && probes) {
-      const activeProbe = probes.find((p) => p.id === selection.probeId);
-      const emissionPoint = activeProbe?.emissionPoints[selection.emissionPointIndex];
-
-      if (emissionPoint) {
-        engine.flyTo({
-          latitude: emissionPoint.latitude,
-          longitude: emissionPoint.longitude,
-          durationMs: 900
-        });
-      }
+    if (selection && flyToOnSelection) {
+      engine.flyTo({
+        latitude: flyToOnSelection.latitude,
+        longitude: flyToOnSelection.longitude,
+        durationMs: 900
+      });
     }
   });
 
   onDestroy(() => {
-    unsubscribeSelected?.();
-    unsubscribeHovered?.();
+    for (const u of unsubscribers) u();
+    unsubscribers = [];
     engine?.dispose();
     engine = null;
   });

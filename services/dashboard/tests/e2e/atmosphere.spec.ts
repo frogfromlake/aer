@@ -91,8 +91,9 @@ test.describe('Atmosphere — WebGL2 path', () => {
     await expect(page.getByRole('figure', { name: /AĒR atmosphere/ })).toBeVisible();
 
     // Side panel opens from the URL-carried ?probe= on first probe payload.
-    // The emic label is the first emission point: Hamburg.
-    const panel = page.getByRole('dialog', { name: /Hamburg/ });
+    // Phase 110: the panel title is the probe identity, not an
+    // emission-point label — the probe is the scope-target on Surface I.
+    const panel = page.getByRole('dialog', { name: new RegExp(PROBE_ID) });
     await expect(panel).toBeVisible();
     await expect(panel.getByText(PROBE_ID)).toBeVisible();
 
@@ -101,6 +102,16 @@ test.describe('Atmosphere — WebGL2 path', () => {
 
     // Reach is explicitly not claimed.
     await expect(panel.getByText(/reach is not rendered/i)).toBeVisible();
+  });
+});
+
+test.describe('Atmosphere — Phase 110 scope contract', () => {
+  test('primer link in the scope bar routes to /reflection/primer/globe', async ({ page }) => {
+    await mockBff(page);
+    await page.goto('/');
+    const link = page.getByRole('link', { name: /how to read the globe/i });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', '/reflection/primer/globe');
   });
 });
 

@@ -867,3 +867,27 @@ Surface III is reachable from:
 `src/lib/reflection/open-questions.ts` contains all 50 open research questions faithfully transcribed from the §7 and §8 sections of WP-001 through WP-006. Each question carries: `disciplinaryScope`, `shortLabel`, full `question` text, optional `deliverable`, and optional `pipelineHook` (where external collaboration can contribute to the AĒR pipeline). The hub at `/reflection/open-questions` groups questions by source paper and renders the full catalog.
 
 See [Design Brief](../design/design_brief.md) for the Dual-Register communication pattern that governs how Reflection content is authored and presented. See §8.17 for the cross-cutting frontend architecture that hosts Surface III.
+
+## 8.15 Surface I Refinement — Probe-First Emission and Source Satellites (Phase 110)
+
+Surface I (Atmosphere) is a landing overview, not an analysis surface (per the Iteration 5 reframing). Phase 110 reflects this in the engine and on the surface itself: the globe carries one **probe glyph** per probe — at the spherical centroid of its emission points — and one **source satellite** per emission point. The probe glyph is the only scope-selectable target on Surface I; satellites are read-only secondary geometry.
+
+**Engine boundary (`@aer/engine-3d`).** `ProbeMarker` keeps `emissionPoints[]` for source-aware rendering; each entry can carry an optional `sourceName`. The engine maintains two `Points` meshes:
+
+- `probeGlyphMesh` — full-brightness, full-size glow at the centroid (computed by `probeCentroidLatLon` in `glow.ts` via spherical-vector averaging, robust across the ±180° dateline). Selectable via the raycaster; emits `probe-selected` and `probe-hovered`.
+- `satelliteMesh` — smaller (`SATELLITE_POINT_WORLD_SIZE = 32`), muted (`SATELLITE_BRIGHTNESS_SCALE = 0.6`), drawn behind the probe glyph (`renderOrder`). Hit by the raycaster only when no probe glyph is under the pointer; emits `satellite-selected` and `satellite-hovered` — never `probe-selected`. Satellites are not selection-capable as scope targets, so their `aSelected` attribute stays pinned at zero.
+
+`ProbeSelection` collapses to `{ probeId }`. `SatelliteSelection` is a separate type carrying `{ probeId, sourceName, label }`. The Phase 100a `(probeId, emissionPointIndex)` selection model is deprecated; the legacy `?ep=` URL parameter is parsed for back-compat with bookmarked deep links but is no longer written.
+
+**Surface I behaviour.** `(app)/+page.svelte` wires four event paths:
+
+- `probe-hovered` → Progressive Semantics tooltip (semantic register prominent — probe identity + language; methodological register expandable in the side panel and the methodology tray, per Brief §4.5).
+- `probe-selected` → opens the L3 side panel (`L3AnalysisPanel`), writes `?probe=<id>&view=analysis&metric=<name>`, flies the camera to the probe centroid (`flyToOnSelection`).
+- `satellite-hovered` → tooltip naming the source (`{label}` headline + `source · {sourceName}` meta + nav affordance).
+- `satellite-selected` → routes to `/lanes/<probeId>/dossier?sourceId=<sourceName>` via `goto(...)`. Phase 110 contract: this never changes scope to "source-only on Surface I"; it is a navigation event that hands the user to Surface II's Probe Dossier with the source pre-filtered.
+
+**Probe Dossier (Surface II) pre-filter.** `ProbeDossier.svelte` accepts a `preFilteredSourceId` prop (read by `[probeId]/dossier/+page.svelte` from `urlState().sourceId`). When the param matches a source on the dossier, the source-card grid renders only that card and a "Filtered to source `<name>`… Show all sources" status note links back to the unfiltered dossier. Function-coverage indicator and probe header are unaffected — eligibility/coverage are probe-level concerns.
+
+**Scope-bar primer link.** Surface I's `ScopeBar` ends with a `How to read the globe →` link to `/reflection/primer/globe` (the Surface III primer wired in Phase 109).
+
+**Deprecation note.** Phase 100a's source-click descent on Surface I is retired by this phase — its L3/L4 companion panels were already deprecated in the reframing-note supersession list, and no visual-regression baselines for them are captured in `tests/e2e/__snapshots__/`. The new probe-glyph + satellite rendering is not snapshotted (the additive WebGL layer's per-pixel output is hardware-dependent and noisy under headless rendering); engine-level coverage lives in the Vitest unit suite for `glow.ts`, including `probeCentroidLatLon` cases for empty input, single point, two co-hemispheric points, antipodal cancellation, and dateline-straddling pairs.

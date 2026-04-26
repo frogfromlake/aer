@@ -6,8 +6,12 @@ export type PillarMode = 'aleph' | 'episteme' | 'rhizome';
 /**
  * A geographic emission origin for a probe — the location from which one
  * of its bound publishers emits. A probe may have multiple emission
- * points (federated broadcasters, multi-city institutions). The engine
- * renders one glow per emission point.
+ * points (federated broadcasters, multi-city institutions). After Phase
+ * 110, emission points are rendered as *source satellites* — secondary
+ * geometry around the central probe glyph, not selectable as scope
+ * targets. Click and hover on a satellite raise dedicated
+ * `satellite-*` events the surface routes to the Probe Dossier with the
+ * source pre-filtered.
  *
  * Emission points make no claim about *reach* — see ROADMAP Phase 99b
  * scope decision. Reach is not measured and is not rendered.
@@ -16,12 +20,25 @@ export interface EmissionPoint {
   readonly latitude: number;
   readonly longitude: number;
   readonly label: string;
+  /**
+   * Canonical source name the satellite identifies. Required for the
+   * satellite's click-to-dossier route (`?sourceId=…`). When absent, the
+   * satellite is rendered but its click is treated as a no-op (the
+   * source identity cannot be resolved).
+   */
+  readonly sourceName?: string;
 }
 
 export interface ProbeMarker {
   readonly id: string;
   readonly language: string;
   readonly emissionPoints: readonly EmissionPoint[];
+  /**
+   * Plain-language identity for the probe glyph (Progressive Semantics
+   * §4.5 — the semantic register prominent on hover). Defaults to `id`
+   * when absent.
+   */
+  readonly label?: string;
 }
 
 export interface ProbeActivity {
@@ -48,26 +65,39 @@ export interface FlyToTarget {
 }
 
 /**
- * Details of an interaction with a rendered emission point. Events
- * always identify the owning probe *and* the specific emission point
- * under the cursor, so a panel can highlight "Hamburg (Tagesschau / NDR)"
- * versus "Berlin (Bundesregierung / BPA)" without a second round-trip.
+ * Scope-target selection on the globe. After Phase 110, the only scope
+ * target on Surface I is the probe — not its emission points. Clicking
+ * an emission-point satellite is a navigation event (see
+ * `SatelliteSelection`) and never changes scope to "source-only".
  */
 export interface ProbeSelection {
   readonly probeId: string;
-  readonly emissionPointIndex: number;
-  readonly emissionPointLabel: string;
+}
+
+/**
+ * A satellite click/hover. Routed by the surface to
+ * `/lanes/:probeId/dossier?sourceId=…` (click) or a tooltip (hover).
+ */
+export interface SatelliteSelection {
+  readonly probeId: string;
+  readonly sourceName: string;
+  readonly label: string;
 }
 
 export interface EngineEvents {
-  /** Emitted on click on an emission point. Wired in Phase 99b. */
+  /** Emitted on click on a probe glyph. The single scope-target event on Surface I. */
   'probe-selected': (selection: ProbeSelection) => void;
   /**
    * Emitted on mouse-move. The payload is non-null when the pointer is
-   * over an emission point, and null once it leaves. Hover events drive
-   * tooltip state and the intensified-glow feedback on the hot probe.
+   * over a probe glyph, and null once it leaves. Hover events drive the
+   * Progressive Semantics tooltip and the intensified-glow feedback on
+   * the hot probe.
    */
   'probe-hovered': (selection: ProbeSelection | null) => void;
+  /** Emitted on click on a source satellite. NOT a scope-change event. */
+  'satellite-selected': (selection: SatelliteSelection) => void;
+  /** Emitted on mouse-move when the pointer is over a satellite, null on leave. */
+  'satellite-hovered': (selection: SatelliteSelection | null) => void;
 }
 
 export interface EngineConfig {
@@ -85,9 +115,10 @@ export interface AtmosphereEngine {
   /** Mount the engine on a canvas. Idempotent: repeated calls are no-ops. */
   mount(element: HTMLCanvasElement): void;
   /**
-   * Replace the set of rendered probes. One glow is drawn per emission
-   * point. Rebuilding the instance buffers is cheap; the caller may
-   * freely diff on its end or just re-push the whole set.
+   * Replace the set of rendered probes. The engine renders one *probe
+   * glyph* per probe (at the spherical centroid of its emission points)
+   * plus one muted *source satellite* per emission point. The satellite
+   * layer is non-selectable as a scope target.
    */
   setProbes(probes: readonly ProbeMarker[]): void;
   /**
@@ -103,11 +134,11 @@ export interface AtmosphereEngine {
   setSunPosition(unixMs: number | null): void;
   setSelection(selection: ProbeSelection | null): void;
   /**
-   * Force-set the hover highlight. Used by keyboard navigation so a
-   * focused emission point glows on the globe even though the pointer is
-   * not over it. Pass `null` to clear. The pointer-driven raycaster
-   * overrides this on the next `pointermove`, which is the intended
-   * precedence (pointer-over-keyboard while both are active).
+   * Force-set the hover highlight on a probe glyph. Used by keyboard
+   * navigation so a focused probe glows on the globe even though the
+   * pointer is not over it. Pass `null` to clear. The pointer-driven
+   * raycaster overrides this on the next `pointermove` (pointer-over-
+   * keyboard while both are active).
    */
   setHover(selection: ProbeSelection | null): void;
   flyTo(target: FlyToTarget): void;

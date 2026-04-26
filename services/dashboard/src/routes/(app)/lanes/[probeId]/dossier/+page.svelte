@@ -14,6 +14,12 @@
 
   let probeId = $derived(page.params.probeId ?? '');
   const url = $derived(urlState());
+  // Read `sourceId` directly from SvelteKit's reactive `page.url` rather
+  // than the urlState rune store: `goto()` uses pushState, which the
+  // store does not observe (it only re-hydrates on popstate). Without
+  // this, a satellite click on Surface I lands on the dossier with the
+  // pre-filter dropped on the floor.
+  let preFilteredSourceId = $derived(page.url.searchParams.get('sourceId'));
 
   let windowMs = $derived.by(() => {
     const now = Date.now();
@@ -55,6 +61,7 @@
       {ctx}
       windowStart={windowMs.start}
       windowEnd={windowMs.end}
+      {preFilteredSourceId}
     />
   {:else if dossierQ.data?.kind === 'refusal'}
     <div class="state-slot">

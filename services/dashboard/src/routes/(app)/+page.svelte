@@ -25,9 +25,15 @@
   //   - The engine is dynamic-imported inside AtmosphereCanvas.
   //   - uPlot is dynamic-imported inside TimeSeriesChart (L3 chunk).
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { createQuery } from '@tanstack/svelte-query';
   import { hasWebGL2 } from '@aer/engine-3d/capability';
-  import type { ProbeActivity, ProbeMarker, ProbeSelection } from '@aer/engine-3d';
+  import type {
+    ProbeActivity,
+    ProbeMarker,
+    ProbeSelection,
+    SatelliteSelection
+  } from '@aer/engine-3d';
   import AtmosphereCanvas from '$lib/components/atmosphere/AtmosphereCanvas.svelte';
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
@@ -83,17 +89,55 @@
     return d?.kind === 'success' ? d.data : [];
   });
 
+  // Probe → engine model. Each emission point carries the canonical
+  // source name aligned positionally with `probe.sources[i]` (Phase 110:
+  // satellite click routes to /lanes/:probeId/dossier?sourceId=…). When
+  // sources and emissionPoints have unequal lengths the trailing entries
+  // get no sourceName and the engine renders no satellite for them.
   let probeMarkers = $derived.by<ProbeMarker[]>(() =>
     probeDtos.map((p) => ({
       id: p.probeId,
       language: p.language,
-      emissionPoints: p.emissionPoints.map((ep) => ({
-        latitude: ep.latitude,
-        longitude: ep.longitude,
-        label: ep.label
-      }))
+      label: p.probeId,
+      emissionPoints: p.emissionPoints.map((ep, i) => {
+        const source = p.sources[i];
+        return source !== undefined
+          ? {
+              latitude: ep.latitude,
+              longitude: ep.longitude,
+              label: ep.label,
+              sourceName: source
+            }
+          : { latitude: ep.latitude, longitude: ep.longitude, label: ep.label };
+      })
     }))
   );
+
+  function probeCentroid(p: ProbeDto | null): { latitude: number; longitude: number } | null {
+    if (!p || p.emissionPoints.length === 0) return null;
+    if (p.emissionPoints.length === 1) {
+      const e = p.emissionPoints[0]!;
+      return { latitude: e.latitude, longitude: e.longitude };
+    }
+    const DEG = Math.PI / 180;
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    for (const ep of p.emissionPoints) {
+      const lat = ep.latitude * DEG;
+      const lon = ep.longitude * DEG;
+      const c = Math.cos(lat);
+      x += c * Math.cos(lon);
+      y += c * Math.sin(lon);
+      z += Math.sin(lat);
+    }
+    const len = Math.hypot(x, y, z);
+    if (len < 1e-9) return { latitude: 0, longitude: 0 };
+    return {
+      latitude: Math.asin(Math.max(-1, Math.min(1, z / len))) / DEG,
+      longitude: Math.atan2(y / len, x / len) / DEG
+    };
+  }
 
   // --- Time window (URL-backed) ---------------------------------------
   const url = $derived(urlState());
@@ -162,31 +206,19 @@
   }
 
   // --- URL → state hydration (deep links) -----------------------------
+  // Phase 110 makes the probe glyph the only scope-target; the legacy
+  // `?ep=…` parameter is ignored on hydration but still parsed for
+  // back-compat with bookmarked URLs.
   $effect(() => {
     if (!url.probe || selected) return;
     const hit = probeDtos.find((p) => p.probeId === url.probe);
     if (!hit || hit.emissionPoints.length === 0) return;
-    const rawIdx = url.emissionPoint ?? 0;
-    const idx = rawIdx >= 0 && rawIdx < hit.emissionPoints.length ? rawIdx : 0;
-    const ep = hit.emissionPoints[idx]!;
-    selected = {
-      probeId: hit.probeId,
-      emissionPointIndex: idx,
-      emissionPointLabel: ep.label
-    };
-    // Opening the panel on deep-link when a probe is carried by the URL
-    // preserves the Phase 99b contract. The `view` parameter is an
-    // additive explicit marker: if it's present and not `analysis` the
-    // user has opted out of auto-descent, otherwise we default to open.
+    selected = { probeId: hit.probeId };
     panelOpen = url.view !== 'atmosphere';
   });
 
   function onProbeSelected(sel: ProbeSelection) {
-    if (
-      selected?.probeId === sel.probeId &&
-      selected.emissionPointIndex === sel.emissionPointIndex &&
-      panelOpen
-    ) {
+    if (selected?.probeId === sel.probeId && panelOpen) {
       onPanelClose();
       return;
     }
@@ -196,7 +228,7 @@
     });
     setUrl({
       probe: sel.probeId,
-      emissionPoint: sel.emissionPointIndex,
+      emissionPoint: null,
       view: 'analysis',
       metric: url.metric ?? 'sentiment_score'
     });
@@ -217,16 +249,35 @@
     });
   }
 
-  // --- Hover tooltip ---------------------------------------------------
-  let hovered: ProbeSelection | null = $state(null);
+  // --- Hover tooltips --------------------------------------------------
+  // Probe-glyph hover (Progressive Semantics: identity + affordance) and
+  // satellite hover (source name + nav affordance) are tracked
+  // independently so the engine's "probe wins on overlap" precedence
+  // surfaces cleanly in the UI.
+  let hoveredProbe: ProbeSelection | null = $state(null);
+  let hoveredSatellite: SatelliteSelection | null = $state(null);
   let pointerX = $state(0);
   let pointerY = $state(0);
 
   function onProbeHovered(sel: ProbeSelection | null) {
-    hovered = sel;
+    hoveredProbe = sel;
     // Intent-based preload: once the user hovers a probe, warm the
-    // uPlot chunk so the descent feels instantaneous.
-    if (sel) void import('$lib/components/TimeSeriesChart.svelte').catch(() => void 0);
+    // dossier route so descent feels instantaneous.
+    if (sel) {
+      void import('$lib/components/TimeSeriesChart.svelte').catch(() => void 0);
+    }
+  }
+
+  function onSatelliteHovered(sel: SatelliteSelection | null) {
+    hoveredSatellite = sel;
+  }
+
+  function onSatelliteSelected(sel: SatelliteSelection) {
+    // Phase 110: satellite click is a navigation event, not a scope
+    // change on Surface I. Routes to the Probe Dossier with the source
+    // pre-filtered.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
+    void goto(`/lanes/${sel.probeId}/dossier?sourceId=${encodeURIComponent(sel.sourceName)}`);
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -235,26 +286,14 @@
   }
 
   // --- Keyboard descent grammar ---------------------------------------
-  interface FlatProbePoint {
+  // One sr-only button per probe (Phase 110: probe is the scope-target).
+  interface FlatProbe {
     probeId: string;
-    emissionPointIndex: number;
-    label: string;
     language: string;
   }
-  let flatPoints = $derived.by<FlatProbePoint[]>(() => {
-    const out: FlatProbePoint[] = [];
-    for (const p of probeDtos) {
-      p.emissionPoints.forEach((ep, i) => {
-        out.push({
-          probeId: p.probeId,
-          emissionPointIndex: i,
-          label: ep.label,
-          language: p.language
-        });
-      });
-    }
-    return out;
-  });
+  let flatProbes = $derived.by<FlatProbe[]>(() =>
+    probeDtos.map((p) => ({ probeId: p.probeId, language: p.language }))
+  );
 
   function onGlobalKeydown(e: KeyboardEvent) {
     // Escape ascends one layer. SidePanel's own Escape handler also
@@ -279,6 +318,13 @@
   let selectedRate = $derived(
     activity.find((a) => a.probeId === selected?.probeId)?.documentsPerHour ?? null
   );
+  let selectedCentroid = $derived(probeCentroid(selectedProbeDto));
+  // Pre-resolve the hovered probe DTO so the tooltip can render the
+  // semantic-register identity (probe ID for now; full content-catalog
+  // semantic short stays in the L3 panel + methodology tray).
+  let hoveredProbeDto = $derived(
+    hoveredProbe ? (probeDtos.find((p) => p.probeId === hoveredProbe!.probeId) ?? null) : null
+  );
 
   // Negative Space overlay state lives in $lib/state/tray (Phase 108)
   // so the methodology tray can switch into limitations-first mode
@@ -301,7 +347,7 @@
   <title>AĒR — Atmosphere</title>
 </svelte:head>
 
-<!-- Top scope bar: resolution selector + Negative Space toggle for Surface I -->
+<!-- Top scope bar: resolution selector + Negative Space toggle + primer link (Phase 110) -->
 <ScopeBar label="Atmosphere surface controls">
   <span class="window-label" aria-label="Time window: {windowLabel}">{windowLabel}</span>
   <label class="resolution-label">
@@ -318,6 +364,8 @@
     </select>
   </label>
   <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
+  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
+  <a class="primer-link" href="/reflection/primer/globe">How to read the globe →</a>
 </ScopeBar>
 
 {#if decision === 'engine'}
@@ -334,43 +382,49 @@
       {activity}
       {onProbeSelected}
       {onProbeHovered}
+      {onSatelliteSelected}
+      {onSatelliteHovered}
       selection={selected}
-      hover={hovered}
+      hover={hoveredProbe}
+      flyToOnSelection={selectedCentroid}
     />
 
-    {#if hovered}
+    {#if hoveredProbe}
       <div
         class="probe-tooltip"
         role="tooltip"
         style:left="{pointerX + 14}px"
         style:top="{pointerY + 14}px"
       >
-        {hovered.emissionPointLabel}
+        <span class="tooltip-headline">{hoveredProbeDto?.probeId ?? hoveredProbe.probeId}</span>
+        <span class="tooltip-meta">{(hoveredProbeDto?.language ?? '').toUpperCase()}</span>
+        <span class="tooltip-affordance">Click to open dossier · expand methodology in tray</span>
+      </div>
+    {:else if hoveredSatellite}
+      <div
+        class="probe-tooltip satellite"
+        role="tooltip"
+        style:left="{pointerX + 14}px"
+        style:top="{pointerY + 14}px"
+      >
+        <span class="tooltip-headline">{hoveredSatellite.label}</span>
+        <span class="tooltip-meta">source · {hoveredSatellite.sourceName}</span>
+        <span class="tooltip-affordance">Click to scope the dossier to this source</span>
       </div>
     {/if}
 
     <ul class="sr-probe-nav" aria-label="Probes on the globe">
-      {#each flatPoints as pt (pt.probeId + '#' + pt.emissionPointIndex)}
+      {#each flatProbes as p (p.probeId)}
         <li>
           <button
             type="button"
             class="sr-only"
-            aria-label="Probe {pt.probeId}, {pt.language}, emission point {pt.label}"
-            onfocus={() =>
-              onProbeHovered({
-                probeId: pt.probeId,
-                emissionPointIndex: pt.emissionPointIndex,
-                emissionPointLabel: pt.label
-              })}
+            aria-label="Probe {p.probeId}, {p.language}"
+            onfocus={() => onProbeHovered({ probeId: p.probeId })}
             onblur={() => onProbeHovered(null)}
-            onclick={() =>
-              onProbeSelected({
-                probeId: pt.probeId,
-                emissionPointIndex: pt.emissionPointIndex,
-                emissionPointLabel: pt.label
-              })}
+            onclick={() => onProbeSelected({ probeId: p.probeId })}
           >
-            {pt.label}
+            {p.probeId}
           </button>
         </li>
       {/each}
@@ -379,7 +433,7 @@
 
   <SidePanel
     bind:open={panelOpen}
-    title={selected?.emissionPointLabel ?? 'Probe'}
+    title={selectedProbeDto?.probeId ?? selected?.probeId ?? 'Probe'}
     onClose={onPanelClose}
     size="dashboard"
   >
@@ -437,7 +491,7 @@
   .probe-tooltip {
     position: fixed;
     z-index: 600;
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
@@ -446,6 +500,46 @@
     pointer-events: none;
     white-space: nowrap;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 22rem;
+  }
+  .probe-tooltip.satellite {
+    border-color: var(--color-border-strong, var(--color-border));
+    background: color-mix(in srgb, var(--color-surface) 92%, var(--color-accent-muted));
+  }
+  .tooltip-headline {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-fg);
+  }
+  .tooltip-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-muted);
+  }
+  .tooltip-affordance {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+    white-space: normal;
+  }
+  .primer-link {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-fg-muted);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-border);
+    padding-bottom: 1px;
+    flex-shrink: 0;
+  }
+  .primer-link:hover,
+  .primer-link:focus-visible {
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+    outline: none;
   }
   .sr-probe-nav {
     list-style: none;

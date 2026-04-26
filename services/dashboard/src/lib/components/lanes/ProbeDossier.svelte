@@ -9,9 +9,25 @@
     ctx: FetchContext;
     windowStart: string;
     windowEnd: string;
+    /**
+     * When set (e.g., from a satellite click on Surface I —
+     * `?sourceId=…`), the dossier renders only the matching source card.
+     * A "Show all sources" affordance restores the full set without
+     * leaving the route. Phase 110.
+     */
+    preFilteredSourceId?: string | null;
   }
 
-  let { dossier, ctx, windowStart, windowEnd }: Props = $props();
+  let { dossier, ctx, windowStart, windowEnd, preFilteredSourceId = null }: Props = $props();
+
+  let visibleSources = $derived.by(() => {
+    if (!preFilteredSourceId) return dossier.sources;
+    const hit = dossier.sources.filter((s) => s.name === preFilteredSourceId);
+    return hit.length > 0 ? hit : dossier.sources;
+  });
+  let preFilterMatched = $derived(
+    preFilteredSourceId !== null && dossier.sources.some((s) => s.name === preFilteredSourceId)
+  );
 
   const FUNCTION_META: Record<string, { label: string; abbr: string; color: string }> = {
     epistemic_authority: { label: 'Epistemic Authority', abbr: 'EA', color: '#5283b8' },
@@ -94,13 +110,23 @@
   <section class="sources-section" aria-labelledby="sources-heading">
     <h2 id="sources-heading" class="section-title">
       Sources
-      <span class="source-count">({dossier.sources.length})</span>
+      <span class="source-count"
+        >({visibleSources.length}{preFilterMatched ? ` of ${dossier.sources.length}` : ''})</span
+      >
     </h2>
+    {#if preFilterMatched}
+      <p class="prefilter-note" role="status">
+        Filtered to source <code>{preFilteredSourceId}</code>
+        from a satellite click on the globe.
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route -->
+        <a class="show-all" href="/lanes/{dossier.probeId}/dossier">Show all sources</a>
+      </p>
+    {/if}
     {#if dossier.sources.length === 0}
       <p class="muted">No sources configured for this probe.</p>
     {:else}
       <ul class="source-grid" role="list" aria-label="Sources in this probe">
-        {#each dossier.sources as source (source.name)}
+        {#each visibleSources as source (source.name)}
           <li>
             <SourceCard {source} {ctx} {windowStart} {windowEnd} />
           </li>
@@ -257,6 +283,32 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .prefilter-note {
+    margin: 0 0 var(--space-3) 0;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 2px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+  .prefilter-note code {
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+  }
+  .show-all {
+    margin-left: var(--space-2);
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent-muted);
+  }
+  .show-all:hover,
+  .show-all:focus-visible {
+    border-bottom-style: solid;
+    outline: none;
   }
 
   @media (prefers-reduced-motion: reduce) {

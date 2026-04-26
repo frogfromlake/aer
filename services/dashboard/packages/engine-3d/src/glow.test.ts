@@ -8,7 +8,8 @@ import {
   PULSE_SATURATION_DOCS_PER_HOUR,
   computeCoreBrightness,
   computePulseRate,
-  pickNearSideHit
+  pickNearSideHit,
+  probeCentroidLatLon
 } from './glow';
 
 describe('computePulseRate', () => {
@@ -120,5 +121,52 @@ describe('pickNearSideHit', () => {
     const degenerate = { index: 0, position: new Vector3(0, 0, 0) };
     const good = { index: 1, position: new Vector3(0, 0, 1) };
     expect(pickNearSideHit([degenerate, good], camera)).toBe(1);
+  });
+});
+
+describe('probeCentroidLatLon (Phase 110 — probe-first emission)', () => {
+  it('returns (0, 0) for an empty input', () => {
+    expect(probeCentroidLatLon([])).toEqual({ latitude: 0, longitude: 0 });
+  });
+
+  it('returns the single point when given exactly one', () => {
+    const c = probeCentroidLatLon([{ latitude: 53.5511, longitude: 9.9937 }]);
+    expect(c.latitude).toBeCloseTo(53.5511, 6);
+    expect(c.longitude).toBeCloseTo(9.9937, 6);
+  });
+
+  it('returns the spherical centroid of two co-hemispheric points', () => {
+    // Hamburg + Berlin — their centroid sits between them in central
+    // Germany. The naive arithmetic mean lands within ~0.05° of the
+    // spherical centroid for a span this small; the spherical and
+    // arithmetic answers should both fall in (52..54, 10..14).
+    const c = probeCentroidLatLon([
+      { latitude: 53.5511, longitude: 9.9937 },
+      { latitude: 52.52, longitude: 13.405 }
+    ]);
+    expect(c.latitude).toBeGreaterThan(52);
+    expect(c.latitude).toBeLessThan(54);
+    expect(c.longitude).toBeGreaterThan(10);
+    expect(c.longitude).toBeLessThan(14);
+  });
+
+  it('handles antipodal cancellation by falling back to (0, 0)', () => {
+    const c = probeCentroidLatLon([
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 180 }
+    ]);
+    expect(c.latitude).toBeCloseTo(0, 6);
+    expect(c.longitude).toBeCloseTo(0, 6);
+  });
+
+  it('crosses the dateline correctly (no longitude-mean wraparound)', () => {
+    // Two points straddling ±180° should centre near the dateline, not
+    // near 0° (which a naive arithmetic mean of -179 and +179 would yield).
+    const c = probeCentroidLatLon([
+      { latitude: 0, longitude: -179 },
+      { latitude: 0, longitude: 179 }
+    ]);
+    expect(c.latitude).toBeCloseTo(0, 6);
+    expect(Math.abs(c.longitude)).toBeGreaterThan(170);
   });
 });

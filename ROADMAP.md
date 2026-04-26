@@ -1940,29 +1940,28 @@ All versions pinned like in the backend (if best practice)
 * [x] **Open Research Questions.** Complete catalog of all 50 questions faithfully transcribed from WP §7/§8 sections across all 6 papers, with `deliverable` and `pipelineHook` fields. Rendered in a grouped hub at `/reflection/open-questions`.
 * [x] **Validation.** `make fe-check` green (TypeScript + ESLint + Prettier). Unit tests: 44/44 pass.
 
+
+## Phase 110: Iteration 5 — Surface I Refinement (Probe-First Emission + Source Satellites) [P1] - [x] DONE
+
+*Updates the 3D engine from source-first to probe-first emission, adds read-only source satellites, and introduces Progressive Semantics on probe glyphs. Deprecates Phase 100a's source-click descent. Depends on Phase 101 (dossier endpoint for satellite data) and Phase 106 (Surface II Dossier as descent target).*
+
+* [x] **Engine update.** `packages/engine-3d/` emits one glyph per probe (not per source). Source satellites as secondary geometry — smaller, muted, non-selectable as scope targets. Raycaster filters selection to probe glyphs.
+* [x] **Satellite interaction.** Hovering a satellite opens a tooltip naming the source. Clicking a satellite routes to `/lanes/:probeId/dossier?sourceId=…` (Probe Dossier with the source pre-filtered). Never changes scope to "source-only on Surface I".
+* [x] **Progressive Semantics on glyphs.** Semantic register prominent on hover (plain-language identity); obvious affordance expands methodological register (etic/emic classification per Brief §4.5).
+* [x] **Primer link.** Surface I's top scope bar (Phase 105) gains a link to `/reflection/primer/globe`.
+* [x] **Visual regression update.** New baselines for probe-first emission; old source-click baselines deleted (Phase 100a's L3/L4 panel baselines are orphaned per the supersession note above). No new probe-glyph/satellite snapshots are baked — additive-WebGL output is hardware-dependent under headless rendering; engine coverage stays at the Vitest unit level (see §8.15).
+* [x] **Arc42 update.** §8.x Probe-First Emission + Source Satellite Presentation. Note that Phase 100a's source-click descent is deprecated.
+* [x] **Validation.** `make fe-check` green; Playwright E2E: globe → probe selection → Dossier flow green end-to-end.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 110: Iteration 5 — Surface I Refinement (Probe-First Emission + Source Satellites) [P1] - [ ] TODO
-
-*Updates the 3D engine from source-first to probe-first emission, adds read-only source satellites, and introduces Progressive Semantics on probe glyphs. Deprecates Phase 100a's source-click descent. Depends on Phase 101 (dossier endpoint for satellite data) and Phase 106 (Surface II Dossier as descent target).*
-
-* [ ] **Engine update.** `packages/engine-3d/` emits one glyph per probe (not per source). Source satellites as secondary geometry — smaller, muted, non-selectable as scope targets. Raycaster filters selection to probe glyphs.
-* [ ] **Satellite interaction.** Hovering a satellite opens a tooltip naming the source. Clicking a satellite routes to `/lanes/:probeId/dossier?sourceId=…` (Probe Dossier with the source pre-filtered). Never changes scope to "source-only on Surface I".
-* [ ] **Progressive Semantics on glyphs.** Semantic register prominent on hover (plain-language identity); obvious affordance expands methodological register (etic/emic classification per Brief §4.5).
-* [ ] **Primer link.** Surface I's top scope bar (Phase 105) gains a link to `/reflection/primer/globe`.
-* [ ] **Visual regression update.** New baselines for probe-first emission; old source-click baselines deleted (Phase 100a's L3/L4 panel baselines are orphaned per the supersession note above).
-* [ ] **Arc42 update.** §8.x Probe-First Emission + Source Satellite Presentation. Note that Phase 100a's source-click descent is deprecated.
-* [ ] **Validation.** `make fe-check` green; Playwright E2E: globe → probe selection → Dossier flow green end-to-end.
-
----
-
 ## Phase 111: Iteration 5 — Silver-Layer Toggle on Surface II [P2] - [ ] TODO
 
-*Exposes Silver-layer access as a data-source toggle. Depends on Phase 103 (Silver endpoints) and Phase 106 (Surface II Foundation).*
+*Exposes Silver-layer access as a data-source toggle. Depends on Phase 103 (Silver endpoints) and Phase 106 (Surface II Foundation).Check docs/design/reframing-note.md, docs/design/design_brief.md or ADR-20 in docs/arc42/09_architecture_decisions.md if more information is needed, but only if necessary.*
 
 * [ ] **Toggle component.** Gold / Silver data-source toggle on Surface II (location per Brief §9.1 — top scope bar or Dossier header; pick during implementation). URL state carries toggle.
 * [ ] **Eligible routing.** When toggle = Silver and active source is eligible, view-mode queries route to `/api/v1/silver/*`. Same matrix cells render over Silver data without cell-level rewrites.

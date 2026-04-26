@@ -66,3 +66,42 @@ export function computeCoreBrightness(docsPerHour: number): number {
   const t = Math.min(1, docsPerHour / CORE_BRIGHTNESS_SATURATION_DOCS_PER_HOUR);
   return CORE_BRIGHTNESS_FLOOR + (1 - CORE_BRIGHTNESS_FLOOR) * t;
 }
+
+/**
+ * Spherical centroid of a probe's emission points, returned as
+ * (latitude, longitude) in degrees. Sums Cartesian unit vectors and
+ * normalises — robust across the ±180° dateline (a naive arithmetic
+ * mean of longitudes would land in the middle of the wrong hemisphere
+ * for a probe spanning the dateline). Falls back to (0, 0) when the
+ * input is empty or all points cancel out (antipodal).
+ */
+export function probeCentroidLatLon(points: readonly { latitude: number; longitude: number }[]): {
+  latitude: number;
+  longitude: number;
+} {
+  if (points.length === 0) return { latitude: 0, longitude: 0 };
+  if (points.length === 1) {
+    const p = points[0]!;
+    return { latitude: p.latitude, longitude: p.longitude };
+  }
+  const DEG = Math.PI / 180;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (const p of points) {
+    const lat = p.latitude * DEG;
+    const lon = p.longitude * DEG;
+    const c = Math.cos(lat);
+    x += c * Math.cos(lon);
+    y += c * Math.sin(lon);
+    z += Math.sin(lat);
+  }
+  const len = Math.hypot(x, y, z);
+  if (len < 1e-9) return { latitude: 0, longitude: 0 };
+  x /= len;
+  y /= len;
+  z /= len;
+  const lat = Math.asin(Math.max(-1, Math.min(1, z))) / DEG;
+  const lon = Math.atan2(y, x) / DEG;
+  return { latitude: lat, longitude: lon };
+}

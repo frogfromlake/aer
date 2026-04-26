@@ -9,9 +9,20 @@
   const PROBE_0: ProbeMarker = {
     id: 'probe-0-de-institutional-rss',
     language: 'de',
+    label: 'Probe 0 — DE institutional RSS',
     emissionPoints: [
-      { latitude: 53.5511, longitude: 9.9937, label: 'Hamburg (Tagesschau / NDR)' },
-      { latitude: 52.517, longitude: 13.3888, label: 'Berlin (Bundesregierung / BPA)' }
+      {
+        latitude: 53.5511,
+        longitude: 9.9937,
+        label: 'Hamburg (Tagesschau / NDR)',
+        sourceName: 'tagesschau'
+      },
+      {
+        latitude: 52.517,
+        longitude: 13.3888,
+        label: 'Berlin (Bundesregierung / BPA)',
+        sourceName: 'bundesregierung'
+      }
     ]
   };
 
@@ -28,7 +39,7 @@
     engine.on('probe-selected', (sel) => {
       selected = sel;
     });
-    // Park the camera over central Europe so both emission points are in-frame.
+    // Park the camera over central Europe so the probe glyph + satellites are in-frame.
     engine.flyTo({ latitude: 53, longitude: 11, durationMs: 800 });
   }
 </script>
@@ -43,9 +54,9 @@
   <strong>Probe 0 — DE institutional RSS</strong>
   <dl>
     <dt>Hovered</dt>
-    <dd>{hovered?.emissionPointLabel ?? '—'}</dd>
+    <dd>{hovered?.probeId ?? '—'}</dd>
     <dt>Selected</dt>
-    <dd>{selected?.emissionPointLabel ?? '—'}</dd>
+    <dd>{selected?.probeId ?? '—'}</dd>
   </dl>
 </div>
 
