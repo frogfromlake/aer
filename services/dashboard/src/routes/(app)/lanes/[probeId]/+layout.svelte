@@ -11,7 +11,7 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
   import { ScopeBar } from '$lib/components/chrome';
-  import { SilverLayerToggle, ViewModeSwitcher } from '$lib/components/lanes';
+  import { SilverLayerToggle, MetricSwitcher } from '$lib/components/lanes';
   import { setUrl, urlState } from '$lib/state/url.svelte';
 
   interface Props {
@@ -92,8 +92,13 @@
     </span>
   {/if}
 
-  {#if !isDossier && activeFunctionKey}
-    <ViewModeSwitcher />
+  <!-- Surface II L2 (Probe Dossier) keeps a compact metric picker so
+       the URL-backed metric is editable from the dossier. On L3 the
+       LensBar inside FunctionLaneShell is the prominent metric +
+       view-mode control, so the scope-bar versions are hidden to
+       avoid duplicate, lower-emphasis levers. -->
+  {#if isDossier || !activeFunctionKey}
+    <MetricSwitcher />
   {/if}
 
   <SilverLayerToggle />

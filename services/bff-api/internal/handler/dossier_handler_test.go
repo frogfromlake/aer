@@ -148,7 +148,7 @@ func TestGetArticleDetail_KAnonymityGateRefuses(t *testing.T) {
 			Source:        "tagesschau",
 			Timestamp:     "2026-04-25T12:00:00Z",
 			CleanedText:   "...",
-			SchemaVersion: "1.0",
+			SchemaVersion: 1,
 			WordCount:     100,
 		},
 	}}
@@ -190,7 +190,7 @@ func TestGetArticleDetail_ReturnsCleanedTextWhenGatePasses(t *testing.T) {
 			Source:        "tagesschau",
 			Timestamp:     "2026-04-25T12:00:00Z",
 			CleanedText:   "Berlin (dpa) — ...",
-			SchemaVersion: "1.0",
+			SchemaVersion: 1,
 			WordCount:     150,
 		},
 		ExtractionProvenance: map[string]string{"sentiment": "v1"},

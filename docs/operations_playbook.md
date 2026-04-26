@@ -11,6 +11,7 @@
 2. [Stack Lifecycle](#stack-lifecycle)
 3. [PostgreSQL (Metadata Index)](#postgresql-metadata-index)
     - [Source Classifications (WP-001)](#source-classifications-wp-001) — *touchpoint*
+    - [Retention & Reconciliation (Phase 113b / ADR-022)](#retention-reconciliation-phase-113b-adr-022)
 4. [ClickHouse (Gold Layer — Analytics)](#clickhouse-gold-layer-analytics)
     - [Metric Validity (WP-002)](#metric-validity-wp-002) — *touchpoint*
     - [Metric Baselines & Equivalence (WP-004)](#metric-baselines-equivalence-wp-004) — *touchpoint*
@@ -237,6 +238,64 @@ SELECT id, 'epistemic_authority', 'power_legitimation',
        '<reviewer-name>', CURRENT_DATE, 'reviewed'
 FROM sources WHERE name = 'tagesschau';
 ```
+
+### Retention & Reconciliation (Phase 113b / ADR-022)
+
+AĒR runs two retention horizons by design. PostgreSQL holds *operational* metadata pruned at the operational horizon; MinIO Silver and ClickHouse Gold hold *analytical* truth pruned at the analytical horizon.
+
+| Layer / Table                         | Retention | Pruner                                                                                       |
+|---------------------------------------|-----------|----------------------------------------------------------------------------------------------|
+| MinIO `bronze`                        | 90 days   | MinIO ILM (`infra/minio/setup.sh`)                                                           |
+| MinIO `bronze-quarantine` (DLQ)       | 30 days   | MinIO ILM                                                                                    |
+| Postgres `documents`, `ingestion_jobs` | 90 days   | `ingestion-api` background goroutine (`startRetentionCleanup`) — see Migration 004           |
+| MinIO `silver`                        | 365 days  | MinIO ILM                                                                                    |
+| ClickHouse `aer_silver.documents`     | 365 days  | ClickHouse TTL on `timestamp`                                                                |
+| ClickHouse `aer_gold.metrics`         | 365 days  | ClickHouse TTL on `timestamp`                                                                |
+| ClickHouse `aer_gold.entities`        | 365 days  | ClickHouse TTL on `timestamp`                                                                |
+| ClickHouse `aer_gold.language_detections` | 365 days | ClickHouse TTL on `timestamp`                                                              |
+| ClickHouse `aer_gold.entity_cooccurrences` | 365 days | ClickHouse TTL on `window_start`                                                          |
+
+ADR-022 makes the BFF read article resolution and per-source dossier counts from the analytical layer (`aer_silver.documents`), so the 90/365 split is structurally fine: the dossier and L5 Evidence stay coherent even when the Postgres row for an article has been retention-deleted. Postgres `documents` becomes an *operational soft cache* — load-bearing during ingestion (idempotency keys, lifecycle status), not load-bearing for read-path resolution.
+
+**When to run reconciliation.** ADR-022 makes recurring reconciliation unnecessary. Run `scripts/reconcile_documents.py` only in these one-shot scenarios:
+
+* Closing the historical drift that pre-dates ADR-022 — Postgres rows already pruned before this ADR landed.
+* Recovering after an operational outage that lost Postgres rows while Silver/Gold remained intact (e.g. an accidental volume wipe of Postgres alone).
+
+**Procedure:**
+
+```bash
+# 1. Inspect the divergence first.
+psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB -c "
+  SELECT s.name,
+         COALESCE(c.cnt, 0) AS pg_documents,
+         (SELECT count(DISTINCT article_id)
+            FROM aer_silver.documents
+           WHERE source = s.name) AS ch_silver_docs
+    FROM sources s
+    LEFT JOIN (
+      SELECT j.source_id, count(*) AS cnt
+        FROM documents d JOIN ingestion_jobs j ON j.id = d.job_id
+        WHERE d.status = 'processed'
+       GROUP BY j.source_id
+    ) c ON c.source_id = s.id
+   ORDER BY s.name;
+"
+# (the ch_silver_docs subquery only works via Postgres if you have a CH FDW;
+#  otherwise run the count separately against ClickHouse and compare by eye)
+
+# 2. Dry-run the reconciliation to see what would change.
+python scripts/reconcile_documents.py --dry-run
+
+# 3. Execute. Idempotent — safe to interrupt and re-run.
+python scripts/reconcile_documents.py
+
+# 4. Confirm divergence has closed.
+#    Repeat step 1 — pg_documents should now meet or exceed ch_silver_docs
+#    for every source whose Silver envelopes are still present in MinIO.
+```
+
+The script never deletes; it only inserts missing rows under `ON CONFLICT (bronze_object_key) DO NOTHING`. Synthetic ingestion-jobs created during reconciliation are tagged `status = 'reconciled'` and pinned to 00:00 UTC of the document's day, so they never collide with real ingestion jobs.
 
 ---
 

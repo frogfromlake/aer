@@ -80,3 +80,10 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, 
 func (s *ClickHouseStorage) Ping(ctx context.Context) error {
 	return s.conn.Ping(ctx)
 }
+
+// Conn returns the underlying ClickHouse connection. Exposed so cross-
+// store callers (e.g. DossierStore for ADR-022 article resolution) can
+// share the pool rather than opening a second one.
+func (s *ClickHouseStorage) Conn() clickhouse.Conn {
+	return s.conn
+}

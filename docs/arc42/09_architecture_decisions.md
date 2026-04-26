@@ -952,3 +952,54 @@ The ingestion API initially shipped a types-only codegen target (`internal/apico
 * **Proposed:** 2026-04-19 during Phase 96 implementation.
 * **Ratified:** 2026-04-19 by the implementing engineer; confirmed 2026-04-20 by the author (Fabian Quist). Extended by Phase 96c (2026-04-20): ingestion `strict-server` convergence resolves the last open consequence.
 * **Review date:** 2027-04 or on any oapi-codegen / kin-openapi major version bump that changes path-item flattening semantics.
+
+---
+
+## ADR-022: Article Resolution Source-of-Truth Lives in the Analytical Layer
+
+**Status:** Accepted (Phase 113b, 2026-04-26)
+
+**Context.**
+The Medallion architecture spreads document state across two retention horizons. PostgreSQL holds *operational* metadata — `sources`, `ingestion_jobs`, `documents` (the bronze object key, idempotency key, lifecycle status) — pruned at 90 days to match Bronze ILM (Phase 52, `infra/postgres/migrations/000004_add_retention_indexes.up.sql`). MinIO Silver and ClickHouse Gold hold the *analytical* truth — derived metrics, NER, language detections, the SilverEnvelope — retained for 365 days. Phase 113 surfaced the consequence: between days 90 and 365, ClickHouse Gold has rows whose Postgres `documents` row has been deleted. Two concrete BFF symptoms followed. (1) `DossierStore.FetchSources` joins `documents → ingestion_jobs → sources` for `articlesTotal` / `articlesInWindow`, so the dossier under-reports counts (observed: Postgres 45 tagesschau / 0 bundesregierung versus Gold 195 / 25 in the same window). (2) `DossierStore.ResolveArticle` keys article-detail lookups on `documents.article_id`, so "View article" 404s on any article whose Postgres row has been retention-deleted, even though the Silver envelope and Gold metrics are still present.
+
+The mismatch is structural, not transient. Aligning Postgres retention to 365 days hides today's incident but rebinds operational and analytical horizons; the next time the analytical horizon shifts (e.g. extending Gold to 730 days for longitudinal work) the same divergence reappears.
+
+**Decision.**
+Article resolution and per-source article counts move to the analytical layer.
+
+* `aer_silver.documents` (already one-row-per-document, 365-day TTL) gains a `bronze_object_key String` column. The analysis worker writes it at the same point Silver is uploaded to MinIO.
+* `DossierStore.ResolveArticle` queries `aer_silver.documents` for `(article_id) → (bronze_object_key, source)`. PostgreSQL `documents.article_id` is no longer consulted.
+* `DossierStore.FetchSources` reads per-source counts from ClickHouse (`aer_silver.documents` for the count; `aer_gold.metrics` was considered but produces multiple rows per article). Postgres still supplies the human-facing source metadata (name, type, URL, classification, Silver-eligibility); only the count columns move.
+
+PostgreSQL `documents` and `ingestion_jobs` retain their current 90-day retention and become an *operational soft cache* — load-bearing during ingestion (idempotency keys, job status, lifecycle flips), not load-bearing for read-path resolution. Their schema is unchanged.
+
+**Consequences.**
+
+* The dossier-count divergence becomes definitionally impossible: counts are read from the same store that owns the analytical horizon. The 90/365 split can persist, or move independently in either direction, without re-introducing the bug.
+* `View article` succeeds for any article whose SilverEnvelope still exists in MinIO, regardless of Postgres state. This is the correct semantics — Silver is the canonical record.
+* The historical drift (Postgres rows deleted before this ADR landed) is a one-shot data backfill, not a permanent obligation. `scripts/reconcile_documents.py` walks MinIO Bronze and re-creates the missing operational rows once; after this ADR, recurring reconciliation is unnecessary.
+* `aer_silver.documents.bronze_object_key` is a new column on an existing ReplacingMergeTree table. Existing rows backfill to the empty string; the worker repopulates on the next reprocess of any redelivered event. The reconciliation script also writes it for historical articles whose Silver envelope is recoverable from MinIO.
+* The k-anonymity gate and provenance lookup are unchanged — they already key on `(source, article_id, timestamp)` against ClickHouse Gold.
+* The BFF read-only Postgres role keeps its current grants; nothing new was needed.
+
+**Alternatives considered.**
+
+* **Align Postgres retention to 365 days.** Rejected. Hides the current symptom by paying analytical-horizon storage in the operational store. Re-creates the same class of bug the next time horizons diverge.
+* **Maintain a recurring reconciliation cron.** Rejected. Treats a structural mismatch as an operational chore. The cron eventually drifts out of sync with whichever store changes retention first.
+* **Add `bronze_object_key` to every `aer_gold.metrics` row.** Rejected. Duplicative — the metrics table writes 5–10 rows per article. `aer_silver.documents` is already one row per article and is the natural home for the article→object-key index.
+* **Add a dedicated `aer_gold.article_index` table.** Rejected on Ockham's-Razor grounds. `aer_silver.documents` already exists, already has the right cardinality, already has the right TTL.
+
+**References.**
+
+* Roadmap Phase 113b — PostgreSQL ↔ ClickHouse Retention Divergence.
+* `infra/clickhouse/migrations/000013_add_bronze_object_key_to_silver_documents.sql` — schema migration.
+* `infra/postgres/migrations/000004_add_retention_indexes.up.sql` — Postgres retention policy (unchanged by this ADR).
+* `scripts/reconcile_documents.py` — one-shot historical backfill.
+* `services/bff-api/internal/storage/dossier_store.go` — `ResolveArticle`, `FetchSources` rewritten.
+* `docs/operations_playbook.md` §Retention.
+
+### Decision Record
+
+* **Proposed:** 2026-04-26 while fixing Phase 113b.
+* **Ratified:** 2026-04-26 by the implementing engineer.
+* **Review date:** when either retention horizon changes, or when `aer_silver.documents` is replaced by a richer Silver-projection schema.

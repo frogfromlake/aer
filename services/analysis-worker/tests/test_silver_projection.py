@@ -33,7 +33,12 @@ def test_raw_entity_count_picks_capitalized_tokens():
 def test_upload_silver_projection_inserts_one_row_with_expected_columns():
     ch = MagicMock()
     core = _Core(cleaned_text="Hallo Welt aus Berlin.")
-    upload_silver_projection(ch, core, ingestion_version=1234567890)
+    upload_silver_projection(
+        ch,
+        core,
+        ingestion_version=1234567890,
+        bronze_object_key="tagesschau/2026/04/24/doc-1.json",
+    )
 
     ch.insert.assert_called_once()
     args, kwargs = ch.insert.call_args
@@ -51,6 +56,7 @@ def test_upload_silver_projection_inserts_one_row_with_expected_columns():
         "word_count",
         "raw_entity_count",
         "ingestion_version",
+        "bronze_object_key",
     ]
     # Spot-check derived fields.
     by_name = dict(zip(column_names, row))
@@ -61,6 +67,7 @@ def test_upload_silver_projection_inserts_one_row_with_expected_columns():
     assert by_name["word_count"] == 4
     assert by_name["raw_entity_count"] >= 2
     assert by_name["ingestion_version"] == 1234567890
+    assert by_name["bronze_object_key"] == "tagesschau/2026/04/24/doc-1.json"
 
 
 def test_upload_silver_projection_swallows_clickhouse_errors():

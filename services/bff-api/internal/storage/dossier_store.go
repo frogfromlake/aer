@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
 // DossierSourceRow is one source card on the Probe Dossier.
@@ -33,15 +35,25 @@ type ProbeDossierData struct {
 	Sources     []DossierSourceRow
 }
 
-// DossierStore reads Probe Dossier data from PostgreSQL. The BFF owns
-// only SELECT on the relevant tables — see infra/postgres/init-roles.sh.
+// DossierStore reads Probe Dossier data. Source metadata (name, type,
+// classification, Silver-eligibility) comes from PostgreSQL — the BFF
+// owns only SELECT on the relevant tables (see infra/postgres/init-roles.sh).
+// Per-source article counts and (article_id) → (bronze_object_key, source)
+// resolution come from ClickHouse aer_silver.documents (ADR-022): the
+// analytical layer is the source of truth on the analytical horizon, so
+// the dossier no longer drifts when the operational 90-day Postgres
+// retention prunes rows whose Silver/Gold record is still live.
 type DossierStore struct {
-	db *sql.DB
+	db   *sql.DB
+	chCn clickhouse.Conn
 }
 
-// NewDossierStore wires a DossierStore over the existing read-only pool.
-func NewDossierStore(db *sql.DB) *DossierStore {
-	return &DossierStore{db: db}
+// NewDossierStore wires a DossierStore over the existing read-only Postgres
+// pool. ch may be nil in tests that do not exercise article-resolution or
+// Gold-backed counts; the affected code paths fall back to the legacy
+// Postgres queries in that case.
+func NewDossierStore(db *sql.DB, ch clickhouse.Conn) *DossierStore {
+	return &DossierStore{db: db, chCn: ch}
 }
 
 // FetchSources returns the per-source dossier rows for the given source
@@ -49,33 +61,33 @@ func NewDossierStore(db *sql.DB) *DossierStore {
 // `articlesInWindow` count equals the total processed-document count and
 // `publicationFreqPerDay` is computed across all-time.
 //
-// The query left-joins source_classifications via the latest classification
-// row per source (MAX(classification_date)) so sources without a
-// classification still surface (with null function fields).
+// Source metadata (name, type, URL, classification, Silver-eligibility)
+// comes from PostgreSQL. Article counts and publication frequency come
+// from ClickHouse aer_silver.documents (ADR-022): the analytical layer
+// holds the same one-row-per-document projection on the 365-day horizon
+// matching Silver/Gold, so dossier counts stay coherent with view-mode
+// queries even when the operational 90-day Postgres documents/jobs rows
+// have been pruned. Sources whose ClickHouse projection is empty fall
+// through with zero counts and a NULL frequency — the same shape the
+// previous Postgres-only query produced for an unprocessed source.
 func (s *DossierStore) FetchSources(ctx context.Context, sourceNames []string, windowStart, windowEnd *time.Time) ([]DossierSourceRow, error) {
 	if len(sourceNames) == 0 {
 		return nil, nil
 	}
 
+	counts, err := s.fetchSourceCounts(ctx, sourceNames, windowStart, windowEnd)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build a $1, $2, ... placeholder list for the IN clause.
 	placeholders := make([]string, len(sourceNames))
-	args := make([]any, 0, len(sourceNames)+2)
+	args := make([]any, 0, len(sourceNames))
 	for i, name := range sourceNames {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args = append(args, name)
 	}
 
-	var winStartArg, winEndArg any
-	if windowStart != nil && windowEnd != nil {
-		winStartArg = *windowStart
-		winEndArg = *windowEnd
-	}
-	args = append(args, winStartArg, winEndArg)
-	winStartIdx := len(sourceNames) + 1
-	winEndIdx := len(sourceNames) + 2
-
-	// Counts join via documents → ingestion_jobs → sources (Phase 101).
-	// `articlesInWindow` falls back to the total when window args are NULL.
 	query := fmt.Sprintf(`
 		WITH latest_classification AS (
 			SELECT DISTINCT ON (source_id)
@@ -86,33 +98,11 @@ func (s *DossierStore) FetchSources(ctx context.Context, sourceNames []string, w
 			       emic_context
 			  FROM source_classifications
 			 ORDER BY source_id, classification_date DESC
-		),
-		doc_counts AS (
-			SELECT j.source_id,
-			       COUNT(*) FILTER (WHERE d.status = 'processed') AS total,
-			       COUNT(*) FILTER (
-			           WHERE d.status = 'processed'
-			             AND ($%d::timestamptz IS NULL OR d.ingested_at >= $%d::timestamptz)
-			             AND ($%d::timestamptz IS NULL OR d.ingested_at <= $%d::timestamptz)
-			       ) AS in_window,
-			       MIN(d.ingested_at) AS first_ingested,
-			       MAX(d.ingested_at) AS last_ingested
-			  FROM documents d
-			  JOIN ingestion_jobs j ON j.id = d.job_id
-			 GROUP BY j.source_id
 		)
 		SELECT s.name,
 		       s.type,
 		       s.url,
 		       s.documentation_url,
-		       COALESCE(c.total, 0) AS articles_total,
-		       COALESCE(c.in_window, 0) AS articles_in_window,
-		       CASE
-		           WHEN c.total IS NULL OR c.total = 0 THEN NULL
-		           WHEN c.first_ingested IS NULL OR c.last_ingested IS NULL THEN NULL
-		           WHEN EXTRACT(EPOCH FROM (c.last_ingested - c.first_ingested)) <= 0 THEN NULL
-		           ELSE c.total::float8 / GREATEST(EXTRACT(EPOCH FROM (c.last_ingested - c.first_ingested)) / 86400.0, 1.0)
-		       END AS publication_freq_per_day,
 		       lc.primary_function,
 		       lc.secondary_function,
 		       lc.emic_designation,
@@ -121,10 +111,9 @@ func (s *DossierStore) FetchSources(ctx context.Context, sourceNames []string, w
 		       s.silver_review_date
 		  FROM sources s
 		  LEFT JOIN latest_classification lc ON lc.source_id = s.id
-		  LEFT JOIN doc_counts c ON c.source_id = s.id
 		 WHERE s.name IN (%s)
 		 ORDER BY s.name
-	`, winStartIdx, winStartIdx, winEndIdx, winEndIdx, strings.Join(placeholders, ", "))
+	`, strings.Join(placeholders, ", "))
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -137,18 +126,106 @@ func (s *DossierStore) FetchSources(ctx context.Context, sourceNames []string, w
 		var r DossierSourceRow
 		if err := rows.Scan(
 			&r.Name, &r.Type, &r.URL, &r.DocumentationURL,
-			&r.ArticlesTotal, &r.ArticlesInWindow,
-			&r.PublicationFreqPerDay,
 			&r.PrimaryFunction, &r.SecondaryFunction,
 			&r.EmicDesignation, &r.EmicContext,
 			&r.SilverEligible, &r.SilverReviewDate,
 		); err != nil {
 			return nil, fmt.Errorf("scan dossier row: %w", err)
 		}
+		if c, ok := counts[r.Name]; ok {
+			r.ArticlesTotal = c.total
+			r.ArticlesInWindow = c.inWindow
+			if c.freqPerDay > 0 {
+				r.PublicationFreqPerDay = sql.NullFloat64{Float64: c.freqPerDay, Valid: true}
+			}
+		}
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate dossier rows: %w", err)
+	}
+	return out, nil
+}
+
+// sourceCount holds the ClickHouse-derived counts and publication frequency
+// for one source, indexed by source name in fetchSourceCounts.
+type sourceCount struct {
+	total      int64
+	inWindow   int64
+	freqPerDay float64
+}
+
+// fetchSourceCounts returns the per-source totals, in-window totals, and
+// publication-frequency-per-day computed from aer_silver.documents.
+// Returns an empty map (not an error) when the ClickHouse connection is
+// nil — tests that don't exercise counts can inject a nil ch and still
+// fetch dossier metadata.
+func (s *DossierStore) fetchSourceCounts(
+	ctx context.Context,
+	sourceNames []string,
+	windowStart, windowEnd *time.Time,
+) (map[string]sourceCount, error) {
+	if s.chCn == nil || len(sourceNames) == 0 {
+		return map[string]sourceCount{}, nil
+	}
+
+	// Window args reuse the Gold convention: when both are nil, in-window
+	// equals total. ClickHouse-go does not support NULL placeholders for
+	// DateTime, so we branch the predicate textually instead of binding nil.
+	// Placeholder order in the rendered query is: windowStart, windowEnd
+	// (in the SELECT projection), then sourceNames (in the WHERE clause).
+	var windowFilter string
+	var args []any
+	if windowStart != nil && windowEnd != nil {
+		windowFilter = "AND timestamp >= ? AND timestamp <= ?"
+		args = append(args, *windowStart, *windowEnd)
+	}
+	args = append(args, sourceNames)
+
+	// FINAL collapses ReplacingMergeTree duplicates from NATS redelivery so
+	// the count is per distinct (timestamp, source, article_id) tuple,
+	// matching the dedupe Gold/Silver readers see at query time.
+	query := fmt.Sprintf(`
+		SELECT
+			source                                            AS source,
+			count(DISTINCT article_id)                        AS total,
+			countDistinctIf(article_id, 1=1 %s)               AS in_window,
+			toUnixTimestamp(min(timestamp))                   AS first_ts,
+			toUnixTimestamp(max(timestamp))                   AS last_ts
+		  FROM aer_silver.documents FINAL
+		 WHERE source IN ?
+		 GROUP BY source
+	`, windowFilter)
+
+	type row struct {
+		Source   string `ch:"source"`
+		Total    uint64 `ch:"total"`
+		InWindow uint64 `ch:"in_window"`
+		FirstTS  uint32 `ch:"first_ts"`
+		LastTS   uint32 `ch:"last_ts"`
+	}
+	var rows []row
+	if err := s.chCn.Select(ctx, &rows, query, args...); err != nil {
+		return nil, fmt.Errorf("source counts query: %w", err)
+	}
+
+	out := make(map[string]sourceCount, len(rows))
+	for _, r := range rows {
+		c := sourceCount{
+			total:    int64(r.Total),    //nolint:gosec // bounded by source rowcount
+			inWindow: int64(r.InWindow), //nolint:gosec // bounded by source rowcount
+		}
+		// Publication-frequency-per-day mirrors the previous Postgres
+		// computation: total over the active span in days, with a 1-day
+		// floor so a same-day burst doesn't divide by zero.
+		if r.Total > 0 && r.LastTS > r.FirstTS {
+			spanDays := float64(int64(r.LastTS)-int64(r.FirstTS)) / 86400.0
+			if spanDays < 1.0 {
+				spanDays = 1.0
+			}
+			c.freqPerDay = float64(r.Total) / spanDays
+		}
+		out[r.Source] = c
 	}
 	return out, nil
 }
@@ -243,22 +320,41 @@ type ArticleResolution struct {
 // ResolveArticle looks up the bronze object key for a given article_id.
 // Returns ErrSourceNotFound (recycled sentinel — the meaning is "not
 // found") when the article hasn't been processed.
+//
+// Phase 113b / ADR-022: resolution reads from aer_silver.documents in
+// ClickHouse. The analytical layer keeps a one-row-per-document
+// projection on the same 365-day horizon as Silver and Gold, so an
+// article whose 90-day operational PostgreSQL row has been pruned still
+// resolves as long as its Silver envelope is in MinIO. anyLast() picks
+// the freshest non-empty bronze_object_key — older ReplacingMergeTree
+// rows that pre-date Migration 013 carry the empty-string DEFAULT and
+// must be ignored.
 func (s *DossierStore) ResolveArticle(ctx context.Context, articleID string) (*ArticleResolution, error) {
+	if s.chCn == nil {
+		return nil, fmt.Errorf("resolve article: ClickHouse not configured")
+	}
 	const q = `
-		SELECT d.bronze_object_key, s.name
-		  FROM documents d
-		  JOIN ingestion_jobs j ON j.id = d.job_id
-		  JOIN sources s ON s.id = j.source_id
-		 WHERE d.article_id = $1
+		SELECT
+			anyLastIf(bronze_object_key, bronze_object_key != '') AS bronze_object_key,
+			anyLast(source)                                       AS source
+		  FROM aer_silver.documents
+		 WHERE article_id = ?
+		 GROUP BY article_id
 		 LIMIT 1
 	`
-	var res ArticleResolution
-	row := s.db.QueryRowContext(ctx, q, articleID)
-	if err := row.Scan(&res.BronzeObjectKey, &res.SourceName); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrSourceNotFound
-		}
+	type row struct {
+		BronzeObjectKey string `ch:"bronze_object_key"`
+		Source          string `ch:"source"`
+	}
+	var rows []row
+	if err := s.chCn.Select(ctx, &rows, q, articleID); err != nil {
 		return nil, fmt.Errorf("resolve article: %w", err)
 	}
-	return &res, nil
+	if len(rows) == 0 || rows[0].BronzeObjectKey == "" {
+		return nil, ErrSourceNotFound
+	}
+	return &ArticleResolution{
+		BronzeObjectKey: rows[0].BronzeObjectKey,
+		SourceName:      rows[0].Source,
+	}, nil
 }

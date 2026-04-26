@@ -117,7 +117,7 @@ func main() {
 	}()
 	sourcesTTL := time.Duration(cfg.SourcesCacheTTLSecs) * time.Second
 	sourceStore := storage.NewSourceStore(pgDB, sourcesTTL)
-	dossierStore := storage.NewDossierStore(pgDB)
+	dossierStore := storage.NewDossierStore(pgDB, chStore.Conn())
 
 	// Phase 101: read-only Silver access for L5 Evidence article-detail.
 	silverStore, err := storage.NewSilverStore(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)

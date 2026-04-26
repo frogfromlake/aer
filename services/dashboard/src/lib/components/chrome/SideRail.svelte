@@ -19,10 +19,17 @@
   // today — Episteme/Aleph differ only in framing once L2/L3 panels read
   // them, and Rhizome has no data source. Tooltips reflect that reality
   // so the buttons are not silently misleading.
+  //
+  // Phase 113c / Bug 1: the abbreviated A/E/R buttons left the pillar
+  // grammar opaque. Each button now carries its full pillar name, and
+  // a Pillar info popover surfaces the WP-005 §6 / Brief §3.1 short
+  // gloss in-context — so the three pillars of the project's concept
+  // are explained on the surface itself, not only in tooltips.
   const PILLARS: readonly {
     id: ViewingMode;
     abbr: string;
     label: string;
+    blurb: string;
     hint: string;
     disabled?: boolean;
   }[] = [
@@ -30,22 +37,32 @@
       id: 'aleph',
       abbr: 'A',
       label: 'Aleph',
+      blurb: 'Synchronic totality — the weather now. Every observed probe, no filter (default).',
       hint: 'Aleph — totality (default). Every observed probe, no filter.'
     },
     {
       id: 'episteme',
       abbr: 'E',
       label: 'Episteme',
+      blurb:
+        'Diachronic knowledge register — the climate record. Long trends across the discursive formation. (Lever wired; dedicated rendering arrives in a later phase.)',
       hint: 'Episteme — knowledge register. Pillar lever wired, dedicated rendering arrives in a later phase.'
     },
     {
       id: 'rhizome',
       abbr: 'R',
       label: 'Rhizome',
+      blurb:
+        'Relational propagation — the currents between contexts. Lead-lag and cross-probe diffusion. (No data source yet; selectable but inert.)',
       hint: 'Rhizome — relational propagation. No data source yet; selectable but inert.',
       disabled: true
     }
   ];
+
+  let pillarInfoOpen = $state(false);
+  function togglePillarInfo() {
+    pillarInfoOpen = !pillarInfoOpen;
+  }
 
   const url = $derived(urlState());
   let activePillar = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
@@ -140,7 +157,19 @@
 
   <!-- Pillar-mode toggle -->
   <div class="pillar-section">
-    <span class="rail-eyebrow" aria-hidden="true">Pillar</span>
+    <div class="pillar-eyebrow">
+      <span class="rail-eyebrow" aria-hidden="true">Pillar</span>
+      <button
+        type="button"
+        class="pillar-info-btn"
+        aria-label="About the pillars"
+        aria-expanded={pillarInfoOpen}
+        title="What are Aleph, Episteme, Rhizome?"
+        onclick={togglePillarInfo}
+      >
+        <span aria-hidden="true">ⓘ</span>
+      </button>
+    </div>
     <div class="pillar-group" role="radiogroup" aria-label="Pillar mode">
       {#each PILLARS as p (p.id)}
         <button
@@ -157,11 +186,27 @@
             setUrl({ viewingMode: p.id });
           }}
         >
-          <span aria-hidden="true">{p.abbr}</span>
-          <span class="sr-only">{p.label}</span>
+          <span class="pillar-abbr" aria-hidden="true">{p.abbr}</span>
+          <span class="pillar-name">{p.label}</span>
         </button>
       {/each}
     </div>
+    {#if pillarInfoOpen}
+      <div class="pillar-info-popover" role="dialog" aria-label="Pillar concepts">
+        <p class="pillar-info-intro">
+          The three pillars frame how AĒR observes discourse (Brief §3.1, WP-005 §6):
+        </p>
+        <dl class="pillar-info-list">
+          {#each PILLARS as p (p.id)}
+            <div class="pillar-info-row">
+              <dt><strong>{p.label}</strong> <span class="pillar-info-abbr">({p.abbr})</span></dt>
+              <dd>{p.blurb}</dd>
+            </div>
+          {/each}
+        </dl>
+        <button type="button" class="pillar-info-close" onclick={togglePillarInfo}>Close</button>
+      </div>
+    {/if}
   </div>
 
   <div class="divider" role="separator" aria-hidden="true"></div>
@@ -338,20 +383,120 @@
 
   .pillar-btn {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 26px;
+    gap: 1px;
+    width: 44px;
+    padding: 3px 2px;
     background: transparent;
     color: var(--color-fg-muted);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    font-size: 11px;
     font-family: var(--font-ui);
     font-weight: var(--font-weight-medium);
     letter-spacing: 0.04em;
     cursor: pointer;
     transition: all var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .pillar-abbr {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .pillar-name {
+    font-size: 8px;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .pillar-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .pillar-info-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-fg-subtle);
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .pillar-info-btn:hover,
+  .pillar-info-btn:focus-visible {
+    color: var(--color-fg);
+    outline: none;
+  }
+
+  .pillar-info-popover {
+    position: fixed;
+    left: calc(var(--rail-width) + var(--space-2));
+    bottom: var(--space-3);
+    width: 18rem;
+    max-width: calc(100vw - var(--rail-width) - var(--space-4));
+    z-index: 460;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.5));
+    color: var(--color-fg);
+  }
+
+  .pillar-info-intro {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+  }
+
+  .pillar-info-list {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .pillar-info-row dt {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    margin-bottom: 2px;
+  }
+
+  .pillar-info-row dd {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+  }
+
+  .pillar-info-abbr {
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+  }
+
+  .pillar-info-close {
+    margin-top: var(--space-3);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+    padding: 2px var(--space-3);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+
+  .pillar-info-close:hover,
+  .pillar-info-close:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: none;
   }
 
   .pillar-btn:hover {
@@ -378,18 +523,6 @@
   .pillar-btn:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 
   @media (prefers-reduced-motion: reduce) {

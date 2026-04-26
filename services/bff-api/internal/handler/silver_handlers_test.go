@@ -292,7 +292,7 @@ func sampleEnvelope() *storage.SilverEnvelope {
 			Language:      "de",
 			Timestamp:     "2026-04-24T10:00:00Z",
 			URL:           "https://tagesschau.de/a/1",
-			SchemaVersion: "1.0",
+			SchemaVersion: 1,
 			WordCount:     1,
 		},
 		Meta:                 map[string]any{"feed_url": "https://tagesschau.de/rss"},

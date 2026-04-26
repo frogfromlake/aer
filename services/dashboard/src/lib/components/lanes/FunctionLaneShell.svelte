@@ -28,6 +28,7 @@
   import { setFocusedMetric } from '$lib/state/metric.svelte';
   import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import SilverIneligiblePanel from './SilverIneligiblePanel.svelte';
+  import LensBar from './LensBar.svelte';
 
   interface Props {
     functionKey: string;
@@ -201,6 +202,11 @@
       </p>
     {/if}
   </header>
+
+  <!-- Lens bar: metric × view-mode pair (Phase 113c). -->
+  {#if !isEmpty}
+    <LensBar />
+  {/if}
 
   <!-- Lane body -->
   <div class="lane-body">

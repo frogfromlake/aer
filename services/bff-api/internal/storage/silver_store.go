@@ -36,7 +36,7 @@ type SilverCore struct {
 	Language      string `json:"language"`
 	Timestamp     string `json:"timestamp"`
 	URL           string `json:"url"`
-	SchemaVersion string `json:"schema_version"`
+	SchemaVersion int    `json:"schema_version"`
 	WordCount     int    `json:"word_count"`
 }
 

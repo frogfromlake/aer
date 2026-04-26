@@ -180,7 +180,8 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 			cleaned_text_length UInt32,
 			word_count UInt32,
 			raw_entity_count UInt32,
-			ingestion_version UInt64 DEFAULT 0
+			ingestion_version UInt64 DEFAULT 0,
+			bronze_object_key String DEFAULT ''
 		) ENGINE = ReplacingMergeTree(ingestion_version)
 		ORDER BY (timestamp, source, article_id)
 	`)

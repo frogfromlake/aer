@@ -35,13 +35,18 @@ def raw_entity_count(cleaned_text: str) -> int:
     return len(_CAPITALIZED_TOKEN.findall(cleaned_text))
 
 
-def upload_silver_projection(ch_client, core, ingestion_version: int) -> None:
+def upload_silver_projection(ch_client, core, ingestion_version: int, bronze_object_key: str = "") -> None:
     """
     Insert a single projection row into aer_silver.documents.
 
     Failure is logged and swallowed: a missing projection row only impacts
     the aggregation endpoints, and the canonical Silver record is the MinIO
     envelope. Hard-failing here would jeopardize the rest of the pipeline.
+
+    bronze_object_key (Phase 113b / ADR-022) carries the MinIO Bronze key
+    forward into the analytical layer so the BFF can resolve
+    (article_id) → (bronze_object_key, source) without consulting the
+    operational PostgreSQL store.
     """
     try:
         row = [
@@ -53,6 +58,7 @@ def upload_silver_projection(ch_client, core, ingestion_version: int) -> None:
             int(core.word_count),
             raw_entity_count(core.cleaned_text or ""),
             ingestion_version,
+            bronze_object_key,
         ]
         ch_client.insert(
             SILVER_DOCS_TABLE,
@@ -66,6 +72,7 @@ def upload_silver_projection(ch_client, core, ingestion_version: int) -> None:
                 "word_count",
                 "raw_entity_count",
                 "ingestion_version",
+                "bronze_object_key",
             ],
         )
         logger.info(

@@ -159,7 +159,7 @@ class DataProcessor:
         # Phase 103b: write the Silver projection row to ClickHouse so the
         # aggregation endpoints can run as cheap GROUP BYs over
         # `aer_silver.documents` instead of scanning MinIO per request.
-        _silver_projection_module.upload_silver_projection(self.ch, core, ingestion_version)
+        _silver_projection_module.upload_silver_projection(self.ch, core, ingestion_version, obj_key)
 
         # Phase 91: wrap Gold inserts so a partial ClickHouse failure does not
         # NAK the message, causing a full reprocessing cycle.  Successfully

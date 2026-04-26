@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -266,7 +267,7 @@ func (s *Server) GetSilverDocumentDetail(ctx context.Context, request GetSilverD
 		Source:        envelope.Core.Source,
 		Timestamp:     timestamp,
 		CleanedText:   envelope.Core.CleanedText,
-		SchemaVersion: envelope.Core.SchemaVersion,
+		SchemaVersion: strconv.Itoa(envelope.Core.SchemaVersion),
 		WordCount:     envelope.Core.WordCount,
 	}
 	if envelope.Core.SourceType != "" {

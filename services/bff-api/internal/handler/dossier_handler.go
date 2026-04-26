@@ -316,7 +316,7 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 		Source:        envelope.Core.Source,
 		Timestamp:     timestamp,
 		CleanedText:   envelope.Core.CleanedText,
-		SchemaVersion: envelope.Core.SchemaVersion,
+		SchemaVersion: strconv.Itoa(envelope.Core.SchemaVersion),
 		WordCount:     envelope.Core.WordCount,
 	}
 	if envelope.Core.SourceType != "" {
