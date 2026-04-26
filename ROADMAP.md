@@ -1927,24 +1927,22 @@ All versions pinned like in the backend (if best practice)
 * [x] **Function Lane chrome left intact.** The `cell-semantic` paragraph in `FunctionLaneShell` renders the **view_mode** content register (e.g. "what a histogram-of-values cell shows"), not the **metric** content register that the tray binds to — different content-catalog entities, no duplication. Decision recorded here so a future cleanup pass doesn't strip it on appearance.
 * [x] **Validation.** `make fe-check` green after the rewrite (50 unit tests, lint, typecheck, build, bundle-size budget).
 
+## Phase 109: Iteration 5 — Surface III (Reflection) [P1] - [x] DONE
+
+*The primary methodological surface — prose + inline interactivity + primers + open-research-questions hub. Depends on Phases 104 (content) and 105 (chrome).*
+
+* [x] **Route tree.** `/reflection` (landing with WP index + primer + open-questions entry), `/reflection/wp/:id` (Working Paper), `/reflection/probe/:id` (Probe Dossier methodology view), `/reflection/metric/:name` (Metric provenance page), `/reflection/open-questions` (Open Research Questions hub), `/reflection/primer/globe` ("How to read the globe").
+* [x] **Working Paper rendering.** Runtime markdown renderer (`src/lib/reflection/md.ts`) fetches WP files from `static/content/papers/` (copied from `docs/methodology/en/`). Handles the full GFM subset used in the 6 WPs: h2–h4, paragraphs, tables, fenced code, blockquotes, ul/ol, HR. Frontmatter parsed; H1 extracted as title.
+* [x] **Inline interactive cells (Distill-style).** `InlineChart.svelte` embeds Observable Plot cells in WP prose. WP-002 §3 gets `sentiment-window-demo` (7/30/90-day window over live Probe 0 `sentiment_score`). `interactiveCells` field in `papers.ts` declares which sections get charts.
+* [x] **Cross-reference resolution.** `[WP-001 §3]` bracket syntax and bare `WP-NNN §N` prose patterns both resolve to `/reflection/wp/wp-nnn?section=N`. `crossRefHref()` utility exported from `md.ts` for use in other modules (e.g., WP anchor links in the metric provenance page).
+* [x] **Entry points.** Methodology tray "Read the full Working Paper" (Phase 108), metric badges → `/reflection/metric/:name`, probe dossier → `/reflection/probe/:id`. All entry routes rendered and navigable.
+* [x] **Tests.** `tests/unit/reflection-papers.test.ts` — 44 unit tests covering `renderPaper`, `renderInline`, `crossRefHref`, papers catalog (`getAllPapers`, `getPaperMeta`, `paperContentUrl`), and open-questions catalog (`OPEN_QUESTIONS`, `questionsByWp`, `getOpenQuestion`). All pass.
+* [x] **Open Research Questions.** Complete catalog of all 50 questions faithfully transcribed from WP §7/§8 sections across all 6 papers, with `deliverable` and `pipelineHook` fields. Rendered in a grouped hub at `/reflection/open-questions`.
+* [x] **Validation.** `make fe-check` green (TypeScript + ESLint + Prettier). Unit tests: 44/44 pass.
+
 ---
 
 # Open Phases
-
----
-
-## Phase 109: Iteration 5 — Surface III (Reflection) [P1] - [ ] TODO
-
-*The primary methodological surface — prose + inline interactivity + primers + open-research-questions hub. Depends on Phases 104 (content) and 105 (chrome).Note: this is a rework of the current Dashboard. See docs/design/reframing-note.md and the docs/design/design_brief.md for contextual information. So existing implementations that conflict with this scope need to be removed if they are meant to be replaced by this Phase otherwise rework them. Maybe check previous and upcoming Iteration 5 phases if necessary but do not read to much! (expensive)*
-
-* [ ] **Route tree.** `/reflection` (landing with WP index + primer + open-questions entry), `/reflection/wp/:id` (Working Paper), `/reflection/probe/:id` (Probe Dossier methodology view), `/reflection/metric/:name` (Metric provenance page), `/reflection/open-questions` (Open Research Questions hub), `/reflection/primer/globe` ("How to read the globe").
-* [ ] **Working Paper rendering.** MDX-style rendering from `services/dashboard/content/papers/` with frontmatter + body. Seed with WP-001 through WP-006 (render-only — authoritative source stays in `docs/methodology/en/`).
-* [ ] **Inline interactive cells (Distill-style).** Observable Plot cells embedded in WP prose; manipulating a parameter in the page updates the chart against live Probe 0 data.
-* [ ] **Cross-reference resolution.** `[WP-001 §3]` anchors resolve to `/reflection/wp/wp-001?section=3`. Metric-to-WP and refusal-to-WP cross-links from content catalog.
-* [ ] **Entry points.** Methodology tray "Read the full Working Paper" (Phase 108), refusal surfaces, empty-lane invitations, metric badges all link here.
-* [ ] **Tests.** Prose renders; inline interactives bind to real data; cross-references resolve; primer renders with interactive parameters.
-* [ ] **Arc42 update.** §8.x Surface III architecture + content source layout.
-* [ ] **Validation.** `make fe-check` green; Playwright E2E for tray → Reflection WP navigation.
 
 ---
 

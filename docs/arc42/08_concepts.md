@@ -817,3 +817,53 @@ No `FunctionLaneShell` change is required — the shell renders whatever the reg
 ### Bundle posture
 
 Observable Plot lands in its own dynamic-import chunk (~125 kB gzipped) only when the user selects the EDA × distribution cell. d3-force lands in a separate (smaller) chunk for the Network Science cell. The shell budget (80 kB gzipped, Phase 97) is unchanged; the second-largest lazy chunk budget is raised from 80 kB to 160 kB in `scripts/check-bundle-size.mjs` to accommodate Plot. The engine chunk budget (250 kB, Phase 99a) is unchanged.
+
+## 8.14 Surface III Architecture — Reflection (Phase 109)
+
+Surface III (Reflection) is the primary methodological surface of the AĒR dashboard. It renders the complete scientific foundation of the system as long-form, typographically disciplined content in the Distill.pub style. See [Design Brief §5.7 and §6](../design/design_brief.md) for the full design authority.
+
+### Route structure
+
+```
+/reflection                          ← landing: WP index + primer entry + open-questions entry
+/reflection/wp/[id]                  ← Working Paper reader (WP-001 through WP-006)
+/reflection/probe/[id]               ← Probe Dossier — methodological view
+/reflection/metric/[name]            ← Metric provenance — long-form algorithm + validation record
+/reflection/open-questions           ← Open Research Questions hub (all 50 questions, grouped by WP)
+/reflection/primer/globe             ← "How to read the globe" primer
+```
+
+All routes are `prerender = false; ssr = false` — served by the SPA fallback. The `/reflection/wp/[id]` load function fetches WP content at navigation time via a server-relative `fetch('/content/papers/wp-NNN.md')`.
+
+### Content sources
+
+Working Paper content is served from `services/dashboard/static/content/papers/` as static assets — copied from `docs/methodology/en/WP-{NNN}-en-*.md` at project time (render-only; the authoritative source remains in `docs/`). No build-time processing; the SvelteKit static adapter serves them verbatim and the browser fetches them in the `+page.ts` load function.
+
+Open Research Questions and paper metadata are static TypeScript modules (`src/lib/reflection/open-questions.ts`, `src/lib/reflection/papers.ts`) compiled into the bundle — no runtime fetch required.
+
+### Markdown renderer
+
+`src/lib/reflection/md.ts` implements a minimal GFM renderer targeting the exact subset used in the six WP files: h2–h4 (with slug IDs for anchor scrolling), paragraphs, fenced code blocks, blockquotes, HR, tables, unordered and ordered lists. Inline: bold, italic, inline code, standard links, and **WP cross-reference resolution**.
+
+Cross-reference resolution converts both `[WP-NNN §N]` bracket syntax and bare `WP-NNN §N` prose patterns into `<a class="cross-ref">` links pointing to `/reflection/wp/wp-nnn?section=N`. The `crossRefHref(anchor)` utility is exported for use by other modules (e.g., the metric provenance page resolves `workingPaperAnchors` from the content catalog). The renderer has no runtime dependencies and is fully unit-tested in `tests/unit/reflection-papers.test.ts`.
+
+### Inline interactive cells (Distill-style)
+
+The WP reader supports embedded Observable Plot cells after named sections. The `interactiveCells` field in `papers.ts` declares `{ afterSection, cellId }` pairs per paper; the WP page renders `<InlineChart cellId={…} />` after the corresponding section.
+
+`src/lib/components/reflection/InlineChart.svelte` fetches live Probe 0 data via TanStack Query and renders with Observable Plot. WP-002 §3 uses `sentiment-window-demo` — a 7/30/90-day windowed line chart of `sentiment_score`. The chart is responsive (ResizeObserver), uses design tokens for colours, and degrades gracefully when the BFF is unavailable.
+
+### Entry points
+
+Surface III is reachable from:
+- The left side rail (¶ glyph) — always visible.
+- Metric Badge components → `/reflection/metric/:name`.
+- Methodology Tray "Read the full Working Paper" links → `/reflection/wp/wp-NNN?section=…` (Phase 108).
+- Probe Dossier footer on Surface II → `/reflection/probe/:id`.
+- The globe primer link on Surface I's scope bar (Phase 110).
+
+### Open Research Questions hub
+
+`src/lib/reflection/open-questions.ts` contains all 50 open research questions faithfully transcribed from the §7 and §8 sections of WP-001 through WP-006. Each question carries: `disciplinaryScope`, `shortLabel`, full `question` text, optional `deliverable`, and optional `pipelineHook` (where external collaboration can contribute to the AĒR pipeline). The hub at `/reflection/open-questions` groups questions by source paper and renders the full catalog.
+
+See [Design Brief](../design/design_brief.md) for the Dual-Register communication pattern that governs how Reflection content is authored and presented. See §8.17 for the cross-cutting frontend architecture that hosts Surface III.

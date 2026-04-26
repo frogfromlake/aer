@@ -3,8 +3,8 @@
   // Persistent primary navigation: three surface anchors, return-to-Atmosphere
   // planet glyph, compact scope indicator, and pillar-mode toggle.
   //
-  // Phase 105: Function Lanes (/lanes) and Reflection (/reflection) navigate to
-  // stub pages — live surfaces follow in Phases 106 and 109 respectively.
+  // Phase 105: Function Lanes (/lanes) navigated to a stub page — live surface followed in Phase 106.
+  // Phase 109: Reflection (/reflection) is the live Surface III (Working Papers, primers, open questions).
   //
   // Keyboard: Tab/Shift+Tab cycles through interactive elements. All targets
   // are standard <a> or <button> elements, so browser focus handling is native.
@@ -62,7 +62,7 @@
       href: '/reflection',
       label: 'Reflection',
       glyph: '¶',
-      hint: 'Surface III — Reflection (Phase 109)'
+      hint: 'Surface III — Reflection (Working Papers, Primers, Open Questions)'
     }
   ]);
 
