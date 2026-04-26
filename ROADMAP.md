@@ -1903,31 +1903,39 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x View-Mode Matrix with the MVP cell list and the extensibility contract.
 * [x] **Validation.** `make fe-check` green.
 
+
+## Phase 108: Iteration 5 — Methodology Tray Content Binding [P1] - [x] DONE
+
+*Wires the tray component from Phase 105 to live content. The tray becomes the L4 Provenance surface reachable from every metric on every surface. Depends on Phases 104 (content), 105 (tray component), and 107 (metric focus is set by view-mode interactions).*
+
+* [x] **`focusedMetric` subscription.** Any chart, lane, or Dossier interaction sets the focused metric; tray updates in place without separate interaction.
+* [x] **Content flow.** Parallel fetches of `/api/v1/content/metric/{name}?locale=…` and `/api/v1/metrics/{name}/provenance`. Content rendered using `design_system.md` Epistemic Weight classes.
+* [x] **Closed-state binding.** Tier badge reflects live validation status; known-limitations indicator dot appears when any limitation applies to the current view.
+* [x] **Open-state binding.** Dual-Register rendering — methodological register primary per Brief §7.7. Known-limitations-first mode activates when Negative Space overlay is on (Phase 113).
+* [x] **Chart-level focus.** Clicking a specific time point, source, or entity scopes tray content to that selection and exposes only the relevant provenance.
+* [x] **"Read the full Working Paper" deep link.** Anchor into `/reflection/wp/{id}?section=…` — target route rendered in Phase 109; link works before then (stub target).
+* [x] **Tests.** Tray opens with correct content per focused metric; push→overlay fallback at narrow viewport; known-limitations-first mode under Negative Space.
+* [x] **Arc42 update.** §8.x Methodology Tray content binding contract.
+* [x] **Validation.** `make fe-check` green.
+
+**Notes.** Replaces the legacy `L4ProvenanceFlyout` (deleted) per the rework guidance — the tray is now the single L4 Provenance surface. Closed-state tier mapping is implemented in `methodology-tray-internals.ts` (collapses tier-2-unvalidated onto the tier-1-unvalidated visual; routes `expired` validation to the expired badge regardless of tier). Negative-space limitations-first mode is implemented as a CSS `flex order` reshuffle so the methodological register stays in the DOM (Brief §5.7). Working-Paper deep links emit `/reflection/wp/{id}?section=…` from the first `workingPaperAnchors` entry — Phase 109 materialises the route. Negative-space and tray-open state migrated from the per-page `+page.svelte` rune into a shared `$lib/state/tray.svelte.ts` store so the (app)-layout-mounted tray and the Surface I scope-bar toggle share state without prop-drilling.
+
+### Phase 108 follow-up (deduplication of Surface I vs Surface II vs tray)
+
+* [x] **Push-mode coexistence with the L3 SidePanel.** `SidePanel.svelte` honours `--tray-right-edge`, so opening the tray narrows the L3 panel (instead of being hidden behind it). Tray `z-index` raised to 1100 so it remains reachable in overlay-mode (<900 px) too. Resolves: clicking "Methodology" inside the L3 panel previously appeared to do nothing because the tray slid in behind the dashboard-sized SidePanel.
+* [x] **Slim L3 panel to a Surface II launchpad.** `L3AnalysisPanel.svelte` rewritten as a landing teaser: emic semantic paragraph (one register, not flippable), structural meta (probe / language / sources / pub rate), quick-jump tiles into Surface II (Probe Dossier + the four WP-001 Function Lanes), an explicit "Open methodology tray →" affordance, and the Brief §5.7 reach disclaimer. Removed: metric selector, per-probe `TimeSeriesChart`, `ProgressiveSemantics` (the methodological-register flip in the Phase 100a panel was the source of the duplication the user reported against the tray). No information lost — analysis lives on Surface II; methodological text lives in the tray. `+page.svelte` no longer passes `windowStart` / `windowEnd` / `resolution` to L3.
+* [x] **Function Lane chrome left intact.** The `cell-semantic` paragraph in `FunctionLaneShell` renders the **view_mode** content register (e.g. "what a histogram-of-values cell shows"), not the **metric** content register that the tray binds to — different content-catalog entities, no duplication. Decision recorded here so a future cleanup pass doesn't strip it on appearance.
+* [x] **Validation.** `make fe-check` green after the rewrite (50 unit tests, lint, typecheck, build, bundle-size budget).
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 108: Iteration 5 — Methodology Tray Content Binding [P1] - [ ] TODO
-
-*Wires the tray component from Phase 105 to live content. The tray becomes the L4 Provenance surface reachable from every metric on every surface. Depends on Phases 104 (content), 105 (tray component), and 107 (metric focus is set by view-mode interactions).*
-
-* [ ] **`focusedMetric` subscription.** Any chart, lane, or Dossier interaction sets the focused metric; tray updates in place without separate interaction.
-* [ ] **Content flow.** Parallel fetches of `/api/v1/content/metric/{name}?locale=…` and `/api/v1/metrics/{name}/provenance`. Content rendered using `design_system.md` Epistemic Weight classes.
-* [ ] **Closed-state binding.** Tier badge reflects live validation status; known-limitations indicator dot appears when any limitation applies to the current view.
-* [ ] **Open-state binding.** Dual-Register rendering — methodological register primary per Brief §7.7. Known-limitations-first mode activates when Negative Space overlay is on (Phase 113).
-* [ ] **Chart-level focus.** Clicking a specific time point, source, or entity scopes tray content to that selection and exposes only the relevant provenance.
-* [ ] **"Read the full Working Paper" deep link.** Anchor into `/reflection/wp/{id}?section=…` — target route rendered in Phase 109; link works before then (stub target).
-* [ ] **Tests.** Tray opens with correct content per focused metric; push→overlay fallback at narrow viewport; known-limitations-first mode under Negative Space.
-* [ ] **Arc42 update.** §8.x Methodology Tray content binding contract.
-* [ ] **Validation.** `make fe-check` green.
-
----
-
 ## Phase 109: Iteration 5 — Surface III (Reflection) [P1] - [ ] TODO
 
-*The primary methodological surface — prose + inline interactivity + primers + open-research-questions hub. Depends on Phases 104 (content) and 105 (chrome).*
+*The primary methodological surface — prose + inline interactivity + primers + open-research-questions hub. Depends on Phases 104 (content) and 105 (chrome).Note: this is a rework of the current Dashboard. See docs/design/reframing-note.md and the docs/design/design_brief.md for contextual information. So existing implementations that conflict with this scope need to be removed if they are meant to be replaced by this Phase otherwise rework them. Maybe check previous and upcoming Iteration 5 phases if necessary but do not read to much! (expensive)*
 
 * [ ] **Route tree.** `/reflection` (landing with WP index + primer + open-questions entry), `/reflection/wp/:id` (Working Paper), `/reflection/probe/:id` (Probe Dossier methodology view), `/reflection/metric/:name` (Metric provenance page), `/reflection/open-questions` (Open Research Questions hub), `/reflection/primer/globe` ("How to read the globe").
 * [ ] **Working Paper rendering.** MDX-style rendering from `services/dashboard/content/papers/` with frontmatter + body. Seed with WP-001 through WP-006 (render-only — authoritative source stays in `docs/methodology/en/`).

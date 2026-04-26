@@ -124,7 +124,12 @@
   .sidepanel {
     position: fixed;
     top: 0;
-    right: 0;
+    /* Push-mode coexistence with the methodology tray (Phase 108).
+       The tray is fixed to the right edge and writes
+       --tray-right-edge to :root on open. The SidePanel respects
+       that variable so the tray slides in *beside* the panel rather
+       than behind it — the panel narrows, the tray takes its space. */
+    right: var(--tray-right-edge, 0);
     bottom: 0;
     display: flex;
     flex-direction: column;
@@ -133,7 +138,14 @@
     border-left: 1px solid var(--color-border);
     box-shadow: var(--elevation-3);
     z-index: 1000;
+    transition: right var(--motion-duration-base) var(--motion-ease-emphasized);
     /* No backdrop: the Atmosphere must remain visible and legible. */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidepanel {
+      transition: none;
+    }
   }
   .size-default {
     width: min(92vw, 28rem);

@@ -25,6 +25,7 @@
     type ViewModeCellProps
   } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
+  import { setFocusedMetric } from '$lib/state/metric.svelte';
 
   interface Props {
     functionKey: string;
@@ -141,6 +142,20 @@
   let cellSources = $derived(
     laneSources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
   );
+
+  // Phase 108: every (probe, function-key, view-mode, metric, source-scope)
+  // change in the lane retargets the methodology tray. The chartContext
+  // string is opaque — the tray surfaces it as a "Selection" hint so the
+  // reader can see what the focused metric is currently scoped to.
+  $effect(() => {
+    if (isEmpty) return;
+    const ctxParts: string[] = [`probe ${dossier?.probeId ?? '—'}`, presentation.label];
+    if (sourceId) ctxParts.push(`source ${sourceId}`);
+    setFocusedMetric({
+      metricName,
+      chartContext: ctxParts.join(' · ')
+    });
+  });
 </script>
 
 <section class="lane" aria-labelledby="lane-heading-{functionKey}">

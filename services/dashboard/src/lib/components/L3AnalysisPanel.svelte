@@ -1,68 +1,56 @@
 <script lang="ts">
-  // L3 Analysis view content (Design Brief §4.3 — "the shape of the
-  // metric over time"). Slotted inside the existing `SidePanel`, this
-  // component replaces the metadata-only 99b panel body with a time-
-  // series chart driven by uPlot, a thin metric selector, and an L4
-  // provenance affordance at the chart's corner.
+  // Surface I — L3 landing teaser (Phase 108 cleanup pass).
   //
-  // Rendering responsibilities:
-  //   - Display a single (probe, metric) time-series over the current
-  //     time window. Values are the `value` column from /metrics; the
-  //     uncertainty band is the per-bucket min/max when available and
-  //     falls back to a ±0.05 visual band if not (documented below).
-  //   - Style the chart's weight by the metric's `validationStatus`
-  //     (Epistemic Weight — §5.7): validated → 1.0, unvalidated → 0.7,
-  //     expired → 0.55.
-  //   - Invoke `onOpenProvenance()` when the corner affordance is
-  //     activated, so the parent can toggle the L4 overlay.
+  // Pre-Phase-108 this panel duplicated Surface II's analysis: a metric
+  // selector, a per-probe time-series, and a full Dual-Register block.
+  // Surface II's Probe Dossier + Function Lanes (Phases 106 / 107) now
+  // own analysis, and the methodology tray (Phase 108) owns the
+  // methodological register. Keeping the chart + metric selector + a
+  // second Dual-Register surface here violated the reframing-note rule
+  // "no two surfaces do the same job" and produced the user-facing
+  // confusion that motivated this rewrite.
+  //
+  // The new contract is narrow: this panel anchors the user inside
+  // Surface I (emic frame + structural meta + reach-disclaimer) and
+  // lifts them into Surface II for actual analysis. Concretely:
+  //
+  //   - One inline semantic-register paragraph (emic anchoring frame).
+  //     The methodological register is *only* in the tray now.
+  //   - Structural meta: probe id, language, source count, pub rate.
+  //   - Quick-jump tiles: one per WP-001 discourse function plus a
+  //     "Probe Dossier" tile, each routing into Surface II.
+  //   - "Open methodology tray" affordance — explicit so first-time
+  //     readers discover the right-edge surface; the tray was always
+  //     reachable via the right-edge tab as well.
+  //   - Reach-disclaimer (Brief §5.7) remains.
+  //
+  // No chart, no metric selector, no Dual-Register flip. Surface II
+  // owns the chart-bearing analysis; the tray owns provenance.
   import { createQuery } from '@tanstack/svelte-query';
-  import TimeSeriesChart from '$lib/components/TimeSeriesChart.svelte';
-  import ProgressiveSemantics from '$lib/components/ProgressiveSemantics.svelte';
-  import { Button, SegmentedControl } from '$lib/components/base';
   import {
     contentQuery,
-    metricsQuery,
     type ContentResponseDto,
     type FetchContext,
-    type MetricsResponseDto,
     type ProbeDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import { setUrl, urlState } from '$lib/state/url.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import { trayOpen } from '$lib/state/tray.svelte';
 
   interface Props {
     probe: ProbeDto;
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
-    resolution: 'hourly' | '5min' | 'daily' | 'weekly' | 'monthly';
     onOpenProvenance: () => void;
     publicationRate: number | null;
   }
 
-  let { probe, ctx, windowStart, windowEnd, resolution, onOpenProvenance, publicationRate }: Props =
-    $props();
+  let { probe, ctx, onOpenProvenance, publicationRate }: Props = $props();
 
-  // Metric catalog for the selector — kept short on purpose. These are
-  // the gold metrics that exist at Phase 100a; the server's
-  // /metrics/available is the authoritative SSoT and a future pass will
-  // pull from there. Hard-coding the display labels is acceptable for
-  // the selector chrome only — every science-bearing string continues
-  // to come from the Content Catalog.
-  const METRICS: readonly { id: string; label: string; hint: string }[] = [
-    { id: 'sentiment_score', label: 'Sentiment', hint: 'SentiWS lexicon-based polarity' },
-    { id: 'word_count', label: 'Word count', hint: 'Tokenised word count per document' },
-    { id: 'entity_count', label: 'Entity count', hint: 'spaCy NER entity count per document' },
-    { id: 'language_confidence', label: 'Language', hint: 'langdetect confidence score' }
-  ];
+  const isTrayOpen = $derived(trayOpen());
 
-  const url = $derived(urlState());
-  let selectedMetric = $derived(url.metric ?? 'sentiment_score');
-
-  // Probe dual-register content — "no layer replaces" applies inside
-  // the panel too: L3 shows the chart *and* the emic designation so the
-  // reader never loses the anchoring frame.
+  // Probe content — used only for the inline emic semantic paragraph.
+  // The methodological register lives in the tray; do not render it
+  // here, otherwise we re-introduce the duplicate Dual-Register block.
   const contentQ = createQuery<
     QueryOutcome<ContentResponseDto>,
     Error,
@@ -72,188 +60,74 @@
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
-  const seriesQ = createQuery<
-    QueryOutcome<MetricsResponseDto>,
-    Error,
-    QueryOutcome<MetricsResponseDto>
-  >(() => {
-    // Fetch per-source slices and stitch them on the client. The BFF's
-    // /metrics endpoint returns one row per (timestamp, source) bucket;
-    // a probe is a bundle of sources, so the chart sums per-source
-    // values for each timestamp. For metrics like sentiment this
-    // aggregation is a weighted mean where `count` is the weight;
-    // falling back to a plain mean when counts are absent.
-    const o = metricsQuery(ctx, {
-      startDate: windowStart,
-      endDate: windowEnd,
-      metricName: selectedMetric,
-      resolution
-    });
-    return {
-      queryKey: [...o.queryKey, probe.probeId],
-      queryFn: o.queryFn,
-      staleTime: o.staleTime
-    };
-  });
-
-  interface ChartData {
-    x: number[];
-    y: number[];
-    yLow: number[];
-    yHigh: number[];
-  }
-
-  let chart = $derived.by<ChartData | null>(() => {
-    const r = seriesQ.data;
-    if (r?.kind !== 'success') return null;
-    const rowsBySource = new Set(probe.sources);
-    // Plain record indexed by epoch-seconds. We never mutate it outside
-    // this derivation and the linter's SvelteMap rule targets long-lived
-    // maps in reactive scope — this one is recreated per call.
-    const byTs: Record<
-      string,
-      { sum: number; weightSum: number; min: number; max: number; n: number }
-    > = {};
-    for (const row of r.data.data) {
-      if (!rowsBySource.has(row.source)) continue;
-      const t = Math.floor(Date.parse(row.timestamp) / 1000);
-      if (!Number.isFinite(t)) continue;
-      const w = row.count ?? 1;
-      const v = row.value;
-      const key = String(t);
-      const b = byTs[key];
-      if (!b) {
-        byTs[key] = { sum: v * w, weightSum: w, min: v, max: v, n: 1 };
-      } else {
-        b.sum += v * w;
-        b.weightSum += w;
-        b.min = Math.min(b.min, v);
-        b.max = Math.max(b.max, v);
-        b.n += 1;
-      }
-    }
-    const keys = Object.keys(byTs)
-      .map((k) => Number(k))
-      .sort((a, b) => a - b);
-    if (keys.length === 0) return null;
-    const x: number[] = [];
-    const y: number[] = [];
-    const yLow: number[] = [];
-    const yHigh: number[] = [];
-    for (const k of keys) {
-      const b = byTs[String(k)]!;
-      const mean = b.weightSum > 0 ? b.sum / b.weightSum : b.min;
-      x.push(k);
-      y.push(mean);
-      // When only one source contributed to a bucket we have no
-      // intra-bucket variance to show; fall back to a narrow visual
-      // band (±2% of the mean's magnitude, or 0.02 minimum) rather
-      // than inventing a false-precision interval.
-      if (b.n > 1) {
-        yLow.push(b.min);
-        yHigh.push(b.max);
-      } else {
-        const pad = Math.max(0.02, Math.abs(mean) * 0.02);
-        yLow.push(mean - pad);
-        yHigh.push(mean + pad);
-      }
-    }
-    return { x, y, yLow, yHigh };
-  });
-
-  // Epistemic Weight — hard-coded default weights until we wire up the
-  // per-metric `validationStatus` lookup in a follow-up pass. For the
-  // phase-100a scope every Phase 42 extractor reports `unvalidated`
-  // (per Arc42 §8.14), so the conservative 0.7 weight matches reality.
-  let weight = 0.7;
-
-  let windowLabel = $derived(
-    `${new Date(windowStart).toISOString().slice(0, 16).replace('T', ' ')}Z → ${new Date(windowEnd).toISOString().slice(0, 16).replace('T', ' ')}Z`
-  );
+  // WP-001 discourse functions — same canonical order as the lane
+  // layout (`/lanes/[probeId]/+layout.svelte`). Labels duplicate the
+  // lane chrome rather than fetching from `discourse_function/<key>`
+  // because this is navigation chrome, not science-bearing copy.
+  const FUNCTIONS: readonly { key: string; label: string; abbr: string }[] = [
+    { key: 'epistemic_authority', label: 'Epistemic Authority', abbr: 'EA' },
+    { key: 'power_legitimation', label: 'Power Legitimation', abbr: 'PL' },
+    { key: 'cohesion_identity', label: 'Cohesion & Identity', abbr: 'CI' },
+    { key: 'subversion_friction', label: 'Subversion & Friction', abbr: 'SF' }
+  ];
 </script>
 
-<section class="l3" aria-label="Analysis view">
-  <header class="head">
-    <SegmentedControl
-      options={METRICS}
-      value={selectedMetric}
-      onChange={(next) =>
-        setUrl({
-          metric: next,
-          view: 'analysis'
-        })}
-      ariaLabel="Metric"
-      label="Metric"
-    />
-    <Button
-      variant="secondary"
-      size="sm"
-      onclick={onOpenProvenance}
-      aria-label="Open methodology and provenance for {selectedMetric}"
-    >
-      Methodology
-    </Button>
-  </header>
+<section class="l3" aria-label="Probe landing">
+  {#if contentQ.data?.kind === 'success'}
+    <p class="emic-frame">{contentQ.data.data.registers.semantic.long}</p>
+  {:else if contentQ.data?.kind === 'refusal'}
+    <RefusalSurface refusal={contentQ.data} {ctx} />
+  {:else if contentQ.isPending}
+    <p class="muted" aria-busy="true">…</p>
+  {/if}
 
-  <figure class="chart-frame">
-    <figcaption class="caption">
-      <span class="caption-title">{selectedMetric} <span class="muted">— {windowLabel}</span></span>
-      <span class="legend" aria-hidden="true">
-        <span class="legend-line"></span>
-        <span>Mean</span>
-        <span class="legend-band"></span>
-        <span>Observed min–max per bucket</span>
-      </span>
-    </figcaption>
+  <dl class="meta">
+    <div>
+      <dt>Probe</dt>
+      <dd><code>{probe.probeId}</code></dd>
+    </div>
+    <div>
+      <dt>Language</dt>
+      <dd>{probe.language.toUpperCase()}</dd>
+    </div>
+    <div>
+      <dt>Sources</dt>
+      <dd>{probe.sources.length}</dd>
+    </div>
+    <div>
+      <dt>Publication rate</dt>
+      <dd>{publicationRate !== null ? `${publicationRate.toFixed(1)} docs/h` : '—'}</dd>
+    </div>
+  </dl>
 
-    {#if seriesQ.isPending}
-      <p class="muted" aria-busy="true">Loading series…</p>
-    {:else if seriesQ.data?.kind === 'refusal'}
-      <RefusalSurface refusal={seriesQ.data} {ctx} />
-    {:else if seriesQ.isError || seriesQ.data?.kind === 'network-error'}
-      <p class="muted">Series unavailable.</p>
-    {:else if chart && chart.x.length > 0}
-      <TimeSeriesChart
-        x={chart.x}
-        y={chart.y}
-        yLow={chart.yLow}
-        yHigh={chart.yHigh}
-        yLabel={selectedMetric}
-        {weight}
-        height={420}
-        ariaLabel="Time-series of {selectedMetric} for {probe.probeId}"
-      />
-    {:else}
-      <p class="muted">
-        No observations for this probe in the selected window. Widen the time range at L2.
-      </p>
-    {/if}
-  </figure>
+  <nav class="jump" aria-label="Open in Surface II">
+    <p class="jump-eyebrow">Analyse this probe</p>
+    <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface II routes -->
+    <a class="jump-tile primary" href="/lanes/{probe.probeId}/dossier">
+      <span class="tile-title">Probe Dossier</span>
+      <span class="tile-sub">Source cards · per-source articles · Silver eligibility</span>
+    </a>
+    <div class="jump-grid">
+      {#each FUNCTIONS as fn (fn.key)}
+        <a class="jump-tile" href="/lanes/{probe.probeId}/{fn.key}">
+          <span class="tile-abbr" aria-hidden="true">{fn.abbr}</span>
+          <span class="tile-title">{fn.label}</span>
+          <span class="tile-sub">View-mode matrix · time-series · distribution · network</span>
+        </a>
+      {/each}
+    </div>
+    <!-- eslint-enable svelte/no-navigation-without-resolve -->
+  </nav>
 
-  <section class="context-row">
-    <dl class="meta">
-      <div>
-        <dt>Probe</dt>
-        <dd><code>{probe.probeId}</code></dd>
-      </div>
-      <div>
-        <dt>Language</dt>
-        <dd>{probe.language.toUpperCase()}</dd>
-      </div>
-      <div>
-        <dt>Publication rate</dt>
-        <dd>{publicationRate !== null ? `${publicationRate.toFixed(1)} docs/h` : '—'}</dd>
-      </div>
-    </dl>
-
-    {#if contentQ.data?.kind === 'success'}
-      <div class="registers">
-        <ProgressiveSemantics registers={contentQ.data.data.registers} emphasis="semantic" />
-      </div>
-    {:else if contentQ.data?.kind === 'refusal'}
-      <RefusalSurface refusal={contentQ.data} {ctx} />
-    {/if}
-  </section>
+  <button
+    type="button"
+    class="meth-link"
+    aria-pressed={isTrayOpen}
+    aria-label="{isTrayOpen ? 'Close' : 'Open'} methodology tray for this probe"
+    onclick={onOpenProvenance}
+  >
+    {isTrayOpen ? 'Close methodology tray ←' : 'Open methodology tray →'}
+  </button>
 
   <p class="reach-note">
     Reach is not rendered. This probe's emission points mark where its bound publishers emit — not
@@ -266,72 +140,23 @@
   .l3 {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-5);
     min-height: 100%;
   }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
-  .chart-frame {
+
+  .emic-frame {
     margin: 0;
-    padding: var(--space-4);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.02);
-  }
-  .caption {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-    font-size: var(--font-size-sm);
+    padding: var(--space-3) 0;
     color: var(--color-fg);
-    margin-bottom: var(--space-3);
+    font-size: var(--font-size-base);
+    line-height: 1.55;
+    border-left: 2px solid var(--color-accent);
+    padding-left: var(--space-3);
   }
-  .caption-title {
-    font-family: var(--font-family-mono);
-  }
-  /* Inline legend — explains the shaded uncertainty band next to the
-     chart rather than hiding the explanation at L4. */
-  .legend {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    color: var(--color-fg-muted);
-    font-size: 11px;
-  }
-  .legend-line {
-    display: inline-block;
-    width: 18px;
-    height: 2px;
-    background: #5283b8;
-    border-radius: 1px;
-  }
-  .legend-band {
-    display: inline-block;
-    width: 18px;
-    height: 10px;
-    background: rgba(82, 131, 184, 0.22);
-    border: 1px solid rgba(82, 131, 184, 0.45);
-    border-radius: 2px;
-    margin-left: var(--space-3);
-  }
-  .context-row {
-    display: grid;
-    grid-template-columns: minmax(12rem, 1fr) 2fr;
-    gap: var(--space-5);
-    align-items: start;
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--color-border);
-  }
+
   dl.meta {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto 1fr;
     gap: var(--space-1) var(--space-3);
     margin: 0;
     font-size: var(--font-size-xs);
@@ -344,15 +169,101 @@
   }
   dd {
     margin: 0;
+    color: var(--color-fg);
   }
-  .muted {
+
+  .jump {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .jump-eyebrow {
+    margin: 0;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+  }
+
+  .jump-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .jump-tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--color-fg);
+    transition:
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      background var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .jump-tile:hover,
+  .jump-tile:focus-visible {
+    border-color: var(--color-accent-muted);
+    background: var(--color-bg-elevated);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .jump-tile.primary {
+    background: rgba(82, 131, 184, 0.08);
+    border-color: var(--color-accent-muted);
+  }
+
+  .tile-abbr {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-accent);
+    letter-spacing: 0.05em;
+  }
+
+  .tile-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .tile-sub {
+    font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
   }
-  @media (max-width: 720px) {
-    .context-row {
-      grid-template-columns: 1fr;
-    }
+
+  .meth-link {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    cursor: pointer;
   }
+
+  .meth-link:hover,
+  .meth-link:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .muted {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    margin: 0;
+  }
+
   .reach-note {
     margin: 0;
     padding-top: var(--space-4);
@@ -360,5 +271,11 @@
     color: var(--color-fg-muted);
     font-size: var(--font-size-xs);
     line-height: 1.55;
+  }
+
+  @media (max-width: 720px) {
+    dl.meta {
+      grid-template-columns: auto 1fr;
+    }
   }
 </style>

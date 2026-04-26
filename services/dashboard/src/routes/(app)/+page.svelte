@@ -33,11 +33,17 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
   import L3AnalysisPanel from '$lib/components/L3AnalysisPanel.svelte';
-  import L4ProvenanceFlyout from '$lib/components/L4ProvenanceFlyout.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { SidePanel } from '$lib/components/base';
   import { setUrl, urlState } from '$lib/state/url.svelte';
+  import { setFocusedMetric } from '$lib/state/metric.svelte';
+  import {
+    negativeSpaceActive,
+    setNegativeSpaceActive,
+    setTrayOpen,
+    trayOpen
+  } from '$lib/state/tray.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import type { Resolution } from '$lib/state/url-internals';
   import {
@@ -135,7 +141,6 @@
   // --- Selection + descent layer --------------------------------------
   let selected: ProbeSelection | null = $state(null);
   let panelOpen = $state(false);
-  let provenanceOpen = $state(false);
 
   /**
    * Run a transition wrapped in the View Transitions API when available.
@@ -199,10 +204,11 @@
 
   function onPanelClose() {
     descend(() => {
-      provenanceOpen = false;
       panelOpen = false;
       selected = null;
     });
+    setTrayOpen(false);
+    setFocusedMetric(null);
     setUrl({
       probe: null,
       emissionPoint: null,
@@ -256,13 +262,6 @@
     // ascent lands correctly even though the L4 overlay is not inside
     // the SidePanel DOM.
     if (e.key === 'Escape') {
-      if (provenanceOpen) {
-        e.preventDefault();
-        descend(() => {
-          provenanceOpen = false;
-        });
-        return;
-      }
       if (panelOpen) {
         e.preventDefault();
         onPanelClose();
@@ -281,8 +280,10 @@
     activity.find((a) => a.probeId === selected?.probeId)?.documentsPerHour ?? null
   );
 
-  // Negative Space overlay — structural only (see component comment).
-  let negativeSpaceActive = $state(false);
+  // Negative Space overlay state lives in $lib/state/tray (Phase 108)
+  // so the methodology tray can switch into limitations-first mode
+  // without prop-drilling through the (app) layout.
+  const negSpace = $derived(negativeSpaceActive());
 
   let windowLabel = $derived(
     `${new Date(windowMs.start).toISOString().slice(0, 16).replace('T', ' ')}Z → ${new Date(
@@ -294,7 +295,6 @@
   );
 
   let resolutionForL3 = $derived(url.resolution ?? 'hourly');
-  let metricForL4 = $derived(url.metric ?? 'sentiment_score');
 </script>
 
 <svelte:head>
@@ -317,10 +317,7 @@
       {/each}
     </select>
   </label>
-  <NegativeSpaceToggle
-    active={negativeSpaceActive}
-    onToggle={(next) => (negativeSpaceActive = next)}
-  />
+  <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
 </ScopeBar>
 
 {#if decision === 'engine'}
@@ -390,22 +387,18 @@
       <L3AnalysisPanel
         probe={selectedProbeDto}
         {ctx}
-        windowStart={windowMs.start}
-        windowEnd={windowMs.end}
-        resolution={resolutionForL3}
         publicationRate={selectedRate}
-        onOpenProvenance={() => descend(() => (provenanceOpen = true))}
+        onOpenProvenance={() => {
+          // Toggle, not just open: a second click on the panel's
+          // affordance closes the tray, matching the right-edge tab
+          // behaviour. Focus is set unconditionally so re-opening
+          // lands on the current metric.
+          setFocusedMetric({ metricName: url.metric ?? 'sentiment_score' });
+          setTrayOpen(!trayOpen());
+        }}
       />
     {/if}
   </SidePanel>
-
-  {#if provenanceOpen && panelOpen}
-    <L4ProvenanceFlyout
-      metricName={metricForL4}
-      {ctx}
-      onClose={() => descend(() => (provenanceOpen = false))}
-    />
-  {/if}
 
   {#if probesQ.data?.kind === 'refusal'}
     <div class="refusal-slot">

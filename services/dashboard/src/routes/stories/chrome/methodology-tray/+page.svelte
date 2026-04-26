@@ -1,14 +1,57 @@
 <script lang="ts">
   import MethodologyTray from '$lib/components/chrome/MethodologyTray.svelte';
+  import { setFocusedMetric } from '$lib/state/metric.svelte';
+  import {
+    negativeSpaceActive,
+    setNegativeSpaceActive,
+    setTrayOpen,
+    trayOpen
+  } from '$lib/state/tray.svelte';
+
+  const open = $derived(trayOpen());
+  const negSpace = $derived(negativeSpaceActive());
 </script>
 
 <div class="story">
   <h2>MethodologyTray</h2>
   <p class="desc">
-    Right-edge methodology tray shell (Design Brief §3.3). Content binding ships in Phase 108.
-    Closed state: narrow tab strip with rotated "Methodology" label. Open state: full-height panel
-    in push-mode (narrows scope bar + surface content). Overlay-mode fallback below 900 px.
+    Right-edge methodology tray (Design Brief §3.3, §5.7). Phase 108 binds the tray to live
+    /content/metric and /metrics/{name}/provenance feeds. Closed state shows the live tier badge and
+    a known-limitations indicator dot when applicable. Open state renders the Dual-Register
+    methodological content with a "Read the full Working Paper" deep link. Overlay-mode fallback
+    below 900 px.
   </p>
+
+  <div class="controls" role="group" aria-label="Story controls">
+    <button type="button" onclick={() => setTrayOpen(!open)}>
+      {open ? 'Close' : 'Open'} tray
+    </button>
+    <button type="button" onclick={() => setFocusedMetric({ metricName: 'sentiment_score' })}>
+      Focus: sentiment_score
+    </button>
+    <button type="button" onclick={() => setFocusedMetric({ metricName: 'word_count' })}>
+      Focus: word_count
+    </button>
+    <button
+      type="button"
+      onclick={() =>
+        setFocusedMetric({
+          metricName: 'sentiment_score',
+          chartContext: 'probe-0 · 2026-04-22T14:00Z'
+        })}
+    >
+      Focus + chart context
+    </button>
+    <button type="button" onclick={() => setFocusedMetric(null)}>Clear focus</button>
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={negSpace}
+        onchange={(e) => setNegativeSpaceActive((e.currentTarget as HTMLInputElement).checked)}
+      />
+      Negative Space (limitations-first)
+    </label>
+  </div>
 
   <p class="note">
     The tray is fixed-position in production. In this story it renders at the right edge of the
@@ -88,6 +131,28 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     line-height: var(--line-height-base);
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  .controls button {
+    padding: 4px 10px;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
   }
   .a11y {
     display: flex;
