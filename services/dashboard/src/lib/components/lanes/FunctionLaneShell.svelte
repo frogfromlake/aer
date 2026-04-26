@@ -26,6 +26,7 @@
   } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
   import { setFocusedMetric } from '$lib/state/metric.svelte';
+  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import SilverIneligiblePanel from './SilverIneligiblePanel.svelte';
 
   interface Props {
@@ -100,6 +101,9 @@
   // Phase 111 — Silver-layer routing.
   let dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
 
+  // Phase 112 — Negative Space overlay.
+  const negSpace = $derived(negativeSpaceActive());
+
   // Active source record from the dossier (null when using probe scope).
   let activeSourceRecord = $derived(
     sourceId ? (dossier?.sources.find((s) => s.name === sourceId) ?? null) : null
@@ -173,7 +177,7 @@
   });
 </script>
 
-<section class="lane" aria-labelledby="lane-heading-{functionKey}">
+<section class="lane" class:neg-space={negSpace} aria-labelledby="lane-heading-{functionKey}">
   <!-- Lane header -->
   <header class="lane-header">
     <div class="lane-identity">
@@ -200,9 +204,27 @@
 
   <!-- Lane body -->
   <div class="lane-body">
+    {#if negSpace && !isEmpty}
+      <!-- Surface II — Negative Space mode: demographic-skew annotation (Phase 112).
+           WP-003 §6.1 documents the demographic opacity of the current source selection. -->
+      <aside class="demographic-annotation" aria-label="Demographic scope note">
+        <span class="annotation-glyph" aria-hidden="true">∅</span>
+        <div class="annotation-body">
+          <p class="annotation-lead">Demographic scope boundary</p>
+          <p class="annotation-text">
+            Sources in this lane may not reflect the full demographic spectrum of the discourse
+            domain. Speaker identity, age, gender, class, and regional variation are not captured by
+            current probes. —
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal WP route -->
+            <a class="annotation-ref" href="/reflection/wp/wp-003?section=6.1">WP-003 §6.1</a>
+          </p>
+        </div>
+      </aside>
+    {/if}
+
     {#if isEmpty}
       <!-- Empty-lane invitation from Content Catalog -->
-      <div class="empty-lane" role="status">
+      <div class="empty-lane" class:neg-space-prominent={negSpace} role="status">
         {#if emptyContentQ.isPending}
           <p class="muted" aria-busy="true">…</p>
         {:else if emptyContentQ.data?.kind === 'success'}
@@ -347,6 +369,68 @@
     background: var(--color-bg-elevated);
     border: 1px dashed var(--color-border-strong);
     border-radius: var(--radius-lg);
+  }
+
+  /* Negative Space mode — empty lanes become visually prominent (Phase 112).
+     An absence IS data; empty lanes gain a positive visual weight rather than
+     fading into the background. */
+  .empty-lane.neg-space-prominent {
+    background: rgba(82, 131, 184, 0.06);
+    border-style: solid;
+    border-color: rgba(82, 131, 184, 0.4);
+  }
+
+  /* Demographic-skew annotation — shown in the lane body when negSpace is on. */
+  .demographic-annotation {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: rgba(82, 131, 184, 0.06);
+    border: 1px solid rgba(82, 131, 184, 0.3);
+    border-left: 3px solid rgba(82, 131, 184, 0.6);
+    border-radius: var(--radius-md);
+  }
+
+  .annotation-glyph {
+    font-size: 1.2rem;
+    color: rgba(82, 131, 184, 0.7);
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+
+  .annotation-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .annotation-lead {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(82, 131, 184, 0.9);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+  }
+
+  .annotation-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+    margin: 0;
+    max-width: 60ch;
+  }
+
+  .annotation-ref {
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent);
+  }
+
+  .annotation-ref:hover,
+  .annotation-ref:focus-visible {
+    color: var(--color-fg);
+    border-bottom-color: var(--color-fg);
   }
 
   .invitation {

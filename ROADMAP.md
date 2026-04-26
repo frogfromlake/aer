@@ -1965,31 +1965,36 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x Silver-Layer Toggle + the eligibility-gate UX contract.
 * [x] **Validation.** `make fe-check` green.
 
+
+## Phase 112: Iteration 5 — Negative Space Overlay [P2] - [x] DONE
+
+*"What AĒR doesn't see" toggle wired across all surfaces per Brief §4.4 and §5.4. Depends on Phases 106 and 108. Demographic-opacity layer (WP-003 §6) annotations on Surface II charts. Coverage-map foregrounding on Surface I. Known-limitations-first mode for the methodology tray. This is also part of an open research question but for now we follow the docu.*
+
+* [x] **Toggle component.** Negative Space toggle in the left rail (Phase 105). Persistent visible state indicator. URL state carries overlay.
+* [x] **Surface I behavior.** Absence regions become prominent (positively marked unmonitored areas); coverage map (WP-001 §5.3) becomes legible per region.
+* [x] **Surface II behavior.** Empty lanes gain prominence; charts gain demographic-skew annotations in the margin from WP-003 §6.1 content entries.
+* [x] **Surface III behavior.** Absence-prose scrolls into the margin on Working Paper views.
+* [x] **Methodology tray behavior.** Known-limitations-first mode (bumps limitations to the top of tray content) activates when overlay is on — wired in Phase 108; verified here end-to-end.
+* [x] **Tests.** Toggle interaction; per-surface rendering differences; URL-state round-trip; axe gate passing with overlay on.
+* [x] **Arc42 update.** §8.x Negative Space Overlay behavior matrix.
+* [x] **Validation.** `make fe-check` green.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 112: Iteration 5 — Negative Space Overlay [P2] - [ ] TODO
-
-*"What AĒR doesn't see" toggle wired across all surfaces per Brief §4.4 and §5.4. Depends on Phases 106 and 108.*
-
-* [ ] **Toggle component.** Negative Space toggle in the left rail (Phase 105). Persistent visible state indicator. URL state carries overlay.
-* [ ] **Surface I behavior.** Absence regions become prominent (positively marked unmonitored areas); coverage map (WP-001 §5.3) becomes legible per region.
-* [ ] **Surface II behavior.** Empty lanes gain prominence; charts gain demographic-skew annotations in the margin from WP-003 §6.1 content entries.
-* [ ] **Surface III behavior.** Absence-prose scrolls into the margin on Working Paper views.
-* [ ] **Methodology tray behavior.** Known-limitations-first mode (bumps limitations to the top of tray content) activates when overlay is on — wired in Phase 108; verified here end-to-end.
-* [ ] **Tests.** Toggle interaction; per-surface rendering differences; URL-state round-trip; axe gate passing with overlay on.
-* [ ] **Arc42 update.** §8.x Negative Space Overlay behavior matrix.
-* [ ] **Validation.** `make fe-check` green.
-
----
-
 ## Phase 113: Iteration 5 — Bug fixing [P2] - [ ] TODO
 *This phase covers all bugs and issues found in Iteration 5 implementation phases. If major changes are required or structural/architectural adjustments are necessary whe have to document it in the ADR-20 that covers the dashboard implementation*
 
-* [ ] **Bug 1 - ** `` .
+* [ ] **Bug 1 - Backend: Medaillon Data** The dashboard shows way less Gold-Metric sources then silver sources. I think the NLP pipeline or something else is failing silently a lot and fails to extract metrics for a lot of silver data. We also need to check if bronze to silver transition is working or if we losing articles.
+* [ ] **Bug 2 - Dashboard: A E R Buttons** The bottom left "A", "E", "R" Buttons seem to have no functionality at all. Did we miss something? Or are they deprecated?
+* [ ] **Bug 3 - Dashboard** Left side rail with globe, lane, reflection buttons: 1. We have a duplicate button for globe view (top one seems nice since its colored). 2. Those buttons (including neg space and A, E, R if we keep it) are essential but have no labels. The user does not know what es clicks and they are "invisible". We need to make them more visible without growing the rail to much.
+* [ ] **Bug 4 - Dashboard** The resolution dropdown needs to be fully darkmode. Its background and options are currently white.
+* [ ] **Bug 5 - Dashboard** Right side rail (methodology) shows a red hint which (validation is expired) on probes with expired validation. It is cut off since it is to wide on the collapsed rail. The Methodology label already shows a red dot which could be enough. The validation expires hint should display only inside the rail when it is expanded.
+* [ ] **Bug 6 - Dashboard** When clicking a Probe and switch to Lanes view (http://localhost:5173/lanes/probe-0-de-institutional-rss/dossier) we have several issues: 1. bundesregierung source card shows NO article counts on the "View articles" button. 2. All cards "view" source button on the article list returning an error "Failed to load article. Check network connectivity.". 3. All cards show a 404 Not found when clicking on the "Dossier" button.
+* [ ] **Bug 6 - Dashboard** The codebase uses the domainlanguage "Surface", "Layer" etc. but the Dashboard does not really reflect this. Only in on hover tooltips. Its a bit confusing because a new user reading the docu does not really see if he is on a surface or on a layer or whatever.
 * [ ] **Validation.** `make fe-check` green.
 
 ---

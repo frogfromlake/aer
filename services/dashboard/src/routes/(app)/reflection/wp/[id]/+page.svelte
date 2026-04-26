@@ -11,6 +11,7 @@
   import { onMount } from 'svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import InlineChart from '$lib/components/reflection/InlineChart.svelte';
+  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { PageData } from './$types';
 
   interface Props {
@@ -26,6 +27,8 @@
 
   // Active section from URL ?section= param
   const sectionParam = $derived(page.url.searchParams.get('section') ?? null);
+
+  const negSpace = $derived(negativeSpaceActive());
 
   // Scroll to the requested section after mount
   onMount(() => {
@@ -72,10 +75,27 @@
   {/if}
 </ScopeBar>
 
-<div class="wp-layout" id="main-reflection-wp">
-  <!-- Table of contents (sticky sidebar on wide screens) -->
+<div class="wp-layout" class:neg-space={negSpace} id="main-reflection-wp">
+  <!-- Table of contents / absence margin (sticky sidebar on wide screens) -->
   {#if mainSections.length > 0}
     <nav class="toc" aria-label="Table of contents">
+      {#if negSpace}
+        <!-- Surface III — Negative Space mode: scope boundary annotation (Phase 112).
+             Absence-prose scrolls alongside the paper body per Design Brief §5.4. -->
+        <aside class="absence-margin" aria-label="Scope boundary notes">
+          <p class="absence-margin-heading">
+            <span aria-hidden="true">∅</span> Scope boundary
+          </p>
+          <p class="absence-margin-text">
+            This Working Paper documents the methodological boundaries of what AĒR observes. The
+            system does not capture demographic variation, informal discourse, or sources outside
+            active probes. Absence is data.
+          </p>
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a class="absence-margin-ref" href="/reflection/wp/wp-001?section=5.3">WP-001 §5.3</a>
+        </aside>
+        <hr class="absence-divider" aria-hidden="true" />
+      {/if}
       <p class="toc-heading">Contents</p>
       <ol class="toc-list">
         {#each mainSections as s (s.id)}
@@ -229,6 +249,63 @@
     overflow-y: auto;
     padding: var(--space-5) var(--space-3);
     background: var(--color-bg-elevated);
+  }
+
+  /* Negative Space mode — TOC column highlights the scope boundary (Phase 112). */
+  .neg-space .toc {
+    border-right-color: rgba(82, 131, 184, 0.4);
+    background: color-mix(in srgb, var(--color-bg-elevated) 90%, rgba(82, 131, 184, 0.15));
+  }
+
+  /* Absence margin annotation */
+  .absence-margin {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: rgba(82, 131, 184, 0.07);
+    border: 1px solid rgba(82, 131, 184, 0.25);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+  }
+
+  .absence-margin-heading {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: var(--font-weight-semibold);
+    color: rgba(82, 131, 184, 0.9);
+    margin: 0;
+  }
+
+  .absence-margin-text {
+    font-size: 11px;
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+    margin: 0;
+  }
+
+  .absence-margin-ref {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent);
+    align-self: flex-start;
+  }
+
+  .absence-margin-ref:hover,
+  .absence-margin-ref:focus-visible {
+    color: var(--color-fg);
+    border-bottom-color: var(--color-fg);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .absence-divider {
+    border: none;
+    border-top: 1px solid rgba(82, 131, 184, 0.25);
+    margin: 0 0 var(--space-3);
   }
 
   .toc-heading {

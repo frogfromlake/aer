@@ -39,17 +39,11 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
   import L3AnalysisPanel from '$lib/components/L3AnalysisPanel.svelte';
-  import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { SidePanel } from '$lib/components/base';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import { setFocusedMetric } from '$lib/state/metric.svelte';
-  import {
-    negativeSpaceActive,
-    setNegativeSpaceActive,
-    setTrayOpen,
-    trayOpen
-  } from '$lib/state/tray.svelte';
+  import { negativeSpaceActive, setTrayOpen, trayOpen } from '$lib/state/tray.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import type { Resolution } from '$lib/state/url-internals';
   import {
@@ -347,7 +341,7 @@
   <title>AĒR — Atmosphere</title>
 </svelte:head>
 
-<!-- Top scope bar: resolution selector + Negative Space toggle + primer link (Phase 110) -->
+<!-- Top scope bar: resolution selector + primer link (Phase 110). Negative Space toggle moved to SideRail (Phase 112). -->
 <ScopeBar label="Atmosphere surface controls">
   <span class="window-label" aria-label="Time window: {windowLabel}">{windowLabel}</span>
   <label class="resolution-label">
@@ -363,7 +357,6 @@
       {/each}
     </select>
   </label>
-  <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
   <a class="primer-link" href="/reflection/primer/globe">How to read the globe →</a>
 </ScopeBar>
@@ -372,11 +365,21 @@
   <div
     class="stage"
     class:dimmed={panelOpen}
+    class:neg-space={negSpace}
     aria-hidden="false"
     onpointermove={onPointerMove}
     onpointerleave={() => onProbeHovered(null)}
     role="presentation"
   >
+    {#if negSpace}
+      <!-- Surface I — Negative Space mode: coverage boundary banner per WP-001 §5.3 -->
+      <aside class="absence-banner" aria-label="Negative Space mode active">
+        <span class="absence-glyph" aria-hidden="true">∅</span>
+        <span class="absence-text">Coverage boundary mode — unmonitored regions foregrounded</span>
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal WP link -->
+        <a class="absence-link" href="/reflection/wp/wp-001?section=5.3">WP-001 §5.3</a>
+      </aside>
+    {/if}
     <AtmosphereCanvas
       probes={probeMarkers}
       {activity}
@@ -650,5 +653,53 @@
   select option {
     background: var(--color-surface);
     color: var(--color-fg);
+  }
+
+  /* Negative Space mode — Surface I visual treatment (Phase 112).
+     The globe shifts to a cooler, lower-saturation rendering so that
+     unmonitored (dark) regions read as foreground rather than background. */
+  .stage.neg-space {
+    filter: saturate(0.6) hue-rotate(20deg) brightness(0.85);
+  }
+
+  /* Coverage boundary banner — floats above the globe in negSpace mode. */
+  .absence-banner {
+    position: absolute;
+    top: calc(var(--scope-bar-height) + var(--space-3));
+    left: calc(var(--rail-width) + var(--space-4));
+    z-index: 350;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(82, 131, 184, 0.5);
+    border-radius: var(--radius-sm);
+    color: #a0b8d8;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    pointer-events: auto;
+    backdrop-filter: blur(4px);
+  }
+  .absence-glyph {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .absence-text {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .absence-link {
+    color: #5283b8;
+    text-decoration: none;
+    border-bottom: 1px dotted #5283b8;
+    padding-bottom: 1px;
+  }
+  .absence-link:hover,
+  .absence-link:focus-visible {
+    color: #a0b8d8;
+    border-bottom-color: #a0b8d8;
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 </style>

@@ -12,6 +12,8 @@
   import { page } from '$app/state';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import type { ViewingMode } from '$lib/state/url-internals';
+  import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
+  import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
 
   const PILLARS: readonly { id: ViewingMode; abbr: string; label: string; hint: string }[] = [
     {
@@ -36,6 +38,7 @@
 
   const url = $derived(urlState());
   let activePillar = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
+  const negSpace = $derived(negativeSpaceActive());
 
   // Active probe: prefer path param (dossier/lane pages) over URL query param (Atmosphere).
   let activeProbe = $derived<string | null>(
@@ -142,6 +145,13 @@
         <span class="sr-only">{p.label}</span>
       </button>
     {/each}
+  </div>
+
+  <div class="divider" role="separator" aria-hidden="true"></div>
+
+  <!-- Negative Space overlay toggle — persistent across all surfaces -->
+  <div class="ns-wrap">
+    <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
   </div>
 </nav>
 
@@ -264,7 +274,12 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding-bottom: var(--space-1);
+  }
+
+  .ns-wrap {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    display: flex;
+    justify-content: center;
   }
 
   .pillar-btn {

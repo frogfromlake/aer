@@ -49,6 +49,10 @@ export interface UrlState {
   // Silver-layer toggle (Phase 111). `null` and `gold` are equivalent;
   // only `silver` is emitted in the URL. Dropped when no probe is active.
   layer: DataLayer | null;
+  // Negative Space overlay (Phase 112). `null` and `false` are equivalent;
+  // only `true` is serialised as `negSpace=1`. When active, all three
+  // surfaces shift into "what AĒR doesn't see" mode per Design Brief §4.4.
+  negSpace: boolean | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -67,7 +71,8 @@ export const EMPTY_URL_STATE: UrlState = {
   view: null,
   sourceId: null,
   viewMode: null,
-  layer: null
+  layer: null,
+  negSpace: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
@@ -111,7 +116,8 @@ export function readFromSearch(search: string): UrlState {
     view: parseEnum(p.get('view'), VIEW_LAYERS),
     sourceId: p.get('sourceId'),
     viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
-    layer: parseEnum(p.get('layer'), DATA_LAYERS)
+    layer: parseEnum(p.get('layer'), DATA_LAYERS),
+    negSpace: p.get('negSpace') === '1' ? true : null
   };
 }
 
@@ -145,6 +151,9 @@ export function writeToSearch(state: UrlState): string {
   // `layer=gold` is the default; only emit when silver is explicitly
   // selected. Drop when no probe is active (layer has no meaning there).
   if (state.probe && state.layer === 'silver') p.set('layer', 'silver');
+  // `negSpace=1` when the Negative Space overlay is active. Not scoped to
+  // a probe — the overlay applies globally across all surfaces.
+  if (state.negSpace === true) p.set('negSpace', '1');
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

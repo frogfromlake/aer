@@ -919,3 +919,27 @@ The `silverEligible` flag arrives in the `ProbeDossierSourceDto` from `GET /api/
 **Query factory.** `silverAggregationQuery` in `src/lib/api/queries.ts` routes to `/api/v1/silver/aggregations/{aggregationType}` with `sourceId`, `start`, `end`, and optional `bins` parameters. A 403 response with `gate=silver_eligibility` is classified as a `RefusalKind` refusal (not a retryable error) so TanStack Query does not retry it. A 5xx throws a `network-error` outcome to trigger TanStack Query's retry policy. The factory includes `aggregationType` in the query key so `word_count` and `raw_entity_count` caches are independent.
 
 **Governance boundary.** The Silver toggle is not a power-user escape hatch — it is a governed affordance. The eligibility gate enforces WP-006 §5.2 at the UI layer (via `silverEligible`) and at the BFF layer (via `requireSilverEligible`). The UI-layer check is informational only; the BFF gate is the authoritative enforcement point. A UI bug that bypasses the eligibility panel cannot grant data access because the BFF returns HTTP 403 for ineligible sources unconditionally. This dual-layer design follows Defence-in-Depth for the governance boundary.
+
+## 8.17 Negative Space Overlay (Phase 112)
+
+Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 and §5.4. The overlay is a global reading mode: once active, it persists across surface transitions until the user deactivates it.
+
+**URL state.** The overlay is serialised as `?negSpace=1` in the page URL. `negSpace=null` (the default) is never emitted; only `true` triggers `p.set('negSpace', '1')` in `writeToSearch`. Unlike `layer`, the `negSpace` parameter is **not** scoped to a probe — the overlay is a system-level epistemic stance, not a per-probe query modifier. `readFromSearch` parses `p.get('negSpace') === '1'` to `true`; any other value (including `negSpace=0`) is treated as `null`. URL round-trips are tested in `tests/unit/url-state.test.ts`.
+
+**State management.** `tray.svelte.ts` exposes `negativeSpaceActive(): boolean` and `setNegativeSpaceActive(next: boolean): void`. As of Phase 112 these delegate to `urlState()` / `setUrl()` from `url.svelte.ts`; prior to Phase 112 they maintained local `$state`. The tray is not URL-backed (`trayOpen` remains session-only) but the overlay is, so the two remain in the same module to share the existing API surface consumed by the methodology tray and all three surfaces.
+
+**Toggle placement.** `NegativeSpaceToggle.svelte` is placed at the bottom of `SideRail.svelte`, below the pillar-mode toggle, separated by a rail divider. This placement makes it reachable from any surface in a single interaction per Design Brief §4.1 rule 1. The keyboard shortcut `Shift+N` is registered globally via `onMount` so the rail does not need to be focused. The toggle is a compact 28×34 px button with ∅ glyph and "NS" label, matching the pillar-button aesthetic. `aria-pressed` reflects the live state.
+
+**Behavior matrix:**
+
+| Surface | negSpace off | negSpace on |
+|---|---|---|
+| **Surface I — Atmosphere** | Globe renders normally; unmonitored regions are visually recessive (dark, unsaturated). | Stage receives `filter: saturate(0.6) hue-rotate(20deg) brightness(0.85)`; monitored probe glyphs become visually secondary. A coverage-boundary banner appears above the globe (`"Coverage boundary mode — unmonitored regions foregrounded"`) with a link to WP-001 §5.3. |
+| **Surface II — Function Lanes** | Empty lanes render as quiet dashed-border invitation panels. | Empty lanes gain solid border and accent background (`neg-space-prominent`) — absence is treated as a first-class data point, not a gap. Non-empty lanes render a demographic-scope annotation (citing WP-003 §6.1) in the lane body above the view-mode cell. |
+| **Surface III — Working Paper** | TOC sidebar renders normally. | TOC sidebar renders a "Scope boundary" aside above the contents list, with prose noting what the Working Paper's probe coverage excludes (demographic variation, informal discourse, out-of-probe sources). A link to WP-001 §5.3 is included. |
+| **Methodology tray** | Dual-register → tier/algorithm → limitations → cultural context (canonical order). | `limitations-first` CSS flex order applied: the Known Limitations section is reordered to the top of the panel body (implemented in Phase 108, verified end-to-end in Phase 112). |
+
+**Design decisions.**
+- The CSS filter approach for Surface I is deliberate: modifying the Three.js/WebGL rendering pipeline would require an engine API extension. A CSS filter applied to the canvas container achieves the visual inversion (foregrounding dark/unmonitored areas) without touching the engine. The filter is applied to the entire stage `div` so probe tooltips and the keyboard navigation list remain unaffected.
+- Demographic-skew annotations on Surface II are static prose referencing WP-003 §6.1. Dynamic annotation content (per-source demographic coverage assessments) is deferred pending CSS interdisciplinary review — static annotations prevent the overlay from silently doing nothing while keeping the research boundary visible.
+- The tray's `limitations-first` behaviour (Phase 108) is verified here end-to-end. The `negSpace` value read inside `MethodologyTray.svelte` flows from `urlState().negSpace` via `negativeSpaceActive()`, so the tray reacts reactively to URL changes without additional wiring.

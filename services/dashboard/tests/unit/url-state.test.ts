@@ -15,7 +15,8 @@ describe('readFromSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: null
+      layer: null,
+      negSpace: null
     });
   });
 
@@ -81,6 +82,13 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?layer=bronze').layer).toBeNull();
     expect(readFromSearch('').layer).toBeNull();
   });
+
+  it('parses negSpace=1 as true and absent/other values as null', () => {
+    expect(readFromSearch('?negSpace=1').negSpace).toBe(true);
+    expect(readFromSearch('?negSpace=0').negSpace).toBeNull();
+    expect(readFromSearch('?negSpace=true').negSpace).toBeNull();
+    expect(readFromSearch('').negSpace).toBeNull();
+  });
 });
 
 describe('writeToSearch', () => {
@@ -97,7 +105,8 @@ describe('writeToSearch', () => {
         view: null,
         sourceId: null,
         viewMode: null,
-        layer: null
+        layer: null,
+        negSpace: null
       })
     ).toBe('');
   });
@@ -114,7 +123,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: null
+      layer: null,
+      negSpace: null
     });
     expect(qs).toContain('from=2026-04-01');
     expect(qs).toContain('to=2026-04-22');
@@ -123,6 +133,7 @@ describe('writeToSearch', () => {
     expect(qs).not.toContain('viewingMode');
     expect(qs).not.toContain('ep=');
     expect(qs).not.toContain('layer=');
+    expect(qs).not.toContain('negSpace=');
   });
 
   it('emits ep alongside probe and drops it without a probe', () => {
@@ -137,7 +148,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: null
+      layer: null,
+      negSpace: null
     });
     expect(withProbe).toContain('probe=probe-0');
     expect(withProbe).toContain('ep=1');
@@ -153,7 +165,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: null
+      layer: null,
+      negSpace: null
     });
     expect(orphan).not.toContain('ep=');
   });
@@ -170,7 +183,8 @@ describe('writeToSearch', () => {
       view: 'analysis' as const,
       sourceId: null,
       viewMode: 'distribution' as const,
-      layer: null
+      layer: null,
+      negSpace: null
     };
     const qs = writeToSearch(original);
     expect(readFromSearch(qs)).toEqual(original);
@@ -188,7 +202,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: null
+      layer: null,
+      negSpace: null
     });
     expect(qs).not.toContain('metric=');
   });
@@ -205,7 +220,8 @@ describe('writeToSearch', () => {
       view: 'atmosphere',
       sourceId: null,
       viewMode: null,
-      layer: null
+      layer: null,
+      negSpace: null
     });
     expect(qs).not.toContain('view=');
   });
@@ -222,7 +238,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: 'distribution',
-      layer: null
+      layer: null,
+      negSpace: null
     });
     expect(qs).not.toContain('viewMode=');
   });
@@ -239,7 +256,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: 'silver'
+      layer: 'silver',
+      negSpace: null
     });
     expect(withSilver).toContain('layer=silver');
 
@@ -254,7 +272,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: 'gold'
+      layer: 'gold',
+      negSpace: null
     });
     expect(withGold).not.toContain('layer=');
 
@@ -269,7 +288,8 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: null,
       viewMode: null,
-      layer: 'silver'
+      layer: 'silver',
+      negSpace: null
     });
     expect(noProbe).not.toContain('layer=');
   });
@@ -286,9 +306,82 @@ describe('writeToSearch', () => {
       view: null,
       sourceId: 'tagesschau',
       viewMode: null,
-      layer: 'silver' as const
+      layer: 'silver' as const,
+      negSpace: null
     };
     const qs = writeToSearch(original);
     expect(readFromSearch(qs)).toEqual(original);
+  });
+
+  it('emits negSpace=1 when true, omits when null', () => {
+    const withNegSpace = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: null,
+      negSpace: true
+    });
+    expect(withNegSpace).toContain('negSpace=1');
+
+    const withoutNegSpace = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: null,
+      negSpace: null
+    });
+    expect(withoutNegSpace).not.toContain('negSpace=');
+  });
+
+  it('round-trips negSpace=true through readFromSearch', () => {
+    const original = {
+      from: null,
+      to: null,
+      probe: 'probe-0-de-institutional-rss',
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: null,
+      negSpace: true as const
+    };
+    const qs = writeToSearch(original);
+    expect(readFromSearch(qs)).toEqual(original);
+  });
+
+  it('negSpace is not scoped to a probe — emits independently', () => {
+    const qs = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: null,
+      negSpace: true
+    });
+    expect(qs).toContain('negSpace=1');
+    expect(qs).not.toContain('probe=');
   });
 });

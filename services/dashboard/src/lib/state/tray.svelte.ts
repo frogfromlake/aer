@@ -9,16 +9,20 @@
 //                        tray is now the single L4 Provenance surface).
 //   negativeSpaceActive — Design Brief §3.4 / §4.4 overlay flag. When
 //                        on, the tray's open-state body switches into
-//                        known-limitations-first mode (Phase 113 visual
-//                        reweighting builds on the same flag).
+//                        known-limitations-first mode (Phase 112 also
+//                        adds per-surface visual behaviour). URL-backed
+//                        since Phase 112 (`?negSpace=1`).
 //
-// Both are intentionally not URL-backed: the tray is a transient
-// disclosure, and the overlay is a session-level reading mode.
+// `trayOpen` is not URL-backed: it is a transient disclosure that does
+// not survive navigation or tab reload. `negativeSpaceActive` IS URL-
+// backed so the overlay persists across surface transitions and can be
+// deep-linked.
+
+import { setUrl, urlState } from './url.svelte';
 
 const browser = typeof window !== 'undefined';
 
 let _trayOpen = $state(false);
-let _negativeSpaceActive = $state(false);
 
 export function trayOpen(): boolean {
   return _trayOpen;
@@ -35,10 +39,10 @@ export function toggleTray(): void {
 }
 
 export function negativeSpaceActive(): boolean {
-  return _negativeSpaceActive;
+  return urlState().negSpace === true;
 }
 
 export function setNegativeSpaceActive(next: boolean): void {
   if (!browser) return;
-  _negativeSpaceActive = next;
+  setUrl({ negSpace: next ? true : null });
 }
