@@ -13,7 +13,8 @@ describe('readFromSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null
+      sourceId: null,
+      viewMode: null
     });
   });
 
@@ -65,6 +66,13 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?probe=p&ep=1.5').emissionPoint).toBeNull();
     expect(readFromSearch('?probe=p&ep=abc').emissionPoint).toBeNull();
   });
+
+  it('validates viewMode against its enum', () => {
+    expect(readFromSearch('?viewMode=time_series').viewMode).toBe('time_series');
+    expect(readFromSearch('?viewMode=distribution').viewMode).toBe('distribution');
+    expect(readFromSearch('?viewMode=cooccurrence_network').viewMode).toBe('cooccurrence_network');
+    expect(readFromSearch('?viewMode=scatter').viewMode).toBeNull();
+  });
 });
 
 describe('writeToSearch', () => {
@@ -79,7 +87,8 @@ describe('writeToSearch', () => {
         viewingMode: null,
         metric: null,
         view: null,
-        sourceId: null
+        sourceId: null,
+        viewMode: null
       })
     ).toBe('');
   });
@@ -94,7 +103,8 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null
+      sourceId: null,
+      viewMode: null
     });
     expect(qs).toContain('from=2026-04-01');
     expect(qs).toContain('to=2026-04-22');
@@ -114,7 +124,8 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null
+      sourceId: null,
+      viewMode: null
     });
     expect(withProbe).toContain('probe=probe-0');
     expect(withProbe).toContain('ep=1');
@@ -128,7 +139,8 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null
+      sourceId: null,
+      viewMode: null
     });
     expect(orphan).not.toContain('ep=');
   });
@@ -143,7 +155,8 @@ describe('writeToSearch', () => {
       viewingMode: 'aleph' as const,
       metric: 'sentiment_score',
       view: 'analysis' as const,
-      sourceId: null
+      sourceId: null,
+      viewMode: 'distribution' as const
     };
     const qs = writeToSearch(original);
     expect(readFromSearch(qs)).toEqual(original);
@@ -159,7 +172,8 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: 'sentiment_score',
       view: null,
-      sourceId: null
+      sourceId: null,
+      viewMode: null
     });
     expect(qs).not.toContain('metric=');
   });
@@ -174,8 +188,25 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: 'atmosphere',
-      sourceId: null
+      sourceId: null,
+      viewMode: null
     });
     expect(qs).not.toContain('view=');
+  });
+
+  it('drops viewMode when no probe is selected', () => {
+    const qs = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: 'distribution'
+    });
+    expect(qs).not.toContain('viewMode=');
   });
 });

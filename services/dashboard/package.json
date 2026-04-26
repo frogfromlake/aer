@@ -29,6 +29,7 @@
     "@sveltejs/adapter-static": "3.0.10",
     "@sveltejs/kit": "2.57.1",
     "@sveltejs/vite-plugin-svelte": "7.0.0",
+    "@types/d3-force": "3.0.10",
     "@types/node": "22.19.17",
     "@types/three": "0.184.0",
     "eslint": "10.2.1",
@@ -61,7 +62,9 @@
     "@opentelemetry/sdk-trace-base": "2.7.0",
     "@opentelemetry/sdk-trace-web": "2.7.0",
     "@opentelemetry/semantic-conventions": "1.40.0",
+    "@observablehq/plot": "0.6.17",
     "@tanstack/svelte-query": "6.1.18",
+    "d3-force": "3.0.0",
     "three": "0.184.0",
     "uplot": "1.6.32"
   }

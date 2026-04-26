@@ -690,3 +690,128 @@ Total: 92 YAML files across `services/bff-api/configs/content/{en,de}/`.
 3. `TestContentCatalogCrossReferences` — every `WP-NNN §M` or `WP-NNN §M.K` anchor in any content field resolves to a heading in the English WP markdown under `docs/methodology/en/`. This test catches drift when WP documents are restructured.
 
 **OpenAPI / codegen.** `api/paths/content.yaml` and `api/schemas/ContentResponse.yaml` now enumerate all eight entity types. `make codegen` regenerates `GetContentParamsEntityType` and `ContentResponseEntityType` accordingly.
+
+---
+
+## 8.12 Surface II Architecture — Probe Dossier and Function-Lane Shell (Phase 106)
+
+Surface II (Function Lanes) is the primary scientific surface of the AĒR dashboard. It is reached from Surface I (Atmosphere) by selecting a probe, and provides two views: the **Probe Dossier** (default landing) and the **Function-Lane Shell** (per-discourse-function analysis view).
+
+### Route structure
+
+```
+/lanes                               ← no probe selected (invite card)
+/lanes/[probeId]/dossier             ← Probe Dossier (default Surface II landing)
+/lanes/[probeId]/[functionKey]       ← Function Lane for one WP-001 discourse function
+```
+
+All `[probeId]` routes are `prerender = false; ssr = false` — they are served by the SPA fallback (`index.html`) and rendered entirely client-side. Probe IDs are not known at build time.
+
+### Probe Dossier
+
+Consumes `GET /api/v1/probes/{id}/dossier` (Phase 101) — a server-composed payload that avoids request waterfalls on first paint. The Dossier renders:
+
+- Probe identity (ID, language badge)
+- **Function coverage indicator**: N/4 covered, per-function status pills (WP-001 §5.1)
+- **Source cards** (one per source in the probe): name, type, article counts (total and in window), publication frequency, etic primary/secondary function, emic designation and context, Silver-eligibility badge
+- **ArticlePreviewList** per source (lazy, expanded on demand): paginated via cursor, filters for language and sentiment band, opens L5 EvidenceReader on row click
+
+### Function-Lane Shell
+
+Four lane slots matching WP-001's four discourse functions:
+
+| Function key | Abbr | Label |
+|---|---|---|
+| `epistemic_authority` | EA | Epistemic Authority |
+| `power_legitimation` | PL | Power Legitimation |
+| `cohesion_identity` | CI | Cohesion & Identity |
+| `subversion_friction` | SF | Subversion & Friction |
+
+A fifth slot is reserved per Design Brief §8.1 but empty in Phase 106.
+
+Each lane:
+- Filters dossier sources by `primaryFunction === functionKey`
+- If matching sources exist: renders one uPlot time-series chart per source for `sentiment_score` at hourly resolution
+- If no matching sources: renders the empty-lane Dual-Register invitation from the Content Catalog (`entity_type=empty_lane, entity_id=<functionKey>`)
+
+The view-mode matrix (analytical disciplines × presentation forms) lands on top of this shell in Phase 107.
+
+### Probe scope vs. source scope propagation
+
+The scope model follows Design Brief §3.5 (probe-first, source as presentation layer):
+
+- **Default scope**: probe scope — all sources in the probe aggregate.
+- **Source scope**: set when the user clicks "Narrow scope" on a source card in the Dossier. Propagated via `?sourceId=<sourceName>` URL query parameter (managed by `url.svelte.ts`'s `setUrl({ sourceId })` API).
+- The scope indicator in the top ScopeBar shows the active `sourceId` and provides a one-click clear button.
+- Lane metrics queries use `source=<sourceId>` when source scope is active, or the full probe set otherwise.
+- Scope persists when switching between function lanes within the same probe. It is cleared when the user navigates to a different probe or explicitly clears via the ScopeBar badge.
+
+### L5 Evidence Reader
+
+A `Dialog`-based modal overlay (`L5EvidenceReader.svelte`) launched from article rows in the `ArticlePreviewList`. It fetches `GET /api/v1/articles/{id}` and handles two outcomes:
+
+- **Success**: renders article metadata header, cleaned text, optional raw text toggle, and collapsible extraction-provenance / SilverMeta sections.
+- **HTTP 403 (k-anonymity gate)**: renders `RefusalSurface` with the `k_anonymity_threshold_not_met` refusal kind, followed by a methodological note (WP-006 §7). The reader does not trap focus behind the refusal — the surface behind remains live (Design Brief §4.1 rule 2).
+
+The 403 path is handled by `fetchJson`'s refusal branch (updated in Phase 106 to treat both 400 and 403 as methodological refusals rather than network errors).
+
+### Navigation chrome
+
+The SideRail's Function Lanes link (`≡`) navigates to `/lanes/<activeProbe>/dossier` when a probe is active (read from `page.params.probeId` on dossier/lane pages, falling back to `url.probe` on the Atmosphere page). It falls back to `/lanes` (the invite card) when no probe is active.
+
+The ScopeBar within the `[probeId]` layout provides lane-switching tabs for the four function keys without re-mounting the chrome.
+
+## 8.13 Surface II — View-Mode Matrix (Phase 107)
+
+The Function-Lane Shell from Phase 106 (one uPlot time-series per source) becomes one cell of a two-axis catalog:
+
+- **Analytical disciplines** (matrix rows): NLP, EDA, Network Science, Metadata Mining, Clustering — non-exhaustive, extensible per Brief §4.2.3.
+- **Presentation forms** (matrix columns): time series, distribution, force-directed graph — extensible per the same principle.
+
+A concrete cell is a `(presentation × metric)` pair, identified by the canonical key `<presentation>_<metric>` (e.g. `time_series_sentiment_score`, `cooccurrence_network_word_count`). The Phase 104 content catalog stores one Dual-Register entry per cell, one entry per locale.
+
+### Frontend registry
+
+The matrix lives in `services/dashboard/src/lib/viewmodes/`:
+
+- `registry.ts` enumerates the **presentation forms** (typed `PresentationDefinition`s) and exposes `listPresentations()`, `getPresentation(id)`, and `cellContentId(presentation, metric)`.
+- The **cell catalog** is dynamic: `availableMetrics × presentations` — never a hardcoded enum (Brief §8.3). Available metrics come from `/api/v1/metrics/available`; the same key shape resolves the matching content-catalog entry.
+- Each presentation's component is **lazy-loaded** through a `loadComponent: () => Promise<Component>` indirection so heavy libraries (Observable Plot, d3-force) ship as separate chunks only when the cell is selected (Brief §7).
+
+### MVP cells (Phase 107)
+
+| Presentation | Discipline | BFF endpoint | Library | Layout |
+|---|---|---|---|---|
+| `time_series` | NLP | `GET /api/v1/metrics` | uPlot (existing `TimeSeriesChart`) | per-source small multiples |
+| `distribution` | EDA | `GET /api/v1/metrics/{name}/distribution` | Observable Plot | per-scope histogram + quantile summary |
+| `cooccurrence_network` | Network Science | `GET /api/v1/entities/cooccurrence` | d3-force + SVG | per-scope force-directed graph |
+
+The three are deliberately drawn from structurally different cells of the matrix (one chart, one distributional, one network) per Brief §4.2.3 — not three variants of the same discipline.
+
+### View-mode switcher and URL state
+
+Selection lives in `?viewMode=<presentation>` on Surface II URLs (`/lanes/[probeId]/[functionKey]`). The parameter is parsed and validated by `src/lib/state/url-internals.ts` against a fixed enum (`time_series | distribution | cooccurrence_network`) and is only serialised when a `probe` is also present. The switcher itself slots into the top ScopeBar via `ViewModeSwitcher.svelte` and writes through `setUrl({ viewMode })` — same write path as the rest of the URL state.
+
+### Scope parameter wiring
+
+Every view-mode query takes the scope from the same store as Phase 106:
+
+- `scope = 'source'` and `scopeId = url.sourceId` when source-scope narrowing is active.
+- `scope = 'probe'` and `scopeId = dossier.probeId` otherwise.
+
+The switcher is unchanged across scope modes — the active cell re-runs against the new scope automatically because `scope` and `scopeId` are part of every cell's TanStack Query key.
+
+### Extensibility contract
+
+Adding a new presentation form (e.g. `heatmap`, `correlation_matrix`) requires:
+
+1. Add the new id to `ViewMode` in `url-internals.ts` and to the `VIEW_MODES` enum array.
+2. Add a `PresentationDefinition` entry in `registry.ts` with a `loadComponent` that lazy-imports the new cell.
+3. Implement the cell component under `src/lib/components/viewmodes/`, accepting `ViewModeCellProps`.
+4. Author one content-catalog yaml per `(presentation × metric)` pair under `services/bff-api/configs/content/{en,de}/view_modes/`.
+
+No `FunctionLaneShell` change is required — the shell renders whatever the registry returns. Adding a new analytical discipline is purely a content-side and presentation-mapping concern; the discipline label is carried in `PresentationDefinition.discipline`.
+
+### Bundle posture
+
+Observable Plot lands in its own dynamic-import chunk (~125 kB gzipped) only when the user selects the EDA × distribution cell. d3-force lands in a separate (smaller) chunk for the Network Science cell. The shell budget (80 kB gzipped, Phase 97) is unchanged; the second-largest lazy chunk budget is raised from 80 kB to 160 kB in `scripts/check-bundle-size.mjs` to accommodate Plot. The engine chunk budget (250 kB, Phase 99a) is unchanged.

@@ -11,6 +11,11 @@ export type ViewingMode = 'aleph' | 'episteme' | 'rhizome';
 // tab and returning should land at L3, not inside the provenance
 // overlay — the overlay is a disclosure, not a descent).
 export type ViewLayer = 'atmosphere' | 'analysis';
+// Presentation-form axis of the View-Mode Matrix (Brief §4.2.3 /
+// reframing-note §3.2). MVP cells in Phase 107: time_series,
+// distribution, cooccurrence_network. The catalog is extensible —
+// new presentations are added here and registered in $lib/viewmodes/.
+export type ViewMode = 'time_series' | 'distribution' | 'cooccurrence_network';
 
 export interface UrlState {
   from: string | null;
@@ -33,6 +38,10 @@ export interface UrlState {
   // the user clicks a source card. Propagates into view-mode queries.
   // Only meaningful when `probe` is also set; dropped otherwise in writeToSearch.
   sourceId: string | null;
+  // View-Mode Matrix selection (Phase 107). Only meaningful inside
+  // Surface II's Function Lanes; consumers treat `null` as the default
+  // presentation (`time_series`).
+  viewMode: ViewMode | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -49,12 +58,14 @@ export const EMPTY_URL_STATE: UrlState = {
   viewingMode: null,
   metric: null,
   view: null,
-  sourceId: null
+  sourceId: null,
+  viewMode: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
 const VIEW_LAYERS: readonly ViewLayer[] = ['atmosphere', 'analysis'];
+const VIEW_MODES: readonly ViewMode[] = ['time_series', 'distribution', 'cooccurrence_network'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
 // smuggling structure into the URL. The BFF's `metric_name` is already
 // snake-case ascii, so this matches the wire contract exactly.
@@ -89,7 +100,8 @@ export function readFromSearch(search: string): UrlState {
     viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES),
     metric: parseMetric(p.get('metric')),
     view: parseEnum(p.get('view'), VIEW_LAYERS),
-    sourceId: p.get('sourceId')
+    sourceId: p.get('sourceId'),
+    viewMode: parseEnum(p.get('viewMode'), VIEW_MODES)
   };
 }
 
@@ -116,6 +128,10 @@ export function writeToSearch(state: UrlState): string {
   if (state.view && state.view !== 'atmosphere') p.set('view', state.view);
   // sourceId is only meaningful when a probe is selected.
   if (state.probe && state.sourceId) p.set('sourceId', state.sourceId);
+  // viewMode is only meaningful when a probe is selected (Surface II
+  // Function Lanes). Drop it on the bare Atmosphere so reload converges
+  // on the default presentation.
+  if (state.probe && state.viewMode) p.set('viewMode', state.viewMode);
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

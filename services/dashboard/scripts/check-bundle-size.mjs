@@ -22,9 +22,17 @@ const BUDGET_BYTES = 80 * 1024; // 80 kB gzipped — shell budget (Phase 97)
 const ENGINE_CHUNK_BUDGET_BYTES = 250 * 1024;
 // Phase 100a — L3 chart chunk (uPlot + thin Svelte wrapper). Lazy-loaded
 // when the user descends to the L3 Analysis panel (preloaded on probe
-// hover). Tracked as the second-largest lazy chunk so future L3 growth
-// (e.g. a second chart library) surfaces as a regression here.
-const L3_CHUNK_BUDGET_BYTES = 80 * 1024;
+// hover). Tracked as the second-largest lazy chunk so future view-mode
+// growth surfaces as a regression here.
+//
+// Phase 107 (View-Mode Matrix) raises the second-largest lazy chunk's
+// budget from 80 kB to 160 kB to accommodate Observable Plot (the
+// presentation library committed by ADR-020 §Visualization Stack and
+// Brief §5.9). Plot lands in its own dynamic-import chunk that only
+// ships when the user picks the EDA × distribution cell — the
+// initial-shell budget stays at 80 kB. d3-force lands in a separate
+// (smaller) chunk and does not count here.
+const L3_CHUNK_BUDGET_BYTES = 160 * 1024;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BUILD_DIR = resolve(__dirname, '..', 'build');

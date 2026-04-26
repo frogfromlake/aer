@@ -30,10 +30,11 @@ import {
   writeToSearch,
   type Resolution,
   type UrlState,
-  type ViewingMode
+  type ViewingMode,
+  type ViewMode
 } from './url-internals';
 
-export type { Resolution, UrlState, ViewingMode };
+export type { Resolution, UrlState, ViewingMode, ViewMode };
 
 // Inline browser check (rather than `$app/environment`) so this module
 // is importable under plain vitest without a SvelteKit resolver.

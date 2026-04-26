@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   contentQuery,
+  entityCoOccurrenceQuery,
+  metricDistributionQuery,
   metricsQuery,
   probesQuery,
   type FetchContext
@@ -140,5 +142,48 @@ describe('contentQuery', () => {
     expect(capturedUrl).toContain('/content/probe/probe%200%2Fweird');
     expect(capturedUrl).toContain('locale=de');
     expect(outcome.kind).toBe('success');
+  });
+});
+
+describe('view-mode queries (Phase 107)', () => {
+  it('metricDistributionQuery encodes scope, scopeId, and the time window', async () => {
+    let capturedUrl = '';
+    const spy: FetchFn = (async (url: RequestInfo | URL) => {
+      capturedUrl = typeof url === 'string' ? url : url.toString();
+      return new Response('{}', { status: 200 });
+    }) as unknown as FetchFn;
+
+    const q = metricDistributionQuery(ctxWith(spy), 'sentiment_score', {
+      scope: 'source',
+      scopeId: 'tagesschau',
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z',
+      bins: 40
+    });
+    await q.queryFn();
+    expect(capturedUrl).toContain('/metrics/sentiment_score/distribution?');
+    expect(capturedUrl).toContain('scope=source');
+    expect(capturedUrl).toContain('scopeId=tagesschau');
+    expect(capturedUrl).toContain('bins=40');
+  });
+
+  it('entityCoOccurrenceQuery defaults to probe scope when called with one', async () => {
+    let capturedUrl = '';
+    const spy: FetchFn = (async (url: RequestInfo | URL) => {
+      capturedUrl = typeof url === 'string' ? url : url.toString();
+      return new Response('{}', { status: 200 });
+    }) as unknown as FetchFn;
+
+    const q = entityCoOccurrenceQuery(ctxWith(spy), {
+      scope: 'probe',
+      scopeId: 'probe-0-de-institutional-rss',
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z',
+      topN: 25
+    });
+    await q.queryFn();
+    expect(capturedUrl).toContain('/entities/cooccurrence?');
+    expect(capturedUrl).toContain('scope=probe');
+    expect(capturedUrl).toContain('topN=25');
   });
 });

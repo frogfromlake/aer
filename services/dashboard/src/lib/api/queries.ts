@@ -23,6 +23,14 @@ export type MetricsResponseDto =
   paths['/metrics']['get']['responses'][200]['content']['application/json'];
 export type MetricsParams = paths['/metrics']['get']['parameters']['query'];
 export type MetricProvenanceDto = components['schemas']['MetricProvenance'];
+export type ProbeDossierDto = components['schemas']['ProbeDossier'];
+export type ProbeDossierSourceDto = components['schemas']['ProbeDossierSource'];
+export type ArticlesPageDto = components['schemas']['ArticlesPage'];
+export type ArticleListItemDto = components['schemas']['ArticleListItem'];
+export type ArticleDetailDto = components['schemas']['ArticleDetail'];
+export type DistributionResponseDto = components['schemas']['DistributionResponse'];
+export type CoOccurrenceGraphDto = components['schemas']['CoOccurrenceGraph'];
+export type AvailableMetricDto = components['schemas']['AvailableMetric'];
 
 // Canonical refusal kinds currently authored in the Content Catalog
 // (see ROADMAP Phase 94 seed content). A query hook names the kind it
@@ -98,14 +106,15 @@ async function fetchJson<T>(
     throw { kind: 'network-error', message } satisfies NetworkErrorOutcome;
   }
 
-  if (response.status === 400) {
+  if (response.status === 400 || response.status === 403) {
     // BFF methodological gate → surfaced as a refusal, not an error.
+    // 403 is used by k-anon and silver-eligibility gates (WP-006).
     const message = await safeMessage(response);
     return {
       kind: 'refusal',
       refusalKind: expectedRefusal,
       message,
-      httpStatus: 400
+      httpStatus: response.status
     };
   }
 
@@ -205,7 +214,15 @@ export function provenanceQuery(
 
 export function contentQuery(
   ctx: FetchContext,
-  entityType: 'metric' | 'probe' | 'discourse_function' | 'refusal',
+  entityType:
+    | 'metric'
+    | 'probe'
+    | 'discourse_function'
+    | 'refusal'
+    | 'empty_lane'
+    | 'view_mode'
+    | 'open_research_question'
+    | 'primer',
   entityId: string,
   locale: 'en' | 'de' = 'en'
 ): QueryOptions<ContentResponseDto> {
@@ -219,5 +236,168 @@ export function contentQuery(
       ),
     // Content is versioned server-side; caching aggressively is safe.
     staleTime: 60 * 60 * 1000
+  };
+}
+
+export interface DossierParams {
+  windowStart?: string;
+  windowEnd?: string;
+}
+
+export function probeDossierQuery(
+  ctx: FetchContext,
+  probeId: string,
+  params: DossierParams = {}
+): QueryOptions<ProbeDossierDto> {
+  const qs = new URLSearchParams();
+  if (params.windowStart) qs.set('windowStart', params.windowStart);
+  if (params.windowEnd) qs.set('windowEnd', params.windowEnd);
+  const query = qs.toString();
+  return {
+    queryKey: ['aer', 'probe-dossier', probeId, params] as const,
+    queryFn: () =>
+      fetchJson<ProbeDossierDto>(
+        ctx,
+        `/probes/${encodeURIComponent(probeId)}/dossier${query ? `?${query}` : ''}`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export interface ArticleListParams {
+  start?: string;
+  end?: string;
+  language?: string;
+  entityMatch?: string;
+  sentimentBand?: 'negative' | 'neutral' | 'positive';
+  limit?: number;
+  cursor?: string;
+}
+
+export function sourceArticlesQuery(
+  ctx: FetchContext,
+  sourceId: string,
+  params: ArticleListParams = {}
+): QueryOptions<ArticlesPageDto> {
+  const qs = new URLSearchParams();
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  if (params.language) qs.set('language', params.language);
+  if (params.entityMatch) qs.set('entityMatch', params.entityMatch);
+  if (params.sentimentBand) qs.set('sentimentBand', params.sentimentBand);
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  return {
+    queryKey: ['aer', 'source-articles', sourceId, params] as const,
+    queryFn: () =>
+      fetchJson<ArticlesPageDto>(
+        ctx,
+        `/sources/${encodeURIComponent(sourceId)}/articles?${qs.toString()}`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export function articleDetailQuery(
+  ctx: FetchContext,
+  articleId: string,
+  metricName?: string
+): QueryOptions<ArticleDetailDto> {
+  const qs = new URLSearchParams();
+  if (metricName) qs.set('metricName', metricName);
+  const query = qs.toString();
+  return {
+    queryKey: ['aer', 'article-detail', articleId, metricName] as const,
+    queryFn: () =>
+      fetchJson<ArticleDetailDto>(
+        ctx,
+        `/articles/${encodeURIComponent(articleId)}${query ? `?${query}` : ''}`,
+        'k_anonymity_threshold_not_met'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// -------------------------------------------------------------------------
+// Phase 107 — View-Mode Matrix queries.
+//
+// Each MVP cell is backed by exactly one BFF endpoint. The factories below
+// thin-wrap those endpoints; the matrix-cell registry under
+// `$lib/viewmodes/` decides which factory a given cell uses.
+// -------------------------------------------------------------------------
+
+export type ViewModeScope = 'probe' | 'source';
+
+export interface ViewModeQueryParams {
+  scope: ViewModeScope;
+  scopeId: string;
+  start: string;
+  end: string;
+}
+
+export interface MetricsAvailableParams {
+  startDate: string;
+  endDate: string;
+}
+
+export function metricsAvailableQuery(
+  ctx: FetchContext,
+  params: MetricsAvailableParams
+): QueryOptions<AvailableMetricDto[]> {
+  const qs = new URLSearchParams();
+  qs.set('startDate', params.startDate);
+  qs.set('endDate', params.endDate);
+  return {
+    queryKey: ['aer', 'metrics-available', params] as const,
+    queryFn: () =>
+      fetchJson<AvailableMetricDto[]>(ctx, `/metrics/available?${qs.toString()}`, 'unspecified'),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export function metricDistributionQuery(
+  ctx: FetchContext,
+  metricName: string,
+  params: ViewModeQueryParams & { bins?: number }
+): QueryOptions<DistributionResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  qs.set('start', params.start);
+  qs.set('end', params.end);
+  if (params.bins) qs.set('bins', String(params.bins));
+  return {
+    queryKey: ['aer', 'metric-distribution', metricName, params] as const,
+    queryFn: () =>
+      fetchJson<DistributionResponseDto>(
+        ctx,
+        `/metrics/${encodeURIComponent(metricName)}/distribution?${qs.toString()}`,
+        'validation_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export function entityCoOccurrenceQuery(
+  ctx: FetchContext,
+  params: ViewModeQueryParams & { topN?: number }
+): QueryOptions<CoOccurrenceGraphDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  qs.set('start', params.start);
+  qs.set('end', params.end);
+  if (params.topN) qs.set('topN', String(params.topN));
+  return {
+    queryKey: ['aer', 'entity-cooccurrence', params] as const,
+    queryFn: () =>
+      fetchJson<CoOccurrenceGraphDto>(
+        ctx,
+        `/entities/cooccurrence?${qs.toString()}`,
+        'validation_missing'
+      ),
+    staleTime: FIVE_MINUTES
   };
 }

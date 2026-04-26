@@ -1875,39 +1875,37 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.17 "Navigation Chrome" paragraph added (SideRail, ScopeBar, MethodologyTray, route group, focused-metric store).
 * [x] **Validation.** `make fe-check` green (lint, typecheck, 28/28 unit tests, build, bundle-size gate).
 
----
 
-# Open Phases
-
----
-
-## Phase 106: Iteration 5 — Surface II Foundation (Probe Dossier + Function-Lane Shell) [P1] - [ ] TODO
+## Phase 106: Iteration 5 — Surface II Foundation (Probe Dossier + Function-Lane Shell) [P1] - [x] DONE (2026-04-26)
 
 *The Probe Dossier route and the function-lane shell. Delivers the landing-into-Surface-II experience; the view-mode matrix lands in Phase 107 on top of this foundation. Depends on Phases 101 (endpoints) and 105 (chrome).*
 
-* [ ] **Routes.** `/lanes/:probeId/dossier` as Surface II's default landing when a probe is selected. `/lanes/:probeId/:functionKey` per-function-lane route.
-* [ ] **Probe Dossier component.** Consumes `/api/v1/probes/{id}/dossier`. Renders source cards with per-source counts, publication frequency, etic classification, emic context. Function coverage indicator (N/4) with per-function status. Navigable article preview per source.
-* [ ] **Function-lane shell.** Four lane slots matching WP-001's taxonomy. Baseline uPlot time-series view per lane fed from `/api/v1/metrics?scope=…`. Empty-lane Dual-Register invitations drawn from content catalog (Phase 104). Fifth-lane slot reserved but empty (Brief §8.1 extensibility).
-* [ ] **Source-scope narrowing.** Clicking a source card in the Dossier propagates `sourceId` into the URL + scope store; subsequent lane views query at source scope. Scope indicator in the left rail reflects probe vs. source scope.
-* [ ] **L5 Evidence reader-pane component.** Modal overlay opening from article clicks; renders Bronze cleaned text + trace metadata; handles HTTP 403 k-anon refusal gracefully with the methodological panel.
-* [ ] **Arc42 update.** §8.x Surface II architecture; probe scope vs. source scope propagation rule.
-* [ ] **Validation.** `make fe-check` green; Playwright E2E: globe → Dossier → lane → article flow.
+* [x] **Routes.** `/lanes/:probeId/dossier` as Surface II's default landing when a probe is selected. `/lanes/:probeId/:functionKey` per-function-lane route.
+* [x] **Probe Dossier component.** Consumes `/api/v1/probes/{id}/dossier`. Renders source cards with per-source counts, publication frequency, etic classification, emic context. Function coverage indicator (N/4) with per-function status. Navigable article preview per source.
+* [x] **Function-lane shell.** Four lane slots matching WP-001's taxonomy. Baseline uPlot time-series view per lane fed from `/api/v1/metrics?scope=…`. Empty-lane Dual-Register invitations drawn from content catalog (Phase 104). Fifth-lane slot reserved but empty (Brief §8.1 extensibility).
+* [x] **Source-scope narrowing.** Clicking a source card in the Dossier propagates `sourceId` into the URL + scope store; subsequent lane views query at source scope. Scope indicator in the left rail reflects probe vs. source scope.
+* [x] **L5 Evidence reader-pane component.** Modal overlay opening from article clicks; renders Bronze cleaned text + trace metadata; handles HTTP 403 k-anon refusal gracefully with the methodological panel.
+* [x] **Arc42 update.** §8.x Surface II architecture; probe scope vs. source scope propagation rule.
+* [x] **Validation.** `make fe-check` green; Playwright E2E: globe → Dossier → lane → article flow.
 
----
 
-## Phase 107: Iteration 5 — View-Mode Matrix (MVP Cells) [P1] - [ ] TODO
+## Phase 107: Iteration 5 — View-Mode Matrix (MVP Cells) [P1] - [x] DONE
 
 *Implements the analytical-disciplines × presentation-forms catalog with three MVP cells per metric. Depends on Phases 102 (endpoints), 105 (chrome — view-mode switcher slots into the top scope bar), and 106 (function-lane shell).*
 
-* [ ] **Matrix-cell registry.** `src/lib/viewmodes/` — typed cell definitions; catalog fetched from backend content API; no hardcoded cell list in frontend source (Brief §8.3).
-* [ ] **NLP × time-series cell (uPlot).** Default for numeric metrics. Uncertainty bands. Epistemic Weight treatment (`design_system.md` §4).
-* [ ] **EDA × ridgeline/distribution cell (Observable Plot).** Per-source distributional view consuming `/api/v1/metrics/{name}/distribution`.
-* [ ] **Network Science × force-directed graph cell (D3-force).** Entity co-occurrence network consuming `/api/v1/entities/cooccurrence`. Nodes sized by frequency; edges weighted by co-occurrence count; coloring by sentiment or by source.
-* [ ] **View-mode switcher.** Slots into the top scope bar (Phase 105). URL-state carries selected cell id; deep-link restores.
-* [ ] **Scope parameter wiring.** Every view-mode query uses `probeId` or `sourceId` from the scope store; switcher behavior unchanged across scope modes.
-* [ ] **Tests.** Per-cell rendering stories; axe + visual regression; integration test of scope-select → view-mode-select → render path.
-* [ ] **Arc42 update.** §8.x View-Mode Matrix with the MVP cell list and the extensibility contract.
-* [ ] **Validation.** `make fe-check` green.
+* [x] **Matrix-cell registry.** `src/lib/viewmodes/` — typed cell definitions; catalog fetched from backend content API; no hardcoded cell list in frontend source (Brief §8.3).
+* [x] **NLP × time-series cell (uPlot).** Default for numeric metrics. Uncertainty bands. Epistemic Weight treatment (`design_system.md` §4).
+* [x] **EDA × ridgeline/distribution cell (Observable Plot).** Per-source distributional view consuming `/api/v1/metrics/{name}/distribution`.
+* [x] **Network Science × force-directed graph cell (D3-force).** Entity co-occurrence network consuming `/api/v1/entities/cooccurrence`. Nodes sized by frequency; edges weighted by co-occurrence count; coloring by sentiment or by source.
+* [x] **View-mode switcher.** Slots into the top scope bar (Phase 105). URL-state carries selected cell id; deep-link restores.
+* [x] **Scope parameter wiring.** Every view-mode query uses `probeId` or `sourceId` from the scope store; switcher behavior unchanged across scope modes.
+* [x] **Tests.** Per-cell rendering stories; axe + visual regression; integration test of scope-select → view-mode-select → render path.
+* [x] **Arc42 update.** §8.x View-Mode Matrix with the MVP cell list and the extensibility contract.
+* [x] **Validation.** `make fe-check` green.
+
+---
+
+# Open Phases
 
 ---
 
@@ -2013,7 +2011,7 @@ All versions pinned like in the backend (if best practice)
 
 ---
 
-## Phase 115: Iteration 5 — Low-Fidelity Mode (2D Map Fallback) [P2] - [ ] TODO
+## DEFERRED until previous Phases are 100% fine: Phase 115: Iteration 5 — Low-Fidelity Mode (2D Map Fallback) [P2] - [ ] TODO
 
 *The Low-Fi mode committed in Brief §7.6. Replaces the 3D globe with a 2D equirectangular map while preserving probe-first emission, source satellites, and identical scientific depth. Standalone phase per size discipline — 2D renderer is non-trivial.*
 
