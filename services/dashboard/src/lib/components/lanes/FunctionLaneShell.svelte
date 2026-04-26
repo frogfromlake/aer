@@ -26,6 +26,7 @@
   } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
   import { setFocusedMetric } from '$lib/state/metric.svelte';
+  import SilverIneligiblePanel from './SilverIneligiblePanel.svelte';
 
   interface Props {
     functionKey: string;
@@ -96,6 +97,21 @@
   let scope = $derived<'probe' | 'source'>(sourceId ? 'source' : 'probe');
   let scopeId = $derived<string>(sourceId ?? dossier?.probeId ?? '');
 
+  // Phase 111 — Silver-layer routing.
+  let dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
+
+  // Active source record from the dossier (null when using probe scope).
+  let activeSourceRecord = $derived(
+    sourceId ? (dossier?.sources.find((s) => s.name === sourceId) ?? null) : null
+  );
+  // Eligibility: true when Gold layer, or when Silver + no source-scope (probe
+  // scope; eligibility is evaluated per source, not per probe — the lane body
+  // will show a "narrow to a source" prompt instead), or when Silver + the
+  // active source has passed the WP-006 §5.2 review.
+  let silverEligible = $derived(
+    dataLayer === 'gold' || !sourceId || (activeSourceRecord?.silverEligible ?? false)
+  );
+
   // Per-cell view-mode content from the catalog. Lookup by composed cell
   // id so each (presentation × metric) pair carries its own Dual-Register
   // entry (see Arc42 §8.13 / 8.11). The query is non-blocking — the cell
@@ -143,14 +159,13 @@
     laneSources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
   );
 
-  // Phase 108: every (probe, function-key, view-mode, metric, source-scope)
-  // change in the lane retargets the methodology tray. The chartContext
-  // string is opaque — the tray surfaces it as a "Selection" hint so the
-  // reader can see what the focused metric is currently scoped to.
+  // Phase 108: every (probe, function-key, view-mode, metric, source-scope,
+  // data-layer) change in the lane retargets the methodology tray.
   $effect(() => {
     if (isEmpty) return;
     const ctxParts: string[] = [`probe ${dossier?.probeId ?? '—'}`, presentation.label];
     if (sourceId) ctxParts.push(`source ${sourceId}`);
+    if (dataLayer === 'silver') ctxParts.push('Silver layer');
     setFocusedMetric({
       metricName,
       chartContext: ctxParts.join(' · ')
@@ -205,6 +220,17 @@
           </p>
         {/if}
       </div>
+    {:else if dataLayer === 'silver' && !sourceId}
+      <!-- Silver mode requires a single source — probe scope is undefined for Silver -->
+      <div class="silver-scope-prompt" role="status">
+        <p class="silver-scope-msg">
+          Silver-layer data is available per source. Narrow the scope to a single source using the
+          <strong>⊂ Narrow scope</strong> action on a source card, then re-select the Silver layer.
+        </p>
+      </div>
+    {:else if dataLayer === 'silver' && !silverEligible && activeSourceRecord}
+      <!-- Active source not Silver-eligible -->
+      <SilverIneligiblePanel source={activeSourceRecord} />
     {:else if cellLoadError}
       <p class="muted">Could not load view: {cellLoadError}</p>
     {:else if !CellComponent}
@@ -222,6 +248,7 @@
         {windowEnd}
         {metricName}
         sources={cellSources}
+        {dataLayer}
       />
     {/if}
   </div>
@@ -364,5 +391,28 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .silver-scope-prompt {
+    display: flex;
+    align-items: flex-start;
+    padding: var(--space-5);
+    background: rgba(126, 196, 160, 0.06);
+    border: 1px dashed #7ec4a0;
+    border-radius: var(--radius-lg);
+    max-width: 42rem;
+  }
+
+  .silver-scope-msg {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+    margin: 0;
+  }
+
+  .silver-scope-msg strong {
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
   }
 </style>

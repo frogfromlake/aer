@@ -68,6 +68,11 @@ export interface ViewModeCellProps {
   /** Concrete sources within the active scope — used by per-source cells
    *  (time-series renders one panel per source). */
   sources: ReadonlyArray<{ name: string; emicDesignation: string | null | undefined }>;
+  /** Phase 111 — Silver-layer toggle. When `silver`, cells route queries
+   *  to /api/v1/silver/* where a matching aggregation exists. Cells that
+   *  have no Silver equivalent render a "not available" notice.
+   *  Defaults to `gold` when absent. */
+  dataLayer?: 'gold' | 'silver';
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [

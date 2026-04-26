@@ -1,20 +1,43 @@
 <script lang="ts">
   // EDA × distribution cell (Phase 107).
   // Per-scope histogram + quantile summary backed by
-  // `GET /api/v1/metrics/{name}/distribution`. Renders a histogram with
-  // Observable Plot, lazy-imported so Plot lands in its own chunk only
-  // when the user picks this view (Brief §7 bundle budget).
+  // `GET /api/v1/metrics/{name}/distribution` (Gold) or
+  // `GET /api/v1/silver/aggregations/{type}` (Silver, Phase 111).
+  // Renders a histogram with Observable Plot, lazy-imported so Plot lands
+  // in its own chunk only when the user picks this view (Brief §7 bundle
+  // budget).
   import { createQuery } from '@tanstack/svelte-query';
   import { onDestroy } from 'svelte';
   import {
     metricDistributionQuery,
+    silverAggregationQuery,
     type DistributionResponseDto,
+    type SilverAggregationResponseDto,
+    type SilverAggregationType,
     type QueryOutcome
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
 
-  let { ctx, scope, scopeId, windowStart, windowEnd, metricName }: ViewModeCellProps = $props();
+  let {
+    ctx,
+    scope,
+    scopeId,
+    windowStart,
+    windowEnd,
+    metricName,
+    dataLayer = 'gold'
+  }: ViewModeCellProps = $props();
+
+  // Map Gold metric names to the closest Silver aggregation type.
+  // Falls back to `word_count` — the universally available Silver field.
+  const GOLD_TO_SILVER: Record<string, SilverAggregationType> = {
+    word_count: 'word_count',
+    entity_count: 'raw_entity_count'
+  };
+  let silverAggType = $derived<SilverAggregationType>(
+    (GOLD_TO_SILVER[metricName] as SilverAggregationType | undefined) ?? 'word_count'
+  );
 
   const distQ = createQuery<
     QueryOutcome<DistributionResponseDto>,
@@ -27,15 +50,65 @@
       start: windowStart,
       end: windowEnd
     });
-    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: dataLayer !== 'silver'
+    };
   });
+
+  const silverDistQ = createQuery<
+    QueryOutcome<SilverAggregationResponseDto>,
+    Error,
+    QueryOutcome<SilverAggregationResponseDto>
+  >(() => {
+    const useSilver = dataLayer === 'silver' && scope === 'source';
+    const o = silverAggregationQuery(ctx, silverAggType, {
+      sourceId: scopeId,
+      start: windowStart,
+      end: windowEnd
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: useSilver
+    };
+  });
+
+  // Normalised distribution data regardless of layer.
+  let activeDist = $derived.by(() => {
+    if (dataLayer === 'silver') {
+      if (silverDistQ.data?.kind !== 'success') return null;
+      return silverDistQ.data.data.distribution ?? null;
+    }
+    if (distQ.data?.kind !== 'success') return null;
+    return { bins: distQ.data.data.bins, summary: distQ.data.data.summary };
+  });
+
+  let isPending = $derived(dataLayer === 'silver' ? silverDistQ.isPending : distQ.isPending);
+  let refusalData = $derived(
+    dataLayer === 'silver'
+      ? silverDistQ.data?.kind === 'refusal'
+        ? silverDistQ.data
+        : null
+      : distQ.data?.kind === 'refusal'
+        ? distQ.data
+        : null
+  );
+  let isNetworkError = $derived(
+    dataLayer === 'silver'
+      ? silverDistQ.isError || silverDistQ.data?.kind === 'network-error'
+      : distQ.isError || distQ.data?.kind === 'network-error'
+  );
 
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
   let renderToken = 0;
 
   $effect(() => {
-    const data = distQ.data?.kind === 'success' ? distQ.data.data : null;
+    const data = activeDist;
     if (!host || !data) return;
     const token = ++renderToken;
     (async () => {
@@ -93,21 +166,26 @@
 <section class="dist-cell" aria-labelledby="dist-title-{metricName}">
   <header class="cell-header">
     <h3 id="dist-title-{metricName}" class="cell-title">
-      <code>{metricName}</code>
+      <code>{dataLayer === 'silver' ? silverAggType : metricName}</code>
       <span class="muted">— distribution ({scope})</span>
+      {#if dataLayer === 'silver'}
+        <span class="layer-badge silver" aria-label="Silver layer data">Ag</span>
+      {/if}
     </h3>
   </header>
 
-  {#if distQ.isPending}
+  {#if dataLayer === 'silver' && scope !== 'source'}
+    <p class="muted">Narrow to a single source to view Silver-layer distribution.</p>
+  {:else if isPending}
     <p class="muted" aria-busy="true">Loading distribution…</p>
-  {:else if distQ.data?.kind === 'refusal'}
-    <RefusalSurface refusal={distQ.data} {ctx} />
-  {:else if distQ.isError || distQ.data?.kind === 'network-error'}
+  {:else if refusalData}
+    <RefusalSurface refusal={refusalData} {ctx} />
+  {:else if isNetworkError}
     <p class="muted">Could not load distribution.</p>
-  {:else if distQ.data?.kind === 'success' && distQ.data.data.summary.count === 0}
+  {:else if activeDist && activeDist.summary.count === 0}
     <p class="muted">No samples for {metricName} in this window.</p>
-  {:else if distQ.data?.kind === 'success'}
-    {@const s = distQ.data.data.summary}
+  {:else if activeDist}
+    {@const s = activeDist.summary}
     <div class="plot-host" bind:this={host} role="img" aria-label="Histogram of {metricName}"></div>
     <dl class="summary" aria-label="Quantile summary">
       <div>
@@ -175,6 +253,20 @@
 
   .cell-title code {
     font-family: var(--font-mono);
+  }
+
+  .layer-badge {
+    font-size: 10px;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .layer-badge.silver {
+    background: rgba(126, 196, 160, 0.15);
+    border: 1px solid #7ec4a0;
+    color: #7ec4a0;
   }
 
   .plot-host {

@@ -14,7 +14,8 @@ describe('readFromSearch', () => {
       metric: null,
       view: null,
       sourceId: null,
-      viewMode: null
+      viewMode: null,
+      layer: null
     });
   });
 
@@ -73,6 +74,13 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?viewMode=cooccurrence_network').viewMode).toBe('cooccurrence_network');
     expect(readFromSearch('?viewMode=scatter').viewMode).toBeNull();
   });
+
+  it('parses layer=silver and layer=gold correctly', () => {
+    expect(readFromSearch('?layer=silver').layer).toBe('silver');
+    expect(readFromSearch('?layer=gold').layer).toBe('gold');
+    expect(readFromSearch('?layer=bronze').layer).toBeNull();
+    expect(readFromSearch('').layer).toBeNull();
+  });
 });
 
 describe('writeToSearch', () => {
@@ -88,7 +96,8 @@ describe('writeToSearch', () => {
         metric: null,
         view: null,
         sourceId: null,
-        viewMode: null
+        viewMode: null,
+        layer: null
       })
     ).toBe('');
   });
@@ -104,7 +113,8 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceId: null,
-      viewMode: null
+      viewMode: null,
+      layer: null
     });
     expect(qs).toContain('from=2026-04-01');
     expect(qs).toContain('to=2026-04-22');
@@ -112,6 +122,7 @@ describe('writeToSearch', () => {
     expect(qs).toContain('resolution=hourly');
     expect(qs).not.toContain('viewingMode');
     expect(qs).not.toContain('ep=');
+    expect(qs).not.toContain('layer=');
   });
 
   it('emits ep alongside probe and drops it without a probe', () => {
@@ -125,7 +136,8 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceId: null,
-      viewMode: null
+      viewMode: null,
+      layer: null
     });
     expect(withProbe).toContain('probe=probe-0');
     expect(withProbe).toContain('ep=1');
@@ -140,7 +152,8 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceId: null,
-      viewMode: null
+      viewMode: null,
+      layer: null
     });
     expect(orphan).not.toContain('ep=');
   });
@@ -156,7 +169,8 @@ describe('writeToSearch', () => {
       metric: 'sentiment_score',
       view: 'analysis' as const,
       sourceId: null,
-      viewMode: 'distribution' as const
+      viewMode: 'distribution' as const,
+      layer: null
     };
     const qs = writeToSearch(original);
     expect(readFromSearch(qs)).toEqual(original);
@@ -173,7 +187,8 @@ describe('writeToSearch', () => {
       metric: 'sentiment_score',
       view: null,
       sourceId: null,
-      viewMode: null
+      viewMode: null,
+      layer: null
     });
     expect(qs).not.toContain('metric=');
   });
@@ -189,7 +204,8 @@ describe('writeToSearch', () => {
       metric: null,
       view: 'atmosphere',
       sourceId: null,
-      viewMode: null
+      viewMode: null,
+      layer: null
     });
     expect(qs).not.toContain('view=');
   });
@@ -205,8 +221,74 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceId: null,
-      viewMode: 'distribution'
+      viewMode: 'distribution',
+      layer: null
     });
     expect(qs).not.toContain('viewMode=');
+  });
+
+  it('emits layer=silver when set with a probe, omits for gold or null', () => {
+    const withSilver = writeToSearch({
+      from: null,
+      to: null,
+      probe: 'probe-0',
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: 'silver'
+    });
+    expect(withSilver).toContain('layer=silver');
+
+    const withGold = writeToSearch({
+      from: null,
+      to: null,
+      probe: 'probe-0',
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: 'gold'
+    });
+    expect(withGold).not.toContain('layer=');
+
+    const noProbe = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: null,
+      viewMode: null,
+      layer: 'silver'
+    });
+    expect(noProbe).not.toContain('layer=');
+  });
+
+  it('round-trips layer=silver through readFromSearch', () => {
+    const original = {
+      from: null,
+      to: null,
+      probe: 'probe-0-de-institutional-rss',
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceId: 'tagesschau',
+      viewMode: null,
+      layer: 'silver' as const
+    };
+    const qs = writeToSearch(original);
+    expect(readFromSearch(qs)).toEqual(original);
   });
 });

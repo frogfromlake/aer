@@ -1953,41 +1953,25 @@ All versions pinned like in the backend (if best practice)
 * [x] **Arc42 update.** §8.x Probe-First Emission + Source Satellite Presentation. Note that Phase 100a's source-click descent is deprecated.
 * [x] **Validation.** `make fe-check` green; Playwright E2E: globe → probe selection → Dossier flow green end-to-end.
 
+## Phase 111: Iteration 5 — Silver-Layer Toggle on Surface II [P2] - [x] DONE
+
+*Exposes Silver-layer access as a data-source toggle. Depends on Phase 103 (Silver endpoints) and Phase 106 (Surface II Foundation).Check docs/design/reframing-note.md, docs/design/design_brief.md or ADR-20 in docs/arc42/09_architecture_decisions.md if more information is needed, but only if necessary.*
+
+* [x] **Toggle component.** Gold / Silver data-source toggle on Surface II (location per Brief §9.1 — top scope bar or Dossier header; pick during implementation). URL state carries toggle.
+* [x] **Eligible routing.** When toggle = Silver and active source is eligible, view-mode queries route to `/api/v1/silver/*`. Same matrix cells render over Silver data without cell-level rewrites.
+* [x] **Non-eligible rendering.** When toggle = Silver and active source is NOT eligible, an explicit "not Silver-eligible" panel renders with methodological context drawn from content catalog and a link to WP-006 §5.2. No silent omission.
+* [x] **Scope interactions.** Narrowing to a different source re-evaluates eligibility; panel updates accordingly.
+* [x] **Tests.** Toggle interaction; eligible vs. non-eligible routing; refusal panel rendering; URL-state round-trip.
+* [x] **Arc42 update.** §8.x Silver-Layer Toggle + the eligibility-gate UX contract.
+* [x] **Validation.** `make fe-check` green.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 111: Iteration 5 — Silver-Layer Toggle on Surface II [P2] - [ ] TODO
-
-*Exposes Silver-layer access as a data-source toggle. Depends on Phase 103 (Silver endpoints) and Phase 106 (Surface II Foundation).Check docs/design/reframing-note.md, docs/design/design_brief.md or ADR-20 in docs/arc42/09_architecture_decisions.md if more information is needed, but only if necessary.*
-
-* [ ] **Toggle component.** Gold / Silver data-source toggle on Surface II (location per Brief §9.1 — top scope bar or Dossier header; pick during implementation). URL state carries toggle.
-* [ ] **Eligible routing.** When toggle = Silver and active source is eligible, view-mode queries route to `/api/v1/silver/*`. Same matrix cells render over Silver data without cell-level rewrites.
-* [ ] **Non-eligible rendering.** When toggle = Silver and active source is NOT eligible, an explicit "not Silver-eligible" panel renders with methodological context drawn from content catalog and a link to WP-006 §5.2. No silent omission.
-* [ ] **Scope interactions.** Narrowing to a different source re-evaluates eligibility; panel updates accordingly.
-* [ ] **Tests.** Toggle interaction; eligible vs. non-eligible routing; refusal panel rendering; URL-state round-trip.
-* [ ] **Arc42 update.** §8.x Silver-Layer Toggle + the eligibility-gate UX contract.
-* [ ] **Validation.** `make fe-check` green.
-
----
-
-## Phase 112: Iteration 5 — Progressive Descent Infrastructure [P2] - [ ] TODO
-
-*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that the three surfaces are in place. Depends on Phases 106, 109, 110.*
-
-* [ ] **View Transitions API wiring.** Atmosphere ↔ Function Lanes ↔ Reflection surface transitions; descent and ascent animations per `prefers-reduced-motion: reduce`.
-* [ ] **Keyboard-nav completeness.** All five layers on all three surfaces reachable via keyboard; surface switching via keyboard shortcuts (documented in `design_system.md`); methodology tray toggle via keyboard.
-* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
-* [ ] **L5 Evidence polish.** Reader-pane overlay rendering refined (trace-ID copy affordance, content-catalog evidence-metadata rendering, reduced-motion fade).
-* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests; `prefers-reduced-motion` verification; L5 reader-pane E2E.
-* [ ] **Arc42 update.** §8.x Progressive Descent Infrastructure + keyboard-nav map.
-* [ ] **Validation.** `make fe-check` green; Playwright keyboard-only E2E green.
-
----
-
-## Phase 113: Iteration 5 — Negative Space Overlay [P2] - [ ] TODO
+## Phase 112: Iteration 5 — Negative Space Overlay [P2] - [ ] TODO
 
 *"What AĒR doesn't see" toggle wired across all surfaces per Brief §4.4 and §5.4. Depends on Phases 106 and 108.*
 
@@ -2002,9 +1986,31 @@ All versions pinned like in the backend (if best practice)
 
 ---
 
-## Phase 114: Iteration 5 — Accessibility Audit + Performance Verification (High-Fi) [P1] - [ ] TODO
+## Phase 113: Iteration 5 — Bug fixing [P2] - [ ] TODO
+*This phase covers all bugs and issues found in Iteration 5 implementation phases. If major changes are required or structural/architectural adjustments are necessary whe have to document it in the ADR-20 that covers the dashboard implementation*
 
-*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all Iteration 5 surfaces. Depends on Phases 105–113 being substantially in place. Low-Fi is a separate phase (115).*
+* [ ] **Bug 1 - ** `` .
+* [ ] **Validation.** `make fe-check` green.
+
+---
+
+## DEFERRED until previous Phases are 100% fine: Phase 113: Iteration 5 — Progressive Descent Infrastructure [P2] - [ ] TODO
+
+*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that the three surfaces are in place. Depends on Phases 106, 109, 110.*
+
+* [ ] **View Transitions API wiring.** Atmosphere ↔ Function Lanes ↔ Reflection surface transitions; descent and ascent animations per `prefers-reduced-motion: reduce`.
+* [ ] **Keyboard-nav completeness.** All five layers on all three surfaces reachable via keyboard; surface switching via keyboard shortcuts (documented in `design_system.md`); methodology tray toggle via keyboard.
+* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
+* [ ] **L5 Evidence polish.** Reader-pane overlay rendering refined (trace-ID copy affordance, content-catalog evidence-metadata rendering, reduced-motion fade).
+* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests; `prefers-reduced-motion` verification; L5 reader-pane E2E.
+* [ ] **Arc42 update.** §8.x Progressive Descent Infrastructure + keyboard-nav map.
+* [ ] **Validation.** `make fe-check` green; Playwright keyboard-only E2E green.
+
+---
+
+## DEFERRED until previous Phases are 100% fine: Phase 114: Iteration 5 — Accessibility Audit + Performance Verification (High-Fi) [P1] - [ ] TODO
+
+*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all Iteration 5 surfaces. Depends on Phases 105–112 being substantially in place. Low-Fi is a separate phase (115).*
 
 * [ ] **Axe audit.** `@axe-core/playwright` covers every route state: three surfaces × reachable layers × methodology-tray open/closed × Negative Space on/off. Zero WCAG 2.2 AA violations.
 * [ ] **Lighthouse CI tightening.** Budgets per Brief §10: first meaningful paint, interactivity, descent latency, frame budgets during transitions. CI fails on regression.

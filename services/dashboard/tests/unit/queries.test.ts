@@ -6,6 +6,7 @@ import {
   metricDistributionQuery,
   metricsQuery,
   probesQuery,
+  silverAggregationQuery,
   type FetchContext
 } from '../../src/lib/api/queries';
 
@@ -185,5 +186,84 @@ describe('view-mode queries (Phase 107)', () => {
     expect(capturedUrl).toContain('/entities/cooccurrence?');
     expect(capturedUrl).toContain('scope=probe');
     expect(capturedUrl).toContain('topN=25');
+  });
+});
+
+describe('silverAggregationQuery', () => {
+  it('routes to /silver/aggregations/{type} with required params', async () => {
+    let capturedUrl = '';
+    const captureFetch: FetchFn = (async (url: string) => {
+      capturedUrl = url;
+      return new Response(
+        JSON.stringify({
+          aggregationType: 'word_count',
+          source: 'tagesschau',
+          windowStart: '2026-04-01T00:00:00.000Z',
+          windowEnd: '2026-04-22T00:00:00.000Z',
+          distribution: {
+            bins: [],
+            summary: {
+              count: 0,
+              min: 0,
+              max: 0,
+              mean: 0,
+              median: 0,
+              p05: 0,
+              p25: 0,
+              p75: 0,
+              p95: 0
+            }
+          }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }) as unknown as FetchFn;
+
+    const q = silverAggregationQuery({ baseUrl: '/api/v1', fetch: captureFetch }, 'word_count', {
+      sourceId: 'tagesschau',
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z'
+    });
+    const outcome = await q.queryFn();
+    expect(outcome.kind).toBe('success');
+    expect(capturedUrl).toContain('/silver/aggregations/word_count');
+    expect(capturedUrl).toContain('sourceId=tagesschau');
+  });
+
+  it('surfaces a 403 as a silver_eligibility refusal', async () => {
+    const q = silverAggregationQuery(
+      ctxWith(
+        mockFetch({
+          status: 403,
+          body: { message: 'source not Silver-eligible', gate: 'silver_eligibility' }
+        })
+      ),
+      'word_count',
+      {
+        sourceId: 'not-eligible',
+        start: '2026-04-01T00:00:00.000Z',
+        end: '2026-04-22T00:00:00.000Z'
+      }
+    );
+    const outcome = await q.queryFn();
+    expect(outcome.kind).toBe('refusal');
+    if (outcome.kind === 'refusal') {
+      expect(outcome.refusalKind).toBe('silver_eligibility');
+      expect(outcome.httpStatus).toBe(403);
+    }
+  });
+
+  it('uses the aggregationType in the query key for cache isolation', () => {
+    const q1 = silverAggregationQuery({ baseUrl: '/api/v1' }, 'word_count', {
+      sourceId: 's',
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z'
+    });
+    const q2 = silverAggregationQuery({ baseUrl: '/api/v1' }, 'raw_entity_count', {
+      sourceId: 's',
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z'
+    });
+    expect(q1.queryKey).not.toEqual(q2.queryKey);
   });
 });

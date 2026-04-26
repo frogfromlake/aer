@@ -4,3 +4,5 @@ export { default as ArticlePreviewList } from './ArticlePreviewList.svelte';
 export { default as FunctionLaneShell } from './FunctionLaneShell.svelte';
 export { default as L5EvidenceReader } from './L5EvidenceReader.svelte';
 export { default as ViewModeSwitcher } from './ViewModeSwitcher.svelte';
+export { default as SilverLayerToggle } from './SilverLayerToggle.svelte';
+export { default as SilverIneligiblePanel } from './SilverIneligiblePanel.svelte';

@@ -31,6 +31,14 @@ export type ArticleDetailDto = components['schemas']['ArticleDetail'];
 export type DistributionResponseDto = components['schemas']['DistributionResponse'];
 export type CoOccurrenceGraphDto = components['schemas']['CoOccurrenceGraph'];
 export type AvailableMetricDto = components['schemas']['AvailableMetric'];
+export type SilverAggregationResponseDto = components['schemas']['SilverAggregationResponse'];
+export type SilverAggregationType =
+  | 'cleaned_text_length'
+  | 'word_count'
+  | 'raw_entity_count'
+  | 'cleaned_text_length_by_hour'
+  | 'word_count_by_source'
+  | 'cleaned_text_length_vs_word_count';
 
 // Canonical refusal kinds currently authored in the Content Catalog
 // (see ROADMAP Phase 94 seed content). A query hook names the kind it
@@ -40,6 +48,7 @@ export type RefusalKind =
   | 'normalization_equivalence_missing'
   | 'validation_missing'
   | 'k_anonymity_threshold_not_met'
+  | 'silver_eligibility'
   | 'unspecified';
 
 export interface RefusalOutcome {
@@ -397,6 +406,44 @@ export function entityCoOccurrenceQuery(
         ctx,
         `/entities/cooccurrence?${qs.toString()}`,
         'validation_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// -------------------------------------------------------------------------
+// Phase 111 — Silver-layer aggregation query.
+//
+// Routes to /api/v1/silver/aggregations/{aggregationType}. Subject to the
+// WP-006 §5.2 Silver-eligibility gate; a 403 response is surfaced as a
+// `silver_eligibility` refusal so the frontend renders a methodological
+// explanation rather than a generic error.
+// -------------------------------------------------------------------------
+
+export interface SilverAggregationParams {
+  sourceId: string;
+  start: string;
+  end: string;
+  bins?: number;
+}
+
+export function silverAggregationQuery(
+  ctx: FetchContext,
+  aggregationType: SilverAggregationType,
+  params: SilverAggregationParams
+): QueryOptions<SilverAggregationResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('sourceId', params.sourceId);
+  qs.set('start', params.start);
+  qs.set('end', params.end);
+  if (params.bins) qs.set('bins', String(params.bins));
+  return {
+    queryKey: ['aer', 'silver-aggregation', aggregationType, params] as const,
+    queryFn: () =>
+      fetchJson<SilverAggregationResponseDto>(
+        ctx,
+        `/silver/aggregations/${encodeURIComponent(aggregationType)}?${qs.toString()}`,
+        'silver_eligibility'
       ),
     staleTime: FIVE_MINUTES
   };

@@ -11,7 +11,7 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
   import { ScopeBar } from '$lib/components/chrome';
-  import { ViewModeSwitcher } from '$lib/components/lanes';
+  import { SilverLayerToggle, ViewModeSwitcher } from '$lib/components/lanes';
   import { setUrl, urlState } from '$lib/state/url.svelte';
 
   interface Props {
@@ -95,6 +95,8 @@
   {#if !isDossier && activeFunctionKey}
     <ViewModeSwitcher />
   {/if}
+
+  <SilverLayerToggle />
 </ScopeBar>
 
 {#if children}{@render children()}{/if}

@@ -16,6 +16,10 @@ export type ViewLayer = 'atmosphere' | 'analysis';
 // distribution, cooccurrence_network. The catalog is extensible —
 // new presentations are added here and registered in $lib/viewmodes/.
 export type ViewMode = 'time_series' | 'distribution' | 'cooccurrence_network';
+// Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
+// `silver` routes Surface II queries to /api/v1/silver/* and enforces the
+// WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
+export type DataLayer = 'gold' | 'silver';
 
 export interface UrlState {
   from: string | null;
@@ -42,6 +46,9 @@ export interface UrlState {
   // Surface II's Function Lanes; consumers treat `null` as the default
   // presentation (`time_series`).
   viewMode: ViewMode | null;
+  // Silver-layer toggle (Phase 111). `null` and `gold` are equivalent;
+  // only `silver` is emitted in the URL. Dropped when no probe is active.
+  layer: DataLayer | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -59,13 +66,15 @@ export const EMPTY_URL_STATE: UrlState = {
   metric: null,
   view: null,
   sourceId: null,
-  viewMode: null
+  viewMode: null,
+  layer: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
 const VIEW_LAYERS: readonly ViewLayer[] = ['atmosphere', 'analysis'];
 const VIEW_MODES: readonly ViewMode[] = ['time_series', 'distribution', 'cooccurrence_network'];
+const DATA_LAYERS: readonly DataLayer[] = ['gold', 'silver'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
 // smuggling structure into the URL. The BFF's `metric_name` is already
 // snake-case ascii, so this matches the wire contract exactly.
@@ -101,7 +110,8 @@ export function readFromSearch(search: string): UrlState {
     metric: parseMetric(p.get('metric')),
     view: parseEnum(p.get('view'), VIEW_LAYERS),
     sourceId: p.get('sourceId'),
-    viewMode: parseEnum(p.get('viewMode'), VIEW_MODES)
+    viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
+    layer: parseEnum(p.get('layer'), DATA_LAYERS)
   };
 }
 
@@ -132,6 +142,9 @@ export function writeToSearch(state: UrlState): string {
   // Function Lanes). Drop it on the bare Atmosphere so reload converges
   // on the default presentation.
   if (state.probe && state.viewMode) p.set('viewMode', state.viewMode);
+  // `layer=gold` is the default; only emit when silver is explicitly
+  // selected. Drop when no probe is active (layer has no meaning there).
+  if (state.probe && state.layer === 'silver') p.set('layer', 'silver');
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

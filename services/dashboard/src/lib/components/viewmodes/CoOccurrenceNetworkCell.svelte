@@ -16,7 +16,15 @@
 
   // metricName is part of the cell id so a future "colour by sentiment"
   // mode can lift it; for the MVP we colour by entity label and ignore it.
-  let { ctx, scope, scopeId, windowStart, windowEnd }: ViewModeCellProps = $props();
+  // Phase 111: Silver layer has no entity co-occurrence data; show a notice.
+  let {
+    ctx,
+    scope,
+    scopeId,
+    windowStart,
+    windowEnd,
+    dataLayer = 'gold'
+  }: ViewModeCellProps = $props();
 
   const TOP_N = 60;
   const WIDTH = 720;
@@ -145,7 +153,13 @@
     </h3>
   </header>
 
-  {#if graphQ.isPending}
+  {#if dataLayer === 'silver'}
+    <p class="notice">
+      Co-occurrence network is not available for Silver-layer data. Co-occurrence analysis operates
+      on Gold-layer entity extractions. Switch to Distribution to explore Silver-layer document
+      characteristics.
+    </p>
+  {:else if graphQ.isPending}
     <p class="muted" aria-busy="true">Loading co-occurrence graph…</p>
   {:else if graphQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={graphQ.data} {ctx} />
@@ -231,5 +245,16 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .notice {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    margin: 0;
+    padding: var(--space-4);
+    background: var(--color-bg-elevated);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    max-width: 36rem;
   }
 </style>
