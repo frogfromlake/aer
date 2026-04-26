@@ -34,7 +34,18 @@
     }
   ];
 
-  const SURFACES = [
+  const url = $derived(urlState());
+  let activePillar = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
+
+  // Active probe: prefer path param (dossier/lane pages) over URL query param (Atmosphere).
+  let activeProbe = $derived<string | null>(
+    (page.params as Record<string, string | undefined>).probeId ?? url.probe ?? null
+  );
+
+  // Function Lanes link → dossier when a probe is active, otherwise stub.
+  let lanesHref = $derived(activeProbe ? `/lanes/${activeProbe}/dossier` : '/lanes');
+
+  const SURFACES = $derived([
     {
       href: '/',
       label: 'Atmosphere',
@@ -42,10 +53,10 @@
       hint: 'Surface I — Atmosphere (3D globe + probe overview)'
     },
     {
-      href: '/lanes',
+      href: lanesHref,
       label: 'Function Lanes',
       glyph: '≡',
-      hint: 'Surface II — Function Lanes (Phase 106)'
+      hint: 'Surface II — Function Lanes'
     },
     {
       href: '/reflection',
@@ -53,15 +64,14 @@
       glyph: '¶',
       hint: 'Surface III — Reflection (Phase 109)'
     }
-  ] as const;
-
-  const url = $derived(urlState());
-  let activePillar = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
-  let activeProbe = $derived(url.probe);
+  ]);
 
   function isActiveSurface(href: string): boolean {
     const p = page.url.pathname;
-    return href === '/' ? p === '/' : p.startsWith(href);
+    if (href === '/') return p === '/';
+    // /lanes/* matches Function Lanes regardless of probe in path
+    if (href.startsWith('/lanes')) return p.startsWith('/lanes');
+    return p.startsWith(href);
   }
 </script>
 
@@ -82,7 +92,7 @@
 
   <!-- Surface anchors -->
   <ul class="surfaces" role="list" aria-label="Surfaces">
-    {#each SURFACES as s (s.href)}
+    {#each SURFACES as s (s.label)}
       <li>
         <a
           href={s.href}

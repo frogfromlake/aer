@@ -9,7 +9,7 @@
   //
   // Layer mapping:
   //   L0 Immersion  — 3D globe, always rendered
-  //   L1 Orientation — soft top-bar overlay (fade on idle)
+  //   L1 Orientation — (removed Phase 105; content moves to SideRail/Dossier per reframing §5)
   //   L2 Exploration — TimeScrubber (bottom) + controls in ScopeBar (top)
   //   L3 Analysis    — SidePanel with TimeSeriesChart (uPlot)
   //   L4 Provenance  — fly-out overlay anchored to L3 (Phase 108: moves to MethodologyTray)
@@ -18,7 +18,6 @@
   //   Tab           cycles through probes (sr-only nav)
   //   Enter/Space   descends to L3 on the focused probe
   //   Escape        ascends one layer (L4 → L3 → L0)
-  //   Shift+Tab @L0 focuses the L1 overlay
   //   Shift+N       toggles Negative Space overlay (structural only)
   //
   // Shell-chunk rules (enforced by tests/unit/lazy-engine.test.ts):
@@ -33,7 +32,6 @@
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
-  import L1Overlay from '$lib/components/L1Overlay.svelte';
   import L3AnalysisPanel from '$lib/components/L3AnalysisPanel.svelte';
   import L4ProvenanceFlyout from '$lib/components/L4ProvenanceFlyout.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
@@ -231,7 +229,6 @@
   }
 
   // --- Keyboard descent grammar ---------------------------------------
-  let l1El: HTMLElement | undefined = $state();
   interface FlatProbePoint {
     probeId: string;
     emissionPointIndex: number;
@@ -270,17 +267,6 @@
         e.preventDefault();
         onPanelClose();
         return;
-      }
-    }
-    // Shift+Tab at L0 focuses the L1 overlay. When the panel is open or
-    // the user is already inside a form field, yield to native Tab.
-    if (e.key === 'Tab' && e.shiftKey && !panelOpen) {
-      const t = e.target as HTMLElement | null;
-      const inForm = t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.tagName === 'SELECT';
-      const inPanel = !!t?.closest?.('[role="dialog"]');
-      if (!inForm && !inPanel && l1El) {
-        e.preventDefault();
-        l1El.focus();
       }
     }
   }
@@ -392,10 +378,6 @@
         </li>
       {/each}
     </ul>
-  </div>
-
-  <div class="l1-slot" bind:this={l1El}>
-    <L1Overlay probes={probeDtos} {windowLabel} normalization="raw" {ctx} />
   </div>
 
   <SidePanel
@@ -517,10 +499,6 @@
     left: calc(var(--rail-width) + var(--space-5));
     max-width: 28rem;
     z-index: 500;
-  }
-  .l1-slot {
-    /* No positioning of its own — L1Overlay is fixed-positioned. */
-    display: contents;
   }
   .l2-slot {
     position: fixed;
