@@ -77,7 +77,7 @@
       {ctx}
       windowStart={windowMs.start}
       windowEnd={windowMs.end}
-      sourceId={url.sourceId}
+      sourceIds={url.sourceIds}
     />
   {/if}
 </main>

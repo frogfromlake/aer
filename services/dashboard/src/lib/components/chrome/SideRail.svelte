@@ -102,6 +102,11 @@
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- all rail links are internal surface routes -->
 <nav class="rail" aria-label="Primary navigation">
+  <!-- AĒR branding — top of rail, fills the scope-bar height zone -->
+  <div class="logo" aria-label="AĒR">
+    <span class="logo-text" aria-hidden="true">AĒR</span>
+  </div>
+
   <!-- Planet glyph: Surface I — Atmosphere -->
   <a
     href="/"
@@ -138,24 +143,9 @@
     {/each}
   </ul>
 
-  <!-- Scope indicator: active probe (compact) -->
-  <div class="scope-indicator" aria-label="Active scope: {activeProbe ?? 'no probe selected'}">
-    <span
-      class="probe-tag"
-      class:dim={!activeProbe}
-      title={activeProbe ? `Active probe: ${activeProbe}` : 'No probe selected'}
-    >
-      {#if activeProbe}
-        {activeProbe.slice(0, 7)}
-      {:else}
-        —
-      {/if}
-    </span>
-  </div>
-
   <div class="divider" role="separator" aria-hidden="true"></div>
 
-  <!-- Pillar-mode toggle -->
+  <!-- Pillar-mode toggle — grouped with surfaces above -->
   <div class="pillar-section">
     <div class="pillar-eyebrow">
       <span class="rail-eyebrow" aria-hidden="true">Pillar</span>
@@ -186,8 +176,8 @@
             setUrl({ viewingMode: p.id });
           }}
         >
-          <span class="pillar-abbr" aria-hidden="true">{p.abbr}</span>
-          <span class="pillar-name">{p.label}</span>
+          <span class="glyph" aria-hidden="true">{p.abbr}</span>
+          <span class="rail-label">{p.label}</span>
         </button>
       {/each}
     </div>
@@ -209,6 +199,22 @@
     {/if}
   </div>
 
+  <!-- Spacer pushes scope indicator + NS to the bottom -->
+  <div class="flex-spacer" aria-hidden="true"></div>
+
+  <!-- Scope indicator: active probe (compact) -->
+  <div class="scope-indicator" aria-label="Active scope: {activeProbe ?? 'no probe selected'}">
+    <span
+      class="probe-tag"
+      class:dim={!activeProbe}
+      title={activeProbe ? `Active probe: ${activeProbe}` : 'No probe selected'}
+    >
+      {#if activeProbe}
+        {activeProbe.slice(0, 7)}
+      {/if}
+    </span>
+  </div>
+
   <div class="divider" role="separator" aria-hidden="true"></div>
 
   <!-- Negative Space overlay toggle — persistent across all surfaces -->
@@ -227,13 +233,35 @@
     bottom: 0;
     width: var(--rail-width);
     z-index: 450;
-    background: var(--color-bg-elevated);
+    background: var(--color-bg-overlay);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-3) 0 var(--space-3);
+    gap: var(--space-2);
+    padding: 0 0 var(--space-3);
+  }
+
+  /* AĒR logo — fills the scope-bar height zone at the top of the rail */
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: var(--scope-bar-height);
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-2);
+  }
+
+  .logo-text {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-accent);
+    letter-spacing: 0.18em;
   }
 
   .planet {
@@ -241,9 +269,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    width: 44px;
-    padding: 4px 0;
+    gap: 3px;
+    width: 58px;
+    padding: 6px 0;
     border-radius: var(--radius-md);
     color: var(--color-accent);
     text-decoration: none;
@@ -253,7 +281,7 @@
       color var(--motion-duration-fast) var(--motion-ease-standard);
   }
   .planet .glyph {
-    font-size: 1.2rem;
+    font-size: 1.35rem;
     line-height: 1;
   }
 
@@ -269,7 +297,7 @@
   }
 
   .divider {
-    width: 28px;
+    width: 44px;
     height: 1px;
     background: var(--color-border);
     flex-shrink: 0;
@@ -284,6 +312,9 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-1);
+  }
+
+  .flex-spacer {
     flex: 1;
   }
 
@@ -292,9 +323,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    width: 44px;
-    padding: 4px 0;
+    gap: 3px;
+    width: 58px;
+    padding: 6px 0;
     border-radius: var(--radius-md);
     color: var(--color-fg-muted);
     text-decoration: none;
@@ -303,15 +334,15 @@
       color var(--motion-duration-fast) var(--motion-ease-standard);
   }
   .surface-link .glyph {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     line-height: 1;
   }
 
   .rail-label {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-semibold);
     font-family: var(--font-ui);
     line-height: 1;
   }
@@ -320,10 +351,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-1);
   }
   .rail-eyebrow {
-    font-size: 8px;
+    font-size: 9.5px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--color-fg-subtle);
@@ -357,7 +388,7 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     text-align: center;
-    max-width: 44px;
+    max-width: 58px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -372,7 +403,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: var(--space-1);
   }
 
   .ns-wrap {
@@ -386,31 +417,21 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    width: 44px;
-    padding: 3px 2px;
+    gap: 3px;
+    width: 58px;
+    padding: 6px 0;
     background: transparent;
     color: var(--color-fg-muted);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    border: none;
+    border-radius: var(--radius-md);
     font-family: var(--font-ui);
-    font-weight: var(--font-weight-medium);
-    letter-spacing: 0.04em;
     cursor: pointer;
-    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
+    transition:
+      background var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
-  .pillar-abbr {
-    font-size: 11px;
-    line-height: 1;
-  }
-
-  .pillar-name {
-    font-size: 8px;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
+  /* pillar glyph reuses .glyph sizing defined on surface-link */
 
   .pillar-eyebrow {
     display: flex;
@@ -421,16 +442,18 @@
   .pillar-info-btn {
     background: transparent;
     border: none;
-    color: var(--color-fg-subtle);
-    font-size: 11px;
+    color: var(--color-accent);
+    font-size: 16px; /* Increased from 11px */
     line-height: 1;
     padding: 0;
     cursor: pointer;
+    transition: filter 0.2s ease;
   }
 
   .pillar-info-btn:hover,
   .pillar-info-btn:focus-visible {
-    color: var(--color-fg);
+    color: #5283b8;
+    filter: brightness(1.3); /* Adds a nice hover effect since it's colored now */
     outline: none;
   }
 
@@ -499,15 +522,17 @@
     outline: none;
   }
 
-  .pillar-btn:hover {
+  .pillar-btn:hover,
+  .pillar-btn:focus-visible {
+    background: var(--color-surface-hover);
     color: var(--color-fg);
-    border-color: var(--color-border-strong);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .pillar-btn.active {
     color: var(--color-fg);
-    background: rgba(82, 131, 184, 0.2);
-    border-color: #5283b8;
+    background: var(--color-surface);
   }
 
   .pillar-btn.inert {
@@ -516,8 +541,8 @@
   }
 
   .pillar-btn.inert:hover {
+    background: transparent;
     color: var(--color-fg-muted);
-    border-color: var(--color-border);
   }
 
   .pillar-btn:focus-visible {

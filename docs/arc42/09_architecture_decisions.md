@@ -870,6 +870,40 @@ Full WCAG 2.2 AA audit. Lighthouse CI on every PR. Hardware-class performance te
 **Documentation Sweep.**
 Arc42 chapters updated with §8.x for the frontend architecture (navigation chrome, surfaces, layers, view-mode matrix, Silver-layer toggle). `docs/design/reframing-note.md` deleted once Iteration 5 is shipping (its content has been merged into `design_brief.md` by Step 2). MkDocs navigation updated. Post-Iteration-5 terminology-reconciliation ADR drafted.
 
+**Phase 113c — Probe-Click Descent and Layer-Label Reconciliation.**
+Two structural corrections to Iteration 5 that fall out of the iteration-5 bug review:
+
+1. *Probe click descends directly to Surface II L1 Probe Dossier.* The pre-113c flow opened an in-page L3 Analysis SidePanel ("flyout") on Surface I when a probe glyph was clicked. The flyout duplicated information the Probe Dossier already owns and contradicted the Brief §4.1 commitment that the globe is the welcome mat, not the working surface. Phase 113c retires the flyout: a probe click (and a satellite click) navigates to `/lanes/{probeId}/dossier`, optionally with `?sourceId=…` for satellite descent. The framing copy that used to live in the flyout (emic semantic paragraph, structural meta, methodology-tray entry, reach disclaimer per Brief §5.7) moves into the Dossier where it belongs. Old `?probe=X[&view=analysis…]` deeplinks redirect to the canonical Dossier route.
+
+2. *Canonical layer-label reconciliation across ROADMAP, ADR, and UI chrome.* Brief §5.2 is the SoT: every surface owns L0–L2 chrome natively; L3 Analysis is native on Surfaces II and III; L4 Provenance is the methodology tray (everywhere); L5 Evidence is the reader-pane overlay (Surfaces II/III). The user-path layer labels on the primary descent now read coherently:
+
+   - **Surface I · L0 Atmosphere (Globe)** — entry point
+   - **Surface II · L1 Probe Dossier** — landing on probe selection
+   - **Surface II · L3 Function Lane** — primary analytical surface (LensBar: Function · Layer · Metric · View)
+   - **Surface III · L3 Working Paper** — long-form methodology
+
+   L2 stays reserved for in-surface exploration controls (Surface I time scrubber, Surface II source-scope narrowing, Surface III section anchors). The ROADMAP entry for Phase 113c is updated to use these labels; in-code comments and component headers are aligned. No UI route renumbering is required — the change is a labeling reconciliation, not a routing change.
+
+Phase 113c also promotes the four-function coverage indicator on the Probe Dossier into the central interaction of L1 (a function-tile selector that descends to the lane), and adds Function and Layer groups to the Function Lane LensBar so EA/PL/CI/SF and Au/Ag share visual weight with Metric and View.
+
+**Phase 113d — Structural Bug Fixes (2026-04-27).**
+
+1. *Methodology tray scoped to Surface II L3 only.* `MethodologyTray.svelte` now reads `page.url.pathname` via a `$derived` rune to detect whether a Function Lane is active (`/lanes/{probeId}/{functionKey}` where `functionKey ≠ dossier`). The `<aside>` is conditionally rendered only on that route; the `--tray-right-edge` CSS variable resets to `0px` otherwise. This removes the sidedrawer from Surface I and the Probe Dossier, where metric selection (and thus methodology context) does not occur.
+
+2. *Surface I ScopeBar and TimeScrubber rationalisation.* The from/to date label was removed from the ScopeBar — it duplicates information already visible in the TimeScrubber. Resolution selection was moved into `TimeScrubber.svelte` as a new `.resolution-row` section (native `<select>`, Svelte prop interface `resolution` / `onResolutionChange`). Both sections carry descriptive captions so the user understands function and purpose without supplementary documentation.
+
+3. *URL serialisation gap on Surface II fixed.* `writeToSearch` previously gated `metric`, `viewMode`, `layer`, and `sourceId` serialisation on `state.probe !== null`. On Surface II routes `probe` is a path segment, not a query param, so these fields were silently dropped on every URL write. The gates are removed; these four fields now serialise unconditionally when set. The `sourceId` param now supports comma-separated multi-source narrowing (`sourceIds: string[]` in `UrlState`).
+
+4. *Source-scope narrowing redesigned.* Satellite click on Surface I no longer filters the Dossier to a single source; instead it calls `setUrl({ sourceIds: [name] })` before navigating to `/lanes/{probeId}/dossier`. The Dossier always shows all sources but displays a scope-note banner and a "× Clear scope" control when `url.sourceIds` is non-empty. `SourceCard.svelte` renders a "Narrow scope" / "Remove from scope" toggle that updates `sourceIds` and, on addition, navigates directly to the source's `primaryFunction` lane — so the user lands in the correct lane immediately. Multi-source narrowing is supported: selecting a second source adds to the array rather than replacing it.
+
+5. *Function Lane LensBar metric-ordering bug fixed.* `activeMetric` was inserted at position 2 in the iteration array (`[DEFAULT_METRIC_NAME, activeMetric, ...fromApi]`), causing it to always appear second regardless of its canonical position. The fix iterates `[DEFAULT_METRIC_NAME, ...fromApi]` only and appends `activeMetric` at the end solely if not already present (i.e., while the API is loading).
+
+6. *View-mode component flicker eliminated.* The `$effect` in `FunctionLaneShell.svelte` previously set `CellComponent = null` before loading the next component module, causing an unmount/remount cycle on every selection. Removing that null assignment keeps the previous component mounted (and visible) until the new module resolves.
+
+7. *Methodology expandable in Function Lane replaces the sidedrawer.* The right-side `MethodologyTray` for Surface II L3 is replaced by an inline expandable section below the cell (default expanded). This surfaces methodology context directly in the data view without requiring the user to discover the hidden sidedrawer. The expandable hosts a link to the WP for further reading.
+
+8. *LensBar descriptions at selection points.* Each LensBar group (Function, Layer, Metric, View) now shows a `.lens-desc` caption below its button row describing the active selection. Function and Layer descriptions are static; View description reflects the active presentation's description string from `viewmodes.ts`.
+
 Each increment is independent and deployable on its own. No increment leaves the dashboard in a non-functional state.
 
 ---
@@ -895,6 +929,7 @@ Each increment is independent and deployable on its own. No increment leaves the
 * **Proposed:** 2026-04-17 by Fabian Quist (senior architect) in collaborative design session with AĒR.
 * **Ratified:** 2026-04-20 by the implementing engineer (Fabian Quist).
 * **Iteration 5 update:** 2026-04-25. Following the 2026-04-24 Reframing Note, the Design Brief was rewritten to demote Surface I (the globe) to a landing overview, elevate Surface II (Function Lanes) and Surface III (Reflection) as the primary scientific and methodological surfaces, add Navigation as a first-class concern (§3), introduce the view-mode matrix (§4.2.3), commit Silver-layer access with an eligibility-flag gate (§9), resolve probe-first globe emission with source-satellite presentation (§4.1, §8.4), and record the WP-001 terminology drift with a deferred reconciliation (§6, Path B). The ADR's Authority, Compliance-check, Backend-Work, and Implementation-Outline sections have been updated accordingly; the technology stack decisions are unchanged.
+* **Phase 113d update:** 2026-04-27. Implementation-Outline updated with Phase 113d structural fixes: methodology tray scoped to L3 only, URL serialisation gap fixed (multi-source `sourceIds`), satellite/scope-narrowing redesign, LensBar ordering fix, view-mode flicker fix, inline methodology expandable, and LensBar selection descriptions.
 * **Review date:** 2027-04 (12-month review) or on any major Svelte / three.js / ecosystem regression.
 
 ---

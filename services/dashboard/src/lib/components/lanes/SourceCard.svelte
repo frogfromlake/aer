@@ -27,13 +27,14 @@
   let articlesExpanded = $state(false);
 
   const url = $derived(urlState());
-  let isScopeNarrowed = $derived(url.sourceId === source.name);
+  let isScopeNarrowed = $derived(url.sourceIds.includes(source.name));
 
   function toggleScope() {
+    const current = url.sourceIds;
     if (isScopeNarrowed) {
-      setUrl({ sourceId: null });
+      setUrl({ sourceIds: current.filter((id) => id !== source.name) });
     } else {
-      setUrl({ sourceId: source.name });
+      setUrl({ sourceIds: [...current, source.name] });
     }
   }
 

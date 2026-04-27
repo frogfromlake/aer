@@ -46,7 +46,7 @@
   onclick={() => onToggle(!active)}
 >
   <span class="glyph" aria-hidden="true">∅</span>
-  <span class="label" aria-hidden="true">NS</span>
+  <span class="label" aria-hidden="true">Neg. Space</span>
 </button>
 
 <style>
@@ -56,7 +56,7 @@
     align-items: center;
     justify-content: center;
     gap: 2px;
-    width: 28px;
+    width: 44px;
     height: 34px;
     background: transparent;
     color: var(--color-fg-muted);

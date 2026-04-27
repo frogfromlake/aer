@@ -1,7 +1,9 @@
+import html
 import structlog
 import threading
 from collections import OrderedDict
 from datetime import datetime
+from html.parser import HTMLParser
 from typing import Optional
 from pydantic import Field
 from psycopg2.pool import ThreadedConnectionPool
@@ -10,6 +12,27 @@ from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext
 from internal.storage.postgres_client import get_source_classification
 import time
+
+
+class _HTMLStripper(HTMLParser):
+    """Collects visible text nodes, discarding all markup."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(data)
+
+    def get_text(self) -> str:
+        return " ".join(self._parts)
+
+
+def _strip_html(text: str) -> str:
+    """Return plain text from an HTML fragment. Entities are decoded; tags removed."""
+    stripper = _HTMLStripper()
+    stripper.feed(html.unescape(text))
+    return " ".join(stripper.get_text().split())
 
 logger = structlog.get_logger()
 
@@ -76,7 +99,7 @@ class RssAdapter:
     def harmonize(self, raw: dict, event_time: datetime, bronze_object_key: str) -> tuple[SilverCore, RssMeta]:
         source = raw.get("source", "")
         raw_text = raw.get("raw_text", "")
-        cleaned_text = " ".join(raw_text.split())
+        cleaned_text = _strip_html(raw_text)
         word_count = len(cleaned_text.split()) if cleaned_text else 0
 
         core = SilverCore(

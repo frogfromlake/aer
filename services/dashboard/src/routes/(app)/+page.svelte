@@ -1,29 +1,28 @@
 <script lang="ts">
-  // Atmosphere route (Phases 99b → 105).
+  // Atmosphere route (Surface I — landing overview).
   //
-  // Phase 105 (Navigation Chrome): integrates ScopeBar into Surface I,
-  // relocates the resolution selector and NegativeSpaceToggle from the
-  // bottom L2 strip into the top scope bar, and retires the standalone
-  // L2Controls component (pillar toggle now lives in SideRail; resolution
-  // now lives in ScopeBar).
+  // Phase 113c reframing: clicking a probe descends directly to Surface II
+  // L1 Probe Dossier. The legacy in-page L3 Analysis SidePanel ("flyout")
+  // is retired — its information has been folded into the Dossier where it
+  // belongs. Surface I now does exactly what Brief §4.1 asks of it:
+  // welcome, orient, invite descent.
   //
-  // Layer mapping:
-  //   L0 Immersion  — 3D globe, always rendered
-  //   L1 Orientation — (removed Phase 105; content moves to SideRail/Dossier per reframing §5)
-  //   L2 Exploration — TimeScrubber (bottom) + controls in ScopeBar (top)
-  //   L3 Analysis    — SidePanel with TimeSeriesChart (uPlot)
-  //   L4 Provenance  — fly-out overlay anchored to L3 (Phase 108: moves to MethodologyTray)
+  // Layer mapping (per Brief §5.2 — canonical):
+  //   L0 Immersion   — 3D globe, always rendered
+  //   L1 Orientation — hover tooltips (Progressive Semantics)
+  //   L2 Exploration — TimeScrubber + ScopeBar resolution selector
+  //   L3 Analysis    — NOT hosted on Surface I. Lives natively on Surface II.
+  //   L4 Provenance  — methodology tray (right-edge, all surfaces)
+  //   L5 Evidence    — reader-pane overlay (Surfaces II/III)
   //
   // Keyboard descent grammar:
   //   Tab           cycles through probes (sr-only nav)
-  //   Enter/Space   descends to L3 on the focused probe
-  //   Escape        ascends one layer (L4 → L3 → L0)
+  //   Enter/Space   navigates to /lanes/{probeId}/dossier
   //   Shift+N       toggles Negative Space overlay (structural only)
   //
   // Shell-chunk rules (enforced by tests/unit/lazy-engine.test.ts):
   //   - MUST NOT statically import three, @aer/engine-3d, or uplot.
   //   - The engine is dynamic-imported inside AtmosphereCanvas.
-  //   - uPlot is dynamic-imported inside TimeSeriesChart (L3 chunk).
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { createQuery } from '@tanstack/svelte-query';
@@ -38,14 +37,10 @@
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import TimeScrubber from '$lib/components/TimeScrubber.svelte';
-  import L3AnalysisPanel from '$lib/components/L3AnalysisPanel.svelte';
   import { ScopeBar } from '$lib/components/chrome';
-  import { SidePanel } from '$lib/components/base';
-  import { setUrl, urlState } from '$lib/state/url.svelte';
-  import { setFocusedMetric } from '$lib/state/metric.svelte';
-  import { negativeSpaceActive, setTrayOpen, trayOpen } from '$lib/state/tray.svelte';
+  import { urlState, setUrl } from '$lib/state/url.svelte';
+  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
-  import type { Resolution } from '$lib/state/url-internals';
   import {
     metricsQuery,
     probesQuery,
@@ -61,8 +56,6 @@
   const ctx: FetchContext = {
     baseUrl: '/api/v1'
   };
-
-  const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 
   let decision: 'pending' | 'engine' | 'fallback' = $state('pending');
 
@@ -107,32 +100,6 @@
     }))
   );
 
-  function probeCentroid(p: ProbeDto | null): { latitude: number; longitude: number } | null {
-    if (!p || p.emissionPoints.length === 0) return null;
-    if (p.emissionPoints.length === 1) {
-      const e = p.emissionPoints[0]!;
-      return { latitude: e.latitude, longitude: e.longitude };
-    }
-    const DEG = Math.PI / 180;
-    let x = 0;
-    let y = 0;
-    let z = 0;
-    for (const ep of p.emissionPoints) {
-      const lat = ep.latitude * DEG;
-      const lon = ep.longitude * DEG;
-      const c = Math.cos(lat);
-      x += c * Math.cos(lon);
-      y += c * Math.sin(lon);
-      z += Math.sin(lat);
-    }
-    const len = Math.hypot(x, y, z);
-    if (len < 1e-9) return { latitude: 0, longitude: 0 };
-    return {
-      latitude: Math.asin(Math.max(-1, Math.min(1, z / len))) / DEG,
-      longitude: Math.atan2(y / len, x / len) / DEG
-    };
-  }
-
   // --- Time window (URL-backed) ---------------------------------------
   const url = $derived(urlState());
   const windowMs = $derived.by<{ start: string; end: string; hours: number }>(() => {
@@ -176,16 +143,18 @@
     });
   });
 
-  // --- Selection + descent layer --------------------------------------
-  let selected: ProbeSelection | null = $state(null);
-  let panelOpen = $state(false);
+  // --- Selection (highlight only) -------------------------------------
+  // Surface I no longer hosts L3 — selection is a navigation event.
+  // Hover state is local; a click descends to Surface II.
+  let hoveredProbe: ProbeSelection | null = $state(null);
+  let hoveredSatellite: SatelliteSelection | null = $state(null);
+  let pointerX = $state(0);
+  let pointerY = $state(0);
 
   /**
    * Run a transition wrapped in the View Transitions API when available.
-   * The callback mutates reactive state that drives layout; Svelte's
-   * next commit provides the "after" frame uPlot/the engine draw into.
-   * Browsers without the API fall through to an instant state change —
-   * still correct, just less elegant (Roadmap Phase 100a exit criterion).
+   * Used for descent into Surface II so the visual continuity from globe
+   * to Dossier is preserved on browsers that support it.
    */
   function descend(mutator: () => void) {
     const doc = typeof document !== 'undefined' ? document : null;
@@ -199,66 +168,35 @@
     }
   }
 
-  // --- URL → state hydration (deep links) -----------------------------
-  // Phase 110 makes the probe glyph the only scope-target; the legacy
-  // `?ep=…` parameter is ignored on hydration but still parsed for
-  // back-compat with bookmarked URLs.
+  // --- URL deeplink -> redirect to Dossier (Phase 113c) ---------------
+  // Old bookmarks (`/?probe=X[&view=analysis…]`) descended into the in-page
+  // L3 panel. The panel is gone; redirect to the canonical descent target.
+  // Strip the descent-related params on the way out so the Dossier URL
+  // stays canonical.
   $effect(() => {
-    if (!url.probe || selected) return;
-    const hit = probeDtos.find((p) => p.probeId === url.probe);
-    if (!hit || hit.emissionPoints.length === 0) return;
-    selected = { probeId: hit.probeId };
-    panelOpen = url.view !== 'atmosphere';
+    if (typeof window === 'undefined') return;
+    if (!url.probe) return;
+    const probeId = url.probe;
+    setUrl({ probe: null, emissionPoint: null, view: null, metric: null });
+    descend(() => {
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
+      void goto(`/lanes/${encodeURIComponent(probeId)}/dossier`);
+    });
   });
 
   function onProbeSelected(sel: ProbeSelection) {
-    if (selected?.probeId === sel.probeId && panelOpen) {
-      onPanelClose();
-      return;
-    }
     descend(() => {
-      selected = sel;
-      panelOpen = true;
-    });
-    setUrl({
-      probe: sel.probeId,
-      emissionPoint: null,
-      view: 'analysis',
-      metric: url.metric ?? 'sentiment_score'
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
+      void goto(`/lanes/${encodeURIComponent(sel.probeId)}/dossier`);
     });
   }
-
-  function onPanelClose() {
-    descend(() => {
-      panelOpen = false;
-      selected = null;
-    });
-    setTrayOpen(false);
-    setFocusedMetric(null);
-    setUrl({
-      probe: null,
-      emissionPoint: null,
-      view: null,
-      metric: null
-    });
-  }
-
-  // --- Hover tooltips --------------------------------------------------
-  // Probe-glyph hover (Progressive Semantics: identity + affordance) and
-  // satellite hover (source name + nav affordance) are tracked
-  // independently so the engine's "probe wins on overlap" precedence
-  // surfaces cleanly in the UI.
-  let hoveredProbe: ProbeSelection | null = $state(null);
-  let hoveredSatellite: SatelliteSelection | null = $state(null);
-  let pointerX = $state(0);
-  let pointerY = $state(0);
 
   function onProbeHovered(sel: ProbeSelection | null) {
     hoveredProbe = sel;
     // Intent-based preload: once the user hovers a probe, warm the
     // dossier route so descent feels instantaneous.
     if (sel) {
-      void import('$lib/components/TimeSeriesChart.svelte').catch(() => void 0);
+      void import('$lib/components/lanes/ProbeDossier.svelte').catch(() => void 0);
     }
   }
 
@@ -267,11 +205,14 @@
   }
 
   function onSatelliteSelected(sel: SatelliteSelection) {
-    // Phase 110: satellite click is a navigation event, not a scope
-    // change on Surface I. Routes to the Probe Dossier with the source
-    // pre-filtered.
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
-    void goto(`/lanes/${sel.probeId}/dossier?sourceId=${encodeURIComponent(sel.sourceName)}`);
+    // Satellite click: descend to the Dossier with source scope pre-set.
+    // We use setUrl to update the in-memory state so the dossier receives
+    // the narrowed source immediately on render (without a query param).
+    setUrl({ sourceIds: [sel.sourceName] });
+    descend(() => {
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
+      void goto(`/lanes/${encodeURIComponent(sel.probeId)}/dossier`);
+    });
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -280,7 +221,6 @@
   }
 
   // --- Keyboard descent grammar ---------------------------------------
-  // One sr-only button per probe (Phase 110: probe is the scope-target).
   interface FlatProbe {
     probeId: string;
     language: string;
@@ -289,33 +229,8 @@
     probeDtos.map((p) => ({ probeId: p.probeId, language: p.language }))
   );
 
-  function onGlobalKeydown(e: KeyboardEvent) {
-    // Escape ascends one layer. SidePanel's own Escape handler also
-    // closes the panel, but we want L4-first precedence so L4 → L3
-    // ascent lands correctly even though the L4 overlay is not inside
-    // the SidePanel DOM.
-    if (e.key === 'Escape') {
-      if (panelOpen) {
-        e.preventDefault();
-        onPanelClose();
-        return;
-      }
-    }
-  }
-
-  onMount(() => {
-    window.addEventListener('keydown', onGlobalKeydown);
-    return () => window.removeEventListener('keydown', onGlobalKeydown);
-  });
-
-  let selectedProbeDto = $derived(probeDtos.find((p) => p.probeId === selected?.probeId) ?? null);
-  let selectedRate = $derived(
-    activity.find((a) => a.probeId === selected?.probeId)?.documentsPerHour ?? null
-  );
-  let selectedCentroid = $derived(probeCentroid(selectedProbeDto));
   // Pre-resolve the hovered probe DTO so the tooltip can render the
-  // semantic-register identity (probe ID for now; full content-catalog
-  // semantic short stays in the L3 panel + methodology tray).
+  // semantic-register identity.
   let hoveredProbeDto = $derived(
     hoveredProbe ? (probeDtos.find((p) => p.probeId === hoveredProbe!.probeId) ?? null) : null
   );
@@ -325,38 +240,15 @@
   // without prop-drilling through the (app) layout.
   const negSpace = $derived(negativeSpaceActive());
 
-  let windowLabel = $derived(
-    `${new Date(windowMs.start).toISOString().slice(0, 16).replace('T', ' ')}Z → ${new Date(
-      windowMs.end
-    )
-      .toISOString()
-      .slice(0, 16)
-      .replace('T', ' ')}Z`
-  );
-
-  let resolutionForL3 = $derived(url.resolution ?? 'hourly');
+  let resolution = $derived(url.resolution ?? 'hourly');
 </script>
 
 <svelte:head>
   <title>AĒR — Atmosphere</title>
 </svelte:head>
 
-<!-- Top scope bar: resolution selector + primer link (Phase 110). Negative Space toggle moved to SideRail (Phase 112). -->
+<!-- Top scope bar: primer link only. Resolution + time window moved into TimeScrubber (Phase 113d). -->
 <ScopeBar label="Atmosphere surface controls">
-  <span class="window-label" aria-label="Time window: {windowLabel}">{windowLabel}</span>
-  <label class="resolution-label">
-    <span class="label-text">Resolution</span>
-    <select
-      value={resolutionForL3}
-      onchange={(e) =>
-        setUrl({ resolution: (e.currentTarget as HTMLSelectElement).value as Resolution })}
-      aria-label="Temporal resolution"
-    >
-      {#each RESOLUTIONS as r (r)}
-        <option value={r}>{r}</option>
-      {/each}
-    </select>
-  </label>
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
   <a class="primer-link" href="/reflection/primer/globe">How to read the globe →</a>
 </ScopeBar>
@@ -364,7 +256,6 @@
 {#if decision === 'engine'}
   <div
     class="stage"
-    class:dimmed={panelOpen}
     class:neg-space={negSpace}
     aria-hidden="false"
     onpointermove={onPointerMove}
@@ -387,9 +278,9 @@
       {onProbeHovered}
       {onSatelliteSelected}
       {onSatelliteHovered}
-      selection={selected}
+      selection={null}
       hover={hoveredProbe}
-      flyToOnSelection={selectedCentroid}
+      flyToOnSelection={null}
     />
 
     {#if hoveredProbe}
@@ -401,7 +292,7 @@
       >
         <span class="tooltip-headline">{hoveredProbeDto?.probeId ?? hoveredProbe.probeId}</span>
         <span class="tooltip-meta">{(hoveredProbeDto?.language ?? '').toUpperCase()}</span>
-        <span class="tooltip-affordance">Click to open dossier · expand methodology in tray</span>
+        <span class="tooltip-affordance">Click to open the Probe Dossier (Surface II)</span>
       </div>
     {:else if hoveredSatellite}
       <div
@@ -412,7 +303,9 @@
       >
         <span class="tooltip-headline">{hoveredSatellite.label}</span>
         <span class="tooltip-meta">source · {hoveredSatellite.sourceName}</span>
-        <span class="tooltip-affordance">Click to scope the dossier to this source</span>
+        <span class="tooltip-affordance"
+          >Click to open the Dossier — narrowed to source {hoveredSatellite.sourceName}</span
+        >
       </div>
     {/if}
 
@@ -434,29 +327,6 @@
     </ul>
   </div>
 
-  <SidePanel
-    bind:open={panelOpen}
-    title={selectedProbeDto?.probeId ?? selected?.probeId ?? 'Probe'}
-    onClose={onPanelClose}
-    size="dashboard"
-  >
-    {#if selected && selectedProbeDto}
-      <L3AnalysisPanel
-        probe={selectedProbeDto}
-        {ctx}
-        publicationRate={selectedRate}
-        onOpenProvenance={() => {
-          // Toggle, not just open: a second click on the panel's
-          // affordance closes the tray, matching the right-edge tab
-          // behaviour. Focus is set unconditionally so re-opening
-          // lands on the current metric.
-          setFocusedMetric({ metricName: url.metric ?? 'sentiment_score' });
-          setTrayOpen(!trayOpen());
-        }}
-      />
-    {/if}
-  </SidePanel>
-
   {#if probesQ.data?.kind === 'refusal'}
     <div class="refusal-slot">
       <RefusalSurface refusal={probesQ.data} {ctx} />
@@ -474,9 +344,9 @@
   {/if}
 {/if}
 
-<!-- Time scrubber: remains at bottom center (Design Brief §4.2, L2 Exploration) -->
+<!-- Time scrubber: bottom center (Design Brief §4.2, L2 Exploration). Hosts resolution selector. -->
 <div class="l2-slot">
-  <TimeScrubber />
+  <TimeScrubber {resolution} onResolutionChange={(r) => setUrl({ resolution: r })} />
 </div>
 
 <style>
@@ -485,11 +355,6 @@
     inset: 0;
     background: #000;
     transition: opacity 320ms ease-in-out;
-  }
-  .stage.dimmed {
-    /* §4.1 rule 2: "no layer replaces". Globe stays visible at 30 %
-       opacity behind the L3 panel so the reader never loses its place. */
-    opacity: 0.3;
   }
   .probe-tooltip {
     position: fixed;
@@ -595,7 +460,7 @@
     bottom: var(--space-5);
     left: calc(var(--rail-width) + 50%);
     transform: translateX(-50%);
-    width: min(90vw, 36rem);
+    width: min(90vw, 52rem);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
@@ -603,61 +468,7 @@
     z-index: 400;
   }
 
-  /* Scope bar content styles (specific to Surface I) */
-  .window-label {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .resolution-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-shrink: 0;
-  }
-  .label-text {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-fg-subtle);
-  }
-  select {
-    appearance: none;
-    -webkit-appearance: none;
-    background-color: rgba(0, 0, 0, 0.45);
-    background-image:
-      linear-gradient(45deg, transparent 50%, var(--color-fg-muted) 50%),
-      linear-gradient(135deg, var(--color-fg-muted) 50%, transparent 50%);
-    background-position:
-      calc(100% - 14px) 50%,
-      calc(100% - 9px) 50%;
-    background-size:
-      5px 5px,
-      5px 5px;
-    background-repeat: no-repeat;
-    color: var(--color-fg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 2px 22px 2px var(--space-2);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    cursor: pointer;
-  }
-  select:hover,
-  select:focus-visible {
-    border-color: var(--color-accent);
-    outline: none;
-  }
-  select option {
-    background: var(--color-surface);
-    color: var(--color-fg);
-  }
-
-  /* Negative Space mode — Surface I visual treatment (Phase 112).
-     The globe shifts to a cooler, lower-saturation rendering so that
-     unmonitored (dark) regions read as foreground rather than background. */
+  /* Negative Space mode — Surface I visual treatment (Phase 112). */
   .stage.neg-space {
     filter: saturate(0.6) hue-rotate(20deg) brightness(0.85);
   }

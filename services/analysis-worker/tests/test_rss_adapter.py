@@ -1,10 +1,12 @@
-"""Phase 76 test coverage — RssAdapter data quality invariants.
+"""Phase 76 / Phase 113g test coverage — RssAdapter data quality invariants.
 
 Covers:
 - `core.language` must be the ISO 639-3 sentinel "und" (undetermined).
   The `LanguageDetectionExtractor` is SSoT for detected language.
 - Source-classification lookups are cached per-source with a TTL,
   eliminating the N+1 query pattern on bulk ingestion.
+- HTML in raw_text (RSS description/content fields) must be stripped from
+  cleaned_text; raw_text is preserved verbatim.
 """
 
 from datetime import datetime, timezone
@@ -81,3 +83,61 @@ def test_rss_adapter_cache_expires_after_ttl():
         adapter.harmonize(_rss_raw(), _event_time(), "rss/t/3.json")
 
         assert mock_get.call_count == 2
+
+
+# ── HTML stripping ────────────────────────────────────────────────────────────
+
+_TAGESSCHAU_HTML = (
+    '<p><a href="https://www.tagesschau.de/artikel-100.html">'
+    '<img src="https://images.tagesschau.de/image/abc.jpg" alt="Beschreibung" /></a>'
+    ' <br/> <br/>Kleine, modulare Reaktoren sollen Atomkraftwerke billiger machen.'
+    ' <em>Von David Globig.</em>'
+    '[<a href="https://www.tagesschau.de/artikel-100.html">mehr</a>]</p>'
+)
+_EXPECTED_PLAIN = (
+    "Kleine, modulare Reaktoren sollen Atomkraftwerke billiger machen. Von David Globig. [ mehr ]"
+)
+
+
+def test_html_stripped_from_cleaned_text():
+    """HTML tags must be absent from cleaned_text."""
+    raw = {**_rss_raw(), "raw_text": _TAGESSCHAU_HTML}
+    adapter = RssAdapter()
+    core, _ = adapter.harmonize(raw, _event_time(), "rss/tagesschau/1.json")
+    assert "<" not in core.cleaned_text
+    assert "href=" not in core.cleaned_text
+    assert "img" not in core.cleaned_text
+
+
+def test_cleaned_text_preserves_prose():
+    """The visible prose must survive HTML stripping intact."""
+    raw = {**_rss_raw(), "raw_text": _TAGESSCHAU_HTML}
+    adapter = RssAdapter()
+    core, _ = adapter.harmonize(raw, _event_time(), "rss/tagesschau/1.json")
+    assert core.cleaned_text == _EXPECTED_PLAIN
+
+
+def test_raw_text_preserved_verbatim():
+    """raw_text must be the original Bronze value — no mutation."""
+    raw = {**_rss_raw(), "raw_text": _TAGESSCHAU_HTML}
+    adapter = RssAdapter()
+    core, _ = adapter.harmonize(raw, _event_time(), "rss/tagesschau/1.json")
+    assert core.raw_text == _TAGESSCHAU_HTML
+
+
+def test_html_entities_decoded():
+    """HTML entities in RSS text must be decoded in cleaned_text."""
+    raw = {**_rss_raw(), "raw_text": "Kosten &amp; Nutzen &lt;3 Mrd. &euro;"}
+    adapter = RssAdapter()
+    core, _ = adapter.harmonize(raw, _event_time(), "rss/tagesschau/2.json")
+    assert "& Nutzen" in core.cleaned_text
+    assert "&amp;" not in core.cleaned_text
+
+
+def test_plain_text_passes_through_unchanged():
+    """Input with no HTML markup must produce the same whitespace-collapsed text."""
+    plain = "  Die Bundesregierung   hat einen Beschluss  gefasst.  "
+    raw = {**_rss_raw(), "raw_text": plain}
+    adapter = RssAdapter()
+    core, _ = adapter.harmonize(raw, _event_time(), "rss/bundesregierung/1.json")
+    assert core.cleaned_text == "Die Bundesregierung hat einen Beschluss gefasst."

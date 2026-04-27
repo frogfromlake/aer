@@ -15,6 +15,8 @@
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
 
+  import type { Resolution } from '$lib/state/url-internals';
+
   interface Props {
     /** Total span of the scrubber (ms). Defaults to 30 days ending "now". */
     maxSpanMs?: number;
@@ -22,12 +24,20 @@
     stepMs?: number;
     /** Minimum allowed window size (ms). Defaults to 1 hour. */
     minWindowMs?: number;
+    /** Current temporal resolution (passed in from the parent surface). */
+    resolution?: Resolution | null;
+    /** Called when the user changes the resolution selector. */
+    onResolutionChange?: (r: Resolution) => void;
   }
+
+  const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 
   let {
     maxSpanMs = 30 * 24 * 60 * 60 * 1000,
     stepMs = 5 * 60 * 1000,
-    minWindowMs = 60 * 60 * 1000
+    minWindowMs = 60 * 60 * 1000,
+    resolution = null,
+    onResolutionChange
   }: Props = $props();
 
   // The scrubber anchors to an immutable `endReferenceMs` per mount so a
@@ -106,7 +116,11 @@
 
   function fmt(ms: number): string {
     const d = new Date(ms);
-    return d.toISOString().slice(0, 16).replace('T', ' ') + 'Z';
+    const mo = d.toLocaleString('en', { month: 'short', timeZone: 'UTC' });
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${mo} ${dd} ${hh}:${mm}Z`;
   }
 
   const rangeSpan = $derived(endReferenceMs - windowStartMs);
@@ -134,66 +148,89 @@
   }
 </script>
 
-<div class="scrubber" role="group" aria-label="Time range">
-  <div class="scrubber-header">
-    <div class="readout">
-      <span class="label">From</span>
-      <time datetime={new Date(fromMs).toISOString()}>{fmt(fromMs)}</time>
-      <span class="label">To</span>
-      <time datetime={new Date(toMs).toISOString()}>{fmt(toMs)}</time>
+<div class="scrubber" role="group" aria-label="Time window scrubber">
+  <div class="time-section">
+    <div class="time-header">
+      <span class="eyebrow">Time window</span>
+      <span class="time-desc">Move thumbs to adjust the analysis range</span>
+      <div class="readout">
+        <time datetime={new Date(fromMs).toISOString()}>{fmt(fromMs)}</time>
+        <span class="arrow">→</span>
+        <time datetime={new Date(toMs).toISOString()}>{fmt(toMs)}</time>
+      </div>
+      {#if url.from || url.to}
+        <button
+          class="reset-btn"
+          aria-label="Reset time range"
+          onclick={() => setUrl({ from: null, to: null })}
+        >
+          Reset
+        </button>
+      {/if}
     </div>
 
-    {#if url.from || url.to}
-      <button
-        class="reset-btn"
-        aria-label="Reset time range"
-        onclick={() => setUrl({ from: null, to: null })}
-      >
-        Reset
-      </button>
-    {/if}
+    <div
+      class="track"
+      role="presentation"
+      style="--left: {leftPct}%; --right: {100 - rightPct}%"
+      onwheel={onWheel}
+    >
+      <div class="track-bg"></div>
+      <div class="track-highlight"></div>
+
+      <input
+        type="range"
+        class="thumb from"
+        aria-label="Range start"
+        min={windowStartMs}
+        max={endReferenceMs}
+        step={stepMs}
+        value={fromMs}
+        oninput={(e) => setFrom(Number((e.currentTarget as HTMLInputElement).value))}
+        onkeydown={onKeydown('from')}
+      />
+      <input
+        type="range"
+        class="thumb to"
+        aria-label="Range end"
+        min={windowStartMs}
+        max={endReferenceMs}
+        step={stepMs}
+        value={toMs}
+        oninput={(e) => setTo(Number((e.currentTarget as HTMLInputElement).value))}
+        onkeydown={onKeydown('to')}
+      />
+    </div>
   </div>
 
-  <div
-    class="track"
-    role="presentation"
-    style="--left: {leftPct}%; --right: {100 - rightPct}%"
-    onwheel={onWheel}
-  >
-    <div class="track-bg"></div>
-    <div class="track-highlight"></div>
-
-    <input
-      type="range"
-      class="thumb from"
-      aria-label="Range start"
-      min={windowStartMs}
-      max={endReferenceMs}
-      step={stepMs}
-      value={fromMs}
-      oninput={(e) => setFrom(Number((e.currentTarget as HTMLInputElement).value))}
-      onkeydown={onKeydown('from')}
-    />
-    <input
-      type="range"
-      class="thumb to"
-      aria-label="Range end"
-      min={windowStartMs}
-      max={endReferenceMs}
-      step={stepMs}
-      value={toMs}
-      oninput={(e) => setTo(Number((e.currentTarget as HTMLInputElement).value))}
-      onkeydown={onKeydown('to')}
-    />
-  </div>
+  {#if onResolutionChange !== undefined}
+    <div class="resolution-section">
+      <span class="eyebrow">Resolution</span>
+      <div class="resolution-row">
+        <select
+          class="resolution-select"
+          value={resolution ?? 'hourly'}
+          aria-label="Temporal resolution"
+          onchange={(e) =>
+            onResolutionChange?.((e.currentTarget as HTMLSelectElement).value as Resolution)}
+        >
+          {#each RESOLUTIONS as r (r)}
+            <option value={r}>{r}</option>
+          {/each}
+        </select>
+        <span class="res-desc">Aggregation step for metrics</span>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
   .scrubber {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4);
     background: rgba(0, 0, 0, 0.6);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -201,23 +238,86 @@
     color: var(--color-fg);
     font-size: var(--font-size-xs);
   }
-  .readout {
-    display: grid;
-    grid-template-columns: auto 1fr auto 1fr;
-    gap: var(--space-2) var(--space-3);
-    font-family: var(--font-family-mono);
-    color: var(--color-fg-muted);
-  }
-  .readout .label {
-    color: var(--color-fg-subtle);
-  }
-  time {
-    color: var(--color-fg);
+
+  /* ── Time section (grows to fill) ── */
+  .time-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    min-width: 0;
   }
 
+  .time-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-accent);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Description fills the space between eyebrow and readout */
+  .time-desc {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--color-fg-subtle);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .readout {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    flex-shrink: 0;
+  }
+
+  .arrow {
+    color: var(--color-fg-subtle);
+  }
+
+  time {
+    color: var(--color-fg);
+    white-space: nowrap;
+  }
+
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-fg-muted);
+    border-radius: var(--radius-sm);
+    padding: 1px 7px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+  }
+
+  .reset-btn:hover {
+    color: var(--color-fg);
+    border-color: var(--color-fg-subtle);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* ── Track ── */
   .track {
     position: relative;
-    height: 1.5rem;
+    height: 1.25rem;
     display: flex;
     align-items: center;
   }
@@ -230,31 +330,6 @@
     background: var(--color-border);
     border-radius: 2px;
     z-index: 1;
-  }
-
-  .scrubber-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-
-  .reset-btn {
-    background: transparent;
-    border: 1px solid var(--color-border);
-    color: var(--color-fg-muted);
-    border-radius: var(--radius-sm);
-    padding: 2px 8px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .reset-btn:hover {
-    color: var(--color-fg);
-    border-color: var(--color-fg-subtle);
-    background: rgba(255, 255, 255, 0.05);
   }
 
   .track-highlight {
@@ -297,37 +372,103 @@
     appearance: none;
     -webkit-appearance: none;
     pointer-events: auto;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: #fff;
     border: 2px solid #5283b8;
     cursor: grab;
-    transform: translateY(-6px);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    transform: translateY(-5px);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
   }
 
   .thumb::-webkit-slider-thumb:active {
     cursor: grabbing;
-    transform: translateY(-6px) scale(1.2);
+    transform: translateY(-5px) scale(1.2);
     transition: transform 0.1s ease;
   }
 
   .thumb::-moz-range-thumb {
     appearance: none;
     pointer-events: auto;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: #fff;
     border: 2px solid #5283b8;
     cursor: grab;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
   }
 
   .thumb::-moz-range-thumb:active {
     cursor: grabbing;
     transform: scale(1.2);
     transition: transform 0.1s ease;
+  }
+
+  /* ── Resolution section (right column) ── */
+  .resolution-section {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--color-border);
+    padding-left: var(--space-4);
+  }
+
+  .resolution-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .res-desc {
+    font-size: 11px;
+    color: var(--color-fg-subtle);
+    white-space: nowrap;
+  }
+
+  .resolution-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: rgba(0, 0, 0, 0.45);
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-fg-muted) 50%),
+      linear-gradient(135deg, var(--color-fg-muted) 50%, transparent 50%);
+    background-position:
+      calc(100% - 12px) 50%,
+      calc(100% - 7px) 50%;
+    background-size:
+      4px 4px,
+      4px 4px;
+    background-repeat: no-repeat;
+    color: var(--color-fg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px 20px 2px var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .resolution-select:hover,
+  .resolution-select:focus-visible {
+    border-color: var(--color-accent);
+    outline: none;
+  }
+
+  .resolution-select option {
+    background: var(--color-surface);
+    color: var(--color-fg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reset-btn,
+    .thumb::-webkit-slider-thumb:active,
+    .thumb::-moz-range-thumb:active {
+      transition: none;
+    }
   }
 </style>

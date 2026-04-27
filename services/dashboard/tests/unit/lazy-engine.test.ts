@@ -39,11 +39,6 @@ describe('engine lazy-import boundary', () => {
     expect(src).not.toMatch(/from\s+['"]uplot['"]/);
   });
 
-  it('L3 panel references uplot only through TimeSeriesChart (no direct static import)', async () => {
-    const src = await read('src/lib/components/L3AnalysisPanel.svelte');
-    expect(src).not.toMatch(/from\s+['"]uplot['"]/);
-  });
-
   it('TimeSeriesChart only references uplot via dynamic import', async () => {
     const src = await read('src/lib/components/TimeSeriesChart.svelte');
     // The runtime module itself must be awaited, not statically imported.

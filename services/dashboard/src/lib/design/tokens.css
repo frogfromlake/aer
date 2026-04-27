@@ -105,7 +105,7 @@
 
   /* --- Navigation Chrome (Phase 105) --- */
   /* Left side rail width (icon-only, no labels). */
-  --rail-width: 52px;
+  --rail-width: 68px;
   /* Top scope bar minimum height. Content may cause it to grow. */
   --scope-bar-height: 44px;
   /* Methodology tray widths. Closed = tab strip only; open = full panel. */

@@ -39,15 +39,16 @@ export interface UrlState {
   // Current descent layer. `null` is treated as `atmosphere` by consumers.
   view: ViewLayer | null;
   // Source-scope narrowing: set by the Probe Dossier (Phase 106) when
-  // the user clicks a source card. Propagates into view-mode queries.
-  // Only meaningful when `probe` is also set; dropped otherwise in writeToSearch.
-  sourceId: string | null;
+  // the user clicks source cards. Supports multi-source selection (Phase
+  // 113d). Empty array = no scope narrowing. Serialised as comma-separated
+  // `sourceId` query parameter.
+  sourceIds: string[];
   // View-Mode Matrix selection (Phase 107). Only meaningful inside
   // Surface II's Function Lanes; consumers treat `null` as the default
   // presentation (`time_series`).
   viewMode: ViewMode | null;
   // Silver-layer toggle (Phase 111). `null` and `gold` are equivalent;
-  // only `silver` is emitted in the URL. Dropped when no probe is active.
+  // only `silver` is emitted in the URL.
   layer: DataLayer | null;
   // Negative Space overlay (Phase 112). `null` and `false` are equivalent;
   // only `true` is serialised as `negSpace=1`. When active, all three
@@ -69,7 +70,7 @@ export const EMPTY_URL_STATE: UrlState = {
   viewingMode: null,
   metric: null,
   view: null,
-  sourceId: null,
+  sourceIds: [],
   viewMode: null,
   layer: null,
   negSpace: null
@@ -114,7 +115,7 @@ export function readFromSearch(search: string): UrlState {
     viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES),
     metric: parseMetric(p.get('metric')),
     view: parseEnum(p.get('view'), VIEW_LAYERS),
-    sourceId: p.get('sourceId'),
+    sourceIds: parseSourceIds(p.get('sourceId')),
     viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
     layer: parseEnum(p.get('layer'), DATA_LAYERS),
     negSpace: p.get('negSpace') === '1' ? true : null
@@ -124,6 +125,14 @@ export function readFromSearch(search: string): UrlState {
 function parseMetric(v: string | null): string | null {
   if (v === null) return null;
   return METRIC_NAME_RE.test(v) ? v : null;
+}
+
+function parseSourceIds(v: string | null): string[] {
+  if (!v) return [];
+  return v
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 export function writeToSearch(state: UrlState): string {
@@ -138,19 +147,14 @@ export function writeToSearch(state: UrlState): string {
   }
   if (state.resolution) p.set('resolution', state.resolution);
   if (state.viewingMode) p.set('viewingMode', state.viewingMode);
-  // `metric` is only meaningful inside the analysis view — a stray
-  // metric param on the bare atmosphere would be a non-restorable state.
-  if (state.metric && state.view === 'analysis') p.set('metric', state.metric);
+  // metric, viewMode, layer, and sourceIds are Surface II concepts; they
+  // are meaningful on /lanes/* routes regardless of whether a ?probe= param
+  // is present (probe is a path param on Surface II, not a query param).
+  if (state.metric) p.set('metric', state.metric);
   if (state.view && state.view !== 'atmosphere') p.set('view', state.view);
-  // sourceId is only meaningful when a probe is selected.
-  if (state.probe && state.sourceId) p.set('sourceId', state.sourceId);
-  // viewMode is only meaningful when a probe is selected (Surface II
-  // Function Lanes). Drop it on the bare Atmosphere so reload converges
-  // on the default presentation.
-  if (state.probe && state.viewMode) p.set('viewMode', state.viewMode);
-  // `layer=gold` is the default; only emit when silver is explicitly
-  // selected. Drop when no probe is active (layer has no meaning there).
-  if (state.probe && state.layer === 'silver') p.set('layer', 'silver');
+  if (state.sourceIds.length > 0) p.set('sourceId', state.sourceIds.join(','));
+  if (state.viewMode) p.set('viewMode', state.viewMode);
+  if (state.layer === 'silver') p.set('layer', 'silver');
   // `negSpace=1` when the Negative Space overlay is active. Not scoped to
   // a probe — the overlay applies globally across all surfaces.
   if (state.negSpace === true) p.set('negSpace', '1');

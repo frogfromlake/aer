@@ -53,6 +53,17 @@ class NamedEntityExtractor:
             )
             self._nlp = None
 
+    # Named entities are at most a short noun phrase. Anything longer is a
+    # spaCy false-positive — typically a sentence fragment labeled MISC when
+    # the German model encounters non-German text.
+    _MAX_ENTITY_CHARS = 80
+    _MAX_ENTITY_WORDS = 6
+
+    # Language codes the German model can handle reliably.
+    # "und" (undetermined) is allowed so we don't skip articles whose
+    # language detection has not yet run or produced a low-confidence result.
+    _SUPPORTED_LANGUAGES = {"de", "und"}
+
     @property
     def name(self) -> str:
         return "named_entity"
@@ -64,7 +75,27 @@ class NamedEntityExtractor:
         text = core.cleaned_text
         if not text:
             return None
+        lang = (core.language or "und").lower()
+        if lang not in self._SUPPORTED_LANGUAGES:
+            logger.debug(
+                "Skipping NER — language not supported by de_core_news_lg",
+                language=lang,
+                source=core.source,
+            )
+            return None
         return self._nlp(text)
+
+    @classmethod
+    def _is_valid_entity(cls, text: str) -> bool:
+        """Return False for spans that are clearly not named entities."""
+        stripped = text.strip()
+        if not stripped:
+            return False
+        if len(stripped) > cls._MAX_ENTITY_CHARS:
+            return False
+        if len(stripped.split()) > cls._MAX_ENTITY_WORDS:
+            return False
+        return True
 
     def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         """
@@ -75,10 +106,12 @@ class NamedEntityExtractor:
         if doc is None:
             return ExtractionResult()
 
+        valid_ents = [ent for ent in doc.ents if self._is_valid_entity(ent.text)]
+
         metrics = [
             GoldMetric(
                 timestamp=core.timestamp,
-                value=float(len(doc.ents)),
+                value=float(len(valid_ents)),
                 source=core.source,
                 metric_name="entity_count",
                 article_id=article_id,
@@ -95,7 +128,7 @@ class NamedEntityExtractor:
                 start_char=ent.start_char,
                 end_char=ent.end_char,
             )
-            for ent in doc.ents
+            for ent in valid_ents
         ]
 
         return ExtractionResult(metrics=metrics, entities=entities)

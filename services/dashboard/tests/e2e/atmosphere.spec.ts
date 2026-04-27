@@ -56,6 +56,35 @@ function contentPayload() {
   };
 }
 
+function dossierPayload() {
+  return {
+    probeId: PROBE_ID,
+    language: 'de',
+    windowStart: '2026-04-20T00:00:00Z',
+    windowEnd: '2026-04-27T00:00:00Z',
+    functionCoverage: {
+      covered: 2,
+      total: 4,
+      functions: ['epistemic_authority', 'power_legitimation']
+    },
+    sources: [
+      {
+        name: 'tagesschau',
+        type: 'rss',
+        url: 'https://www.tagesschau.de',
+        articlesTotal: 100,
+        articlesInWindow: 20,
+        publicationFrequencyPerDay: 5,
+        primaryFunction: 'epistemic_authority',
+        secondaryFunction: null,
+        emicDesignation: 'Public broadcaster',
+        emicContext: 'German public media',
+        silverEligible: true
+      }
+    ]
+  };
+}
+
 async function mockBff(page: import('@playwright/test').Page) {
   await page.route('**/api/v1/probes', async (route: Route) => {
     await route.fulfill({
@@ -78,30 +107,31 @@ async function mockBff(page: import('@playwright/test').Page) {
       body: JSON.stringify(contentPayload())
     });
   });
+  await page.route(`**/api/v1/probes/${PROBE_ID}/dossier**`, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(dossierPayload())
+    });
+  });
 }
 
-test.describe('Atmosphere — WebGL2 path', () => {
-  test('deep-linked probe opens the side panel with Content Catalog emic content', async ({
+test.describe('Atmosphere — Phase 113c probe descent', () => {
+  test('deep-linked probe redirects to /lanes/{id}/dossier and renders the Dossier', async ({
     page
   }) => {
     await mockBff(page);
     await page.goto(`/?probe=${PROBE_ID}`);
 
-    // The 3D canvas is the engine's rendering target.
-    await expect(page.getByRole('figure', { name: /AĒR atmosphere/ })).toBeVisible();
+    // Surface I no longer hosts an L3 SidePanel; the descent is a path
+    // change to Surface II L1 Probe Dossier.
+    await expect(page).toHaveURL(new RegExp(`/lanes/${PROBE_ID}/dossier`));
 
-    // Side panel opens from the URL-carried ?probe= on first probe payload.
-    // Phase 110: the panel title is the probe identity, not an
-    // emission-point label — the probe is the scope-target on Surface I.
-    const panel = page.getByRole('dialog', { name: new RegExp(PROBE_ID) });
-    await expect(panel).toBeVisible();
-    await expect(panel.getByText(PROBE_ID)).toBeVisible();
-
-    // Progressive Semantics renders the semantic register first.
-    await expect(panel.getByText(/institutional voice/i)).toBeVisible();
-
-    // Reach is explicitly not claimed.
-    await expect(panel.getByText(/reach is not rendered/i)).toBeVisible();
+    // The Dossier renders the probe identity and the migrated framing
+    // copy that previously lived in the Atmosphere flyout.
+    await expect(page.getByRole('heading', { name: PROBE_ID })).toBeVisible();
+    await expect(page.getByText(/institutional voice/i)).toBeVisible();
+    await expect(page.getByText(/reach is not rendered/i)).toBeVisible();
   });
 });
 

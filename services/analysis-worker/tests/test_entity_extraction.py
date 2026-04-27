@@ -219,3 +219,75 @@ def test_processor_no_entity_insert_without_entity_extractor(mock_minio, mock_cl
 
     assert len(gold_insert_calls(mock_clickhouse)) == 1
     assert gold_insert_calls(mock_clickhouse)[0][0][0] == "aer_gold.metrics"
+
+
+# ── Entity filter guards ─────────────────────────────────────────────────────
+
+def test_is_valid_entity_rejects_long_text():
+    """Sentence-length spans must be rejected regardless of label."""
+    long = "And we must stay focused on achieving our common goals in difficult times"
+    assert not NamedEntityExtractor._is_valid_entity(long)
+
+
+def test_is_valid_entity_rejects_too_many_words():
+    """More than _MAX_ENTITY_WORDS words → not a named entity."""
+    seven_words = "one two three four five six seven"
+    assert not NamedEntityExtractor._is_valid_entity(seven_words)
+
+
+def test_is_valid_entity_accepts_short_phrases():
+    """Normal named entities must pass the filter."""
+    assert NamedEntityExtractor._is_valid_entity("Friedrich Merz")
+    assert NamedEntityExtractor._is_valid_entity("Berlin")
+    assert NamedEntityExtractor._is_valid_entity("CDU/CSU")
+    assert NamedEntityExtractor._is_valid_entity(
+        "Bundesministerium für wirtschaftliche Zusammenarbeit und Entwicklung"
+    )
+
+
+def test_is_valid_entity_rejects_empty():
+    assert not NamedEntityExtractor._is_valid_entity("")
+    assert not NamedEntityExtractor._is_valid_entity("   ")
+
+
+def test_ner_skips_non_german_language():
+    """NER must not run when core.language is a non-German ISO code."""
+    extractor = NamedEntityExtractor()
+    if extractor._nlp is None:
+        pytest.skip("spaCy de_core_news_lg not installed")
+
+    core = SilverCore(
+        document_id="en-doc",
+        source="test",
+        source_type="rss",
+        raw_text="Prime Minister Keir Starmer met with President Biden in Washington.",
+        cleaned_text="Prime Minister Keir Starmer met with President Biden in Washington.",
+        language="en",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=11,
+    )
+
+    result = extractor.extract_all(core, "en-article-1")
+    assert result.metrics == []
+    assert result.entities == []
+
+
+def test_ner_runs_on_undetermined_language():
+    """language='und' must not suppress NER — it means detection did not run."""
+    extractor = NamedEntityExtractor()
+    if extractor._nlp is None:
+        pytest.skip("spaCy de_core_news_lg not installed")
+
+    core = SilverCore(
+        document_id="und-doc",
+        source="tagesschau",
+        source_type="rss",
+        raw_text="Bundeskanzler Olaf Scholz sprach in Berlin.",
+        cleaned_text="Bundeskanzler Olaf Scholz sprach in Berlin.",
+        language="und",
+        timestamp=datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=7,
+    )
+
+    result = extractor.extract_all(core, "und-article-1")
+    assert len(result.entities) >= 1

@@ -13,7 +13,7 @@ describe('readFromSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -103,7 +103,7 @@ describe('writeToSearch', () => {
         viewingMode: null,
         metric: null,
         view: null,
-        sourceId: null,
+        sourceIds: [],
         viewMode: null,
         layer: null,
         negSpace: null
@@ -121,7 +121,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -146,7 +146,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -163,7 +163,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -181,7 +181,7 @@ describe('writeToSearch', () => {
       viewingMode: 'aleph' as const,
       metric: 'sentiment_score',
       view: 'analysis' as const,
-      sourceId: null,
+      sourceIds: [],
       viewMode: 'distribution' as const,
       layer: null,
       negSpace: null
@@ -190,7 +190,7 @@ describe('writeToSearch', () => {
     expect(readFromSearch(qs)).toEqual(original);
   });
 
-  it('drops metric when not in the analysis view', () => {
+  it('emits metric regardless of view (no analysis-view gate)', () => {
     const qs = writeToSearch({
       from: null,
       to: null,
@@ -200,12 +200,12 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: 'sentiment_score',
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
     });
-    expect(qs).not.toContain('metric=');
+    expect(qs).toContain('metric=sentiment_score');
   });
 
   it('omits view when it is the default atmosphere layer', () => {
@@ -218,7 +218,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: 'atmosphere',
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -226,7 +226,7 @@ describe('writeToSearch', () => {
     expect(qs).not.toContain('view=');
   });
 
-  it('drops viewMode when no probe is selected', () => {
+  it('emits viewMode regardless of probe (no probe gate)', () => {
     const qs = writeToSearch({
       from: null,
       to: null,
@@ -236,15 +236,15 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: 'distribution',
       layer: null,
       negSpace: null
     });
-    expect(qs).not.toContain('viewMode=');
+    expect(qs).toContain('viewMode=distribution');
   });
 
-  it('emits layer=silver when set with a probe, omits for gold or null', () => {
+  it('emits layer=silver when set, omits for gold — no probe gate', () => {
     const withSilver = writeToSearch({
       from: null,
       to: null,
@@ -254,7 +254,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: 'silver',
       negSpace: null
@@ -270,7 +270,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: 'gold',
       negSpace: null
@@ -286,12 +286,12 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: 'silver',
       negSpace: null
     });
-    expect(noProbe).not.toContain('layer=');
+    expect(noProbe).toContain('layer=silver');
   });
 
   it('round-trips layer=silver through readFromSearch', () => {
@@ -304,7 +304,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: 'tagesschau',
+      sourceIds: ['tagesschau'],
       viewMode: null,
       layer: 'silver' as const,
       negSpace: null
@@ -323,7 +323,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: true
@@ -339,7 +339,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -357,7 +357,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: true as const
@@ -376,7 +376,7 @@ describe('writeToSearch', () => {
       viewingMode: null,
       metric: null,
       view: null,
-      sourceId: null,
+      sourceIds: [],
       viewMode: null,
       layer: null,
       negSpace: true

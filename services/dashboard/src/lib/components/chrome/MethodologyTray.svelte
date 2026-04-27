@@ -29,6 +29,7 @@
   // the tray does not trap focus, because the surface behind it remains
   // live (Brief §4.1 rule 2 "no layer replaces").
   import { createQuery } from '@tanstack/svelte-query';
+  import { page } from '$app/state';
   import { urlState } from '$lib/state/url.svelte';
   import { focusedMetric } from '$lib/state/metric.svelte';
   import { negativeSpaceActive, setTrayOpen, trayOpen } from '$lib/state/tray.svelte';
@@ -61,6 +62,13 @@
   const open = $derived(trayOpen());
   const negSpace = $derived(negativeSpaceActive());
 
+  // The methodology tray is only relevant on Surface II L3 Function Lanes
+  // where metric selection happens. Hide it everywhere else (Surface I,
+  // L2 Probe Dossier, Surface III) to avoid clutter (L1 item 1, L2 item 1).
+  const isFunctionLane = $derived(
+    /^\/lanes\/[^/]+\/(?!dossier(?:\/|$))[^/]+/.test(page.url.pathname)
+  );
+
   // Effective focused metric: the explicit transient focus wins,
   // falling back to the URL-carried metric so URL deep-links and the
   // L3 metric selector both surface the right tray content.
@@ -73,6 +81,12 @@
   }
 
   $effect(() => {
+    if (!isFunctionLane) {
+      document.documentElement.style.setProperty('--tray-right-edge', '0px');
+      return () => {
+        document.documentElement.style.setProperty('--tray-right-edge', '0px');
+      };
+    }
     const inset = open && !isOverlayMode() ? 'var(--tray-open-width)' : 'var(--tray-closed-width)';
     document.documentElement.style.setProperty('--tray-right-edge', inset);
     return () => {
@@ -138,145 +152,147 @@
   );
 </script>
 
-<aside class="tray" class:tray-open={open} aria-label="Methodology">
-  <!-- Tab strip — always visible -->
-  <button
-    type="button"
-    class="tab"
-    class:tab-dim={!probeSelected && !effectiveMetric}
-    aria-label="{open ? 'Close' : 'Open'} methodology tray"
-    aria-expanded={open}
-    onclick={toggle}
-  >
-    {#if effectiveMetric}
-      <!-- Collapsed tab is narrow; render only a small tier pip + a known-
+{#if isFunctionLane}
+  <aside class="tray" class:tray-open={open} aria-label="Methodology">
+    <!-- Tab strip — always visible -->
+    <button
+      type="button"
+      class="tab"
+      class:tab-dim={!probeSelected && !effectiveMetric}
+      aria-label="{open ? 'Close' : 'Open'} methodology tray"
+      aria-expanded={open}
+      onclick={toggle}
+    >
+      {#if effectiveMetric}
+        <!-- Collapsed tab is narrow; render only a small tier pip + a known-
            limitations dot here. The full text Badge renders inside the
            open panel header so it never overflows the closed tab. -->
-      <span
-        class="tier-pip tier-pip-{badgeTier}"
-        aria-label={badgeTier === 'expired'
-          ? 'Validation expired'
-          : badgeTier === 'refused'
-            ? 'Methodological refusal'
-            : `Tier badge: ${badgeTier}`}
-        title={badgeTier === 'expired'
-          ? 'Validation expired — open tray for details'
-          : badgeTier === 'refused'
-            ? 'Methodological refusal — open tray for details'
-            : 'Open tray for tier and provenance details'}
-      ></span>
-      {#if hasLimitations}
         <span
-          class="limitations-dot"
-          aria-label="Known limitations apply to this metric"
-          title="Known limitations apply"
+          class="tier-pip tier-pip-{badgeTier}"
+          aria-label={badgeTier === 'expired'
+            ? 'Validation expired'
+            : badgeTier === 'refused'
+              ? 'Methodological refusal'
+              : `Tier badge: ${badgeTier}`}
+          title={badgeTier === 'expired'
+            ? 'Validation expired — open tray for details'
+            : badgeTier === 'refused'
+              ? 'Methodological refusal — open tray for details'
+              : 'Open tray for tier and provenance details'}
         ></span>
+        {#if hasLimitations}
+          <span
+            class="limitations-dot"
+            aria-label="Known limitations apply to this metric"
+            title="Known limitations apply"
+          ></span>
+        {/if}
       {/if}
-    {/if}
-    <span class="tab-label">Methodology</span>
-    <span class="tab-chevron" aria-hidden="true">{open ? '›' : '‹'}</span>
-  </button>
+      <span class="tab-label">Methodology</span>
+      <span class="tab-chevron" aria-hidden="true">{open ? '›' : '‹'}</span>
+    </button>
 
-  <!-- Open-state panel -->
-  {#if open}
-    <div class="panel" role="region" aria-label="Methodology content">
-      <header class="panel-header">
-        <span class="panel-title">Methodology</span>
-        <button
-          type="button"
-          class="close-btn"
-          aria-label="Close methodology tray"
-          onclick={toggle}
-        >
-          ×
-        </button>
-      </header>
+    <!-- Open-state panel -->
+    {#if open}
+      <div class="panel" role="region" aria-label="Methodology content">
+        <header class="panel-header">
+          <span class="panel-title">Methodology</span>
+          <button
+            type="button"
+            class="close-btn"
+            aria-label="Close methodology tray"
+            onclick={toggle}
+          >
+            ×
+          </button>
+        </header>
 
-      <div class="panel-body" class:limitations-first={negSpace}>
-        {#if !effectiveMetric}
-          <p class="hint">
-            Focus a metric on any chart, lane, or dossier to see its provenance, validation tier,
-            and known limitations here.
-          </p>
-        {:else}
-          <header class="metric-head">
-            <p class="metric-eyebrow">Focused metric</p>
-            <code class="metric-name">{effectiveMetric}</code>
-            <div class="metric-badges">
-              <Badge tier={badgeTier} />
-              {#if hasLimitations}
-                <span class="limitations-pill" title="Known limitations apply">
-                  Known limitations
-                </span>
-              {/if}
-            </div>
-            {#if chartContext}
-              <p class="chart-context" aria-label="Chart-level focus">
-                <span class="ctx-eyebrow">Selection</span>
-                <span class="ctx-value">{chartContext}</span>
-              </p>
-            {/if}
-          </header>
-
-          {#if provQ.isPending || contentQ.isPending}
-            <p class="muted" aria-busy="true">Loading methodology…</p>
+        <div class="panel-body" class:limitations-first={negSpace}>
+          {#if !effectiveMetric}
+            <p class="hint">
+              Focus a metric on any chart, lane, or dossier to see its provenance, validation tier,
+              and known limitations here.
+            </p>
           {:else}
-            <!-- Body order: under Negative Space, known-limitations
+            <header class="metric-head">
+              <p class="metric-eyebrow">Focused metric</p>
+              <code class="metric-name">{effectiveMetric}</code>
+              <div class="metric-badges">
+                <Badge tier={badgeTier} />
+                {#if hasLimitations}
+                  <span class="limitations-pill" title="Known limitations apply">
+                    Known limitations
+                  </span>
+                {/if}
+              </div>
+              {#if chartContext}
+                <p class="chart-context" aria-label="Chart-level focus">
+                  <span class="ctx-eyebrow">Selection</span>
+                  <span class="ctx-value">{chartContext}</span>
+                </p>
+              {/if}
+            </header>
+
+            {#if provQ.isPending || contentQ.isPending}
+              <p class="muted" aria-busy="true">Loading methodology…</p>
+            {:else}
+              <!-- Body order: under Negative Space, known-limitations
                  leads. Otherwise the canonical order is dual-register
                  → tier/algorithm → limitations → cultural context. -->
-            {#if hasLimitations && provenance}
-              <section class="limits epistemic-weight" data-section="limitations">
-                <h4>Known limitations</h4>
-                <ul>
-                  {#each provenance.knownLimitations as lim (lim)}
-                    <li>{lim}</li>
-                  {/each}
-                </ul>
-              </section>
-            {/if}
+              {#if hasLimitations && provenance}
+                <section class="limits epistemic-weight" data-section="limitations">
+                  <h4>Known limitations</h4>
+                  <ul>
+                    {#each provenance.knownLimitations as lim (lim)}
+                      <li>{lim}</li>
+                    {/each}
+                  </ul>
+                </section>
+              {/if}
 
-            {#if contentRecord}
-              <section class="registers epistemic-weight" data-section="dual-register">
-                <ProgressiveSemantics
-                  registers={contentRecord.registers}
-                  emphasis="methodological"
-                />
-              </section>
-            {/if}
+              {#if contentRecord}
+                <section class="registers epistemic-weight" data-section="dual-register">
+                  <ProgressiveSemantics
+                    registers={contentRecord.registers}
+                    emphasis="methodological"
+                  />
+                </section>
+              {/if}
 
-            {#if provenance}
-              <section class="prov epistemic-weight" data-section="provenance">
-                <h4>Provenance</h4>
-                <dl>
-                  <dt>Tier</dt>
-                  <dd>
-                    <Badge tier={badgeTier} />
-                  </dd>
-                  <dt>Validation</dt>
-                  <dd class="status status-{provenance.validationStatus}">
-                    {provenance.validationStatus}
-                  </dd>
-                  <dt>Algorithm</dt>
-                  <dd>{provenance.algorithmDescription}</dd>
-                  <dt>Extractor</dt>
-                  <dd><code>{provenance.extractorVersionHash}</code></dd>
-                </dl>
-                {#if provenance.culturalContextNotes}
-                  <p class="ctx-notes">{provenance.culturalContextNotes}</p>
-                {/if}
-              </section>
-            {/if}
+              {#if provenance}
+                <section class="prov epistemic-weight" data-section="provenance">
+                  <h4>Provenance</h4>
+                  <dl>
+                    <dt>Tier</dt>
+                    <dd>
+                      <Badge tier={badgeTier} />
+                    </dd>
+                    <dt>Validation</dt>
+                    <dd class="status status-{provenance.validationStatus}">
+                      {provenance.validationStatus}
+                    </dd>
+                    <dt>Algorithm</dt>
+                    <dd>{provenance.algorithmDescription}</dd>
+                    <dt>Extractor</dt>
+                    <dd><code>{provenance.extractorVersionHash}</code></dd>
+                  </dl>
+                  {#if provenance.culturalContextNotes}
+                    <p class="ctx-notes">{provenance.culturalContextNotes}</p>
+                  {/if}
+                </section>
+              {/if}
 
-            {#if workingPaperHref}
-              <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection-surface route, materialised in Phase 109 -->
-              <a class="wp-link" href={workingPaperHref}> Read the full Working Paper → </a>
+              {#if workingPaperHref}
+                <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection-surface route, materialised in Phase 109 -->
+                <a class="wp-link" href={workingPaperHref}> Read the full Working Paper → </a>
+              {/if}
             {/if}
           {/if}
-        {/if}
+        </div>
       </div>
-    </div>
-  {/if}
-</aside>
+    {/if}
+  </aside>
+{/if}
 
 <style>
   .tray {

@@ -11,7 +11,6 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
   import { ScopeBar } from '$lib/components/chrome';
-  import { SilverLayerToggle, MetricSwitcher } from '$lib/components/lanes';
   import { setUrl, urlState } from '$lib/state/url.svelte';
 
   interface Props {
@@ -20,26 +19,13 @@
 
   let { children }: Props = $props();
 
-  const FUNCTION_LANES = [
-    { key: 'epistemic_authority', abbr: 'EA', label: 'Epistemic Authority' },
-    { key: 'power_legitimation', abbr: 'PL', label: 'Power Legitimation' },
-    { key: 'cohesion_identity', abbr: 'CI', label: 'Cohesion & Identity' },
-    { key: 'subversion_friction', abbr: 'SF', label: 'Subversion & Friction' }
-  ] as const;
-
   let probeId = $derived(page.params.probeId ?? '');
-  let activeFunctionKey = $derived(page.params.functionKey ?? '');
-  let isDossier = $derived(page.url.pathname.endsWith('/dossier'));
 
   const url = $derived(urlState());
-  let sourceId = $derived(url.sourceId);
-
-  function isLaneActive(key: string): boolean {
-    return activeFunctionKey === key;
-  }
+  let sourceIds = $derived(url.sourceIds);
 
   function clearSourceScope() {
-    setUrl({ sourceId: null });
+    setUrl({ sourceIds: [] });
   }
 
   // Shorten probe ID for display (strip common prefix to save space)
@@ -51,7 +37,6 @@
   <a
     href="/lanes/{probeId}/dossier"
     class="probe-label"
-    class:active={isDossier}
     aria-label="Probe Dossier: {probeId}"
     title={probeId}
     data-sveltekit-preload-data="off"
@@ -60,29 +45,15 @@
     <span class="probe-id">{probeShort}</span>
   </a>
 
-  <span class="divider" aria-hidden="true">|</span>
+  <!-- Function lane tabs removed: navigation is via function tiles on L2
+       (Probe Dossier) and via the LensBar Function group on L3 (Phase 113d). -->
 
-  <nav class="lane-tabs" aria-label="Function lanes">
-    {#each FUNCTION_LANES as lane (lane.key)}
-      <a
-        href="/lanes/{probeId}/{lane.key}"
-        class="lane-tab"
-        class:active={isLaneActive(lane.key)}
-        aria-label="{lane.label} lane"
-        aria-current={isLaneActive(lane.key) ? 'page' : undefined}
-        title={lane.label}
-        data-sveltekit-preload-data="off"
-      >
-        <span class="lane-abbr">{lane.abbr}</span>
-        <span class="lane-label">{lane.label}</span>
-      </a>
-    {/each}
-  </nav>
-
-  {#if sourceId}
-    <span class="scope-badge" aria-label="Source scope: {sourceId}">
+  {#if sourceIds.length > 0}
+    <span class="scope-badge" aria-label="Source scope: {sourceIds.join(', ')}">
       <span class="scope-icon" aria-hidden="true">⊂</span>
-      <span class="scope-name">{sourceId}</span>
+      <span class="scope-name"
+        >{sourceIds.length === 1 ? sourceIds[0] : `${sourceIds.length} sources`}</span
+      >
       <button
         type="button"
         class="scope-clear"
@@ -91,17 +62,6 @@
       >
     </span>
   {/if}
-
-  <!-- Surface II L2 (Probe Dossier) keeps a compact metric picker so
-       the URL-backed metric is editable from the dossier. On L3 the
-       LensBar inside FunctionLaneShell is the prominent metric +
-       view-mode control, so the scope-bar versions are hidden to
-       avoid duplicate, lower-emphasis levers. -->
-  {#if isDossier || !activeFunctionKey}
-    <MetricSwitcher />
-  {/if}
-
-  <SilverLayerToggle />
 </ScopeBar>
 
 {#if children}{@render children()}{/if}
@@ -131,12 +91,6 @@
     outline-offset: var(--focus-ring-offset);
   }
 
-  .probe-label.active {
-    color: var(--color-fg);
-    border-color: var(--color-border);
-    background: var(--color-surface);
-  }
-
   .probe-glyph {
     color: var(--color-accent);
     font-size: 0.9em;
@@ -147,72 +101,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .divider {
-    color: var(--color-border-strong);
-    font-size: var(--font-size-xs);
-    flex-shrink: 0;
-  }
-
-  .lane-tabs {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    flex-wrap: nowrap;
-  }
-
-  .lane-tab {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: 3px var(--space-2);
-    border-radius: var(--radius-sm);
-    text-decoration: none;
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    border: 1px solid transparent;
-    white-space: nowrap;
-    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-
-  .lane-tab:hover,
-  .lane-tab:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border);
-    background: var(--color-surface);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .lane-tab.active {
-    color: var(--color-fg);
-    background: var(--color-surface);
-    border-color: var(--color-accent-muted);
-  }
-
-  .lane-abbr {
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    opacity: 0.7;
-  }
-
-  .lane-tab.active .lane-abbr {
-    opacity: 1;
-    color: var(--color-accent);
-  }
-
-  .lane-label {
-    font-size: var(--font-size-xs);
-  }
-
-  /* Hide long labels on small viewports */
-  @media (max-width: 800px) {
-    .lane-label {
-      display: none;
-    }
   }
 
   .scope-badge {
@@ -259,8 +147,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .probe-label,
-    .lane-tab {
+    .probe-label {
       transition: none;
     }
   }

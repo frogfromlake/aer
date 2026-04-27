@@ -28,6 +28,20 @@
   // Active section from URL ?section= param
   const sectionParam = $derived(page.url.searchParams.get('section') ?? null);
 
+  // Phase 113c — back-link hint when arrived from a Function Lane.
+  // Set by the lane header's "Read the full Working Paper" anchor.
+  const fromLaneProbe = $derived(
+    page.url.searchParams.get('from') === 'lane' ? page.url.searchParams.get('probe') : null
+  );
+  const fromLaneFn = $derived(
+    page.url.searchParams.get('from') === 'lane' ? page.url.searchParams.get('fn') : null
+  );
+  const backToLaneHref = $derived(
+    fromLaneProbe && fromLaneFn
+      ? `/lanes/${encodeURIComponent(fromLaneProbe)}/${encodeURIComponent(fromLaneFn)}`
+      : null
+  );
+
   const negSpace = $derived(negativeSpaceActive());
 
   // Scroll to the requested section after mount
@@ -72,6 +86,12 @@
   {#if sectionParam}
     <span class="breadcrumb-sep" aria-hidden="true">›</span>
     <span class="breadcrumb-section">§{sectionParam}</span>
+  {/if}
+  {#if backToLaneHref}
+    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+    <a class="back-to-lane" href={backToLaneHref} aria-label="Back to Function Lane">
+      ← Function Lane
+    </a>
   {/if}
 </ScopeBar>
 
@@ -662,6 +682,25 @@
     font-size: var(--font-size-xs);
     font-family: var(--font-mono);
     color: var(--color-fg-muted);
+  }
+
+  .back-to-lane {
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    text-decoration: none;
+    border: 1px solid var(--color-accent-muted);
+    border-radius: var(--radius-sm);
+    padding: 2px var(--space-2);
+  }
+  .back-to-lane:hover,
+  .back-to-lane:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-accent);
+    background: rgba(82, 131, 184, 0.12);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -17,9 +17,10 @@
     ctx: FetchContext;
     windowStart?: string;
     windowEnd?: string;
+    entityMatch?: string;
   }
 
-  let { sourceId, ctx, windowStart, windowEnd }: Props = $props();
+  let { sourceId, ctx, windowStart, windowEnd, entityMatch }: Props = $props();
 
   const PAGE_SIZE = 20;
 
@@ -40,6 +41,7 @@
     if (windowEnd) p.end = windowEnd;
     if (filterLang) p.language = filterLang;
     if (filterSentiment) p.sentimentBand = filterSentiment as 'negative' | 'neutral' | 'positive';
+    if (entityMatch) p.entityMatch = entityMatch;
     if (cursor) p.cursor = cursor;
     return p;
   });

@@ -7,19 +7,35 @@
   import { page } from '$app/state';
   import { probeDossierQuery, type ProbeDossierDto, type QueryOutcome } from '$lib/api/queries';
   import ProbeDossier from '$lib/components/lanes/ProbeDossier.svelte';
-  import { urlState } from '$lib/state/url.svelte';
+  import { untrack } from 'svelte';
+  import { urlState, setUrl } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
 
   const ctx = { baseUrl: '/api/v1' };
 
   let probeId = $derived(page.params.probeId ?? '');
   const url = $derived(urlState());
-  // Read `sourceId` directly from SvelteKit's reactive `page.url` rather
-  // than the urlState rune store: `goto()` uses pushState, which the
-  // store does not observe (it only re-hydrates on popstate). Without
-  // this, a satellite click on Surface I lands on the dossier with the
-  // pre-filter dropped on the floor.
-  let preFilteredSourceId = $derived(page.url.searchParams.get('sourceId'));
+
+  // Sync ?sourceId=… URL param → urlState.sourceIds for deep-link and
+  // backward-compat (old bookmarks, satellite-click URL from pre-113d).
+  //
+  // The url.sourceIds comparison is wrapped in untrack so this effect only
+  // re-runs on actual SvelteKit navigations (page.url changes), not when
+  // setUrl() mutates internalState via history.replaceState. Without
+  // untrack, clicking "Clear scope" would trigger the effect, which would
+  // read the stale page.url (bypassed by replaceState) and immediately
+  // re-apply the old sourceId, making the button appear broken.
+  $effect(() => {
+    const fromUrl = page.url.searchParams.get('sourceId');
+    if (!fromUrl) return;
+    const ids = fromUrl.split(',').filter(Boolean);
+    if (ids.length === 0) return;
+    untrack(() => {
+      if (url.sourceIds.join(',') !== ids.join(',')) {
+        setUrl({ sourceIds: ids });
+      }
+    });
+  });
 
   let windowMs = $derived.by(() => {
     const now = Date.now();
@@ -61,7 +77,6 @@
       {ctx}
       windowStart={windowMs.start}
       windowEnd={windowMs.end}
-      {preFilteredSourceId}
     />
   {:else if dossierQ.data?.kind === 'refusal'}
     <div class="state-slot">

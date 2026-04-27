@@ -36,10 +36,10 @@
     ctx: FetchContext;
     windowStart: string;
     windowEnd: string;
-    sourceId: string | null;
+    sourceIds: string[];
   }
 
-  let { functionKey, dossier, ctx, windowStart, windowEnd, sourceId }: Props = $props();
+  let { functionKey, dossier, ctx, windowStart, windowEnd, sourceIds }: Props = $props();
 
   const FUNCTION_META: Record<string, { label: string; abbr: string; description: string }> = {
     epistemic_authority: {
@@ -66,13 +66,29 @@
 
   let meta = $derived(FUNCTION_META[functionKey]);
 
-  // Sources in this function lane — filtered by primaryFunction.
-  // Narrowed to sourceId when source scope is active.
+  // Sources in this function lane.
+  // Default: filter by primaryFunction (normal single-function browsing).
+  // Manual selection: when the user explicitly narrowed scope via source cards,
+  // show ALL selected sources regardless of their discourse function — they made
+  // a cross-function selection deliberately. The function lane becomes the
+  // analysis context rather than a filter.
   let laneSources = $derived.by(() => {
     if (!dossier) return [];
-    const matched = dossier.sources.filter((s) => s.primaryFunction === functionKey);
-    if (sourceId) return matched.filter((s) => s.name === sourceId);
-    return matched;
+    if (sourceIds.length > 0) return dossier.sources.filter((s) => sourceIds.includes(s.name));
+    return dossier.sources.filter((s) => s.primaryFunction === functionKey);
+  });
+
+  // Discourse functions represented by the current selection. Used by LensBar
+  // to show secondary "has selection" markers on non-active function buttons.
+  let activeFunctionKeys = $derived.by<string[]>(() => {
+    const keys: string[] = [functionKey];
+    if (sourceIds.length > 0 && dossier) {
+      for (const id of sourceIds) {
+        const fn = dossier.sources.find((s) => s.name === id)?.primaryFunction;
+        if (fn && !keys.includes(fn)) keys.push(fn);
+      }
+    }
+    return keys;
   });
 
   let isEmpty = $derived(laneSources.length === 0);
@@ -96,8 +112,10 @@
   let presentation = $derived(getPresentation(url.viewMode));
   let metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
 
-  let scope = $derived<'probe' | 'source'>(sourceId ? 'source' : 'probe');
-  let scopeId = $derived<string>(sourceId ?? dossier?.probeId ?? '');
+  let scope = $derived<'probe' | 'source'>(sourceIds.length === 1 ? 'source' : 'probe');
+  // When exactly one source is narrowed, the cell queries use source scope.
+  // With multiple sources, probe scope is used and the cell receives the filtered source list.
+  let scopeId = $derived<string>(sourceIds.length === 1 ? sourceIds[0]! : (dossier?.probeId ?? ''));
 
   // Phase 111 — Silver-layer routing.
   let dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
@@ -105,16 +123,12 @@
   // Phase 112 — Negative Space overlay.
   const negSpace = $derived(negativeSpaceActive());
 
-  // Active source record from the dossier (null when using probe scope).
-  let activeSourceRecord = $derived(
-    sourceId ? (dossier?.sources.find((s) => s.name === sourceId) ?? null) : null
+  // For Silver-eligibility, single-source scope gives us the record to check.
+  let singleSourceRecord = $derived(
+    sourceIds.length === 1 ? (dossier?.sources.find((s) => s.name === sourceIds[0]) ?? null) : null
   );
-  // Eligibility: true when Gold layer, or when Silver + no source-scope (probe
-  // scope; eligibility is evaluated per source, not per probe — the lane body
-  // will show a "narrow to a source" prompt instead), or when Silver + the
-  // active source has passed the WP-006 §5.2 review.
   let silverEligible = $derived(
-    dataLayer === 'gold' || !sourceId || (activeSourceRecord?.silverEligible ?? false)
+    dataLayer === 'gold' || sourceIds.length === 0 || (singleSourceRecord?.silverEligible ?? false)
   );
 
   // Per-cell view-mode content from the catalog. Lookup by composed cell
@@ -146,7 +160,8 @@
   $effect(() => {
     const id = presentation.id;
     const t = ++loadToken;
-    CellComponent = null;
+    // Do NOT null CellComponent here — keep the old cell visible while
+    // the new one loads to avoid a blank flash (L3 item 4 flicker fix).
     cellLoadError = null;
     presentation
       .loadComponent()
@@ -156,6 +171,7 @@
       })
       .catch((err: unknown) => {
         if (t !== loadToken) return;
+        CellComponent = null;
         cellLoadError = err instanceof Error ? err.message : `Failed to load ${id}`;
       });
   });
@@ -164,18 +180,19 @@
     laneSources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
   );
 
-  // Phase 108: every (probe, function-key, view-mode, metric, source-scope,
-  // data-layer) change in the lane retargets the methodology tray.
   $effect(() => {
     if (isEmpty) return;
     const ctxParts: string[] = [`probe ${dossier?.probeId ?? '—'}`, presentation.label];
-    if (sourceId) ctxParts.push(`source ${sourceId}`);
+    if (sourceIds.length > 0) ctxParts.push(`source ${sourceIds.join(', ')}`);
     if (dataLayer === 'silver') ctxParts.push('Silver layer');
     setFocusedMetric({
       metricName,
       chartContext: ctxParts.join(' · ')
     });
   });
+
+  // Methodology panel — expandable section default open (L3 item 8).
+  let methodologyExpanded = $state(true);
 </script>
 
 <section class="lane" class:neg-space={negSpace} aria-labelledby="lane-heading-{functionKey}">
@@ -186,26 +203,45 @@
       <h2 id="lane-heading-{functionKey}" class="fn-label">
         {meta?.label ?? functionKey}
       </h2>
-      <span class="source-count">
-        {laneSources.length} source{laneSources.length !== 1 ? 's' : ''}
-      </span>
       <span class="cell-id" aria-label="Active view-mode cell">
-        {presentation.label} · <code>{metricName}</code>
+        <span class="cell-id-view">{presentation.label}</span>
+        <span class="cell-id-sep" aria-hidden="true">·</span>
+        <code class="cell-id-metric">{metricName}</code>
       </span>
     </div>
-    {#if meta?.description}
-      <p class="fn-description">{meta.description}</p>
+
+    <!-- Source list — prominently visible to show what data is displayed (L3 item 5) -->
+    {#if laneSources.length > 0}
+      <div class="source-list" aria-label="Sources in this lane">
+        <span class="source-list-label">Sources:</span>
+        {#each laneSources as s (s.name)}
+          <span class="source-chip">{s.emicDesignation ?? s.name}</span>
+        {/each}
+        {#if sourceIds.length > 0}
+          <span class="source-scope-indicator" title="Scope narrowed from probe">⊂ scoped</span>
+        {/if}
+      </div>
     {/if}
-    {#if !isEmpty && viewModeContentQ.data?.kind === 'success'}
-      <p class="cell-semantic">
-        {viewModeContentQ.data.data.registers.semantic.short}
-      </p>
-    {/if}
+
+    <!-- Phase 113c: prominent link into Surface III for the function's
+         long-form treatment. The `from=lane&probe=…&fn=…` hint is read
+         by the Working Paper page to render a "Back to Function Lane"
+         affordance. -->
+    <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface III route -->
+    <p class="wp-link">
+      <a
+        href="/reflection/wp/wp-001?section={functionKey}&from=lane&probe={dossier?.probeId ??
+          ''}&fn={functionKey}"
+      >
+        Read the full Working Paper · WP-001 · {meta?.label ?? functionKey} →
+      </a>
+    </p>
+    <!-- eslint-enable svelte/no-navigation-without-resolve -->
   </header>
 
   <!-- Lens bar: metric × view-mode pair (Phase 113c). -->
   {#if !isEmpty}
-    <LensBar />
+    <LensBar {activeFunctionKeys} />
   {/if}
 
   <!-- Lane body -->
@@ -247,18 +283,28 @@
             No sources currently assigned to this discourse function in this probe.
           </p>
         {/if}
+        <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface II route -->
+        <a
+          class="back-to-dossier"
+          href="/lanes/{dossier?.probeId}/dossier"
+          data-sveltekit-preload-data="off"
+        >
+          ← Back to Probe Dossier
+        </a>
+        <!-- eslint-enable svelte/no-navigation-without-resolve -->
       </div>
-    {:else if dataLayer === 'silver' && !sourceId}
+    {:else if dataLayer === 'silver' && sourceIds.length === 0}
       <!-- Silver mode requires a single source — probe scope is undefined for Silver -->
       <div class="silver-scope-prompt" role="status">
         <p class="silver-scope-msg">
           Silver-layer data is available per source. Narrow the scope to a single source using the
-          <strong>⊂ Narrow scope</strong> action on a source card, then re-select the Silver layer.
+          <strong>⊂ Narrow scope</strong> action on a source card in the Probe Dossier, then re-select
+          the Silver layer.
         </p>
       </div>
-    {:else if dataLayer === 'silver' && !silverEligible && activeSourceRecord}
+    {:else if dataLayer === 'silver' && !silverEligible && singleSourceRecord}
       <!-- Active source not Silver-eligible -->
-      <SilverIneligiblePanel source={activeSourceRecord} />
+      <SilverIneligiblePanel source={singleSourceRecord} />
     {:else if cellLoadError}
       <p class="muted">Could not load view: {cellLoadError}</p>
     {:else if !CellComponent}
@@ -278,6 +324,41 @@
         sources={cellSources}
         {dataLayer}
       />
+
+      <!-- Methodology section — expandable, default open (L3 item 8) -->
+      {#if viewModeContentQ.data?.kind === 'success'}
+        {@const methodContent = viewModeContentQ.data.data}
+        <div class="methodology-section">
+          <button
+            type="button"
+            class="methodology-toggle"
+            aria-expanded={methodologyExpanded}
+            aria-controls="methodology-body"
+            onclick={() => (methodologyExpanded = !methodologyExpanded)}
+          >
+            <span
+              class="methodology-chevron"
+              aria-hidden="true"
+              class:expanded={methodologyExpanded}>›</span
+            >
+            <span class="methodology-title">Methodology — {presentation.label} × {metricName}</span>
+          </button>
+          {#if methodologyExpanded}
+            <div id="methodology-body" class="methodology-body">
+              <p class="methodology-text">{methodContent.registers.methodological.long}</p>
+              <!-- eslint-disable svelte/no-navigation-without-resolve -- internal WP link -->
+              <a
+                class="methodology-wp-link"
+                href="/reflection/wp/wp-001?section={functionKey}&from=lane&probe={dossier?.probeId ??
+                  ''}&fn={functionKey}"
+              >
+                Read the full Working Paper · WP-001 · {meta?.label ?? functionKey} →
+              </a>
+              <!-- eslint-enable svelte/no-navigation-without-resolve -->
+            </div>
+          {/if}
+        </div>
+      {/if}
     {/if}
   </div>
 </section>
@@ -327,37 +408,197 @@
     margin: 0;
   }
 
-  .source-count {
+  .cell-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    padding: 2px var(--space-2);
+    background: rgba(82, 131, 184, 0.12);
+    border: 1px solid var(--color-accent-muted);
+    border-radius: var(--radius-sm);
+  }
+
+  .cell-id-view {
     font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
+    color: var(--color-accent);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .cell-id-sep {
+    font-size: var(--font-size-xs);
     color: var(--color-fg-subtle);
   }
 
-  .cell-id {
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    margin-left: auto;
-  }
-
-  .cell-id code {
+  .cell-id-metric {
     font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
     color: var(--color-fg);
   }
 
-  .fn-description {
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    margin: 0;
-    line-height: var(--line-height-loose);
+  .source-list {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: 2px;
   }
 
-  .cell-semantic {
+  .source-list-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-subtle);
+    flex-shrink: 0;
+  }
+
+  .source-chip {
     font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    padding: 1px var(--space-2);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    color: var(--color-fg);
+  }
+
+  .source-scope-indicator {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    padding: 1px var(--space-1);
+    border: 1px solid var(--color-accent-muted);
+    border-radius: var(--radius-pill);
+  }
+
+  .back-to-dossier {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-fg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    text-decoration: none;
+    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .back-to-dossier:hover,
+  .back-to-dossier:focus-visible {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .methodology-section {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .methodology-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-elevated);
+    border: none;
+    cursor: pointer;
+    color: var(--color-fg-muted);
+    text-align: left;
+    width: 100%;
+    transition: background var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .methodology-toggle:hover,
+  .methodology-toggle:focus-visible {
+    background: var(--color-surface);
+    color: var(--color-fg);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .methodology-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-fg-subtle);
+    transform: rotate(0deg);
+    transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+    flex-shrink: 0;
+  }
+
+  .methodology-chevron.expanded {
+    transform: rotate(90deg);
+  }
+
+  .methodology-title {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-accent);
+  }
+
+  .methodology-body {
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-bg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .methodology-text {
+    font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     line-height: var(--line-height-loose);
     margin: 0;
-    padding-top: var(--space-2);
-    max-width: 64ch;
+  }
+
+  .methodology-wp-link {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent-muted);
+    align-self: flex-start;
+  }
+
+  .methodology-wp-link:hover,
+  .methodology-wp-link:focus-visible {
+    color: var(--color-fg);
+    border-bottom-style: solid;
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .wp-link {
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+  }
+  .wp-link a {
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent-muted);
+  }
+  .wp-link a:hover,
+  .wp-link a:focus-visible {
+    color: var(--color-fg);
+    border-bottom-style: solid;
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .lane-body {

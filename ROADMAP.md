@@ -1990,6 +1990,7 @@ All versions pinned like in the backend (if best practice)
 * [x] **Bug 5 - Dashboard** Right side rail (methodology) shows a red hint which (validation is expired) on probes with expired validation. It is cut off since it is to wide on the collapsed rail. The Methodology label already shows a red dot which could be enough. The validation expires hint should display only inside the rail when it is expanded.
 * [x] **Bug 6 - Dashboard** When clicking a Probe and switch to Lanes view (http://localhost:5173/lanes/probe-0-de-institutional-rss/dossier) we have several issues: 1. bundesregierung source card shows NO article counts on the "View articles" button. 2. All cards "view" source button on the article list returning an error "Failed to load article. Check network connectivity.". 3. All cards show a 404 Not found when clicking on the "Dossier" button.
 * [x] **Bug 6 - Dashboard** The codebase uses the domainlanguage "Surface", "Layer" etc. but the Dashboard does not really reflect this. Only in on hover tooltips. Its a bit confusing because a new user reading the docu does not really see if he is on a surface or on a layer or whatever.
+* [x] **Bug 7 - Dashboard**: All cards "view" source button on the article list returning "Failed to load article (HTTP 500). Check network connectivity". Also important (!): The source cards are not wide enough so they need to be horizontally scrolled to even view the "View"button which "hides" it for the user. Make it wider to fit.
 * [x] **Validation.** `make fe-check` green.
 
 
@@ -2004,18 +2005,174 @@ All versions pinned like in the backend (if best practice)
 * [x] **Retention runbook.** `docs/operations_playbook.md` §"Retention & Reconciliation (Phase 113b / ADR-022)" documents the retention table for every layer plus the reconciliation procedure (inspect → dry-run → execute → confirm).
 * [x] **Validation.** `make lint` and `make test` green (Go integration tests, Go pkg, Go crawler, Python unit tests, frontend Vitest). Three new `dossier_store_test.go` integration tests cover ResolveArticle from Silver without a Postgres row, the empty-key fallback, and source-count aggregation against `aer_silver.documents`. Runtime reconciliation against the dev stack remains an operational step (see runbook).
 
+
+## Phase 113c: Iteration 5 — Bug fixing [P2] - [ ] TODO
+*This phase covers bugs and structural issues found in Iteration 5 implementation phases. Structural changes are documented in ADR-020 (§Implementation-Outline · Phase 113c).*
+
+* [x] **Bug 1 — Visual rework of probe descent flow: CRITICAL.** The pre-113c probe click on the Atmosphere globe opened an in-page L3 SidePanel ("flyout", URL e.g. `/?probe=…&viewingMode=aleph&metric=sentiment_score&view=analysis`). The flyout duplicated content the Probe Dossier already owns and contradicted Brief §4.1 ("the globe is the welcome mat, not the working surface"). Rework the flow so it descends one layer at a time, with coherent labeling per Brief §5.2:
+  1. **Surface I · L0 Atmosphere (Globe)** — entry point.
+  2. **Surface II · L1 Probe Dossier** — landing on probe click. Centralizes the WP-001 function selection (EA Epistemic Authority · PL Power Legitimation · CI Cohesion & Identity · SF Subversion & Friction) as a prominent four-tile selector. No metric and no Au Gold / Ag Silver controls (they have no function on L1). Built as a collapsible per-probe section so future N-probe dossiers can list multiple probes; for Probe 0 the section is expanded by default and occupies the page.
+  3. **Surface II · L3 Function Lane** — the project's analytical core. The LensBar above the chart hosts four equally-weighted groups: **Function** (EA / PL / CI / SF), **Layer** (Au Gold / Ag Silver), **Metric**, **View**. The chart and view-mode body keep the dominant share of the viewport. A prominent "Read the full Working Paper →" anchor in the lane header descends to Surface III.
+  4. **Surface III · L3 Working Paper** — long-form methodology. Arrived-from-lane state carries `?from=lane&probe=…&fn=…` so a "Back to Function Lane" affordance can render.
+
+  Notes: with these labels the descent reads L0 → L1 → L3 → L3 (Surface III's L3 is its own analytical-native layer per Brief §5.2). L2 remains reserved for in-surface exploration controls (Surface I time scrubber, Surface II source-scope narrowing). Old `/?probe=X[&view=analysis…]` deeplinks redirect to the canonical Dossier route. See ADR-020 §Implementation-Outline · Phase 113c.
+* [x] **Step 6 — Back-and-forth navigation: CRITICAL.** Every node in the flow must be reachable from every other node without dead ends. SideRail anchors (planet → `/`, Function Lanes → `/lanes/{activeProbe}/dossier`, Reflection → `/reflection`); ScopeBar probe label and lane tabs as quick switches; Working Paper page renders a "Back to Function Lane" affordance when arrived via `?from=lane&probe=…&fn=…`. Browser back works natively.
+* [x] **Step 7 — URL deeplink alignment: CRITICAL.** Each route's URL state restores exactly: `/` · `?probe=X` redirect; `/lanes/{probeId}/dossier?sourceId=X`; `/lanes/{probeId}/{functionKey}?metric=…&viewMode=…&layer=silver&sourceId=…`; `/reflection/wp/{id}?section=…&from=…&probe=…&fn=…`. Drop the now-meaningless `view=analysis` writes; LensBar Function navigation preserves query params across path change.
+* [x] **Validation.** `make fe-check` green.
+
+
+## Phase 113d: Iteration 5 — Bug fixing [P2] - [x] DONE
+*This phase covers bugs and structural issues found in Iteration 5 implementation phases. Structural changes should get documented in ADR-020 (§Implementation-Outline · Phase 113d).*
+
+* [x] On Surface I · Atmosphere · L0 Globe:
+1. Since we do not choose metrics here, the methodology right sidedrawer here does not make sense. This should ONLY be visible where metric selection happens: Surface II · Function Lanes · L3 Function Lane. Remove it.
+2. The top bar: Remove the from-to time "2026-04-20 16:48Z → 2026-04-27 16:48Z" section, it is already visible in the timeScrubber at the center bottom. Add a description to the TimeScrubber. User needs to know what it does and why it is there.
+3. Move the "Resolution" into the TimeScrubber and also provide a description on what this does and why it is there. Make the TimeScrubber component wider if necessary and do not increase height.
+4. Increase visibility of the 3 Pillars (bottom left bar).
+5. Increase visibility of the Negative Space overlay button (bottom left bar) by writing it out instead of "NS".
+6. Top left bar is the most important navigation except from globe clicks on the probe. Increase visibility of the buttons and do not cramp them at the top of the par. Do not obscure to much view on the globe.
+7. On click on a source, Surface II · Function Lanes · L2 Probe Dossier opens with only this source visible. A better approach would be to show the normal probes dossier with all sources, but automatically NARROW SCOPE for the selected source, highlight it with a different text in the tooltip "Filtered to source bundesregierung from a satellite click on the globe. Show all sources" so it becomes visible! (Also remove the show all sources link button).
+
+* [x] On Surface II · Function Lanes · L2 Probe Dossier after clicking the probe on the globe:
+1. Since we do not choose metrics here, the methodology right sidedrawer here does not make sense. This should ONLY be visible where metric selection happens: Surface II · Function Lanes · L3 Function Lane. Remove it.
+2. The probe collapsable/expandable container should be wider (same right border distance as left) so the whole view is used. We have the place for it now, since the methodology right sidedrawer is gone.
+3. The probes introductional/description text needs to be almost as wide as the container to save vertical space.
+4. Remove Button "Open methodology tray".
+5. Decrease the height of discourse function cards a LITTLE bit to save vertical space.
+6. The Sources itself should ALSO be inside a expandable/collapsable container just like the parent Probe currently has.
+7. Remove the "Reach is not rendered on the globe.." text and place it as a small opaque text at the very center bottom of the globe view.
+8. Remove the discourse function buttons from the top bar as they are now visible as cards in the probe container below.
+9. The overall Publication rate 97.3 docs/day, as well as the source individual pub rates (bundesregierung 25.0 / day and tagesschau 72.3 / day) seem to be wrong. But maybe thats an artefact of manual crawling. *(Data artifact — no code fix.)*
+10. When clicking "narrow scope" on a source, there seems to be an anchor getting triggered, jumping back to the top of the page, which makes the user lose focus when scrolled down to even see the button. Fix it.
+11.  When clicking "narrow scope" on a source it seems complicated to reach the Surface II · Function Lanes · L3 Function Lane, since it is only possible to reach via clicking on a discourse function but the user does not know directly whih function to click (its always the first one if many), so it would be better to directly open the corresponding Lane view with the correct discourse function to jump right into it.
+12. ~~**NOT IMPLEMENTED**~~: Multi-source narrowing implemented in Phase 113e.
+
+* [x] On Surface II · Function Lanes · L3 Function Lane:
+1. Remove the discourse function buttons from the top bar as they are now visible in the selection section above the data analysis view.
+2. Discoursce function selection: when selecting a discourse function that has no source active, i cant go back to the previous view to select another discourse function easily. This should not happen i need a quick way to get back from the "This lane monitors sources that construct and reinforce shared collective identity — ..." view.
+3. The metrics selection has a bug where a selected metric always jumps to the second place in the metric buttons
+4.  **NOT IMPLEMENTED**: Selections: Metric, Layer or view mode selections make the whole page seem to reload so the view flickers everytime i select something. Can we fix this so it looks seaminglessly?
+5. When chosing a discourse function i always want to see clearly visible which sources belong to this function so i can see what data i am looking at! Should also work with narrowing source. Currently it is visible above the data view below but highlight it a little bit more.
+6. There need to be a description text for each viewmode. For now source independent but should explain in a view words exatly how to read the current view and here we should hint on the methodology section.
+7. The user does not get informed about Layers (gold, silver). As well as the Functions and  Metrics description in the top section of the view feels out of touch with the below selection of Functions, Metrics. Description of everything needs to be happening where it is SELECTED (Functions, Metrics, Layer, view), and where it is DISPLAYED (Description of how to read the current selected viewmode together with the current selected metric, see point 6).
+8. At the top right is the selected view mode and selected metric visible (e.g. Time series · sentiment_score). Improve the visibility a little, maybe color it.
+
+
+---
+
+## Phase 113e: Iteration 5 — Multi-Source Analysis & LensBar Refinement [P2] - [x] DONE
+
+*Implements the multi-source narrowing deferred in Phase 113d item 12, fixes the clear-scope bug introduced by the replaceState/SvelteKit page.url mismatch, and refines the LensBar into a two-row stable/dynamic layout.*
+
+* [x] **Bug: clear scope does not work after browser-back navigation.** `dossier/+page.svelte` had a `$effect` that re-synced `?sourceId=` from `page.url.searchParams` into `urlState`. Because `setUrl()` uses raw `history.replaceState` (bypassing SvelteKit's router), `page.url` never updated after a clear — causing the effect to immediately re-apply the old `sourceId` and undo the clear. Fixed by wrapping the `url.sourceIds` comparison in `untrack()` so the effect only re-runs on real SvelteKit navigations, not on in-memory state writes.
+
+* [x] **Scope action bar (multi-source selection UX).** Replaced the immediate `goto()` on "Narrow scope" click with a two-step flow: clicking a source card toggles it into `sourceIds` (visual highlight only); a sticky `scope-bar` at the bottom of `ProbeDossier` appears when any sources are selected, showing removable chip badges for each source, a "Clear" button, and an "Analyze ›" CTA that navigates to the function lane. Supports selecting sources one by one before committing to analysis. `probeId` prop removed from `SourceCard` (no longer needed).
+
+* [x] **Multi-source, cross-function analysis.** `FunctionLaneShell.laneSources` previously filtered by `primaryFunction === functionKey`, so sources from other discourse functions were silently dropped from the view. When `sourceIds.length > 0` (manual selection), the filter is bypassed: all explicitly selected sources are shown in any function lane regardless of their function assignment. `TimeSeriesCell` already iterates the `sources` prop directly — no backend change needed for the primary time-series view. Distribution and co-occurrence views continue to use `scope=probe` for multi-source (BFF has no subset-scope endpoint); scoped distribution for an arbitrary source subset requires a future backend `source[]` query parameter.
+
+* [x] **LensBar: function has-selection indicator.** `FunctionLaneShell` derives `activeFunctionKeys` — the set of discourse functions represented by the current `sourceIds` selection (always includes the current lane's `functionKey`). Passed as a prop to `LensBar`, which applies a dashed accent border (`has-selection`) to any function button whose function appears in the selection but is not the currently viewed lane. Tooltip updated to "… — selected sources include this function". Clicking navigates to that lane with the full multi-source scope intact.
+
+* [x] **LensBar: two-row layout.** Split the single flat flex row into two explicit rows separated by a thin horizontal rule: Row 1 — Function + Layer (stable cardinality, won't grow); Row 2 — Metric + View (will accumulate entries). Reduces overall height and gives the growing selectors their own dedicated space. Padding tightened to `space-2` per row.
+
+* [x] **LensBar: metric description + description readability.** Metric group previously had no description. Added a `cellContentQ` (same TanStack key as `FunctionLaneShell`'s `viewModeContentQ` — zero extra requests) that surfaces the cell-semantic short text under the Metric buttons. `cell-semantic` paragraph removed from the `FunctionLaneShell` lane header (it now lives where it belongs — under the metric selection). All `lens-desc` elements: `font-size: 10px → var(--font-size-xs)` (12 px), `color: fg-subtle → fg-muted`, `max-width: 28ch` removed (descriptions use full group width).
+
+* [x] **LensBar: Layer/View column alignment.** Changed `.lens-group` from `flex: 1 1 auto` to `flex: 1 1 0%; min-width: 160px`. Equal flex-basis ensures all groups start from the same size, so Layer (row 1 col 2) and View (row 2 col 2) land at the same horizontal position when the bar wraps.
+
+* [x] **Validation.** `make fe-check` green.
+
 ---
 
 # Open Phases
 
 ---
 
-## Phase 113c: Iteration 5 — Bug fixing [P2] -  - [ ] TODO
-*This phase covers all bugs and issues found in Iteration 5 implementation phases. If major changes are required or structural/architectural adjustments are necessary whe have to document it in the ADR-20 that covers the dashboard implementation*
+## Phase 113f: Iteration 5 — Multi-Source Subset & Multi-Probe Composition (Within-Context) [P2] - [ ] TODO
 
-* [ ] **Bug 1 - Dashboard: A E R Buttons** It is still unclear what those buttons do. They seem to have no functionality allthough they are the pillars of the projects concept. Check arc42 docu, design brief and ADR-20. Check their purpose and implementation. The also need to be written out: Aleph, Episteme, Rhizome. This fundamental concepts need to be explained in short within their context on the Dashboard.
-* [x] **Bug 6 - Dashboard**: All cards "view" source button on the article list returning "Failed to load article (HTTP 500). Check network connectivity". Also important (!): The source cards are not wide enough so they need to be horizontally scrolled to even view the "View"button which "hides" it for the user. Make it wider to fit.
-* [x] **Validation.** `make fe-check` green.
+*Lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array so an arbitrary subset of a probe's sources, and an arbitrary set of probes, can drive distribution / heatmap / correlation / co-occurrence views. Completes the multi-source narrowing deferred in Phase 113e (item 12 follow-up: "scoped distribution for an arbitrary source subset requires a future backend `source[]` query parameter") and lands the parallel-context-stream rendering committed in Brief §4.2.2 and §1.3. **Composition, not comparison** (Brief §1.3) — every stream keeps its own baseline; nothing is placed on a shared cross-context scale in this phase. Cross-cultural normalization, equivalence gating, and refusal surfaces are explicitly out of scope and live in Phase 113g.*
+
+### Backend (BFF + OpenAPI)
+
+* [ ] **OpenAPI: scope arrays.** `services/bff-api/api/openapi.yaml` — extend the view-mode endpoints to accept repeated `sourceId` and/or `probeId` query parameters (or comma-separated `sourceIds`/`probeIds`) in addition to the existing single-value form. Affected: `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`, `GET /api/v1/entities/cooccurrence`, `GET /api/v1/entities`, `GET /api/v1/languages`, `GET /api/v1/metrics`. Single-value form remains for backward compatibility. `make codegen` runs clean.
+* [ ] **BFF resolver.** Extend `DossierStore.ResolveSourceWithEligibility` (or add a sibling `ResolveScopeWithEligibility`) to expand `probeIds[]` via `ProbeRegistry` into the union of their sources, then merge with explicit `sourceIds[]`, deduplicate, and reject the request with a precise `RefusalPayload` if any source in the resulting set is not Silver-eligible (only relevant when the endpoint is Silver-gated).
+* [ ] **ClickHouse query shape.** Replace the `WHERE source = ?` clauses with `WHERE source IN (...)` across the four view-mode handlers. Re-verify the existing row caps still hold against the largest plausible scope (multiple probes × full retention window) and document the per-endpoint cap in the OpenAPI description.
+* [ ] **Per-stream segmentation.** Distribution and heatmap responses gain an optional `segmentBy=source|probe` flag. When set, the response is structured as `{ streams: [{ id, label, scopeKind, ...payload }] }` so the frontend can render parallel streams without re-querying. Default (unset) preserves the current aggregated single-payload shape.
+* [ ] **`/api/v1/entities/cooccurrence` for multi-scope.** Edge weights aggregate across the union of selected sources; node `presence[]` field is added so the frontend can render per-source incident shading without a follow-up call. No change to `aer_gold.entity_cooccurrences` schema (Phase 102) — the corpus extractor's per-article rows already aggregate cleanly across `source IN (...)`.
+* [ ] **Integration tests.** Testcontainers covering: (a) single-source request unchanged; (b) two-source subset within one probe; (c) two-probe union; (d) source-subset request that crosses probe boundaries (explicit hand-picked sources from different probes — Brief §4.2.4 makes both probe and source first-class scope parameters, so this must be valid); (e) Silver-eligibility refusal when any source in the set is ineligible.
+
+### Frontend (Dashboard)
+
+* [ ] **URL state.** `services/dashboard/src/lib/state/url-internals.ts` — `sourceIds` already serialises (Phase 113d). Add `probeIds` to the same multi-value scheme with the same delimiter. Round-trip tests in `tests/unit/url-state.test.ts`.
+* [ ] **Multi-probe scope action bar.** Extend the Phase 113e scope bar in `ProbeDossier.svelte` so chips render both source and probe selections (visually distinct), with separate "Clear sources" / "Clear probes" affordances. The `Analyze ›` CTA navigates to the function lane carrying the union scope.
+* [ ] **Cross-probe entry point.** From the Atmosphere (Surface I), shift-clicking or multi-selecting probe glyphs adds them to a pending `probeIds[]` set; the existing descent CTA becomes a "Compose" affordance when more than one probe is selected. Single-click behaviour is unchanged (descent to that probe's Dossier).
+* [ ] **Parallel-context streams in lanes.** `FunctionLaneShell.svelte` and the per-cell renderers (`TimeSeriesCell`, distribution, heatmap, correlation, co-occurrence) consume the new `streams[]` shape when present. Streams render as **parallel context lines / panels with per-stream baselines and per-stream Dual-Register tooltips** (Brief §4.2.2). No shared cross-context axis. Color encoding distinguishes streams using a perceptually uniform, valence-free palette per `visualization_guidelines.md` §1–§2.
+* [ ] **Empty-lane behaviour with multi-scope.** When some probes in the union have no source covering the current discourse function, those probes' streams are present-but-empty per the empty-lane Dual-Register invitation (Brief §4.2.2 + §7.7). The empty stream is the question, not a hidden case.
+* [ ] **LensBar cross-probe indicator.** Phase 113e's `activeFunctionKeys` indicator extends to the union of all selected probes' sources. No new visual primitive — same dashed accent border, just driven by the union set.
+* [ ] **No normalization controls.** This phase explicitly does *not* expose `?normalization=zscore|percentile` toggles. A user who attempts to construct a cross-context absolute claim sees the standard composed view; the refusal surface for unvalidated cross-cultural normalization arrives in Phase 113g.
+
+### Documentation
+
+* [ ] **CLAUDE.md.** Update the BFF endpoint list to record the `sourceIds[]` / `probeIds[]` parameters and the optional `segmentBy` flag.
+* [ ] **ADR-020.** Append a sub-entry under §Implementation-Outline · Phase 113f recording (a) the scope-array lift, (b) the parallel-stream response shape, (c) the deferral of cross-cultural normalization to 113g, and (d) the explicit "composition, not comparison" boundary that scopes this phase.
+* [ ] **Arc42 §6 (Runtime View).** Sequence diagram for a multi-probe distribution request: frontend → BFF → resolver → ClickHouse `IN (...)` → segmented response → parallel-stream rendering.
+
+### Validation
+
+* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: the Phase 113e scope-bar flow extends cleanly to (a) two sources in one probe, (b) two probes, (c) hand-picked sources crossing probe boundaries — each case produces parallel streams in the lane with per-stream baselines and no cross-context axis.
+
+### Why this is one phase, not two
+
+Multi-source subset (113e's deferred backend lift) and multi-probe composition share **the same backend change** (`scopeId` → `scopeIds[]`), the same parallel-stream response shape, and the same frontend rendering surface. Splitting them would force two passes through OpenAPI, codegen, the BFF handlers, and the lane shell for what is one structural change. The frontend entry points differ (Dossier source-narrowing vs. globe multi-probe selection) but consume the same wire format.
+
+---
+
+## Phase 113g: Iteration 5 — Cross-Cultural Analysis Foundations (WP-004) [P2] - [ ] TODO
+
+*Operationalises WP-004 §5–§6 — the **Metric Equivalence Registry**, the **per-source baseline table**, the `?normalization=raw|zscore|percentile` parameter, and the refusal surfaces for unvalidated cross-context absolute-value comparisons (Brief §7.4 + §7.3). Built on top of the multi-probe parallel-stream rendering shipped in Phase 113f. Cross-cultural analysis is **distinct from** multi-probe analysis: multi-probe is the rendering substrate (composition); cross-cultural is the methodological discipline that decides which composed views may carry an absolute claim, which require deviation framing, and which must be refused. The default dashboard view stays at WP-004 Level 1 (temporal patterns, language-independent) — Level 2 (z-score deviations) is the first composed-claim view; Level 3 (absolute values) is gated behind validated equivalence and never the default (WP-004 §6.3).*
+
+*Cross-cultural ≠ multi-probe (clarification for ROADMAP readers).* Multi-probe rendering can be entirely within-cultural — a German institutional probe beside a German diasporic probe — and remain a valid composition. Cross-cultural analysis is the subset of multi-probe analysis where the composed contexts are drawn from **different cultural-linguistic frames**, and where the user's question implicates an absolute or deviation comparison rather than a within-context one. The architectural answer is the same equivalence registry and baseline machinery in either case; the trigger for Level-2/Level-3 gating is the user's request shape (`?normalization=zscore` etc.), not a heuristic on probe metadata.
+
+### Schema (ClickHouse + Postgres)
+
+* [ ] **ClickHouse migration: `aer_gold.metric_baselines`.** Per WP-004 §6.1: `(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)` — `ReplacingMergeTree(compute_date)`, `ORDER BY (metric_name, source, language)`. 365-day TTL on `compute_date` aligned with existing Gold tables. New init migration in `infra/clickhouse/migrations/`.
+* [ ] **ClickHouse migration: `aer_gold.metric_equivalence`.** Per WP-004 §5.2: `(metric_a_name, metric_b_name, source_a, source_b, equivalence_type, validation_status, validation_method, validation_date, reviewer, notes, ingestion_version)`. Seeded **empty** — no metric pair is validated for cross-cultural scalar equivalence in Iteration 5. The empty registry *is* the correct initial state per WP-002 / WP-004 ("provisional proof-of-concept" — CLAUDE.md §Provisional Status Warning).
+* [ ] **Postgres: equivalence-review workflow tables.** Mirror the WP-006 §5.2 Silver-eligibility review pattern (Phase 103): `equivalence_reviews` table holding the methodological review record (reviewer, date, rationale, working-paper anchor) that is referenced by `aer_gold.metric_equivalence` rows. Out-of-band review only — no in-band UI for granting equivalence.
+
+### Analysis Worker (Baseline Computation)
+
+* [ ] **`MetricBaselineExtractor` (corpus-level).** New extractor implementing the existing `CorpusExtractor` protocol (CLAUDE.md §"Gold Layer: Extractor Pipeline"). Reads `aer_gold.metrics` over a configurable rolling window, computes per `(metric_name, source, language)` mean and standard deviation, writes to `aer_gold.metric_baselines`. NATS-triggered on the same cadence as `EntityCoOccurrenceExtractor` (Phase 102).
+* [ ] **Provisional flag.** Baseline rows are emitted with `validation_status='provisional'` until methodological review. `MetricBaselineExtractor` does **not** publish anything to `aer_gold.metric_equivalence` — equivalence is granted out-of-band, not derived statistically. This boundary is the architectural expression of WP-004 §2.2: equivalence is a research question, not a computation.
+* [ ] **Tests.** Pytest unit + Testcontainers integration covering: empty-corpus → no baseline written; single-source corpus → baseline emitted; idempotent re-run via ReplacingMergeTree.
+
+### BFF API
+
+* [ ] **`?normalization=raw|zscore|percentile` parameter.** Per WP-004 §6.2 and Brief §7.4. Applies to `GET /api/v1/metrics`, `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`. Default `raw` (current behaviour). `zscore` joins against `aer_gold.metric_baselines` per WP-004 §6.1 query template; `percentile` computes within-language percentile rank.
+* [ ] **Equivalence gate.** When `normalization=zscore` or `percentile` is requested across a `scopeIds[]` set that crosses cultural-linguistic frames (heuristic: distinct values of `aer_gold.language_detections.detected_language` across the scope, or distinct `language` columns across baselines), the BFF resolves the requested metric pair against `aer_gold.metric_equivalence` with `validation_status='validated'`. If absent, the response is **HTTP 400 with a `RefusalPayload`** (gate=`metric_equivalence`, anchor=`WP-004#section-5.2`) carrying the structured fields the frontend needs to render the refusal surface (alternatives: drop normalization → Level 1; constrain scope to one cultural frame; use deviation labelling instead of absolute claim).
+* [ ] **`/api/v1/metrics/available` extension.** Each metric entry exposes `equivalenceStatus: { construct, measurement, scalar }` per WP-004 §5.2 / §6.2 so the frontend can pre-compute available normalizations without a refusal round-trip.
+* [ ] **Probe-level equivalence summary.** New endpoint `GET /api/v1/probes/{probeId}/equivalence` returning per-metric Level-1 / Level-2 / Level-3 availability for the probe's source set — drives the Probe Dossier "what comparisons are valid here" panel.
+* [ ] **Integration tests.** Cover `raw` default, `zscore` against a baselined within-frame source pair, `percentile` likewise, and the 400 refusal when normalization is requested across an unvalidated cross-frame scope.
+
+### Frontend (Dashboard)
+
+* [ ] **Normalization control on the LensBar.** New optional control on the per-cell view-mode header offering `Raw / Z-score / Percentile`. Disabled options carry the methodological-register tooltip explaining *why* (no baseline yet → run the corpus extractor; no validated equivalence → links to the refusal surface and the WP-004 reference).
+* [ ] **Refusal surface for cross-cultural absolute claims.** Per Brief §7.4: a 400 from a `?normalization=zscore` cross-frame request renders the standard refusal shape — semantic-register one-liner, methodological-register expand (the equivalence-registry rule, WP-004 §5.2, the Scientific Operations Guide workflow for granting equivalence), and **alternatives** (drop normalization, constrain scope, use deviation labelling). Implementation reuses the Phase 103 Silver-eligibility refusal component — same shape, different gate.
+* [ ] **Deviation labelling on Level-2 views.** Per WP-004 §6.3 item 2: any rendered z-score or percentile view carries a non-dismissable byline ("This chart shows deviation from source baseline, not absolute sentiment. Baseline window: …"). The Dual-Register methodology tray's open state foregrounds the baseline window and the WP-004 §5.3 level classification.
+* [ ] **Probe Dossier "valid comparisons" panel.** Reads `GET /api/v1/probes/{probeId}/equivalence` and renders the per-metric Level-1/2/3 availability as a small matrix on the Dossier — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a lane.
+* [ ] **Default-to-Level-1 commitment.** When the scope is cross-frame and no normalization is explicitly chosen, the lane defaults to **temporal-pattern view modes** (publication frequency, time-of-day distribution, weekly rhythm) — these are WP-004 Level 1 and language-independent. Other view modes remain reachable but their initial render is the temporal pattern, not the metric value.
+
+### Documentation
+
+* [ ] **WP-004 cross-link.** Add a backwards reference in `docs/methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md` §6 noting that §6.1 (baseline table), §6.2 (normalization parameter), and §6.3 (dashboard implications) are operationalised in this phase.
+* [ ] **ADR-020 §Implementation-Outline · Phase 113g.** Record the schema additions, the equivalence-gate contract, the refusal-surface reuse, the cross-link to WP-004 §5.3 levels, and the explicit boundary that 113g extends 113f's composition surface with methodological gating without re-scoping it.
+* [ ] **CLAUDE.md.** Add `aer_gold.metric_baselines` and `aer_gold.metric_equivalence` to the "ClickHouse Gold Schema" block. Add the `?normalization=raw|zscore|percentile` parameter and the equivalence-gate rule to the "BFF API Endpoints" list, mirroring the Silver-eligibility-gate paragraph.
+* [ ] **Operations Playbook.** Section "Granting metric equivalence (WP-004 §5.2)" — the one-off Postgres + ClickHouse procedure that populates `equivalence_reviews` and `aer_gold.metric_equivalence` after a methodological review, mirroring the existing Silver-eligibility procedure (Phase 103).
+
+### Validation
+
+* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: a cross-frame `?normalization=zscore` request renders the refusal surface with WP-004 §5.2 anchor and three valid alternatives; a within-frame `?normalization=zscore` request renders a deviation-labelled chart with the baseline window in the methodology tray; the Dossier "valid comparisons" panel reflects the empty equivalence registry as Level 1 only.
+
+### Open question deliberately left to a later iteration
+
+WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equivalence; what validation methodology is appropriate; how to handle metrics that are valid intra-culturally but incommensurable cross-culturally) are **interdisciplinary research questions, not engineering work**. They are surfaced in the Reflection Open Research Questions hub (Phase 109) and answered out-of-band; this phase only delivers the architecture that makes their answers consumable.
 
 ---
 
@@ -2085,6 +2242,7 @@ All versions pinned like in the backend (if best practice)
 - **Phase 110 (Surface I refinement) comes after Surface II exists.** Probe-first emission only makes sense if the descent target (Surface II Dossier) is in place. Otherwise the globe becomes a dead-end UI.
 - **Phase 111 (Silver toggle) is isolated.** Silver-layer access is governance-gated and should land on a stable Surface II (Phase 106) with clear eligibility semantics (Phase 103). Keeping it separate lets us ship or defer without affecting Gold work.
 - **Phases 112 and 113 are cross-cutting polish.** They depend on multiple surface phases being in place and are small enough to be fast.
+- **Phases 113f and 113g are the multi-context backbone.** 113f lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array and lands parallel-context-stream rendering — composition, not comparison (Brief §1.3). 113g operationalises WP-004 §5–§6 on top of 113f: equivalence registry, per-source baselines, `?normalization=` parameter, and the refusal surface for unvalidated cross-cultural absolute claims. They are deliberately separated because 113f is a within-context infrastructure lift while 113g is a methodological gating layer; bundling them would force the equivalence-gate decision before the parallel-stream surface exists to render its refusals.
 - **Phase 114 (a11y + High-Fi perf) lands before Low-Fi (115).** Brief §7.6 explicitly requires High-Fi as the baseline to reduce from; Low-Fi cannot be meaningfully spec'd before High-Fi is fully measured.
 - **Phase 116 (docs sweep) is last.** It closes the reframing-note lifecycle and opens the terminology-reconciliation ADR as the future-facing follow-up.
 - **ADR-020 §Implementation-Outline is the source for increment scope; ROADMAP.md is the SSoT for phase assignment.** The two are kept in sync by the reordering note in ADR-020 and by this section.
