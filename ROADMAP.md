@@ -2090,17 +2090,123 @@ All versions pinned like in the backend (if best practice)
 
 *Lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array so an arbitrary subset of a probe's sources, and an arbitrary set of probes, can drive distribution / heatmap / correlation / co-occurrence views. Completes the multi-source narrowing deferred in Phase 113e (item 12 follow-up: "scoped distribution for an arbitrary source subset requires a future backend `source[]` query parameter") and lands the parallel-context-stream rendering committed in Brief §4.2.2 and §1.3. **Composition, not comparison** (Brief §1.3) — every stream keeps its own baseline; nothing is placed on a shared cross-context scale in this phase. Cross-cultural normalization, equivalence gating, and refusal surfaces are explicitly out of scope and live in Phase 115.*
 
-[Inhalt unverändert gegenüber aktueller Roadmap — keine Änderungen.]
+### Backend (BFF + OpenAPI)
+
+* [ ] **OpenAPI: scope arrays.** `services/bff-api/api/openapi.yaml` — extend the view-mode endpoints to accept repeated `sourceId` and/or `probeId` query parameters (or comma-separated `sourceIds`/`probeIds`) in addition to the existing single-value form. Affected: `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`, `GET /api/v1/entities/cooccurrence`, `GET /api/v1/entities`, `GET /api/v1/languages`, `GET /api/v1/metrics`. Single-value form remains for backward compatibility. `make codegen` runs clean.
+* [ ] **BFF resolver.** Extend `DossierStore.ResolveSourceWithEligibility` (or add a sibling `ResolveScopeWithEligibility`) to expand `probeIds[]` via `ProbeRegistry` into the union of their sources, then merge with explicit `sourceIds[]`, deduplicate, and reject the request with a precise `RefusalPayload` if any source in the resulting set is not Silver-eligible (only relevant when the endpoint is Silver-gated).
+* [ ] **ClickHouse query shape.** Replace the `WHERE source = ?` clauses with `WHERE source IN (...)` across the four view-mode handlers. Re-verify the existing row caps still hold against the largest plausible scope (multiple probes × full retention window) and document the per-endpoint cap in the OpenAPI description.
+* [ ] **Per-stream segmentation.** Distribution and heatmap responses gain an optional `segmentBy=source|probe` flag. When set, the response is structured as `{ streams: [{ id, label, scopeKind, ...payload }] }` so the frontend can render parallel streams without re-querying. Default (unset) preserves the current aggregated single-payload shape.
+* [ ] **`/api/v1/entities/cooccurrence` for multi-scope.** Edge weights aggregate across the union of selected sources; node `presence[]` field is added so the frontend can render per-source incident shading without a follow-up call. No change to `aer_gold.entity_cooccurrences` schema (Phase 102) — the corpus extractor's per-article rows already aggregate cleanly across `source IN (...)`.
+* [ ] **Integration tests.** Testcontainers covering: (a) single-source request unchanged; (b) two-source subset within one probe; (c) two-probe union; (d) source-subset request that crosses probe boundaries (explicit hand-picked sources from different probes — Brief §4.2.4 makes both probe and source first-class scope parameters, so this must be valid); (e) Silver-eligibility refusal when any source in the set is ineligible.
+
+### Frontend (Dashboard)
+
+* [ ] **URL state.** `services/dashboard/src/lib/state/url-internals.ts` — `sourceIds` already serialises (Phase 113d). Add `probeIds` to the same multi-value scheme with the same delimiter. Round-trip tests in `tests/unit/url-state.test.ts`.
+* [ ] **Multi-probe scope action bar.** Extend the Phase 113e scope bar in `ProbeDossier.svelte` so chips render both source and probe selections (visually distinct), with separate "Clear sources" / "Clear probes" affordances. The `Analyze ›` CTA navigates to the function lane carrying the union scope.
+* [ ] **Cross-probe entry point.** From the Atmosphere (Surface I), shift-clicking or multi-selecting probe glyphs adds them to a pending `probeIds[]` set; the existing descent CTA becomes a "Compose" affordance when more than one probe is selected. Single-click behaviour is unchanged (descent to that probe's Dossier).
+* [ ] **Parallel-context streams in lanes.** `FunctionLaneShell.svelte` and the per-cell renderers (`TimeSeriesCell`, distribution, heatmap, correlation, co-occurrence) consume the new `streams[]` shape when present. Streams render as **parallel context lines / panels with per-stream baselines and per-stream Dual-Register tooltips** (Brief §4.2.2). No shared cross-context axis. Color encoding distinguishes streams using a perceptually uniform, valence-free palette per `visualization_guidelines.md` §1–§2.
+* [ ] **Empty-lane behaviour with multi-scope.** When some probes in the union have no source covering the current discourse function, those probes' streams are present-but-empty per the empty-lane Dual-Register invitation (Brief §4.2.2 + §7.7). The empty stream is the question, not a hidden case.
+* [ ] **LensBar cross-probe indicator.** Phase 113e's `activeFunctionKeys` indicator extends to the union of all selected probes' sources. No new visual primitive — same dashed accent border, just driven by the union set.
+* [ ] **No normalization controls.** This phase explicitly does *not* expose `?normalization=zscore|percentile` toggles. A user who attempts to construct a cross-context absolute claim sees the standard composed view; the refusal surface for unvalidated cross-cultural normalization arrives in Phase 115.
+
+### Documentation
+
+* [ ] **CLAUDE.md.** Update the BFF endpoint list to record the `sourceIds[]` / `probeIds[]` parameters and the optional `segmentBy` flag.
+* [ ] **ADR-020.** Append a sub-entry under §Implementation-Outline · Phase 114 recording (a) the scope-array lift, (b) the parallel-stream response shape, (c) the deferral of cross-cultural normalization to 115, and (d) the explicit "composition, not comparison" boundary that scopes this phase.
+* [ ] **Arc42 §6 (Runtime View).** Sequence diagram for a multi-probe distribution request: frontend → BFF → resolver → ClickHouse `IN (...)` → segmented response → parallel-stream rendering.
+
+### Validation
+
+* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: the Phase 113e scope-bar flow extends cleanly to (a) two sources in one probe, (b) two probes, (c) hand-picked sources crossing probe boundaries — each case produces parallel streams in the lane with per-stream baselines and no cross-context axis.
+
+### Why this is one phase, not two
+
+Multi-source subset (113e's deferred backend lift) and multi-probe composition share **the same backend change** (`scopeId` → `scopeIds[]`), the same parallel-stream response shape, and the same frontend rendering surface. Splitting them would force two passes through OpenAPI, codegen, the BFF handlers, and the lane shell for what is one structural change. The frontend entry points differ (Dossier source-narrowing vs. globe multi-probe selection) but consume the same wire format.
 
 ---
 
 ## Phase 115: Iteration 5 — Cross-Cultural Analysis Foundations (WP-004) [P2] - [ ] TODO
 
-*Operationalises WP-004 §5–§6 — the **Metric Equivalence Registry**, the **per-source baseline table**, the `?normalization=raw|zscore|percentile` parameter, and the refusal surfaces for unvalidated cross-context absolute-value comparisons (Brief §7.4 + §7.3). Built on top of the multi-probe parallel-stream rendering shipped in Phase 114. Cross-cultural analysis is **distinct from** multi-probe analysis: multi-probe is the rendering substrate (composition); cross-cultural is the methodological discipline that decides which composed views may carry an absolute claim, which require deviation framing, and which must be refused. The default dashboard view stays at WP-004 Level 1 (temporal patterns, language-independent) — Level 2 (z-score deviations) is the first composed-claim view; Level 3 (absolute values) is gated behind validated equivalence and never the default (WP-004 §6.3).*
+*Operationalises WP-004 §5–§6 — extends the **Metric Equivalence Registry**, the **per-source baseline table**, and the `?normalization` parameter that already exist from Phase 65, plus adds the refusal surfaces for unvalidated cross-context absolute-value comparisons (Brief §7.4 + §7.3) that the prior infrastructure phase did not implement. Built on top of the multi-probe parallel-stream rendering shipped in Phase 114. Cross-cultural analysis is **distinct from** multi-probe analysis: multi-probe is the rendering substrate (composition); cross-cultural is the methodological discipline that decides which composed views may carry an absolute claim, which require deviation framing, and which must be refused. The default dashboard view stays at WP-004 Level 1 (temporal patterns, language-independent) — Level 2 (z-score deviations) is the first composed-claim view; Level 3 (absolute values) is gated behind validated equivalence and never the default (WP-004 §6.3).*
 
-[Inhalt unverändert gegenüber aktueller Roadmap — keine Änderungen.]
+*Cross-cultural ≠ multi-probe (clarification for ROADMAP readers).* Multi-probe rendering can be entirely within-cultural — a German institutional probe beside a German diasporic probe — and remain a valid composition. Cross-cultural analysis is the subset of multi-probe analysis where the composed contexts are drawn from **different cultural-linguistic frames**, and where the user's question implicates an absolute or deviation comparison rather than a within-context one. The architectural answer is the same equivalence registry and baseline machinery in either case; the trigger for Level-2/Level-3 gating is the user's request shape (`?normalization=zscore` etc.), not a heuristic on probe metadata.
 
-*Iteration 5 closes here on the **multi-context backbone**. The originally-planned Iteration-5 polish phases — Progressive Descent Infrastructure, Accessibility/High-Fi Performance Audit, Documentation Sweep + Terminology Reconciliation ADR — are deliberately deferred to Phases 126–128 and consolidated into a single "Iteration 5 Deferred Closure" pass after Iterations 6–8 have stabilised the surface topology. Polish on a moving target is doubled work; we polish once, at the end.*
+*State going into this phase.* From Phase 65, the following already exist and must not be re-created:
+- `aer_gold.metric_baselines` table (`metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date`).
+- `aer_gold.metric_equivalence` table (`etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence`) — the Phase-65 Etic/Emic-aligned design is retained; nothing in this phase changes that schema beyond the single column addition below.
+- `?normalization=raw|zscore` query parameter on `GET /api/v1/metrics`, `…/distribution`, `…/heatmap`, `…/correlation`, with the existing baseline+equivalence existence gate.
+- `equivalenceLevel` field on `GET /api/v1/metrics/available`.
+- `scripts/compute_baselines.py` (Operations Playbook / Workflow 4 from Phase 71) for manual baseline computation.
+
+This phase **extends** that foundation with: a single column addition to `metric_equivalence`, `percentile` as a third normalization mode, a cross-frame heuristic that turns the existing existence gate into a true cross-cultural refusal surface, automated baseline maintenance via NATS-cron, the equivalence-review workflow tables, the per-probe equivalence summary endpoint, and the full frontend treatment (control, refusal, deviation labelling, valid-comparisons panel).
+
+### Schema
+
+* [ ] **ClickHouse migration: `metric_equivalence.notes`.** The existing Phase-65 `aer_gold.metric_baselines` and `aer_gold.metric_equivalence` schemas otherwise cover this phase's needs (verified 2026-04-30: `grep -r "notes" infra/clickhouse/migrations/ | grep equivalence` returned empty). Add a single new ClickHouse migration introducing `notes String DEFAULT ''` on `metric_equivalence`, holding the concise methodological-rationale summary referenced from the Operations Playbook. The full review record lives in the Postgres `equivalence_reviews` table (next bullet); this column travels with the ClickHouse row so the BFF can serve the methodology-tray rationale without a cross-database join.
+
+  Files (use the next free migration index — verify with `ls infra/clickhouse/migrations/`):
+
+  `infra/clickhouse/migrations/000NNN_add_metric_equivalence_notes.up.sql`:
+```sql
+  -- Adds a free-form prose field for the methodological-rationale text
+  -- referenced by the Operations Playbook section "Granting metric equivalence
+  -- (WP-004 §5.2)" introduced in Phase 115. The full review record (reviewer,
+  -- date, working-paper anchor, full prose) lives in the Postgres
+  -- equivalence_reviews table; this column carries a concise summary that
+  -- travels with the row when it is read by the BFF, so the dashboard's
+  -- methodology tray can render the rationale without a cross-database join.
+  ALTER TABLE aer_gold.metric_equivalence
+      ADD COLUMN IF NOT EXISTS notes String DEFAULT '';
+```
+
+  `infra/clickhouse/migrations/000NNN_add_metric_equivalence_notes.down.sql`:
+```sql
+  ALTER TABLE aer_gold.metric_equivalence
+      DROP COLUMN IF EXISTS notes;
+```
+
+  Type-choice rationale: `String DEFAULT ''`, not `Nullable(String)` — ClickHouse advises against `Nullable` when the empty string carries the same semantic role, and an equivalence entry without a notes summary is valid (e.g. the temporal-Level grant for Probe 0 × Probe 1 in Phase 123, whose rationale is fully captured in WP-004 Appendix B and needs no additional paraphrase). The `IF NOT EXISTS` guard matches the existing migration idempotency pattern. No corresponding edit to `infra/clickhouse/init.sql` — migrations are the only authorised path for schema changes since Phase 7; `init.sql` is reconciled during the next consolidation sweep, not per migration.
+
+  No other ClickHouse schema changes in this phase.
+
+* [ ] **Postgres: equivalence-review workflow tables.** Mirror the WP-006 §5.2 Silver-eligibility review pattern (Phase 103): new `equivalence_reviews` table holding the methodological review record (reviewer, date, rationale, working-paper anchor, full prose notes). Each `aer_gold.metric_equivalence` row carries a `validated_by` value that points into this Postgres table for the full review record; the ClickHouse `notes` column added above carries a concise summary for read-path display. New migration in `infra/postgres/migrations/`. Out-of-band review only — no in-band UI for granting equivalence.
+
+### Analysis Worker (Baseline Computation)
+
+* [ ] **`MetricBaselineExtractor` (corpus-level).** New extractor implementing the existing `CorpusExtractor` protocol (CLAUDE.md §"Gold Layer: Extractor Pipeline"). **Promotes** the existing `scripts/compute_baselines.py` (Phase 71) into a NATS-triggered automated extractor on the same cadence as `EntityCoOccurrenceExtractor` (Phase 102). Reads `aer_gold.metrics` over a configurable rolling window, computes per `(metric_name, source, language)` mean and standard deviation, writes to `aer_gold.metric_baselines`. The standalone script is **retained** for ad-hoc operations: first-run on a new probe (Phase 123 uses the script explicitly), manual recompute after schema change, and Operations-Playbook walkthroughs. Both paths share the same underlying computation function; only the trigger differs.
+* [ ] **No equivalence emission.** `MetricBaselineExtractor` does **not** publish anything to `aer_gold.metric_equivalence` — equivalence is granted out-of-band via the Postgres `equivalence_reviews` workflow, not derived statistically. This boundary is the architectural expression of WP-004 §2.2: equivalence is a research question, not a computation.
+* [ ] **Tests.** Pytest unit + Testcontainers integration covering: empty-corpus → no baseline written; single-source corpus → baseline emitted; idempotent re-run via the existing ReplacingMergeTree(`compute_date`) ordering; equivalence between auto-extractor output and manual-script output for the same window (regression guard — both code paths must produce byte-identical baselines).
+
+### BFF API
+
+* [ ] **`?normalization=percentile`.** Extend the existing `?normalization=raw|zscore` parameter to accept `percentile` as a third value. Computes within-`(metric_name, source, language)` percentile rank using ClickHouse window functions over the active query window. Applies to the same endpoints the existing `zscore` path applies to: `GET /api/v1/metrics`, `…/distribution`, `…/heatmap`, `…/correlation`. The existing default (`raw`) is unchanged.
+* [ ] **Cross-frame equivalence gate.** The existing baseline+equivalence existence gate (Phase 65) is **extended** with a cross-frame check: when `normalization=zscore` or `percentile` is requested across a `scopeIds[]` set (Phase 114) where multiple `language` values appear in `aer_gold.language_detections` for the resolved sources — or where `aer_gold.metric_baselines.language` differs across the resolved sources — the BFF additionally requires that `aer_gold.metric_equivalence` has at least a `deviation`-level entry for the requested metric across both languages. Absent that, the response is **HTTP 400 with a `RefusalPayload`** (gate=`metric_equivalence`, anchor=`WP-004#section-5.2`) carrying the structured fields the frontend needs to render the refusal surface (alternatives: drop normalization → Level 1; constrain scope to one cultural frame; use deviation labelling instead of absolute claim). When a row is read for the response, the new `notes` column from `metric_equivalence` is included alongside the existing fields. Within-frame requests (single language across the scope) continue to use the existing Phase-65 gate unchanged.
+* [ ] **`/api/v1/metrics/available` extension.** The current single-string `equivalenceLevel` field is **superseded** by a structured `equivalenceStatus` object: `{ level: "temporal" | "deviation" | "absolute" | null, validatedBy: string | null, validationDate: ISO-8601 | null, notes: string }`. The string `equivalenceLevel` field is retained for one release cycle as a deprecated alias (mirrors the Phase-65 simple form) so existing dashboard URL state and tests do not break in the same commit. Update OpenAPI spec, `make codegen`.
+* [ ] **Probe-level equivalence summary.** New endpoint `GET /api/v1/probes/{probeId}/equivalence` returning per-metric Level-1 / Level-2 / Level-3 availability for the probe's source set — drives the Probe Dossier "what comparisons are valid here" panel. Phase 123 will extend this endpoint with an optional `comparedTo=<otherProbeId>` parameter for the multi-probe case; this phase only ships the single-probe form.
+* [ ] **Integration tests.** Cover (a) `raw` default unchanged; (b) `percentile` against a baselined within-frame source pair; (c) within-frame `zscore` with the existing Phase-65 gate path still passing; (d) the new 400 refusal when `zscore` is requested across an unvalidated cross-frame scope; (e) single-language probe scope + equivalence summary returning Level 1 only; (f) `notes` field round-trips correctly through both the response shape and the deprecation alias.
+
+### Frontend (Dashboard)
+
+* [ ] **Normalization control on the LensBar.** New optional control on the per-cell view-mode header offering `Raw / Z-score / Percentile`. Disabled options carry the methodological-register tooltip explaining *why* (no baseline yet → run the corpus extractor or `compute_baselines.py`; no validated equivalence → links to the refusal surface and the WP-004 reference).
+* [ ] **Refusal surface for cross-cultural absolute claims.** Per Brief §7.4: a 400 from a cross-frame `?normalization=zscore` request renders the standard refusal shape — semantic-register one-liner, methodological-register expand (the equivalence-registry rule, WP-004 §5.2, the Scientific Operations Guide workflow for granting equivalence), and **alternatives** (drop normalization, constrain scope, use deviation labelling). Implementation reuses the Phase 103 Silver-eligibility refusal component — same shape, different gate.
+* [ ] **Deviation labelling on Level-2 views.** Per WP-004 §6.3 item 2: any rendered z-score or percentile view carries a non-dismissable byline ("This chart shows deviation from source baseline, not absolute sentiment. Baseline window: …"). The Dual-Register methodology tray's open state foregrounds the baseline window, the WP-004 §5.3 level classification, and — when an equivalence entry exists — its `notes` field as the methodological rationale for that grant.
+* [ ] **Probe Dossier "valid comparisons" panel.** Reads `GET /api/v1/probes/{probeId}/equivalence` and renders the per-metric Level-1/2/3 availability as a small matrix on the Dossier — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a lane.
+* [ ] **Default-to-Level-1 commitment.** When the scope is cross-frame and no normalization is explicitly chosen, the lane defaults to **temporal-pattern view modes** (publication frequency, time-of-day distribution, weekly rhythm) — these are WP-004 Level 1 and language-independent. Other view modes remain reachable but their initial render is the temporal pattern, not the metric value.
+
+### Documentation
+
+* [ ] **WP-004 cross-link.** Add a backwards reference in `docs/methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md` §6 noting that §6.1 (baseline maintenance), §6.2 (full normalization parameter incl. percentile), and §6.3 (dashboard implications, refusal surface, default-Level-1) are operationalised in this phase. Distinguish what came in Phase 65 (schema, raw+zscore, existence gate) from what comes here (`notes` column, percentile, cross-frame gate, frontend treatment, equivalence-review workflow, automated baseline maintenance).
+* [ ] **ADR-020 §Implementation-Outline · Phase 115.** Record (a) the build-on-Phase-65 stance (single-column addition only; no schema duplication), (b) the cross-frame gate as the sharpening of the existing gate, (c) the `equivalenceStatus` structuring of the response with the new `notes` field, (d) the dual-path baseline computation (auto-extractor for periodic maintenance + retained manual script for ad-hoc), (e) the refusal-surface reuse, and (f) the explicit boundary that 115 extends 114's composition surface with methodological gating without re-scoping it.
+* [ ] **CLAUDE.md.** Update the existing `aer_gold.metric_baselines` and `aer_gold.metric_equivalence` entries in the "ClickHouse Gold Schema" block to note (i) the new `notes` column on `metric_equivalence`, (ii) the auto-extractor, and (iii) the equivalence-review workflow. Update the BFF API endpoint list with `percentile`, the cross-frame gate, the structured `equivalenceStatus`, and the new `/api/v1/probes/{probeId}/equivalence` endpoint.
+* [ ] **Operations Playbook.** New section "Granting metric equivalence (WP-004 §5.2)" — the Postgres `equivalence_reviews` insert + ClickHouse `metric_equivalence` insert procedure for documenting a methodological review, mirroring the existing Silver-eligibility procedure (Phase 103). Document the `notes` column convention: ≤ 280 characters, summarises the rationale, points to the full Postgres review record. Cross-link to the existing Workflow-4 ("Computing and Updating Baselines") and note that the manual script is retained for first-run/ad-hoc, the auto-extractor handles periodic maintenance.
+
+### Validation
+
+* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: a cross-frame `?normalization=zscore` request renders the refusal surface with WP-004 §5.2 anchor and three valid alternatives; a within-frame `?normalization=zscore` request renders a deviation-labelled chart with the baseline window and any `notes` rationale in the methodology tray; the Dossier "valid comparisons" panel reflects the empty equivalence registry as Level 1 only; `?normalization=percentile` works against a baselined within-frame pair; the auto-extractor and manual `compute_baselines.py` produce byte-identical baselines for the same input window.
+
+### Open question deliberately left to a later iteration
+
+WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equivalence; what validation methodology is appropriate; how to handle metrics that are valid intra-culturally but incommensurable cross-culturally) are **interdisciplinary research questions, not engineering work**. They are surfaced in the Reflection Open Research Questions hub (Phase 109) and answered out-of-band; this phase only delivers the architecture that makes their answers consumable. The first concrete answer — the temporal-level grant for Probe 0 × Probe 1 — lands in Phase 123, not here.
 
 ---
 
