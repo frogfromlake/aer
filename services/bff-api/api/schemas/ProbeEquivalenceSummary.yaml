@@ -1,0 +1,25 @@
+type: object
+description: >
+  Per-metric equivalence availability for one probe (Phase 115). Drives
+  the Probe Dossier "what comparisons are valid here" panel — making the
+  methodological boundary of the probe legible up front, before the user
+  has to encounter a refusal in a function lane. Phase 123 will extend
+  this endpoint with an optional `comparedTo=<otherProbeId>` parameter
+  for the multi-probe case; this phase only ships the single-probe form.
+required:
+  - probeId
+  - metrics
+properties:
+  probeId:
+    type: string
+    description: The probe whose source set was evaluated.
+  sources:
+    type: array
+    description: The resolved source set the probe expanded to.
+    items:
+      type: string
+  metrics:
+    type: array
+    description: One entry per metric currently visible in the probe's data.
+    items:
+      $ref: './ProbeEquivalenceSummaryMetric.yaml'

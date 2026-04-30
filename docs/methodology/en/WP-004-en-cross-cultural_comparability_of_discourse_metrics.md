@@ -215,6 +215,21 @@ Based on the equivalence framework, AĒR can support three levels of cross-cultu
 
 ## 6. Architectural Implications
 
+> **Implementation status (Phase 65 + Phase 115).** The schema and the
+> raw / zscore normalization parameter (§6.1, §6.2) shipped in Phase 65;
+> the existence-gate that refuses unvalidated normalized requests
+> shipped at the same time. Phase 115 sharpens that into the cross-frame
+> equivalence gate, adds `?normalization=percentile` as a third Level-2
+> view backed by ClickHouse window functions, adds the `notes` column
+> on `aer_gold.metric_equivalence` and the corresponding Postgres
+> `equivalence_reviews` workflow table, automates baseline maintenance
+> via the in-process `MetricBaselineExtractor` (the standalone
+> `scripts/compute_baselines.py` is retained for first-run / ad-hoc
+> operations and shares the canonical computation function), and
+> implements the §6.3 dashboard treatment — the LensBar normalization
+> control, the deviation byline on Level-2 views, the Probe Dossier
+> "valid comparisons" panel, and the cross-frame refusal surface.
+
 ### 6.1 Gold Layer Extensions
 
 The current `aer_gold.metrics` schema stores `(timestamp, value, source, metric_name)`. To support cross-cultural comparability, the following extensions are proposed:

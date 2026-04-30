@@ -20,6 +20,11 @@ export type ViewMode = 'time_series' | 'distribution' | 'cooccurrence_network';
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
 export type DataLayer = 'gold' | 'silver';
+// Normalization mode (Phase 115). `null` and `raw` are equivalent;
+// `zscore` and `percentile` are URL-addressable so a deviation-labelled
+// chart deep-links cleanly. The cross-frame equivalence gate is enforced
+// server-side.
+export type Normalization = 'raw' | 'zscore' | 'percentile';
 
 export interface UrlState {
   from: string | null;
@@ -59,6 +64,8 @@ export interface UrlState {
   // only `true` is serialised as `negSpace=1`. When active, all three
   // surfaces shift into "what AĒR doesn't see" mode per Design Brief §4.4.
   negSpace: boolean | null;
+  // Normalization mode (Phase 115). `null` and `raw` are equivalent.
+  normalization: Normalization | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -79,7 +86,8 @@ export const EMPTY_URL_STATE: UrlState = {
   probeIds: [],
   viewMode: null,
   layer: null,
-  negSpace: null
+  negSpace: null,
+  normalization: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
@@ -87,6 +95,7 @@ const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
 const VIEW_LAYERS: readonly ViewLayer[] = ['atmosphere', 'analysis'];
 const VIEW_MODES: readonly ViewMode[] = ['time_series', 'distribution', 'cooccurrence_network'];
 const DATA_LAYERS: readonly DataLayer[] = ['gold', 'silver'];
+const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
 // smuggling structure into the URL. The BFF's `metric_name` is already
 // snake-case ascii, so this matches the wire contract exactly.
@@ -125,7 +134,8 @@ export function readFromSearch(search: string): UrlState {
     probeIds: parseSourceIds(p.get('probeId')),
     viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
     layer: parseEnum(p.get('layer'), DATA_LAYERS),
-    negSpace: p.get('negSpace') === '1' ? true : null
+    negSpace: p.get('negSpace') === '1' ? true : null,
+    normalization: parseEnum(p.get('normalization'), NORMALIZATIONS)
   };
 }
 
@@ -166,6 +176,11 @@ export function writeToSearch(state: UrlState): string {
   // `negSpace=1` when the Negative Space overlay is active. Not scoped to
   // a probe — the overlay applies globally across all surfaces.
   if (state.negSpace === true) p.set('negSpace', '1');
+  // Normalization is omitted when raw (the default) so the URL stays
+  // clean for the Level-1 view.
+  if (state.normalization && state.normalization !== 'raw') {
+    p.set('normalization', state.normalization);
+  }
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

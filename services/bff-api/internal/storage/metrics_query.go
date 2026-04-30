@@ -130,6 +130,20 @@ type AvailableMetricRow struct {
 	EticConstruct           *string
 	EquivalenceLevel        *string
 	MinMeaningfulResolution *string // resolution string ("hourly", "daily", ...) or nil
+	// Phase 115: structured equivalence status. Populated alongside the
+	// deprecated EquivalenceLevel field so the deprecation alias remains
+	// honest. Nil when no equivalence entry exists.
+	EquivalenceStatus *EquivalenceStatusRow
+}
+
+// EquivalenceStatusRow mirrors the structured equivalenceStatus object
+// returned on /metrics/available (Phase 115). Carries the new `notes`
+// column added by ClickHouse migration 000014.
+type EquivalenceStatusRow struct {
+	Level          *string
+	ValidatedBy    *string
+	ValidationDate *time.Time
+	Notes          string
 }
 
 // GetAvailableMetrics returns the distinct metric names that have data in the given
@@ -190,35 +204,13 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 		validityMap[v.MetricName] = v.ValidationStatus
 	}
 
-	// Step 3: Get equivalence metadata from metric_equivalence.
-	var equivalenceResults []struct {
-		MetricName       string
-		EticConstruct    string
-		EquivalenceLevel string
-	}
-	err = s.conn.Select(ctx, &equivalenceResults, `
-		SELECT
-			metric_name AS MetricName,
-			etic_construct AS EticConstruct,
-			equivalence_level AS EquivalenceLevel
-		FROM aer_gold.metric_equivalence
-		GROUP BY metric_name, etic_construct, equivalence_level
-	`)
+	// Step 3: Get equivalence metadata from metric_equivalence including
+	// the Phase-115 notes column. Picks the highest-ranked equivalence
+	// row per metric so the structured status carries the strongest
+	// guarantee on record.
+	equivalenceMap, err := s.fetchEquivalenceByMetric(ctx)
 	if err != nil {
-		slog.Error("Failed to query metric equivalence from ClickHouse", "error", err)
 		return nil, err
-	}
-
-	type equivInfo struct {
-		eticConstruct    string
-		equivalenceLevel string
-	}
-	equivalenceMap := make(map[string]equivInfo, len(equivalenceResults))
-	for _, e := range equivalenceResults {
-		equivalenceMap[e.MetricName] = equivInfo{
-			eticConstruct:    e.EticConstruct,
-			equivalenceLevel: e.EquivalenceLevel,
-		}
 	}
 
 	// Step 4: Combine — metrics without validity entries are "unvalidated".
@@ -233,8 +225,23 @@ func (s *ClickHouseStorage) GetAvailableMetrics(ctx context.Context, start, end 
 			ValidationStatus: status,
 		}
 		if eq, ok := equivalenceMap[r.MetricName]; ok {
-			row.EticConstruct = &eq.eticConstruct
-			row.EquivalenceLevel = &eq.equivalenceLevel
+			ec := eq.EticConstruct
+			lvl := eq.Level
+			row.EticConstruct = &ec
+			row.EquivalenceLevel = &lvl
+			levelCopy := lvl
+			row.EquivalenceStatus = &EquivalenceStatusRow{
+				Level: &levelCopy,
+				Notes: eq.Notes,
+			}
+			if eq.ValidatedBy != "" {
+				vb := eq.ValidatedBy
+				row.EquivalenceStatus.ValidatedBy = &vb
+			}
+			if !eq.ValidationDate.IsZero() {
+				vd := eq.ValidationDate
+				row.EquivalenceStatus.ValidationDate = &vd
+			}
 		}
 		entries[i] = row
 	}
@@ -443,4 +450,439 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 
 	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: results, excluded: excluded})
 	return results, excluded, nil
+}
+
+// equivalenceEntry is the storage-layer view of one
+// `aer_gold.metric_equivalence` row, joined with the Phase-115 `notes`
+// column added by ClickHouse migration 000014.
+type equivalenceEntry struct {
+	MetricName     string
+	EticConstruct  string
+	Level          string
+	ValidatedBy    string
+	ValidationDate time.Time
+	Notes          string
+	Languages      []string
+}
+
+// equivalenceLevelRank maps the three Phase-65 equivalence levels onto
+// an ordered rank so the strongest grant on record can be picked.
+var equivalenceLevelRank = map[string]int{
+	"temporal":  1,
+	"deviation": 2,
+	"absolute":  3,
+}
+
+// fetchEquivalenceByMetric returns one entry per metric, holding the
+// strongest equivalence level on record together with its provenance
+// metadata and the set of languages the equivalence has been validated
+// across. Used by /metrics/available (Phase-115 structured status) and by
+// the cross-frame gate (multi-language coverage check).
+func (s *ClickHouseStorage) fetchEquivalenceByMetric(ctx context.Context) (map[string]equivalenceEntry, error) {
+	var rows []struct {
+		MetricName       string    `ch:"MetricName"`
+		EticConstruct    string    `ch:"EticConstruct"`
+		EquivalenceLevel string    `ch:"EquivalenceLevel"`
+		Language         string    `ch:"Language"`
+		ValidatedBy      string    `ch:"ValidatedBy"`
+		ValidationDate   time.Time `ch:"ValidationDate"`
+		Notes            string    `ch:"Notes"`
+	}
+	err := s.conn.Select(ctx, &rows, `
+		SELECT
+			metric_name       AS MetricName,
+			etic_construct    AS EticConstruct,
+			equivalence_level AS EquivalenceLevel,
+			language          AS Language,
+			validated_by      AS ValidatedBy,
+			validation_date   AS ValidationDate,
+			notes             AS Notes
+		FROM aer_gold.metric_equivalence FINAL
+	`)
+	if err != nil {
+		slog.Error("Failed to query metric equivalence from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	out := make(map[string]equivalenceEntry, len(rows))
+	for _, r := range rows {
+		existing, ok := out[r.MetricName]
+		if !ok {
+			out[r.MetricName] = equivalenceEntry{
+				MetricName:     r.MetricName,
+				EticConstruct:  r.EticConstruct,
+				Level:          r.EquivalenceLevel,
+				ValidatedBy:    r.ValidatedBy,
+				ValidationDate: r.ValidationDate,
+				Notes:          r.Notes,
+				Languages:      []string{r.Language},
+			}
+			continue
+		}
+		existing.Languages = append(existing.Languages, r.Language)
+		if equivalenceLevelRank[r.EquivalenceLevel] > equivalenceLevelRank[existing.Level] {
+			existing.Level = r.EquivalenceLevel
+			existing.EticConstruct = r.EticConstruct
+			existing.ValidatedBy = r.ValidatedBy
+			existing.ValidationDate = r.ValidationDate
+			existing.Notes = r.Notes
+		}
+		out[r.MetricName] = existing
+	}
+	return out, nil
+}
+
+// CountLanguagesForSources returns the number of distinct detected
+// languages observed in `aer_gold.language_detections` for the given
+// source set within the requested window. Used by the Phase-115
+// cross-frame equivalence gate to decide whether a normalization request
+// must additionally clear the metric_equivalence check.
+//
+// An empty `sources` slice means "all sources"; the caller is responsible
+// for passing the resolved scope.
+func (s *ClickHouseStorage) CountLanguagesForSources(ctx context.Context, start, end time.Time, sources []string) (int, error) {
+	query := `
+		SELECT countDistinct(detected_language) AS N
+		FROM aer_gold.language_detections
+		WHERE rank = 1
+		  AND timestamp >= $1
+		  AND timestamp <= $2
+	`
+	args := []any{start, end}
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
+			args = append(args, src)
+		}
+		query += " AND source IN (" + strings.Join(placeholders, ", ") + ")"
+	}
+	var result []struct{ N uint64 }
+	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
+		slog.Error("Failed to count languages for sources", "error", err)
+		return 0, err
+	}
+	if len(result) == 0 {
+		return 0, nil
+	}
+	return int(result[0].N), nil //nolint:gosec // bounded; distinct languages
+}
+
+// LanguagesForScope returns the distinct detected_language values
+// observed in `aer_gold.language_detections` for the source set across
+// the given window. Mirrors the count-only helper above; the handler
+// calls this when the count says the request is cross-frame so the
+// equivalence gate has the actual language list to validate against.
+func (s *ClickHouseStorage) LanguagesForScope(ctx context.Context, start, end time.Time, sources []string) ([]string, error) {
+	query := `
+		SELECT DISTINCT detected_language AS Lang
+		FROM aer_gold.language_detections
+		WHERE rank = 1
+		  AND timestamp >= $1
+		  AND timestamp <= $2
+	`
+	args := []any{start, end}
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
+			args = append(args, src)
+		}
+		query += " AND source IN (" + strings.Join(placeholders, ", ") + ")"
+	}
+	query += " ORDER BY Lang"
+	var rows []struct{ Lang string }
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Error("Failed to list languages for scope", "error", err)
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if r.Lang != "" {
+			out = append(out, r.Lang)
+		}
+	}
+	return out, nil
+}
+
+// CheckEquivalenceForLanguages returns true if the metric has at least
+// one `aer_gold.metric_equivalence` row at deviation-or-absolute level
+// for every language in `languages`. Phase 115: the cross-frame gate
+// requires equivalence to be validated across both languages, not just
+// any single language.
+func (s *ClickHouseStorage) CheckEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error) {
+	if len(languages) == 0 {
+		return true, nil
+	}
+	placeholders := make([]string, len(languages))
+	args := []any{metricName}
+	for i, lang := range languages {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, lang)
+	}
+	query := fmt.Sprintf(`
+		SELECT countDistinct(language) AS N
+		FROM aer_gold.metric_equivalence FINAL
+		WHERE metric_name = $1
+		  AND equivalence_level IN ('deviation', 'absolute')
+		  AND language IN (%s)
+	`, strings.Join(placeholders, ", "))
+	var result []struct{ N uint64 }
+	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
+		slog.Error("Failed to check cross-frame equivalence", "error", err)
+		return false, err
+	}
+	if len(result) == 0 {
+		return false, nil
+	}
+	return int(result[0].N) >= len(languages), nil //nolint:gosec // bounded; distinct languages
+}
+
+// GetPercentileNormalizedMetrics retrieves percentile-normalized
+// time-series data (Phase 115). For each (metric_name, source, language)
+// group, every observation is replaced by its percentile rank within the
+// group over the active query window — computed via ClickHouse window
+// functions. The shape mirrors GetNormalizedMetrics so the handler can
+// dispatch on the normalization mode without restructuring the response.
+//
+// Sharing the language-detection LEFT JOIN preserves the same
+// excludedCount semantics: rows whose article has no detected language
+// are dropped from the percentile computation and surfaced to the client.
+func (s *ClickHouseStorage) GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
+	cacheKey := hotQueryKey("percentile_metrics",
+		start.UnixNano(), end.UnixNano(), strings.Join(sources, ","), derefString(metricName), int(resolution))
+	if cached, ok := s.normalizedMetricsCache.get(cacheKey, s.metricsCacheTTL); ok {
+		return cached.rows, cached.excluded, nil
+	}
+
+	baseWhere := "m.timestamp >= $1 AND m.timestamp <= $2"
+	args := []any{start, end}
+	argIdx := 3
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			argIdx++
+			args = append(args, src)
+		}
+		baseWhere += fmt.Sprintf(" AND m.source IN (%s)", strings.Join(placeholders, ", "))
+	}
+	if metricName != nil {
+		baseWhere += fmt.Sprintf(" AND m.metric_name = $%d", argIdx)
+		args = append(args, *metricName)
+	}
+
+	excludedQuery := `
+		SELECT count() AS Cnt
+		FROM aer_gold.metrics AS m
+		LEFT JOIN aer_gold.language_detections AS ld
+			ON m.article_id = ld.article_id AND ld.rank = 1
+		WHERE ` + baseWhere + ` AND ld.detected_language IS NULL
+		SETTINGS join_use_nulls = 1
+	`
+	var excludedResult []struct{ Cnt uint64 }
+	if err := s.conn.Select(ctx, &excludedResult, excludedQuery, args...); err != nil {
+		slog.Error("Failed to count excluded percentile metrics", "error", err)
+		return nil, 0, err
+	}
+	var excluded int64
+	if len(excludedResult) > 0 {
+		excluded = int64(excludedResult[0].Cnt)
+	}
+
+	// Window function ranks each value within (metric_name, source,
+	// language) over the active query window. (rank-1)/(N-1) maps to
+	// [0, 1]; single-row groups collapse to 0 (denominator guard).
+	query := fmt.Sprintf(`
+		WITH ranked AS (
+			SELECT
+				m.timestamp        AS ts,
+				m.source           AS source,
+				m.metric_name      AS metric_name,
+				ld.detected_language AS language,
+				rowNumberInAllBlocks() AS _row,
+				row_number() OVER (
+					PARTITION BY m.metric_name, m.source, ld.detected_language
+					ORDER BY m.value
+				) AS rnk,
+				count() OVER (
+					PARTITION BY m.metric_name, m.source, ld.detected_language
+				) AS n
+			FROM aer_gold.metrics AS m
+			LEFT JOIN aer_gold.language_detections AS ld
+				ON m.article_id = ld.article_id AND ld.rank = 1
+			WHERE %s AND ld.detected_language IS NOT NULL
+			SETTINGS join_use_nulls = 1
+		)
+		SELECT
+			%s AS TS,
+			avg(if(n > 1, (rnk - 1) / (n - 1), 0)) AS Value,
+			source AS Source,
+			metric_name AS MetricName,
+			count() AS Count
+		FROM ranked
+		GROUP BY TS, Source, MetricName
+		ORDER BY TS ASC
+		LIMIT %d
+	`, baseWhere, resolution.bucketExpr("ts"), s.rowLimit*resolution.rowLimitMultiplier())
+
+	var results []MetricRow
+	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
+		slog.Error("Failed to query percentile metrics from ClickHouse", "error", err)
+		return nil, 0, err
+	}
+
+	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: results, excluded: excluded})
+	return results, excluded, nil
+}
+
+// GetProbeEquivalence returns per-metric Level-1 / Level-2 / Level-3
+// availability for the resolved source set of one probe (Phase 115).
+//
+// Level-1 (temporal) is true whenever the metric has any data in the
+// scope — temporal patterns are intra-culturally valid by construction.
+// Level-2 (deviation) requires a deviation-or-absolute-level
+// `metric_equivalence` row covering every language detected in the
+// scope. Level-3 (absolute) requires an absolute-level row with the
+// same language coverage.
+func (s *ClickHouseStorage) GetProbeEquivalence(ctx context.Context, start, end time.Time, sources []string) ([]ProbeEquivalenceMetric, error) {
+	if len(sources) == 0 {
+		return nil, nil
+	}
+
+	// 1. Distinct metric names with data in the probe scope.
+	metricsQuery := `
+		SELECT DISTINCT metric_name AS MetricName
+		FROM aer_gold.metrics
+		WHERE timestamp >= $1 AND timestamp <= $2
+	`
+	args := []any{start, end}
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
+			args = append(args, src)
+		}
+		metricsQuery += " AND source IN (" + strings.Join(placeholders, ", ") + ")"
+	}
+	metricsQuery += " ORDER BY MetricName"
+	var metricResults []struct{ MetricName string }
+	if err := s.conn.Select(ctx, &metricResults, metricsQuery, args...); err != nil {
+		slog.Error("Failed to list metrics for probe scope", "error", err)
+		return nil, err
+	}
+
+	// 2. Languages observed in the probe scope.
+	langQuery := `
+		SELECT DISTINCT detected_language AS Lang
+		FROM aer_gold.language_detections
+		WHERE rank = 1
+		  AND timestamp >= $1 AND timestamp <= $2
+	`
+	langArgs := []any{start, end}
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
+			langArgs = append(langArgs, src)
+		}
+		langQuery += " AND source IN (" + strings.Join(placeholders, ", ") + ")"
+	}
+	var langResults []struct{ Lang string }
+	if err := s.conn.Select(ctx, &langResults, langQuery, langArgs...); err != nil {
+		slog.Error("Failed to list languages for probe scope", "error", err)
+		return nil, err
+	}
+	languages := make([]string, 0, len(langResults))
+	for _, r := range langResults {
+		if r.Lang != "" {
+			languages = append(languages, r.Lang)
+		}
+	}
+
+	// 3. Equivalence registry once; rank reduces the per-metric loop.
+	equivMap, err := s.fetchEquivalenceByMetric(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]ProbeEquivalenceMetric, 0, len(metricResults))
+	for _, m := range metricResults {
+		row := ProbeEquivalenceMetric{
+			MetricName:      m.MetricName,
+			Level1Available: true,
+		}
+		eq, hasEq := equivMap[m.MetricName]
+		if hasEq {
+			levelCopy := eq.Level
+			row.EquivalenceStatus = &EquivalenceStatusRow{
+				Level: &levelCopy,
+				Notes: eq.Notes,
+			}
+			if eq.ValidatedBy != "" {
+				vb := eq.ValidatedBy
+				row.EquivalenceStatus.ValidatedBy = &vb
+			}
+			if !eq.ValidationDate.IsZero() {
+				vd := eq.ValidationDate
+				row.EquivalenceStatus.ValidationDate = &vd
+			}
+		}
+
+		if hasEq && len(languages) > 0 {
+			deviationOK, err := s.CheckEquivalenceForLanguages(ctx, m.MetricName, languages)
+			if err != nil {
+				return nil, err
+			}
+			row.Level2Available = deviationOK
+			if deviationOK && eq.Level == "absolute" {
+				absOK, err := s.checkAbsoluteEquivalenceForLanguages(ctx, m.MetricName, languages)
+				if err != nil {
+					return nil, err
+				}
+				row.Level3Available = absOK
+			}
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// ProbeEquivalenceMetric is the storage-layer view of one row in the
+// /probes/{probeId}/equivalence response (Phase 115).
+type ProbeEquivalenceMetric struct {
+	MetricName        string
+	Level1Available   bool
+	Level2Available   bool
+	Level3Available   bool
+	EquivalenceStatus *EquivalenceStatusRow
+}
+
+// checkAbsoluteEquivalenceForLanguages mirrors CheckEquivalenceForLanguages
+// but limits the gate to absolute-level rows.
+func (s *ClickHouseStorage) checkAbsoluteEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error) {
+	if len(languages) == 0 {
+		return true, nil
+	}
+	placeholders := make([]string, len(languages))
+	args := []any{metricName}
+	for i, lang := range languages {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, lang)
+	}
+	query := fmt.Sprintf(`
+		SELECT countDistinct(language) AS N
+		FROM aer_gold.metric_equivalence FINAL
+		WHERE metric_name = $1
+		  AND equivalence_level = 'absolute'
+		  AND language IN (%s)
+	`, strings.Join(placeholders, ", "))
+	var result []struct{ N uint64 }
+	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
+		return false, err
+	}
+	if len(result) == 0 {
+		return false, nil
+	}
+	return int(result[0].N) >= len(languages), nil //nolint:gosec
 }

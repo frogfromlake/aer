@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""Compute metric baselines for z-score normalization.
+"""Compute metric baselines for z-score normalization (manual / ad-hoc path).
 
-Standalone script (not part of the real-time pipeline) that queries
-aer_gold.metrics joined with aer_gold.language_detections for a specified
-time window, computes mean and standard deviation per (metric_name, source,
-language), and inserts results into aer_gold.metric_baselines.
+Phase 115 retains this script for ad-hoc operations: first-run on a new
+probe (Phase 123 uses it explicitly), manual recompute after a schema
+change, and Operations-Playbook walkthroughs. Periodic baseline
+maintenance is handled by ``MetricBaselineExtractor`` running inside the
+analysis-worker (see ``internal/corpus.py::baseline_extraction_loop``).
 
-Intended to be run periodically (weekly/monthly) by a researcher or cron job.
+Both call paths go through the same canonical computation in
+``internal.extractors.metric_baseline.compute_baseline_rows`` so the auto
+extractor and this script produce byte-identical baselines for the same
+input window — the regression guard documented in Phase 115.
+
+Public re-exports (``BASELINE_QUERY``, ``compute_mean_std``,
+``build_baseline_rows``) remain available from this module so existing
+test imports continue to work.
 
 Usage:
     python scripts/compute_baselines.py \
@@ -15,61 +23,35 @@ Usage:
 """
 
 import argparse
-import math
 import sys
 from datetime import datetime, timezone
-from typing import Iterable, Sequence
+from pathlib import Path
+
+# The shared computation lives inside the analysis-worker package.
+# Insert the worker root onto sys.path so this standalone script can
+# import it without packaging gymnastics.
+_WORKER_ROOT = Path(__file__).resolve().parents[1] / "services" / "analysis-worker"
+if str(_WORKER_ROOT) not in sys.path:
+    sys.path.insert(0, str(_WORKER_ROOT))
 
 import clickhouse_connect
 
+from internal.extractors.metric_baseline import (  # noqa: E402  — sys.path insert above
+    BASELINE_COLUMNS,
+    BASELINE_QUERY,
+    build_baseline_rows,
+    compute_baseline_rows,
+    compute_mean_std,
+)
 
-def compute_mean_std(values: Sequence[float]) -> tuple[float, float]:
-    """Population mean and standard deviation for a set of metric values.
-
-    Mirrors ClickHouse's ``avg`` / ``stddevPop`` semantics so Phase 65 tests
-    can verify baseline arithmetic without a live ClickHouse instance.
-
-    Empty input returns ``(0.0, 0.0)`` — the calling code must filter empty
-    groups explicitly; this function is a pure helper, not a guard.
-    A single value has no dispersion, so the standard deviation is 0.
-    """
-    n = len(values)
-    if n == 0:
-        return 0.0, 0.0
-    mean = sum(values) / n
-    variance = sum((v - mean) ** 2 for v in values) / n
-    return mean, math.sqrt(variance)
-
-
-def build_baseline_rows(
-    query_rows: Iterable[tuple],
-    window_start: datetime,
-    window_end: datetime,
-    compute_date: datetime,
-) -> list[list]:
-    """Shape pre-aggregated ClickHouse rows into ``metric_baselines`` inserts.
-
-    Each query row is a ``(metric_name, source, language, baseline_value,
-    baseline_std, n_documents)`` tuple produced by :data:`BASELINE_QUERY`.
-    The resulting list is ready to pass to ``client.insert(..., rows, ...)``
-    with the column order defined in :func:`main`.
-
-    Empty ``query_rows`` → empty list; the caller must skip the insert.
-    """
-    rows: list[list] = []
-    for metric_name, source, language, baseline_value, baseline_std, n_docs in query_rows:
-        rows.append([
-            metric_name,
-            source,
-            language,
-            baseline_value,
-            baseline_std,
-            window_start,
-            window_end,
-            n_docs,
-            compute_date,
-        ])
-    return rows
+__all__ = [
+    "BASELINE_COLUMNS",
+    "BASELINE_QUERY",
+    "build_baseline_rows",
+    "compute_baseline_rows",
+    "compute_mean_std",
+    "main",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,25 +78,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-BASELINE_QUERY = """
-SELECT
-    m.metric_name   AS metric_name,
-    m.source         AS source,
-    ld.detected_language AS language,
-    avg(m.value)     AS baseline_value,
-    stddevPop(m.value) AS baseline_std,
-    count()          AS n_documents
-FROM aer_gold.metrics AS m
-INNER JOIN aer_gold.language_detections AS ld
-    ON m.article_id = ld.article_id AND ld.rank = 1
-WHERE m.timestamp >= {start:DateTime}
-  AND m.timestamp <  {end:DateTime}
-GROUP BY metric_name, source, language
-HAVING n_documents >= 2
-ORDER BY metric_name, source, language
-"""
-
-
 def main() -> None:
     args = parse_args()
 
@@ -137,18 +100,16 @@ def main() -> None:
         f"Computing baselines for window [{window_start.date()} .. {window_end.date()})..."
     )
 
-    result = client.query(
-        BASELINE_QUERY,
-        parameters={"start": window_start, "end": window_end},
-    )
+    compute_date = datetime.now(timezone.utc)
+    rows = compute_baseline_rows(client, window_start, window_end, compute_date)
 
-    if not result.result_rows:
+    if not rows:
         print("No data found for the specified window. Nothing to insert.")
         return
 
-    compute_date = datetime.now(timezone.utc)
-    rows = build_baseline_rows(result.result_rows, window_start, window_end, compute_date)
-    for metric_name, source, language, baseline_value, baseline_std, n_docs in result.result_rows:
+    for row in rows:
+        metric_name, source, language, baseline_value, baseline_std = row[0:5]
+        n_docs = row[7]
         print(
             f"  {metric_name:30s} | {source:20s} | {language:5s} | "
             f"mean={baseline_value:8.4f}  std={baseline_std:8.4f}  n={n_docs}"
@@ -161,12 +122,7 @@ def main() -> None:
     client.insert(
         "aer_gold.metric_baselines",
         rows,
-        column_names=[
-            "metric_name", "source", "language",
-            "baseline_value", "baseline_std",
-            "window_start", "window_end",
-            "n_documents", "compute_date",
-        ],
+        column_names=BASELINE_COLUMNS,
     )
     print(f"\nInserted {len(rows)} baseline(s) into aer_gold.metric_baselines.")
 

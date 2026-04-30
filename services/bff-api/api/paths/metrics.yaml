@@ -5,7 +5,12 @@ get:
     Fetches gold-layer metrics for the dashboard's "weather map" visualization.
     The optional `source` parameter filters to a single source
     (backward-compatible); `sourceIds` accepts a comma-separated list and
-    is unioned with `source` when both are present.
+    is unioned with `source` when both are present. When `normalization`
+    is `zscore` or `percentile` (Phase 115) and the resolved scope spans
+    multiple cultural-linguistic frames, the request additionally requires
+    a deviation-level entry in `aer_gold.metric_equivalence`; absent that,
+    the response is HTTP 400 with a `RefusalPayload`
+    (gate=`metric_equivalence`).
   operationId: getMetrics
   parameters:
     - $ref: '../parameters/startDate.yaml'
@@ -23,7 +28,12 @@ get:
           schema:
             $ref: '../schemas/MetricsResponse.yaml'
     '400':
-      description: Missing required parameters.
+      description: >
+        Missing or invalid parameters; or a normalization request was refused
+        by a methodological gate (Phase 115 cross-frame equivalence). When
+        the 400 is a methodological refusal, the body's optional `gate`,
+        `workingPaperAnchor`, and `alternatives` fields carry the same
+        information a `RefusalPayload` would.
       content:
         application/json:
           schema:

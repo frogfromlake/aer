@@ -267,6 +267,7 @@ func (e ProbeDossierSourcesSecondaryFunction) Valid() bool {
 const (
 	Equivalence       RefusalPayloadGate = "equivalence"
 	KAnonymity        RefusalPayloadGate = "k_anonymity"
+	MetricEquivalence RefusalPayloadGate = "metric_equivalence"
 	SilverEligibility RefusalPayloadGate = "silver_eligibility"
 )
 
@@ -276,6 +277,8 @@ func (e RefusalPayloadGate) Valid() bool {
 	case Equivalence:
 		return true
 	case KAnonymity:
+		return true
+	case MetricEquivalence:
 		return true
 	case SilverEligibility:
 		return true
@@ -358,13 +361,16 @@ func (e GetEntityCoOccurrenceParamsScope) Valid() bool {
 
 // Defines values for GetMetricsParamsNormalization.
 const (
-	Raw    GetMetricsParamsNormalization = "raw"
-	Zscore GetMetricsParamsNormalization = "zscore"
+	Percentile GetMetricsParamsNormalization = "percentile"
+	Raw        GetMetricsParamsNormalization = "raw"
+	Zscore     GetMetricsParamsNormalization = "zscore"
 )
 
 // Valid indicates whether the value is a known member of the GetMetricsParamsNormalization enum.
 func (e GetMetricsParamsNormalization) Valid() bool {
 	switch e {
+	case Percentile:
+		return true
 	case Raw:
 		return true
 	case Zscore:
@@ -652,8 +658,24 @@ type ArticlesPage struct {
 
 // AvailableMetric defines model for AvailableMetric.
 type AvailableMetric struct {
-	// EquivalenceLevel The highest equivalence level established for this metric. Null if no equivalence entry exists.
+	// EquivalenceLevel DEPRECATED (Phase 115): superseded by `equivalenceStatus.level`. Retained for one release cycle so existing dashboard URL state and tests do not break in the same commit. Mirrors `equivalenceStatus.level`.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	EquivalenceLevel *AvailableMetricEquivalenceLevel `json:"equivalenceLevel,omitempty"`
+
+	// EquivalenceStatus Structured equivalence status (Phase 115) — level, validatedBy, validationDate, and `notes` rationale summary mirrored from `aer_gold.metric_equivalence.notes`. Null if no equivalence entry exists for this metric.
+	EquivalenceStatus *struct {
+		// Level The highest equivalence level established for this metric. Values mirror the `EquivalenceLevel` enum (`temporal`, `deviation`, `absolute`). Null when no equivalence entry exists. Kept as a plain string here rather than an `allOf`-wrapped enum because nesting this schema as an array item generates broken codegen for the inline enum.
+		Level *string `json:"level,omitempty"`
+
+		// Notes Concise methodological-rationale summary (≤ 280 chars), mirrored from the ClickHouse `metric_equivalence.notes` column. Empty string when no notes were recorded — the read-side default, not an error state.
+		Notes string `json:"notes"`
+
+		// ValidatedBy Reviewer attribution as recorded on the `aer_gold.metric_equivalence` row. Points back to the full Postgres `equivalence_reviews` record.
+		ValidatedBy *string `json:"validatedBy,omitempty"`
+
+		// ValidationDate ISO-8601 timestamp of the most-recent equivalence grant.
+		ValidationDate *time.Time `json:"validationDate,omitempty"`
+	} `json:"equivalenceStatus,omitempty"`
 
 	// EticConstruct The etic construct this metric maps to in the equivalence registry (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
 	EticConstruct *string `json:"eticConstruct,omitempty"`
@@ -865,7 +887,10 @@ type ProbeDossierSourcesSecondaryFunction string
 
 // RefusalPayload Methodological refusal payload returned when the BFF declines to serve a resource because a methodological gate (k-anonymity, equivalence, Silver-eligibility) is not satisfied. The shape is intentionally separate from the generic Error schema so the frontend can render the refusal as a Surface III-linked methodological surface rather than a bare error toast (Brief §3.3).
 type RefusalPayload struct {
-	// Gate Machine identifier of the gate that fired.
+	// Alternatives Concrete user-actionable alternatives the dashboard can offer when the gate refuses (Phase 115). Each entry is a short imperative describing what the user can do to obtain a comparable view — e.g. "drop normalization to Level 1 (temporal patterns only)", "constrain scope to one cultural frame", "use deviation labelling instead of an absolute claim".
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
 	Gate RefusalPayloadGate `json:"gate"`
 
 	// Message Human-readable summary of the refusal.
@@ -881,7 +906,7 @@ type RefusalPayload struct {
 	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
-// RefusalPayloadGate Machine identifier of the gate that fired.
+// RefusalPayloadGate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
 type RefusalPayloadGate string
 
 // Source defines model for Source.
@@ -1003,7 +1028,7 @@ type GetMetricsParams struct {
 	// MetricName Filter metrics by metric name (e.g., "word_count")
 	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
 
-	// Normalization Normalization mode for metric values. "raw" returns values as stored. "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std. Requires baseline data and at least deviation-level equivalence validation.
+	// Normalization Normalization mode for metric values. "raw" returns values as stored. "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std. "percentile" (Phase 115) returns within-(metric, source, language) percentile rank computed via ClickHouse window functions over the active query window. Both "zscore" and "percentile" require baseline data; cross-frame requests additionally require deviation-level equivalence validation, otherwise the request is refused with an HTTP 400 RefusalPayload (gate=metric_equivalence).
 	Normalization *GetMetricsParamsNormalization `form:"normalization,omitempty" json:"normalization,omitempty"`
 
 	// Resolution Temporal aggregation resolution for the returned series. Maps to ClickHouse bucketing functions: 5min → toStartOfFiveMinute, hourly → toStartOfHour, daily → toStartOfDay, weekly → toStartOfWeek, monthly → toStartOfMonth. Wider buckets relax the per-request row cap proportionally.
@@ -1244,6 +1269,9 @@ type ServerInterface interface {
 	// Composite Probe Dossier payload
 	// (GET /probes/{id}/dossier)
 	GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams)
+	// Per-probe equivalence summary
+	// (GET /probes/{probeId}/equivalence)
+	GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
@@ -1352,6 +1380,12 @@ func (_ Unimplemented) GetProbes(w http.ResponseWriter, r *http.Request) {
 // Composite Probe Dossier payload
 // (GET /probes/{id}/dossier)
 func (_ Unimplemented) GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-probe equivalence summary
+// (GET /probes/{probeId}/equivalence)
+func (_ Unimplemented) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2381,6 +2415,37 @@ func (siw *ServerInterfaceWrapper) GetProbeDossier(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// GetProbeEquivalence operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeEquivalence(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "probeId" -------------
+	var probeId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeEquivalence(w, r, probeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetReadyz operation middleware
 func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
 
@@ -2895,6 +2960,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/probes/{id}/dossier", wrapper.GetProbeDossier)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/probes/{probeId}/equivalence", wrapper.GetProbeEquivalence)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
 	})
 	r.Group(func(r chi.Router) {
@@ -2947,8 +3015,17 @@ func (response GetArticleDetail403JSONResponse) VisitGetArticleDetailResponse(w 
 }
 
 type GetArticleDetail404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetArticleDetail404JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
@@ -2959,8 +3036,17 @@ func (response GetArticleDetail404JSONResponse) VisitGetArticleDetailResponse(w 
 }
 
 type GetArticleDetail500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetArticleDetail500JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
@@ -2990,8 +3076,17 @@ func (response GetContent200JSONResponse) VisitGetContentResponse(w http.Respons
 }
 
 type GetContent400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetContent400JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
@@ -3002,8 +3097,17 @@ func (response GetContent400JSONResponse) VisitGetContentResponse(w http.Respons
 }
 
 type GetContent404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetContent404JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
@@ -3014,8 +3118,17 @@ func (response GetContent404JSONResponse) VisitGetContentResponse(w http.Respons
 }
 
 type GetContent500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetContent500JSONResponse) VisitGetContentResponse(w http.ResponseWriter) error {
@@ -3055,8 +3168,17 @@ func (response GetEntities200JSONResponse) VisitGetEntitiesResponse(w http.Respo
 }
 
 type GetEntities400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetEntities400JSONResponse) VisitGetEntitiesResponse(w http.ResponseWriter) error {
@@ -3067,8 +3189,17 @@ func (response GetEntities400JSONResponse) VisitGetEntitiesResponse(w http.Respo
 }
 
 type GetEntities500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetEntities500JSONResponse) VisitGetEntitiesResponse(w http.ResponseWriter) error {
@@ -3129,8 +3260,17 @@ func (response GetEntityCoOccurrence200JSONResponse) VisitGetEntityCoOccurrenceR
 }
 
 type GetEntityCoOccurrence400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetEntityCoOccurrence400JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
@@ -3141,8 +3281,17 @@ func (response GetEntityCoOccurrence400JSONResponse) VisitGetEntityCoOccurrenceR
 }
 
 type GetEntityCoOccurrence404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetEntityCoOccurrence404JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
@@ -3153,8 +3302,17 @@ func (response GetEntityCoOccurrence404JSONResponse) VisitGetEntityCoOccurrenceR
 }
 
 type GetEntityCoOccurrence500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetEntityCoOccurrence500JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
@@ -3210,8 +3368,17 @@ func (response GetLanguages200JSONResponse) VisitGetLanguagesResponse(w http.Res
 }
 
 type GetLanguages400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetLanguages400JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
@@ -3222,8 +3389,17 @@ func (response GetLanguages400JSONResponse) VisitGetLanguagesResponse(w http.Res
 }
 
 type GetLanguages500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetLanguages500JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
@@ -3272,8 +3448,17 @@ func (response GetMetrics200JSONResponse) VisitGetMetricsResponse(w http.Respons
 }
 
 type GetMetrics400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetrics400JSONResponse) VisitGetMetricsResponse(w http.ResponseWriter) error {
@@ -3284,8 +3469,17 @@ func (response GetMetrics400JSONResponse) VisitGetMetricsResponse(w http.Respons
 }
 
 type GetMetrics500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetrics500JSONResponse) VisitGetMetricsResponse(w http.ResponseWriter) error {
@@ -3313,8 +3507,17 @@ func (response GetMetricsAvailable200JSONResponse) VisitGetMetricsAvailableRespo
 }
 
 type GetMetricsAvailable400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricsAvailable400JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
@@ -3325,8 +3528,17 @@ func (response GetMetricsAvailable400JSONResponse) VisitGetMetricsAvailableRespo
 }
 
 type GetMetricsAvailable500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricsAvailable500JSONResponse) VisitGetMetricsAvailableResponse(w http.ResponseWriter) error {
@@ -3368,8 +3580,17 @@ func (response GetMetricCorrelation200JSONResponse) VisitGetMetricCorrelationRes
 }
 
 type GetMetricCorrelation400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricCorrelation400JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
@@ -3380,8 +3601,17 @@ func (response GetMetricCorrelation400JSONResponse) VisitGetMetricCorrelationRes
 }
 
 type GetMetricCorrelation404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricCorrelation404JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
@@ -3392,8 +3622,17 @@ func (response GetMetricCorrelation404JSONResponse) VisitGetMetricCorrelationRes
 }
 
 type GetMetricCorrelation500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricCorrelation500JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
@@ -3487,8 +3726,17 @@ func (response GetMetricDistribution200JSONResponse) VisitGetMetricDistributionR
 }
 
 type GetMetricDistribution400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricDistribution400JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
@@ -3499,8 +3747,17 @@ func (response GetMetricDistribution400JSONResponse) VisitGetMetricDistributionR
 }
 
 type GetMetricDistribution404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricDistribution404JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
@@ -3511,8 +3768,17 @@ func (response GetMetricDistribution404JSONResponse) VisitGetMetricDistributionR
 }
 
 type GetMetricDistribution500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricDistribution500JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
@@ -3583,8 +3849,17 @@ func (response GetMetricHeatmap200JSONResponse) VisitGetMetricHeatmapResponse(w 
 }
 
 type GetMetricHeatmap400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricHeatmap400JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
@@ -3595,8 +3870,17 @@ func (response GetMetricHeatmap400JSONResponse) VisitGetMetricHeatmapResponse(w 
 }
 
 type GetMetricHeatmap404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricHeatmap404JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
@@ -3607,8 +3891,17 @@ func (response GetMetricHeatmap404JSONResponse) VisitGetMetricHeatmapResponse(w 
 }
 
 type GetMetricHeatmap500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricHeatmap500JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {
@@ -3636,8 +3929,17 @@ func (response GetMetricProvenance200JSONResponse) VisitGetMetricProvenanceRespo
 }
 
 type GetMetricProvenance404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricProvenance404JSONResponse) VisitGetMetricProvenanceResponse(w http.ResponseWriter) error {
@@ -3648,8 +3950,17 @@ func (response GetMetricProvenance404JSONResponse) VisitGetMetricProvenanceRespo
 }
 
 type GetMetricProvenance500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetMetricProvenance500JSONResponse) VisitGetMetricProvenanceResponse(w http.ResponseWriter) error {
@@ -3676,8 +3987,17 @@ func (response GetProbes200JSONResponse) VisitGetProbesResponse(w http.ResponseW
 }
 
 type GetProbes500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetProbes500JSONResponse) VisitGetProbesResponse(w http.ResponseWriter) error {
@@ -3706,8 +4026,17 @@ func (response GetProbeDossier200JSONResponse) VisitGetProbeDossierResponse(w ht
 }
 
 type GetProbeDossier400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetProbeDossier400JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
@@ -3718,8 +4047,17 @@ func (response GetProbeDossier400JSONResponse) VisitGetProbeDossierResponse(w ht
 }
 
 type GetProbeDossier404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetProbeDossier404JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
@@ -3730,11 +4068,112 @@ func (response GetProbeDossier404JSONResponse) VisitGetProbeDossierResponse(w ht
 }
 
 type GetProbeDossier500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetProbeDossier500JSONResponse) VisitGetProbeDossierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeEquivalenceRequestObject struct {
+	ProbeId string `json:"probeId"`
+}
+
+type GetProbeEquivalenceResponseObject interface {
+	VisitGetProbeEquivalenceResponse(w http.ResponseWriter) error
+}
+
+type GetProbeEquivalence200JSONResponse struct {
+	// Metrics One entry per metric currently visible in the probe's data.
+	Metrics []struct {
+		EquivalenceStatus *struct {
+			// Level The highest equivalence level established for this metric. Values mirror the `EquivalenceLevel` enum (`temporal`, `deviation`, `absolute`). Null when no equivalence entry exists. Kept as a plain string here rather than an `allOf`-wrapped enum because nesting this schema as an array item generates broken codegen for the inline enum.
+			Level *string `json:"level,omitempty"`
+
+			// Notes Concise methodological-rationale summary (≤ 280 chars), mirrored from the ClickHouse `metric_equivalence.notes` column. Empty string when no notes were recorded — the read-side default, not an error state.
+			Notes string `json:"notes"`
+
+			// ValidatedBy Reviewer attribution as recorded on the `aer_gold.metric_equivalence` row. Points back to the full Postgres `equivalence_reviews` record.
+			ValidatedBy *string `json:"validatedBy,omitempty"`
+
+			// ValidationDate ISO-8601 timestamp of the most-recent equivalence grant.
+			ValidationDate *time.Time `json:"validationDate,omitempty"`
+		} `json:"equivalenceStatus,omitempty"`
+
+		// Level1Available Temporal patterns are always intra-culturally valid; this is true whenever the metric has any data in the probe scope.
+		Level1Available bool `json:"level1Available"`
+
+		// Level2Available Z-score / percentile comparison is available — at least one `metric_equivalence` row at deviation-or-absolute level for this metric across the probe's languages.
+		Level2Available bool `json:"level2Available"`
+
+		// Level3Available Absolute-value cross-context comparison is available — at least one `metric_equivalence` row at absolute level for this metric across the probe's languages.
+		Level3Available bool   `json:"level3Available"`
+		MetricName      string `json:"metricName"`
+	} `json:"metrics"`
+
+	// ProbeId The probe whose source set was evaluated.
+	ProbeId string `json:"probeId"`
+
+	// Sources The resolved source set the probe expanded to.
+	Sources *[]string `json:"sources,omitempty"`
+}
+
+func (response GetProbeEquivalence200JSONResponse) VisitGetProbeEquivalenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeEquivalence404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeEquivalence404JSONResponse) VisitGetProbeEquivalenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeEquivalence500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeEquivalence500JSONResponse) VisitGetProbeEquivalenceResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -3839,8 +4278,17 @@ func (response GetSilverAggregation200JSONResponse) VisitGetSilverAggregationRes
 }
 
 type GetSilverAggregation400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSilverAggregation400JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
@@ -3860,8 +4308,17 @@ func (response GetSilverAggregation403JSONResponse) VisitGetSilverAggregationRes
 }
 
 type GetSilverAggregation404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSilverAggregation404JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
@@ -3872,8 +4329,17 @@ func (response GetSilverAggregation404JSONResponse) VisitGetSilverAggregationRes
 }
 
 type GetSilverAggregation500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSilverAggregation500JSONResponse) VisitGetSilverAggregationResponse(w http.ResponseWriter) error {
@@ -3914,8 +4380,17 @@ func (response ListSilverDocuments200JSONResponse) VisitListSilverDocumentsRespo
 }
 
 type ListSilverDocuments400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response ListSilverDocuments400JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
@@ -3935,8 +4410,17 @@ func (response ListSilverDocuments403JSONResponse) VisitListSilverDocumentsRespo
 }
 
 type ListSilverDocuments404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response ListSilverDocuments404JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
@@ -3947,8 +4431,17 @@ func (response ListSilverDocuments404JSONResponse) VisitListSilverDocumentsRespo
 }
 
 type ListSilverDocuments500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response ListSilverDocuments500JSONResponse) VisitListSilverDocumentsResponse(w http.ResponseWriter) error {
@@ -3998,8 +4491,17 @@ func (response GetSilverDocumentDetail403JSONResponse) VisitGetSilverDocumentDet
 }
 
 type GetSilverDocumentDetail404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSilverDocumentDetail404JSONResponse) VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error {
@@ -4010,8 +4512,17 @@ func (response GetSilverDocumentDetail404JSONResponse) VisitGetSilverDocumentDet
 }
 
 type GetSilverDocumentDetail500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSilverDocumentDetail500JSONResponse) VisitGetSilverDocumentDetailResponse(w http.ResponseWriter) error {
@@ -4039,8 +4550,17 @@ func (response GetSources200JSONResponse) VisitGetSourcesResponse(w http.Respons
 }
 
 type GetSources500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSources500JSONResponse) VisitGetSourcesResponse(w http.ResponseWriter) error {
@@ -4090,8 +4610,17 @@ func (response GetSourceById200JSONResponse) VisitGetSourceByIdResponse(w http.R
 }
 
 type GetSourceById404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSourceById404JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
@@ -4102,8 +4631,17 @@ func (response GetSourceById404JSONResponse) VisitGetSourceByIdResponse(w http.R
 }
 
 type GetSourceById500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSourceById500JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
@@ -4132,8 +4670,17 @@ func (response GetSourceArticles200JSONResponse) VisitGetSourceArticlesResponse(
 }
 
 type GetSourceArticles400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSourceArticles400JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
@@ -4144,8 +4691,17 @@ func (response GetSourceArticles400JSONResponse) VisitGetSourceArticlesResponse(
 }
 
 type GetSourceArticles404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSourceArticles404JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
@@ -4156,8 +4712,17 @@ func (response GetSourceArticles404JSONResponse) VisitGetSourceArticlesResponse(
 }
 
 type GetSourceArticles500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
 	// Message A human-readable error message.
 	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
 func (response GetSourceArticles500JSONResponse) VisitGetSourceArticlesResponse(w http.ResponseWriter) error {
@@ -4211,6 +4776,9 @@ type StrictServerInterface interface {
 	// Composite Probe Dossier payload
 	// (GET /probes/{id}/dossier)
 	GetProbeDossier(ctx context.Context, request GetProbeDossierRequestObject) (GetProbeDossierResponseObject, error)
+	// Per-probe equivalence summary
+	// (GET /probes/{probeId}/equivalence)
+	GetProbeEquivalence(ctx context.Context, request GetProbeEquivalenceRequestObject) (GetProbeEquivalenceResponseObject, error)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
@@ -4622,6 +5190,32 @@ func (sh *strictHandler) GetProbeDossier(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProbeDossierResponseObject); ok {
 		if err := validResponse.VisitGetProbeDossierResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbeEquivalence operation middleware
+func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string) {
+	var request GetProbeEquivalenceRequestObject
+
+	request.ProbeId = probeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeEquivalence(ctx, request.(GetProbeEquivalenceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeEquivalence")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeEquivalenceResponseObject); ok {
+		if err := validResponse.VisitGetProbeEquivalenceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

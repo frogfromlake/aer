@@ -5,3 +5,27 @@ properties:
   message:
     type: string
     description: A human-readable error message.
+  gate:
+    type: string
+    nullable: true
+    description: >
+      Phase 115: when the 400 represents a methodological refusal (e.g.
+      cross-frame equivalence gate), this field carries the machine
+      identifier of the gate that fired. Same value space as
+      `RefusalPayload.gate` (currently `metric_equivalence` is the only
+      value used at this status). Absent for plain validation errors.
+  workingPaperAnchor:
+    type: string
+    nullable: true
+    description: >
+      Phase 115: anchor into the methodological surface (e.g.
+      `WP-004#section-5.2`) when the 400 is a methodological refusal.
+  alternatives:
+    type: array
+    nullable: true
+    description: >
+      Phase 115: concrete user-actionable alternatives when the 400 is a
+      methodological refusal — e.g. drop normalization to Level 1,
+      constrain scope to one cultural frame, use deviation labelling.
+    items:
+      type: string

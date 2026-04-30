@@ -55,6 +55,8 @@ paths:
     $ref: './paths/probes.yaml'
   /probes/{id}/dossier:
     $ref: './paths/probe_dossier.yaml'
+  /probes/{probeId}/equivalence:
+    $ref: './paths/probe_equivalence.yaml'
   /sources/{id}/articles:
     $ref: './paths/source_articles.yaml'
   /articles/{id}:
@@ -83,8 +85,14 @@ components:
       $ref: './schemas/Resolution.yaml'
     EquivalenceLevel:
       $ref: './schemas/EquivalenceLevel.yaml'
+    EquivalenceStatus:
+      $ref: './schemas/EquivalenceStatus.yaml'
     AvailableMetric:
       $ref: './schemas/AvailableMetric.yaml'
+    ProbeEquivalenceSummary:
+      $ref: './schemas/ProbeEquivalenceSummary.yaml'
+    ProbeEquivalenceSummaryMetric:
+      $ref: './schemas/ProbeEquivalenceSummaryMetric.yaml'
     TierClassification:
       $ref: './schemas/TierClassification.yaml'
     MetricProvenance:

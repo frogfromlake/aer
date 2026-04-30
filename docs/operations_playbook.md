@@ -467,6 +467,87 @@ VALUES
 
 **Probe 0 note:** A single probe cannot establish cross-cultural equivalence — it requires at least two probes from different cultural contexts. `?normalization=zscore` against Probe 0 sources returns HTTP 400 by design until a second probe enables meaningful comparison. This is not a bug — it is the validation gate (WP-004 §7.3) functioning as intended.
 
+#### Granting metric equivalence (WP-004 §5.2) — Phase 115
+
+Metric equivalence is granted **out of band** by an interdisciplinary review.
+There is no in-band UI for it; the workflow is intentionally manual so a
+methodological review record exists for every grant. The procedure
+mirrors the WP-006 §5.2 Silver-eligibility review pattern (Phase 103).
+
+1. **Postgres `equivalence_reviews` insert** — record the full review
+   prose, reviewer, date, and working-paper anchor. The `notes_summary`
+   field is the concise (≤ 280-char) rationale that will mirror to the
+   ClickHouse row in step 2.
+
+   ```sql
+   INSERT INTO equivalence_reviews
+       (etic_construct, metric_name, language, source_type,
+        equivalence_level, reviewer, review_date,
+        rationale, working_paper_anchor, notes_summary, confidence)
+   VALUES
+       ('evaluative_polarity', 'sentiment_score_sentiws',
+        'de', 'rss', 'deviation',
+        'Dr. <name>, Univ. <institution>',
+        DATE '2026-05-01',
+        '<full prose rationale, may be multi-paragraph>',
+        'WP-004#section-5.2',
+        '<≤280-char concise summary referenced by the dashboard methodology tray>',
+        0.85);
+   ```
+
+2. **ClickHouse `metric_equivalence` insert** — write the structured
+   row that the BFF read path consults. The `notes` value is the same
+   `notes_summary` recorded in step 1, copied here so the BFF serves
+   the rationale without a cross-database join. `validated_by` should
+   point back to the Postgres row (e.g. its `id` or a stable
+   reviewer attribution).
+
+   ```sql
+   INSERT INTO aer_gold.metric_equivalence
+       (etic_construct, metric_name, language, source_type,
+        equivalence_level, validated_by, validation_date, confidence, notes)
+   VALUES
+       ('evaluative_polarity', 'sentiment_score_sentiws',
+        'de', 'rss', 'deviation',
+        'equivalence_reviews#42',
+        now(), 0.85,
+        '<≤280-char concise summary, identical to notes_summary in step 1>');
+   ```
+
+3. **WP-004 Appendix B** — append the full rationale to the
+   methodological appendix; the `working_paper_anchor` URL fragment
+   should resolve there.
+
+**Notes column convention.** The ClickHouse `notes` column carries a
+≤ 280-char concise summary intended for read-path display in the
+dashboard methodology tray. It is not authoritative; the Postgres
+`equivalence_reviews` row holds the full review prose. An empty
+string is valid (e.g. the temporal-Level grant for Probe 0 × Probe 1
+in Phase 123, whose rationale is fully captured in WP-004 Appendix B
+and needs no additional paraphrase).
+
+#### Automated baseline maintenance (Phase 115)
+
+Periodic baseline computation runs **inside the analysis worker**
+(`MetricBaselineExtractor`) on the same NATS-cron pattern as the
+co-occurrence sweep:
+
+| Variable                                      | Default | Effect                                              |
+| --------------------------------------------- | ------- | --------------------------------------------------- |
+| `BASELINE_EXTRACTION_ENABLED`                 | `true`  | Toggle the loop; `false` reverts to manual-only.    |
+| `BASELINE_EXTRACTION_INTERVAL_SECONDS`        | `86400` | One sweep per day.                                  |
+| `BASELINE_EXTRACTION_WINDOW_SECONDS`          | `7776000` | Rolling 90-day window.                            |
+| `BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS`   | `300`   | Grace period after worker startup before the first sweep. |
+
+The standalone `scripts/compute_baselines.py` is **retained** for ad-hoc
+operations (first-run on a new probe, manual recompute after a schema
+change, Operations-Playbook walkthroughs). Both call paths share the
+canonical computation in
+`internal.extractors.metric_baseline.compute_baseline_rows`, so the auto
+extractor and the script produce byte-identical baselines for the same
+input window. Cross-link: [Scientific Operations Guide → Workflow 4:
+Computing and Updating Baselines](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines).
+
 ---
 
 ## MinIO (Data Lake — Object Storage)

@@ -35,7 +35,8 @@
     listPresentations,
     getPresentation
   } from '$lib/viewmodes';
-  import type { ViewMode } from '$lib/state/url-internals';
+  import type { Normalization, ViewMode } from '$lib/state/url-internals';
+  import NormalizationControl from './NormalizationControl.svelte';
 
   const LAYER_DESCRIPTIONS: Record<'gold' | 'silver', string> = {
     gold: 'Au Gold — aggregated metrics derived from the full document corpus.',
@@ -135,6 +136,21 @@
     if (next === activeLayer) return;
     setUrl({ layer: next === 'silver' ? 'silver' : null });
   }
+  // Phase 115: per-cell normalization control. `raw` (the default) is
+  // omitted from the URL so the Level-1 view stays the canonical link.
+  let activeNormalization = $derived<Normalization>(url.normalization ?? 'raw');
+  function pickNormalization(next: Normalization) {
+    setUrl({ normalization: next === 'raw' ? null : next });
+  }
+  // The active metric carries an `equivalenceStatus` block (Phase 115)
+  // when the BFF has at least temporal-level equivalence on record;
+  // absence means there is no baseline-or-equivalence registration yet.
+  let activeMetricEntry = $derived(
+    availQ.data?.kind === 'success'
+      ? availQ.data.data.find((m) => m.metricName === activeMetric)
+      : undefined
+  );
+  let baselineMissing = $derived(!activeMetricEntry?.equivalenceStatus);
 
   // Cell content query — same key as FunctionLaneShell's viewModeContentQ so
   // TanStack serves it from cache with no extra network request.
@@ -266,6 +282,25 @@
       </div>
       {#if activePresentationDesc}
         <p class="lens-desc">{activePresentationDesc}</p>
+      {/if}
+    </div>
+
+    <div class="lens-divider" aria-hidden="true"></div>
+
+    <div class="lens-group" aria-label="Normalization">
+      <span class="lens-eyebrow" aria-hidden="true">Norm</span>
+      <NormalizationControl
+        value={activeNormalization}
+        onChange={pickNormalization}
+        {baselineMissing}
+      />
+      {#if activeNormalization !== 'raw'}
+        <p class="lens-desc">
+          Level 2 — chart shows deviation from the per-source baseline, not absolute values.
+          {#if activeMetricEntry?.equivalenceStatus?.notes}
+            {activeMetricEntry.equivalenceStatus.notes}
+          {/if}
+        </p>
       {/if}
     </div>
   </div>

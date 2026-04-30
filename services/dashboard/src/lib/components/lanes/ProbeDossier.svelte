@@ -21,6 +21,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import SourceCard from './SourceCard.svelte';
+  import ValidComparisonsPanel from './ValidComparisonsPanel.svelte';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { goto } from '$app/navigation';
 
@@ -277,6 +278,14 @@
               {/if}
             </div>
           {/if}
+        </section>
+
+        <!-- Phase 115: per-metric Level-1/2/3 availability matrix —
+             surfaces the methodological boundary of the probe before
+             the user encounters a refusal in a function lane. -->
+        <section class="dossier-section" aria-labelledby="valid-comparisons-heading">
+          <h2 id="valid-comparisons-heading" class="section-title">Valid comparisons</h2>
+          <ValidComparisonsPanel probeId={dossier.probeId} {ctx} />
         </section>
       </div>
     {/if}

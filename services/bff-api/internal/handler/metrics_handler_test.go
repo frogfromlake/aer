@@ -23,6 +23,18 @@ type mockStore struct {
 	baselineExistsErr    error
 	equivalenceExists    bool
 	equivalenceExistsErr error
+	// Phase 115: cross-frame equivalence + percentile + probe summary mocks.
+	percentileMetrics                 []storage.MetricRow
+	percentileMetricsExcluded         int64
+	percentileMetricsErr              error
+	languagesForScopeRows             []string
+	languagesForScopeErr              error
+	countLanguagesForSourcesValue     int
+	countLanguagesForSourcesErr       error
+	checkEquivalenceForLanguagesValue bool
+	checkEquivalenceForLanguagesErr   error
+	probeEquivalenceRows              []storage.ProbeEquivalenceMetric
+	probeEquivalenceErr               error
 	entities                  []storage.EntityRow
 	entitiesErr               error
 	languageDetections        []storage.LanguageDetectionRow
@@ -98,6 +110,31 @@ func (m *mockStore) CheckBaselineExists(_ context.Context, _ string, _ *string) 
 
 func (m *mockStore) CheckEquivalenceExists(_ context.Context, _ string) (bool, error) {
 	return m.equivalenceExists, m.equivalenceExistsErr
+}
+
+func (m *mockStore) GetPercentileNormalizedMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error) {
+	m.capturedStart = start
+	m.capturedEnd = end
+	m.capturedSources = sources
+	m.capturedMetricName = metricName
+	m.capturedResolution = resolution
+	return m.percentileMetrics, m.percentileMetricsExcluded, m.percentileMetricsErr
+}
+
+func (m *mockStore) CountLanguagesForSources(_ context.Context, _, _ time.Time, _ []string) (int, error) {
+	return m.countLanguagesForSourcesValue, m.countLanguagesForSourcesErr
+}
+
+func (m *mockStore) LanguagesForScope(_ context.Context, _, _ time.Time, _ []string) ([]string, error) {
+	return m.languagesForScopeRows, m.languagesForScopeErr
+}
+
+func (m *mockStore) CheckEquivalenceForLanguages(_ context.Context, _ string, _ []string) (bool, error) {
+	return m.checkEquivalenceForLanguagesValue, m.checkEquivalenceForLanguagesErr
+}
+
+func (m *mockStore) GetProbeEquivalence(_ context.Context, _, _ time.Time, _ []string) ([]storage.ProbeEquivalenceMetric, error) {
+	return m.probeEquivalenceRows, m.probeEquivalenceErr
 }
 
 func (m *mockStore) GetEntities(_ context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error) {

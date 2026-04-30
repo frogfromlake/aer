@@ -26,6 +26,7 @@ from internal.extractors import (
     CoOccurrenceRow,
     EntityCoOccurrenceExtractor,
     EntityRecord,
+    MetricBaselineExtractor,
     TimeWindow,
 )
 from internal.metrics import (
@@ -66,6 +67,28 @@ class CorpusConfig:
     )
     initial_delay_seconds: float = field(
         default_factory=lambda: float(os.getenv("CORPUS_EXTRACTION_INITIAL_DELAY_SECONDS", "60"))
+    )
+
+
+@dataclass
+class BaselineConfig:
+    """Tuneables for the periodic ``MetricBaselineExtractor`` loop (Phase 115)."""
+
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("BASELINE_EXTRACTION_ENABLED", "true").lower() == "true"
+    )
+    # Default cadence is daily — baselines move slowly relative to per-document
+    # metrics, so a tighter interval would be wasted compute.
+    interval_seconds: float = field(
+        default_factory=lambda: float(os.getenv("BASELINE_EXTRACTION_INTERVAL_SECONDS", "86400"))
+    )
+    # Default rolling window is 90 days, matching the Operations Playbook's
+    # documented manual-script default and the Bronze ILM TTL.
+    window_seconds: float = field(
+        default_factory=lambda: float(os.getenv("BASELINE_EXTRACTION_WINDOW_SECONDS", str(90 * 86400)))
+    )
+    initial_delay_seconds: float = field(
+        default_factory=lambda: float(os.getenv("BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS", "300"))
     )
 
 
@@ -276,3 +299,84 @@ async def corpus_extraction_loop(
             continue  # interval elapsed without shutdown — next sweep
 
     logger.info("corpus.loop.stopped", extractor=extractor.name)
+
+
+async def baseline_extraction_loop(
+    ch_pool,
+    extractor: MetricBaselineExtractor,
+    config: BaselineConfig,
+    stop_event: asyncio.Event,
+) -> None:
+    """
+    Phase 115: periodic baseline-maintenance loop.
+
+    Every ``interval_seconds`` (default 86400) computes metric baselines for
+    the previous ``window_seconds`` (default 7_776_000 ≈ 90 days) and inserts
+    them into ``aer_gold.metric_baselines``. Idempotent via
+    ReplacingMergeTree(``compute_date``); a re-run within the same second
+    produces an identical row that the ReplacingMergeTree collapses on merge.
+
+    The standalone ``scripts/compute_baselines.py`` retained for ad-hoc
+    operations shares the same computation function — see
+    ``internal.extractors.metric_baseline.compute_baseline_rows`` and
+    Phase-115 byte-identical regression test.
+    """
+    if not config.enabled:
+        logger.info("baseline.loop.disabled")
+        return
+
+    logger.info(
+        "baseline.loop.started",
+        extractor=extractor.name,
+        interval_seconds=config.interval_seconds,
+        window_seconds=config.window_seconds,
+    )
+
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=config.initial_delay_seconds)
+        return  # stop fired during initial delay
+    except asyncio.TimeoutError:
+        pass
+
+    while not stop_event.is_set():
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        window = TimeWindow(
+            start=now - timedelta(seconds=config.window_seconds),
+            end=now,
+        )
+
+        try:
+            with corpus_extraction_duration_seconds.labels(extractor=extractor.name).time():
+                result = await asyncio.to_thread(extractor.run, ch_pool, window)
+            corpus_extraction_runs_total.labels(
+                extractor=extractor.name, outcome="ok"
+            ).inc()
+            if result.rows_written:
+                corpus_extraction_rows_written_total.labels(
+                    extractor=extractor.name,
+                    table="aer_gold.metric_baselines",
+                ).inc(result.rows_written)
+            logger.info(
+                "baseline.loop.tick_complete",
+                extractor=extractor.name,
+                window_start=str(window.start),
+                window_end=str(window.end),
+                rows_written=result.rows_written,
+            )
+        except Exception as e:  # pragma: no cover — defensive top-level guard
+            corpus_extraction_runs_total.labels(
+                extractor=extractor.name, outcome="error"
+            ).inc()
+            logger.error(
+                "baseline.loop.failed",
+                extractor=extractor.name,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=config.interval_seconds)
+        except asyncio.TimeoutError:
+            continue
+
+    logger.info("baseline.loop.stopped", extractor=extractor.name)

@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Retrieve aggregated time-series metrics
-         * @description Fetches gold-layer metrics for the dashboard's "weather map" visualization.
+         * @description Fetches gold-layer metrics for the dashboard's "weather map" visualization. The optional `source` parameter filters to a single source (backward-compatible); `sourceIds` accepts a comma-separated list and is unioned with `source` when both are present. When `normalization` is `zscore` or `percentile` (Phase 115) and the resolved scope spans multiple cultural-linguistic frames, the request additionally requires a deviation-level entry in `aer_gold.metric_equivalence`; absent that, the response is HTTP 400 with a `RefusalPayload` (gate=`metric_equivalence`).
          */
         get: operations["getMetrics"];
         put?: never;
@@ -54,6 +54,8 @@ export interface paths {
         /**
          * Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
          * @description Computes per-bucket means for every metric in the requested set, then Pearson `corr` over each pair. Bucket resolution is fixed at 5 minutes, matching the `metrics` time-series endpoint.
+         *     Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`. At least one must be present.
+         *     Row cap: 20 000 buckets × metrics.
          */
         get: operations["getMetricCorrelation"];
         put?: never;
@@ -94,6 +96,8 @@ export interface paths {
         /**
          * Per-scope distribution of a metric (EDA x ridgeline / violin / density)
          * @description Returns histogram bins plus a quantile summary for the given metric over the window, restricted to the resolved scope (probe or source). Backs the EDA x distributional view-mode cells (ADR-020 §View-mode queries).
+         *     Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`. At least one must be present. `segmentBy` returns per-segment payloads alongside the aggregate in a `streams` array (Phase 114).
+         *     Row cap: 500 000 rows across all sources and the full window.
          */
         get: operations["getMetricDistribution"];
         put?: never;
@@ -114,6 +118,8 @@ export interface paths {
         /**
          * 2D binning of a metric (EDA x heatmap)
          * @description Two-dimensional aggregation of a metric over the window, bucketed by the requested xDimension and yDimension. `dayOfWeek` and `hour` bin on the metric timestamp; `source` groups by source; `entityLabel` and `language` join against `aer_gold.entities` / `aer_gold.language_detections`.
+         *     Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`. At least one must be present. `segmentBy` returns per-segment cell arrays alongside the aggregate in a `streams` array (Phase 114).
+         *     Row cap: 100 000 cells across all sources and the full window.
          */
         get: operations["getMetricHeatmap"];
         put?: never;
@@ -133,7 +139,7 @@ export interface paths {
         };
         /**
          * Retrieve aggregated named entities
-         * @description Fetches named entities (persons, organizations, locations) extracted from processed documents, aggregated by entity text and label.
+         * @description Fetches named entities (persons, organizations, locations) extracted from processed documents, aggregated by entity text and label. The optional `source` parameter filters to a single source (backward-compatible); `sourceIds` accepts a comma-separated list and is unioned with `source` when both are present.
          */
         get: operations["getEntities"];
         put?: never;
@@ -154,6 +160,8 @@ export interface paths {
         /**
          * Entity co-occurrence graph (Network Science x force-directed graph)
          * @description Aggregates `aer_gold.entity_cooccurrences` over the window, returns the top-N edges by summed `cooccurrence_count` plus the union of incident nodes. Backs the Network Science discipline view-mode cell.
+         *     Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`. At least one must be present. Each node carries a `presence` field listing the resolved sources where it appears, enabling per-source shading in the force-directed graph (Phase 114).
+         *     Edge cap: `topN` (default 50, max 500).
          */
         get: operations["getEntityCoOccurrence"];
         put?: never;
@@ -173,7 +181,7 @@ export interface paths {
         };
         /**
          * Retrieve aggregated language detections
-         * @description Fetches detected languages aggregated across processed documents. Only rank-1 (top candidate) detections are included in the aggregation.
+         * @description Fetches detected languages aggregated across processed documents. Only rank-1 (top candidate) detections are included in the aggregation. The optional `source` parameter filters to a single source (backward-compatible); `sourceIds` accepts a comma-separated list and is unioned with `source` when both are present.
          */
         get: operations["getLanguages"];
         put?: never;
@@ -336,6 +344,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/probes/{probeId}/equivalence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-probe equivalence summary
+         * @description Returns per-metric Level-1 / Level-2 / Level-3 availability for the probe's resolved source set (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel. Phase 123 will extend this endpoint with an optional `comparedTo=<otherProbeId>` query parameter for the multi-probe case.
+         */
+        get: operations["getProbeEquivalence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sources/{id}/articles": {
         parameters: {
             query?: never;
@@ -458,6 +486,20 @@ export interface components {
          * @enum {string}
          */
         EquivalenceLevel: "temporal" | "deviation" | "absolute";
+        /** @description Structured equivalence status for a metric (Phase 115). Supersedes the bare-string `equivalenceLevel` field on `/metrics/available`, which is retained for one release cycle as a deprecated alias so existing dashboard URL state and tests continue to load. */
+        EquivalenceStatus: {
+            /** @description The highest equivalence level established for this metric. Values mirror the `EquivalenceLevel` enum (`temporal`, `deviation`, `absolute`). Null when no equivalence entry exists. Kept as a plain string here rather than an `allOf`-wrapped enum because nesting this schema as an array item generates broken codegen for the inline enum. */
+            level?: string | null;
+            /** @description Reviewer attribution as recorded on the `aer_gold.metric_equivalence` row. Points back to the full Postgres `equivalence_reviews` record. */
+            validatedBy?: string | null;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the most-recent equivalence grant.
+             */
+            validationDate?: string | null;
+            /** @description Concise methodological-rationale summary (≤ 280 chars), mirrored from the ClickHouse `metric_equivalence.notes` column. Empty string when no notes were recorded — the read-side default, not an error state. */
+            notes: string;
+        };
         AvailableMetric: {
             /**
              * @description The name of the metric.
@@ -470,10 +512,35 @@ export interface components {
              * @example null
              */
             eticConstruct?: string | null;
-            /** @description The highest equivalence level established for this metric. Null if no equivalence entry exists. */
+            /**
+             * @deprecated
+             * @description DEPRECATED (Phase 115): superseded by `equivalenceStatus.level`. Retained for one release cycle so existing dashboard URL state and tests do not break in the same commit. Mirrors `equivalenceStatus.level`.
+             */
             equivalenceLevel?: components["schemas"]["EquivalenceLevel"] | null;
+            /** @description Structured equivalence status (Phase 115) — level, validatedBy, validationDate, and `notes` rationale summary mirrored from `aer_gold.metric_equivalence.notes`. Null if no equivalence entry exists for this metric. */
+            equivalenceStatus?: components["schemas"]["EquivalenceStatus"] | null;
             /** @description The finest temporal resolution at which this (metric, source) pair yields statistically meaningful aggregates. Derived from a static BFF config map seeded by Probe 0 publication rates. Null if no heuristic has been recorded for the metric-source pair. */
             minMeaningfulResolution?: components["schemas"]["Resolution"] | null;
+        };
+        /** @description Per-metric equivalence availability for one probe (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a function lane. Phase 123 will extend this endpoint with an optional `comparedTo=<otherProbeId>` parameter for the multi-probe case; this phase only ships the single-probe form. */
+        ProbeEquivalenceSummary: {
+            /** @description The probe whose source set was evaluated. */
+            probeId: string;
+            /** @description The resolved source set the probe expanded to. */
+            sources?: string[];
+            /** @description One entry per metric currently visible in the probe's data. */
+            metrics: components["schemas"]["ProbeEquivalenceSummaryMetric"][];
+        };
+        /** @description One per-metric row in a `ProbeEquivalenceSummary` (Phase 115). */
+        ProbeEquivalenceSummaryMetric: {
+            metricName: string;
+            /** @description Temporal patterns are always intra-culturally valid; this is true whenever the metric has any data in the probe scope. */
+            level1Available: boolean;
+            /** @description Z-score / percentile comparison is available — at least one `metric_equivalence` row at deviation-or-absolute level for this metric across the probe's languages. */
+            level2Available: boolean;
+            /** @description Absolute-value cross-context comparison is available — at least one `metric_equivalence` row at absolute level for this metric across the probe's languages. */
+            level3Available: boolean;
+            equivalenceStatus?: components["schemas"]["EquivalenceStatus"] | null;
         };
         /**
          * @description Methodological tier of the metric as defined in WP-002. Tier 1 = deterministic/lexical, Tier 2 = statistical/corpus-derived, Tier 3 = model-based/interpretive. The tier bounds the kind of claim the metric can support and is a primary signal for reflexive interpretation.
@@ -770,11 +837,13 @@ export interface components {
         /** @description Methodological refusal payload returned when the BFF declines to serve a resource because a methodological gate (k-anonymity, equivalence, Silver-eligibility) is not satisfied. The shape is intentionally separate from the generic Error schema so the frontend can render the refusal as a Surface III-linked methodological surface rather than a bare error toast (Brief §3.3). */
         RefusalPayload: {
             /**
-             * @description Machine identifier of the gate that fired.
+             * @description Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
              * @example k_anonymity
              * @enum {string}
              */
-            gate: "k_anonymity" | "silver_eligibility" | "equivalence";
+            gate: "k_anonymity" | "silver_eligibility" | "equivalence" | "metric_equivalence";
+            /** @description Concrete user-actionable alternatives the dashboard can offer when the gate refuses (Phase 115). Each entry is a short imperative describing what the user can do to obtain a comparable view — e.g. "drop normalization to Level 1 (temporal patterns only)", "constrain scope to one cultural frame", "use deviation labelling instead of an absolute claim". */
+            alternatives?: string[] | null;
             /** @description Human-readable summary of the refusal. */
             message: string;
             /** @description Threshold value the gate enforces (e.g., minimum aggregation size for k-anonymity). */
@@ -832,6 +901,44 @@ export interface components {
                 /** Format: double */
                 p95: number;
             };
+            /** @description Per-segment payloads populated when `segmentBy` is set. Absent when `segmentBy` is not requested. The aggregate `bins` and `summary` are always present and reflect the full union scope (Phase 114). */
+            streams?: {
+                /** @description Segment identifier (source name or probe id). */
+                id: string;
+                /** @description Display label for the segment. */
+                label: string;
+                /** @description Segment kind: `source` or `probe`. */
+                scopeKind: string;
+                /** @description Histogram bins ordered ascending by `lower`. */
+                bins: {
+                    /** Format: double */
+                    lower: number;
+                    /** Format: double */
+                    upper: number;
+                    /** Format: int64 */
+                    count: number;
+                }[];
+                summary: {
+                    /** Format: int64 */
+                    count: number;
+                    /** Format: double */
+                    min: number;
+                    /** Format: double */
+                    max: number;
+                    /** Format: double */
+                    mean: number;
+                    /** Format: double */
+                    median: number;
+                    /** Format: double */
+                    p05: number;
+                    /** Format: double */
+                    p25: number;
+                    /** Format: double */
+                    p75: number;
+                    /** Format: double */
+                    p95: number;
+                };
+            }[];
         };
         /** @description Two-dimensional binning of a metric over a time window. `xDimension` and `yDimension` are echoed back for the frontend's axis labelling. */
         HeatmapResponse: {
@@ -860,6 +967,24 @@ export interface components {
                  * @description Number of source rows aggregated into this cell.
                  */
                 count: number;
+            }[];
+            /** @description Per-segment payloads populated when `segmentBy` is set. Absent when `segmentBy` is not requested. The aggregate `cells` are always present and reflect the full union scope (Phase 114). */
+            streams?: {
+                /** @description Segment identifier (source name or probe id). */
+                id: string;
+                /** @description Display label for the segment. */
+                label: string;
+                /** @description Segment kind: `source` or `probe`. */
+                scopeKind: string;
+                /** @description One row per non-empty (x, y) cell for this segment. */
+                cells: {
+                    x: string;
+                    y: string;
+                    /** Format: double */
+                    value: number;
+                    /** Format: int64 */
+                    count: number;
+                }[];
             }[];
         };
         /** @description Pairwise Pearson correlation matrix over the requested metrics, computed from per-bucket means within the window. `matrix[i][j]` is the correlation of `metrics[i]` and `metrics[j]`. The diagonal is 1.0 when defined; cells with insufficient overlapping samples are returned as `null`. */
@@ -907,6 +1032,8 @@ export interface components {
                  * @description Sum of edge weights incident on this node.
                  */
                 totalCount: number;
+                /** @description Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114). */
+                presence?: string[];
             }[];
             edges: {
                 /** @description Lexicographically smaller entity text in the pair. */
@@ -1070,10 +1197,12 @@ export interface operations {
                 endDate: string;
                 /** @description Filter metrics by data source (e.g., "wikipedia") */
                 source?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
                 /** @description Filter metrics by metric name (e.g., "word_count") */
                 metricName?: string;
-                /** @description Normalization mode for metric values. "raw" returns values as stored. "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std. Requires baseline data and at least deviation-level equivalence validation. */
-                normalization?: "raw" | "zscore";
+                /** @description Normalization mode for metric values. "raw" returns values as stored. "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std. "percentile" (Phase 115) returns within-(metric, source, language) percentile rank computed via ClickHouse window functions over the active query window. Both "zscore" and "percentile" require baseline data; cross-frame requests additionally require deviation-level equivalence validation, otherwise the request is refused with an HTTP 400 RefusalPayload (gate=metric_equivalence). */
+                normalization?: "raw" | "zscore" | "percentile";
                 /** @description Temporal aggregation resolution for the returned series. Maps to ClickHouse bucketing functions: 5min → toStartOfFiveMinute, hourly → toStartOfHour, daily → toStartOfDay, weekly → toStartOfWeek, monthly → toStartOfMonth. Wider buckets relax the per-request row cap proportionally. */
                 resolution?: "5min" | "hourly" | "daily" | "weekly" | "monthly";
             };
@@ -1120,7 +1249,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Missing required parameters. */
+            /** @description Missing or invalid parameters; or a normalization request was refused by a methodological gate (Phase 115 cross-frame equivalence). When the 400 is a methodological refusal, the body's optional `gate`, `workingPaperAnchor`, and `alternatives` fields carry the same information a `RefusalPayload` would. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1129,6 +1258,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1141,6 +1276,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1178,6 +1319,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1190,6 +1337,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1202,8 +1355,12 @@ export interface operations {
                 metrics: string;
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
-                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
-                scopeId: string;
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
                 /** @description Inclusive start of the query window (RFC 3339). */
                 start: string;
                 /** @description Exclusive end of the query window (RFC 3339). */
@@ -1233,6 +1390,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1245,6 +1408,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1257,6 +1426,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1292,6 +1467,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1304,6 +1485,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1314,8 +1501,14 @@ export interface operations {
             query: {
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
-                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
-                scopeId: string;
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
+                /** @description When set, the response additionally contains a `streams` array where each element carries the per-segment payload (same fields as the aggregate response). The aggregate fields (`bins`, `summary`, `cells`) are always included and reflect the full union scope. `source` produces one stream per resolved source; `probe` produces one stream per probe in `probeIds` (returns 400 when no probe IDs are resolved). Omitting this parameter preserves the current single-payload shape. */
+                segmentBy?: "source" | "probe";
                 /** @description Inclusive start of the query window (RFC 3339). */
                 start: string;
                 /** @description Exclusive end of the query window (RFC 3339). */
@@ -1350,6 +1543,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1362,6 +1561,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1374,6 +1579,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1384,8 +1595,14 @@ export interface operations {
             query: {
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
-                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
-                scopeId: string;
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
+                /** @description When set, the response additionally contains a `streams` array where each element carries the per-segment payload (same fields as the aggregate response). The aggregate fields (`bins`, `summary`, `cells`) are always included and reflect the full union scope. `source` produces one stream per resolved source; `probe` produces one stream per probe in `probeIds` (returns 400 when no probe IDs are resolved). Omitting this parameter preserves the current single-payload shape. */
+                segmentBy?: "source" | "probe";
                 /** @description X-axis dimension for the heatmap. `dayOfWeek` and `hour` bin on the metric timestamp; `source` groups by source name; `entityLabel` joins against `aer_gold.entities`; `language` joins against `aer_gold.language_detections`. */
                 xDimension: "dayOfWeek" | "hour" | "source" | "entityLabel" | "language";
                 /** @description Y-axis dimension for the heatmap. Same enum as xDimension. */
@@ -1421,6 +1638,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1433,6 +1656,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1445,6 +1674,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1459,6 +1694,8 @@ export interface operations {
                 endDate: string;
                 /** @description Filter metrics by data source (e.g., "wikipedia") */
                 source?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
                 /** @description Filter entities by NER label (e.g., "PER", "ORG", "LOC", "MISC") */
                 label?: string;
                 /** @description Maximum number of results to return (default 100, max 1000) */
@@ -1500,6 +1737,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1512,6 +1755,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1522,8 +1771,12 @@ export interface operations {
             query: {
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
-                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
-                scopeId: string;
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
                 /** @description Inclusive start of the query window (RFC 3339). */
                 start: string;
                 /** @description Exclusive end of the query window (RFC 3339). */
@@ -1555,6 +1808,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1567,6 +1826,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1579,6 +1844,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1593,6 +1864,8 @@ export interface operations {
                 endDate: string;
                 /** @description Filter metrics by data source (e.g., "wikipedia") */
                 source?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
                 /** @description Filter by ISO 639-1 language code (e.g., "de", "en"). */
                 language?: string;
                 /** @description Maximum number of results to return (default 100, max 1000) */
@@ -1637,6 +1910,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1649,6 +1928,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1684,6 +1969,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1719,6 +2010,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1731,6 +2028,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1774,6 +2077,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1795,6 +2104,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1807,6 +2122,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1851,6 +2172,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1863,6 +2190,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1907,6 +2240,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1928,6 +2267,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1940,6 +2285,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -1972,6 +2323,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2012,6 +2369,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2024,6 +2387,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2036,6 +2405,71 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getProbeEquivalence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Probe identifier — the canonical string registered in the probe registry (e.g. `probe-0-de-institutional-rss`), matching the `probeId` shape used by `/probes` and `/probes/{id}/dossier`. */
+                probeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-metric equivalence availability for the probe. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeEquivalenceSummary"];
+                };
+            };
+            /** @description No probe with that id is registered. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2083,6 +2517,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2095,6 +2535,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2107,6 +2553,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2154,6 +2606,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2166,6 +2624,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2261,6 +2725,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2273,6 +2743,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };
@@ -2285,6 +2761,12 @@ export interface operations {
                     "application/json": {
                         /** @description A human-readable error message. */
                         message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
                     };
                 };
             };

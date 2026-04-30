@@ -1,0 +1,44 @@
+entityId: cross_frame_equivalence_missing
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Transkultureller Vergleich erfordert für jeden Beobachtungskontext nachgewiesene Äquivalenz — für diese Metrik über die gewählten Frames hinweg noch nicht validiert."
+    long: >
+      Sie haben eine normalisierte Ansicht dieser Metrik über mehrere
+      kulturell-sprachliche Kontexte hinweg angefordert. Normalisierung
+      erlaubt es, jeden Wert als Abweichung von seiner eigenen Baseline
+      zu lesen — eine transkulturelle Lesart setzt zusätzlich voraus,
+      dass die Metrik in jedem Frame dasselbe Phänomen misst. AĒR hat
+      keinen Äquivalenzeintrag, der alle Sprachen im aktuellen Bereich
+      abdeckt. Das System verweigert die Darstellung lieber, als eine
+      noch nicht etablierte Vergleichbarkeit zu behaupten. Das rohe
+      zeitliche Muster (Level 1) bleibt uneingeschränkt sichtbar; die
+      Äquivalenzvalidierung wird außerhalb des Systems durch eine
+      interdisziplinäre Prüfung gemäß WP-004 §5.2 erteilt.
+  methodological:
+    short: "HTTP 400 mit RefusalPayload(gate=metric_equivalence). Kein metric_equivalence-Eintrag auf Deviation-Level deckt das aufgelöste Sprach-Set ab."
+    long: >
+      Diese Verweigerung tritt ein, wenn eine Normalisierungsanfrage
+      (`?normalization=zscore` oder `?normalization=percentile`) auf
+      einen Bereich aufgelöst wird, der mehr als eine erkannte Sprache
+      umfasst, und `aer_gold.metric_equivalence` keinen Eintrag mit
+      `equivalence_level` „deviation" oder höher führt, der jede
+      Sprache im Bereich abdeckt. Das Gate ist die Phase-115-Schärfung
+      des Phase-65-Existenz-Gates; transkulturelle Lesarten implizieren
+      eine Vergleichbarkeitsannahme, die empirisch belegt, nicht
+      angenommen werden muss. Drei konkrete Alternativen werden
+      angeboten: Normalisierung auf Level 1 reduzieren (nur zeitliche
+      Muster); den Bereich auf einen kulturellen Frame einschränken;
+      Devianz-Beschriftung statt absoluter Behauptung verwenden.
+      Äquivalenz wird außerhalb des Systems über den Postgres-
+      `equivalence_reviews`-Workflow erteilt; das Operations Playbook
+      dokumentiert den Vorgang im Abschnitt „Granting metric
+      equivalence (WP-004 §5.2)".
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-30"
+workingPaperAnchors:
+  - "WP-004 §5.2"
+  - "WP-004 §6.3"
+  - "ADR-020 §Implementation-Outline · Phase 115"

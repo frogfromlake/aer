@@ -4,11 +4,16 @@ description: >
   Normalization mode for metric values.
   "raw" returns values as stored.
   "zscore" returns z-score normalized values: (value - baseline_mean) / baseline_std.
-  Requires baseline data and at least deviation-level equivalence validation.
+  "percentile" (Phase 115) returns within-(metric, source, language) percentile rank
+  computed via ClickHouse window functions over the active query window.
+  Both "zscore" and "percentile" require baseline data; cross-frame requests
+  additionally require deviation-level equivalence validation, otherwise the
+  request is refused with an HTTP 400 RefusalPayload (gate=metric_equivalence).
 required: false
 schema:
   type: string
   enum:
     - raw
     - zscore
+    - percentile
   default: raw

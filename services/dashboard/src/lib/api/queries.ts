@@ -46,6 +46,7 @@ export type SilverAggregationType =
 // right dual-register text without having to parse the BFF message.
 export type RefusalKind =
   | 'normalization_equivalence_missing'
+  | 'cross_frame_equivalence_missing'
   | 'validation_missing'
   | 'k_anonymity_threshold_not_met'
   | 'silver_eligibility'
@@ -58,6 +59,10 @@ export interface RefusalOutcome {
   /** Raw BFF message, shown if the Content Catalog lookup itself fails. */
   readonly message: string;
   readonly httpStatus: number;
+  /** Phase 115: concrete user-actionable alternatives carried by the refusal payload. */
+  readonly alternatives?: readonly string[];
+  /** Phase 115: anchor into the methodological surface (e.g. WP-004#section-5.2). */
+  readonly workingPaperAnchor?: string;
 }
 
 export interface NetworkErrorOutcome {
@@ -118,13 +123,11 @@ async function fetchJson<T>(
   if (response.status === 400 || response.status === 403) {
     // BFF methodological gate → surfaced as a refusal, not an error.
     // 403 is used by k-anon and silver-eligibility gates (WP-006).
-    const message = await safeMessage(response);
-    return {
-      kind: 'refusal',
-      refusalKind: expectedRefusal,
-      message,
-      httpStatus: response.status
-    };
+    // Phase 115: a 400 may carry a structured `gate` field; when it does,
+    // sharpen the refusal kind so the RefusalSurface picks the right
+    // Content Catalog entry and surfaces the structured alternatives.
+    const refusal = await safeRefusal(response, expectedRefusal);
+    return refusal;
   }
 
   if (!response.ok) {
@@ -149,6 +152,53 @@ async function safeMessage(response: Response): Promise<string> {
     // fallthrough
   }
   return `${response.status} ${response.statusText}`;
+}
+
+/**
+ * safeRefusal reads the response body once and returns a RefusalOutcome that
+ * (a) carries the BFF message, (b) sharpens `refusalKind` if the body's
+ * structured `gate` field identifies the Phase-115 cross-frame gate, and (c)
+ * pulls the structured `alternatives` and `workingPaperAnchor` through so
+ * the RefusalSurface can render them under the methodological register
+ * without a second lookup.
+ */
+async function safeRefusal(
+  response: Response,
+  expectedRefusal: RefusalKind
+): Promise<RefusalOutcome> {
+  let message = `${response.status} ${response.statusText}`;
+  let gate: string | undefined;
+  let alternatives: readonly string[] | undefined;
+  let workingPaperAnchor: string | undefined;
+  try {
+    const body = (await response.json()) as {
+      message?: unknown;
+      gate?: unknown;
+      alternatives?: unknown;
+      workingPaperAnchor?: unknown;
+    };
+    if (typeof body?.message === 'string') message = body.message;
+    if (typeof body?.gate === 'string') gate = body.gate;
+    if (typeof body?.workingPaperAnchor === 'string') workingPaperAnchor = body.workingPaperAnchor;
+    if (Array.isArray(body?.alternatives)) {
+      alternatives = body.alternatives.filter((a): a is string => typeof a === 'string');
+    }
+  } catch {
+    // fallthrough — opaque refusal body
+  }
+  let refusalKind = expectedRefusal;
+  if (gate === 'metric_equivalence') refusalKind = 'cross_frame_equivalence_missing';
+  const out: RefusalOutcome = {
+    kind: 'refusal',
+    refusalKind,
+    message,
+    httpStatus: response.status
+  };
+  if (alternatives !== undefined)
+    (out as { alternatives: readonly string[] }).alternatives = alternatives;
+  if (workingPaperAnchor !== undefined)
+    (out as { workingPaperAnchor: string }).workingPaperAnchor = workingPaperAnchor;
+  return out;
 }
 
 // -------------------------------------------------------------------------
@@ -190,10 +240,13 @@ export function metricsQuery(
   if (params.resolution) qs.set('resolution', params.resolution);
 
   // Normalization is the one parameter that trips an equivalence gate;
-  // raw queries can only fail on validation. We encode this so the
-  // RefusalSurface picks the correct Content Catalog entry by default.
+  // raw queries can only fail on validation. The default refusal kind is
+  // the within-frame equivalence-missing gate; Phase 115's cross-frame
+  // sharpening happens server-side via the structured `gate` field.
   const expected: RefusalKind =
-    params.normalization === 'zscore' ? 'normalization_equivalence_missing' : 'validation_missing';
+    params.normalization === 'zscore' || params.normalization === 'percentile'
+      ? 'normalization_equivalence_missing'
+      : 'validation_missing';
 
   return {
     queryKey: ['aer', 'metrics', params] as const,
@@ -244,6 +297,28 @@ export function contentQuery(
         'unspecified'
       ),
     // Content is versioned server-side; caching aggressively is safe.
+    staleTime: 60 * 60 * 1000
+  };
+}
+
+/** Phase 115: per-probe equivalence summary (Probe Dossier "valid comparisons" panel). */
+export type ProbeEquivalenceDto =
+  paths['/probes/{probeId}/equivalence']['get']['responses']['200']['content']['application/json'];
+
+export function probeEquivalenceQuery(
+  ctx: FetchContext,
+  probeId: string
+): QueryOptions<ProbeEquivalenceDto> {
+  return {
+    queryKey: ['aer', 'probe-equivalence', probeId] as const,
+    queryFn: () =>
+      fetchJson<ProbeEquivalenceDto>(
+        ctx,
+        `/probes/${encodeURIComponent(probeId)}/equivalence`,
+        'unspecified'
+      ),
+    // Equivalence registry only changes on out-of-band review; daily is
+    // the right cadence — same as `provenanceQuery`.
     staleTime: 60 * 60 * 1000
   };
 }

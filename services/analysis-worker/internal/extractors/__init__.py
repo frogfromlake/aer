@@ -9,6 +9,15 @@ from internal.extractors.entity_cooccurrence import (
     CoOccurrenceRow,
     EntityRecord,
 )
+from internal.extractors.metric_baseline import (
+    BASELINE_COLUMNS,
+    BASELINE_QUERY,
+    BaselineSweepResult,
+    MetricBaselineExtractor,
+    build_baseline_rows,
+    compute_baseline_rows,
+    compute_mean_std,
+)
 
 __all__ = [
     "MetricExtractor",
@@ -27,4 +36,11 @@ __all__ = [
     "EntityCoOccurrenceExtractor",
     "CoOccurrenceRow",
     "EntityRecord",
+    "MetricBaselineExtractor",
+    "BaselineSweepResult",
+    "BASELINE_COLUMNS",
+    "BASELINE_QUERY",
+    "build_baseline_rows",
+    "compute_baseline_rows",
+    "compute_mean_std",
 ]

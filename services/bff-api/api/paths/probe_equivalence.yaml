@@ -1,0 +1,36 @@
+get:
+  tags: [Metrics]
+  summary: Per-probe equivalence summary
+  description: >
+    Returns per-metric Level-1 / Level-2 / Level-3 availability for the
+    probe's resolved source set (Phase 115). Drives the Probe Dossier
+    "what comparisons are valid here" panel. Phase 123 will extend this
+    endpoint with an optional `comparedTo=<otherProbeId>` query parameter
+    for the multi-probe case.
+  operationId: getProbeEquivalence
+  parameters:
+    - name: probeId
+      in: path
+      required: true
+      description: >
+        Probe identifier — the canonical string registered in the probe
+        registry (e.g. `probe-0-de-institutional-rss`), matching the
+        `probeId` shape used by `/probes` and `/probes/{id}/dossier`.
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    '200':
+      description: Per-metric equivalence availability for the probe.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ProbeEquivalenceSummary.yaml'
+    '404':
+      description: No probe with that id is registered.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

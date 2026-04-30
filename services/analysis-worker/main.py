@@ -29,8 +29,14 @@ from internal.extractors import (
     SentimentExtractor,
     NamedEntityExtractor,
     EntityCoOccurrenceExtractor,
+    MetricBaselineExtractor,
 )
-from internal.corpus import CorpusConfig, corpus_extraction_loop
+from internal.corpus import (
+    BaselineConfig,
+    CorpusConfig,
+    baseline_extraction_loop,
+    corpus_extraction_loop,
+)
 
 load_dotenv()
 
@@ -334,6 +340,19 @@ async def main(config: WorkerConfig | None = None):
         )
     )
 
+    # Phase 115: periodic baseline-maintenance loop. Promotes the
+    # standalone scripts/compute_baselines.py into a NATS-cron-style
+    # automated extractor; manual script retained for ad-hoc operations.
+    baseline_config = BaselineConfig()
+    baseline_task = asyncio.create_task(
+        baseline_extraction_loop(
+            ch_client,
+            MetricBaselineExtractor(),
+            baseline_config,
+            stop_event,
+        )
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -354,6 +373,9 @@ async def main(config: WorkerConfig | None = None):
 
         logger.info("Waiting for corpus-extraction loop to drain...")
         await corpus_task
+
+        logger.info("Waiting for baseline-extraction loop to drain...")
+        await baseline_task
 
         await nc.close()
 

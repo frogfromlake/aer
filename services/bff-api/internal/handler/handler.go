@@ -18,6 +18,13 @@ import (
 // across the trust boundary.
 const genericInternalError = "internal server error"
 
+// collectLanguagesForScope returns the distinct languages observed in
+// `aer_gold.language_detections` for the requested scope and window.
+// Phase 115: powers the cross-frame equivalence gate.
+func (s *Server) collectLanguagesForScope(ctx context.Context, start, end time.Time, sources []string) ([]string, error) {
+	return s.db.LanguagesForScope(ctx, start, end, sources)
+}
+
 // resolutionFromParam maps the OpenAPI-validated query enum onto the
 // internal storage.Resolution constant. Unknown values fall back to the
 // 5-minute baseline; the generated router rejects values outside the
@@ -69,6 +76,12 @@ type Store interface {
 	Ping(ctx context.Context) error
 	GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
 	GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
+	// Phase 115: percentile-rank normalization, deviation labelling, cross-frame gate.
+	GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
+	CountLanguagesForSources(ctx context.Context, start, end time.Time, sources []string) (int, error)
+	LanguagesForScope(ctx context.Context, start, end time.Time, sources []string) ([]string, error)
+	CheckEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error)
+	GetProbeEquivalence(ctx context.Context, start, end time.Time, sources []string) ([]storage.ProbeEquivalenceMetric, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error)
@@ -155,29 +168,73 @@ func (s *Server) GetReadyz(ctx context.Context, _ GetReadyzRequestObject) (GetRe
 	return GetReadyz200JSONResponse{"clickhouse": "ok"}, nil
 }
 
+// crossFrameAnchor is the canonical pointer into the methodological surface
+// (WP-004 §5.2) used by the Phase-115 cross-frame equivalence refusal.
+const crossFrameAnchor = "WP-004#section-5.2"
+
+// crossFrameGateID matches RefusalPayloadGate's metric_equivalence value.
+const crossFrameGateID = "metric_equivalence"
+
+// crossFrameRefusalAlternatives are the three concrete user-actionable
+// fall-backs surfaced by the Phase-115 refusal payload (Brief §7.4).
+var crossFrameRefusalAlternatives = []string{
+	"drop normalization to Level 1 (temporal patterns only)",
+	"constrain scope to one cultural frame (single language)",
+	"use deviation labelling instead of an absolute claim",
+}
+
+// crossFrameRefusalMessage is the human-readable summary attached to the
+// 400 RefusalPayload when a cross-frame normalization request is refused.
+const crossFrameRefusalMessage = "cross-cultural normalization requires validated metric equivalence across the resolved language set; granted out-of-band via WP-004 §5.2"
+
+// crossFrameRefusal constructs the structured 400 body for the
+// metric_equivalence gate. The fields piggy-back on the Error schema's
+// optional refusal extensions so existing callers that decode 400 as
+// {message: string} still work.
+func crossFrameRefusal() GetMetrics400JSONResponse {
+	gate := crossFrameGateID
+	anchor := crossFrameAnchor
+	alts := append([]string(nil), crossFrameRefusalAlternatives...)
+	return GetMetrics400JSONResponse{
+		Message:            crossFrameRefusalMessage,
+		Gate:               &gate,
+		WorkingPaperAnchor: &anchor,
+		Alternatives:       &alts,
+	}
+}
+
 // GetMetrics handles the GET /metrics request and fetches time-series data.
 // startDate and endDate are required — the framework returns 400 before this handler
 // is called if either is absent.
 //
-// When normalization=zscore, a validation gate enforces two preconditions:
-// (a) baselines must exist for the requested (metricName, source) pair, and
-// (b) at least deviation-level equivalence must be confirmed in metric_equivalence.
-// This prevents normalized comparisons before interdisciplinary validation.
+// When normalization=zscore (Phase 65) or normalization=percentile (Phase 115),
+// a validation gate enforces:
+// (a) baselines must exist for the requested (metricName, source) pair;
+// (b) at least deviation-level equivalence must be confirmed in
+// `metric_equivalence`;
+// (c) Phase 115 cross-frame gate — when the resolved scope spans more than one
+// language, equivalence must additionally be validated across every language
+// in the scope. Otherwise the response is 400 with a structured RefusalPayload
+// (gate=metric_equivalence, anchor=WP-004#section-5.2).
 func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error) {
 	if request.Params.Normalization != nil && !request.Params.Normalization.Valid() {
-		return GetMetrics400JSONResponse{Message: "invalid normalization; must be one of raw, zscore"}, nil
+		return GetMetrics400JSONResponse{Message: "invalid normalization; must be one of raw, zscore, percentile"}, nil
 	}
 	if request.Params.Resolution != nil && !request.Params.Resolution.Valid() {
 		return GetMetrics400JSONResponse{Message: "invalid resolution; must be one of 5min, hourly, daily, weekly, monthly"}, nil
 	}
 
-	useZscore := request.Params.Normalization != nil && *request.Params.Normalization == Zscore
+	mode := Raw
+	if request.Params.Normalization != nil {
+		mode = *request.Params.Normalization
+	}
+	useNormalization := mode == Zscore || mode == Percentile
 
 	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
 
-	if useZscore {
+	if useNormalization {
 		if request.Params.MetricName == nil {
-			return GetMetrics400JSONResponse{Message: "normalization=zscore requires the metricName parameter"}, nil
+			return GetMetrics400JSONResponse{Message: "normalization requires the metricName parameter"}, nil
 		}
 
 		// For the baseline check, pass a single source when unambiguous; nil
@@ -192,7 +249,7 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 		}
 		if !baselineExists {
-			return GetMetrics400JSONResponse{Message: "no baseline data exists for the requested metric and source; compute baselines before requesting z-score normalization"}, nil
+			return GetMetrics400JSONResponse{Message: "no baseline data exists for the requested metric and source; compute baselines before requesting normalization"}, nil
 		}
 
 		equivExists, err := s.db.CheckEquivalenceExists(ctx, *request.Params.MetricName)
@@ -203,6 +260,28 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		if !equivExists {
 			return GetMetrics400JSONResponse{Message: "no equivalence entry with at least deviation-level equivalence exists for this metric; cross-cultural comparability has not been validated"}, nil
 		}
+
+		// Phase 115 cross-frame equivalence gate.
+		nLangs, err := s.db.CountLanguagesForSources(ctx, request.Params.StartDate, request.Params.EndDate, sources)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetMetrics.CountLanguagesForSources", "error", err)
+			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
+		}
+		if nLangs > 1 {
+			languages, err := s.collectLanguagesForScope(ctx, request.Params.StartDate, request.Params.EndDate, sources)
+			if err != nil {
+				slog.Error("handler failure", "op", "GetMetrics.collectLanguagesForScope", "error", err)
+				return GetMetrics500JSONResponse{Message: genericInternalError}, nil
+			}
+			ok, err := s.db.CheckEquivalenceForLanguages(ctx, *request.Params.MetricName, languages)
+			if err != nil {
+				slog.Error("handler failure", "op", "GetMetrics.CheckEquivalenceForLanguages", "error", err)
+				return GetMetrics500JSONResponse{Message: genericInternalError}, nil
+			}
+			if !ok {
+				return crossFrameRefusal(), nil
+			}
+		}
 	}
 
 	resolution := resolutionFromParam(request.Params.Resolution)
@@ -210,9 +289,12 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	var data []storage.MetricRow
 	var excludedCount int64
 	var err error
-	if useZscore {
+	switch mode {
+	case Zscore:
 		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
-	} else {
+	case Percentile:
+		data, excludedCount, err = s.db.GetPercentileNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+	default:
 		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
 	}
 	if err != nil {
@@ -460,6 +542,28 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 			lvl := AvailableMetricEquivalenceLevel(*r.EquivalenceLevel)
 			m.EquivalenceLevel = &lvl
 		}
+		if r.EquivalenceStatus != nil {
+			es := r.EquivalenceStatus
+			status := struct {
+				Level          *string    `json:"level,omitempty"`
+				Notes          string     `json:"notes"`
+				ValidatedBy    *string    `json:"validatedBy,omitempty"`
+				ValidationDate *time.Time `json:"validationDate,omitempty"`
+			}{Notes: es.Notes}
+			if es.Level != nil {
+				lvl := *es.Level
+				status.Level = &lvl
+			}
+			if es.ValidatedBy != nil {
+				vb := *es.ValidatedBy
+				status.ValidatedBy = &vb
+			}
+			if es.ValidationDate != nil {
+				vd := *es.ValidationDate
+				status.ValidationDate = &vd
+			}
+			m.EquivalenceStatus = &status
+		}
 		if minRes := config.LookupMinMeaningfulResolution(r.MetricName); minRes != "" {
 			res := AvailableMetricMinMeaningfulResolution(minRes)
 			m.MinMeaningfulResolution = &res
@@ -468,6 +572,82 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 	}
 
 	return response, nil
+}
+
+// GetProbeEquivalence handles GET /probes/{probeId}/equivalence — Phase 115.
+// Returns per-metric Level-1 / Level-2 / Level-3 availability for the
+// probe's resolved source set. Drives the Probe Dossier "what comparisons
+// are valid here" panel.
+//
+// The window defaults to the last 90 days when no explicit range is
+// provided — the same default the Operations Playbook uses for baseline
+// computation, so the Dossier matrix and the manual baseline run share a
+// horizon.
+func (s *Server) GetProbeEquivalence(ctx context.Context, request GetProbeEquivalenceRequestObject) (GetProbeEquivalenceResponseObject, error) {
+	probe, ok := s.probes[request.ProbeId]
+	if !ok {
+		return GetProbeEquivalence404JSONResponse{Message: "probe not found"}, nil
+	}
+
+	end := time.Now().UTC()
+	start := end.Add(-90 * 24 * time.Hour)
+
+	rows, err := s.db.GetProbeEquivalence(ctx, start, end, probe.Sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetProbeEquivalence", "error", err)
+		return GetProbeEquivalence500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetProbeEquivalence200JSONResponse{
+		ProbeId: probe.ProbeID,
+	}
+	if len(probe.Sources) > 0 {
+		sources := append([]string(nil), probe.Sources...)
+		resp.Sources = &sources
+	}
+	for _, r := range rows {
+		entry := struct {
+			EquivalenceStatus *struct {
+				Level          *string    `json:"level,omitempty"`
+				Notes          string     `json:"notes"`
+				ValidatedBy    *string    `json:"validatedBy,omitempty"`
+				ValidationDate *time.Time `json:"validationDate,omitempty"`
+			} `json:"equivalenceStatus,omitempty"`
+			Level1Available bool   `json:"level1Available"`
+			Level2Available bool   `json:"level2Available"`
+			Level3Available bool   `json:"level3Available"`
+			MetricName      string `json:"metricName"`
+		}{
+			MetricName:      r.MetricName,
+			Level1Available: r.Level1Available,
+			Level2Available: r.Level2Available,
+			Level3Available: r.Level3Available,
+		}
+		if r.EquivalenceStatus != nil {
+			es := r.EquivalenceStatus
+			status := struct {
+				Level          *string    `json:"level,omitempty"`
+				Notes          string     `json:"notes"`
+				ValidatedBy    *string    `json:"validatedBy,omitempty"`
+				ValidationDate *time.Time `json:"validationDate,omitempty"`
+			}{Notes: es.Notes}
+			if es.Level != nil {
+				lvl := *es.Level
+				status.Level = &lvl
+			}
+			if es.ValidatedBy != nil {
+				vb := *es.ValidatedBy
+				status.ValidatedBy = &vb
+			}
+			if es.ValidationDate != nil {
+				vd := *es.ValidationDate
+				status.ValidationDate = &vd
+			}
+			entry.EquivalenceStatus = &status
+		}
+		resp.Metrics = append(resp.Metrics, entry)
+	}
+	return resp, nil
 }
 
 // GetContent handles GET /content/{entityType}/{entityId} — returns Dual-Register content

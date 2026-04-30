@@ -1,0 +1,43 @@
+entityId: cross_frame_equivalence_missing
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "Cross-cultural comparison requires established equivalence between every observation context — not yet validated for this metric across the selected frames."
+    long: >
+      You requested a normalised view of this metric across more than one
+      cultural-linguistic context. Normalisation lets you read each
+      value as a distance from its own baseline, but a cross-cultural
+      reading further assumes the metric is measuring the same
+      underlying phenomenon in each frame. AĒR has no equivalence row
+      on file that covers every language in the current scope, so the
+      system declines to produce the chart rather than claim a
+      comparability that has not been established. The raw temporal
+      pattern (Level 1) remains visible without restriction; equivalence
+      validation is granted out of band by an interdisciplinary review
+      under WP-004 §5.2.
+  methodological:
+    short: "HTTP 400 with RefusalPayload(gate=metric_equivalence). No metric_equivalence row at deviation-or-absolute level covers the resolved scope's language set."
+    long: >
+      This refusal is triggered when a normalisation request
+      (`?normalization=zscore` or `?normalization=percentile`) resolves
+      to a scope spanning more than one detected language and
+      `aer_gold.metric_equivalence` has no entry at deviation-level
+      (or higher) covering every language in the scope. The gate is
+      the Phase-115 sharpening of the Phase-65 equivalence existence
+      gate; cross-frame readings implicitly carry a cross-cultural
+      comparability claim that must be established empirically, not
+      assumed. Three concrete alternatives are surfaced: drop
+      normalisation to Level 1 (temporal patterns only); constrain
+      scope to one cultural frame; use deviation labelling instead of
+      an absolute claim. Equivalence is granted out of band via the
+      Postgres `equivalence_reviews` workflow; the Operations
+      Playbook section "Granting metric equivalence (WP-004 §5.2)"
+      documents the procedure.
+contentVersion: "v2026-04-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-04-30"
+workingPaperAnchors:
+  - "WP-004 §5.2"
+  - "WP-004 §6.3"
+  - "ADR-020 §Implementation-Outline · Phase 115"

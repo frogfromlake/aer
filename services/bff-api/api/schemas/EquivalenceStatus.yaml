@@ -1,0 +1,36 @@
+type: object
+description: >
+  Structured equivalence status for a metric (Phase 115). Supersedes the
+  bare-string `equivalenceLevel` field on `/metrics/available`, which is
+  retained for one release cycle as a deprecated alias so existing
+  dashboard URL state and tests continue to load.
+required:
+  - notes
+properties:
+  level:
+    type: string
+    nullable: true
+    description: >
+      The highest equivalence level established for this metric. Values
+      mirror the `EquivalenceLevel` enum (`temporal`, `deviation`,
+      `absolute`). Null when no equivalence entry exists. Kept as a plain
+      string here rather than an `allOf`-wrapped enum because nesting
+      this schema as an array item generates broken codegen for the
+      inline enum.
+  validatedBy:
+    type: string
+    nullable: true
+    description: >
+      Reviewer attribution as recorded on the `aer_gold.metric_equivalence`
+      row. Points back to the full Postgres `equivalence_reviews` record.
+  validationDate:
+    type: string
+    format: date-time
+    nullable: true
+    description: ISO-8601 timestamp of the most-recent equivalence grant.
+  notes:
+    type: string
+    description: >
+      Concise methodological-rationale summary (≤ 280 chars), mirrored from
+      the ClickHouse `metric_equivalence.notes` column. Empty string when
+      no notes were recorded — the read-side default, not an error state.

@@ -18,11 +18,23 @@ properties:
     example: null
   equivalenceLevel:
     nullable: true
+    deprecated: true
     description: >
-      The highest equivalence level established for this metric.
-      Null if no equivalence entry exists.
+      DEPRECATED (Phase 115): superseded by `equivalenceStatus.level`.
+      Retained for one release cycle so existing dashboard URL state and
+      tests do not break in the same commit. Mirrors
+      `equivalenceStatus.level`.
     allOf:
       - $ref: './EquivalenceLevel.yaml'
+  equivalenceStatus:
+    nullable: true
+    description: >
+      Structured equivalence status (Phase 115) — level, validatedBy,
+      validationDate, and `notes` rationale summary mirrored from
+      `aer_gold.metric_equivalence.notes`. Null if no equivalence entry
+      exists for this metric.
+    allOf:
+      - $ref: './EquivalenceStatus.yaml'
   minMeaningfulResolution:
     nullable: true
     description: >

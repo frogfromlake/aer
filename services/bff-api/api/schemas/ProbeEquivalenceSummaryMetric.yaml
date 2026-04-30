@@ -1,0 +1,32 @@
+type: object
+description: >
+  One per-metric row in a `ProbeEquivalenceSummary` (Phase 115).
+required:
+  - metricName
+  - level1Available
+  - level2Available
+  - level3Available
+properties:
+  metricName:
+    type: string
+  level1Available:
+    type: boolean
+    description: >
+      Temporal patterns are always intra-culturally valid; this is true
+      whenever the metric has any data in the probe scope.
+  level2Available:
+    type: boolean
+    description: >
+      Z-score / percentile comparison is available — at least one
+      `metric_equivalence` row at deviation-or-absolute level for this
+      metric across the probe's languages.
+  level3Available:
+    type: boolean
+    description: >
+      Absolute-value cross-context comparison is available — at least one
+      `metric_equivalence` row at absolute level for this metric across
+      the probe's languages.
+  equivalenceStatus:
+    nullable: true
+    allOf:
+      - $ref: './EquivalenceStatus.yaml'
