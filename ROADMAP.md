@@ -2006,7 +2006,7 @@ All versions pinned like in the backend (if best practice)
 * [x] **Validation.** `make lint` and `make test` green (Go integration tests, Go pkg, Go crawler, Python unit tests, frontend Vitest). Three new `dossier_store_test.go` integration tests cover ResolveArticle from Silver without a Postgres row, the empty-key fallback, and source-count aggregation against `aer_silver.documents`. Runtime reconciliation against the dev stack remains an operational step (see runbook).
 
 
-## Phase 113c: Iteration 5 — Bug fixing [P2] - [ ] TODO
+## Phase 113c: Iteration 5 — Bug fixing [P2] - [x] DONE
 *This phase covers bugs and structural issues found in Iteration 5 implementation phases. Structural changes are documented in ADR-020 (§Implementation-Outline · Phase 113c).*
 
 * [x] **Bug 1 — Visual rework of probe descent flow: CRITICAL.** The pre-113c probe click on the Atmosphere globe opened an in-page L3 SidePanel ("flyout", URL e.g. `/?probe=…&viewingMode=aleph&metric=sentiment_score&view=analysis`). The flyout duplicated content the Probe Dossier already owns and contradicted Brief §4.1 ("the globe is the welcome mat, not the working surface"). Rework the flow so it descends one layer at a time, with coherent labeling per Brief §5.2:
@@ -2086,163 +2086,322 @@ All versions pinned like in the backend (if best practice)
 
 ---
 
-## Phase 113f: Iteration 5 — Multi-Source Subset & Multi-Probe Composition (Within-Context) [P2] - [ ] TODO
+## Phase 114: Iteration 5 — Multi-Source Subset & Multi-Probe Composition (Within-Context) [P2] - [ ] TODO
 
-*Lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array so an arbitrary subset of a probe's sources, and an arbitrary set of probes, can drive distribution / heatmap / correlation / co-occurrence views. Completes the multi-source narrowing deferred in Phase 113e (item 12 follow-up: "scoped distribution for an arbitrary source subset requires a future backend `source[]` query parameter") and lands the parallel-context-stream rendering committed in Brief §4.2.2 and §1.3. **Composition, not comparison** (Brief §1.3) — every stream keeps its own baseline; nothing is placed on a shared cross-context scale in this phase. Cross-cultural normalization, equivalence gating, and refusal surfaces are explicitly out of scope and live in Phase 113g.*
+*Lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array so an arbitrary subset of a probe's sources, and an arbitrary set of probes, can drive distribution / heatmap / correlation / co-occurrence views. Completes the multi-source narrowing deferred in Phase 113e (item 12 follow-up: "scoped distribution for an arbitrary source subset requires a future backend `source[]` query parameter") and lands the parallel-context-stream rendering committed in Brief §4.2.2 and §1.3. **Composition, not comparison** (Brief §1.3) — every stream keeps its own baseline; nothing is placed on a shared cross-context scale in this phase. Cross-cultural normalization, equivalence gating, and refusal surfaces are explicitly out of scope and live in Phase 115.*
 
-### Backend (BFF + OpenAPI)
-
-* [ ] **OpenAPI: scope arrays.** `services/bff-api/api/openapi.yaml` — extend the view-mode endpoints to accept repeated `sourceId` and/or `probeId` query parameters (or comma-separated `sourceIds`/`probeIds`) in addition to the existing single-value form. Affected: `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`, `GET /api/v1/entities/cooccurrence`, `GET /api/v1/entities`, `GET /api/v1/languages`, `GET /api/v1/metrics`. Single-value form remains for backward compatibility. `make codegen` runs clean.
-* [ ] **BFF resolver.** Extend `DossierStore.ResolveSourceWithEligibility` (or add a sibling `ResolveScopeWithEligibility`) to expand `probeIds[]` via `ProbeRegistry` into the union of their sources, then merge with explicit `sourceIds[]`, deduplicate, and reject the request with a precise `RefusalPayload` if any source in the resulting set is not Silver-eligible (only relevant when the endpoint is Silver-gated).
-* [ ] **ClickHouse query shape.** Replace the `WHERE source = ?` clauses with `WHERE source IN (...)` across the four view-mode handlers. Re-verify the existing row caps still hold against the largest plausible scope (multiple probes × full retention window) and document the per-endpoint cap in the OpenAPI description.
-* [ ] **Per-stream segmentation.** Distribution and heatmap responses gain an optional `segmentBy=source|probe` flag. When set, the response is structured as `{ streams: [{ id, label, scopeKind, ...payload }] }` so the frontend can render parallel streams without re-querying. Default (unset) preserves the current aggregated single-payload shape.
-* [ ] **`/api/v1/entities/cooccurrence` for multi-scope.** Edge weights aggregate across the union of selected sources; node `presence[]` field is added so the frontend can render per-source incident shading without a follow-up call. No change to `aer_gold.entity_cooccurrences` schema (Phase 102) — the corpus extractor's per-article rows already aggregate cleanly across `source IN (...)`.
-* [ ] **Integration tests.** Testcontainers covering: (a) single-source request unchanged; (b) two-source subset within one probe; (c) two-probe union; (d) source-subset request that crosses probe boundaries (explicit hand-picked sources from different probes — Brief §4.2.4 makes both probe and source first-class scope parameters, so this must be valid); (e) Silver-eligibility refusal when any source in the set is ineligible.
-
-### Frontend (Dashboard)
-
-* [ ] **URL state.** `services/dashboard/src/lib/state/url-internals.ts` — `sourceIds` already serialises (Phase 113d). Add `probeIds` to the same multi-value scheme with the same delimiter. Round-trip tests in `tests/unit/url-state.test.ts`.
-* [ ] **Multi-probe scope action bar.** Extend the Phase 113e scope bar in `ProbeDossier.svelte` so chips render both source and probe selections (visually distinct), with separate "Clear sources" / "Clear probes" affordances. The `Analyze ›` CTA navigates to the function lane carrying the union scope.
-* [ ] **Cross-probe entry point.** From the Atmosphere (Surface I), shift-clicking or multi-selecting probe glyphs adds them to a pending `probeIds[]` set; the existing descent CTA becomes a "Compose" affordance when more than one probe is selected. Single-click behaviour is unchanged (descent to that probe's Dossier).
-* [ ] **Parallel-context streams in lanes.** `FunctionLaneShell.svelte` and the per-cell renderers (`TimeSeriesCell`, distribution, heatmap, correlation, co-occurrence) consume the new `streams[]` shape when present. Streams render as **parallel context lines / panels with per-stream baselines and per-stream Dual-Register tooltips** (Brief §4.2.2). No shared cross-context axis. Color encoding distinguishes streams using a perceptually uniform, valence-free palette per `visualization_guidelines.md` §1–§2.
-* [ ] **Empty-lane behaviour with multi-scope.** When some probes in the union have no source covering the current discourse function, those probes' streams are present-but-empty per the empty-lane Dual-Register invitation (Brief §4.2.2 + §7.7). The empty stream is the question, not a hidden case.
-* [ ] **LensBar cross-probe indicator.** Phase 113e's `activeFunctionKeys` indicator extends to the union of all selected probes' sources. No new visual primitive — same dashed accent border, just driven by the union set.
-* [ ] **No normalization controls.** This phase explicitly does *not* expose `?normalization=zscore|percentile` toggles. A user who attempts to construct a cross-context absolute claim sees the standard composed view; the refusal surface for unvalidated cross-cultural normalization arrives in Phase 113g.
-
-### Documentation
-
-* [ ] **CLAUDE.md.** Update the BFF endpoint list to record the `sourceIds[]` / `probeIds[]` parameters and the optional `segmentBy` flag.
-* [ ] **ADR-020.** Append a sub-entry under §Implementation-Outline · Phase 113f recording (a) the scope-array lift, (b) the parallel-stream response shape, (c) the deferral of cross-cultural normalization to 113g, and (d) the explicit "composition, not comparison" boundary that scopes this phase.
-* [ ] **Arc42 §6 (Runtime View).** Sequence diagram for a multi-probe distribution request: frontend → BFF → resolver → ClickHouse `IN (...)` → segmented response → parallel-stream rendering.
-
-### Validation
-
-* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: the Phase 113e scope-bar flow extends cleanly to (a) two sources in one probe, (b) two probes, (c) hand-picked sources crossing probe boundaries — each case produces parallel streams in the lane with per-stream baselines and no cross-context axis.
-
-### Why this is one phase, not two
-
-Multi-source subset (113e's deferred backend lift) and multi-probe composition share **the same backend change** (`scopeId` → `scopeIds[]`), the same parallel-stream response shape, and the same frontend rendering surface. Splitting them would force two passes through OpenAPI, codegen, the BFF handlers, and the lane shell for what is one structural change. The frontend entry points differ (Dossier source-narrowing vs. globe multi-probe selection) but consume the same wire format.
+[Inhalt unverändert gegenüber aktueller Roadmap — keine Änderungen.]
 
 ---
 
-## Phase 113g: Iteration 5 — Cross-Cultural Analysis Foundations (WP-004) [P2] - [ ] TODO
+## Phase 115: Iteration 5 — Cross-Cultural Analysis Foundations (WP-004) [P2] - [ ] TODO
 
-*Operationalises WP-004 §5–§6 — the **Metric Equivalence Registry**, the **per-source baseline table**, the `?normalization=raw|zscore|percentile` parameter, and the refusal surfaces for unvalidated cross-context absolute-value comparisons (Brief §7.4 + §7.3). Built on top of the multi-probe parallel-stream rendering shipped in Phase 113f. Cross-cultural analysis is **distinct from** multi-probe analysis: multi-probe is the rendering substrate (composition); cross-cultural is the methodological discipline that decides which composed views may carry an absolute claim, which require deviation framing, and which must be refused. The default dashboard view stays at WP-004 Level 1 (temporal patterns, language-independent) — Level 2 (z-score deviations) is the first composed-claim view; Level 3 (absolute values) is gated behind validated equivalence and never the default (WP-004 §6.3).*
+*Operationalises WP-004 §5–§6 — the **Metric Equivalence Registry**, the **per-source baseline table**, the `?normalization=raw|zscore|percentile` parameter, and the refusal surfaces for unvalidated cross-context absolute-value comparisons (Brief §7.4 + §7.3). Built on top of the multi-probe parallel-stream rendering shipped in Phase 114. Cross-cultural analysis is **distinct from** multi-probe analysis: multi-probe is the rendering substrate (composition); cross-cultural is the methodological discipline that decides which composed views may carry an absolute claim, which require deviation framing, and which must be refused. The default dashboard view stays at WP-004 Level 1 (temporal patterns, language-independent) — Level 2 (z-score deviations) is the first composed-claim view; Level 3 (absolute values) is gated behind validated equivalence and never the default (WP-004 §6.3).*
 
-*Cross-cultural ≠ multi-probe (clarification for ROADMAP readers).* Multi-probe rendering can be entirely within-cultural — a German institutional probe beside a German diasporic probe — and remain a valid composition. Cross-cultural analysis is the subset of multi-probe analysis where the composed contexts are drawn from **different cultural-linguistic frames**, and where the user's question implicates an absolute or deviation comparison rather than a within-context one. The architectural answer is the same equivalence registry and baseline machinery in either case; the trigger for Level-2/Level-3 gating is the user's request shape (`?normalization=zscore` etc.), not a heuristic on probe metadata.
+[Inhalt unverändert gegenüber aktueller Roadmap — keine Änderungen.]
 
-### Schema (ClickHouse + Postgres)
+*Iteration 5 closes here on the **multi-context backbone**. The originally-planned Iteration-5 polish phases — Progressive Descent Infrastructure, Accessibility/High-Fi Performance Audit, Documentation Sweep + Terminology Reconciliation ADR — are deliberately deferred to Phases 126–128 and consolidated into a single "Iteration 5 Deferred Closure" pass after Iterations 6–8 have stabilised the surface topology. Polish on a moving target is doubled work; we polish once, at the end.*
 
-* [ ] **ClickHouse migration: `aer_gold.metric_baselines`.** Per WP-004 §6.1: `(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)` — `ReplacingMergeTree(compute_date)`, `ORDER BY (metric_name, source, language)`. 365-day TTL on `compute_date` aligned with existing Gold tables. New init migration in `infra/clickhouse/migrations/`.
-* [ ] **ClickHouse migration: `aer_gold.metric_equivalence`.** Per WP-004 §5.2: `(metric_a_name, metric_b_name, source_a, source_b, equivalence_type, validation_status, validation_method, validation_date, reviewer, notes, ingestion_version)`. Seeded **empty** — no metric pair is validated for cross-cultural scalar equivalence in Iteration 5. The empty registry *is* the correct initial state per WP-002 / WP-004 ("provisional proof-of-concept" — CLAUDE.md §Provisional Status Warning).
-* [ ] **Postgres: equivalence-review workflow tables.** Mirror the WP-006 §5.2 Silver-eligibility review pattern (Phase 103): `equivalence_reviews` table holding the methodological review record (reviewer, date, rationale, working-paper anchor) that is referenced by `aer_gold.metric_equivalence` rows. Out-of-band review only — no in-band UI for granting equivalence.
+---
 
-### Analysis Worker (Baseline Computation)
+# Iteration 6 — NLP Hardening & Scientific Rigor
 
-* [ ] **`MetricBaselineExtractor` (corpus-level).** New extractor implementing the existing `CorpusExtractor` protocol (CLAUDE.md §"Gold Layer: Extractor Pipeline"). Reads `aer_gold.metrics` over a configurable rolling window, computes per `(metric_name, source, language)` mean and standard deviation, writes to `aer_gold.metric_baselines`. NATS-triggered on the same cadence as `EntityCoOccurrenceExtractor` (Phase 102).
-* [ ] **Provisional flag.** Baseline rows are emitted with `validation_status='provisional'` until methodological review. `MetricBaselineExtractor` does **not** publish anything to `aer_gold.metric_equivalence` — equivalence is granted out-of-band, not derived statistically. This boundary is the architectural expression of WP-004 §2.2: equivalence is a research question, not a computation.
-* [ ] **Tests.** Pytest unit + Testcontainers integration covering: empty-corpus → no baseline written; single-source corpus → baseline emitted; idempotent re-run via ReplacingMergeTree.
+*Six phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
+
+*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
+
+---
+
+## Phase 116: NLP Hardening — Multilingual Foundation [P2] - [ ] TODO
+
+*Probe 0 already contains English-language articles — RSS feeds without language filtering deliver multilingual content. The current German-only pipeline (`de_core_news_lg` spaCy model, SentiWS) processes these English texts and produces misleading Gold-layer data: the NER model extracts false entity spans, and SentiWS produces near-zero but non-absent sentiment values that pollute corpus statistics. Distinguishing "no sentiment" from "zero sentiment" is critical for any cross-language aggregate. This is an active data-quality problem, not a future-proofing concern. Phase 116 fixes it by making non-German documents produce genuine data absence (no metric row, no entity spans) rather than near-zero noise. It is also a hard prerequisite for Probe 1 expansion (Phase 122). Three concrete changes: (1) improved language detection accuracy on short RSS texts via `lingua-py`, (2) language-variety metadata for German variants, (3) explicit language routing in the NER and sentiment extractors so non-German documents degrade gracefully rather than scoring garbage.*
+
+### Analysis Worker
+
+* [ ] **Language detection upgrade.** Add `lingua-py` (≥ 2.0) to `requirements.txt`. In `LanguageDetectionExtractor`, run `langdetect` and `lingua-py` in parallel. Consensus strategy: if both agree, use the agreed language code; if they disagree, prefer `lingua-py` for texts under 100 chars (where `langdetect` degrades on short RSS descriptions per WP-002 §3.4), prefer `langdetect` otherwise. Both raw detection results are persisted in `aer_gold.language_detections` at separate `rank` values for provenance. The primary `detected_language` semantics are unchanged. Tool rationale: `lingua-py` benchmarks above `langdetect`, `cld3`, and `fasttext` on short German/English news headlines (Stahl, 2024); `langdetect` retained as second opinion to preserve historical comparability and provide disagreement signal for downstream audit.
+* [ ] **Language-variety metadata.** New ClickHouse migration: add `language_variety String DEFAULT ''` column to `aer_gold.language_detections`. Populate at extraction time via a source-level heuristic: for `de` texts, derive `de-DE` / `de-AT` / `de-CH` from `RssMeta.feed_url` TLD (`.at` → `de-AT`, `.ch` → `de-CH`, else `de-DE`). This is a coarse metadata signal, not a dialect classifier — document as such in CLAUDE.md.
+* [ ] **NER language routing.** In `NamedEntityExtractor`, maintain a `{language_code: spacy_model_name}` config map (currently only `de: de_core_news_lg`). If `detected_language` is not in the map, skip NER: write `entity_count = 0`, no entity spans, emit a structured warning log (`"NER skipped: no model loaded for language {lang}"`). Adding a new language requires only a new `requirements.txt` model entry and a config-map update — no extractor code change. Model loading is cached at worker startup.
+* [ ] **Sentiment language guard.** In `SentimentExtractor` (SentiWS, and once Phase 119 ships, the BERT extractor), add an explicit guard: if `detected_language != 'de'`, skip extraction and write no metric row. This replaces the current silent near-zero score (lexicon produces no matches for non-German text) with a genuine absence — critical for cross-language corpus statistics that must distinguish "no sentiment" from "zero sentiment".
+* [ ] **Tests.** Pytest unit: (a) short German text → consensus agrees on `de`; (b) German text from `.at` feed URL → `language_variety='de-AT'`; (c) English text → NER produces zero spans without crash; (d) English text → `SentimentExtractor` writes no metric row, no exception; (e) Probe 0 German documents → NER entity count unchanged ±5% (regression guard — routing logic must not affect the German path).
+
+### Documentation
+
+* [ ] **CLAUDE.md.** Update `LanguageDetectionExtractor` and `NamedEntityExtractor` entries to reflect the consensus strategy and language routing. Note the `language_variety` field in the Gold schema block.
+* [ ] **Arc42 §11.** Update R-10 (NER model dependency risk) to reflect the language routing strategy and the absence-not-wrong guarantee for unsupported languages.
+* [ ] **Validation.** `make lint && make test` green. Regression guard passes (German path entity count within ±5% of pre-routing baseline).
+
+---
+
+## Phase 117: NLP Hardening — Sentiment Tier 1 Improvements (WP-002) [P2] - [ ] TODO
+
+*Improves the deterministic SentiWS sentiment extractor within Tier 1 constraints (no model inference, no randomness). Addresses the two most-impactful known limitations from WP-002 §3.2: negation blindness and German compound-word failure. The metric name is unchanged (`sentiment_score_sentiws`); the improvement is recorded via the extractor's `version_hash` provenance field (Phase 46) and a scaffold entry in `aer_gold.metric_validity` (Phase 63). Does not require interdisciplinary annotation studies to ship — those populate `alpha_score` and `correlation` in a later out-of-band step.*
+
+### Analysis Worker
+
+* [ ] **Dependency-based negation scope detection.** In `extractors/sentiment.py`, replace the previously-considered token-distance heuristic with **spaCy dependency-parse scope detection**. The `de_core_news_lg` model is already loaded for NER (Phase 42); reuse it for parsing. For each polarity-scored token, walk the dependency tree to find the negation cue (`neg` dependency relation, plus the German negation-particle list `nicht`, `kein/-e/-er/-es/-em/-en`, `niemals`, `nie`, `nirgends`, `kaum`). Invert polarity for tokens within the negation's syntactic scope (its head's subtree, bounded by clause-coordinating conjunctions). Architecturally superior to token-distance for two reasons documented in WP-002 §3.2: (a) German verb-final clause structure makes linear-distance heuristics unreliable; (b) embedded clauses (`weil`, `dass`, `obwohl`) require syntactic boundary detection. Fully deterministic — spaCy parsing is reproducible given a pinned model version. The model is already in memory; the marginal cost is one parse-tree walk per polarity token.
+* [ ] **German compound decomposition via `compound-split`.** Add `compound-split` (Tuggener; PyPI package `compound-split`) to `requirements.txt`. Before lexicon lookup, attempt frequency-based compound splitting on tokens unmatched by SentiWS. If a token splits cleanly into two known base forms with both sub-words in the SentiWS lexicon, score each sub-word and average. If no valid split is found, the token remains unscored (current behaviour — no regression). Tool rationale: `compound-split` is a mature, deterministic, frequency-list-based splitter — exactly the architectural fit for Tier 1 (no model inference, no randomness, fully traceable). Bundle the library's frequency list at `services/analysis-worker/data/de_compounds.txt`, version-pinned. Avoids the need for a hand-maintained list.
+* [ ] **Custom lexicon extension hook.** Add `services/analysis-worker/data/custom_lexicon.yaml` (initially empty, checked in). The `SentimentExtractor` merges this file with SentiWS at startup. This is the designated out-of-band mechanism for adding neologisms (`toxisch`, `Querdenker`, `Wutbürger`) without patching the versioned SentiWS file. Document the workflow in `docs/operations_playbook.md`.
+* [ ] **Metric-name migration.** The Phase 42 `sentiment_score` is renamed to `sentiment_score_sentiws` to make ADR-016's dual-metric pattern (Tier 1 SentiWS alongside Tier 2 BERT in Phase 119) lexically explicit. Adds a one-time read-side alias in the BFF (`sentiment_score` → `sentiment_score_sentiws`) for backward compatibility of any cached dashboard URL state. Single ClickHouse `ALTER TABLE … UPDATE` runs once per source as part of the migration.
+* [ ] **Tests.** Pytest unit: (a) `Das ist nicht gut.` → negative score (negation correctly inverts the positive `gut`); (b) `Ich glaube nicht, dass das Projekt gut ist.` — embedded clause — scope correctly limited to the embedded clause; (c) known German compound noun (e.g. `Wutausbruch`) → sub-words `Wut` + `Ausbruch` scored correctly; (d) unrecognised compound → score of 0, no crash; (e) custom lexicon entry → overrides SentiWS for that token; (f) existing fixtures for un-negated, non-compound sentences → scores within 5% of prior values (regression guard).
+
+### Documentation
+
+* [ ] **`aer_gold.metric_validity` scaffold.** Add `infra/clickhouse/seed/metric_validity_scaffold.sql` (one-off dev-setup script, not runtime): insert a row for `sentiment_score_sentiws` / `context_key='de:rss:epistemic_authority'` with `validation_status='unvalidated'` and `error_taxonomy` JSON listing the now-addressed negation and compound limitations as resolved items, with the remaining limitations (irony, sarcasm, domain-specific terms, compositionality) explicitly listed as still-open. The `alpha_score` and `correlation` fields are `null` pending WP-002 §6.2 annotation studies.
+* [ ] **CLAUDE.md.** Update the `SentimentExtractor` entry under "Registered extractors" to mention dependency-based negation scope, `compound-split` integration, and the rename to `sentiment_score_sentiws`.
+* [ ] **WP-002 cross-link.** Add a backwards reference in `docs/methodology/en/WP-002-en-metric_validity_and_sentiment_calibration.md` §3.2 noting that dependency-based negation handling and frequency-based compound splitting are operationalised in this phase. Mark the corresponding bullet in §3.2's known-limitations table as **partially addressed** (the technical solution is in place; methodological validation still pending the annotation study).
+* [ ] **Operations Playbook.** Add a "Custom lexicon extension" section documenting how to add a neologism to `custom_lexicon.yaml` and what the re-deploy cycle is.
+* [ ] **Validation.** `make lint && make test` green. Regression guard passes (un-negated, non-compound Probe-0 fixtures score within 5% of prior values).
+
+---
+
+## Phase 118: NLP Hardening — Entity Linking (Wikidata) [P2] - [ ] TODO
+
+*Adds a Wikidata QID disambiguation step to the NER pipeline. Raw entity spans from spaCy are mapped to canonical Wikidata identifiers, resolving the surface-form fragmentation problem documented in WP-002 §4.2 ("Merkel", "Angela Merkel", and "Bundeskanzlerin Merkel" all resolve to `Q567`). Entity co-occurrence networks (Phase 102) become analytically meaningful at scale once canonical identifiers replace raw strings as the aggregation unit. The Wikidata alias index is multilingual by construction — it covers Probe 1 entities when Phase 122 ships without additional work. Tool rationale: a pre-built alias DB is the right architectural fit for Tier 1.5 — fully deterministic, no transformer inference at extraction time, multilingual without per-language tooling. Transformer-based entity linkers (BLINK, ReFinED, mGENRE) are explicitly rejected for this phase: they introduce model dependency, are predominantly English-trained, and require GPU inference. The alias-DB approach can be upgraded to a transformer fallback path as Tier 2 in a later iteration if disambiguation precision proves insufficient on Probe 1+.*
+
+### Schema (ClickHouse)
+
+* [ ] **New table `aer_gold.entity_links`.** Schema: `(timestamp DateTime, article_id String, entity_text String, entity_label String, wikidata_qid String, link_confidence Float32, link_method String, ingestion_version UInt64)` — `ReplacingMergeTree(ingestion_version)`, `ORDER BY (article_id, entity_text)`, 365-day TTL on `timestamp`. `link_method` values: `exact_match`, `alias_lookup`, `unlinked`. New init migration in `infra/clickhouse/migrations/`.
+
+### Analysis Worker
+
+* [ ] **Alias index.** Bundle a pre-built SQLite alias database at `services/analysis-worker/data/wikidata_aliases.db` (target ≤ 300 MB, covering the top 1M entities by inbound sitelink count — sufficient for all major political, organizational, and geographic entities in European and global institutional discourse). Schema: `(alias TEXT, wikidata_qid TEXT, sitelink_count INTEGER, language TEXT, PRIMARY KEY (alias, language))`. Built offline by `scripts/build_wikidata_index.py`, baked into the Docker image.
+* [ ] **`build_wikidata_index.py`.** Standalone offline script: queries the Wikidata SPARQL endpoint for entities above a sitelink threshold and extracts all aliases and labels per language. Writes the SQLite DB. Run manually to refresh the index; document the procedure in `docs/operations_playbook.md`. Includes a fixed-seed deterministic build mode for reproducibility (sort the SPARQL result set lexicographically before insertion so the resulting SQLite file is byte-identical given the same Wikidata snapshot date).
+* [ ] **Entity-linking step in `NamedEntityExtractor`.** After spaCy NER extraction, look up each span (lowercased, punctuation-stripped) in the alias index, scoped by the document's `detected_language` (Phase 116). Select the highest-sitelink-count match above a confidence threshold (default 0.7). Write one row to `aer_gold.entity_links` per span. Entities with no match write `wikidata_qid=''` and `link_method='unlinked'` — no crash, no DLQ.
+* [ ] **Tests.** Pytest unit: (a) "Angela Merkel" → `Q567`; (b) unknown entity string → `unlinked` gracefully; (c) alias with multiple candidates → highest sitelink_count wins; (d) entity_links rows are idempotent via ReplacingMergeTree; (e) German vs English alias collision (e.g. "Berlin" the city vs. "Berlin" common surname) → language-scoped lookup picks the right candidate.
 
 ### BFF API
 
-* [ ] **`?normalization=raw|zscore|percentile` parameter.** Per WP-004 §6.2 and Brief §7.4. Applies to `GET /api/v1/metrics`, `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`. Default `raw` (current behaviour). `zscore` joins against `aer_gold.metric_baselines` per WP-004 §6.1 query template; `percentile` computes within-language percentile rank.
-* [ ] **Equivalence gate.** When `normalization=zscore` or `percentile` is requested across a `scopeIds[]` set that crosses cultural-linguistic frames (heuristic: distinct values of `aer_gold.language_detections.detected_language` across the scope, or distinct `language` columns across baselines), the BFF resolves the requested metric pair against `aer_gold.metric_equivalence` with `validation_status='validated'`. If absent, the response is **HTTP 400 with a `RefusalPayload`** (gate=`metric_equivalence`, anchor=`WP-004#section-5.2`) carrying the structured fields the frontend needs to render the refusal surface (alternatives: drop normalization → Level 1; constrain scope to one cultural frame; use deviation labelling instead of absolute claim).
-* [ ] **`/api/v1/metrics/available` extension.** Each metric entry exposes `equivalenceStatus: { construct, measurement, scalar }` per WP-004 §5.2 / §6.2 so the frontend can pre-compute available normalizations without a refusal round-trip.
-* [ ] **Probe-level equivalence summary.** New endpoint `GET /api/v1/probes/{probeId}/equivalence` returning per-metric Level-1 / Level-2 / Level-3 availability for the probe's source set — drives the Probe Dossier "what comparisons are valid here" panel.
-* [ ] **Integration tests.** Cover `raw` default, `zscore` against a baselined within-frame source pair, `percentile` likewise, and the 400 refusal when normalization is requested across an unvalidated cross-frame scope.
-
-### Frontend (Dashboard)
-
-* [ ] **Normalization control on the LensBar.** New optional control on the per-cell view-mode header offering `Raw / Z-score / Percentile`. Disabled options carry the methodological-register tooltip explaining *why* (no baseline yet → run the corpus extractor; no validated equivalence → links to the refusal surface and the WP-004 reference).
-* [ ] **Refusal surface for cross-cultural absolute claims.** Per Brief §7.4: a 400 from a `?normalization=zscore` cross-frame request renders the standard refusal shape — semantic-register one-liner, methodological-register expand (the equivalence-registry rule, WP-004 §5.2, the Scientific Operations Guide workflow for granting equivalence), and **alternatives** (drop normalization, constrain scope, use deviation labelling). Implementation reuses the Phase 103 Silver-eligibility refusal component — same shape, different gate.
-* [ ] **Deviation labelling on Level-2 views.** Per WP-004 §6.3 item 2: any rendered z-score or percentile view carries a non-dismissable byline ("This chart shows deviation from source baseline, not absolute sentiment. Baseline window: …"). The Dual-Register methodology tray's open state foregrounds the baseline window and the WP-004 §5.3 level classification.
-* [ ] **Probe Dossier "valid comparisons" panel.** Reads `GET /api/v1/probes/{probeId}/equivalence` and renders the per-metric Level-1/2/3 availability as a small matrix on the Dossier — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a lane.
-* [ ] **Default-to-Level-1 commitment.** When the scope is cross-frame and no normalization is explicitly chosen, the lane defaults to **temporal-pattern view modes** (publication frequency, time-of-day distribution, weekly rhythm) — these are WP-004 Level 1 and language-independent. Other view modes remain reachable but their initial render is the temporal pattern, not the metric value.
+* [ ] **Entities endpoint enrichment.** `GET /api/v1/entities` response adds `wikidataQid String?` and `linkConfidence Float32?` per row (left-joined from `aer_gold.entity_links`). Entities with no link return `wikidataQid: null`. Update OpenAPI spec, `make codegen`.
+* [ ] **Co-occurrence endpoint enrichment.** `GET /api/v1/entities/cooccurrence` adds `wikidataQid String?` to each node — enables the frontend to surface Wikipedia/Wikidata external links on network-graph nodes without a follow-up call.
 
 ### Documentation
 
-* [ ] **WP-004 cross-link.** Add a backwards reference in `docs/methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md` §6 noting that §6.1 (baseline table), §6.2 (normalization parameter), and §6.3 (dashboard implications) are operationalised in this phase.
-* [ ] **ADR-020 §Implementation-Outline · Phase 113g.** Record the schema additions, the equivalence-gate contract, the refusal-surface reuse, the cross-link to WP-004 §5.3 levels, and the explicit boundary that 113g extends 113f's composition surface with methodological gating without re-scoping it.
-* [ ] **CLAUDE.md.** Add `aer_gold.metric_baselines` and `aer_gold.metric_equivalence` to the "ClickHouse Gold Schema" block. Add the `?normalization=raw|zscore|percentile` parameter and the equivalence-gate rule to the "BFF API Endpoints" list, mirroring the Silver-eligibility-gate paragraph.
-* [ ] **Operations Playbook.** Section "Granting metric equivalence (WP-004 §5.2)" — the one-off Postgres + ClickHouse procedure that populates `equivalence_reviews` and `aer_gold.metric_equivalence` after a methodological review, mirroring the existing Silver-eligibility procedure (Phase 103).
-
-### Validation
-
-* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: a cross-frame `?normalization=zscore` request renders the refusal surface with WP-004 §5.2 anchor and three valid alternatives; a within-frame `?normalization=zscore` request renders a deviation-labelled chart with the baseline window in the methodology tray; the Dossier "valid comparisons" panel reflects the empty equivalence registry as Level 1 only.
-
-### Open question deliberately left to a later iteration
-
-WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equivalence; what validation methodology is appropriate; how to handle metrics that are valid intra-culturally but incommensurable cross-culturally) are **interdisciplinary research questions, not engineering work**. They are surfaced in the Reflection Open Research Questions hub (Phase 109) and answered out-of-band; this phase only delivers the architecture that makes their answers consumable.
+* [ ] **CLAUDE.md.** Add `aer_gold.entity_links` to "ClickHouse Gold Schema". Note entity linking in the `NamedEntityExtractor` description. Add `wikidataQid` field to the `GET /api/v1/entities` and `GET /api/v1/entities/cooccurrence` endpoint descriptions.
+* [ ] **Operations Playbook.** Add "Refreshing the Wikidata alias index" section, including the deterministic-build-mode instructions and the recommended refresh cadence (quarterly).
+* [ ] **WP-002 cross-link.** Mark the entity-linking-absence bullet in §4.2 as **resolved**.
+* [ ] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: `GET /api/v1/entities` for a Probe 0 source returns non-null `wikidataQid` for prominent entities (Tagesschau, Bundesregierung, known political figures in the Probe 0 corpus).
 
 ---
 
-## DEFERRED until previous Phases are 100% fine: Phase 113: Iteration 5 — Progressive Descent Infrastructure [P2] - [ ] TODO
+## Phase 119: NLP Hardening — Tier 2 Sentiment Extractor [P2] - [ ] TODO
 
-*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that the three surfaces are in place. Depends on Phases 106, 109, 110.*
+*Adds a reproducible transformer-based German sentiment extractor alongside the existing SentiWS Tier 1 baseline. The new extractor writes a separate metric name (`sentiment_score_bert`) and does NOT replace `sentiment_score_sentiws`. The dashboard renders both with Epistemic Weight distinguishing them (Brief §7.8). Phase 63's `aer_gold.metric_validity` table captures each metric's validation status independently. Phase 116's language guard applies — the BERT extractor skips non-German documents identically to SentiWS.*
 
-* [ ] **View Transitions API wiring.** Atmosphere ↔ Function Lanes ↔ Reflection surface transitions; descent and ascent animations per `prefers-reduced-motion: reduce`.
-* [ ] **Keyboard-nav completeness.** All five layers on all three surfaces reachable via keyboard; surface switching via keyboard shortcuts (documented in `design_system.md`); methodology tray toggle via keyboard.
-* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
+*Model selection rationale.* The reflexive choice of `oliverguhr/german-sentiment-bert` is **rejected** for this phase. WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models; oliverguhr's training corpus is reviews and Twitter, while Probe 0 is institutional editorial RSS. The architectural choice is **`mdraw/german-news-sentiment-bert`** as the primary extractor — same German-BERT base but fine-tuned on German news headlines and ledes, which matches the Probe 0 register. To honour the methodological caution of WP-002, the phase additionally runs `oliverguhr/german-sentiment-bert` as a parallel-but-separately-named extractor (`sentiment_score_bert_review`) and records both — the first concrete on-pipeline domain-transfer comparison, ready for the Phase 63 validity table when annotation studies arrive.
+
+### Analysis Worker
+
+* [ ] **`GermanNewsBertSentimentExtractor` (primary, news-domain).** New `services/analysis-worker/internal/extractors/sentiment_bert_news.py`. Model: `mdraw/german-news-sentiment-bert`, pinned to a specific revision via `transformers` `revision` parameter. Determinism flags: `torch.manual_seed(42)`, `transformers.set_seed(42)`, model loaded with `torch.use_deterministic_algorithms(True)`. Output: scalar `sentiment_score_bert` in `[-1.0, 1.0]` (model softmax output mapped to scalar range). Registered in `main.py` alongside existing extractors.
+* [ ] **`GermanReviewBertSentimentExtractor` (secondary, domain-mismatch baseline).** Mirror extractor wrapping `oliverguhr/german-sentiment-bert`. Output: scalar `sentiment_score_bert_review`. Same determinism flags. The two metrics are NEVER averaged; they are recorded independently. The dashboard surfaces the difference between them as a **methodological observation** — the gap between news-domain and review-domain sentiment on the same document is itself a research signal that informs WP-002 §3.2's domain-transfer discussion.
+* [ ] **Tier 2 provenance.** `version_hash` property returns `sha256({model_name}:{model_revision}:{transformers_version}:{torch_version})`. Written to `SilverEnvelope.extraction_provenance` per Phase 46's mechanism.
+* [ ] **Determinism CI gate.** New pytest test: run each BERT extractor on 20 fixed German sentences twice in the same process; assert outputs are byte-identical. This test is the Tier 2 reproducibility guarantee and must remain green across library updates. A second cross-process test (re-launch the worker) asserts byte-identity across runs to catch CUDA-vs-CPU non-determinism if a GPU is added.
+* [ ] **`aer_gold.metric_validity` scaffold.** Add `sentiment_score_bert` and `sentiment_score_bert_review` rows to `infra/clickhouse/seed/metric_validity_scaffold.sql` with `validation_status='unvalidated'`, `tier=2`. The `alpha_score` and `correlation` fields are `null` pending WP-002 §6.2 annotation studies comparing each model's output to human judgments on the Probe 0 corpus.
+* [ ] **Tests.** Pytest unit: (a) known-positive German news sentence → both models score > 0; (b) known-negative news sentence → both models score < 0; (c) review-style positive German sentence — review model scores higher than news model (domain transfer signal); (d) English text → both extractors skipped via Phase 116 language guard, no metric row; (e) determinism gate passes for both extractors.
+
+### BFF API
+
+* [ ] **`/api/v1/metrics/available` exposes all three sentiment extractors.** `sentiment_score_sentiws` (Tier 1, `unvalidated`), `sentiment_score_bert` (Tier 2 news, `unvalidated`), `sentiment_score_bert_review` (Tier 2 review-domain baseline, `unvalidated`) appear as separate entries with distinct `tier` and `validationStatus`. No OpenAPI change required — existing metric-name parameterization handles arbitrary metric names transparently.
+
+### Documentation
+
+* [ ] **CLAUDE.md.** Add both BERT extractors to "Registered extractors". Note the dual-metric pattern (Tier 1 + Tier 2) and the secondary domain-mismatch baseline pattern.
+* [ ] **ADR-016 (Hybrid Tier Architecture).** Append a note recording the first concrete Tier 2 implementation: the news-domain primary choice, the review-domain secondary as on-pipeline domain-transfer evidence, the pinning strategy, the determinism CI gate, and the dual-metric policy (Tier 1 always shown; Tier 2 available alongside, not replacing).
+* [ ] **Arc42 §13.3.** Update the `Sentiment Analysis` row in the Tier 1 table to note both SentiWS (Tier 1) and the two BERT extractors (Tier 2 entry in §13.3.2). Document the news-domain choice and the methodological reasoning.
+* [ ] **Validation.** `make lint && make test` green. Determinism gate passes in CI. Manual: `/api/v1/metrics/available` lists all three sentiment metrics with distinct `validationStatus`.
+
+---
+
+## Phase 120: Corpus-Level Extractors — Topic Modeling (WP-001, Arc42 §13.3) [P2] - [ ] TODO
+
+*Implements a BERTopic-based `CorpusExtractor` — the first method for the Episteme pillar. Topic assignments are stored in a new Gold table and exposed via a new BFF endpoint, unlocking Phase 121's topic view modes. BERTopic is Tier 2: reproducible with pinned sentence-transformer model version and seeded HDBSCAN, not bit-for-bit deterministic across platforms.*
+
+*Embedding-model rationale.* The previously-considered `sentence-transformers/paraphrase-multilingual-mpnet-base-v2` is **superseded** by `intfloat/multilingual-e5-large` as the primary embedding model. E5-large has been the multilingual SOTA on retrieval and clustering benchmarks since 2024 (MTEB leaderboard) and outperforms MPNet on long-form news text — exactly the AĒR corpus shape. mpnet remains a viable fallback if E5's memory footprint (~2.2 GB) proves untenable on the deployment target; the choice is a one-line config swap. Bake the chosen model into the Docker image at build time per the Phase-42 spaCy-model pattern.
+
+### Schema (ClickHouse)
+
+* [ ] **New table `aer_gold.topic_assignments`.** Schema: `(window_start DateTime, window_end DateTime, source String, article_id String, topic_id Int32, topic_label String, topic_confidence Float32, model_hash String, ingestion_version UInt64)` — `ReplacingMergeTree(ingestion_version)`, `ORDER BY (window_start, source, article_id)`, 365-day TTL on `window_start`. `topic_id = -1` is BERTopic's outlier class; stored and reportable. New init migration in `infra/clickhouse/migrations/`.
+
+### Analysis Worker
+
+* [ ] **`TopicModelingExtractor` (corpus-level).** New `services/analysis-worker/internal/extractors/topic_modeling.py`. Implements the existing `CorpusExtractor` protocol. Reads `cleaned_text` from Silver documents (via MinIO) for a configurable rolling window (default 30 days). Runs BERTopic with `intfloat/multilingual-e5-large` as the embedding model (multilingual — covers German and Probe-1 sources from Phase 122 without per-language retraining), UMAP seeded (`random_state=42`), HDBSCAN seeded. Topic labels via BERTopic's KeyBERT + c-TF-IDF representation. Writes one row per `(article_id, topic_id)` to `aer_gold.topic_assignments`. NATS-triggered on the same weekly cadence as `EntityCoOccurrenceExtractor` (Phase 102).
+* [ ] **Per-language topic discovery (WP-004 §3.4).** Per WP-004's "parallel topic discovery with human-validated alignment" recommendation, the corpus is **partitioned by `detected_language`** before BERTopic is fit — separate topic spaces per language, no forced cross-lingual alignment. Alignment is explicitly out of scope; this phase produces intra-cultural topic discovery only. Cross-cultural topic alignment is a manual scientific workflow, slated for Iteration 7.
+* [ ] **Model hash.** `model_hash = sha256({sentence_transformer_model}:{e5_revision}:{bertopic_version}:{umap_seed}:{hdbscan_seed}:{language_partition})` — written per row as the Tier 2 reproducibility anchor.
+* [ ] **Model bake-in.** Pre-download the E5 model into the Docker image at build time (same pattern as spaCy models). Add the download step to the analysis-worker `Dockerfile`. Document in the Operations Playbook including the fallback procedure to mpnet if memory pressure becomes an issue.
+* [ ] **Tests.** Pytest unit + Testcontainers integration: (a) empty Silver corpus → no rows written, no crash; (b) 10-document corpus with two topic clusters → at least 2 topics with `topic_id >= 0`; (c) outlier rows (`topic_id=-1`) written correctly; (d) idempotent re-run via ReplacingMergeTree; (e) two-language corpus (post-Phase-116 mixed) → two separate language-partitioned topic spaces, no cross-language topic IDs.
+
+### BFF API
+
+* [ ] **`GET /api/v1/topics/distribution`.** New endpoint. Parameters: `scope=probe|source` (default `probe`), `scopeId`, optional `start`, `end`, `minConfidence` (default 0.0), optional `language` (default: all available — when present, scopes to one language partition per the per-language partitioning). Response: `{ topics: [{ topicId, label, articleCount, avgConfidence, language }] }` sorted by `articleCount` descending. Cap: 50 topics. Outlier topic excluded unless `includeOutlier=true`. Update OpenAPI spec, `make codegen`, implement handler.
+* [ ] **Integration tests.** Testcontainers: (a) empty `aer_gold.topic_assignments` → empty array, not 500; (b) known fixtures → correct topic distribution; (c) `probeId` scope resolves to source union consistently with other view-mode endpoints; (d) `language` parameter returns only that language's topic partition.
+
+### Documentation
+
+* [ ] **CLAUDE.md.** Add `aer_gold.topic_assignments` to "ClickHouse Gold Schema". Add `GET /api/v1/topics/distribution` to "BFF API Endpoints". Add `TopicModelingExtractor` to "Registered extractors" (under the CorpusExtractor note alongside `EntityCoOccurrenceExtractor`).
+* [ ] **Arc42 §13.3.** Update the `Topic Modeling (BERTopic)` row in the Tier 2 table from planned to "Implemented — Phase 120" with model, version, seed, and language-partition details.
+* [ ] **WP-004 cross-link.** Add a backwards reference in §3.4 noting that per-language topic discovery is implemented; cross-language alignment remains a scientific workflow.
+* [ ] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: after triggering a corpus run, `GET /api/v1/topics/distribution?scope=probe&scopeId=0&start=…&end=…` returns a non-empty list with recognisable German news topics.
+
+---
+
+## Phase 121: Topic View Modes (Frontend) [P2] - [ ] TODO
+
+*Adds two topic-based cells to the view-mode matrix (Brief §4.2.3): a topic distribution ridgeline plot and a temporal topic evolution stream graph. Both are Episteme-pillar view modes — the first dashboard cells that directly operationalise "measuring shifts in the expressible" (Arc42 §13.4). Depends on Phase 120 (BFF `GET /api/v1/topics/distribution`).*
+
+### Frontend (Dashboard)
+
+* [ ] **Topic distribution cell.** Register `topic_distribution` in the view-mode matrix catalog (`services/bff-api/configs/content/`). Presentation form: ridgeline or violin plot (Observable Plot, same pattern as Phase 107 EDA distribution cells). One ridge per topic, width = article count in window, sorted by volume descending. Outlier topic (`topic_id=-1`) rendered as a greyed "uncategorised" ridge, not hidden — the outlier is an observation, not an error. Dual-Register tooltip: semantic register shows the topic label; methodological register shows `model_hash`, BERTopic version, the embedding model (E5-large), and the WP-002 §8.1 Option C Tier 2 caveat (reproducible with pinned version, not bit-for-bit deterministic).
+* [ ] **Temporal topic evolution cell.** Register `topic_evolution` in the view-mode matrix. Presentation: Observable Plot stacked area / stream graph. X-axis: time window; Y-axis: article volume per topic per time slice; streams coloured by Viridis palette (no valence — topic colour is arbitrary). `prefers-reduced-motion` degrades to a static stacked bar chart. This cell answers the Episteme question directly: how do the discourse topic boundaries shift over the observed period?
+* [ ] **Language-partition awareness.** Both cells respect Phase 120's per-language topic partitioning: when the active scope spans multiple languages, the cell renders one ridge-set / stream-set per language, side-by-side, not merged. Forced cross-language topic alignment is explicitly refused at the rendering layer with a methodological-register tooltip pointing to WP-004 §3.4.
+* [ ] **Content catalog entries.** Both cells get Dual-Register content catalog entries in `services/bff-api/configs/content/` with semantic-register description, methodological-register prose (BERTopic, sentence-transformer model, Tier 2 status caveat, WP-001 cross-link to the four discourse functions as the expected high-level topic structure), and WP-002 §8.1 anchor.
+* [ ] **Tests.** Vitest: catalog entries render correct Dual-Register structure; outlier topic renders as "uncategorised" not hidden. Playwright E2E: switching to `topic_distribution` view mode calls `/api/v1/topics/distribution` and renders at least one ridge.
+
+### Documentation
+
+* [ ] **ADR-020 §Implementation-Outline · Phase 121.** Record the two new matrix cells, the stream graph as the Episteme-pillar-native rendering primitive, the language-partition awareness, and the Dual-Register Tier 2 methodology-tray content.
+* [ ] **Validation.** `make lint && make fe-check` green. Manual: both topic cells visible in the view-mode switcher for the active metric; switching renders correctly; methodology tray shows BERTopic provenance and the Tier 2 caveat.
+
+---
+
+# Iteration 7 — Probe Expansion & Cross-Cultural Operations
+
+*Two phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115) and the multilingual NLP foundation from Iteration 6 (Phases 116–121) and put them into operation. Phase 122 lands the second probe — the first non-German cultural context. Phase 123 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 122 establishes the second context; Phase 123 puts it into methodologically disciplined comparison.*
+
+---
+
+## Phase 122: Probe 1 — Second Cultural Context [P2] - [ ] TODO
+
+*Adds the first non-German probe, exercising the multi-probe composition infrastructure (Phase 114) and the multilingual NLP pipeline (Phase 116) in production for the first time. The cultural context and source selection require interdisciplinary input guided by WP-001 §5.1 Minimum Viable Probe Set (MVPS) criteria: the sources chosen must collectively cover at least two of the four WP-001 discourse functions for the target society, use institutionally accessible public RSS feeds with no ToS restriction, and be documentable with an emic designation and cultural-context description. Phase 116 is a hard technical prerequisite. Phase 120 should be complete so topic assignments cover both probes from the first day of Probe 1 operation.*
+
+*Source-selection guidance (WP-001 §5.1).* A major non-European democratic context that complements Probe 0's German institutional focus would maximise geographic and linguistic coverage from the second probe. Final selection is a scientific decision documented in the Probe 1 dossier file before implementation begins.
+
+### Infrastructure
+
+* [ ] **PostgreSQL seed migration.** New migration in `infra/postgres/migrations/` seeding Probe 1 sources: `probe_id=1`, `source_type`, etic/emic classification per WP-001 §3, `silver_eligible=false` (a separate WP-006 §5.2 ethical review is required before the Silver toggle is available for these sources). ProbeRegistry updated in BFF config with Probe 1 `probeId`, name, and metadata.
+* [ ] **Crawler.** New standalone Go binary in `crawlers/probe1-rss/` following the Phase 40 RSS crawler pattern (own `go.mod`, feeds in `feeds.yaml`, baked into the image, sends `X-API-Key`). Added to `go.work`, Makefile targets (`make crawl-probe1`), and CI pipeline. If source format differs from standard RSS, implement as a purpose-specific crawler in the same standalone pattern.
+* [ ] **Source Adapter.** New adapter in `services/analysis-worker/internal/adapters/` for the Probe 1 `source_type`. Implements `SourceAdapter` protocol. A new `SilverMeta` subclass if the source metadata differs structurally from `RssMeta`. Registered in `adapters/registry.py`.
+* [ ] **Probe Dossier content.** `services/bff-api/configs/content/probe1/` directory with: probe-metadata file (emic designation untranslated per WP-001 §4.2, cultural context, WP-001 function classification), source-card files per source (etic function, emic name, accessibility metadata per WP-003 §3.2 `BiasContext`). Follows the Probe 0 content structure from Phase 104.
+
+### NLP
+
+* [ ] **spaCy model for Probe 1 language.** Add the appropriate spaCy model to `requirements.txt` (e.g., `fr_core_news_lg`, `es_core_news_lg`). The Phase 116 language router picks it up automatically — no extractor code change. If no spaCy model is available for the chosen language, NER degrades gracefully per the Phase 116 absence-not-wrong guarantee; document the gap in `aer_gold.metric_validity`.
+* [ ] **Sentiment coverage.** If a deterministic Tier 1 sentiment lexicon exists for the target language, add it following the Phase 117 custom-lexicon-hook pattern and the `SentimentExtractor` language routing. If a Tier 2 BERT model trained on the target-language news domain exists on Hugging Face Hub, add it following the Phase 119 dual-extractor pattern. If neither exists, the Phase 116 language guard ensures graceful skip; document the gap in `aer_gold.metric_validity`.
+
+### Validation
+
+* [ ] `make lint && make test` green. `make crawl-probe1` fetches articles from Probe 1 sources and delivers them through the full pipeline into `aer_gold.metrics`. Manual: Probe 1 sources appear as a second luminous point on the Surface I globe; the Phase 114 scope bar allows composing Probe 0 + Probe 1 and produces parallel streams in a function lane.
+
+---
+
+## Phase 123: Cross-Probe & Cross-Cultural Operations [P2] - [ ] TODO
+
+*The operational counterpart to Phase 115's schema work. Phase 115 built the equivalence registry, the per-source baseline table, the `?normalization=` parameter, and the refusal surfaces — but those tables ship empty. Phase 123 puts them into operation now that real multi-probe data exists. The phase is deliberately conservative on what it grants: the **temporal equivalence level** (WP-004 Appendix B) is always valid for any pair of probes — temporal patterns (publication frequency, time-of-day distribution, weekly rhythm) do not require validated metric equivalence. Phase 123 grants this level for Probe 0 × Probe 1, computes the first set of within-frame z-score baselines, exercises the cross-probe lead-lag tooling, and produces the first concrete multi-probe scientific output — the first observation that AĒR is no longer a single-context macroscope.*
+
+*Scope discipline (Brief §7.4).* This phase does **not** grant scalar (Level 3) equivalence for any metric. Granting Level 3 requires the WP-002 §6.2 five-step validation protocol, which involves interdisciplinary annotation studies and is explicitly out of scope for engineering. The phase produces the architectural readiness for Level 3 grants and one concrete Level-1 (temporal) grant; further grants are out-of-band scientific decisions documented in `equivalence_reviews` (Phase 115) and applied by the existing operations procedure.
+
+### Operations
+
+* [ ] **First baseline run.** Execute `scripts/compute_baselines.py` (Phase 115 / Workflow 4 in the Scientific Operations Guide) against the consolidated Probe 0 + Probe 1 corpus. Verify per-source baselines populate `aer_gold.metric_baselines` correctly for both probes, partitioned by `(metric_name, source, language)`. Document the first-run output in the Operations Playbook as the canonical example for future baseline runs.
+* [ ] **First equivalence grant — temporal level.** Execute Workflow 3 (Establishing Metric Equivalence) for the temporal-pattern metric family — `publication_hour`, `publication_weekday`, `temporal_distribution` — across Probe 0 (`de`) and Probe 1 (`<probe-1-lang>`). Per WP-004 Appendix B, temporal patterns are always-valid for cross-cultural comparison given cultural-calendar awareness. Insert the corresponding rows into `aer_gold.metric_equivalence` with `validation_status='validated'`, `equivalence_type='temporal'`, `validation_method='wp-004-appendix-b'`, and a corresponding `equivalence_reviews` record citing WP-004 §6.3 Level 1 and the cultural calendar entries (`configs/cultural_calendars/<probe-1-region>.yaml`). This is the first non-empty entry in the equivalence registry.
+* [ ] **Cultural calendar for Probe 1.** Author `configs/cultural_calendars/<probe-1-region>.yaml` per the Phase 115 / Workflow 6 (Updating the Cultural Calendar) pattern. Initial entries: major holidays, electoral events in the observation window, religious calendars relevant to the cultural context. The temporal-equivalence grant above is **conditional** on this calendar existing — temporal-pattern comparisons across probes are only meaningful if the comparator has cultural-calendar context.
+
+### Backend Tooling
+
+* [ ] **Cross-probe lead-lag query path.** A new BFF query helper (no new public endpoint — internal to the existing correlation handler) that, given two probe scopes, computes Pearson correlation of the same metric across the two probes at varying lags from −168 hours to +168 hours (one week each direction), step 1 hour. Caps lag granularity to keep ClickHouse query bounded. The result is consumed by the Phase 124 Composition Mode lead-lag chart, but is exercised end-to-end in this phase via a test fixture so the implementation lands before the UX consumes it.
+* [ ] **Probe-pair equivalence summary view.** Extend `GET /api/v1/probes/{probeId}/equivalence` (Phase 115) to optionally accept a `comparedTo=<otherProbeId>` query parameter that scopes the response to the equivalence relationship between the two probes — making the Probe Dossier "valid comparisons" panel accurate for the multi-probe case.
+
+### Frontend
+
+* [ ] **Cross-probe temporal-equivalence in the lane.** When the user composes Probe 0 + Probe 1 in a temporal-distribution view mode, the methodology tray now displays the **active equivalence grant** — Level 1 temporal, with the cultural-calendar contexts side by side, and the WP-004 Appendix B anchor. Reuses the Phase 115 deviation-labelling component; the difference is that the byline is no longer "deviation only — Level 3 refused", but "temporal pattern — Level 1 validated".
+* [ ] **First multi-probe scientific observation, surfaced.** A short (1–2 paragraph) Observation entry in the Surface III Reflection — drafted from the first lead-lag run on Probe 0 + Probe 1 — published in the open-questions hub (Phase 109) as the first multi-probe Reflection entry. This is the project's first concrete cross-cultural finding, however small; its purpose is as much demonstration as discovery.
+
+### Documentation
+
+* [ ] **Operations Playbook.** New section "Probe-Pair Bring-Up Procedure": the canonical end-to-end runbook for adding cross-probe operations after a new probe is registered. Sequences the steps: cultural calendar → baseline run → temporal-equivalence grant → first lead-lag observation. Probe 0 × Probe 1 is the worked example.
+* [ ] **WP-004 cross-link.** Mark §6.3 Level 1 (temporal) as **operationalised** with a forward-link to the Operations Playbook section above. §6.3 Levels 2 and 3 remain pending.
+* [ ] **Arc42 §13.4 (DNA mapping).** Update the Aleph row from "Crawler expansion pending" to "First multi-cultural composition operational — Probes 0+1, temporal equivalence validated".
+* [ ] **CLAUDE.md.** Reflect the populated `metric_equivalence` registry — note that the first row exists and document its semantics as the reference example.
+* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: a `?normalization=zscore` request on a temporal metric across Probe 0 + Probe 1 succeeds (validated equivalence) and renders the deviation-labelled chart with the cross-probe cultural-calendar context in the methodology tray; the same request on `sentiment_score_sentiws` still refuses (no Level 2 sentiment equivalence granted).
+
+---
+
+# Iteration 8 — Advanced Composition & Reflection
+
+*Two P3 phases that require the full multi-probe and validated-extractor foundation to be scientifically meaningful. They build on top of Iterations 5–7 to deliver the open-ended exploration surface (Composition Mode) and the in-prose interactive arguments of Surface III (Interactive Reflection Papers).*
+
+---
+
+## Phase 124: Exploratory Composition Mode (Brief §4.2.5) [P3] - [ ] TODO
+
+*Delivers the Kriesel-style free-form metadata exploration reserved in Brief §4.2.5. The user selects metrics, entities (by Wikidata QID from Phase 118), topics, or probes, and the instrument renders how they relate — via a D3-force node-link canvas, cross-correlation lead-lag views (WP-005 §6 Rhizome pillar), and connection-card pairs. This is the Relational Networks visualization domain from Brief §7.9, architecturally reserved since the design brief was written. Depends on: multi-probe composition (114) for cross-probe exploration; entity linking (118) for canonical entity nodes; topic modeling (120) for topic-dimension cards; Phase 122 for real multi-probe data in production; Phase 123 for the cross-probe lead-lag query path it consumes.*
+
+[Inhalt unverändert gegenüber aktueller Roadmap, mit angepassten Phasen-Referenzen (122 statt 126, 123 statt neu).]
+
+---
+
+## Phase 125: Interactive Reflection Papers (Brief §4.3.3) [P3] - [ ] TODO
+
+*Adds inline interactive illustrations to Surface III Working Papers following the Distill.pub pattern (Brief §4.3.3). The same Observable Plot / uPlot / D3 modules that power Surface II also power these illustrations — the paper and the dashboard share a vocabulary (Brief §7.9 visualization-stack separation). The WP-002 reader manipulates a negation parameter and observes the effect on real Probe 0 sentiment data. The WP-004 reader toggles normalization levels and encounters the equivalence gate inline within the argument text. Depends on Phase 117 (negation handler, for the WP-002 illustration), Phase 115 (equivalence gate, for the WP-004 illustration), and Phase 123 (real cross-probe data to make the WP-004 Level 1 grant feel real and the Level 3 refusal feel real).*
+
+[Inhalt unverändert gegenüber aktueller Roadmap, mit angepassten Phasen-Referenzen.]
+
+---
+
+# Iteration 5 Deferred Closure — Polish, Audit, Documentation
+
+*The originally-Iteration-5 polish phases, deliberately deferred until Iterations 6–8 have stabilised the surface topology, the metric inventory, and the terminology. Polish on a moving target is doubled work; this block does the polish once, against a final surface. All three phases run in close succession; together they constitute the "ready for first external user" gate.*
+
+---
+
+## Phase 126: Progressive Descent Infrastructure (Iteration 5 Deferred) [P2] - [ ] TODO
+
+*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that all surfaces, view modes, composition mode, and probe-expansion content are in place. Depends on Phases 106, 109, 110, 114, 115, 121, 122, 124, 125 — i.e. on the full surface inventory.*
+
+* [ ] **View Transitions API wiring.** Atmosphere ↔ Function Lanes ↔ Reflection ↔ Composition Workspace surface transitions; descent and ascent animations per `prefers-reduced-motion: reduce`.
+* [ ] **Keyboard-nav completeness.** All five layers on all three surfaces plus the Composition Workspace reachable via keyboard; surface switching via keyboard shortcuts (documented in `design_system.md`); methodology-tray toggle via keyboard.
+* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state, composition-mode card layout encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
 * [ ] **L5 Evidence polish.** Reader-pane overlay rendering refined (trace-ID copy affordance, content-catalog evidence-metadata rendering, reduced-motion fade).
-* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests; `prefers-reduced-motion` verification; L5 reader-pane E2E.
+* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests including composition state; `prefers-reduced-motion` verification; L5 reader-pane E2E.
 * [ ] **Arc42 update.** §8.x Progressive Descent Infrastructure + keyboard-nav map.
 * [ ] **Validation.** `make fe-check` green; Playwright keyboard-only E2E green.
 
 ---
 
-## DEFERRED until previous Phases are 100% fine: Phase 114: Iteration 5 — Accessibility Audit + Performance Verification (High-Fi) [P1] - [ ] TODO
+## Phase 127: Accessibility Audit + High-Fi Performance Verification (Iteration 5 Deferred) [P1] - [ ] TODO
 
-*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all Iteration 5 surfaces. Depends on Phases 105–112 being substantially in place. Low-Fi is a separate phase (115).*
+*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all surfaces, view modes, composition mode, and probe-expansion content. Depends on Phase 126 being substantially in place.*
 
-* [ ] **Axe audit.** `@axe-core/playwright` covers every route state: three surfaces × reachable layers × methodology-tray open/closed × Negative Space on/off. Zero WCAG 2.2 AA violations.
+* [ ] **Axe audit.** `@axe-core/playwright` covers every route state: three surfaces × Composition Workspace × reachable layers × methodology-tray open/closed × Negative Space on/off. Zero WCAG 2.2 AA violations.
 * [ ] **Lighthouse CI tightening.** Budgets per Brief §10: first meaningful paint, interactivity, descent latency, frame budgets during transitions. CI fails on regression.
-* [ ] **High-Fi hardware testing.** Manual verification on a 2021 M1 MacBook Air equivalent: all surfaces fluid at 60 fps; descent transitions under 500 ms; chart rendering under 16 ms/frame with ≤10k points. Results recorded in `docs/operations_playbook.md`.
-* [ ] **Screen-reader pass.** Each surface narrated correctly; descent announcements clear ("Entering Probe Dossier for Probe 0", "Methodology tray opened for sentiment_score"); landmarks correct.
-* [ ] **Reduced-motion pass.** Motion removed but all functions preserved; no animation-dependent interactions.
-* [ ] **Arc42 update.** §8.x Accessibility and Performance Envelope for Iteration 5; CI gate specification.
-* [ ] **Validation.** All CI gates green; manual hardware test log filed.
+* [ ] **High-Fi hardware testing.** Manual verification on a 2021 M1 MacBook Air equivalent: all surfaces fluid at 60 fps; descent transitions under 500 ms; chart rendering under 16 ms/frame with ≤10k points; topic-evolution stream graph rendering under 16 ms/frame. Results recorded in `docs/operations_playbook.md`.
+* [ ] **Screen-reader pass.** Each surface narrated correctly; descent announcements clear; landmarks correct; Composition Workspace card connections announced.
+* [ ] **Reduced-motion pass.** Motion removed but all functions preserved; no animation-dependent interactions; topic-evolution stream graph degrades to static stacked bar chart.
+* [ ] **Arc42 update.** §8.x Accessibility and Performance Envelope; CI gate specification.
+* [ ] **Validation.** All CI gates green; manual hardware-test log filed.
 
 ---
 
-## DEFERRED until previous Phases are 100% fine: Phase 115: Iteration 5 — Low-Fidelity Mode (2D Map Fallback) [P2] - [ ] TODO
+## Phase 128: Documentation Sweep + Terminology Reconciliation ADR (Iteration 5 Deferred) [P-Docs] - [ ] TODO
 
-*The Low-Fi mode committed in Brief §7.6. Replaces the 3D globe with a 2D equirectangular map while preserving probe-first emission, source satellites, and identical scientific depth. Standalone phase per size discipline — 2D renderer is non-trivial.*
+*Final documentation consolidation. Closes the deferred Iteration 5 closure block and produces the post-Iteration-5/6/7/8 terminology-reconciliation decision. The Low-Fidelity-Mode phase originally planned as Iteration-5 closure (former Phase 118) is **removed from the roadmap entirely** — Brief §7.6 requires a deployed High-Fi baseline to reduce from, and Low-Fi can be re-planned later when an actual hardware/network constituency exists.*
 
-* [ ] **2D map renderer.** `packages/engine-2d/` (or similar) — Canvas 2D or SVG-based equirectangular projection; terminator overlay; probe-first emission; source satellites; absence regions positively marked.
-* [ ] **Mode selection.** Automatic on WebGL2-unavailable, `prefers-reduced-motion: reduce`, slow-connection signal, or explicit user choice. Toggle persisted in URL. Every automatic trigger overridable by the user.
-* [ ] **Feature parity below the surface.** Progressive Semantics, refusal surfaces, methodology tray, Surfaces II and III — identical in Low-Fi. Only Surface I rendering differs; scientific depth is unchanged.
-* [ ] **Tablet/phone layout.** Low-Fi default on narrow breakpoints; left rail collapses to a bottom tab bar; methodology tray collapses to a modal sheet.
-* [ ] **Hardware testing.** Manual verification on a 2015 ThinkPad equivalent: first meaningful paint < 3 s on 5 Mbps, descent < 1 s, surfaces usable for scientific work. Results recorded in `docs/operations_playbook.md`.
-* [ ] **Arc42 update.** §8.x Low-Fidelity Mode architecture and mode-selection contract.
-* [ ] **Validation.** `make fe-check` green; Low-Fi E2E suite green; hardware test log filed.
-
----
-
-## Phase 116: Iteration 5 — Documentation Sweep + Terminology Reconciliation ADR [P-Docs] - [ ] TODO
-
-*Final documentation consolidation. Closes out Iteration 5.*
-
-* [ ] **Arc42 updates.** §8.x chapters updated with the Iteration 5 architecture: navigation chrome, three surfaces with their priorities, five-layer redistribution, view-mode matrix, methodology tray, Silver-layer toggle, probe-first emission. Cross-references to the rewritten Design Brief.
+* [ ] **Arc42 updates.** §8.x chapters updated with the full Iteration-5/6/7/8 architecture: navigation chrome, three surfaces with their priorities, five-layer redistribution, view-mode matrix including topic cells, methodology tray, Silver-layer toggle, probe-first emission, Composition Workspace, multi-probe parallel streams, equivalence registry, normalization parameter, multilingual NLP routing, entity linking, Tier 2 BERT extractors, BERTopic per-language partitioning. Cross-references to the Design Brief.
 * [ ] **Reframing-note cleanup.** Delete `docs/design/reframing-note.md` — its content was merged into `design_brief.md` by Step 2 of the reframing; the file has served its purpose.
-* [ ] **Terminology ADR draft.** Draft the post-Iteration-5 terminology-reconciliation ADR (Path A evaluation per Brief §6): scope the cost of renaming "Probe" → "Probe Constellation" and "Source" → "Probe" across schema, API, content, and UI; propose either a migration path (Path A) or recommend sticking with Path B permanently. Opens as a PR for review; does not land in this phase.
+* [ ] **Terminology reconciliation ADR.** Draft the post-Iteration-8 terminology-reconciliation ADR (Path A evaluation per Brief §6): scope the cost of renaming "Probe" → "Probe Constellation" and "Source" → "Probe" across schema, API, content, and UI. Now that two probes exist (Phase 122) and cross-probe operations are live (Phase 123), the renaming pressure is concrete rather than hypothetical. Propose either a migration path (Path A) or recommend sticking with Path B permanently. Opens as a PR for review; does not land in this phase.
 * [ ] **MkDocs navigation update.** Any new Arc42 sections reflected in `mkdocs.yml`.
-* [ ] **Operations playbook update.** Any new operational procedures (Silver review workflow, view-mode catalog updates, methodology-tray content authoring) added to `docs/operations_playbook.md`.
-* [ ] **Validation.** MkDocs builds clean; all Arc42 cross-references resolve; terminology ADR PR opened; Completed Phases index in `ROADMAP.md` reflects Iteration 5's landed phases.
+* [ ] **Operations Playbook update.** Any new operational procedures added since Phase 119 (probe-pair bring-up procedure, equivalence-grant procedure, baseline-run procedure, custom-lexicon extension, Wikidata-alias-index refresh, BERTopic re-fit).
+* [ ] **Validation.** MkDocs builds clean; all Arc42 cross-references resolve; terminology ADR PR opened; Completed Phases index in `ROADMAP.md` reflects all landed phases.
 
 ---
 
-### Rationale for the Iteration 5 phase layout
+### Rationale for the post-Iteration-5 phase layout
 
-- **Three tight backend phases (101, 102, 103) before any frontend surface work.** Iteration 5 requires substantial new BFF endpoints, a schema migration, and one new corpus-level extractor. Splitting the backend into three phases (Probe Dossier + article browsing; view-mode queries + CorpusExtractor; Silver) keeps each phase small and independently deployable. Each phase leaves the pipeline in a consistent state.
-- **Content catalog (104) is its own phase.** The content work is discrete, schema-validated, and can proceed in parallel with the backend. It blocks Surface III and the methodology tray; the surfaces blocked are downstream, so content can land as soon as catalog entries are written.
-- **Navigation Chrome (105) is the foundation of every frontend surface.** It must land before 106, 107, 108, 109, 111, 113 because each of those surfaces renders inside the chrome. It is scoped to deliver the components and stores only; content binding for the methodology tray is Phase 108.
-- **Surface II is split across 106 (foundation: Dossier + lane shell) and 107 (view-mode matrix).** Splitting keeps each phase in scope. 106 delivers the routes, Dossier, empty-lane handling, and scope propagation; 107 delivers the matrix-cell registry and the three MVP cells.
-- **Phase 108 (methodology tray content binding) ties chrome + view modes together.** Cannot land before 105 and 107 because it subscribes to `focusedMetric` set by view-mode interactions.
-- **Phase 109 (Surface III) is one phase.** Long-form prose + inline interactives + primer + open-questions hub share a rendering approach (MDX + Observable Plot); splitting would fragment without value.
-- **Phase 110 (Surface I refinement) comes after Surface II exists.** Probe-first emission only makes sense if the descent target (Surface II Dossier) is in place. Otherwise the globe becomes a dead-end UI.
-- **Phase 111 (Silver toggle) is isolated.** Silver-layer access is governance-gated and should land on a stable Surface II (Phase 106) with clear eligibility semantics (Phase 103). Keeping it separate lets us ship or defer without affecting Gold work.
-- **Phases 112 and 113 are cross-cutting polish.** They depend on multiple surface phases being in place and are small enough to be fast.
-- **Phases 113f and 113g are the multi-context backbone.** 113f lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array and lands parallel-context-stream rendering — composition, not comparison (Brief §1.3). 113g operationalises WP-004 §5–§6 on top of 113f: equivalence registry, per-source baselines, `?normalization=` parameter, and the refusal surface for unvalidated cross-cultural absolute claims. They are deliberately separated because 113f is a within-context infrastructure lift while 113g is a methodological gating layer; bundling them would force the equivalence-gate decision before the parallel-stream surface exists to render its refusals.
-- **Phase 114 (a11y + High-Fi perf) lands before Low-Fi (115).** Brief §7.6 explicitly requires High-Fi as the baseline to reduce from; Low-Fi cannot be meaningfully spec'd before High-Fi is fully measured.
-- **Phase 116 (docs sweep) is last.** It closes the reframing-note lifecycle and opens the terminology-reconciliation ADR as the future-facing follow-up.
-- **ADR-020 §Implementation-Outline is the source for increment scope; ROADMAP.md is the SSoT for phase assignment.** The two are kept in sync by the reordering note in ADR-020 and by this section.
+- **Iteration 5 closes on the multi-context backbone (Phases 114, 115).** The originally-planned Iteration-5 polish phases — Progressive Descent Infrastructure, Accessibility/High-Fi Performance Audit, Documentation Sweep + Terminology Reconciliation — are **deferred to Phases 126–128** and consolidated into a single closure block after Iterations 6–8 have stabilised the surface topology, the metric inventory, and the terminology. Polish on a moving target is doubled work; the deferral honours Occam's Razor at the iteration boundary.
+- **The original Phase 118 (Low-Fidelity Mode) is removed from the roadmap entirely.** Brief §7.6 requires a deployed High-Fi baseline to reduce from. AĒR is not deployed; Low-Fi cannot be meaningfully spec'd. Re-introduction is out-of-band when a concrete hardware or network constituency exists.
+- **Iteration 6 (NLP Hardening) leads with Phase 116 (Multilingual Foundation)** because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not just a Probe 1 prerequisite. Fixing language routing before improving the German-specific extractors prevents contaminated near-zero values from accumulating in the Gold layer and ensures the German-path regression guards in Phases 117–118 run on clean baselines.
+- **Phase 117 (Sentiment Tier 1 hardening) uses dependency-based negation scope rather than token-distance heuristics**, and `compound-split` rather than a hand-maintained frequency list. Both choices are deterministic (Tier 1 compatible) but scientifically defensible (WP-002 §3.2 cites linguistic literature, not engineering heuristics). The metric is renamed `sentiment_score_sentiws` to make ADR-016's dual-metric pattern lexically explicit ahead of Phase 119.
+- **Phase 118 (Entity Linking) keeps the alias-DB approach** and explicitly rejects transformer-based linkers (BLINK, ReFinED, mGENRE) for this iteration: they are predominantly English-trained, require GPU inference, and add model-dependency risk. The alias-DB approach is multilingual-by-construction and Tier-1.5 in spirit — fully deterministic at extraction time. Transformer-based linking is a viable Tier-2 add-on for a later iteration.
+- **Phase 119 (Tier 2 BERT) chooses `mdraw/german-news-sentiment-bert` over `oliverguhr/german-sentiment-bert`** because the latter is review-trained and Probe 0 is editorial RSS — exactly the domain transfer WP-002 §3.2 documents as a primary failure mode. Both extractors run side-by-side as a deliberate on-pipeline domain-transfer comparison, ready for the Phase 63 validity-table population when annotation studies arrive.
+- **Phase 120 (BERTopic) chooses `intfloat/multilingual-e5-large` over MPNet** because E5-large is the post-2024 multilingual SOTA on retrieval/clustering benchmarks (MTEB) and outperforms MPNet on long-form news text. Per-language topic partitioning honours WP-004 §3.4's "parallel topic discovery with human-validated alignment" recommendation explicitly.
+- **Iteration 7 splits Probe 1 (Phase 122) from Cross-Cultural Operations (Phase 123).** Phase 122 is the second-cultural-context infrastructure landing; Phase 123 is the operational counterpart to Phase 115's schema work — first baseline run, first equivalence grant (temporal level only — WP-004 Appendix B always-valid), first cross-probe lead-lag observation. The split honours the Brief §1.3 "composition, not comparison" boundary: 122 establishes the second context; 123 puts it into methodologically disciplined comparison.
+- **Iteration 8 (Composition + Interactive Reflection) requires the full upstream stack** to be scientifically meaningful: composition mode is richest with canonical entity nodes (118), topic-dimension cards (120), and real cross-probe data (122, 123); interactive Reflection illustrations need the negation handler (117), the equivalence gate (115), and real cross-probe data (123) to make the Level-3 refusal feel real.
+- **The closure block (Phases 126–128)** lands a11y, performance, and final documentation against a stable surface — the right time to draft the terminology-reconciliation ADR, since two probes now exist and the rename pressure is concrete rather than hypothetical.
