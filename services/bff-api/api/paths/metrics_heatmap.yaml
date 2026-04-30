@@ -7,6 +7,12 @@ get:
     metric timestamp; `source` groups by source; `entityLabel` and
     `language` join against `aer_gold.entities` /
     `aer_gold.language_detections`.
+
+    Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`.
+    At least one must be present. `segmentBy` returns per-segment cell arrays
+    alongside the aggregate in a `streams` array (Phase 114).
+
+    Row cap: 100 000 cells across all sources and the full window.
   operationId: getMetricHeatmap
   parameters:
     - name: metricName
@@ -15,7 +21,18 @@ get:
       schema:
         type: string
     - $ref: '../parameters/scope.yaml'
-    - $ref: '../parameters/scopeId.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/segmentBy.yaml'
     - $ref: '../parameters/xDimension.yaml'
     - $ref: '../parameters/yDimension.yaml'
     - $ref: '../parameters/windowStart.yaml'

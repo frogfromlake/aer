@@ -154,6 +154,8 @@
   let activePresentationDesc = $derived(
     presentations.find((p) => p.id === activeView)?.description ?? null
   );
+
+  let composedProbeIds = $derived(url.probeIds);
 </script>
 
 <div class="lens-bar" role="region" aria-label="Lane lens controls">
@@ -267,6 +269,24 @@
       {/if}
     </div>
   </div>
+
+  {#if composedProbeIds.length > 0}
+    <div class="lens-hsep" aria-hidden="true"></div>
+    <div class="lens-compose-row" aria-label="Probe composition scope">
+      <span class="lens-eyebrow" aria-hidden="true">Composition</span>
+      <div class="lens-options">
+        <span
+          class="compose-indicator"
+          title="Multi-probe composition: {composedProbeIds.join(', ')}"
+        >
+          ⊗ {composedProbeIds.length} probe{composedProbeIds.length !== 1 ? 's' : ''} in scope
+        </span>
+        {#each composedProbeIds as id (id)}
+          <span class="compose-probe-chip">{id}</span>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -401,6 +421,35 @@
     background: var(--color-border);
     align-self: stretch;
     flex-shrink: 0;
+  }
+
+  .lens-compose-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    flex-wrap: wrap;
+  }
+
+  .compose-indicator {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    padding: 2px var(--space-2);
+    background: rgba(82, 131, 184, 0.1);
+    border: 1px solid var(--color-accent-muted);
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+  }
+
+  .compose-probe-chip {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    padding: 1px var(--space-2);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    color: var(--color-fg-muted);
   }
 
   /* Drop the long function name on narrow viewports — the abbr stays. */

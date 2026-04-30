@@ -5,11 +5,26 @@ get:
     Computes per-bucket means for every metric in the requested set, then
     Pearson `corr` over each pair. Bucket resolution is fixed at 5 minutes,
     matching the `metrics` time-series endpoint.
+
+    Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`.
+    At least one must be present.
+
+    Row cap: 20 000 buckets × metrics.
   operationId: getMetricCorrelation
   parameters:
     - $ref: '../parameters/metricsList.yaml'
     - $ref: '../parameters/scope.yaml'
-    - $ref: '../parameters/scopeId.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
   responses:

@@ -39,6 +39,8 @@
   const url = $derived(urlState());
   let narrowedSourceIds = $derived(url.sourceIds);
   let hasNarrowedScope = $derived(narrowedSourceIds.length > 0);
+  let composedProbeIds = $derived(url.probeIds);
+  let hasComposition = $derived(composedProbeIds.length > 0);
 
   // Destination function for "Analyze": use the first narrowed source's
   // primary function, falling back to the first covered probe function.
@@ -123,6 +125,10 @@
 
   function clearScope() {
     setUrl({ sourceIds: [] });
+  }
+
+  function clearComposition() {
+    setUrl({ probeIds: [] });
   }
 </script>
 
@@ -275,6 +281,49 @@
       </div>
     {/if}
   </section>
+
+  <!-- Probe composition bar — sticky above the source scope bar.
+       Appears when the user has shift+clicked probes on the globe. Shows
+       the full composition set and a Compose CTA to enter multi-probe
+       analysis in this probe's function lanes. -->
+  {#if hasComposition}
+    <div class="compose-bar" role="status" aria-live="polite" aria-label="Probe composition">
+      <div class="compose-bar-left">
+        <span class="compose-bar-label" aria-hidden="true">⊗</span>
+        <span class="compose-bar-count">
+          {composedProbeIds.length === 1 ? '1 probe' : `${composedProbeIds.length} probes`} in composition
+        </span>
+        <ul class="scope-chips" role="list">
+          {#each composedProbeIds as id (id)}
+            <li>
+              <button
+                type="button"
+                class="scope-chip"
+                aria-label="Remove {id} from composition"
+                onclick={() => setUrl({ probeIds: composedProbeIds.filter((p) => p !== id) })}
+              >
+                {id}
+                <span aria-hidden="true" class="chip-remove">×</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </div>
+      <div class="scope-bar-actions">
+        <button type="button" class="scope-bar-clear" onclick={clearComposition}>Clear</button>
+        <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface II route -->
+        <button
+          type="button"
+          class="scope-bar-analyze compose-primary"
+          onclick={() =>
+            void goto(`/lanes/${encodeURIComponent(dossier.probeId)}/${analyzeTarget}`)}
+        >
+          Compose ›
+        </button>
+        <!-- eslint-enable svelte/no-navigation-without-resolve -->
+      </div>
+    </div>
+  {/if}
 
   <!-- Scope action bar — sticky at the bottom of the dossier scroll area.
        Appears when one or more sources are narrowed. Lets the user build up
@@ -635,6 +684,58 @@
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
     border-radius: var(--radius-sm);
+  }
+
+  /* --- Probe composition bar --- */
+
+  .compose-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 -2px 16px rgba(82, 131, 184, 0.25);
+    flex-wrap: wrap;
+  }
+
+  .compose-bar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .compose-bar-label {
+    color: var(--color-accent);
+    font-size: var(--font-size-base);
+    flex-shrink: 0;
+  }
+
+  .compose-bar-count {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .compose-primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bg);
+  }
+
+  .compose-primary:hover,
+  .compose-primary:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, white);
   }
 
   /* --- Scope action bar --- */

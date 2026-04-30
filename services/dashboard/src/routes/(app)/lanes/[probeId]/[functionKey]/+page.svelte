@@ -78,6 +78,7 @@
       windowStart={windowMs.start}
       windowEnd={windowMs.end}
       sourceIds={url.sourceIds}
+      probeIds={url.probeIds}
     />
   {/if}
 </main>

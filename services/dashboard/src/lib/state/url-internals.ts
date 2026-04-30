@@ -43,6 +43,11 @@ export interface UrlState {
   // 113d). Empty array = no scope narrowing. Serialised as comma-separated
   // `sourceId` query parameter.
   sourceIds: string[];
+  // Multi-probe composition set (Phase 114). Populated by shift+click on
+  // the globe or the Compose CTA in the Probe Dossier. When non-empty,
+  // Function Lane cells query the BFF with all probes unioned. Serialised
+  // as comma-separated `probeId` query parameter.
+  probeIds: string[];
   // View-Mode Matrix selection (Phase 107). Only meaningful inside
   // Surface II's Function Lanes; consumers treat `null` as the default
   // presentation (`time_series`).
@@ -71,6 +76,7 @@ export const EMPTY_URL_STATE: UrlState = {
   metric: null,
   view: null,
   sourceIds: [],
+  probeIds: [],
   viewMode: null,
   layer: null,
   negSpace: null
@@ -116,6 +122,7 @@ export function readFromSearch(search: string): UrlState {
     metric: parseMetric(p.get('metric')),
     view: parseEnum(p.get('view'), VIEW_LAYERS),
     sourceIds: parseSourceIds(p.get('sourceId')),
+    probeIds: parseSourceIds(p.get('probeId')),
     viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
     layer: parseEnum(p.get('layer'), DATA_LAYERS),
     negSpace: p.get('negSpace') === '1' ? true : null
@@ -153,6 +160,7 @@ export function writeToSearch(state: UrlState): string {
   if (state.metric) p.set('metric', state.metric);
   if (state.view && state.view !== 'atmosphere') p.set('view', state.view);
   if (state.sourceIds.length > 0) p.set('sourceId', state.sourceIds.join(','));
+  if (state.probeIds.length > 0) p.set('probeId', state.probeIds.join(','));
   if (state.viewMode) p.set('viewMode', state.viewMode);
   if (state.layer === 'silver') p.set('layer', 'silver');
   // `negSpace=1` when the Negative Space overlay is active. Not scoped to

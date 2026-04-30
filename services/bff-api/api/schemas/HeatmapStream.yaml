@@ -1,0 +1,38 @@
+type: object
+description: >
+  Per-segment heatmap payload returned when `segmentBy` is set.
+  Each stream carries the same cell array as the aggregate HeatmapResponse,
+  scoped to the individual segment.
+required:
+  - id
+  - label
+  - scopeKind
+  - cells
+properties:
+  id:
+    type: string
+    description: Segment identifier (source name or probe id).
+  label:
+    type: string
+    description: Display label for the segment.
+  scopeKind:
+    type: string
+    description: "Segment kind: `source` or `probe`."
+  cells:
+    type: array
+    description: One row per non-empty (x, y) cell for this segment.
+    items:
+      type: object
+      required: [x, y, value, count]
+      properties:
+        x:
+          type: string
+        y:
+          type: string
+        value:
+          type: number
+          format: double
+        count:
+          type: integer
+          format: int64
+          minimum: 0

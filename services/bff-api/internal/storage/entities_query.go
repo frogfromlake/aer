@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -16,9 +17,9 @@ type EntityRow struct {
 }
 
 // GetEntities retrieves aggregated named entities from the gold layer.
-func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]EntityRow, error) {
+func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]EntityRow, error) {
 	cacheKey := hotQueryKey("entities",
-		start.UnixNano(), end.UnixNano(), derefString(source), derefString(label), limit)
+		start.UnixNano(), end.UnixNano(), strings.Join(sources, ","), derefString(label), limit)
 	if cached, ok := s.entitiesCache.get(cacheKey, s.metricsCacheTTL); ok {
 		return cached, nil
 	}
@@ -35,10 +36,14 @@ func (s *ClickHouseStorage) GetEntities(ctx context.Context, start, end time.Tim
 	args := []any{start, end}
 	argIdx := 3
 
-	if source != nil {
-		query += fmt.Sprintf(" AND source = $%d", argIdx)
-		args = append(args, *source)
-		argIdx++
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			argIdx++
+			args = append(args, src)
+		}
+		query += fmt.Sprintf(" AND source IN (%s)", strings.Join(placeholders, ", "))
 	}
 	if label != nil {
 		query += fmt.Sprintf(" AND entity_label = $%d", argIdx)
@@ -75,9 +80,9 @@ type LanguageDetectionRow struct {
 
 // GetLanguageDetections retrieves aggregated language detections from the gold layer.
 // Only rank=1 (top candidate per document) detections are included.
-func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]LanguageDetectionRow, error) {
+func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, end time.Time, sources []string, language *string, limit int) ([]LanguageDetectionRow, error) {
 	cacheKey := hotQueryKey("languages",
-		start.UnixNano(), end.UnixNano(), derefString(source), derefString(language), limit)
+		start.UnixNano(), end.UnixNano(), strings.Join(sources, ","), derefString(language), limit)
 	if cached, ok := s.languagesCache.get(cacheKey, s.metricsCacheTTL); ok {
 		return cached, nil
 	}
@@ -95,10 +100,14 @@ func (s *ClickHouseStorage) GetLanguageDetections(ctx context.Context, start, en
 	args := []any{start, end}
 	argIdx := 3
 
-	if source != nil {
-		query += fmt.Sprintf(" AND source = $%d", argIdx)
-		args = append(args, *source)
-		argIdx++
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			argIdx++
+			args = append(args, src)
+		}
+		query += fmt.Sprintf(" AND source IN (%s)", strings.Join(placeholders, ", "))
 	}
 	if language != nil {
 		query += fmt.Sprintf(" AND detected_language = $%d", argIdx)

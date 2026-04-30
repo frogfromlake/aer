@@ -2080,48 +2080,47 @@ All versions pinned like in the backend (if best practice)
 
 * [x] **Validation.** `make fe-check` green.
 
----
 
-# Open Phases
-
----
-
-## Phase 114: Iteration 5 — Multi-Source Subset & Multi-Probe Composition (Within-Context) [P2] - [ ] TODO
+## Phase 114: Iteration 5 — Multi-Source Subset & Multi-Probe Composition (Within-Context) [P2] - [x] DONE
 
 *Lifts the BFF view-mode endpoints from a single `scopeId` to a `scopeIds[]` array so an arbitrary subset of a probe's sources, and an arbitrary set of probes, can drive distribution / heatmap / correlation / co-occurrence views. Completes the multi-source narrowing deferred in Phase 113e (item 12 follow-up: "scoped distribution for an arbitrary source subset requires a future backend `source[]` query parameter") and lands the parallel-context-stream rendering committed in Brief §4.2.2 and §1.3. **Composition, not comparison** (Brief §1.3) — every stream keeps its own baseline; nothing is placed on a shared cross-context scale in this phase. Cross-cultural normalization, equivalence gating, and refusal surfaces are explicitly out of scope and live in Phase 115.*
 
 ### Backend (BFF + OpenAPI)
 
-* [ ] **OpenAPI: scope arrays.** `services/bff-api/api/openapi.yaml` — extend the view-mode endpoints to accept repeated `sourceId` and/or `probeId` query parameters (or comma-separated `sourceIds`/`probeIds`) in addition to the existing single-value form. Affected: `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`, `GET /api/v1/entities/cooccurrence`, `GET /api/v1/entities`, `GET /api/v1/languages`, `GET /api/v1/metrics`. Single-value form remains for backward compatibility. `make codegen` runs clean.
-* [ ] **BFF resolver.** Extend `DossierStore.ResolveSourceWithEligibility` (or add a sibling `ResolveScopeWithEligibility`) to expand `probeIds[]` via `ProbeRegistry` into the union of their sources, then merge with explicit `sourceIds[]`, deduplicate, and reject the request with a precise `RefusalPayload` if any source in the resulting set is not Silver-eligible (only relevant when the endpoint is Silver-gated).
-* [ ] **ClickHouse query shape.** Replace the `WHERE source = ?` clauses with `WHERE source IN (...)` across the four view-mode handlers. Re-verify the existing row caps still hold against the largest plausible scope (multiple probes × full retention window) and document the per-endpoint cap in the OpenAPI description.
-* [ ] **Per-stream segmentation.** Distribution and heatmap responses gain an optional `segmentBy=source|probe` flag. When set, the response is structured as `{ streams: [{ id, label, scopeKind, ...payload }] }` so the frontend can render parallel streams without re-querying. Default (unset) preserves the current aggregated single-payload shape.
-* [ ] **`/api/v1/entities/cooccurrence` for multi-scope.** Edge weights aggregate across the union of selected sources; node `presence[]` field is added so the frontend can render per-source incident shading without a follow-up call. No change to `aer_gold.entity_cooccurrences` schema (Phase 102) — the corpus extractor's per-article rows already aggregate cleanly across `source IN (...)`.
-* [ ] **Integration tests.** Testcontainers covering: (a) single-source request unchanged; (b) two-source subset within one probe; (c) two-probe union; (d) source-subset request that crosses probe boundaries (explicit hand-picked sources from different probes — Brief §4.2.4 makes both probe and source first-class scope parameters, so this must be valid); (e) Silver-eligibility refusal when any source in the set is ineligible.
+* [x] **OpenAPI: scope arrays.** `services/bff-api/api/openapi.yaml` — extend the view-mode endpoints to accept repeated `sourceId` and/or `probeId` query parameters (or comma-separated `sourceIds`/`probeIds`) in addition to the existing single-value form. Affected: `GET /api/v1/metrics/{metricName}/distribution`, `GET /api/v1/metrics/{metricName}/heatmap`, `GET /api/v1/metrics/correlation`, `GET /api/v1/entities/cooccurrence`, `GET /api/v1/entities`, `GET /api/v1/languages`, `GET /api/v1/metrics`. Single-value form remains for backward compatibility. `make codegen` runs clean.
+* [x] **BFF resolver.** Extend `DossierStore.ResolveSourceWithEligibility` (or add a sibling `ResolveScopeWithEligibility`) to expand `probeIds[]` via `ProbeRegistry` into the union of their sources, then merge with explicit `sourceIds[]`, deduplicate, and reject the request with a precise `RefusalPayload` if any source in the resulting set is not Silver-eligible (only relevant when the endpoint is Silver-gated).
+* [x] **ClickHouse query shape.** Replace the `WHERE source = ?` clauses with `WHERE source IN (...)` across the four view-mode handlers. Re-verify the existing row caps still hold against the largest plausible scope (multiple probes × full retention window) and document the per-endpoint cap in the OpenAPI description.
+* [x] **Per-stream segmentation.** Distribution and heatmap responses gain an optional `segmentBy=source|probe` flag. When set, the response is structured as `{ streams: [{ id, label, scopeKind, ...payload }] }` so the frontend can render parallel streams without re-querying. Default (unset) preserves the current aggregated single-payload shape.
+* [x] **`/api/v1/entities/cooccurrence` for multi-scope.** Edge weights aggregate across the union of selected sources; node `presence[]` field is added so the frontend can render per-source incident shading without a follow-up call. No change to `aer_gold.entity_cooccurrences` schema (Phase 102) — the corpus extractor's per-article rows already aggregate cleanly across `source IN (...)`.
+* [x] **Integration tests.** Testcontainers covering: (a) single-source request unchanged; (b) two-source subset within one probe; (c) two-probe union; (d) source-subset request that crosses probe boundaries (explicit hand-picked sources from different probes — Brief §4.2.4 makes both probe and source first-class scope parameters, so this must be valid); (e) Silver-eligibility refusal when any source in the set is ineligible.
 
 ### Frontend (Dashboard)
 
-* [ ] **URL state.** `services/dashboard/src/lib/state/url-internals.ts` — `sourceIds` already serialises (Phase 113d). Add `probeIds` to the same multi-value scheme with the same delimiter. Round-trip tests in `tests/unit/url-state.test.ts`.
-* [ ] **Multi-probe scope action bar.** Extend the Phase 113e scope bar in `ProbeDossier.svelte` so chips render both source and probe selections (visually distinct), with separate "Clear sources" / "Clear probes" affordances. The `Analyze ›` CTA navigates to the function lane carrying the union scope.
-* [ ] **Cross-probe entry point.** From the Atmosphere (Surface I), shift-clicking or multi-selecting probe glyphs adds them to a pending `probeIds[]` set; the existing descent CTA becomes a "Compose" affordance when more than one probe is selected. Single-click behaviour is unchanged (descent to that probe's Dossier).
-* [ ] **Parallel-context streams in lanes.** `FunctionLaneShell.svelte` and the per-cell renderers (`TimeSeriesCell`, distribution, heatmap, correlation, co-occurrence) consume the new `streams[]` shape when present. Streams render as **parallel context lines / panels with per-stream baselines and per-stream Dual-Register tooltips** (Brief §4.2.2). No shared cross-context axis. Color encoding distinguishes streams using a perceptually uniform, valence-free palette per `visualization_guidelines.md` §1–§2.
-* [ ] **Empty-lane behaviour with multi-scope.** When some probes in the union have no source covering the current discourse function, those probes' streams are present-but-empty per the empty-lane Dual-Register invitation (Brief §4.2.2 + §7.7). The empty stream is the question, not a hidden case.
-* [ ] **LensBar cross-probe indicator.** Phase 113e's `activeFunctionKeys` indicator extends to the union of all selected probes' sources. No new visual primitive — same dashed accent border, just driven by the union set.
-* [ ] **No normalization controls.** This phase explicitly does *not* expose `?normalization=zscore|percentile` toggles. A user who attempts to construct a cross-context absolute claim sees the standard composed view; the refusal surface for unvalidated cross-cultural normalization arrives in Phase 115.
+* [x] **URL state.** `services/dashboard/src/lib/state/url-internals.ts` — `sourceIds` already serialises (Phase 113d). Add `probeIds` to the same multi-value scheme with the same delimiter. Round-trip tests in `tests/unit/url-state.test.ts`.
+* [x] **Multi-probe scope action bar.** Extend the Phase 113e scope bar in `ProbeDossier.svelte` so chips render both source and probe selections (visually distinct), with separate "Clear sources" / "Clear probes" affordances. The `Analyze ›` CTA navigates to the function lane carrying the union scope.
+* [x] **Cross-probe entry point.** From the Atmosphere (Surface I), shift-clicking or multi-selecting probe glyphs adds them to a pending `probeIds[]` set; the existing descent CTA becomes a "Compose" affordance when more than one probe is selected. Single-click behaviour is unchanged (descent to that probe's Dossier).
+* [x] **Parallel-context streams in lanes.** `FunctionLaneShell.svelte` and the per-cell renderers (`TimeSeriesCell`, distribution, heatmap, correlation, co-occurrence) consume the new `streams[]` shape when present. Streams render as **parallel context lines / panels with per-stream baselines and per-stream Dual-Register tooltips** (Brief §4.2.2). No shared cross-context axis. Color encoding distinguishes streams using a perceptually uniform, valence-free palette per `visualization_guidelines.md` §1–§2.
+* [x] **Empty-lane behaviour with multi-scope.** When some probes in the union have no source covering the current discourse function, those probes' streams are present-but-empty per the empty-lane Dual-Register invitation (Brief §4.2.2 + §7.7). The empty stream is the question, not a hidden case.
+* [x] **LensBar cross-probe indicator.** Phase 113e's `activeFunctionKeys` indicator extends to the union of all selected probes' sources. No new visual primitive — same dashed accent border, just driven by the union set.
+* [x] **No normalization controls.** This phase explicitly does *not* expose `?normalization=zscore|percentile` toggles. A user who attempts to construct a cross-context absolute claim sees the standard composed view; the refusal surface for unvalidated cross-cultural normalization arrives in Phase 115.
 
 ### Documentation
 
-* [ ] **CLAUDE.md.** Update the BFF endpoint list to record the `sourceIds[]` / `probeIds[]` parameters and the optional `segmentBy` flag.
-* [ ] **ADR-020.** Append a sub-entry under §Implementation-Outline · Phase 114 recording (a) the scope-array lift, (b) the parallel-stream response shape, (c) the deferral of cross-cultural normalization to 115, and (d) the explicit "composition, not comparison" boundary that scopes this phase.
-* [ ] **Arc42 §6 (Runtime View).** Sequence diagram for a multi-probe distribution request: frontend → BFF → resolver → ClickHouse `IN (...)` → segmented response → parallel-stream rendering.
+* [x] **CLAUDE.md.** Update the BFF endpoint list to record the `sourceIds[]` / `probeIds[]` parameters and the optional `segmentBy` flag.
+* [x] **ADR-020.** Append a sub-entry under §Implementation-Outline · Phase 114 recording (a) the scope-array lift, (b) the parallel-stream response shape, (c) the deferral of cross-cultural normalization to 115, and (d) the explicit "composition, not comparison" boundary that scopes this phase.
+* [x] **Arc42 §6 (Runtime View).** Sequence diagram for a multi-probe distribution request: frontend → BFF → resolver → ClickHouse `IN (...)` → segmented response → parallel-stream rendering.
 
 ### Validation
 
-* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: the Phase 113e scope-bar flow extends cleanly to (a) two sources in one probe, (b) two probes, (c) hand-picked sources crossing probe boundaries — each case produces parallel streams in the lane with per-stream baselines and no cross-context axis.
+* [x] **Validation.** `make lint && make test && make fe-check` green. Manual: the Phase 113e scope-bar flow extends cleanly to (a) two sources in one probe, (b) two probes, (c) hand-picked sources crossing probe boundaries — each case produces parallel streams in the lane with per-stream baselines and no cross-context axis.
 
 ### Why this is one phase, not two
 
 Multi-source subset (113e's deferred backend lift) and multi-probe composition share **the same backend change** (`scopeId` → `scopeIds[]`), the same parallel-stream response shape, and the same frontend rendering surface. Splitting them would force two passes through OpenAPI, codegen, the BFF handlers, and the lane shell for what is one structural change. The frontend entry points differ (Dossier source-narrowing vs. globe multi-probe selection) but consume the same wire format.
+
+---
+
+# Open Phases
 
 ---
 

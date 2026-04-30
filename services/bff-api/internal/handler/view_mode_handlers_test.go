@@ -338,5 +338,183 @@ func TestGetEntityCoOccurrence_MissingScopeId400(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Phase 114: multi-source / multi-probe composition
+// ---------------------------------------------------------------------------
+
+func TestGetMetricDistribution_MultiSourceViaSourceIds(t *testing.T) {
+	store := &mockStore{}
+	router := newTestRouter(newViewModeServer(store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/distribution?sourceIds=tagesschau,bundesregierung&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := store.capturedSources; len(got) != 2 || got[0] != "tagesschau" || got[1] != "bundesregierung" {
+		t.Fatalf("expected 2 sources from sourceIds, got %v", got)
+	}
+}
+
+func TestGetMetricDistribution_MultiProbeViaProbeIds(t *testing.T) {
+	store := &mockStore{}
+	router := newTestRouter(newViewModeServer(store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/distribution?probeIds=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := store.capturedSources; len(got) != 2 || got[0] != "tagesschau" || got[1] != "bundesregierung" {
+		t.Fatalf("expected probe sources via probeIds, got %v", got)
+	}
+}
+
+func TestGetMetricDistribution_UnknownProbeInProbeIds404(t *testing.T) {
+	router := newTestRouter(newViewModeServer(&mockStore{}))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/distribution?probeIds=does-not-exist&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetMetricDistribution_SegmentBySourceBuildsStreams(t *testing.T) {
+	store := &mockStore{
+		distribution: storage.DistributionResult{
+			Bins: []storage.DistributionBin{{Lower: 0, Upper: 1, Count: 5}},
+			Summary: storage.DistributionSummary{
+				Count: 5, Min: 0, Max: 1, Mean: 0.5, Median: 0.5,
+				P05: 0.1, P25: 0.2, P75: 0.8, P95: 0.9,
+			},
+		},
+	}
+	router := newTestRouter(newViewModeServer(store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/distribution?sourceIds=tagesschau,bundesregierung&segmentBy=source&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Streams []struct {
+			Id        string `json:"id"`
+			ScopeKind string `json:"scopeKind"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Streams) != 2 {
+		t.Fatalf("expected 2 streams for 2 sources, got %d", len(resp.Streams))
+	}
+	if resp.Streams[0].ScopeKind != "source" {
+		t.Fatalf("expected scopeKind=source, got %q", resp.Streams[0].ScopeKind)
+	}
+}
+
+func TestGetMetricDistribution_SegmentByProbeBuildsStreams(t *testing.T) {
+	store := &mockStore{
+		distribution: storage.DistributionResult{
+			Bins: []storage.DistributionBin{{Lower: 0, Upper: 1, Count: 3}},
+			Summary: storage.DistributionSummary{
+				Count: 3, Min: 0, Max: 1, Mean: 0.5, Median: 0.5,
+				P05: 0.1, P25: 0.2, P75: 0.8, P95: 0.9,
+			},
+		},
+	}
+	router := newTestRouter(newViewModeServer(store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/distribution?probeIds=probe-0-de-institutional-rss&segmentBy=probe&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Streams []struct {
+			Id        string `json:"id"`
+			ScopeKind string `json:"scopeKind"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Streams) != 1 {
+		t.Fatalf("expected 1 probe stream, got %d", len(resp.Streams))
+	}
+	if resp.Streams[0].Id != "probe-0-de-institutional-rss" || resp.Streams[0].ScopeKind != "probe" {
+		t.Fatalf("stream mismatch: %+v", resp.Streams[0])
+	}
+}
+
+func TestGetMetricDistribution_SegmentByProbeWithoutProbeIds400(t *testing.T) {
+	router := newTestRouter(newViewModeServer(&mockStore{}))
+
+	rec := httptest.NewRecorder()
+	// sourceIds-only with segmentBy=probe should 400 (no probe segments)
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/distribution?sourceIds=tagesschau&segmentBy=probe&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetEntityCoOccurrence_NodePresencePopulated(t *testing.T) {
+	store := &mockStore{
+		cooccurrence: storage.CoOccurrenceResult{
+			Edges: []storage.CoOccurrenceEdge{
+				{A: "Berlin", B: "Scholz", ALabel: "LOC", BLabel: "PER", Weight: 3, ArticleCount: 2},
+			},
+			Nodes: []storage.CoOccurrenceNode{
+				{Text: "Berlin", Label: "LOC", Degree: 1, TotalCount: 3, Presence: []string{"tagesschau", "bundesregierung"}},
+				{Text: "Scholz", Label: "PER", Degree: 1, TotalCount: 3},
+			},
+			TopN: 50,
+		},
+	}
+	router := newTestRouter(newViewModeServer(store))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/entities/cooccurrence?sourceIds=tagesschau,bundesregierung&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Nodes []struct {
+			Text     string   `json:"text"`
+			Presence []string `json:"presence"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, n := range resp.Nodes {
+		if n.Text == "Berlin" {
+			if len(n.Presence) != 2 {
+				t.Fatalf("expected 2 presence entries for Berlin, got %d", len(n.Presence))
+			}
+			return
+		}
+	}
+	t.Fatalf("Berlin node not found in response")
+}
+
 // helpers shared with this file only
 func ptrF(v float64) *float64 { return &v }

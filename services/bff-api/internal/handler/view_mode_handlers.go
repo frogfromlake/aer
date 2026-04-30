@@ -18,41 +18,90 @@ const (
 	scopeSource scopeKind = "source"
 )
 
-// resolveScope converts the raw query parameters into (kind, sources). It is
-// the single point where probe-id lookups and source-name validation happen
-// for the four Phase 102 endpoints. A return of (false, _, _) means the
-// caller should respond with 400/404 — the bool reports whether resolution
-// succeeded; the error message in `reason` is suitable for the response body
-// (it does not leak storage details).
-func (s *Server) resolveScope(rawScope, rawScopeId string) (kind scopeKind, sources []string, reason string, ok bool) {
-	id := strings.TrimSpace(rawScopeId)
-	if id == "" {
-		return "", nil, "scopeId is required", false
-	}
-	var resolved scopeKind
+// probeSegment is one probe's resolved source list used for per-probe streams.
+type probeSegment struct {
+	id      string
+	sources []string
+}
+
+// resolveScopeMulti resolves the composite scope from the legacy scopeId plus
+// the Phase 114 probeIds and sourceIds parameters. The union of all resolved
+// source names is returned together with per-probe segment data for
+// segmentBy=probe streams. At least one non-empty input is required; the
+// function returns ok=false with a human-readable reason otherwise.
+func (s *Server) resolveScopeMulti(
+	rawScope string, scopeId, probeIds, sourceIds *string,
+) (kind scopeKind, sources []string, probeSegs []probeSegment, reason string, ok bool) {
+	var resolvedKind scopeKind
 	switch strings.ToLower(strings.TrimSpace(rawScope)) {
 	case "", string(scopeProbe):
-		resolved = scopeProbe
+		resolvedKind = scopeProbe
 	case string(scopeSource):
-		resolved = scopeSource
+		resolvedKind = scopeSource
 	default:
-		return "", nil, "scope must be probe or source", false
+		return "", nil, nil, "scope must be probe or source", false
 	}
 
-	if resolved == scopeProbe {
-		probe, ok := s.probes[id]
-		if !ok {
-			return "", nil, fmt.Sprintf("unknown probe %q", id), false
+	seen := map[string]bool{}
+	addSrc := func(src string) {
+		if src = strings.TrimSpace(src); src != "" && !seen[src] {
+			seen[src] = true
+			sources = append(sources, src)
 		}
-		out := make([]string, len(probe.Sources))
-		copy(out, probe.Sources)
-		return scopeProbe, out, "", true
 	}
 
-	// scope=source: trust the source name (the metrics table is the
-	// authoritative source-name registry; an unknown source simply yields
-	// an empty result, which is correct).
-	return scopeSource, []string{id}, "", true
+	hasProbes := false
+
+	// 1. Legacy scopeId (single probe id or source name).
+	if scopeId != nil && strings.TrimSpace(*scopeId) != "" {
+		id := strings.TrimSpace(*scopeId)
+		if resolvedKind == scopeProbe {
+			probe, exists := s.probes[id]
+			if !exists {
+				return "", nil, nil, fmt.Sprintf("unknown probe %q", id), false
+			}
+			for _, src := range probe.Sources {
+				addSrc(src)
+			}
+			probeSegs = append(probeSegs, probeSegment{id: id, sources: probe.Sources})
+			hasProbes = true
+		} else {
+			addSrc(id)
+		}
+	}
+
+	// 2. Comma-separated probeIds (Phase 114).
+	if probeIds != nil {
+		for _, pid := range splitAndTrim(*probeIds) {
+			probe, exists := s.probes[pid]
+			if !exists {
+				return "", nil, nil, fmt.Sprintf("unknown probe %q", pid), false
+			}
+			for _, src := range probe.Sources {
+				addSrc(src)
+			}
+			probeSegs = append(probeSegs, probeSegment{id: pid, sources: probe.Sources})
+			hasProbes = true
+		}
+	}
+
+	// 3. Explicit sourceIds — added regardless of scope kind (Phase 114).
+	if sourceIds != nil {
+		for _, src := range splitAndTrim(*sourceIds) {
+			addSrc(src)
+		}
+	}
+
+	if len(sources) == 0 {
+		return "", nil, nil, "at least one of scopeId, probeIds, or sourceIds is required", false
+	}
+
+	if hasProbes {
+		resolvedKind = scopeProbe
+	} else {
+		resolvedKind = scopeSource
+	}
+	return resolvedKind, sources, probeSegs, "", true
 }
 
 // validateWindow rejects malformed time windows before reaching ClickHouse.
@@ -76,7 +125,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, reason, ok := s.resolveScope(rawScope, request.Params.ScopeId)
+	kind, sources, probeSegs, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricDistribution404JSONResponse{Message: reason}, nil
@@ -104,7 +153,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	resp := GetMetricDistribution200JSONResponse{
 		MetricName:  request.MetricName,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     strPtr(request.Params.ScopeId),
+		ScopeId:     request.Params.ScopeId,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}
@@ -129,6 +178,162 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	resp.Summary.P25 = res.Summary.P25
 	resp.Summary.P75 = res.Summary.P75
 	resp.Summary.P95 = res.Summary.P95
+
+	// segmentBy: build per-segment streams when requested.
+	if request.Params.SegmentBy != nil {
+		switch *request.Params.SegmentBy {
+		case GetMetricDistributionParamsSegmentBySource:
+			streams := make([]struct {
+				Bins []struct {
+					Count int64   `json:"count"`
+					Lower float64 `json:"lower"`
+					Upper float64 `json:"upper"`
+				} `json:"bins"`
+				Id        string `json:"id"`
+				Label     string `json:"label"`
+				ScopeKind string `json:"scopeKind"`
+				Summary   struct {
+					Count  int64   `json:"count"`
+					Max    float64 `json:"max"`
+					Mean   float64 `json:"mean"`
+					Median float64 `json:"median"`
+					Min    float64 `json:"min"`
+					P05    float64 `json:"p05"`
+					P25    float64 `json:"p25"`
+					P75    float64 `json:"p75"`
+					P95    float64 `json:"p95"`
+				} `json:"summary"`
+			}, 0, len(sources))
+			for _, src := range sources {
+				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, []string{src}, request.Params.Start, request.Params.End, bins)
+				if serr != nil {
+					slog.Error("handler failure", "op", "GetMetricDistribution.stream", "source", src, "error", serr)
+					return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
+				}
+				elem := struct {
+					Bins []struct {
+						Count int64   `json:"count"`
+						Lower float64 `json:"lower"`
+						Upper float64 `json:"upper"`
+					} `json:"bins"`
+					Id        string `json:"id"`
+					Label     string `json:"label"`
+					ScopeKind string `json:"scopeKind"`
+					Summary   struct {
+						Count  int64   `json:"count"`
+						Max    float64 `json:"max"`
+						Mean   float64 `json:"mean"`
+						Median float64 `json:"median"`
+						Min    float64 `json:"min"`
+						P05    float64 `json:"p05"`
+						P25    float64 `json:"p25"`
+						P75    float64 `json:"p75"`
+						P95    float64 `json:"p95"`
+					} `json:"summary"`
+				}{Id: src, Label: src, ScopeKind: "source"}
+				elem.Bins = make([]struct {
+					Count int64   `json:"count"`
+					Lower float64 `json:"lower"`
+					Upper float64 `json:"upper"`
+				}, len(sr.Bins))
+				for i, b := range sr.Bins {
+					elem.Bins[i] = struct {
+						Count int64   `json:"count"`
+						Lower float64 `json:"lower"`
+						Upper float64 `json:"upper"`
+					}{Count: b.Count, Lower: b.Lower, Upper: b.Upper}
+				}
+				elem.Summary.Count = sr.Summary.Count
+				elem.Summary.Min = sr.Summary.Min
+				elem.Summary.Max = sr.Summary.Max
+				elem.Summary.Mean = sr.Summary.Mean
+				elem.Summary.Median = sr.Summary.Median
+				elem.Summary.P05 = sr.Summary.P05
+				elem.Summary.P25 = sr.Summary.P25
+				elem.Summary.P75 = sr.Summary.P75
+				elem.Summary.P95 = sr.Summary.P95
+				streams = append(streams, elem)
+			}
+			resp.Streams = &streams
+		case GetMetricDistributionParamsSegmentByProbe:
+			if len(probeSegs) == 0 {
+				return GetMetricDistribution400JSONResponse{Message: "segmentBy=probe requires at least one probe ID in probeIds"}, nil
+			}
+			streams := make([]struct {
+				Bins []struct {
+					Count int64   `json:"count"`
+					Lower float64 `json:"lower"`
+					Upper float64 `json:"upper"`
+				} `json:"bins"`
+				Id        string `json:"id"`
+				Label     string `json:"label"`
+				ScopeKind string `json:"scopeKind"`
+				Summary   struct {
+					Count  int64   `json:"count"`
+					Max    float64 `json:"max"`
+					Mean   float64 `json:"mean"`
+					Median float64 `json:"median"`
+					Min    float64 `json:"min"`
+					P05    float64 `json:"p05"`
+					P25    float64 `json:"p25"`
+					P75    float64 `json:"p75"`
+					P95    float64 `json:"p95"`
+				} `json:"summary"`
+			}, 0, len(probeSegs))
+			for _, seg := range probeSegs {
+				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, seg.sources, request.Params.Start, request.Params.End, bins)
+				if serr != nil {
+					slog.Error("handler failure", "op", "GetMetricDistribution.stream", "probe", seg.id, "error", serr)
+					return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
+				}
+				elem := struct {
+					Bins []struct {
+						Count int64   `json:"count"`
+						Lower float64 `json:"lower"`
+						Upper float64 `json:"upper"`
+					} `json:"bins"`
+					Id        string `json:"id"`
+					Label     string `json:"label"`
+					ScopeKind string `json:"scopeKind"`
+					Summary   struct {
+						Count  int64   `json:"count"`
+						Max    float64 `json:"max"`
+						Mean   float64 `json:"mean"`
+						Median float64 `json:"median"`
+						Min    float64 `json:"min"`
+						P05    float64 `json:"p05"`
+						P25    float64 `json:"p25"`
+						P75    float64 `json:"p75"`
+						P95    float64 `json:"p95"`
+					} `json:"summary"`
+				}{Id: seg.id, Label: seg.id, ScopeKind: "probe"}
+				elem.Bins = make([]struct {
+					Count int64   `json:"count"`
+					Lower float64 `json:"lower"`
+					Upper float64 `json:"upper"`
+				}, len(sr.Bins))
+				for i, b := range sr.Bins {
+					elem.Bins[i] = struct {
+						Count int64   `json:"count"`
+						Lower float64 `json:"lower"`
+						Upper float64 `json:"upper"`
+					}{Count: b.Count, Lower: b.Lower, Upper: b.Upper}
+				}
+				elem.Summary.Count = sr.Summary.Count
+				elem.Summary.Min = sr.Summary.Min
+				elem.Summary.Max = sr.Summary.Max
+				elem.Summary.Mean = sr.Summary.Mean
+				elem.Summary.Median = sr.Summary.Median
+				elem.Summary.P05 = sr.Summary.P05
+				elem.Summary.P25 = sr.Summary.P25
+				elem.Summary.P75 = sr.Summary.P75
+				elem.Summary.P95 = sr.Summary.P95
+				streams = append(streams, elem)
+			}
+			resp.Streams = &streams
+		}
+	}
+
 	return resp, nil
 }
 
@@ -140,7 +345,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, reason, ok := s.resolveScope(rawScope, request.Params.ScopeId)
+	kind, sources, probeSegs, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricHeatmap404JSONResponse{Message: reason}, nil
@@ -171,7 +376,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 	resp := GetMetricHeatmap200JSONResponse{
 		MetricName:  request.MetricName,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     strPtr(request.Params.ScopeId),
+		ScopeId:     request.Params.ScopeId,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 		XDimension:  string(request.Params.XDimension),
@@ -191,6 +396,114 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 			Y     string  `json:"y"`
 		}{Count: c.Count, Value: c.Value, X: c.X, Y: c.Y}
 	}
+
+	// segmentBy: build per-segment streams when requested.
+	if request.Params.SegmentBy != nil {
+		switch *request.Params.SegmentBy {
+		case GetMetricHeatmapParamsSegmentBySource:
+			streams := make([]struct {
+				Cells []struct {
+					Count int64   `json:"count"`
+					Value float64 `json:"value"`
+					X     string  `json:"x"`
+					Y     string  `json:"y"`
+				} `json:"cells"`
+				Id        string `json:"id"`
+				Label     string `json:"label"`
+				ScopeKind string `json:"scopeKind"`
+			}, 0, len(sources))
+			for _, src := range sources {
+				sc, serr := s.db.GetMetricHeatmap(ctx, request.MetricName, []string{src},
+					storage.HeatmapDimension(request.Params.XDimension),
+					storage.HeatmapDimension(request.Params.YDimension),
+					request.Params.Start, request.Params.End)
+				if serr != nil {
+					slog.Error("handler failure", "op", "GetMetricHeatmap.stream", "source", src, "error", serr)
+					return GetMetricHeatmap500JSONResponse{Message: genericInternalError}, nil
+				}
+				elem := struct {
+					Cells []struct {
+						Count int64   `json:"count"`
+						Value float64 `json:"value"`
+						X     string  `json:"x"`
+						Y     string  `json:"y"`
+					} `json:"cells"`
+					Id        string `json:"id"`
+					Label     string `json:"label"`
+					ScopeKind string `json:"scopeKind"`
+				}{Id: src, Label: src, ScopeKind: "source"}
+				elem.Cells = make([]struct {
+					Count int64   `json:"count"`
+					Value float64 `json:"value"`
+					X     string  `json:"x"`
+					Y     string  `json:"y"`
+				}, len(sc))
+				for i, c := range sc {
+					elem.Cells[i] = struct {
+						Count int64   `json:"count"`
+						Value float64 `json:"value"`
+						X     string  `json:"x"`
+						Y     string  `json:"y"`
+					}{Count: c.Count, Value: c.Value, X: c.X, Y: c.Y}
+				}
+				streams = append(streams, elem)
+			}
+			resp.Streams = &streams
+		case GetMetricHeatmapParamsSegmentByProbe:
+			if len(probeSegs) == 0 {
+				return GetMetricHeatmap400JSONResponse{Message: "segmentBy=probe requires at least one probe ID in probeIds"}, nil
+			}
+			streams := make([]struct {
+				Cells []struct {
+					Count int64   `json:"count"`
+					Value float64 `json:"value"`
+					X     string  `json:"x"`
+					Y     string  `json:"y"`
+				} `json:"cells"`
+				Id        string `json:"id"`
+				Label     string `json:"label"`
+				ScopeKind string `json:"scopeKind"`
+			}, 0, len(probeSegs))
+			for _, seg := range probeSegs {
+				sc, serr := s.db.GetMetricHeatmap(ctx, request.MetricName, seg.sources,
+					storage.HeatmapDimension(request.Params.XDimension),
+					storage.HeatmapDimension(request.Params.YDimension),
+					request.Params.Start, request.Params.End)
+				if serr != nil {
+					slog.Error("handler failure", "op", "GetMetricHeatmap.stream", "probe", seg.id, "error", serr)
+					return GetMetricHeatmap500JSONResponse{Message: genericInternalError}, nil
+				}
+				elem := struct {
+					Cells []struct {
+						Count int64   `json:"count"`
+						Value float64 `json:"value"`
+						X     string  `json:"x"`
+						Y     string  `json:"y"`
+					} `json:"cells"`
+					Id        string `json:"id"`
+					Label     string `json:"label"`
+					ScopeKind string `json:"scopeKind"`
+				}{Id: seg.id, Label: seg.id, ScopeKind: "probe"}
+				elem.Cells = make([]struct {
+					Count int64   `json:"count"`
+					Value float64 `json:"value"`
+					X     string  `json:"x"`
+					Y     string  `json:"y"`
+				}, len(sc))
+				for i, c := range sc {
+					elem.Cells[i] = struct {
+						Count int64   `json:"count"`
+						Value float64 `json:"value"`
+						X     string  `json:"x"`
+						Y     string  `json:"y"`
+					}{Count: c.Count, Value: c.Value, X: c.X, Y: c.Y}
+				}
+				streams = append(streams, elem)
+			}
+			resp.Streams = &streams
+		}
+	}
+
 	return resp, nil
 }
 
@@ -201,7 +514,7 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, reason, ok := s.resolveScope(rawScope, request.Params.ScopeId)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricCorrelation404JSONResponse{Message: reason}, nil
@@ -232,7 +545,7 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 		BucketCount: res.BucketCount,
 		Resolution:  res.Resolution,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     strPtr(request.Params.ScopeId),
+		ScopeId:     request.Params.ScopeId,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}, nil
@@ -245,7 +558,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, reason, ok := s.resolveScope(rawScope, request.Params.ScopeId)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetEntityCoOccurrence404JSONResponse{Message: reason}, nil
@@ -270,7 +583,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	resp := GetEntityCoOccurrence200JSONResponse{
 		TopN:        res.TopN,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     strPtr(request.Params.ScopeId),
+		ScopeId:     request.Params.ScopeId,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}
@@ -302,18 +615,25 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
-		Degree     int64  `json:"degree"`
-		Label      string `json:"label"`
-		Text       string `json:"text"`
-		TotalCount int64  `json:"totalCount"`
+		Degree     int64     `json:"degree"`
+		Label      string    `json:"label"`
+		Presence   *[]string `json:"presence,omitempty"`
+		Text       string    `json:"text"`
+		TotalCount int64     `json:"totalCount"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
+		var presence *[]string
+		if len(n.Presence) > 0 {
+			p := n.Presence
+			presence = &p
+		}
 		resp.Nodes[i] = struct {
-			Degree     int64  `json:"degree"`
-			Label      string `json:"label"`
-			Text       string `json:"text"`
-			TotalCount int64  `json:"totalCount"`
-		}{Degree: n.Degree, Label: n.Label, Text: n.Text, TotalCount: n.TotalCount}
+			Degree     int64     `json:"degree"`
+			Label      string    `json:"label"`
+			Presence   *[]string `json:"presence,omitempty"`
+			Text       string    `json:"text"`
+			TotalCount int64     `json:"totalCount"`
+		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount}
 	}
 	return resp, nil
 }

@@ -24,6 +24,10 @@ type CoOccurrenceNode struct {
 	Label      string
 	Degree     int64
 	TotalCount int64
+	// Presence lists the source names where this entity appears within the
+	// returned edge set and the query window. Populated only when the scope
+	// covers multiple sources; nil for single-source requests (Phase 114).
+	Presence []string
 }
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
@@ -31,6 +35,14 @@ type CoOccurrenceResult struct {
 	Nodes []CoOccurrenceNode
 	Edges []CoOccurrenceEdge
 	TopN  int64
+}
+
+// nodeAccumulator tracks per-entity degree and total weight while building
+// the incident node set from the returned edge list.
+type nodeAccumulator struct {
+	label  string
+	degree int64
+	total  int64
 }
 
 // GetEntityCoOccurrence aggregates aer_gold.entity_cooccurrences over a
@@ -107,11 +119,6 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	// Derive incident nodes from the edge set so degree / totalCount are
 	// consistent with the topN truncation. Otherwise a node would appear
 	// here with weight totals that include edges the client never sees.
-	type nodeAccumulator struct {
-		label    string
-		degree   int64
-		total    int64
-	}
 	acc := map[string]*nodeAccumulator{}
 	for _, e := range edges {
 		if _, ok := acc[e.A]; !ok {
@@ -126,14 +133,27 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		acc[e.B].total += e.Weight
 	}
 
+	// Derive per-node source presence when multiple sources are in scope.
+	// A second query collects the distinct source names each entity appears in
+	// within the window — this lets the frontend shade nodes by source without
+	// an additional round-trip (Phase 114).
+	var presenceMap map[string][]string
+	if len(sources) > 1 && len(acc) > 0 {
+		presenceMap, _ = s.queryNodePresence(ctx, acc, args, clauses)
+	}
+
 	nodes := make([]CoOccurrenceNode, 0, len(acc))
 	for text, a := range acc {
-		nodes = append(nodes, CoOccurrenceNode{
+		n := CoOccurrenceNode{
 			Text:       text,
 			Label:      a.label,
 			Degree:     a.degree,
 			TotalCount: a.total,
-		})
+		}
+		if presenceMap != nil {
+			n.Presence = presenceMap[text]
+		}
+		nodes = append(nodes, n)
 	}
 
 	return CoOccurrenceResult{
@@ -141,4 +161,61 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		Edges: edges,
 		TopN:  int64(topN),
 	}, nil
+}
+
+// queryNodePresence returns a map from entity text to the sorted list of
+// distinct sources where that entity appears within the already-computed
+// WHERE window. Only called for multi-source scopes (Phase 114).
+func (s *ClickHouseStorage) queryNodePresence(
+	ctx context.Context,
+	acc map[string]*nodeAccumulator,
+	args []any,
+	clauses []string,
+) (map[string][]string, error) {
+	texts := make([]string, 0, len(acc))
+	for t := range acc {
+		texts = append(texts, t)
+	}
+
+	// Build text IN (...) placeholders; args already contains time + source placeholders.
+	textArgs := make([]any, len(args), len(args)+len(texts))
+	copy(textArgs, args)
+	textPlaceholders := make([]string, len(texts))
+	for i, t := range texts {
+		textPlaceholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
+		textArgs = append(textArgs, t)
+	}
+	textIN := strings.Join(textPlaceholders, ", ")
+	windowFilter := strings.Join(clauses, " AND ")
+
+	presenceQuery := fmt.Sprintf(`
+		SELECT entity_text, groupArrayDistinct(source) AS Presence
+		FROM (
+			SELECT entity_a_text AS entity_text, source
+			FROM aer_gold.entity_cooccurrences FINAL
+			WHERE %s AND entity_a_text IN (%s)
+			UNION ALL
+			SELECT entity_b_text AS entity_text, source
+			FROM aer_gold.entity_cooccurrences FINAL
+			WHERE %s AND entity_b_text IN (%s)
+		)
+		GROUP BY entity_text
+	`, windowFilter, textIN, windowFilter, textIN)
+
+	allArgs := append(textArgs, textArgs...)
+
+	var rows []struct {
+		EntityText string   `ch:"entity_text"`
+		Presence   []string `ch:"Presence"`
+	}
+	if err := s.conn.Select(ctx, &rows, presenceQuery, allArgs...); err != nil {
+		slog.Warn("Failed to query node presence (non-fatal)", "error", err)
+		return nil, err //nolint:wrapcheck // caller treats this as optional
+	}
+
+	result := make(map[string][]string, len(rows))
+	for _, r := range rows {
+		result[r.EntityText] = r.Presence
+	}
+	return result, nil
 }

@@ -1,12 +1,18 @@
 get:
   tags: [Analysis]
   summary: Retrieve aggregated language detections
-  description: Fetches detected languages aggregated across processed documents. Only rank-1 (top candidate) detections are included in the aggregation.
+  description: >
+    Fetches detected languages aggregated across processed documents. Only
+    rank-1 (top candidate) detections are included in the aggregation. The
+    optional `source` parameter filters to a single source
+    (backward-compatible); `sourceIds` accepts a comma-separated list and
+    is unioned with `source` when both are present.
   operationId: getLanguages
   parameters:
     - $ref: '../parameters/startDate.yaml'
     - $ref: '../parameters/endDate.yaml'
     - $ref: '../parameters/source.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
     - $ref: '../parameters/language.yaml'
     - $ref: '../parameters/limit.yaml'
   responses:

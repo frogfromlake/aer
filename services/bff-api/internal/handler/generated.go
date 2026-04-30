@@ -437,6 +437,24 @@ func (e GetMetricDistributionParamsScope) Valid() bool {
 	}
 }
 
+// Defines values for GetMetricDistributionParamsSegmentBy.
+const (
+	GetMetricDistributionParamsSegmentByProbe  GetMetricDistributionParamsSegmentBy = "probe"
+	GetMetricDistributionParamsSegmentBySource GetMetricDistributionParamsSegmentBy = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricDistributionParamsSegmentBy enum.
+func (e GetMetricDistributionParamsSegmentBy) Valid() bool {
+	switch e {
+	case GetMetricDistributionParamsSegmentByProbe:
+		return true
+	case GetMetricDistributionParamsSegmentBySource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMetricHeatmapParamsScope.
 const (
 	GetMetricHeatmapParamsScopeProbe  GetMetricHeatmapParamsScope = "probe"
@@ -449,6 +467,24 @@ func (e GetMetricHeatmapParamsScope) Valid() bool {
 	case GetMetricHeatmapParamsScopeProbe:
 		return true
 	case GetMetricHeatmapParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricHeatmapParamsSegmentBy.
+const (
+	GetMetricHeatmapParamsSegmentByProbe  GetMetricHeatmapParamsSegmentBy = "probe"
+	GetMetricHeatmapParamsSegmentBySource GetMetricHeatmapParamsSegmentBy = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricHeatmapParamsSegmentBy enum.
+func (e GetMetricHeatmapParamsSegmentBy) Valid() bool {
+	switch e {
+	case GetMetricHeatmapParamsSegmentByProbe:
+		return true
+	case GetMetricHeatmapParamsSegmentBySource:
 		return true
 	default:
 		return false
@@ -892,6 +928,9 @@ type GetEntitiesParams struct {
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
 	// Label Filter entities by NER label (e.g., "PER", "ORG", "LOC", "MISC")
 	Label *string `form:"label,omitempty" json:"label,omitempty"`
 
@@ -904,8 +943,14 @@ type GetEntityCoOccurrenceParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetEntityCoOccurrenceParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
 	// Start Inclusive start of the query window (RFC 3339).
 	Start time.Time `form:"start" json:"start"`
@@ -931,6 +976,9 @@ type GetLanguagesParams struct {
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
 	// Language Filter by ISO 639-1 language code (e.g., "de", "en").
 	Language *string `form:"language,omitempty" json:"language,omitempty"`
 
@@ -948,6 +996,9 @@ type GetMetricsParams struct {
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
 	// MetricName Filter metrics by metric name (e.g., "word_count")
 	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
@@ -982,8 +1033,14 @@ type GetMetricCorrelationParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricCorrelationParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
 	// Start Inclusive start of the query window (RFC 3339).
 	Start time.Time `form:"start" json:"start"`
@@ -1000,8 +1057,17 @@ type GetMetricDistributionParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// SegmentBy When set, the response additionally contains a `streams` array where each element carries the per-segment payload (same fields as the aggregate response). The aggregate fields (`bins`, `summary`, `cells`) are always included and reflect the full union scope. `source` produces one stream per resolved source; `probe` produces one stream per probe in `probeIds` (returns 400 when no probe IDs are resolved). Omitting this parameter preserves the current single-payload shape.
+	SegmentBy *GetMetricDistributionParamsSegmentBy `form:"segmentBy,omitempty" json:"segmentBy,omitempty"`
 
 	// Start Inclusive start of the query window (RFC 3339).
 	Start time.Time `form:"start" json:"start"`
@@ -1016,13 +1082,25 @@ type GetMetricDistributionParams struct {
 // GetMetricDistributionParamsScope defines parameters for GetMetricDistribution.
 type GetMetricDistributionParamsScope string
 
+// GetMetricDistributionParamsSegmentBy defines parameters for GetMetricDistribution.
+type GetMetricDistributionParamsSegmentBy string
+
 // GetMetricHeatmapParams defines parameters for GetMetricHeatmap.
 type GetMetricHeatmapParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricHeatmapParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-rss`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// SegmentBy When set, the response additionally contains a `streams` array where each element carries the per-segment payload (same fields as the aggregate response). The aggregate fields (`bins`, `summary`, `cells`) are always included and reflect the full union scope. `source` produces one stream per resolved source; `probe` produces one stream per probe in `probeIds` (returns 400 when no probe IDs are resolved). Omitting this parameter preserves the current single-payload shape.
+	SegmentBy *GetMetricHeatmapParamsSegmentBy `form:"segmentBy,omitempty" json:"segmentBy,omitempty"`
 
 	// XDimension X-axis dimension for the heatmap. `dayOfWeek` and `hour` bin on the metric timestamp; `source` groups by source name; `entityLabel` joins against `aer_gold.entities`; `language` joins against `aer_gold.language_detections`.
 	XDimension GetMetricHeatmapParamsXDimension `form:"xDimension" json:"xDimension"`
@@ -1039,6 +1117,9 @@ type GetMetricHeatmapParams struct {
 
 // GetMetricHeatmapParamsScope defines parameters for GetMetricHeatmap.
 type GetMetricHeatmapParamsScope string
+
+// GetMetricHeatmapParamsSegmentBy defines parameters for GetMetricHeatmap.
+type GetMetricHeatmapParamsSegmentBy string
 
 // GetMetricHeatmapParamsXDimension defines parameters for GetMetricHeatmap.
 type GetMetricHeatmapParamsXDimension string
@@ -1470,6 +1551,14 @@ func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
 	// ------------- Optional query parameter "label" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "label", r.URL.Query(), &params.Label, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
@@ -1519,18 +1608,27 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 		return
 	}
 
-	// ------------- Required query parameter "scopeId" -------------
+	// ------------- Optional query parameter "scopeId" -------------
 
-	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
 		return
 	}
 
@@ -1649,6 +1747,14 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
 	// ------------- Optional query parameter "language" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "language", r.URL.Query(), &params.Language, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
@@ -1725,6 +1831,14 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", r.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
 		return
 	}
 
@@ -1855,18 +1969,27 @@ func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r
 		return
 	}
 
-	// ------------- Required query parameter "scopeId" -------------
+	// ------------- Optional query parameter "scopeId" -------------
 
-	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
 		return
 	}
 
@@ -1942,18 +2065,35 @@ func (siw *ServerInterfaceWrapper) GetMetricDistribution(w http.ResponseWriter, 
 		return
 	}
 
-	// ------------- Required query parameter "scopeId" -------------
+	// ------------- Optional query parameter "scopeId" -------------
 
-	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "segmentBy" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "segmentBy", r.URL.Query(), &params.SegmentBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segmentBy", Err: err})
 		return
 	}
 
@@ -2037,18 +2177,35 @@ func (siw *ServerInterfaceWrapper) GetMetricHeatmap(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// ------------- Required query parameter "scopeId" -------------
+	// ------------- Optional query parameter "scopeId" -------------
 
-	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "segmentBy" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "segmentBy", r.URL.Query(), &params.SegmentBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "segmentBy", Err: err})
 		return
 	}
 
@@ -2947,7 +3104,10 @@ type GetEntityCoOccurrence200JSONResponse struct {
 		// Degree Number of distinct neighbours in the returned edge set.
 		Degree int64  `json:"degree"`
 		Label  string `json:"label"`
-		Text   string `json:"text"`
+
+		// Presence Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114).
+		Presence *[]string `json:"presence,omitempty"`
+		Text     string    `json:"text"`
 
 		// TotalCount Sum of edge weights incident on this node.
 		TotalCount int64 `json:"totalCount"`
@@ -3273,6 +3433,36 @@ type GetMetricDistribution200JSONResponse struct {
 	// ScopeId The resolved scope identifier.
 	ScopeId *string `json:"scopeId,omitempty"`
 
+	// Streams Per-segment payloads populated when `segmentBy` is set. Absent when `segmentBy` is not requested. The aggregate `bins` and `summary` are always present and reflect the full union scope (Phase 114).
+	Streams *[]struct {
+		// Bins Histogram bins ordered ascending by `lower`.
+		Bins []struct {
+			Count int64   `json:"count"`
+			Lower float64 `json:"lower"`
+			Upper float64 `json:"upper"`
+		} `json:"bins"`
+
+		// Id Segment identifier (source name or probe id).
+		Id string `json:"id"`
+
+		// Label Display label for the segment.
+		Label string `json:"label"`
+
+		// ScopeKind Segment kind: `source` or `probe`.
+		ScopeKind string `json:"scopeKind"`
+		Summary   struct {
+			Count  int64   `json:"count"`
+			Max    float64 `json:"max"`
+			Mean   float64 `json:"mean"`
+			Median float64 `json:"median"`
+			Min    float64 `json:"min"`
+			P05    float64 `json:"p05"`
+			P25    float64 `json:"p25"`
+			P75    float64 `json:"p75"`
+			P95    float64 `json:"p95"`
+		} `json:"summary"`
+	} `json:"streams,omitempty"`
+
 	// Summary Quantile and basic statistics for the same window.
 	Summary struct {
 		Count  int64   `json:"count"`
@@ -3356,9 +3546,29 @@ type GetMetricHeatmap200JSONResponse struct {
 		// Y The y-axis bucket label.
 		Y string `json:"y"`
 	} `json:"cells"`
-	MetricName  string    `json:"metricName"`
-	Scope       *string   `json:"scope,omitempty"`
-	ScopeId     *string   `json:"scopeId,omitempty"`
+	MetricName string  `json:"metricName"`
+	Scope      *string `json:"scope,omitempty"`
+	ScopeId    *string `json:"scopeId,omitempty"`
+
+	// Streams Per-segment payloads populated when `segmentBy` is set. Absent when `segmentBy` is not requested. The aggregate `cells` are always present and reflect the full union scope (Phase 114).
+	Streams *[]struct {
+		// Cells One row per non-empty (x, y) cell for this segment.
+		Cells []struct {
+			Count int64   `json:"count"`
+			Value float64 `json:"value"`
+			X     string  `json:"x"`
+			Y     string  `json:"y"`
+		} `json:"cells"`
+
+		// Id Segment identifier (source name or probe id).
+		Id string `json:"id"`
+
+		// Label Display label for the segment.
+		Label string `json:"label"`
+
+		// ScopeKind Segment kind: `source` or `probe`.
+		ScopeKind string `json:"scopeKind"`
+	} `json:"streams,omitempty"`
 	WindowEnd   time.Time `json:"windowEnd"`
 	WindowStart time.Time `json:"windowStart"`
 	XDimension  string    `json:"xDimension"`

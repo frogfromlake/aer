@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -72,7 +73,7 @@ func (r Resolution) rowLimitMultiplier() int {
 // It downsamples the data to the requested resolution (default 5-minute)
 // to prevent OOM errors on large time ranges. Optional source and metricName
 // filters narrow results to specific dimensions.
-func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, error) {
+func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, error) {
 	var results []MetricRow
 
 	// Bucket on the DB side via resolution.bucketExpr; aggregate with avg().
@@ -90,10 +91,14 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	args := []any{start, end}
 	argIdx := 3
 
-	if source != nil {
-		query += fmt.Sprintf(" AND source = $%d", argIdx)
-		args = append(args, *source)
-		argIdx++
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			argIdx++
+			args = append(args, src)
+		}
+		query += fmt.Sprintf(" AND source IN (%s)", strings.Join(placeholders, ", "))
 	}
 	if metricName != nil {
 		query += fmt.Sprintf(" AND metric_name = $%d", argIdx)
@@ -354,9 +359,9 @@ func (s *ClickHouseStorage) CheckEquivalenceExists(ctx context.Context, metricNa
 // The `SETTINGS join_use_nulls = 1` clause makes LEFT-JOIN misses produce true
 // NULLs instead of ClickHouse's default zero-values, so `IS NULL` / `IS NOT NULL`
 // discriminate correctly regardless of the detected_language string domain.
-func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
+func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
 	cacheKey := hotQueryKey("normalized_metrics",
-		start.UnixNano(), end.UnixNano(), derefString(source), derefString(metricName), int(resolution))
+		start.UnixNano(), end.UnixNano(), strings.Join(sources, ","), derefString(metricName), int(resolution))
 	if cached, ok := s.normalizedMetricsCache.get(cacheKey, s.metricsCacheTTL); ok {
 		return cached.rows, cached.excluded, nil
 	}
@@ -364,10 +369,14 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 	baseWhere := "m.timestamp >= $1 AND m.timestamp <= $2"
 	args := []any{start, end}
 	argIdx := 3
-	if source != nil {
-		baseWhere += fmt.Sprintf(" AND m.source = $%d", argIdx)
-		args = append(args, *source)
-		argIdx++
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			argIdx++
+			args = append(args, src)
+		}
+		baseWhere += fmt.Sprintf(" AND m.source IN (%s)", strings.Join(placeholders, ", "))
 	}
 	if metricName != nil {
 		baseWhere += fmt.Sprintf(" AND m.metric_name = $%d", argIdx)
@@ -427,7 +436,7 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 			"excluded", excluded,
 			"start", start,
 			"end", end,
-			"source", source,
+			"sources", sources,
 			"metric", metricName,
 		)
 	}

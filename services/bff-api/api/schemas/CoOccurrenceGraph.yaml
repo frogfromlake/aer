@@ -45,6 +45,15 @@ properties:
           format: int64
           minimum: 0
           description: Sum of edge weights incident on this node.
+        presence:
+          type: array
+          description: >
+            Source names where this entity appears within the returned edge set
+            and window. Populated when the scope covers multiple sources, so
+            the frontend can render per-source incident shading without a
+            follow-up call (Phase 114).
+          items:
+            type: string
   edges:
     type: array
     items:

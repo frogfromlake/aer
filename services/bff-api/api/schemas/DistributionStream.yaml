@@ -1,30 +1,24 @@
 type: object
 description: >
-  Per-scope distribution of a metric over a time window. Includes both
-  histogram bins and a quantile summary so the frontend can render
-  histogram, density, ridgeline, or violin without a second round-trip.
+  Per-segment distribution payload returned when `segmentBy` is set.
+  Each stream carries the same histogram and quantile fields as the
+  aggregate DistributionResponse, scoped to the individual segment.
 required:
-  - metricName
-  - windowStart
-  - windowEnd
+  - id
+  - label
+  - scopeKind
   - bins
   - summary
 properties:
-  metricName:
+  id:
     type: string
-    description: The metric name that was queried.
-  scope:
+    description: Segment identifier (source name or probe id).
+  label:
     type: string
-    description: The resolved scope (`probe` or `source`).
-  scopeId:
+    description: Display label for the segment.
+  scopeKind:
     type: string
-    description: The resolved scope identifier.
-  windowStart:
-    type: string
-    format: date-time
-  windowEnd:
-    type: string
-    format: date-time
+    description: "Segment kind: `source` or `probe`."
   bins:
     type: array
     description: Histogram bins ordered ascending by `lower`.
@@ -35,11 +29,9 @@ properties:
         lower:
           type: number
           format: double
-          description: Inclusive lower edge of the bin.
         upper:
           type: number
           format: double
-          description: Exclusive upper edge of the bin (inclusive on the last bin).
         count:
           type: integer
           format: int64
@@ -47,7 +39,6 @@ properties:
   summary:
     type: object
     required: [count, min, max, mean, median, p05, p25, p75, p95]
-    description: Quantile and basic statistics for the same window.
     properties:
       count:
         type: integer
@@ -77,11 +68,3 @@ properties:
       p95:
         type: number
         format: double
-  streams:
-    type: array
-    description: >
-      Per-segment payloads populated when `segmentBy` is set. Absent when
-      `segmentBy` is not requested. The aggregate `bins` and `summary` are
-      always present and reflect the full union scope (Phase 114).
-    items:
-      $ref: 'DistributionStream.yaml'

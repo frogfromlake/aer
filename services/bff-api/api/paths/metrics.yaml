@@ -1,12 +1,17 @@
 get:
   tags: [Metrics]
   summary: Retrieve aggregated time-series metrics
-  description: Fetches gold-layer metrics for the dashboard's "weather map" visualization.
+  description: >
+    Fetches gold-layer metrics for the dashboard's "weather map" visualization.
+    The optional `source` parameter filters to a single source
+    (backward-compatible); `sourceIds` accepts a comma-separated list and
+    is unioned with `source` when both are present.
   operationId: getMetrics
   parameters:
     - $ref: '../parameters/startDate.yaml'
     - $ref: '../parameters/endDate.yaml'
     - $ref: '../parameters/source.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
     - $ref: '../parameters/metricName.yaml'
     - $ref: '../parameters/normalization.yaml'
     - $ref: '../parameters/resolution.yaml'

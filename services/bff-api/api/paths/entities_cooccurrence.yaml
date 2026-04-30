@@ -5,10 +5,27 @@ get:
     Aggregates `aer_gold.entity_cooccurrences` over the window, returns the
     top-N edges by summed `cooccurrence_count` plus the union of incident
     nodes. Backs the Network Science discipline view-mode cell.
+
+    Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`.
+    At least one must be present. Each node carries a `presence` field listing
+    the resolved sources where it appears, enabling per-source shading in the
+    force-directed graph (Phase 114).
+
+    Edge cap: `topN` (default 50, max 500).
   operationId: getEntityCoOccurrence
   parameters:
     - $ref: '../parameters/scope.yaml'
-    - $ref: '../parameters/scopeId.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/topN.yaml'

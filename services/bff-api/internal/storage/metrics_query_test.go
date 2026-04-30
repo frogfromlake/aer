@@ -55,8 +55,7 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	// TEST: GetMetrics filtered by source
-	wikiSource := "wikipedia"
-	results, err = store.GetMetrics(ctx, start, end, &wikiSource, nil, ResolutionFiveMinute)
+	results, err = store.GetMetrics(ctx, start, end, []string{"wikipedia"}, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics with source filter, got: %v", err)
 	}
@@ -75,7 +74,7 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	// TEST: GetMetrics filtered by both source and metricName
-	results, err = store.GetMetrics(ctx, start, end, &wikiSource, &metricName, ResolutionFiveMinute)
+	results, err = store.GetMetrics(ctx, start, end, []string{"wikipedia"}, &metricName, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("expected no error from GetMetrics with both filters, got: %v", err)
 	}

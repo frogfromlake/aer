@@ -906,6 +906,18 @@ Phase 113c also promotes the four-function coverage indicator on the Probe Dossi
 
 Each increment is independent and deployable on its own. No increment leaves the dashboard in a non-functional state.
 
+**Phase 114 — Multi-Source Subset & Multi-Probe Composition (Within-Context) (2026-04-30).**
+
+Lifts every view-mode endpoint from a single `scopeId` to a composable scope union and introduces the parallel-stream response shape. Four architectural decisions are recorded here:
+
+1. *Scope-array lift.* `GET /api/v1/metrics/{metricName}/distribution`, `.../heatmap`, `.../correlation`, `/api/v1/entities/cooccurrence`, `/api/v1/entities`, `/api/v1/languages`, and `/api/v1/metrics` all gain `sourceIds` and `probeIds` query parameters (comma-separated). The existing `scope=probe|source` + `scopeId` form is retained for backward compatibility; the new parameters are additive. At the BFF, the scope resolver expands `probeIds` via `ProbeRegistry`, unions them with explicit `sourceIds`, deduplicates, and rejects the request with a structured `RefusalPayload` if any source in the set is Silver-ineligible (on gated endpoints). The ClickHouse `WHERE source = ?` clause becomes `WHERE source IN (?)` across all four view-mode handlers; existing per-endpoint row caps hold against the largest plausible scope.
+
+2. *Parallel-stream response shape.* Distribution and heatmap responses gain an optional `segmentBy=source|probe` flag. When set, the response body contains a top-level `streams` array in addition to the aggregate fields; each `DistributionStream` / `HeatmapStream` element carries `id`, `label`, `scopeKind`, and the full histogram/quantile payload scoped to the individual segment. The co-occurrence endpoint instead gains a per-node `presence[]` field enumerating which sources each node appears in. This design avoids a second round-trip for parallel-stream rendering on the frontend. The aggregate payload is always present, preserving the non-segmented consumer contract.
+
+3. *Composition, not comparison.* Every stream in a multi-probe response carries its own independent baseline. No shared cross-context scale exists in this phase. The `segmentBy` flag is intentionally unavailable alongside normalization modes — a user composing two probes sees raw aggregated streams from each, never an absolute cross-probe comparison. This constraint is structural, not advisory: the normalization gate (equivalence check, `RefusalPayload` with `gate=metric_equivalence`) lives in Phase 115.
+
+4. *Deferral of cross-cultural normalization.* Phase 114 deliberately ships zero normalization controls. The cross-frame equivalence gate (`aer_gold.metric_equivalence` checks, `percentile` mode, deviation-labelling UI, valid-comparisons panel, `RefusalPayload`) is fully out of scope and lives in Phase 115. The architecture separates the rendering substrate (multi-probe parallel-stream, this phase) from the methodological discipline that decides which composed views may carry an absolute or deviation claim (Phase 115).
+
 ---
 
 ### References
@@ -930,6 +942,7 @@ Each increment is independent and deployable on its own. No increment leaves the
 * **Ratified:** 2026-04-20 by the implementing engineer (Fabian Quist).
 * **Iteration 5 update:** 2026-04-25. Following the 2026-04-24 Reframing Note, the Design Brief was rewritten to demote Surface I (the globe) to a landing overview, elevate Surface II (Function Lanes) and Surface III (Reflection) as the primary scientific and methodological surfaces, add Navigation as a first-class concern (§3), introduce the view-mode matrix (§4.2.3), commit Silver-layer access with an eligibility-flag gate (§9), resolve probe-first globe emission with source-satellite presentation (§4.1, §8.4), and record the WP-001 terminology drift with a deferred reconciliation (§6, Path B). The ADR's Authority, Compliance-check, Backend-Work, and Implementation-Outline sections have been updated accordingly; the technology stack decisions are unchanged.
 * **Phase 113d update:** 2026-04-27. Implementation-Outline updated with Phase 113d structural fixes: methodology tray scoped to L3 only, URL serialisation gap fixed (multi-source `sourceIds`), satellite/scope-narrowing redesign, LensBar ordering fix, view-mode flicker fix, inline methodology expandable, and LensBar selection descriptions.
+* **Phase 114 update:** 2026-04-30. Implementation-Outline updated with Phase 114: scope-array lift (`scopeId` → composable `sourceIds`/`probeIds` union), parallel-stream response shape (`segmentBy` flag + `streams[]` array on distribution and heatmap, `presence[]` on co-occurrence nodes), composition-not-comparison constraint, and deferral of cross-cultural normalization gating to Phase 115.
 * **Review date:** 2027-04 (12-month review) or on any major Svelte / three.js / ecosystem regression.
 
 ---

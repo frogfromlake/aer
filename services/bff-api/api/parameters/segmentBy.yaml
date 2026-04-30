@@ -1,0 +1,14 @@
+name: segmentBy
+in: query
+description: >
+  When set, the response additionally contains a `streams` array where each
+  element carries the per-segment payload (same fields as the aggregate
+  response). The aggregate fields (`bins`, `summary`, `cells`) are always
+  included and reflect the full union scope. `source` produces one stream
+  per resolved source; `probe` produces one stream per probe in `probeIds`
+  (returns 400 when no probe IDs are resolved). Omitting this parameter
+  preserves the current single-payload shape.
+required: false
+schema:
+  type: string
+  enum: [source, probe]

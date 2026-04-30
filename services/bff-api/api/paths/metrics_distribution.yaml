@@ -5,6 +5,12 @@ get:
     Returns histogram bins plus a quantile summary for the given metric over
     the window, restricted to the resolved scope (probe or source). Backs
     the EDA x distributional view-mode cells (ADR-020 §View-mode queries).
+
+    Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`.
+    At least one must be present. `segmentBy` returns per-segment payloads
+    alongside the aggregate in a `streams` array (Phase 114).
+
+    Row cap: 500 000 rows across all sources and the full window.
   operationId: getMetricDistribution
   parameters:
     - name: metricName
@@ -14,7 +20,18 @@ get:
       schema:
         type: string
     - $ref: '../parameters/scope.yaml'
-    - $ref: '../parameters/scopeId.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/segmentBy.yaml'
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/bins.yaml'

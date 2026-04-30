@@ -132,3 +132,38 @@ When the analysis worker receives a `SIGINT` or `SIGTERM` signal, it must finish
 4. **Worker Completion:** `asyncio.gather(*workers)` waits for all worker tasks to finish. Each task processes its in-flight event to completion (including ClickHouse insert and PostgreSQL status update) before exiting.
 
 5. **Clean Exit:** After all workers have finished, the NATS connection is closed. No events are lost — unprocessed messages remain in the JetStream stream and will be redelivered to the next consumer instance.
+
+## 6.6 Multi-Probe Distribution Request (Phase 114)
+
+This sequence describes a multi-probe analytical query: the user has composed two probes in the scope bar and requests a distribution view with per-probe segmentation. The BFF resolves the scope union, queries ClickHouse with an `IN (...)` clause, and returns a segmented response so the frontend renders parallel per-probe streams without a second round-trip.
+
+```mermaid
+sequenceDiagram
+    participant FE as Dashboard (SvelteKit)
+    participant BFF as BFF API (Go)
+    participant PR as ProbeRegistry
+    participant CH as ClickHouse (Gold)
+
+    FE->>BFF: GET /api/v1/metrics/{metricName}/distribution<br/>?probeIds=probe-0,probe-1&segmentBy=probe&start=…&end=…
+    BFF->>PR: Expand probeIds → source name sets
+    PR-->>BFF: probe-0 → [tagesschau, bundesregierung]<br/>probe-1 → [le-monde, france-info]
+    BFF->>BFF: Deduplicate union → [tagesschau, bundesregierung, le-monde, france-info]
+    BFF->>CH: SELECT source, … FROM aer_gold.metrics<br/>WHERE source IN (…) AND metric_name = … AND …<br/>GROUP BY source
+    CH-->>BFF: Histogram rows per source
+    BFF->>BFF: Aggregate full union → bins[], summary{}
+    BFF->>BFF: Group rows by probe → DistributionStream per probe
+    BFF-->>FE: 200 { bins, summary, streams: [{ id: probe-0, … }, { id: probe-1, … }] }
+    FE->>FE: Render parallel ridgeline panels<br/>per-stream baseline, no shared cross-context axis
+```
+
+Key behaviors:
+
+1. **Scope resolution is fully server-side.** `ProbeRegistry` is the sole authority mapping probe IDs to source names; the frontend passes only probe IDs. The resolved source set is deterministic and auditable.
+
+2. **`IN (...)` replaces `= ?`.** A single `WHERE source IN (?)` clause covers the entire union regardless of how many sources or probes are composed. Per-endpoint row caps apply to the full union result; a very large scope may reach the cap sooner than a single-source request, which is intentional and documented in the OpenAPI description.
+
+3. **Aggregate is always present.** The top-level `bins` and `summary` fields always reflect the full union. The `streams` array is additive — consumers that ignore it see no change.
+
+4. **Per-stream baselines, no shared axis.** Each `DistributionStream` element is independent. The frontend scales each stream to its own range. Cross-context normalization (z-score, percentile) is not available in this phase; it is gated behind the equivalence check introduced in Phase 115.
+
+5. **Backward compatibility.** Requests using only `scopeId` (the pre-Phase 114 form) are handled identically to a single-element `sourceIds` or `probeIds`. No existing client requires changes.

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -39,15 +40,39 @@ func resolutionFromParam(p *GetMetricsParamsResolution) storage.Resolution {
 	}
 }
 
+// unionSourceParams merges the legacy single-source filter with the Phase 114
+// comma-separated sourceIds parameter, deduplicating the result. An empty
+// slice means no source filter — all sources are included.
+func unionSourceParams(source, sourceIds *string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s != "" && !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	if source != nil {
+		add(*source)
+	}
+	if sourceIds != nil {
+		for _, src := range strings.Split(*sourceIds, ",") {
+			add(src)
+		}
+	}
+	return out
+}
+
 // Store abstracts the data access layer for testability.
 type Store interface {
 	Ping(ctx context.Context) error
-	GetMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
-	GetNormalizedMetrics(ctx context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
+	GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
+	GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
-	GetEntities(ctx context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error)
-	GetLanguageDetections(ctx context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error)
+	GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error)
+	GetLanguageDetections(ctx context.Context, start, end time.Time, sources []string, language *string, limit int) ([]storage.LanguageDetectionRow, error)
 	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]storage.AvailableMetricRow, error)
 	GetMetricValidationStatus(ctx context.Context, metricName string) (string, error)
 	GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error)
@@ -148,12 +173,20 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 
 	useZscore := request.Params.Normalization != nil && *request.Params.Normalization == Zscore
 
+	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
+
 	if useZscore {
 		if request.Params.MetricName == nil {
 			return GetMetrics400JSONResponse{Message: "normalization=zscore requires the metricName parameter"}, nil
 		}
 
-		baselineExists, err := s.db.CheckBaselineExists(ctx, *request.Params.MetricName, request.Params.Source)
+		// For the baseline check, pass a single source when unambiguous; nil
+		// means "any source" which is the correct fallback for multi-source requests.
+		var bsSource *string
+		if len(sources) == 1 {
+			bsSource = &sources[0]
+		}
+		baselineExists, err := s.db.CheckBaselineExists(ctx, *request.Params.MetricName, bsSource)
 		if err != nil {
 			slog.Error("handler failure", "op", "GetMetrics.CheckBaselineExists", "error", err)
 			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
@@ -178,9 +211,9 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	var excludedCount int64
 	var err error
 	if useZscore {
-		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
+		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
 	} else {
-		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.MetricName, resolution)
+		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
 	}
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetrics", "error", err)
@@ -232,7 +265,8 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 		return GetEntities400JSONResponse{Message: "limit must be between 1 and 1000"}, nil
 	}
 
-	data, err := s.db.GetEntities(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.Label, limit)
+	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
+	data, err := s.db.GetEntities(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.Label, limit)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntities", "error", err)
 		return GetEntities500JSONResponse{Message: genericInternalError}, nil
@@ -268,7 +302,8 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 		return GetLanguages400JSONResponse{Message: "limit must be between 1 and 1000"}, nil
 	}
 
-	data, err := s.db.GetLanguageDetections(ctx, request.Params.StartDate, request.Params.EndDate, request.Params.Source, request.Params.Language, limit)
+	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
+	data, err := s.db.GetLanguageDetections(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.Language, limit)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetLanguages", "error", err)
 		return GetLanguages500JSONResponse{Message: genericInternalError}, nil

@@ -1,12 +1,18 @@
 get:
   tags: [Analysis]
   summary: Retrieve aggregated named entities
-  description: Fetches named entities (persons, organizations, locations) extracted from processed documents, aggregated by entity text and label.
+  description: >
+    Fetches named entities (persons, organizations, locations) extracted from
+    processed documents, aggregated by entity text and label. The optional
+    `source` parameter filters to a single source (backward-compatible);
+    `sourceIds` accepts a comma-separated list and is unioned with `source`
+    when both are present.
   operationId: getEntities
   parameters:
     - $ref: '../parameters/startDate.yaml'
     - $ref: '../parameters/endDate.yaml'
     - $ref: '../parameters/source.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
     - $ref: '../parameters/label.yaml'
     - $ref: '../parameters/limit.yaml'
   responses:

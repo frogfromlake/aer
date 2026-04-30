@@ -48,3 +48,11 @@ properties:
           format: int64
           minimum: 0
           description: Number of source rows aggregated into this cell.
+  streams:
+    type: array
+    description: >
+      Per-segment payloads populated when `segmentBy` is set. Absent when
+      `segmentBy` is not requested. The aggregate `cells` are always present
+      and reflect the full union scope (Phase 114).
+    items:
+      $ref: 'HeatmapStream.yaml'

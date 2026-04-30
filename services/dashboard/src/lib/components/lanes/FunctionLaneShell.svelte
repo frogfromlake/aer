@@ -37,9 +37,19 @@
     windowStart: string;
     windowEnd: string;
     sourceIds: string[];
+    // Phase 114 — multi-probe composition set (from url.probeIds).
+    probeIds?: string[];
   }
 
-  let { functionKey, dossier, ctx, windowStart, windowEnd, sourceIds }: Props = $props();
+  let {
+    functionKey,
+    dossier,
+    ctx,
+    windowStart,
+    windowEnd,
+    sourceIds,
+    probeIds = []
+  }: Props = $props();
 
   const FUNCTION_META: Record<string, { label: string; abbr: string; description: string }> = {
     epistemic_authority: {
@@ -112,10 +122,15 @@
   let presentation = $derived(getPresentation(url.viewMode));
   let metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
 
-  let scope = $derived<'probe' | 'source'>(sourceIds.length === 1 ? 'source' : 'probe');
-  // When exactly one source is narrowed, the cell queries use source scope.
-  // With multiple sources, probe scope is used and the cell receives the filtered source list.
-  let scopeId = $derived<string>(sourceIds.length === 1 ? sourceIds[0]! : (dossier?.probeId ?? ''));
+  // Composition mode (probeIds.length > 0) always uses probe scope so the
+  // BFF can union sources across all selected probes. Single-source scope
+  // still works for explicit one-source narrowing without composition.
+  let scope = $derived<'probe' | 'source'>(
+    probeIds.length === 0 && sourceIds.length === 1 ? 'source' : 'probe'
+  );
+  let scopeId = $derived<string>(
+    probeIds.length === 0 && sourceIds.length === 1 ? sourceIds[0]! : (dossier?.probeId ?? '')
+  );
 
   // Phase 111 — Silver-layer routing.
   let dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
@@ -183,7 +198,8 @@
   $effect(() => {
     if (isEmpty) return;
     const ctxParts: string[] = [`probe ${dossier?.probeId ?? '—'}`, presentation.label];
-    if (sourceIds.length > 0) ctxParts.push(`source ${sourceIds.join(', ')}`);
+    if (probeIds.length > 0) ctxParts.push(`compose ${probeIds.length} probes`);
+    else if (sourceIds.length > 0) ctxParts.push(`source ${sourceIds.join(', ')}`);
     if (dataLayer === 'silver') ctxParts.push('Silver layer');
     setFocusedMetric({
       metricName,
@@ -217,7 +233,13 @@
         {#each laneSources as s (s.name)}
           <span class="source-chip">{s.emicDesignation ?? s.name}</span>
         {/each}
-        {#if sourceIds.length > 0}
+        {#if probeIds.length > 0}
+          <span
+            class="source-scope-indicator"
+            title="Multi-probe composition: {probeIds.length} probes"
+            >⊗ {probeIds.length} probes</span
+          >
+        {:else if sourceIds.length > 0}
           <span class="source-scope-indicator" title="Scope narrowed from probe">⊂ scoped</span>
         {/if}
       </div>
@@ -313,6 +335,7 @@
       <p class="muted">Resolving scope…</p>
     {:else}
       {@const Cell = CellComponent}
+      {@const cellExtraProps = probeIds.length > 0 ? { probeIds } : {}}
       <Cell
         {ctx}
         scopeProbeId={dossier?.probeId ?? ''}
@@ -323,6 +346,7 @@
         {metricName}
         sources={cellSources}
         {dataLayer}
+        {...cellExtraProps}
       />
 
       <!-- Methodology section — expandable, default open (L3 item 8) -->

@@ -73,6 +73,10 @@ export interface ViewModeCellProps {
    *  have no Silver equivalent render a "not available" notice.
    *  Defaults to `gold` when absent. */
   dataLayer?: 'gold' | 'silver';
+  /** Phase 114 — Multi-probe composition set. When non-empty, cells
+   *  include all probes in BFF queries via the `probeIds` parameter so
+   *  the backend unions their sources. Absent = single-probe scope. */
+  probeIds?: string[];
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [

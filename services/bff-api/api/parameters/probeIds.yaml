@@ -1,0 +1,12 @@
+name: probeIds
+in: query
+description: >
+  Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`).
+  Each probe's full source list is resolved via the Probe Registry and added
+  to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved
+  source sets are merged and deduplicated. When `segmentBy=probe` is set, each
+  probe forms its own independent stream in the response.
+required: false
+schema:
+  type: string
+  description: Comma-separated probe IDs.

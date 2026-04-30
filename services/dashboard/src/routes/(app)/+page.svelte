@@ -58,11 +58,25 @@
   };
 
   let decision: 'pending' | 'engine' | 'fallback' = $state('pending');
+  let shiftHeld = $state(false);
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search);
     const forceFallback = params.get('fallback') === '1';
     decision = !forceFallback && hasWebGL2() ? 'engine' : 'fallback';
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeld = true;
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeld = false;
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+    };
   });
 
   // --- Probes ----------------------------------------------------------
@@ -185,6 +199,16 @@
   });
 
   function onProbeSelected(sel: ProbeSelection) {
+    if (shiftHeld) {
+      // Shift+click toggles the probe in the composition set; no navigation.
+      const current = url.probeIds;
+      if (current.includes(sel.probeId)) {
+        setUrl({ probeIds: current.filter((id) => id !== sel.probeId) });
+      } else {
+        setUrl({ probeIds: [...current, sel.probeId] });
+      }
+      return;
+    }
     descend(() => {
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
       void goto(`/lanes/${encodeURIComponent(sel.probeId)}/dossier`);
@@ -284,15 +308,28 @@
     />
 
     {#if hoveredProbe}
+      {@const inCompose = url.probeIds.includes(hoveredProbe.probeId)}
       <div
         class="probe-tooltip"
+        class:in-compose={inCompose}
         role="tooltip"
         style:left="{pointerX + 14}px"
         style:top="{pointerY + 14}px"
       >
         <span class="tooltip-headline">{hoveredProbeDto?.probeId ?? hoveredProbe.probeId}</span>
         <span class="tooltip-meta">{(hoveredProbeDto?.language ?? '').toUpperCase()}</span>
-        <span class="tooltip-affordance">Click to open the Probe Dossier (Surface II)</span>
+        {#if inCompose}
+          <span class="tooltip-compose-badge">✓ in composition set</span>
+          <span class="tooltip-affordance">Shift+click to remove · click to open dossier</span>
+        {:else if url.probeIds.length > 0}
+          <span class="tooltip-affordance"
+            >Click to open dossier · Shift+click to add to composition</span
+          >
+        {:else}
+          <span class="tooltip-affordance"
+            >Click to open the Probe Dossier · Shift+click to compose</span
+          >
+        {/if}
       </div>
     {:else if hoveredSatellite}
       <div
@@ -325,6 +362,25 @@
         </li>
       {/each}
     </ul>
+
+    {#if url.probeIds.length > 1}
+      <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe composition">
+        <span class="compose-count">⊗ {url.probeIds.length} probes</span>
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route -->
+        <button
+          type="button"
+          class="compose-btn"
+          onclick={() =>
+            // eslint-disable-next-line svelte/no-navigation-without-resolve
+            descend(() => void goto(`/lanes/${encodeURIComponent(url.probeIds[0]!)}/dossier`))}
+        >
+          Compose →
+        </button>
+        <button type="button" class="compose-clear" onclick={() => setUrl({ probeIds: [] })}>
+          Clear
+        </button>
+      </div>
+    {/if}
   </div>
 
   {#if probesQ.data?.kind === 'refusal'}
@@ -376,6 +432,17 @@
   .probe-tooltip.satellite {
     border-color: var(--color-border-strong, var(--color-border));
     background: color-mix(in srgb, var(--color-surface) 92%, var(--color-accent-muted));
+  }
+  .probe-tooltip.in-compose {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-surface) 88%, var(--color-accent));
+  }
+  .tooltip-compose-badge {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
   .tooltip-headline {
     font-family: var(--font-mono);
@@ -466,6 +533,66 @@
     gap: var(--space-2);
     align-items: stretch;
     z-index: 400;
+  }
+
+  /* Multi-probe Compose CTA — floats at bottom-right of the globe stage. */
+  .compose-cta {
+    position: absolute;
+    bottom: calc(var(--space-6) + 5rem);
+    right: var(--space-5);
+    z-index: 450;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: rgba(0, 0, 0, 0.78);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    backdrop-filter: blur(4px);
+  }
+  .compose-count {
+    color: var(--color-accent);
+    letter-spacing: 0.04em;
+    font-weight: var(--font-weight-semibold);
+  }
+  .compose-btn {
+    appearance: none;
+    padding: 2px var(--space-3);
+    background: var(--color-accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-bg);
+    cursor: pointer;
+  }
+  .compose-btn:hover,
+  .compose-btn:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, white);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .compose-clear {
+    appearance: none;
+    padding: 2px var(--space-2);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-fg-muted);
+    cursor: pointer;
+  }
+  .compose-clear:hover,
+  .compose-clear:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 
   /* Negative Space mode — Surface I visual treatment (Phase 112). */

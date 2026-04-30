@@ -74,19 +74,19 @@ func (m *mockStore) Ping(_ context.Context) error {
 	return m.pingErr
 }
 
-func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
+func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
-	m.capturedSource = source
+	m.capturedSources = sources
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
 	return m.metrics, m.metricsErr
 }
 
-func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, source, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error) {
+func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
-	m.capturedSource = source
+	m.capturedSources = sources
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
 	return m.normalizedMetrics, m.normalizedMetricsExcluded, m.normalizedMetricsErr
@@ -100,19 +100,19 @@ func (m *mockStore) CheckEquivalenceExists(_ context.Context, _ string) (bool, e
 	return m.equivalenceExists, m.equivalenceExistsErr
 }
 
-func (m *mockStore) GetEntities(_ context.Context, start, end time.Time, source, label *string, limit int) ([]storage.EntityRow, error) {
+func (m *mockStore) GetEntities(_ context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
-	m.capturedSource = source
+	m.capturedSources = sources
 	m.capturedLabel = label
 	m.capturedLimit = limit
 	return m.entities, m.entitiesErr
 }
 
-func (m *mockStore) GetLanguageDetections(_ context.Context, start, end time.Time, source, language *string, limit int) ([]storage.LanguageDetectionRow, error) {
+func (m *mockStore) GetLanguageDetections(_ context.Context, start, end time.Time, sources []string, language *string, limit int) ([]storage.LanguageDetectionRow, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
-	m.capturedSource = source
+	m.capturedSources = sources
 	m.capturedLanguage = language
 	m.capturedLimit = limit
 	return m.languageDetections, m.languageDetectionsErr

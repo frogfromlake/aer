@@ -14,6 +14,7 @@ describe('readFromSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -89,6 +90,16 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?negSpace=true').negSpace).toBeNull();
     expect(readFromSearch('').negSpace).toBeNull();
   });
+
+  it('parses comma-separated probeId param into probeIds array', () => {
+    expect(readFromSearch('?probeId=probe-0-de-institutional-rss').probeIds).toEqual([
+      'probe-0-de-institutional-rss'
+    ]);
+    expect(
+      readFromSearch('?probeId=probe-0-de-institutional-rss,probe-1-de-public-rss').probeIds
+    ).toEqual(['probe-0-de-institutional-rss', 'probe-1-de-public-rss']);
+    expect(readFromSearch('').probeIds).toEqual([]);
+  });
 });
 
 describe('writeToSearch', () => {
@@ -104,6 +115,7 @@ describe('writeToSearch', () => {
         metric: null,
         view: null,
         sourceIds: [],
+        probeIds: [],
         viewMode: null,
         layer: null,
         negSpace: null
@@ -122,6 +134,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -147,6 +160,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -164,6 +178,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -182,6 +197,7 @@ describe('writeToSearch', () => {
       metric: 'sentiment_score',
       view: 'analysis' as const,
       sourceIds: [],
+      probeIds: [],
       viewMode: 'distribution' as const,
       layer: null,
       negSpace: null
@@ -201,6 +217,7 @@ describe('writeToSearch', () => {
       metric: 'sentiment_score',
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -219,6 +236,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: 'atmosphere',
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -237,6 +255,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: 'distribution',
       layer: null,
       negSpace: null
@@ -255,6 +274,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: 'silver',
       negSpace: null
@@ -271,6 +291,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: 'gold',
       negSpace: null
@@ -287,6 +308,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: 'silver',
       negSpace: null
@@ -305,6 +327,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: ['tagesschau'],
+      probeIds: [],
       viewMode: null,
       layer: 'silver' as const,
       negSpace: null
@@ -324,6 +347,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: true
@@ -340,6 +364,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: null
@@ -358,6 +383,7 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: true as const
@@ -377,11 +403,68 @@ describe('writeToSearch', () => {
       metric: null,
       view: null,
       sourceIds: [],
+      probeIds: [],
       viewMode: null,
       layer: null,
       negSpace: true
     });
     expect(qs).toContain('negSpace=1');
     expect(qs).not.toContain('probe=');
+  });
+
+  it('emits probeId param for multi-probe composition and omits when empty', () => {
+    const withProbes = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceIds: [],
+      probeIds: ['probe-0-de-institutional-rss', 'probe-1-de-public-rss'],
+      viewMode: null,
+      layer: null,
+      negSpace: null
+    });
+    expect(withProbes).toContain('probeId=probe-0-de-institutional-rss%2Cprobe-1-de-public-rss');
+
+    const noProbes = writeToSearch({
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceIds: [],
+      probeIds: [],
+      viewMode: null,
+      layer: null,
+      negSpace: null
+    });
+    expect(noProbes).not.toContain('probeId=');
+  });
+
+  it('round-trips probeIds through readFromSearch', () => {
+    const original = {
+      from: null,
+      to: null,
+      probe: null,
+      emissionPoint: null,
+      resolution: null,
+      viewingMode: null,
+      metric: null,
+      view: null,
+      sourceIds: [],
+      probeIds: ['probe-0-de-institutional-rss', 'probe-1-de-public-rss'],
+      viewMode: null,
+      layer: null,
+      negSpace: null
+    };
+    const qs = writeToSearch(original);
+    expect(readFromSearch(qs)).toEqual(original);
   });
 });

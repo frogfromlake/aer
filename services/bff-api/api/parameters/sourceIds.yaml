@@ -1,0 +1,13 @@
+name: sourceIds
+in: query
+description: >
+  Comma-separated list of source names (e.g. `tagesschau,bundesregierung`).
+  When provided alongside or instead of `scopeId`, the sources are added to
+  the resolved scope union. Compatible with `probeIds` — both sets are merged
+  and deduplicated. Backward-compatible with the single `source` parameter on
+  the flat-list endpoints: if `source` is also present the two values are
+  unioned.
+required: false
+schema:
+  type: string
+  description: Comma-separated source names.

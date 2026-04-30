@@ -63,8 +63,7 @@ func TestGetEntities(t *testing.T) {
 	}
 
 	// TEST: GetEntities filtered by source
-	tagesschauSrc := "tagesschau"
-	results, err = store.GetEntities(ctx, start, end, &tagesschauSrc, nil, 100)
+	results, err = store.GetEntities(ctx, start, end, []string{"tagesschau"}, nil, 100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -141,8 +140,7 @@ func TestGetLanguageDetections(t *testing.T) {
 	}
 
 	// TEST: GetLanguageDetections filtered by source
-	tagesschauSrc := "tagesschau"
-	results, err = store.GetLanguageDetections(ctx, start, end, &tagesschauSrc, nil, 100)
+	results, err = store.GetLanguageDetections(ctx, start, end, []string{"tagesschau"}, nil, 100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
