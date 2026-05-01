@@ -186,7 +186,7 @@ def test_all_extractors_satisfy_metric_extractor_protocol():
         TemporalDistributionExtractor(),
         LanguageDetectionExtractor(),
         SentimentExtractor(sentiws_dir=Path("/nonexistent")),
-        NamedEntityExtractor(model_name="nonexistent_model_for_test"),
+        NamedEntityExtractor(language_to_model={"de": "nonexistent_model_for_test"}),
     ]
     for extractor in extractors:
         assert isinstance(extractor, MetricExtractor), f"{extractor.name} does not satisfy MetricExtractor"

@@ -3,7 +3,7 @@ import os
 import uuid
 import structlog
 from datetime import datetime
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import ValidationError
@@ -42,6 +42,40 @@ def _derive_discourse_function(meta) -> str:
     if ctx is None:
         return ""
     return ctx.primary_function or ""
+
+
+# Phase 116: TLD heuristic for German variety. A coarse metadata signal,
+# NOT a dialect classifier — documents the publishing locale of the feed,
+# not the linguistic variety of the prose.
+_GERMAN_VARIETY_BY_TLD = {".at": "de-AT", ".ch": "de-CH"}
+
+
+def _derive_language_variety(meta, detected_language: str) -> str:
+    """Return a coarse language-variety tag derived from RssMeta.feed_url TLD.
+
+    Only emits a non-empty value for German texts (Phase 116 scope). The
+    TLD lookup runs against the host portion of `RssMeta.feed_url`.
+
+    This is the single sanctioned point where the `language_detections`
+    Gold-row assembly reads `SilverMeta`, parallel to
+    `_derive_discourse_function` for the metrics/entities tables.
+    """
+    if detected_language != "de":
+        return ""
+    if meta is None:
+        return ""
+    feed_url = getattr(meta, "feed_url", "") or ""
+    if not feed_url:
+        return "de-DE"
+    try:
+        host = urlparse(feed_url).hostname or ""
+    except ValueError:
+        return "de-DE"
+    host = host.lower()
+    for suffix, variety in _GERMAN_VARIETY_BY_TLD.items():
+        if host.endswith(suffix):
+            return variety
+    return "de-DE"
 
 
 class DataProcessor:
@@ -134,12 +168,34 @@ class DataProcessor:
         all_metrics: list[GoldMetric] = []
         all_entities: list[GoldEntity] = []
         all_language_detections: list[GoldLanguageDetection] = []
-        for extractor in self.extractors:
+
+        # Phase 116: language-detection-first ordering. The
+        # LanguageDetectionExtractor (recognised by name) runs before any
+        # other extractor so its rank=1 consensus winner can replace the
+        # adapter-set placeholder on `core.language` for downstream
+        # extractors. Without this step, NER routing and the sentiment
+        # language guard fall back to the adapter default ("und"/"de") and
+        # English RSS articles are silently scored by the German pipeline.
+        ordered: list = sorted(
+            self.extractors,
+            key=lambda e: 0 if e.name == "language_detection" else 1,
+        )
+        working_core = core
+        for extractor in ordered:
             try:
-                result = extractor.extract_all(core, article_id)
+                result = extractor.extract_all(working_core, article_id)
                 all_metrics.extend(result.metrics)
                 all_entities.extend(result.entities)
                 all_language_detections.extend(result.language_detections)
+                if extractor.name == "language_detection":
+                    primary = next(
+                        (d for d in result.language_detections if d.rank == 1),
+                        None,
+                    )
+                    if primary is not None and primary.detected_language:
+                        working_core = working_core.model_copy(
+                            update={"language": primary.detected_language}
+                        )
             except Exception as e:
                 logger.error(
                     "Extractor failed. Skipping this extractor; other extractors continue.",
@@ -221,13 +277,22 @@ class DataProcessor:
         if all_language_detections:
             try:
                 lang_rows = [
-                    [d.timestamp, d.source, d.article_id, d.detected_language, d.confidence, d.rank, ingestion_version]
+                    [
+                        d.timestamp,
+                        d.source,
+                        d.article_id,
+                        d.detected_language,
+                        d.confidence,
+                        d.rank,
+                        ingestion_version,
+                        _derive_language_variety(meta, d.detected_language),
+                    ]
                     for d in all_language_detections
                 ]
                 self.ch.insert(
                     'aer_gold.language_detections',
                     lang_rows,
-                    column_names=['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank', 'ingestion_version']
+                    column_names=['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank', 'ingestion_version', 'language_variety']
                 )
                 logger.info(
                     "Gold language detections updated",

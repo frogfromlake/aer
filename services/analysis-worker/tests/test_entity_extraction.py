@@ -66,8 +66,13 @@ def test_named_entity_extractor_protocol_conformance():
 
 
 def test_named_entity_extractor_satisfies_metric_extractor():
-    """Tests that NamedEntityExtractor satisfies the unified MetricExtractor protocol."""
-    extractor = NamedEntityExtractor(model_name="nonexistent_model_for_test")
+    """Tests that NamedEntityExtractor satisfies the unified MetricExtractor protocol.
+
+    Phase 116: the constructor now takes a `language_to_model` map. Pointing
+    every language at a non-installed model exercises the OSError fallback
+    path without requiring a real spaCy model on disk.
+    """
+    extractor = NamedEntityExtractor(language_to_model={"de": "nonexistent_model_for_test"})
     assert isinstance(extractor, MetricExtractor)
     assert extractor.name == "named_entity"
 
@@ -82,7 +87,7 @@ def test_named_entity_extractor_german_text():
     Note: exact entities depend on the spaCy model version.
     """
     extractor = NamedEntityExtractor()
-    if extractor._nlp is None:
+    if not extractor._nlp_by_language:
         pytest.skip("spaCy de_core_news_lg not installed")
 
     core = SilverCore(
@@ -119,7 +124,7 @@ def test_named_entity_extractor_german_text():
 def test_named_entity_extractor_empty_text():
     """Tests that empty text returns no entities and no metrics."""
     extractor = NamedEntityExtractor()
-    if extractor._nlp is None:
+    if not extractor._nlp_by_language:
         pytest.skip("spaCy de_core_news_lg not installed")
 
     core = SilverCore(
@@ -140,7 +145,7 @@ def test_named_entity_extractor_empty_text():
 def test_named_entity_extractor_entity_count_matches():
     """Tests that entity_count metric matches the number of extracted entities."""
     extractor = NamedEntityExtractor()
-    if extractor._nlp is None:
+    if not extractor._nlp_by_language:
         pytest.skip("spaCy de_core_news_lg not installed")
 
     core = SilverCore(
@@ -253,7 +258,7 @@ def test_is_valid_entity_rejects_empty():
 def test_ner_skips_non_german_language():
     """NER must not run when core.language is a non-German ISO code."""
     extractor = NamedEntityExtractor()
-    if extractor._nlp is None:
+    if not extractor._nlp_by_language:
         pytest.skip("spaCy de_core_news_lg not installed")
 
     core = SilverCore(
@@ -275,7 +280,7 @@ def test_ner_skips_non_german_language():
 def test_ner_runs_on_undetermined_language():
     """language='und' must not suppress NER — it means detection did not run."""
     extractor = NamedEntityExtractor()
-    if extractor._nlp is None:
+    if not extractor._nlp_by_language:
         pytest.skip("spaCy de_core_news_lg not installed")
 
     core = SilverCore(

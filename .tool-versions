@@ -6,7 +6,7 @@ OAPI_CODEGEN_VERSION=v2.6.0
 GOVULNCHECK_VERSION=v1.1.4
 PIP_AUDIT_VERSION=2.10.0
 # Consumed by scripts/deps_refresh.sh when recompiling requirements.lock.txt.
-PIP_TOOLS_VERSION=7.5.1
+PIP_TOOLS_VERSION=7.5.3
 # Frontend toolchain (Phase 97 — services/dashboard/). Activated via Corepack;
 # the dashboard package.json `packageManager` field must match PNPM_VERSION.
 NODE_VERSION=22

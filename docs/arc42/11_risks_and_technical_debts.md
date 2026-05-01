@@ -132,11 +132,13 @@ The `CorpusExtractor` protocol is defined in `extractors/base.py` for future met
 | :--- | :--- |
 | **Severity** | Low |
 | **Affected Component** | `analysis-worker`, Docker image, `requirements.txt` |
-| **Status** | Accepted (Phase 42) |
+| **Status** | Accepted (Phase 42), Refined (Phase 116) |
 
 The Named Entity Extractor depends on `de_core_news_lg` (~500MB), a statistical NLP model downloaded from GitHub Releases during `pip install` in the Docker build stage. This introduces three risks: (1) Docker images are significantly larger (~700MB+ total), increasing pull times and storage costs. (2) The model URL on `github.com/explosion/spacy-models` may become unavailable or rate-limited during builds. (3) The model is pinned to version `3.8.0` — spaCy major version upgrades may require model migration.
 
 **Mitigation plan:** Consider caching the model in a named Docker volume or a private artifact registry. Pin the exact model version in `requirements.txt` (currently `de_core_news_lg-3.8.0`). If the GitHub URL becomes unreliable, mirror the wheel to the project's own infrastructure. The model is loaded with `disable=["tagger", "parser", "lemmatizer"]` to minimize memory footprint (NER pipeline only).
+
+**Phase 116 refinement — language routing and the absence-not-wrong guarantee.** Before Phase 116 the German model was applied to every document irrespective of its detected language, producing phantom entity spans on English RSS articles in Probe 0 and contaminating the Gold layer with statistically meaningless data. The Named Entity Extractor now carries a `{language_code: spacy_model_name}` constructor map and skips extraction (no `entity_count` metric, no `aer_gold.entities` rows, structured warning log) for any `core.language` not present in the map. Adding a new probe language is one model entry in `requirements.txt` plus one map entry — no extractor code change. The legacy adapter tag `und` and empty values still resolve to the default model (German) so pre-Phase-116 documents keep their NER coverage. This converts the implicit "process everything with the German model" assumption into an explicit, testable contract: documents in unsupported languages produce **genuine absence** in the Gold layer — distinguishable from "the entity count was zero". This is what the methodologically defensible cross-language aggregates downstream of WP-002 require.
 
 ---
 

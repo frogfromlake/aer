@@ -37,21 +37,37 @@ class NamedEntityExtractor:
       to other domains or registers.
     """
 
-    def __init__(self, model_name: str = "de_core_news_lg"):
-        try:
-            self._nlp = spacy.load(model_name, disable=["tagger", "parser", "lemmatizer"])
-            logger.info(
-                "spaCy NER model loaded",
-                model=model_name,
-                model_version=self._nlp.meta.get("version", "unknown"),
-            )
-        except OSError:
-            logger.error(
-                "spaCy model not found — NER extraction disabled. "
-                "Install via: python -m spacy download %s",
-                model_name,
-            )
-            self._nlp = None
+    # Phase 116: language-routing map. New languages are added by extending
+    # this dict and adding the corresponding spaCy model to requirements.txt
+    # (e.g. `fr: fr_core_news_lg`). No extractor code change required.
+    # Empty / "und" language tags resolve to the default model so legacy
+    # documents that predate language detection are still NER-ed.
+    _LANGUAGE_TO_MODEL: dict[str, str] = {
+        "de": "de_core_news_lg",
+    }
+    _LEGACY_LANGUAGE_TAGS = {"", "und"}
+
+    def __init__(self, language_to_model: dict[str, str] | None = None, default_language: str = "de"):
+        self._language_to_model = dict(language_to_model or self._LANGUAGE_TO_MODEL)
+        self._default_language = default_language
+        self._nlp_by_language: dict[str, "spacy.Language"] = {}
+        for lang, model_name in self._language_to_model.items():
+            try:
+                nlp = spacy.load(model_name, disable=["tagger", "parser", "lemmatizer"])
+                self._nlp_by_language[lang] = nlp
+                logger.info(
+                    "spaCy NER model loaded",
+                    language=lang,
+                    model=model_name,
+                    model_version=nlp.meta.get("version", "unknown"),
+                )
+            except OSError:
+                logger.error(
+                    "spaCy model not found — NER disabled for language. "
+                    "Install via: python -m spacy download %s",
+                    model_name,
+                    language=lang,
+                )
 
     # Named entities are at most a short noun phrase. Anything longer is a
     # spaCy false-positive — typically a sentence fragment labeled MISC when
@@ -59,31 +75,30 @@ class NamedEntityExtractor:
     _MAX_ENTITY_CHARS = 80
     _MAX_ENTITY_WORDS = 6
 
-    # Language codes the German model can handle reliably.
-    # "und" (undetermined) is allowed so we don't skip articles whose
-    # language detection has not yet run or produced a low-confidence result.
-    _SUPPORTED_LANGUAGES = {"de", "und"}
-
     @property
     def name(self) -> str:
         return "named_entity"
 
     def _process(self, core):
         """Run spaCy NER pipeline once per document. Returns doc or None."""
-        if self._nlp is None:
-            return None
         text = core.cleaned_text
         if not text:
             return None
-        lang = (core.language or "und").lower()
-        if lang not in self._SUPPORTED_LANGUAGES:
-            logger.debug(
-                "Skipping NER — language not supported by de_core_news_lg",
+        lang = (core.language or "").lower()
+        # Legacy / undetermined documents fall through to the default model
+        # so we don't lose NER coverage on adapter outputs that predate
+        # language routing.
+        if lang in self._LEGACY_LANGUAGE_TAGS:
+            lang = self._default_language
+        nlp = self._nlp_by_language.get(lang)
+        if nlp is None:
+            logger.warning(
+                "NER skipped: no model loaded for language",
                 language=lang,
                 source=core.source,
             )
             return None
-        return self._nlp(text)
+        return nlp(text)
 
     @classmethod
     def _is_valid_entity(cls, text: str) -> bool:

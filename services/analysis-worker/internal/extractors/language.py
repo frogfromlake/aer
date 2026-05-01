@@ -1,103 +1,172 @@
 import structlog
 from langdetect import detect_langs, LangDetectException
 from langdetect import DetectorFactory
+from lingua import LanguageDetectorBuilder
 
 from internal.extractors.base import GoldMetric, GoldLanguageDetection, ExtractionResult
 
-# Fixed seed for deterministic language detection across runs.
-# langdetect uses a probabilistic model internally; without a fixed seed,
-# results vary between invocations on the same input.
+# Fixed seed for deterministic langdetect across runs (probabilistic model).
 DetectorFactory.seed = 0
 
 logger = structlog.get_logger()
 
+# Texts shorter than this prefer the lingua-py verdict on disagreement
+# (WP-002 §3.4: langdetect degrades on short RSS descriptions).
+#
+# Operational note: most Probe 0 RSS descriptions fall below this threshold,
+# so on disagreement lingua-py is the de-facto decider for Probe 0. langdetect
+# still contributes to the consensus when it agrees with lingua-py and is
+# preserved in `aer_gold.language_detections` at rank 2..N+1 for audit. The
+# threshold becomes load-bearing for longer-text probes (Phase 122+).
+_SHORT_TEXT_THRESHOLD = 100
+
 
 class LanguageDetectionExtractor:
     """
-    Detects the language of SilverCore.cleaned_text using langdetect.
+    Two-detector consensus language detection (Phase 116).
 
-    **Provisional (Phase 42)** — This is a proof-of-concept, not a
-    scientifically validated implementation.
+    Runs ``langdetect`` and ``lingua-py`` in parallel on each document. The
+    consensus winner becomes the document's ``detected_language``:
 
-    Implements the unified MetricExtractor protocol (Phase 52): a single
-    extract_all() call returns both the language_confidence GoldMetric and
-    GoldLanguageDetection records in one pass. Stateless between documents.
+    * If both detectors agree, the agreed language wins.
+    * If they disagree, ``lingua-py`` wins on texts shorter than
+      ``_SHORT_TEXT_THRESHOLD`` (lingua-py benchmarks above langdetect on
+      short German/English news headlines, Stahl 2024); ``langdetect``
+      wins otherwise (preserves historical comparability for long texts).
 
-    Produces:
-    - metric_name = "language_confidence": The probability score (0.0-1.0)
-      for the most likely detected language.
-    - GoldLanguageDetection records: Ranked language candidates stored in
-      aer_gold.language_detections (Phase 45, Migration 004).
+    Both detectors' raw top picks are persisted in ``aer_gold.language_detections``
+    at separate ranks for provenance and downstream audit:
 
-    Additionally sets SilverCore.language during adapter harmonization
-    (see note below).
+    * ``rank=1``: consensus winner (document's primary detected language).
+    * ``rank=2..N+1``: ``langdetect`` full ranked candidates (historical
+      comparability — preserves the pre-Phase-116 output shape).
+    * ``rank=N+2``: ``lingua-py`` raw top pick.
 
-    Limitations (to be addressed with interdisciplinary collaboration, §13.5):
-    - Language detection accuracy degrades significantly on short texts
-      (<50 characters). RSS feed descriptions are often short and truncated.
-    - langdetect is optimized for longer documents (paragraphs+).
-    - The library's language profiles may not cover all relevant languages
-      for future AER probes beyond German.
-    - A production-grade implementation may require corpus-level language
-      profiling, multilingual model stacking, or lingua-py as an alternative.
-    - The fixed seed ensures determinism but does not guarantee accuracy.
+    The ``language_confidence`` metric value is the consensus winner's
+    confidence as reported by the winning detector.
 
-    Note on SilverCore.language: This extractor does NOT modify SilverCore
-    at extraction time (extractors receive immutable SilverCore). Language
-    detection results are stored as Gold metrics. The adapter-level
-    SilverCore.language field ("de" for RSS, "und" for legacy) remains the
-    authoritative language tag for downstream processing until a validated
-    language detection pipeline replaces the hardcoded adapter defaults.
+    The ``language_variety`` column on each row is intentionally empty here —
+    it is populated by the processor from ``RssMeta.feed_url`` TLD before the
+    ClickHouse insert (extractors stay meta-blind, Phase 76).
+
+    **Provisional (Phase 42)** — extractor is part of the proof-of-concept
+    NLP pipeline; methodology will be revisited with CSS researchers (§13.5).
     """
+
+    def __init__(self):
+        # lingua-py model loading is expensive (~150 MB resident). Build once,
+        # reuse for the worker's lifetime. ``with_preloaded_language_models``
+        # forces full load at startup so the first document doesn't pay the
+        # lazy-load tax.
+        self._lingua = (
+            LanguageDetectorBuilder
+            .from_all_languages()
+            .with_preloaded_language_models()
+            .build()
+        )
+        logger.info("lingua-py detector loaded (all languages, preloaded)")
 
     @property
     def name(self) -> str:
         return "language_detection"
 
+    def _langdetect_candidates(self, text: str):
+        """Return langdetect ranked candidates, or [] on failure."""
+        try:
+            return detect_langs(text)
+        except LangDetectException:
+            return []
+
+    def _lingua_top(self, text: str) -> tuple[str, float] | None:
+        """Return (iso_code, confidence) for lingua-py's top pick, or None."""
+        values = self._lingua.compute_language_confidence_values(text)
+        if not values:
+            return None
+        top = values[0]
+        iso = top.language.iso_code_639_1.name.lower()
+        return (iso, float(top.value))
+
     def extract_all(self, core, article_id: str | None) -> ExtractionResult:
-        """
-        Single-pass extraction returning the language_confidence metric and
-        ranked GoldLanguageDetection records for aer_gold.language_detections.
-        """
         text = core.cleaned_text
         if not text or len(text.strip()) < 10:
             return ExtractionResult()
 
-        try:
-            results = detect_langs(text)
-        except LangDetectException:
+        ld_candidates = self._langdetect_candidates(text)
+        lingua_top = self._lingua_top(text)
+
+        if not ld_candidates and lingua_top is None:
             logger.warning(
-                "Language detection failed",
+                "Both language detectors failed",
                 source=core.source,
                 article_id=article_id,
                 text_length=len(text),
             )
             return ExtractionResult()
 
-        if not results:
-            return ExtractionResult()
+        # Determine consensus winner.
+        ld_top_lang = ld_candidates[0].lang if ld_candidates else None
+        ld_top_prob = float(ld_candidates[0].prob) if ld_candidates else 0.0
+        lingua_lang = lingua_top[0] if lingua_top else None
+        lingua_prob = lingua_top[1] if lingua_top else 0.0
 
-        top = results[0]
+        if ld_top_lang and lingua_lang and ld_top_lang == lingua_lang:
+            winner_lang, winner_prob = ld_top_lang, ld_top_prob
+        elif ld_top_lang and lingua_lang:
+            # Disagreement: short texts → lingua-py, otherwise → langdetect.
+            if len(text) < _SHORT_TEXT_THRESHOLD:
+                winner_lang, winner_prob = lingua_lang, lingua_prob
+            else:
+                winner_lang, winner_prob = ld_top_lang, ld_top_prob
+        elif ld_top_lang:
+            winner_lang, winner_prob = ld_top_lang, ld_top_prob
+        else:
+            winner_lang, winner_prob = lingua_lang, lingua_prob
+
         metrics = [
             GoldMetric(
                 timestamp=core.timestamp,
-                value=round(top.prob, 4),
+                value=round(winner_prob, 4),
                 source=core.source,
                 metric_name="language_confidence",
                 article_id=article_id,
             ),
         ]
 
-        language_detections = [
+        # Persistence layout: rank=1 consensus winner; ranks 2..N+1 langdetect
+        # raw candidates (historical compat); final rank lingua-py top pick.
+        detections: list[GoldLanguageDetection] = [
             GoldLanguageDetection(
                 timestamp=core.timestamp,
                 source=core.source,
                 article_id=article_id,
-                detected_language=r.lang,
-                confidence=round(r.prob, 4),
-                rank=idx + 1,
-            )
-            for idx, r in enumerate(results)
+                detected_language=winner_lang,
+                confidence=round(winner_prob, 4),
+                rank=1,
+            ),
         ]
+        rank_cursor = 2
+        for cand in ld_candidates:
+            detections.append(
+                GoldLanguageDetection(
+                    timestamp=core.timestamp,
+                    source=core.source,
+                    article_id=article_id,
+                    detected_language=cand.lang,
+                    confidence=round(float(cand.prob), 4),
+                    rank=rank_cursor,
+                )
+            )
+            rank_cursor += 1
+        if lingua_top is not None:
+            detections.append(
+                GoldLanguageDetection(
+                    timestamp=core.timestamp,
+                    source=core.source,
+                    article_id=article_id,
+                    detected_language=lingua_lang,
+                    confidence=round(lingua_prob, 4),
+                    rank=rank_cursor,
+                )
+            )
 
-        return ExtractionResult(metrics=metrics, language_detections=language_detections)
+        return ExtractionResult(metrics=metrics, language_detections=detections)

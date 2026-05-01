@@ -208,7 +208,10 @@ def test_processor_language_detections_insert(
     lang_call = [c for c in insert_calls if c[0][0] == "aer_gold.language_detections"][0]
     lang_rows = lang_call[0][1]
     assert len(lang_rows) >= 1
-    assert lang_call[1]['column_names'] == ['timestamp', 'source', 'article_id', 'detected_language', 'confidence', 'rank', 'ingestion_version']
+    assert lang_call[1]['column_names'] == [
+        'timestamp', 'source', 'article_id', 'detected_language',
+        'confidence', 'rank', 'ingestion_version', 'language_variety',
+    ]
 
     assert lang_rows[0][5] == 1  # rank column
 

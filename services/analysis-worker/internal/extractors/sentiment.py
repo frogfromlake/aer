@@ -125,12 +125,22 @@ class SentimentExtractor:
     def version_hash(self) -> str:
         return self._lexicon_hash
 
+    # Phase 116: explicit language guard. Non-German documents produce no
+    # metric row (genuine absence), replacing the previous silent near-zero
+    # score that polluted cross-language corpus statistics. "und" / "" tags
+    # fall through to preserve coverage on legacy / pre-detection documents.
+    _SUPPORTED_LANGUAGES = {"de", "und", ""}
+
     def extract_all(self, core, article_id: str | None) -> ExtractionResult:
         if not self._lexicon:
             return ExtractionResult()
 
         text = core.cleaned_text
         if not text:
+            return ExtractionResult()
+
+        lang = (core.language or "").lower()
+        if lang not in self._SUPPORTED_LANGUAGES:
             return ExtractionResult()
 
         # Naive whitespace tokenization + lowercase + punctuation strip
