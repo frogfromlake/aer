@@ -124,6 +124,12 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create metric_baselines table: %v", err)
 	}
 
+	// Phase 115: mirror production schema. Migration 000008 uses
+	// ReplacingMergeTree(validation_date) and migration 000014 adds the
+	// `notes` column. Production queries (`GetAvailableMetrics`, the
+	// cross-cultural equivalence gates) read FINAL to collapse re-validations,
+	// which Memory engine does not support — keep this table on the
+	// MergeTree family.
 	err = store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
 			etic_construct String,
@@ -133,8 +139,10 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 			equivalence_level String,
 			validated_by String,
 			validation_date DateTime,
-			confidence Float32
-		) ENGINE = Memory
+			confidence Float32,
+			notes String DEFAULT ''
+		) ENGINE = ReplacingMergeTree(validation_date)
+		ORDER BY (etic_construct, metric_name, language)
 	`)
 	if err != nil {
 		t.Fatalf("failed to create metric_equivalence table: %v", err)

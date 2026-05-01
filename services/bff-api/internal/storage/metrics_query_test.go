@@ -174,8 +174,9 @@ func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
 			etic_construct String, metric_name String, language String,
 			source_type String, equivalence_level String, validated_by String,
-			validation_date DateTime, confidence Float32
-		) ENGINE = Memory`)
+			validation_date DateTime, confidence Float32, notes String DEFAULT ''
+		) ENGINE = ReplacingMergeTree(validation_date)
+		ORDER BY (etic_construct, metric_name, language)`)
 	if err != nil {
 		t.Fatalf("failed to create metric_equivalence table: %v", err)
 	}
@@ -259,8 +260,9 @@ func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
 			etic_construct String, metric_name String, language String,
 			source_type String, equivalence_level String, validated_by String,
-			validation_date DateTime, confidence Float32
-		) ENGINE = Memory`)
+			validation_date DateTime, confidence Float32, notes String DEFAULT ''
+		) ENGINE = ReplacingMergeTree(validation_date)
+		ORDER BY (etic_construct, metric_name, language)`)
 	if err != nil {
 		t.Fatalf("failed to create metric_equivalence table: %v", err)
 	}
