@@ -83,7 +83,9 @@ func TestGetMetricDistribution_ResolvesProbeAndReturnsBins(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.MetricName != "sentiment_score" || resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-rss" {
+	// Phase 117 alias: `sentiment_score` is canonicalised to
+	// `sentiment_score_sentiws` before the response is shaped.
+	if resp.MetricName != "sentiment_score_sentiws" || resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-rss" {
 		t.Fatalf("response echo mismatch: %+v", resp)
 	}
 	if len(resp.Bins) != 2 || resp.Bins[1].Count != 13 {
@@ -234,7 +236,8 @@ func TestGetMetricCorrelation_RoundTrip(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
 	}
-	if got := store.capturedMetrics; len(got) != 2 || got[0] != "sentiment_score" || got[1] != "word_count" {
+	// Phase 117 alias: `sentiment_score` is canonicalised before reaching the store.
+	if got := store.capturedMetrics; len(got) != 2 || got[0] != "sentiment_score_sentiws" || got[1] != "word_count" {
 		t.Fatalf("metrics passed to store: %v", got)
 	}
 

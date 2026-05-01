@@ -282,6 +282,8 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 	if request.Params.MetricName != nil && *request.Params.MetricName != "" {
 		metricName = *request.Params.MetricName
 	}
+	// Phase 117 read-side alias.
+	metricName = canonicalMetricName(metricName)
 	count, err := s.articles.CountAggregationGroup(ctx, res.SourceName, metricName, timestamp)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetArticleDetail.CountAggregationGroup", "error", err)

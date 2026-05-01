@@ -138,6 +138,8 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	if request.MetricName == "" {
 		return GetMetricDistribution400JSONResponse{Message: "metricName is required"}, nil
 	}
+	// Phase 117 read-side alias.
+	request.MetricName = canonicalMetricName(request.MetricName)
 
 	bins := 30
 	if request.Params.Bins != nil {
@@ -358,6 +360,8 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 	if !request.Params.XDimension.Valid() || !request.Params.YDimension.Valid() {
 		return GetMetricHeatmap400JSONResponse{Message: "xDimension and yDimension must be one of dayOfWeek, hour, source, entityLabel, language"}, nil
 	}
+	// Phase 117 read-side alias.
+	request.MetricName = canonicalMetricName(request.MetricName)
 
 	cells, err := s.db.GetMetricHeatmap(
 		ctx,
@@ -532,6 +536,8 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 	if len(metrics) > 10 {
 		return GetMetricCorrelation400JSONResponse{Message: "metrics is capped at 10 names per request"}, nil
 	}
+	// Phase 117 read-side alias.
+	metrics = canonicalMetricNames(metrics)
 
 	res, err := s.db.GetMetricCorrelation(ctx, metrics, sources, request.Params.Start, request.Params.End)
 	if err != nil {

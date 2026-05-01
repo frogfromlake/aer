@@ -230,6 +230,9 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	}
 	useNormalization := mode == Zscore || mode == Percentile
 
+	// Phase 117 read-side alias: `sentiment_score` → `sentiment_score_sentiws`.
+	canonicalMetricNamePtr(request.Params.MetricName)
+
 	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
 
 	if useNormalization {
@@ -415,6 +418,9 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 // fields (validationStatus, culturalContextNotes) are resolved against the
 // metric_validity / metric_equivalence ClickHouse tables.
 func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProvenanceRequestObject) (GetMetricProvenanceResponseObject, error) {
+	// Phase 117 read-side alias: legacy `sentiment_score` URL paths still
+	// resolve through the rename to `sentiment_score_sentiws`.
+	request.MetricName = canonicalMetricName(request.MetricName)
 	entry, ok := s.provenance[request.MetricName]
 	if !ok {
 		return GetMetricProvenance404JSONResponse{Message: "no provenance entry registered for metric"}, nil

@@ -812,7 +812,7 @@ The worker subscribes to NATS subject `aer.lake.bronze`, downloads raw documents
 | `WordCountExtractor` | `word_count` | Token count of cleaned text |
 | `TemporalDistributionExtractor` | `publication_hour`, `publication_weekday` | Publication time metadata |
 | `LanguageDetectionExtractor` | `language_confidence` | Confidence score via `langdetect` |
-| `SentimentExtractor` | `sentiment_score` | German lexicon polarity via SentiWS |
+| `SentimentExtractor` | `sentiment_score_sentiws` | German lexicon polarity via SentiWS, with Phase 117 dependency-based negation scope, `compound-split` head/tail decomposition, and `data/custom_lexicon.yaml` merge hook |
 | `NamedEntityExtractor` | `entity_count` | spaCy `de_core_news_lg` NER; raw spans stored in `aer_gold.entities` |
 
 Extractors are independent — one failing extractor does not crash others or route the document to the DLQ. Extractor source code is in `services/analysis-worker/internal/extractors/`.
@@ -830,6 +830,30 @@ The `RSSAdapter` reads the `source_classifications` table (via `get_source_class
 # Check worker logs
 make logs   # Combined logs of all services
 ```
+
+#### Custom lexicon extension (Phase 117)
+
+The `SentimentExtractor` merges `services/analysis-worker/data/custom_lexicon.yaml` with the versioned SentiWS file at startup. This is the designated out-of-band mechanism for adding neologisms (e.g. `toxisch`, `Querdenker`, `Wutbürger`) without patching the SentiWS data files.
+
+File format:
+
+```yaml
+# data/custom_lexicon.yaml — entries are merged with SentiWS at startup.
+# Surface forms are case-insensitive; polarity is a float in [-1.0, 1.0].
+toxisch: -0.6
+Querdenker: -0.4
+Wutbürger: -0.5
+```
+
+Workflow to add an entry:
+
+1. Edit `services/analysis-worker/data/custom_lexicon.yaml` and commit.
+2. Rebuild the worker image: `make build-services` (or rebuild via Compose).
+3. Restart the worker: `make worker-restart`.
+4. Verify: the worker logs `SentiWS lexicon loaded` with `custom_entries=N` and a fresh `lexicon_hash` — that hash also feeds the extractor's `version_hash` (Phase 46), so any rows produced after the restart can be distinguished from prior rows by provenance.
+5. Optional: re-process historical Bronze documents to apply the new entries to past data — see the reprocessing section above.
+
+The custom file is checked into git so the lexicon evolution is auditable. Do not hand-edit the SentiWS files in `data/sentiws/` for neologisms — those are the versioned baseline.
 
 ### RSS Crawler
 

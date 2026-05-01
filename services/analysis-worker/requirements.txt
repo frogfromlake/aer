@@ -47,3 +47,11 @@ https://github.com/explosion/spacy-models/releases/download/de_core_news_lg-3.8.
 # Second-opinion language detector. langdetect retained for short-text
 # disagreement signal and historical comparability.
 lingua-language-detector==2.2.0
+
+# --- Phase 117: Sentiment Tier 1 Improvements ---
+# Frequency-list-based German compound splitter. Deterministic, no model
+# inference, no randomness — exact Tier 1 fit. Used by SentimentExtractor
+# to score compounds whose head/tail are individually present in SentiWS.
+compound-split==1.0.2
+# YAML loader for the operator-managed `data/custom_lexicon.yaml` extension.
+PyYAML==6.0.2

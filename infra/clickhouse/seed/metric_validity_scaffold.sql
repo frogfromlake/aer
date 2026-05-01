@@ -1,0 +1,43 @@
+-- Seed: metric_validity scaffold for sentiment_score_sentiws.
+-- Phase 117: NLP Hardening — Sentiment Tier 1 Improvements (WP-002).
+--
+-- One-off dev-setup script — NOT a runtime migration. Intentionally a NO-OP
+-- on the live schema.
+--
+-- The roadmap entry asked for a scaffold row with "validation_status =
+-- unvalidated" and an error_taxonomy JSON listing the resolved/open WP-002
+-- §3.2 limitations. The actual `aer_gold.metric_validity` schema, however,
+-- does NOT carry a `validation_status` column — the BFF derives that string
+-- from `valid_until`:
+--   no row at all       → "unvalidated"   (← the correct state for Phase 117)
+--   row, valid_until>now → "validated"
+--   row, valid_until<now → "expired"
+--
+-- Inserting a scaffold row therefore would either (a) misreport the metric
+-- as `validated` (future valid_until), or (b) misreport it as `expired`
+-- (past valid_until). Neither matches the roadmap's stated intent. The
+-- correct on-disk state for an unvalidated metric is the absence of a row.
+--
+-- The known-limitations payload that the roadmap wanted to attach lives in
+-- `docs/methodology/en/WP-002-en-metric_validity_and_sentiment_calibration.md`
+-- §3.2 (where the resolved-vs-open breakdown is now narrative), and in
+-- this file as a documentation block — it does not need to be in
+-- ClickHouse until an actual annotation study (WP-002 §6.2) populates
+-- `alpha_score`, `correlation`, `n_annotated`, and a meaningful
+-- `valid_until`.
+--
+-- Reference (for the future annotation-study reviewer who will fill in
+-- `alpha_score` and `valid_until`):
+--
+--   metric_name : sentiment_score_sentiws
+--   context_key : de:rss:epistemic_authority
+--   tier        : 1 (Tier 1, deterministic SentiWS)
+--   resolved    : negation_blindness_phase117,
+--                 compound_decomposition_phase117
+--   open        : irony, sarcasm, domain_dependency,
+--                 compositionality_beyond_compounds, lexicon_currency
+--
+-- This file is checked in for auditability and runs as a no-op SELECT, so
+-- piping it into clickhouse-client succeeds without changing state.
+
+SELECT 'metric_validity_scaffold: no-op — see file header for rationale' AS note;

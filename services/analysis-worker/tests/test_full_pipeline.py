@@ -131,7 +131,7 @@ def test_full_extractor_pipeline_with_all_tier1(mock_minio, mock_clickhouse, moc
     assert "publication_hour" in metric_names
     assert "publication_weekday" in metric_names
     assert "language_confidence" in metric_names
-    assert "sentiment_score" not in metric_names  # no lexicon loaded
+    assert "sentiment_score_sentiws" not in metric_names  # no lexicon loaded
 
     for row in rows:
         name, value = row[3], row[1]

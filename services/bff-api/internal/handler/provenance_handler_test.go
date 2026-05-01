@@ -28,7 +28,7 @@ func testProvenance() config.MetricProvenanceMap {
 			KnownLimitations:     []string{},
 			ExtractorVersionHash: "v1",
 		},
-		"sentiment_score": {
+		"sentiment_score_sentiws": {
 			TierClassification:   1,
 			AlgorithmDescription: "Lexicon-based polarity score using SentiWS v2.0.",
 			KnownLimitations: []string{

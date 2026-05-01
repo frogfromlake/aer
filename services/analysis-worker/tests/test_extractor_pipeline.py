@@ -332,7 +332,7 @@ def test_sentiment_extractor_with_inline_lexicon(tmp_path):
     result = extractor.extract_all(core, "article-1")
     metrics = result.metrics
     assert len(metrics) == 1
-    assert metrics[0].metric_name == "sentiment_score"
+    assert metrics[0].metric_name == "sentiment_score_sentiws"  # Phase 117 rename
     assert all(m.metric_name != "lexicon_version" for m in metrics)
 
     # "gut" (0.504) + "glück" (0.5765) → mean = ~0.54
@@ -365,7 +365,7 @@ def test_sentiment_extractor_negative_text(tmp_path):
     )
 
     result = extractor.extract_all(core, None)
-    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score")
+    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score_sentiws")
     assert sentiment.value < 0
     assert -1.0 <= sentiment.value <= 1.0
 
@@ -391,7 +391,7 @@ def test_sentiment_extractor_no_matches_returns_zero(tmp_path):
     )
 
     result = extractor.extract_all(core, None)
-    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score")
+    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score_sentiws")
     assert sentiment.value == 0.0
 
 

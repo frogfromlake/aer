@@ -1,0 +1,16 @@
+# Custom sentiment lexicon — Phase 117.
+#
+# Operator-managed extension to SentiWS for German neologisms and
+# domain-specific terms that the versioned SentiWS file does not score
+# correctly (e.g. `toxisch`, `Querdenker`, `Wutbürger`).
+#
+# Format: `word: polarity`, with polarity in [-1.0, 1.0]. Words are
+# matched case-insensitively. Entries here OVERRIDE SentiWS for the same
+# token — this is the intentional escape hatch.
+#
+# Workflow for adding an entry: see `docs/operations_playbook.md`
+# > "Custom sentiment lexicon extension".
+#
+# This file is checked in empty by default. Do not commit speculative
+# entries — every addition should be backed by a documented rationale.
+{}
