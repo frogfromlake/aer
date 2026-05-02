@@ -1034,6 +1034,8 @@ export interface components {
                 totalCount: number;
                 /** @description Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114). */
                 presence?: string[];
+                /** @description Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call. */
+                wikidataQid?: string | null;
             }[];
             edges: {
                 /** @description Lexicographically smaller entity text in the pair. */
@@ -1725,6 +1727,13 @@ export interface operations {
                         count: number;
                         /** @description Distinct data sources that produced this entity. */
                         sources: string[];
+                        /** @description Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when no candidate above the heuristic confidence threshold was found. The link is the highest-confidence match across all occurrences of this (entityText, entityLabel) pair in the window; ties broken by sitelink count via the alias index. */
+                        wikidataQid?: string | null;
+                        /**
+                         * Format: float
+                         * @description Confidence (0.7–1.0) of the resolved link, or null when no link was established. Heuristic Tier-1.5 weights — see `aer_gold.metric_validity` for `entity_link_confidence` and WP-002 §4.2.
+                         */
+                        linkConfidence?: number | null;
                     }[];
                 };
             };

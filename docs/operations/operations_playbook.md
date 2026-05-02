@@ -1222,6 +1222,84 @@ git stash                 # save it for later inspection
 
 ---
 
+## Building and refreshing the Wikidata alias index
+
+The Phase 118 entity-linking step depends on a SQLite alias index built once per quarter from the Wikidata SPARQL endpoint. The index is shipped to the analysis-worker via the `aer-wikidata-index` Docker image and the `wikidata-index-init` compose service; the worker mounts it read-only at `/data/wikidata/`.
+
+### Prerequisites
+
+* Network: a stable internet connection to `query.wikidata.org`. The build performs paginated SPARQL over several hours; transient 429 / 5xx responses are retried with exponential backoff.
+* Disk: 1 GiB free on the runner is plenty — the staging DB peaks below 200 MB and the canonicalised output is 50–150 MB.
+* Runtime: 2–6 h for the initial three-language scope (`de,en,fr`). Re-runs are full rebuilds; the SPARQL endpoint does not support incremental.
+* Authority: write access to `ghcr.io/frogfromlake/aer-wikidata-index` (the workflow's `GITHUB_TOKEN` already has `packages:write`).
+
+### Snapshot-date convention
+
+The build is parameterised by a snapshot date that filters Wikidata entities by `schema:dateModified <= <snapshot>T00:00:00Z`. Two builds with identical (snapshot date, languages, bucket YAML, script version) produce byte-identical SQLite files. The default is "yesterday at 00:00 UTC"; production rebuilds pin a specific date so the resulting hash is reproducible.
+
+### Triggering a rebuild
+
+There are two paths:
+
+```text
+# Path A — manual (workflow_dispatch). Used for: end-to-end testing during
+# Phase-118 development, urgent refreshes outside the schedule, and any
+# rebuild that adds new languages.
+gh workflow run wikidata_index_rebuild.yml \
+  -f snapshot_date=2026-04-30 \
+  -f languages=de,en,fr
+
+# Path B — scheduled (cron). Activated in a separate post-merge commit
+# after Phase 118 ships and a manual run has been verified end-to-end.
+# Cron: 1st of Jan/Apr/Jul/Oct at 02:00 UTC.
+```
+
+The workflow runs the build script, uploads the resulting `wikidata_aliases.db` as a 90-day-retention artifact, and pushes the `aer-wikidata-index` image tagged with both the snapshot date and `latest`.
+
+### Hash verification
+
+Each build emits its sha256 to:
+
+1. The GitHub Actions step summary (visible in the run UI).
+2. The image label `org.aer.wikidata.sha256`.
+3. The `wikidata_aliases.db.sha256` sidecar baked into the image (standard `sha256sum -c` format).
+4. The artifact filename suffix.
+
+To enforce that the analysis-worker uses an exact build, set `WIKIDATA_INDEX_SHA256` in `.env` to the expected hex digest. On startup, the worker computes the sha256 of the mounted file and refuses to boot on mismatch — this is the silent-drift guard. Leave the variable empty to accept whatever the volume contains (recommended only for development).
+
+### Deploying a new index
+
+```bash
+# Pin the new tag in .env (Image-Pinning-Policy):
+WIKIDATA_INDEX_TAG=2026-04-30
+WIKIDATA_INDEX_SHA256=<sha256 from step summary>
+
+# Re-pull and re-init:
+docker compose pull wikidata-index-init
+docker compose up -d wikidata-index-init analysis-worker
+```
+
+The `wikidata-index-init` container copies the new DB into the `wikidata_data` volume and verifies the sidecar via `sha256sum -c`. The analysis-worker depends on it via `condition: service_completed_successfully`, so the worker only starts once the volume is populated. Rolling back is one tag flip plus `docker compose up -d wikidata-index-init analysis-worker` — the previous image tag and the previous quarterly artifact are both still recoverable.
+
+### Refresh cadence
+
+* **Quarterly** by default (`schedule:` in the workflow).
+* **On Probe expansion** — when a new probe introduces a language not in the current `LANGUAGES` list, run `workflow_dispatch` with the extended set before the probe's first ingestion.
+* **On bucket-YAML change** — when `services/analysis-worker/data/wikidata_type_buckets.yaml` is edited (new entity type bucket, refined min-sitelinks threshold), trigger a manual rebuild.
+
+### Extending the type-bucket YAML
+
+The `wikidata_type_buckets.yaml` is the system of record for the index scope. Adding a new domain is a one-PR change:
+
+1. Append a bucket entry with `name`, `description`, `where_clause` (SPARQL fragment), and optional `min_sitelinks` / `min_population`.
+2. Trigger a manual rebuild via `workflow_dispatch`.
+3. Verify the resulting index size + hash match expectations (the step summary logs both).
+4. Deploy via the tag-flip flow above.
+
+Append-only ordering is part of the determinism guarantee — re-ordering existing entries changes the build hash even if the alias set is unchanged. Sort additions to the end.
+
+---
+
 ## Volume Management
 
 ```bash

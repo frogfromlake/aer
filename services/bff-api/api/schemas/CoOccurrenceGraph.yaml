@@ -54,6 +54,14 @@ properties:
             follow-up call (Phase 114).
           items:
             type: string
+        wikidataQid:
+          type: string
+          nullable: true
+          description: >
+            Canonical Wikidata QID resolved by the Phase 118 entity-linking
+            step, or null when the node could not be linked. Lets the frontend
+            surface Wikipedia/Wikidata external links on graph nodes without a
+            follow-up call.
   edges:
     type: array
     items:

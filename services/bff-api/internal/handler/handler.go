@@ -359,16 +359,28 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 
 	var response GetEntities200JSONResponse
 	for _, d := range data {
+		var qid *string
+		var conf *float32
+		if d.WikidataQid != "" {
+			q := d.WikidataQid
+			qid = &q
+			c := d.LinkConfidence
+			conf = &c
+		}
 		response = append(response, struct {
-			Count       int64    `json:"count"`
-			EntityLabel string   `json:"entityLabel"`
-			EntityText  string   `json:"entityText"`
-			Sources     []string `json:"sources"`
+			Count          int64     `json:"count"`
+			EntityLabel    string    `json:"entityLabel"`
+			EntityText     string    `json:"entityText"`
+			LinkConfidence *float32  `json:"linkConfidence,omitempty"`
+			Sources        []string  `json:"sources"`
+			WikidataQid    *string   `json:"wikidataQid,omitempty"`
 		}{
-			EntityText:  d.EntityText,
-			EntityLabel: d.EntityLabel,
-			Count:       int64(d.Count),
-			Sources:     d.Sources,
+			EntityText:     d.EntityText,
+			EntityLabel:    d.EntityLabel,
+			Count:          int64(d.Count),
+			Sources:        d.Sources,
+			WikidataQid:    qid,
+			LinkConfidence: conf,
 		})
 	}
 

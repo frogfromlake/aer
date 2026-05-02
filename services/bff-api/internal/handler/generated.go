@@ -3156,8 +3156,14 @@ type GetEntities200JSONResponse []struct {
 	// EntityText The extracted entity text (e.g., "Bundesregierung", "Berlin").
 	EntityText string `json:"entityText"`
 
+	// LinkConfidence Confidence (0.7–1.0) of the resolved link, or null when no link was established. Heuristic Tier-1.5 weights — see `aer_gold.metric_validity` for `entity_link_confidence` and WP-002 §4.2.
+	LinkConfidence *float32 `json:"linkConfidence,omitempty"`
+
 	// Sources Distinct data sources that produced this entity.
 	Sources []string `json:"sources"`
+
+	// WikidataQid Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when no candidate above the heuristic confidence threshold was found. The link is the highest-confidence match across all occurrences of this (entityText, entityLabel) pair in the window; ties broken by sitelink count via the alias index.
+	WikidataQid *string `json:"wikidataQid,omitempty"`
 }
 
 func (response GetEntities200JSONResponse) VisitGetEntitiesResponse(w http.ResponseWriter) error {
@@ -3242,6 +3248,9 @@ type GetEntityCoOccurrence200JSONResponse struct {
 
 		// TotalCount Sum of edge weights incident on this node.
 		TotalCount int64 `json:"totalCount"`
+
+		// WikidataQid Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call.
+		WikidataQid *string `json:"wikidataQid,omitempty"`
 	} `json:"nodes"`
 	Scope   *string `json:"scope,omitempty"`
 	ScopeId *string `json:"scopeId,omitempty"`

@@ -107,7 +107,7 @@ The default is the **in-worker NATS-cron** pattern wherever possible. Standalone
 
 | Script | Purpose | Trigger | Cadence | Phase |
 | :--- | :--- | :--- | :--- | :--- |
-| `scripts/build_wikidata_index.py` *(planned)* | Build Wikidata alias SQLite index from SPARQL endpoint, package into `aer-wikidata-index` Docker image | `.github/workflows/wikidata_index_rebuild.yml` (schedule + manual dispatch) | Quarterly (1st of Jan/Apr/Jul/Oct, 02:00 UTC) plus on-demand for new-language additions | 118 |
+| `scripts/build_wikidata_index.py` | Build Wikidata alias SQLite index from SPARQL endpoint, package into `aer-wikidata-index` Docker image | `.github/workflows/wikidata_index_rebuild.yml` (manual dispatch in Phase 118; quarterly schedule activated in a separate post-merge commit) | Quarterly (1st of Jan/Apr/Jul/Oct, 02:00 UTC) plus on-demand for new-language additions. Refresh procedure: `docs/operations_playbook.md#building-and-refreshing-the-wikidata-alias-index`. | 118 |
 
 ### In-worker scheduled extractors (NATS-cron pattern)
 

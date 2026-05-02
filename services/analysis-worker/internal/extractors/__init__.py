@@ -1,4 +1,5 @@
-from internal.extractors.base import MetricExtractor, ProvenanceExtractor, CorpusExtractor, GoldMetric, GoldEntity, GoldLanguageDetection, ExtractionResult, TimeWindow
+from internal.extractors.base import MetricExtractor, ProvenanceExtractor, CorpusExtractor, GoldMetric, GoldEntity, GoldEntityLink, GoldLanguageDetection, ExtractionResult, TimeWindow
+from internal.extractors.entity_linking import WikidataAliasIndex
 from internal.extractors.word_count import WordCountExtractor
 from internal.extractors.temporal import TemporalDistributionExtractor
 from internal.extractors.language import LanguageDetectionExtractor
@@ -25,7 +26,9 @@ __all__ = [
     "CorpusExtractor",
     "GoldMetric",
     "GoldEntity",
+    "GoldEntityLink",
     "GoldLanguageDetection",
+    "WikidataAliasIndex",
     "ExtractionResult",
     "TimeWindow",
     "WordCountExtractor",

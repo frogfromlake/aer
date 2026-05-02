@@ -28,6 +28,9 @@ type CoOccurrenceNode struct {
 	// returned edge set and the query window. Populated only when the scope
 	// covers multiple sources; nil for single-source requests (Phase 114).
 	Presence []string
+	// WikidataQid is the canonical Wikidata identifier resolved by the Phase
+	// 118 entity-linking step, or "" when no link exists for the node's text.
+	WikidataQid string
 }
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
@@ -142,6 +145,13 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		presenceMap, _ = s.queryNodePresence(ctx, acc, args, clauses)
 	}
 
+	// Phase 118: resolve a Wikidata QID per node. The lookup is best-effort
+	// — failure does not block the graph response, just leaves QIDs empty.
+	var qidMap map[string]string
+	if len(acc) > 0 {
+		qidMap, _ = s.queryNodeWikidataQids(ctx, acc)
+	}
+
 	nodes := make([]CoOccurrenceNode, 0, len(acc))
 	for text, a := range acc {
 		n := CoOccurrenceNode{
@@ -152,6 +162,9 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		}
 		if presenceMap != nil {
 			n.Presence = presenceMap[text]
+		}
+		if qidMap != nil {
+			n.WikidataQid = qidMap[text]
 		}
 		nodes = append(nodes, n)
 	}
@@ -216,6 +229,59 @@ func (s *ClickHouseStorage) queryNodePresence(
 	result := make(map[string][]string, len(rows))
 	for _, r := range rows {
 		result[r.EntityText] = r.Presence
+	}
+	return result, nil
+}
+
+// queryNodeWikidataQids resolves a Wikidata QID for each node in the
+// accumulator. The lookup is independent of window/source — `entity_links`
+// is a per-(article_id, entity_text) table without a discourse_function or
+// timestamp axis the BFF cares about for this surface — so a single
+// argMax(wikidata_qid, link_confidence) GROUP BY entity_text is sufficient.
+// Returns nil + nil error when the accumulator is empty.
+//
+// Phase 118 — best-effort: a failure here returns the unlinked graph
+// rather than a 5xx (entity linking is a metadata layer over the canonical
+// `aer_gold.entities` data, not a load-bearing dependency).
+func (s *ClickHouseStorage) queryNodeWikidataQids(
+	ctx context.Context,
+	acc map[string]*nodeAccumulator,
+) (map[string]string, error) {
+	if len(acc) == 0 {
+		return nil, nil
+	}
+	texts := make([]string, 0, len(acc))
+	for t := range acc {
+		texts = append(texts, t)
+	}
+	args := make([]any, 0, len(texts))
+	placeholders := make([]string, len(texts))
+	for i, t := range texts {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args = append(args, t)
+	}
+	query := fmt.Sprintf(`
+		SELECT
+			entity_text,
+			argMax(wikidata_qid, link_confidence) AS wikidata_qid
+		FROM aer_gold.entity_links
+		WHERE entity_text IN (%s)
+		GROUP BY entity_text
+	`, strings.Join(placeholders, ", "))
+
+	var rows []struct {
+		EntityText  string `ch:"entity_text"`
+		WikidataQid string `ch:"wikidata_qid"`
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Warn("Failed to query node wikidata QIDs (non-fatal)", "error", err)
+		return nil, err //nolint:wrapcheck // caller treats this as optional
+	}
+	result := make(map[string]string, len(rows))
+	for _, r := range rows {
+		if r.WikidataQid != "" {
+			result[r.EntityText] = r.WikidataQid
+		}
 	}
 	return result, nil
 }

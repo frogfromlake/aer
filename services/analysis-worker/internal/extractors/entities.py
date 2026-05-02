@@ -1,7 +1,8 @@
 import structlog
 import spacy
 
-from internal.extractors.base import GoldMetric, GoldEntity, ExtractionResult
+from internal.extractors.base import GoldEntity, GoldEntityLink, GoldMetric, ExtractionResult
+from internal.extractors.entity_linking import WikidataAliasIndex
 
 logger = structlog.get_logger()
 
@@ -14,20 +15,24 @@ class NamedEntityExtractor:
     scientifically validated implementation.
 
     Implements the unified MetricExtractor protocol (Phase 52): a single
-    extract_all() call returns both entity_count GoldMetric and GoldEntity
-    records in one pass. Stateless between documents — no mutable caching.
+    extract_all() call returns the entity_count metric, GoldEntity records,
+    and (Phase 118) GoldEntityLink records in one pass. Stateless between
+    documents — no mutable caching.
 
     Produces:
     - metric_name = "entity_count": Total number of entities found in the text.
     - GoldEntity records: Raw entity spans stored in aer_gold.entities.
+    - GoldEntityLink records: Wikidata QIDs for spans that resolve via the
+      alias index (Phase 118). Only successfully linked spans are emitted —
+      `aer_gold.entities` remains the canonical span SoT and `entity_links`
+      is its LEFT-JOIN sidecar. Confidence weights (1.0 / 0.85 / 0.7 for
+      label / altLabel / accent-fold matches) are heuristic Tier-1.5
+      defaults pending the WP-002 §4.2 annotation study.
 
     Limitations (to be addressed with interdisciplinary collaboration, §13.5):
     - spaCy NER on RSS feed descriptions (short, truncated summaries) will
       produce different results than NER on full articles. Recall is expected
       to be significantly lower on short texts.
-    - Entity linking is NOT implemented — raw entity spans are stored.
-      "Merkel", "Angela Merkel", and "Bundeskanzlerin Merkel" are three
-      separate entities, not resolved to a canonical identifier.
     - The model version, entity taxonomy (PER, ORG, LOC, MISC), and
       post-processing pipeline will evolve with the research.
     - German compound words and named entities spanning multiple tokens
@@ -47,9 +52,15 @@ class NamedEntityExtractor:
     }
     _LEGACY_LANGUAGE_TAGS = {"", "und"}
 
-    def __init__(self, language_to_model: dict[str, str] | None = None, default_language: str = "de"):
+    def __init__(
+        self,
+        language_to_model: dict[str, str] | None = None,
+        default_language: str = "de",
+        alias_index: WikidataAliasIndex | None = None,
+    ):
         self._language_to_model = dict(language_to_model or self._LANGUAGE_TO_MODEL)
         self._default_language = default_language
+        self._alias_index = alias_index
         self._nlp_by_language: dict[str, "spacy.Language"] = {}
         for lang, model_name in self._language_to_model.items():
             try:
@@ -146,4 +157,30 @@ class NamedEntityExtractor:
             for ent in valid_ents
         ]
 
-        return ExtractionResult(metrics=metrics, entities=entities)
+        entity_links: list[GoldEntityLink] = []
+        if self._alias_index is not None and valid_ents:
+            lookup_language = (core.language or "").lower() or self._default_language
+            for ent in valid_ents:
+                candidate = self._alias_index.lookup(ent.text, lookup_language)
+                if candidate is None:
+                    logger.debug(
+                        "entity_link_skipped",
+                        entity_text=ent.text,
+                        language=lookup_language,
+                        article_id=article_id,
+                        reason="no_candidate_above_threshold",
+                    )
+                    continue
+                entity_links.append(
+                    GoldEntityLink(
+                        timestamp=core.timestamp,
+                        article_id=article_id,
+                        entity_text=ent.text,
+                        entity_label=ent.label_,
+                        wikidata_qid=candidate.wikidata_qid,
+                        link_confidence=candidate.confidence,
+                        link_method=candidate.method,
+                    )
+                )
+
+        return ExtractionResult(metrics=metrics, entities=entities, entity_links=entity_links)

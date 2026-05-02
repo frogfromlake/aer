@@ -30,6 +30,7 @@ from internal.extractors import (
     NamedEntityExtractor,
     EntityCoOccurrenceExtractor,
     MetricBaselineExtractor,
+    WikidataAliasIndex,
 )
 from internal.corpus import (
     BaselineConfig,
@@ -75,18 +76,54 @@ DEFAULT_EXTRACTOR_CLASSES = [
 ]
 
 
-def init_extractors(extractor_classes):
+def _load_wikidata_index() -> WikidataAliasIndex | None:
+    """Load the Wikidata alias index for Phase 118 entity linking.
+
+    Returns None if the path is unset or the index cannot be opened — the
+    worker continues without entity linking in that case (graceful
+    degradation: aer_gold.entities still receives raw spans, only the
+    aer_gold.entity_links sidecar is empty). A configured-but-mismatched
+    hash is fatal — this is the silent-drift guard.
+    """
+    path = os.getenv("WIKIDATA_INDEX_PATH", "").strip()
+    if not path:
+        logger.info(
+            "Wikidata alias index disabled (WIKIDATA_INDEX_PATH unset). "
+            "NER will run without entity linking."
+        )
+        return None
+    expected = os.getenv("WIKIDATA_INDEX_SHA256", "").strip() or None
+    try:
+        return WikidataAliasIndex(path, expected_sha256=expected)
+    except FileNotFoundError as e:
+        logger.warning(
+            "Wikidata alias index file missing; NER will run without linking",
+            path=path,
+            error=str(e),
+        )
+        return None
+    # Hash mismatch (RuntimeError) is intentionally not caught — it is the
+    # fail-fast drift guard required by the spec.
+
+
+def init_extractors(extractor_classes, alias_index: WikidataAliasIndex | None = None):
     """
     Instantiate extractors one-by-one, skipping any that raise during init.
 
     Hard-Rule graceful-degradation gate: a single misconfigured extractor
     (missing model, missing lexicon, unexpected environment) must never take
     down the worker. Failed extractors are logged and omitted from the pipeline.
+
+    The optional `alias_index` is forwarded to NamedEntityExtractor when
+    present (Phase 118). Other extractors take no constructor arguments.
     """
     extractors = []
     for cls in extractor_classes:
         try:
-            extractors.append(cls())
+            if cls is NamedEntityExtractor:
+                extractors.append(cls(alias_index=alias_index))
+            else:
+                extractors.append(cls())
         except Exception as e:
             logger.warning(
                 "Extractor init failed — skipping",
@@ -254,7 +291,8 @@ async def main(config: WorkerConfig | None = None):
     pg_pool = init_postgres(maxconn=config.worker_count + PG_POOL_HEADROOM)
 
     adapter_registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": RssAdapter(pg_pool=pg_pool)})
-    extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES)
+    alias_index = _load_wikidata_index()
+    extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES, alias_index=alias_index)
     data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry, extractors)
     nc = NATS()
     # Phase 83: bounded queue enforces backpressure. `put` blocks when

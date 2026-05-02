@@ -113,9 +113,13 @@ The `NamedEntityExtractor` (Phase 42) uses spaCy's `de_core_news_lg` model (v3.8
 
 ### 4.2 The Entity Linking Problem
 
+> **Implementation status — RESOLVED at the Tier-1.5 level (Phase 118, 2026-05).** The fragmentation problem described below is addressed by a deterministic, type-driven Wikidata alias index (`scripts/build_wikidata_index.py` → `aer_gold.entity_links`). Heuristic confidence weights (1.0 / 0.85 / 0.7 for label / altLabel / accent-fold matches) are engineering defaults, not validated measurements — see footnote¹ for the open evaluation work that distinguishes Tier-1.5 from validated entity linking.
+
 Raw entity extraction without **entity linking** (also called entity disambiguation or entity resolution) produces data that is difficult to aggregate meaningfully. The string *"Merkel"* in one document and *"Angela Merkel"* in another are stored as separate entities. *"CDU,"* *"die Union,"* and *"Christdemokraten"* refer to the same political entity but are not linked. This fragmentation becomes catastrophic at scale: a dashboard showing "top entities" would list the same real-world entity multiple times under different surface forms.
 
 Entity linking requires a **knowledge base** (e.g., Wikidata, DBpedia) that maps surface forms to canonical identifiers. The choice of knowledge base is itself culturally significant: Wikidata's ontology reflects the editorial decisions of its contributor community, which skews toward Western, English-speaking perspectives. An entity that is highly salient in Brazilian political discourse may have a sparse or absent Wikidata entry. The knowledge base is not neutral ground — it is a cultural artifact.
+
+> ¹ The Phase 118 entity-linking step is explicitly **Tier-1.5 heuristic, not validated**. Confidence weights are pinned engineering defaults; the sitelink-count tiebreaker is a pragmatic disambiguation rule, not a precision/recall-validated decision procedure; the type-bucket scope is curated for institutional editorial discourse and may under-cover entities salient outside that frame. A future Tier-2 phase — gated on an annotation study against a Probe-0 sample with adjudicated gold-standard QIDs — will measure precision and recall, replace or recalibrate the confidence weights, and (if disambiguation precision proves insufficient) introduce a transformer-based linker (BLINK, ReFinED, mGENRE, or successor) as a Tier-2 refinement. Until then, results from `aer_gold.entity_links` must be treated as provisional and the `entity_link_confidence` row in `aer_gold.metric_validity` (cross-context, `unvalidated`) governs how the BFF surfaces the field.
 
 ### 4.3 Cross-Cultural Entity Challenges
 

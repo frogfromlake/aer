@@ -32,6 +32,24 @@ class GoldEntity:
 
 
 @dataclass(frozen=True, slots=True)
+class GoldEntityLink:
+    """
+    A resolved Wikidata link for a NER span (Phase 118).
+
+    Maps to the aer_gold.entity_links ClickHouse table. Only successfully
+    linked spans (confidence >= 0.7) are emitted; unlinked spans are absent
+    from this stream. aer_gold.entities remains the canonical span SoT.
+    """
+    timestamp: datetime
+    article_id: str | None
+    entity_text: str
+    entity_label: str
+    wikidata_qid: str
+    link_confidence: float
+    link_method: str  # exact_match | alias_lookup | accent_fold
+
+
+@dataclass(frozen=True, slots=True)
 class GoldLanguageDetection:
     """
     A detected language for a SilverCore document.
@@ -58,6 +76,7 @@ class ExtractionResult:
     metrics: list[GoldMetric] = field(default_factory=list)
     entities: list[GoldEntity] = field(default_factory=list)
     language_detections: list[GoldLanguageDetection] = field(default_factory=list)
+    entity_links: list[GoldEntityLink] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

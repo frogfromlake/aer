@@ -8,7 +8,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldLanguageDetection
+from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldEntityLink, GoldLanguageDetection
 from internal.metrics import (
     events_processed_total,
     event_processing_duration_seconds,
@@ -167,6 +167,7 @@ class DataProcessor:
 
         all_metrics: list[GoldMetric] = []
         all_entities: list[GoldEntity] = []
+        all_entity_links: list[GoldEntityLink] = []
         all_language_detections: list[GoldLanguageDetection] = []
 
         # Phase 116: language-detection-first ordering. The
@@ -186,6 +187,7 @@ class DataProcessor:
                 result = extractor.extract_all(working_core, article_id)
                 all_metrics.extend(result.metrics)
                 all_entities.extend(result.entities)
+                all_entity_links.extend(result.entity_links)
                 all_language_detections.extend(result.language_detections)
                 if extractor.name == "language_detection":
                     primary = next(
@@ -270,6 +272,41 @@ class DataProcessor:
                 gold_insert_failed = True
                 logger.error(
                     "Gold entities insert failed. Continuing with remaining inserts.",
+                    object=obj_key,
+                    error=str(e),
+                )
+
+        if all_entity_links:
+            try:
+                link_rows = [
+                    [
+                        link.timestamp,
+                        link.article_id,
+                        link.entity_text,
+                        link.entity_label,
+                        link.wikidata_qid,
+                        link.link_confidence,
+                        link.link_method,
+                        ingestion_version,
+                    ]
+                    for link in all_entity_links
+                ]
+                self.ch.insert(
+                    'aer_gold.entity_links',
+                    link_rows,
+                    column_names=['timestamp', 'article_id', 'entity_text', 'entity_label', 'wikidata_qid', 'link_confidence', 'link_method', 'ingestion_version']
+                )
+                logger.info(
+                    "Gold entity_links updated",
+                    link_count=len(all_entity_links),
+                    timestamp=str(core.timestamp),
+                    source=core.source,
+                    article_id=article_id,
+                )
+            except Exception as e:
+                gold_insert_failed = True
+                logger.error(
+                    "Gold entity_links insert failed. Continuing with remaining inserts.",
                     object=obj_key,
                     error=str(e),
                 )

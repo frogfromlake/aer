@@ -322,6 +322,35 @@ services:
           cpus: "0.25"
 
   # ----------------------------------------------------
+  # 3.1b' WIKIDATA ALIAS INDEX (PHASE 118)
+  # ----------------------------------------------------
+  # One-shot init that copies the SQLite alias DB from the
+  # aer-wikidata-index image (built quarterly by
+  # .github/workflows/wikidata_index_rebuild.yml) into the persistent
+  # `wikidata_data` named volume mounted read-only by the analysis-worker.
+  # IaC-only provisioning per Hard Rule 5; mirrors nats-init / minio-init /
+  # clickhouse-init. Image tag is pinned via WIKIDATA_INDEX_TAG so a known
+  # snapshot is deployed deterministically.
+  wikidata-index-init:
+    image: ghcr.io/frogfromlake/aer-wikidata-index:${WIKIDATA_INDEX_TAG:-latest}
+    container_name: aer_wikidata_index_init
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+        set -e
+        cp /index/wikidata_aliases.db /data/
+        cp /index/wikidata_aliases.db.sha256 /data/
+        cd /data && sha256sum -c wikidata_aliases.db.sha256
+        echo 'wikidata-index-init: copy + checksum verified'
+        cat wikidata_aliases.db.sha256
+      "
+    volumes:
+      - wikidata_data:/data
+    networks:
+      - aer-backend
+
+  # ----------------------------------------------------
   # 3.1c ANALYSIS WORKER (BRONZE → SILVER → GOLD)
   # ----------------------------------------------------
   analysis-worker:
@@ -348,6 +377,13 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - WORKER_BRONZE_BUCKET=${WORKER_BRONZE_BUCKET:-bronze}
+      # Phase 118: Wikidata alias index, populated into wikidata_data by the
+      # wikidata-index-init service. Empty WIKIDATA_INDEX_SHA256 disables the
+      # fail-fast hash check (recommended only for development).
+      - WIKIDATA_INDEX_PATH=${WIKIDATA_INDEX_PATH:-/data/wikidata/wikidata_aliases.db}
+      - WIKIDATA_INDEX_SHA256=${WIKIDATA_INDEX_SHA256:-}
+    volumes:
+      - wikidata_data:/data/wikidata:ro
     networks:
       - aer-backend
     depends_on:
@@ -362,6 +398,8 @@ services:
       clickhouse-init:
         condition: service_completed_successfully
       minio-init:
+        condition: service_completed_successfully
+      wikidata-index-init:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/metrics')"]
@@ -688,6 +726,7 @@ volumes:
   clickhouse_data:
   tempo_data:
   rss_crawler_state:
+  wikidata_data:
 
 networks:
   aer-frontend:

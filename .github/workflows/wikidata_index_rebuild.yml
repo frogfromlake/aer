@@ -123,49 +123,52 @@ jobs:
       # ----------------------------------------------------------------------
       # Docker image build & publish
       # ----------------------------------------------------------------------
-      # Below: the steps that build and push the `aer-wikidata-index` image.
-      # These are commented out until Phase 118 ships its Dockerfile for
-      # the index image. Uncomment after Phase 118 close-out.
+      # Docker image build & publish (Phase 118 — activated)
       # ----------------------------------------------------------------------
 
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # - name: Log in to GitHub Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ${{ env.REGISTRY }}
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Stage index for Docker build
-      #   run: |
-      #     mkdir -p infra/wikidata-index/data
-      #     cp /tmp/wikidata_aliases.db infra/wikidata-index/data/
-      #     echo "${{ steps.hash.outputs.hash }}" > infra/wikidata-index/data/wikidata_aliases.db.sha256
+      - name: Stage index for Docker build
+        run: |
+          mkdir -p infra/wikidata-index/data
+          cp /tmp/wikidata_aliases.db infra/wikidata-index/data/
+          # Standard sha256sum format ("<hash>  <basename>") so the image's
+          # `sha256sum -c` consumes the sidecar directly. The build script
+          # already writes this format; we re-derive here so the workflow is
+          # robust to changes in that contract.
+          echo "${{ steps.hash.outputs.hash }}  wikidata_aliases.db" \
+            > infra/wikidata-index/data/wikidata_aliases.db.sha256
 
-      # - name: Extract metadata for image tags
-      #   id: meta
-      #   uses: docker/metadata-action@v5
-      #   with:
-      #     images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      #     tags: |
-      #       type=raw,value=${{ steps.snapshot.outputs.date }}
-      #       type=raw,value=latest
-      #       type=sha,prefix=hash-,format=short
+      - name: Extract metadata for image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.snapshot.outputs.date }}
+            type=raw,value=latest
+            type=sha,prefix=hash-,format=short
 
-      # - name: Build and push image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: ./infra/wikidata-index
-      #     push: true
-      #     tags: ${{ steps.meta.outputs.tags }}
-      #     labels: |
-      #       ${{ steps.meta.outputs.labels }}
-      #       org.aer.wikidata.snapshot-date=${{ steps.snapshot.outputs.date }}
-      #       org.aer.wikidata.sha256=${{ steps.hash.outputs.hash }}
-      #     provenance: true
-      #     sbom: true
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./infra/wikidata-index
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.aer.wikidata.snapshot-date=${{ steps.snapshot.outputs.date }}
+            org.aer.wikidata.sha256=${{ steps.hash.outputs.hash }}
+          provenance: true
+          sbom: true
 
       # ----------------------------------------------------------------------
       # Failure notification

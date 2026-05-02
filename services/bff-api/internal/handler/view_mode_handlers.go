@@ -621,11 +621,12 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
-		Degree     int64     `json:"degree"`
-		Label      string    `json:"label"`
-		Presence   *[]string `json:"presence,omitempty"`
-		Text       string    `json:"text"`
-		TotalCount int64     `json:"totalCount"`
+		Degree      int64     `json:"degree"`
+		Label       string    `json:"label"`
+		Presence    *[]string `json:"presence,omitempty"`
+		Text        string    `json:"text"`
+		TotalCount  int64     `json:"totalCount"`
+		WikidataQid *string   `json:"wikidataQid,omitempty"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
 		var presence *[]string
@@ -633,13 +634,19 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 			p := n.Presence
 			presence = &p
 		}
+		var qid *string
+		if n.WikidataQid != "" {
+			q := n.WikidataQid
+			qid = &q
+		}
 		resp.Nodes[i] = struct {
-			Degree     int64     `json:"degree"`
-			Label      string    `json:"label"`
-			Presence   *[]string `json:"presence,omitempty"`
-			Text       string    `json:"text"`
-			TotalCount int64     `json:"totalCount"`
-		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount}
+			Degree      int64     `json:"degree"`
+			Label       string    `json:"label"`
+			Presence    *[]string `json:"presence,omitempty"`
+			Text        string    `json:"text"`
+			TotalCount  int64     `json:"totalCount"`
+			WikidataQid *string   `json:"wikidataQid,omitempty"`
+		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, WikidataQid: qid}
 	}
 	return resp, nil
 }

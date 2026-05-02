@@ -77,6 +77,25 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create entities table: %v", err)
 	}
 
+	// Phase 118: entity_links is the LEFT JOIN target of GetEntities and the
+	// per-node lookup target for the cooccurrence handler. Test schema mirrors
+	// migration 000017 except for engine type (Memory keeps the test fast).
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.entity_links (
+			timestamp DateTime,
+			article_id String,
+			entity_text String,
+			entity_label String,
+			wikidata_qid String,
+			link_confidence Float32,
+			link_method LowCardinality(String),
+			ingestion_version UInt64
+		) ENGINE = Memory
+	`)
+	if err != nil {
+		t.Fatalf("failed to create entity_links table: %v", err)
+	}
+
 	err = store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.language_detections (
 			timestamp DateTime,

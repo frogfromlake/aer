@@ -39,5 +39,47 @@
 --
 -- This file is checked in for auditability and runs as a no-op SELECT, so
 -- piping it into clickhouse-client succeeds without changing state.
+--
+-- ---------------------------------------------------------------------------
+-- Phase 118 addendum: entity_link_confidence (cross-context)
+-- ---------------------------------------------------------------------------
+--
+-- The Wikidata entity-linking step writes one row per linked NER span to
+-- `aer_gold.entity_links` with `link_confidence ∈ {1.0, 0.85, 0.7}`. These
+-- weights are heuristic Tier-1.5 engineering defaults (label / altLabel /
+-- accent-fold matches respectively). They have NOT been validated against
+-- a precision/recall annotation study; the appropriate `metric_validity`
+-- state is therefore "unvalidated".
+--
+-- Per the Phase 117 convention above, "unvalidated" is encoded as the
+-- ABSENCE of a `metric_validity` row, not a placeholder INSERT. The block
+-- below documents the open failure modes for the future annotation-study
+-- reviewer; the actual `aer_gold.metric_validity` table stays untouched
+-- by this seed.
+--
+-- `entity_link_confidence` is a CROSS-CONTEXT metric — the same heuristic
+-- weights apply to every (language, source_type, discourse_function)
+-- triple. Phase 118a's manifest-driven scaffold generator will only
+-- auto-emit per-language rows; cross-context entries like this one stay
+-- hand-maintained as documentation.
+--
+--   metric_name : entity_link_confidence
+--   context_key : *:*:*    (cross-context — heuristic is language-agnostic)
+--   tier        : 1.5      (alias-index lookup, not validated linker)
+--   open_failure_modes:
+--     - heuristic confidence weights (1.0 / 0.85 / 0.7) for label / altLabel /
+--       accent-fold matches are engineering defaults pending the WP-002 §4.2
+--       annotation study
+--     - sitelink-tiebreaker may favour outdated entity references (the
+--       Wikidata page rank does not encode "currently in office")
+--     - alias collisions across language boundaries are not measured —
+--       the language-scoped lookup mitigates but does not eliminate
+--     - no precision/recall measurement on Probe 0 corpus; the sample
+--       is qualitative until the annotation study runs
+--   resolution_path:
+--     A future Tier-2 phase (gated on annotation study) will measure
+--     precision/recall, replace or recalibrate the confidence weights, and
+--     consider a transformer-based linker (BLINK / ReFinED / mGENRE) if
+--     disambiguation precision proves insufficient.
 
 SELECT 'metric_validity_scaffold: no-op — see file header for rationale' AS note;
