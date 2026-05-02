@@ -45,8 +45,7 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 log = logging.getLogger("build_wikidata_index")
-
-WIKIDATA_SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
+WIKIDATA_SPARQL_ENDPOINT = "https://query-scholarly.wikidata.org/sparql"
 PAGE_SIZE = 2000
 USER_AGENT = (
     "AER-WikidataIndexBuilder/1.0 "
