@@ -1068,3 +1068,467 @@ PostgreSQL `documents` and `ingestion_jobs` retain their current 90-day retentio
 * **Proposed:** 2026-04-26 while fixing Phase 113b.
 * **Ratified:** 2026-04-26 by the implementing engineer.
 * **Review date:** when either retention horizon changes, or when `aer_silver.documents` is replaced by a richer Silver-projection schema.
+`
+## ADR-023: Multilingual Sentiment Strategy
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-05-02 |
+| **Status** | Accepted |
+| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 122 |
+
+### Context
+
+Phase 119 specifies `mdraw/german-news-sentiment-bert` as the primary German Tier 2 sentiment extractor, with `oliverguhr/german-sentiment-bert` as a domain-mismatch baseline. The pattern is German-specific by construction: a pinned model revision, a per-model determinism CI gate, a per-model Docker image footprint contribution.
+
+Phase 122 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
+
+The naïve alternative — a single multilingual sentiment model covering all languages — has its own cost: WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models. A model trained on 100-language Twitter data is structurally less calibrated to e.g. German institutional editorial RSS than a German-news-fine-tuned model on the same texts.
+
+The decision is which of the two costs the architecture should default to, and how to allow the other to coexist where it adds value.
+
+### Decision
+
+**Multilingual model as the Tier 2 default, per-language models as optional Tier 2.5 refinements where available.** Both run in parallel under the ADR-016 dual-metric pattern. The dashboard renders both with Epistemic Weight (Brief §7.8) distinguishing them; the gap between them is itself a research signal that informs WP-002 §3.2's domain-transfer discussion.
+
+Concretely:
+
+1. **Tier 2 default extractor.** A single `MultilingualBertSentimentExtractor` running `cardiffnlp/twitter-xlm-roberta-base-sentiment` (or the equivalent multilingual SOTA at the time of implementation; final selection part of Phase 119's implementation work). Produces `metric_name = "sentiment_score_bert_multilingual"`. Covers all languages the model handles. Single Docker-image footprint contribution. Single determinism CI gate. The Phase 116 language guard ensures the extractor only runs on documents whose `detected_language` is in the model's supported set; for unsupported languages, the metric is genuinely absent (no row written), not zero.
+
+2. **Tier 2.5 per-language refinements.** Where a high-quality per-language news-domain model exists on Hugging Face Hub (e.g. `mdraw/german-news-sentiment-bert` for German, `cmarkea/distilcamembert-base-sentiment` for French), it ships as an additional extractor producing `metric_name = "sentiment_score_bert_<lang>_<domain>"` (e.g. `sentiment_score_bert_de_news`). Optional and language-bound.
+
+3. **Both metrics ship in parallel.** A German document produces both `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news`. The dashboard surfaces both. Epistemic Weight reflects each metric's `validation_status` independently per ADR-016. The two are NEVER averaged into a composite.
+
+4. **Tier 1 SentiWS pattern unchanged.** SentiWS-class deterministic lexicon extractors remain the Tier 1 baseline per Phase 117. The dual-metric pattern of ADR-016 (Tier 1 + Tier 2 in parallel) is preserved; this ADR refines the Tier 2 layer into Tier 2 (multilingual) + optional Tier 2.5 (per-language).
+
+5. **Phase 119 rescope.** Phase 119 implements (1) the multilingual Tier 2 extractor and (2) the German Tier 2.5 refinement (`mdraw/german-news-sentiment-bert`). The `oliverguhr/german-sentiment-bert` review-domain baseline originally specified in Phase 119 is **demoted** from a primary deliverable to an optional Tier 2.5 refinement (`sentiment_score_bert_de_review`); it ships if and only if the engineering capacity is available, with the same defer-friendly pattern as other language-specific extractors. The methodological motivation for the review-domain baseline (on-pipeline domain-transfer evidence) is preserved by the multilingual-vs-per-language gap, which provides the same signal at lower operational cost.
+
+### Consequences
+
+**Positive.**
+- Sentiment coverage scales with O(1) extractors per language addition: a new probe in a language the multilingual model supports gets sentiment for free.
+- Per-language quality is preserved where a strong native model exists.
+- The methodological caution of WP-002 §3.2 (domain transfer is a real failure mode) is honoured by surfacing both metrics, not by hiding the multilingual model's weaknesses.
+- The Phase 122 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
+
+**Negative.**
+- The dashboard surfaces more metrics for sentiment-rich probes. The Epistemic Weight system (Brief §7.8) is responsible for keeping the cognitive load manageable.
+- The multilingual model's per-language calibration is unknown until annotation studies run for each context. The `aer_gold.metric_validity` scaffold ships with `validation_status='unvalidated'` for the multilingual extractor at every context-key, mirroring the Tier 1/2 pattern.
+- A multilingual model upgrade (new revision, new model entirely) is a single coordinated change that affects all languages simultaneously. This is intentional: the determinism gate catches drift, but every language's sentiment baseline shifts together. Per-language models do not have this property.
+
+### Implementation Outline
+
+Phase 119 ships:
+- `MultilingualBertSentimentExtractor` (primary, all-language).
+- `GermanNewsBertSentimentExtractor` (Tier 2.5 refinement for German).
+- Determinism CI gates for both.
+- `metric_validity` scaffold rows for both at each Probe-0 context-key.
+- `metric_provenance.yaml` entries for both.
+
+Phase 122 (French) adds:
+- Optional `FrenchNewsBertSentimentExtractor` (Tier 2.5 refinement for French) following the same pattern as the German Tier 2.5 extractor.
+- The multilingual default automatically covers French via the language guard — no extractor work.
+
+Future probes:
+- Tier 2 default coverage requires no work — the multilingual extractor handles it.
+- Tier 2.5 refinements are optional, language-by-language, defer-friendly.
+
+### References
+
+- WP-002 §3.2 (domain transfer as primary failure mode)
+- ADR-016 (Hybrid Tier Architecture, dual-metric pattern)
+- Brief §7.8 (Epistemic Weight)
+- Phase 119, Phase 122
+- `docs/extending/add-a-language.md`
+- `docs/extending/scalability-roadmap.md`
+
+### Decision Record
+
+- **Proposed:** 2026-05-02 by Fabian Quist (senior architect) with AĒR.
+- **Ratified:** 2026-05-02 by the implementing engineer.
+- **Review date:** 2027-05 (12-month review) or on a major shift in multilingual sentiment SOTA.
+
+---
+
+## ADR-023: Multilingual Sentiment Strategy
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-05-02 |
+| **Status** | Accepted |
+| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 122 |
+
+### Context
+
+Phase 119 specifies `mdraw/german-news-sentiment-bert` as the primary German Tier 2 sentiment extractor, with `oliverguhr/german-sentiment-bert` as a domain-mismatch baseline. The pattern is German-specific by construction: a pinned model revision, a per-model determinism CI gate, a per-model Docker image footprint contribution.
+
+Phase 122 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
+
+The naïve alternative — a single multilingual sentiment model covering all languages — has its own cost: WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models. A model trained on 100-language Twitter data is structurally less calibrated to e.g. German institutional editorial RSS than a German-news-fine-tuned model on the same texts.
+
+The decision is which of the two costs the architecture should default to, and how to allow the other to coexist where it adds value.
+
+### Decision
+
+**Multilingual model as the Tier 2 default, per-language models as optional Tier 2.5 refinements where available.** Both run in parallel under the ADR-016 dual-metric pattern. The dashboard renders both with Epistemic Weight (Brief §7.8) distinguishing them; the gap between them is itself a research signal that informs WP-002 §3.2's domain-transfer discussion.
+
+Concretely:
+
+1. **Tier 2 default extractor.** A single `MultilingualBertSentimentExtractor` running `cardiffnlp/twitter-xlm-roberta-base-sentiment` (or the equivalent multilingual SOTA at the time of implementation; final selection part of Phase 119's implementation work). Produces `metric_name = "sentiment_score_bert_multilingual"`. Covers all languages the model handles. Single Docker-image footprint contribution. Single determinism CI gate. The Phase 116 language guard ensures the extractor only runs on documents whose `detected_language` is in the model's supported set; for unsupported languages, the metric is genuinely absent (no row written), not zero.
+
+2. **Tier 2.5 per-language refinements.** Where a high-quality per-language news-domain model exists on Hugging Face Hub (e.g. `mdraw/german-news-sentiment-bert` for German, `cmarkea/distilcamembert-base-sentiment` for French), it ships as an additional extractor producing `metric_name = "sentiment_score_bert_<lang>_<domain>"` (e.g. `sentiment_score_bert_de_news`). Optional and language-bound.
+
+3. **Both metrics ship in parallel.** A German document produces both `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news`. The dashboard surfaces both. Epistemic Weight reflects each metric's `validation_status` independently per ADR-016. The two are NEVER averaged into a composite.
+
+4. **Tier 1 SentiWS pattern unchanged.** SentiWS-class deterministic lexicon extractors remain the Tier 1 baseline per Phase 117. The dual-metric pattern of ADR-016 (Tier 1 + Tier 2 in parallel) is preserved; this ADR refines the Tier 2 layer into Tier 2 (multilingual) + optional Tier 2.5 (per-language).
+
+5. **Phase 119 rescope.** Phase 119 implements (1) the multilingual Tier 2 extractor and (2) the German Tier 2.5 refinement (`mdraw/german-news-sentiment-bert`). The `oliverguhr/german-sentiment-bert` review-domain baseline originally specified in Phase 119 is **demoted** from a primary deliverable to an optional Tier 2.5 refinement (`sentiment_score_bert_de_review`); it ships if and only if the engineering capacity is available, with the same defer-friendly pattern as other language-specific extractors. The methodological motivation for the review-domain baseline (on-pipeline domain-transfer evidence) is preserved by the multilingual-vs-per-language gap, which provides the same signal at lower operational cost.
+
+### Consequences
+
+**Positive.**
+- Sentiment coverage scales with O(1) extractors per language addition: a new probe in a language the multilingual model supports gets sentiment for free.
+- Per-language quality is preserved where a strong native model exists.
+- The methodological caution of WP-002 §3.2 (domain transfer is a real failure mode) is honoured by surfacing both metrics, not by hiding the multilingual model's weaknesses.
+- The Phase 122 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
+
+**Negative.**
+- The dashboard surfaces more metrics for sentiment-rich probes. The Epistemic Weight system (Brief §7.8) is responsible for keeping the cognitive load manageable.
+- The multilingual model's per-language calibration is unknown until annotation studies run for each context. The `aer_gold.metric_validity` scaffold ships with `validation_status='unvalidated'` for the multilingual extractor at every context-key, mirroring the Tier 1/2 pattern.
+- A multilingual model upgrade (new revision, new model entirely) is a single coordinated change that affects all languages simultaneously. This is intentional: the determinism gate catches drift, but every language's sentiment baseline shifts together. Per-language models do not have this property.
+
+### Implementation Outline
+
+Phase 119 ships:
+- `MultilingualBertSentimentExtractor` (primary, all-language).
+- `GermanNewsBertSentimentExtractor` (Tier 2.5 refinement for German).
+- Determinism CI gates for both.
+- `metric_validity` scaffold rows for both at each Probe-0 context-key.
+- `metric_provenance.yaml` entries for both.
+
+Phase 122 (French) adds:
+- Optional `FrenchNewsBertSentimentExtractor` (Tier 2.5 refinement for French) following the same pattern as the German Tier 2.5 extractor.
+- The multilingual default automatically covers French via the language guard — no extractor work.
+
+Future probes:
+- Tier 2 default coverage requires no work — the multilingual extractor handles it.
+- Tier 2.5 refinements are optional, language-by-language, defer-friendly.
+
+### References
+
+- WP-002 §3.2 (domain transfer as primary failure mode)
+- ADR-016 (Hybrid Tier Architecture, dual-metric pattern)
+- Brief §7.8 (Epistemic Weight)
+- Phase 119, Phase 122
+- `docs/extending/add-a-language.md`
+- `docs/extending/scalability-roadmap.md`
+
+### Decision Record
+
+- **Proposed:** 2026-05-02 by Fabian Quist (senior architect) with AĒR.
+- **Ratified:** 2026-05-02 by the implementing engineer.
+- **Review date:** 2027-05 (12-month review) or on a major shift in multilingual sentiment SOTA.
+
+---
+
+## ADR-024: Language Capability Manifest
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-05-02 |
+| **Status** | Accepted |
+| **Relates to** | Phase 116, Phase 122, ADR-023, WP-001 §5.3 |
+
+### Context
+
+Per-language analytical capability is currently distributed across at least five locations:
+
+1. `services/analysis-worker/requirements.txt` — which spaCy models are installed.
+2. The hard-coded NER language map in `NamedEntityExtractor`.
+3. The hard-coded sentiment language map in `SentimentExtractor`.
+4. `extractors/_negation_config.py` — per-language negation configuration (Phase 117).
+5. `services/analysis-worker/configs/cultural_calendars/<region>.yaml` — per-region cultural calendars.
+
+There is no single place that answers the question: *"For language X, which capabilities does AĒR have?"* This produces three concrete problems:
+
+- **Manual scaffolding drift.** When a new language is added, the engineer must remember to add a row to the `aer_gold.metric_validity` scaffold for each `(metric_name, context_key)` pair. This is easy to forget; the gap is invisible until a consumer queries the validation status.
+- **Probe Coverage Map blocked.** WP-001 §5.3 mandates a Probe Coverage Map showing for each region which discourse functions and which analytical instruments are available. Without a manifest, the map has no data source other than walking the five locations above.
+- **`docs/extending/add-a-language.md` is hand-maintained.** The matrix is the canonical reference for language additions, but it cannot be verified against running code — a documentation/code drift risk grows with every language addition.
+
+The decision is whether to consolidate these five touchpoints behind a single declarative source, or accept the distributed status quo as the price of layered architecture.
+
+### Decision
+
+**A single YAML manifest at `services/analysis-worker/configs/language_capabilities.yaml` is the system of record for per-language analytical capability.** Existing code is refactored to read the manifest; the hard-coded language maps become derived views.
+
+The manifest schema:
+
+```yaml
+# services/analysis-worker/configs/language_capabilities.yaml
+languages:
+  de:
+    iso_code: de
+    display_name: German
+    
+    ner:
+      tier: 1.5
+      model: de_core_news_lg
+      model_version: "3.8.0"
+      provenance: "spaCy German news-domain large model"
+    
+    sentiment_tier1:
+      tier: 1
+      method: lexicon
+      lexicon: sentiws_v2.0
+      features: [negation_dependency, compound_split, custom_lexicon]
+      metric_name: sentiment_score_sentiws
+    
+    sentiment_tier2_default:
+      tier: 2
+      method: multilingual_bert
+      provided_by: shared.multilingual_bert  # references the multilingual default
+      metric_name: sentiment_score_bert_multilingual
+    
+    sentiment_tier2_refinement:
+      tier: 2.5
+      method: news_domain_bert
+      model: mdraw/german-news-sentiment-bert
+      model_revision: "<sha>"
+      metric_name: sentiment_score_bert_de_news
+    
+    cultural_calendar:
+      region_default: de
+      file: cultural_calendars/de.yaml
+    
+    notes:
+      - "Compound-split is German-specific (Phase 117); not applicable to non-agglutinating languages."
+
+  fr:
+    iso_code: fr
+    display_name: French
+    
+    ner:
+      tier: 1.5
+      model: fr_core_news_lg
+      model_version: "3.8.0"
+    
+    sentiment_tier1:
+      tier: 1
+      method: lexicon
+      lexicon: feel_v1.0
+      features: [negation_dependency, custom_lexicon]
+      metric_name: sentiment_score_feel
+    
+    sentiment_tier2_default:
+      tier: 2
+      method: multilingual_bert
+      provided_by: shared.multilingual_bert
+      metric_name: sentiment_score_bert_multilingual
+    
+    # No tier2_refinement yet — sentiment_tier2_refinement key omitted.
+    
+    cultural_calendar:
+      region_default: fr
+      file: cultural_calendars/fr.yaml
+
+shared:
+  multilingual_bert:
+    model: cardiffnlp/twitter-xlm-roberta-base-sentiment
+    model_revision: "<sha>"
+    supported_languages: [de, en, fr, es, it, pt, ja, zh, ar, ...]
+```
+
+### What the manifest drives
+
+1. **NER and Sentiment language routing.** The hard-coded language maps in `NamedEntityExtractor` and `SentimentExtractor` are removed; both extractors read the manifest at startup.
+
+2. **Auto-generated `aer_gold.metric_validity` scaffold.** A new build-time script `scripts/generate_metric_validity_scaffold.py` reads the manifest and emits the scaffold SQL. Every `(metric_name, language)` combination gets a row with `validation_status='unvalidated'`, `tier=<tier>`, `error_taxonomy='{"reason":"engineering default; awaiting WP-002 annotation study"}'`. Manual edits to the scaffold are forbidden — the manifest is the source of truth.
+
+3. **Probe Coverage Map data source.** When implemented (separate ROADMAP phase), the BFF endpoint `GET /api/v1/coverage/map` reads the manifest plus `source_classifications` to produce per-probe coverage information.
+
+4. **Auto-generated `add-a-language.md` matrix.** The touchpoint matrix in `docs/extending/add-a-language.md` is regenerated from the manifest at MkDocs build time via a custom MkDocs macro plugin (or a pre-build script). The hand-maintained version becomes a build artefact.
+
+5. **Single-source `language` parameter validation.** BFF endpoints accepting a `?language=` query parameter validate against the manifest's language list, rejecting unknown codes with a structured `RefusalPayload`.
+
+### Consequences
+
+**Positive.**
+- Adding a new language becomes a single-file change with computable downstream effects.
+- The Probe Coverage Map becomes implementable.
+- Documentation/code drift is structurally prevented.
+- The `metric_validity` scaffold is always honest — every `(metric_name, language)` combination has a row, no silent gaps.
+
+**Negative.**
+- Refactoring the existing extractors to read the manifest is implementation work that must happen before the second language ships in production.
+- A schema change to the manifest is now a coordinated change affecting multiple downstream consumers (the scaffold script, the `add-a-language.md` generator, the BFF). Versioning the manifest schema explicitly (a `manifest_version: 1` field) mitigates this.
+- The manifest is a YAML file, not a typed config object. A Pydantic schema in `services/analysis-worker/internal/models/language_capability.py` is the architectural answer to that drawback.
+
+### Implementation Outline
+
+This ADR is ratified before implementation; the implementation ships as a single phase, sized appropriately for solo work:
+
+1. Pydantic schema for the manifest (`LanguageCapability`, `SharedCapability`).
+2. Manifest YAML with `de` filled in to match Probe 0's current state.
+3. Refactor `NamedEntityExtractor` and `SentimentExtractor` to read the manifest. Existing tests must continue to pass — this is a refactor, not a behaviour change.
+4. `scripts/generate_metric_validity_scaffold.py` and `make scaffold-metric-validity` Makefile target. The generated SQL is committed (not gitignored) so reviewers see drift.
+5. `metric_validity` scaffold migrated from hand-maintained to generated; CI gates the drift.
+6. `language` parameter validator in the BFF.
+7. The auto-generation of `add-a-language.md` is **deferred** to the Probe Coverage Map phase; for now the doc remains hand-maintained but checked against the manifest by a `scripts/check_language_doc_drift.py` script in CI.
+
+Estimated effort: 1 working day for the refactor + scaffold-generator. The fr-language manifest entry is added by Phase 122 as part of its existing scope.
+
+### References
+
+- WP-001 §5.3 (Probe Coverage Map mandate)
+- ADR-023 (Multilingual Sentiment Strategy)
+- Phase 122 (consumer of the manifest)
+- `docs/extending/add-a-language.md`
+- `docs/extending/scalability-roadmap.md`
+
+### Decision Record
+
+- **Proposed:** 2026-05-02 by Fabian Quist with AĒR.
+- **Ratified:** 2026-05-02 by the implementing engineer.
+- **Review date:** 2027-05 or when language count exceeds 10.
+
+---
+
+## ADR-025: Cultural Calendar Composition
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-05-02 (deferred sketch) |
+| **Status** | **Deferred** — ratification when probe count reaches N=10 or duplication friction is felt |
+| **Relates to** | WP-004 §6.3, WP-005 §4.3, Phase 123 |
+
+### Context
+
+The current cultural calendar mechanism (Phase 115 / Workflow 6) is one YAML file per region: `configs/cultural_calendars/de.yaml`, `fr.yaml`, etc. Each file lists holidays, election dates, religious calendars, and recurring media events. The structure is linear: at N regions, there are N files, each authored independently.
+
+At N=2–5 this is acceptable. At N≈30 — and AĒR's stated trajectory targets that range — religious and cultural categories duplicate across files: Ramadan, Eid al-Fitr, Eid al-Adha appear in every probe with a Muslim-majority constituency; Christmas, Easter, Pentecost in every probe with a Christian heritage; Lunar New Year across East Asian probes.
+
+Duplication has two costs: data drift (two files disagree on Ramadan 2027 dates) and authoring friction (a new probe author re-types known holidays).
+
+### Decision (sketched, not yet ratified)
+
+**YAML inheritance via an `extends:` directive.** Shared bases live in `configs/cultural_calendars/_shared/` and are extended by per-region files:
+
+```yaml
+# _shared/christian-western.yaml
+events:
+  - name: "Christmas"
+    date: "12-25"
+    category: religious_holiday
+  - name: "Easter Sunday"
+    date_rule: "easter_western"
+    category: religious_holiday
+  # ...
+
+# fr.yaml
+extends: _shared/christian-western.yaml
+events:
+  - name: "Bastille Day"
+    date: "07-14"
+    category: national_holiday
+  - name: "Toussaint"
+    date: "11-01"
+    category: religious_holiday
+  # ...
+```
+
+Multiple `extends:` entries are allowed for layered cultural traditions (e.g. a probe in a country with both Christian and Muslim significant populations).
+
+### Why deferred
+
+Premature implementation is forbidden by Occam's Razor. The mechanism is not currently needed (N=2 at the close of Phase 122). Implementing it now adds a YAML inheritance engine to maintain *before* it pays off.
+
+The ADR exists in this sketched form so the path is documented and consensual; ratification and implementation happen at the trigger condition.
+
+### Trigger conditions for ratification
+
+Any of:
+- Probe count reaches N=10.
+- Three or more probes share a religious calendar that contains five or more identical events.
+- A bug is filed where two regional calendars disagree on a shared event's date or category.
+
+### Implementation Outline (when triggered)
+
+1. YAML loader extension in the analysis worker reads `extends:` directive recursively, with cycle detection.
+2. Effective calendar = base ∪ per-region (per-region overrides base on name conflict).
+3. New `_shared/` subdirectory.
+4. Existing region files migrated incrementally — `de.yaml` and `fr.yaml` converted to inherit from `_shared/christian-western.yaml`.
+5. CI test verifying no infinite-recursion `extends:` chains.
+
+### References
+
+- WP-005 §4.3 (cultural calendar foundation)
+- Phase 123 (current single-file pattern)
+- `docs/extending/scalability-roadmap.md` § Cultural Calendar Composition
+
+### Decision Record
+
+- **Sketched:** 2026-05-02 by Fabian Quist with AĒR.
+- **Status:** Deferred. Path documented; implementation pending trigger.
+
+---
+
+## ADR-026: Multilingual NER Fallback
+
+| Property | Value |
+| :--- | :--- |
+| **Date** | 2026-05-02 (deferred sketch) |
+| **Status** | **Deferred** — ratification when N≥5 probes are affected by NER coverage gaps |
+| **Relates to** | Phase 116, ADR-016, ADR-023, ADR-024 |
+
+### Context
+
+spaCy provides trained NER models for ~25 languages: German, English, French, Spanish, Italian, Portuguese, Dutch, Danish, Swedish, Norwegian, Finnish, Polish, Russian, Ukrainian, Japanese, Chinese, Korean, Greek, Romanian, Lithuanian, and a handful of others. Many languages relevant to AĒR's stated coverage trajectory have no off-the-shelf spaCy NER model: Suaheli, Tagalog, Bengali, Khmer, Amharic, Tigrinya, Hausa, Yoruba, etc.
+
+The Phase 116 absence-not-wrong guarantee handles this gracefully today: no model → `entity_count = 0`, no entity spans, structured warning log. The `aer_gold.metric_validity` scaffold (when ADR-024 implements it) records the gap honestly.
+
+But: a probe without NER has no entity co-occurrence network, no Wikidata QID linking, no relational analysis at all. The probe operates at WP-004 Level 1 only. At N=1 such probe this is acceptable. At N=5 affected probes, half of AĒR's Episteme-pillar capability is dark for those probes — and the project's stated mission is global coverage, which means non-spaCy-supported languages will be in the majority eventually.
+
+### Decision (sketched, not yet ratified)
+
+**A multilingual transformer-based NER fallback as an optional Tier 2 path, language-routed by ADR-024's manifest.** The architectural shape mirrors ADR-023's multilingual sentiment decision:
+
+1. **Tier 1.5 spaCy NER stays as the primary** for languages with a trained model. Phase 116's existing language router selects the spaCy model. No change.
+
+2. **Tier 2 multilingual NER fallback** for languages without a spaCy model. Candidate models: `Babelscape/wikineural-multilingual-ner` (covers 9 languages), `Davlan/distilbert-base-multilingual-cased-ner-hrl` (10 languages), or the SOTA at the time of implementation. Output: separate metric `entity_count_bert_multilingual` and entity spans written to a separate Gold table column or with a `link_method` value distinguishing them. The two NER paths NEVER merge their outputs; the dashboard surfaces them with Epistemic Weight per Brief §7.8.
+
+3. **ADR-024's manifest declares the path per language.** A language entry's `ner` block specifies either `tier: 1.5` (spaCy) or `tier: 2` (multilingual transformer) or both.
+
+### Why deferred
+
+Two reasons. **First, trigger condition not met.** N=2 at end of Phase 122; both languages have spaCy NER. Implementing now is premature.
+
+**Second, the multilingual NER landscape is unstable.** The named candidate models (WikiNeural, distilBERT-multilingual-NER) are 2022-vintage; better alternatives almost certainly exist by the time the trigger fires. Ratifying a specific model choice in 2026 for a 2028 implementation would be locking in a stale decision.
+
+### Trigger conditions for ratification
+
+Any of:
+- N≥5 probes operate in languages without spaCy NER coverage.
+- A probe in a politically significant context has no NER and the Coverage Map (when implemented) makes the gap acutely visible.
+- The Wikidata entity-linking layer (Phase 118) is observed producing significantly degraded results for non-spaCy probes (because there are no entity spans to link).
+
+### Implementation Outline (when triggered)
+
+1. Re-survey the multilingual NER landscape. Select a model based on language coverage, license, deployment footprint.
+2. Pinned-revision integration following the Phase 119 dual-extractor pattern (determinism flags, version hash, separate metric name).
+3. ADR-024 manifest extended with the per-language `tier: 2` NER declaration.
+4. New `MultilingualBertNamedEntityExtractor` registered alongside the existing `NamedEntityExtractor`. Routing decided by manifest, not by code.
+5. Wikidata entity linking (Phase 118) extended to consume entity spans from both NER paths transparently.
+
+### References
+
+- Phase 116 (absence-not-wrong guarantee)
+- ADR-023 (parallel multilingual+per-language pattern for sentiment)
+- ADR-024 (Language Capability Manifest)
+- `docs/extending/scalability-roadmap.md` § NER model availability
+
+### Decision Record
+
+- **Sketched:** 2026-05-02 by Fabian Quist with AĒR.
+- **Status:** Deferred. Path documented; implementation pending trigger.
+
+---
