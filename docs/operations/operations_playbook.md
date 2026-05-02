@@ -1224,34 +1224,55 @@ git stash                 # save it for later inspection
 
 ## Building and refreshing the Wikidata alias index
 
-The Phase 118 entity-linking step depends on a SQLite alias index built once per quarter from the Wikidata SPARQL endpoint. The index is shipped to the analysis-worker via the `aer-wikidata-index` Docker image and the `wikidata-index-init` compose service; the worker mounts it read-only at `/data/wikidata/`.
+The Phase 118 entity-linking step depends on a SQLite alias index built once per quarter from a Wikidata RDF dump. The index is shipped to the analysis-worker via the `aer-wikidata-index` Docker image and the `wikidata-index-init` compose service; the worker mounts it read-only at `/data/wikidata/`.
+
+The build mechanism is the Phase-118b dump-streaming pipeline (`scripts/build_wikidata_index.py` + `pyoxigraph`). It replaced the original Phase-118 SPARQL pipeline after empirical evidence (2026-05-02) of repeated endpoint timeouts on bucket-discovery queries against the public `query.wikidata.org` endpoints. Smaller VALUES-clause lookups against known QID lists still work, but bucket discovery does not — DBpedia, Pelias, and other large-scale Wikidata consumers all use dump-based builds for the same reason.
 
 ### Prerequisites
 
-* Network: a stable internet connection to `query.wikidata.org`. The build performs paginated SPARQL over several hours; transient 429 / 5xx responses are retried with exponential backoff.
-* Disk: 1 GiB free on the runner is plenty — the staging DB peaks below 200 MB and the canonicalised output is 50–150 MB.
-* Runtime: 2–6 h for the initial three-language scope (`de,en,fr`). Re-runs are full rebuilds; the SPARQL endpoint does not support incremental.
+* Network bandwidth: ~43 GB single-shot download of `latest-truthy.nt.bz2` from `dumps.wikimedia.org`. GitHub-hosted runners typically pull this in 10–15 minutes; on a residential connection plan for 1–4 hours.
+* Disk: ~80 GB free on the runner. The compressed dump is ~43 GB; the SQLite output is 50–150 MB; the safety margin during the build is ~37 GB. After the dump is deleted (workflow does this before the Docker build step) the runner has ~80 GB free again.
+* Runtime: ~10–15 min download + ~2–3 h streaming build + ~30 min Docker build = ~3–4 h total. Comfortably under the GitHub-runner 6 h hard limit (`timeout-minutes: 350`).
 * Authority: write access to `ghcr.io/frogfromlake/aer-wikidata-index` (the workflow's `GITHUB_TOKEN` already has `packages:write`).
 
-### Snapshot-date convention
+### Dump source and snapshot-date semantics
 
-The build is parameterised by a snapshot date that filters Wikidata entities by `schema:dateModified <= <snapshot>T00:00:00Z`. Two builds with identical (snapshot date, languages, bucket YAML, script version) produce byte-identical SQLite files. The default is "yesterday at 00:00 UTC"; production rebuilds pin a specific date so the resulting hash is reproducible.
+The default dump source is Wikipedia's official truthy export:
+
+* URL: `https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2`
+* Cadence: Wikidata publishes a fresh truthy dump every Wednesday.
+* Format: gzipped (bz2) N-Triples sorted by subject — the streaming group-by-subject algorithm in `build_wikidata_index.py` requires the sorted property and asserts it at parse time.
+
+The build is parameterised by a `--snapshot-date` (YYYY-MM-DD). Operationally this is the dump file's mtime (the workflow reads it via `date -u -r <dump>` after download); the workflow input `snapshot_date` lets an operator pin a different value when reproducing a historical build. The value is recorded verbatim in the SQLite `build_metadata` table so the consumer can audit which dump produced which index.
+
+Two builds over the same (dump file, languages, bucket YAML, script version) produce byte-identical SQLite files — see the determinism contract in the script docstring.
 
 ### Triggering a rebuild
 
 There are two paths:
 
 ```text
-# Path A — manual (workflow_dispatch). Used for: end-to-end testing during
-# Phase-118 development, urgent refreshes outside the schedule, and any
-# rebuild that adds new languages.
+# Path A — manual (workflow_dispatch). Used for: end-to-end verification
+# of a new snapshot, urgent refreshes outside the schedule, rebuilds that
+# add new languages, and the first production run before activating the
+# schedule.
 gh workflow run wikidata_index_rebuild.yml \
-  -f snapshot_date=2026-04-30 \
-  -f languages=de,en,fr
+  -f languages=de,en,fr \
+  -f dump_url=https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2
 
 # Path B — scheduled (cron). Activated in a separate post-merge commit
-# after Phase 118 ships and a manual run has been verified end-to-end.
+# after the Phase 118b manual run has been verified end-to-end (commit
+# title: `ci: enable quarterly schedule for Wikidata index rebuild`).
 # Cron: 1st of Jan/Apr/Jul/Oct at 02:00 UTC.
+```
+
+The build script also supports a local fixture mode for development — see `scripts/wikidata_fixtures/wikidata_sample.nt`. This 7-entity hand-crafted N-Triples file exercises the streaming parser end-to-end in seconds without touching the 43 GB production dump:
+
+```bash
+python scripts/build_wikidata_index.py \
+  --dump-path scripts/wikidata_fixtures/wikidata_sample.nt \
+  --output-path /tmp/wikidata_aliases.db \
+  --snapshot-date 2026-05-03
 ```
 
 The workflow runs the build script, uploads the resulting `wikidata_aliases.db` as a 90-day-retention artifact, and pushes the `aer-wikidata-index` image tagged with both the snapshot date and `latest`.
@@ -1283,18 +1304,24 @@ The `wikidata-index-init` container copies the new DB into the `wikidata_data` v
 
 ### Refresh cadence
 
-* **Quarterly** by default (`schedule:` in the workflow).
+* **Quarterly** by default (`schedule:` in the workflow). Wikidata publishes a fresh truthy dump every Wednesday, so a quarterly rebuild lags Wikidata-live by at most one quarter and any deployed AĒR instance lags Wikidata-live by at most one quarter plus the gap to its source workflow run. This is the operational reality, documented in Arc42 §13 — it is not a defect.
 * **On Probe expansion** — when a new probe introduces a language not in the current `LANGUAGES` list, run `workflow_dispatch` with the extended set before the probe's first ingestion.
-* **On bucket-YAML change** — when `services/analysis-worker/data/wikidata_type_buckets.yaml` is edited (new entity type bucket, refined min-sitelinks threshold), trigger a manual rebuild.
+* **On bucket-YAML change** — when `services/analysis-worker/data/wikidata_type_buckets.yaml` is edited (new entity type bucket, refined min-sitelinks threshold, refined `match` DSL), trigger a manual rebuild.
 
 ### Extending the type-bucket YAML
 
-The `wikidata_type_buckets.yaml` is the system of record for the index scope. Adding a new domain is a one-PR change:
+The `wikidata_type_buckets.yaml` is the system of record for the index scope. Each bucket carries TWO membership specifications and they must stay semantically in sync:
 
-1. Append a bucket entry with `name`, `description`, `where_clause` (SPARQL fragment), and optional `min_sitelinks` / `min_population`.
-2. Trigger a manual rebuild via `workflow_dispatch`.
-3. Verify the resulting index size + hash match expectations (the step summary logs both).
-4. Deploy via the tag-flip flow above.
+* `where_clause` — a SPARQL fragment, kept as human-readable documentation of the entity scope. Phase 118 used this directly against the public SPARQL endpoint; Phase 118b made it reference-only — it is not parsed at build time.
+* `match` — a structured DSL evaluated by `BucketMatcher` in `scripts/build_wikidata_index.py`. Supported keys: `p31_any`, `p106_any`, `p31_subclass_of`, `min_population`. Plus the top-level `min_sitelinks` filter.
+
+Adding a new domain is a one-PR change:
+
+1. Append a bucket entry with `name`, `description`, `where_clause` (SPARQL fragment for documentation), `match` (the structured rule the build script consumes), and optional top-level `min_sitelinks` / `min_population`.
+2. Verify the dual form is consistent — the SPARQL fragment and the `match` block must describe the same scope. The SPARQL fragment is reference-only; the `match` block is what determines membership.
+3. Trigger a manual rebuild via `workflow_dispatch`.
+4. Verify the resulting index size + hash match expectations (the step summary logs both).
+5. Deploy via the tag-flip flow above.
 
 Append-only ordering is part of the determinism guarantee — re-ordering existing entries changes the build hash even if the alias set is unchanged. Sort additions to the end.
 

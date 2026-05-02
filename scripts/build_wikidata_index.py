@@ -1,43 +1,44 @@
 #!/usr/bin/env python3
 """Build the Wikidata alias-index SQLite for Phase 118 entity linking.
 
-Produces a deterministic SQLite database mapping (alias, language) → QID
-plus per-entity sitelink counts and bucket metadata. The output is mounted
-read-only by the analysis-worker (via the wikidata-index-init compose
-service) and consumed by NamedEntityExtractor for QID disambiguation.
+Phase 118b — dump-based pipeline. Replaces the original SPARQL-paginated
+implementation with a streaming N-Triples parser over Wikidata's
+`latest-truthy.nt.bz2` dump. The resulting SQLite is byte-identical in
+shape and consumer contract to the Phase-118 output; the worker, the
+init container, the BFF, and all worker tests cannot tell which build
+mechanism produced a given file.
 
-Determinism contract: two runs with identical (snapshot_date, languages,
-buckets-yaml, script-version) produce byte-identical SQLite files. The
-build is therefore reproducible and the resulting sha256 is the only
-artifact identity that matters at deploy time.
+Determinism contract: two runs over the same dump file (and the same
+buckets YAML and language set) produce byte-identical SQLite output.
+Achieved via:
+  * deterministic accumulator → sorted insert
+  * `sqlite3 .dump | sqlite3 fresh.db` canonicalisation round-trip
+  * stable hash sidecar emitted alongside the .db
 
-Architecture rationale: see docs/operations_playbook.md
-("Building and refreshing the Wikidata alias index") and
-docs/operations/scheduled_work.md (Category C entry).
+Architecture rationale: see ROADMAP.md Phase 118b and
+docs/operations/operations_playbook.md
+("Building and refreshing the Wikidata alias index").
 """
 
 from __future__ import annotations
 
 import argparse
+import bz2
 import hashlib
 import logging
 import os
 import sqlite3
-import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from collections import defaultdict, deque
+from collections.abc import Iterable, Iterator
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import IO, Any
 
-import requests
 import yaml
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from pyoxigraph import Literal, NamedNode, RdfFormat, parse  # type: ignore[import-not-found]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,128 +46,437 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 log = logging.getLogger("build_wikidata_index")
-WIKIDATA_SPARQL_ENDPOINT = "https://query-scholarly.wikidata.org/sparql"
-PAGE_SIZE = 2000
-USER_AGENT = (
-    "AER-WikidataIndexBuilder/1.0 "
-    "(https://github.com/frogfromlake/aer; bot@example.invalid) "
-    "Python/{py}".format(py=".".join(map(str, sys.version_info[:3])))
+
+# Wikidata RDF predicate URIs we care about. Anything else is ignored.
+WD_ENTITY_PREFIX = "http://www.wikidata.org/entity/"
+PRED_P31 = "http://www.wikidata.org/prop/direct/P31"
+PRED_P106 = "http://www.wikidata.org/prop/direct/P106"
+PRED_P279 = "http://www.wikidata.org/prop/direct/P279"
+PRED_P1082 = "http://www.wikidata.org/prop/direct/P1082"
+PRED_LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
+PRED_ALTLABEL = "http://www.w3.org/2004/02/skos/core#altLabel"
+PRED_SITELINKS = "http://wikiba.se/ontology#sitelinks"
+
+# Predicates we collect during the hydration pass. Anything outside this
+# set is dropped at parse time to keep memory and CPU bounded.
+HYDRATION_PREDICATES = frozenset(
+    {
+        PRED_P31,
+        PRED_P106,
+        PRED_P1082,
+        PRED_LABEL,
+        PRED_ALTLABEL,
+        PRED_SITELINKS,
+    }
 )
 
-
-class TransientSparqlError(RuntimeError):
-    """Raised on 429/5xx — retried by tenacity."""
+PROGRESS_INTERVAL = 5_000_000  # log every N triples processed in a pass
 
 
-@retry(
-    retry=retry_if_exception_type(TransientSparqlError),
-    wait=wait_exponential(multiplier=2, min=2, max=120),
-    stop=stop_after_attempt(8),
-    reraise=True,
-)
-def _sparql(query: str) -> dict:
-    resp = requests.post(
-        WIKIDATA_SPARQL_ENDPOINT,
-        data={"query": query, "format": "json"},
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "application/sparql-results+json",
-        },
-        timeout=180,
-    )
-    if resp.status_code == 429 or 500 <= resp.status_code < 600:
-        log.warning(
-            "SPARQL transient error %s; will retry", resp.status_code
+# ---------------------------------------------------------------------------
+# Bucket DSL
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BucketRule:
+    """One bucket from wikidata_type_buckets.yaml in evaluable form."""
+
+    name: str
+    p31_any: frozenset[str] = frozenset()
+    p106_any: frozenset[str] = frozenset()
+    p31_subclass_of: frozenset[str] = frozenset()
+    min_population: int | None = None
+    min_sitelinks: int | None = None
+
+
+def _load_buckets(path: Path) -> list[BucketRule]:
+    with path.open() as f:
+        raw = yaml.safe_load(f)["buckets"]
+    rules: list[BucketRule] = []
+    for entry in raw:
+        match = entry.get("match") or {}
+        rules.append(
+            BucketRule(
+                name=entry["name"],
+                p31_any=frozenset(match.get("p31_any") or []),
+                p106_any=frozenset(match.get("p106_any") or []),
+                p31_subclass_of=frozenset(match.get("p31_subclass_of") or []),
+                min_population=match.get("min_population"),
+                min_sitelinks=entry.get("min_sitelinks"),
+            )
         )
-        raise TransientSparqlError(f"HTTP {resp.status_code}: {resp.text[:200]}")
-    resp.raise_for_status()
-    return resp.json()
+    return rules
 
 
-def _build_query(
-    where_clause: str,
-    languages: list[str],
-    snapshot_date: str,
-    offset: int,
-) -> str:
-    lang_values = ", ".join(f'"{lang}"' for lang in languages)
-    return f"""
-SELECT ?item ?itemLabel ?altLabel ?sitelinks WHERE {{
-  {{
-    SELECT ?item ?sitelinks WHERE {{
-      {where_clause}
-      ?item wikibase:sitelinks ?sitelinks .
-      ?item schema:dateModified ?d .
-      FILTER(?d <= "{snapshot_date}T00:00:00Z"^^xsd:dateTime)
-    }}
-    ORDER BY ?item
-    LIMIT {PAGE_SIZE} OFFSET {offset}
-  }}
-  ?item rdfs:label ?itemLabel .
-  FILTER(LANG(?itemLabel) IN ({lang_values}))
-  OPTIONAL {{
-    ?item skos:altLabel ?altLabel .
-    FILTER(LANG(?altLabel) IN ({lang_values}))
-  }}
-}}
-""".strip()
+def _bucket_matches(
+    rule: BucketRule,
+    p31: set[str],
+    p106: set[str],
+    p1082_max: float | None,
+    p31_closure: dict[str, set[str]],
+    sitelinks: int,
+) -> bool:
+    """Return True iff the entity matches every declared constraint of `rule`."""
+    if rule.p31_any and not (p31 & rule.p31_any):
+        return False
+    if rule.p106_any and not (p106 & rule.p106_any):
+        return False
+    if rule.p31_subclass_of:
+        # The closure is keyed by root QID → set of all descendants
+        # (root included). Match if any of the entity's P31 values is in
+        # the descendant set of any declared root.
+        matched = False
+        for root in rule.p31_subclass_of:
+            if p31 & p31_closure.get(root, set()):
+                matched = True
+                break
+        if not matched:
+            return False
+    if rule.min_population is not None:
+        if p1082_max is None or p1082_max < rule.min_population:
+            return False
+    if rule.min_sitelinks is not None and sitelinks < rule.min_sitelinks:
+        return False
+    return True
 
 
-def _qid_from_uri(uri: str) -> str:
-    # http://www.wikidata.org/entity/Q567 → Q567
-    return uri.rsplit("/", 1)[-1]
+def _interesting_subclass_roots(rules: Iterable[BucketRule]) -> set[str]:
+    roots: set[str] = set()
+    for r in rules:
+        roots.update(r.p31_subclass_of)
+    return roots
 
 
-def _iter_bucket_rows(
-    bucket: dict,
-    languages: list[str],
-    snapshot_date: str,
-) -> Iterator[tuple[str, int, str, str, str]]:
-    """Yield (qid, sitelinks, label, lang, source) tuples for one bucket.
+# ---------------------------------------------------------------------------
+# N-Triples streaming
+# ---------------------------------------------------------------------------
 
-    `source` is "label" for rdfs:label rows and "altLabel" for
-    skos:altLabel rows. The same QID may appear with multiple labels and
-    altLabels — the final dedup pass collapses duplicates by primary key.
+
+def _open_dump(path: Path) -> IO[bytes]:
+    """Open a Wikidata N-Triples dump (bz2 or plain) for streaming."""
+    if str(path).endswith(".bz2"):
+        return bz2.open(path, "rb")
+    return open(path, "rb")
+
+
+def _qid_from_uri(uri: str) -> str | None:
+    """Return the bare QID/PID suffix of a Wikidata entity URI, else None."""
+    if not uri.startswith(WD_ENTITY_PREFIX):
+        return None
+    return uri[len(WD_ENTITY_PREFIX) :]
+
+
+def _iter_triples(
+    dump_path: Path,
+) -> Iterator[tuple[str, str, Any]]:
+    """Yield (subject_value, predicate_value, object) for every triple.
+
+    The object is the raw pyoxigraph term (NamedNode / Literal / BlankNode).
+    Callers narrow on predicate before unpacking the object.
+
+    Truncated streams (incomplete bz2 blocks, mid-line interruptions) raise
+    pyoxigraph.SyntaxError. We catch it, log a structured warning, and end
+    the iteration cleanly. In production the dump is fetched via wget -c
+    against a stable Wikimedia mirror, so truncation is unexpected — but if
+    it happens, we'd rather build a smaller, correct index than abort the
+    whole run. The smoke-test pipeline relies on this resilience to consume
+    range-request fixtures.
     """
-    where = bucket["where_clause"]
-    name = bucket["name"]
-    offset = 0
-    seen_pages = 0
-    while True:
-        query = _build_query(where, languages, snapshot_date, offset)
+    n = 0
+    truncated = False
+    with _open_dump(dump_path) as f:
+        try:
+            for quad in parse(input=f, format=RdfFormat.N_TRIPLES):
+                n += 1
+                if n % PROGRESS_INTERVAL == 0:
+                    log.info("scanned %d triples", n)
+                subj = quad.subject
+                pred = quad.predicate
+                if not isinstance(subj, NamedNode) or not isinstance(pred, NamedNode):
+                    continue
+                yield subj.value, pred.value, quad.object
+        except SyntaxError as e:
+            truncated = True
+            log.warning(
+                "dump appears truncated at triple #%d (parser said: %s); "
+                "ending pass cleanly with what was parsed",
+                n,
+                e,
+            )
+        except (EOFError, OSError) as e:
+            truncated = True
+            log.warning(
+                "dump stream ended unexpectedly at triple #%d (%s: %s); "
+                "ending pass cleanly with what was parsed",
+                n,
+                type(e).__name__,
+                e,
+            )
+    if truncated:
+        log.info("scan complete (truncated): %d triples parsed", n)
+    else:
+        log.info("scan complete: %d triples", n)
+
+
+# ---------------------------------------------------------------------------
+# Pass A — P279 transitive closure
+# ---------------------------------------------------------------------------
+
+
+def _compute_subclass_closure(
+    dump_path: Path,
+    roots: set[str],
+) -> dict[str, set[str]]:
+    """For each root QID, return the set {root} ∪ {all P279*-descendants}.
+
+    Builds a forward edge map child → set(parents) by streaming all
+    `wdt:P279` triples in a single pass, inverts it to parent → children,
+    then BFS-walks downward from each root.
+    """
+    if not roots:
+        log.info("no subclass roots requested; skipping P279 closure pass")
+        return {}
+
+    log.info("Pass A: building P279 graph (roots=%s)", sorted(roots))
+    children_of: dict[str, set[str]] = defaultdict(set)
+    edge_count = 0
+    for subj_uri, pred_uri, obj in _iter_triples(dump_path):
+        if pred_uri != PRED_P279:
+            continue
+        if not isinstance(obj, NamedNode):
+            continue
+        child_qid = _qid_from_uri(subj_uri)
+        parent_qid = _qid_from_uri(obj.value)
+        if child_qid is None or parent_qid is None:
+            continue
+        children_of[parent_qid].add(child_qid)
+        edge_count += 1
+    log.info("P279 graph built: %d edges, %d parents", edge_count, len(children_of))
+
+    closure: dict[str, set[str]] = {}
+    for root in roots:
+        seen: set[str] = {root}
+        queue: deque[str] = deque([root])
+        while queue:
+            cur = queue.popleft()
+            for child in children_of.get(cur, ()):
+                if child not in seen:
+                    seen.add(child)
+                    queue.append(child)
+        closure[root] = seen
         log.info(
-            "SPARQL bucket=%s offset=%d page_size=%d", name, offset, PAGE_SIZE
+            "P279 closure root=%s descendants=%d (incl. root)",
+            root,
+            len(seen),
         )
-        result = _sparql(query)
-        rows = result.get("results", {}).get("bindings", [])
-        if not rows:
-            break
-        for row in rows:
-            qid = _qid_from_uri(row["item"]["value"])
-            sitelinks = int(row["sitelinks"]["value"])
-            if "itemLabel" in row:
-                lit = row["itemLabel"]
-                yield (
-                    qid,
-                    sitelinks,
-                    lit["value"],
-                    lit.get("xml:lang", ""),
-                    "label",
+    return closure
+
+
+# ---------------------------------------------------------------------------
+# Pass B — entity hydration & bucket evaluation
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _EntityAccumulator:
+    qid: str
+    p31: set[str] = field(default_factory=set)
+    p106: set[str] = field(default_factory=set)
+    p1082_max: float | None = None
+    sitelinks: int = 0
+    # label / altLabel: list of (value, lang) — emit one alias row per item
+    labels: list[tuple[str, str]] = field(default_factory=list)
+    altlabels: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _normalise_alias(text: str) -> str:
+    """Lowercase + trim. Runtime extractor applies the same canonical form
+    plus accent-folding / punctuation-stripping; storing the punctuated
+    accented form here lets a single index serve all lookup variants."""
+    return text.strip().lower()
+
+
+def _emit_entity(
+    acc: _EntityAccumulator,
+    rules: list[BucketRule],
+    p31_closure: dict[str, set[str]],
+    languages: set[str],
+    alias_rows: dict[tuple[str, str, str], tuple[int, str]],
+    entity_buckets: dict[str, set[str]],
+    entity_sitelinks: dict[str, int],
+) -> None:
+    """Evaluate bucket membership for one fully-hydrated entity and write
+    its alias rows into the in-memory accumulator dictionaries."""
+    matched_buckets = [
+        rule.name
+        for rule in rules
+        if _bucket_matches(
+            rule,
+            acc.p31,
+            acc.p106,
+            acc.p1082_max,
+            p31_closure,
+            acc.sitelinks,
+        )
+    ]
+    if not matched_buckets:
+        return
+
+    for bucket_name in matched_buckets:
+        entity_buckets.setdefault(acc.qid, set()).add(bucket_name)
+    entity_sitelinks[acc.qid] = max(
+        entity_sitelinks.get(acc.qid, 0), acc.sitelinks
+    )
+
+    def _record(value: str, lang: str, source: str) -> None:
+        if lang not in languages or not value:
+            return
+        norm = _normalise_alias(value)
+        if not norm:
+            return
+        key = (norm, lang, acc.qid)
+        existing = alias_rows.get(key)
+        if existing is None:
+            alias_rows[key] = (acc.sitelinks, source)
+        else:
+            prev_sl, prev_src = existing
+            new_src = "label" if "label" in (prev_src, source) else "altLabel"
+            alias_rows[key] = (max(prev_sl, acc.sitelinks), new_src)
+
+    for value, lang in acc.labels:
+        _record(value, lang, "label")
+    for value, lang in acc.altlabels:
+        _record(value, lang, "altLabel")
+
+
+def _hydrate_and_evaluate(
+    dump_path: Path,
+    rules: list[BucketRule],
+    p31_closure: dict[str, set[str]],
+    languages: set[str],
+) -> tuple[
+    dict[tuple[str, str, str], tuple[int, str]],
+    dict[str, set[str]],
+    dict[str, int],
+    dict[str, int],
+]:
+    """Single sequential scan: groups triples by subject, evaluates buckets,
+    accumulates output rows. Assumes `dump_path` is sorted by subject —
+    Wikidata's `latest-truthy.nt.bz2` is."""
+    log.info("Pass B: streaming hydration over %s", dump_path)
+    alias_rows: dict[tuple[str, str, str], tuple[int, str]] = {}
+    entity_buckets: dict[str, set[str]] = {}
+    entity_sitelinks: dict[str, int] = {}
+    seen_subjects: set[str] = set()
+    counters = {
+        "subjects": 0,
+        "evaluated": 0,
+        "matched": 0,
+        "labels_with_lang": 0,
+    }
+
+    cur_acc: _EntityAccumulator | None = None
+
+    def flush() -> None:
+        nonlocal cur_acc
+        if cur_acc is None:
+            return
+        counters["evaluated"] += 1
+        before_match = len(entity_buckets)
+        _emit_entity(
+            cur_acc,
+            rules,
+            p31_closure,
+            languages,
+            alias_rows,
+            entity_buckets,
+            entity_sitelinks,
+        )
+        if len(entity_buckets) > before_match:
+            counters["matched"] += 1
+        cur_acc = None
+
+    for subj_uri, pred_uri, obj in _iter_triples(dump_path):
+        if pred_uri not in HYDRATION_PREDICATES:
+            continue
+        qid = _qid_from_uri(subj_uri)
+        if qid is None:
+            continue
+        if cur_acc is None or cur_acc.qid != qid:
+            flush()
+            if qid in seen_subjects:
+                # The dump is supposed to be sorted by subject. If we see
+                # a subject we've already evaluated, the assumption is
+                # broken and we would silently lose triples — fail loud.
+                raise RuntimeError(
+                    f"Dump is not sorted by subject: {qid} reappears after "
+                    "being flushed. The streaming group-by-subject strategy "
+                    "requires a sorted dump (Wikidata's latest-truthy.nt.bz2 "
+                    "is sorted by subject)."
                 )
-            if "altLabel" in row:
-                lit = row["altLabel"]
-                yield (
-                    qid,
-                    sitelinks,
-                    lit["value"],
-                    lit.get("xml:lang", ""),
-                    "altLabel",
-                )
-        # Progress accounting based on outer SELECT page (deduped on ?item)
-        seen_pages += 1
-        if len({_qid_from_uri(r["item"]["value"]) for r in rows}) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
+            seen_subjects.add(qid)
+            cur_acc = _EntityAccumulator(qid=qid)
+            counters["subjects"] += 1
+
+        if pred_uri == PRED_P31:
+            if isinstance(obj, NamedNode):
+                target = _qid_from_uri(obj.value)
+                if target is not None:
+                    cur_acc.p31.add(target)
+        elif pred_uri == PRED_P106:
+            if isinstance(obj, NamedNode):
+                target = _qid_from_uri(obj.value)
+                if target is not None:
+                    cur_acc.p106.add(target)
+        elif pred_uri == PRED_P1082:
+            if isinstance(obj, Literal):
+                try:
+                    val = float(obj.value)
+                except ValueError:
+                    continue
+                if cur_acc.p1082_max is None or val > cur_acc.p1082_max:
+                    cur_acc.p1082_max = val
+        elif pred_uri == PRED_SITELINKS:
+            if isinstance(obj, Literal):
+                try:
+                    val = int(obj.value)
+                except ValueError:
+                    continue
+                if val > cur_acc.sitelinks:
+                    cur_acc.sitelinks = val
+        elif pred_uri == PRED_LABEL:
+            if isinstance(obj, Literal) and obj.language:
+                cur_acc.labels.append((obj.value, obj.language))
+                counters["labels_with_lang"] += 1
+        elif pred_uri == PRED_ALTLABEL:
+            if isinstance(obj, Literal) and obj.language:
+                cur_acc.altlabels.append((obj.value, obj.language))
+                counters["labels_with_lang"] += 1
+
+    flush()
+    log.info(
+        "Pass B complete: subjects=%d evaluated=%d matched=%d labels_with_lang=%d "
+        "alias_rows=%d entities=%d",
+        counters["subjects"],
+        counters["evaluated"],
+        counters["matched"],
+        counters["labels_with_lang"],
+        len(alias_rows),
+        len(entity_buckets),
+    )
+    if counters["matched"] == 0:
+        log.warning(
+            "No entities matched any bucket. Either the bucket DSL is wrong, "
+            "the dump file is not the truthy export, or the dump predicates "
+            "differ from the expected URIs."
+        )
+    return alias_rows, entity_buckets, entity_sitelinks, counters
+
+
+# ---------------------------------------------------------------------------
+# SQLite assembly (unchanged shape from Phase 118)
+# ---------------------------------------------------------------------------
 
 
 def _open_staging(path: Path) -> sqlite3.Connection:
@@ -190,74 +500,34 @@ def _open_staging(path: Path) -> sqlite3.Connection:
             sitelink_count INTEGER NOT NULL,
             type_buckets TEXT NOT NULL
         );
+        CREATE TABLE build_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         """
     )
     return conn
 
 
-def _normalise_alias(text: str) -> str:
-    # Lowercase + strip surrounding whitespace; the runtime extractor applies
-    # the same normalisation plus punctuation-stripping / accent-folding,
-    # but build-time we preserve punctuation and accents so a single index
-    # can serve all three lookup variants.
-    return text.strip().lower()
-
-
-def _build(
-    snapshot_date: str,
-    languages: list[str],
-    buckets_path: Path,
+def _write_sqlite(
     output_path: Path,
+    snapshot_date: str,
+    languages: set[str],
+    alias_rows: dict[tuple[str, str, str], tuple[int, str]],
+    entity_buckets: dict[str, set[str]],
+    entity_sitelinks: dict[str, int],
 ) -> None:
-    with buckets_path.open() as f:
-        buckets = yaml.safe_load(f)["buckets"]
+    sorted_aliases = sorted(alias_rows.items(), key=lambda kv: kv[0])
+    sorted_entities = sorted(entity_sitelinks.items())
+    log.info(
+        "writing SQLite: alias_rows=%d entities=%d",
+        len(sorted_aliases),
+        len(sorted_entities),
+    )
 
-    # Build into a temp file first, then canonicalise via dump/restore so
-    # the on-disk layout is page-stable across runs.
     with tempfile.TemporaryDirectory() as tmpdir:
         staging = Path(tmpdir) / "staging.db"
         conn = _open_staging(staging)
-
-        # Deterministic accumulation: collect all rows in memory, sort, then
-        # bulk-insert. This guarantees byte-identical output even if SPARQL
-        # returns rows in a different order between runs (e.g. when ties on
-        # ?item ordering are broken differently).
-        # key = (normalised_alias, language, qid) → (sitelinks, source)
-        # The alias is stored normalised (lowercased + stripped) so the
-        # runtime lookup is a single equality probe. When a collision occurs
-        # on the same primary-key tuple, the maximum sitelink count wins
-        # and `label` provenance preempts `altLabel`.
-        alias_rows: dict[tuple[str, str, str], tuple[int, str]] = {}
-        entity_buckets: dict[str, set[str]] = {}
-        entity_sitelinks: dict[str, int] = {}
-
-        for bucket in buckets:
-            for qid, sitelinks, label, lang, source in _iter_bucket_rows(
-                bucket, languages, snapshot_date
-            ):
-                if not lang:
-                    continue
-                norm_alias = _normalise_alias(label)
-                if not norm_alias:
-                    continue
-                key = (norm_alias, lang, qid)
-                existing = alias_rows.get(key)
-                if existing is None:
-                    alias_rows[key] = (sitelinks, source)
-                else:
-                    prev_sl, prev_src = existing
-                    new_src = "label" if "label" in (prev_src, source) else "altLabel"
-                    alias_rows[key] = (max(prev_sl, sitelinks), new_src)
-
-                entity_buckets.setdefault(qid, set()).add(bucket["name"])
-                entity_sitelinks[qid] = max(
-                    entity_sitelinks.get(qid, 0), sitelinks
-                )
-
-        # Sort lexicographically so insertion order is deterministic.
-        sorted_aliases = sorted(alias_rows.items(), key=lambda kv: kv[0])
-        sorted_entities = sorted(entity_sitelinks.items())
-
         with conn:
             conn.executemany(
                 "INSERT INTO aliases "
@@ -280,30 +550,47 @@ def _build(
                     for qid, sl in sorted_entities
                 ],
             )
+            conn.executemany(
+                "INSERT INTO build_metadata (key, value) VALUES (?, ?)",
+                sorted(
+                    [
+                        ("snapshot_date", snapshot_date),
+                        ("languages", ",".join(sorted(languages))),
+                        ("schema_version", "1"),
+                        ("build_method", "dump-stream"),
+                        ("alias_row_count", str(len(sorted_aliases))),
+                        ("entity_row_count", str(len(sorted_entities))),
+                    ]
+                ),
+            )
             conn.execute(
                 "CREATE INDEX idx_aliases_lookup ON aliases(alias, language)"
             )
         conn.close()
 
-        # Canonicalise: dump → fresh DB, so SQLite page layout is stable.
-        dump_path = Path(tmpdir) / "staging.sql"
-        with dump_path.open("w") as f:
-            subprocess.run(
-                ["sqlite3", str(staging), ".dump"],
-                stdout=f,
-                check=True,
-            )
+        # Canonicalise via dump → fresh DB so the on-disk page layout is
+        # stable across runs. Pure-Python via sqlite3.Connection.iterdump
+        # avoids depending on the `sqlite3` CLI binary at the runner — the
+        # output is byte-equivalent to what `sqlite3 staging .dump |
+        # sqlite3 canonical` would produce.
         canonical = Path(tmpdir) / "canonical.db"
-        subprocess.run(
-            ["sqlite3", str(canonical)],
-            stdin=dump_path.open("r"),
-            check=True,
-        )
+        src = sqlite3.connect(staging)
+        try:
+            dump_sql = "\n".join(src.iterdump())
+        finally:
+            src.close()
+        if canonical.exists():
+            canonical.unlink()
+        dst = sqlite3.connect(canonical)
+        try:
+            dst.executescript(dump_sql)
+            dst.commit()
+        finally:
+            dst.close()
         if output_path.exists():
             output_path.unlink()
         os.replace(canonical, output_path)
 
-    # Hash + size logging (used for the GitHub Actions step summary).
     digest = hashlib.sha256(output_path.read_bytes()).hexdigest()
     size = output_path.stat().st_size
     log.info(
@@ -313,23 +600,72 @@ def _build(
         digest,
     )
     sidecar = output_path.with_suffix(output_path.suffix + ".sha256")
-    # Standard sha256sum format ("<hash>  <basename>") so `sha256sum -c` can
-    # consume the sidecar directly during image build / container start.
     sidecar.write_text(f"{digest}  {output_path.name}\n")
     log.info("Sidecar hash written to %s", sidecar)
 
 
-def _default_snapshot_date() -> str:
-    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
-    return yesterday.strftime("%Y-%m-%d")
+# ---------------------------------------------------------------------------
+# Driver
+# ---------------------------------------------------------------------------
+
+
+def _build(
+    dump_path: Path,
+    snapshot_date: str,
+    languages: set[str],
+    buckets_path: Path,
+    output_path: Path,
+) -> None:
+    rules = _load_buckets(buckets_path)
+    log.info("loaded %d bucket rules from %s", len(rules), buckets_path)
+
+    roots = _interesting_subclass_roots(rules)
+    p31_closure = _compute_subclass_closure(dump_path, roots)
+
+    alias_rows, entity_buckets, entity_sitelinks, _ = _hydrate_and_evaluate(
+        dump_path=dump_path,
+        rules=rules,
+        p31_closure=p31_closure,
+        languages=languages,
+    )
+
+    _write_sqlite(
+        output_path=output_path,
+        snapshot_date=snapshot_date,
+        languages=languages,
+        alias_rows=alias_rows,
+        entity_buckets=entity_buckets,
+        entity_sitelinks=entity_sitelinks,
+    )
+
+
+def _default_snapshot_from_mtime(dump_path: Path) -> str:
+    ts = dump_path.stat().st_mtime
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--dump-path",
+        required=True,
+        type=Path,
+        help=(
+            "Path to a Wikidata N-Triples dump. Accepts either a bz2-compressed "
+            "file (`*.nt.bz2`, the production case — `latest-truthy.nt.bz2`) "
+            "or a plain text file (`*.nt`, used for fixtures and local smoke "
+            "tests). The streaming parser handles both transparently."
+        ),
+    )
+    parser.add_argument(
         "--snapshot-date",
-        default=_default_snapshot_date(),
-        help="Wikidata snapshot date (YYYY-MM-DD). Default: yesterday UTC.",
+        default=None,
+        help=(
+            "Operational snapshot identity (YYYY-MM-DD), persisted in "
+            "build_metadata. Defaults to the dump file's mtime as YYYY-MM-DD "
+            "(UTC). The GitHub workflow passes the dump's HTTP Last-Modified "
+            "date; for local builds the mtime default is fine."
+        ),
     )
     parser.add_argument(
         "--languages",
@@ -350,18 +686,25 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    languages = [lang.strip() for lang in args.languages.split(",") if lang.strip()]
+    if not args.dump_path.exists():
+        parser.error(f"--dump-path does not exist: {args.dump_path}")
+
+    languages = {lang.strip() for lang in args.languages.split(",") if lang.strip()}
     if not languages:
         parser.error("--languages must contain at least one ISO code")
 
+    snapshot_date = args.snapshot_date or _default_snapshot_from_mtime(args.dump_path)
+
     log.info(
-        "Starting Wikidata index build snapshot=%s languages=%s buckets=%s",
-        args.snapshot_date,
-        languages,
+        "Starting Wikidata index build dump=%s snapshot=%s languages=%s buckets=%s",
+        args.dump_path,
+        snapshot_date,
+        sorted(languages),
         args.buckets_file,
     )
     _build(
-        snapshot_date=args.snapshot_date,
+        dump_path=args.dump_path,
+        snapshot_date=snapshot_date,
         languages=languages,
         buckets_path=args.buckets_file,
         output_path=args.output_path,

@@ -26,10 +26,14 @@ RUN addgroup -g 10001 -S aer \
     && adduser -u 10001 -S -G aer aer
 
 # OCI labels (sbom + provenance are emitted by the workflow build step).
+# `org.aer.wikidata.build-method` records which build pipeline produced the
+# baked SQLite. Phase 118b made this explicit (`dump-stream`); the Phase
+# 118 SPARQL build path is superseded.
 LABEL org.opencontainers.image.title="AĒR Wikidata Alias Index" \
       org.opencontainers.image.description="SQLite alias index for Phase 118 entity linking. Built quarterly via .github/workflows/wikidata_index_rebuild.yml." \
       org.opencontainers.image.source="https://github.com/frogfromlake/aer" \
-      org.opencontainers.image.licenses="CC0-1.0"
+      org.opencontainers.image.licenses="CC0-1.0" \
+      org.aer.wikidata.build-method="dump-stream"
 
 # The DB and its sha256 sidecar are baked at /index/. The wikidata-index-init
 # compose service copies them into the named volume mounted at /data/.

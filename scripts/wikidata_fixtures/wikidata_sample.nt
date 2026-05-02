@@ -1,0 +1,78 @@
+# Hand-crafted Wikidata N-Triples fixture for the Phase 118b dump-streaming
+# build script (scripts/build_wikidata_index.py). Covers seven well-known
+# entities — the Phase 118 manual-validation set — plus the minimal
+# scaffolding (P279 edges, type-entity nodes) needed to exercise the
+# transitive-closure + bucket-evaluation logic end-to-end without
+# downloading the full ~43 GB latest-truthy.nt.bz2.
+#
+# Sort order: lexicographic by subject URI. The streaming algorithm in
+# build_wikidata_index.py groups consecutive triples by subject and asserts
+# each subject is seen exactly once, so this ordering is load-bearing.
+# When adding entries, sort the resulting file with `LC_ALL=C sort -u`
+# to preserve byte-stable test runs.
+#
+# Coverage map (entity → bucket(s) → why this fixture entry exists):
+#   Q4093  Olaf Scholz       politicians                p31_any [Q5] + p106_any [Q82955]
+#   Q1124  Friedrich Merz    politicians                p31_any [Q5] + p106_any [Q82955]
+#   Q325817 Tagesschau       broadcasters               p31 → Q1616075 (P279* → Q15265344)
+#   Q3168143 Bundesregierung government_agencies        p31 → Q3624080 (P279* → Q327333)
+#   Q1055  Bundestag         government_agencies        p31 → Q11204   (P279* → Q327333)
+#   Q458   European Union    international_organizations p31 → Q1335818 (P279* → Q484652)
+#   Q64    Berlin            cities_population_threshold p31 → Q1549591 (P279* → Q515) + P1082 ≥ 50k
+#
+# Negative control: Q9999 (a fictional concept) carries labels but no P31
+# / P106 that maps to any bucket, and must NOT appear in the output index.
+
+<http://www.wikidata.org/entity/Q1055> <http://wikiba.se/ontology#sitelinks> "70"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2000/01/rdf-schema#label> "Bundestag"@de .
+<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2000/01/rdf-schema#label> "Bundestag"@en .
+<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2000/01/rdf-schema#label> "Bundestag"@fr .
+<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2004/02/skos/core#altLabel> "Deutscher Bundestag"@de .
+<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2004/02/skos/core#altLabel> "German Bundestag"@en .
+<http://www.wikidata.org/entity/Q1055> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q11204> .
+<http://www.wikidata.org/entity/Q11204> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q327333> .
+<http://www.wikidata.org/entity/Q1124> <http://wikiba.se/ontology#sitelinks> "55"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q1124> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@de .
+<http://www.wikidata.org/entity/Q1124> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@en .
+<http://www.wikidata.org/entity/Q1124> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@fr .
+<http://www.wikidata.org/entity/Q1124> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
+<http://www.wikidata.org/entity/Q1124> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
+<http://www.wikidata.org/entity/Q1335818> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q484652> .
+<http://www.wikidata.org/entity/Q1549591> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q515> .
+<http://www.wikidata.org/entity/Q1616075> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q15265344> .
+<http://www.wikidata.org/entity/Q3168143> <http://wikiba.se/ontology#sitelinks> "60"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2000/01/rdf-schema#label> "Bundesregierung"@de .
+<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2000/01/rdf-schema#label> "Federal Government of Germany"@en .
+<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2000/01/rdf-schema#label> "Gouvernement fédéral allemand"@fr .
+<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2004/02/skos/core#altLabel> "Deutsche Bundesregierung"@de .
+<http://www.wikidata.org/entity/Q3168143> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q3624080> .
+<http://www.wikidata.org/entity/Q325817> <http://wikiba.se/ontology#sitelinks> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q325817> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@de .
+<http://www.wikidata.org/entity/Q325817> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@en .
+<http://www.wikidata.org/entity/Q325817> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@fr .
+<http://www.wikidata.org/entity/Q325817> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q1616075> .
+<http://www.wikidata.org/entity/Q3624080> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q327333> .
+<http://www.wikidata.org/entity/Q4093> <http://wikiba.se/ontology#sitelinks> "120"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q4093> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@de .
+<http://www.wikidata.org/entity/Q4093> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@en .
+<http://www.wikidata.org/entity/Q4093> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@fr .
+<http://www.wikidata.org/entity/Q4093> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
+<http://www.wikidata.org/entity/Q4093> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
+<http://www.wikidata.org/entity/Q458> <http://wikiba.se/ontology#sitelinks> "300"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2000/01/rdf-schema#label> "European Union"@en .
+<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2000/01/rdf-schema#label> "Europäische Union"@de .
+<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2000/01/rdf-schema#label> "Union européenne"@fr .
+<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2004/02/skos/core#altLabel> "EU"@de .
+<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2004/02/skos/core#altLabel> "EU"@en .
+<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2004/02/skos/core#altLabel> "UE"@fr .
+<http://www.wikidata.org/entity/Q458> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q1335818> .
+<http://www.wikidata.org/entity/Q64> <http://wikiba.se/ontology#sitelinks> "250"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q64> <http://www.w3.org/2000/01/rdf-schema#label> "Berlin"@de .
+<http://www.wikidata.org/entity/Q64> <http://www.w3.org/2000/01/rdf-schema#label> "Berlin"@en .
+<http://www.wikidata.org/entity/Q64> <http://www.w3.org/2000/01/rdf-schema#label> "Berlin"@fr .
+<http://www.wikidata.org/entity/Q64> <http://www.wikidata.org/prop/direct/P1082> "3677472"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://www.wikidata.org/entity/Q64> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q1549591> .
+<http://www.wikidata.org/entity/Q9999> <http://wikiba.se/ontology#sitelinks> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q9999> <http://www.w3.org/2000/01/rdf-schema#label> "FixtureNoise"@de .
+<http://www.wikidata.org/entity/Q9999> <http://www.w3.org/2000/01/rdf-schema#label> "FixtureNoise"@en .
+<http://www.wikidata.org/entity/Q9999> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q35120> .

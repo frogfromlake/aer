@@ -1,10 +1,10 @@
-# Wikidata alias-index build dependencies (Phase 118).
+# Wikidata alias-index build dependencies (Phase 118b — dump-stream pipeline).
 #
 # Used only by scripts/build_wikidata_index.py — runs out-of-tree on a
 # GitHub Actions runner via .github/workflows/wikidata_index_rebuild.yml.
-# Versions kept in sync with services/analysis-worker/requirements.lock.txt
-# so a developer can run the script locally inside the worker venv without
-# resolution conflicts. Refresh together with `make deps-refresh`.
-requests==2.33.0
-tenacity==9.1.4
+# Phase 118b dropped the SPARQL deps (`requests`, `tenacity`,
+# `SPARQLWrapper`) and added `pyoxigraph` for streaming N-Triples parsing
+# of `latest-truthy.nt.bz2`. See ROADMAP Phase 118b for the migration
+# rationale.
 PyYAML==6.0.2
+pyoxigraph==0.4.11

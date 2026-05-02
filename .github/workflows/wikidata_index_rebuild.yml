@@ -6,8 +6,13 @@
 # new-language additions. Produces the `aer-wikidata-index` Docker image
 # baking the SQLite DB, pushed to GitHub Container Registry.
 #
+# Phase 118b: build mechanism is a streaming N-Triples parser over the
+# Wikidata `latest-truthy.nt.bz2` dump (`scripts/build_wikidata_index.py`).
+# The earlier SPARQL-based path was superseded after empirical evidence
+# of repeated endpoint timeouts on bucket-discovery queries.
+#
 # Architecture rationale: see docs/operations/scheduled_work.md
-# Build script: scripts/build_wikidata_index.py (lands with Phase 118)
+# Build script: scripts/build_wikidata_index.py
 # =============================================================================
 
 name: Wikidata Alias Index Rebuild
@@ -18,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       snapshot_date:
-        description: 'Wikidata snapshot date (YYYY-MM-DD). Defaults to yesterday at 00:00 UTC.'
+        description: 'Operational snapshot identity (YYYY-MM-DD). Defaults to the dump file mtime after download.'
         required: false
         type: string
       languages:
@@ -26,10 +31,16 @@ on:
         required: false
         type: string
         default: 'de,en,fr'
+      dump_url:
+        description: 'Wikidata truthy-dump URL. Default = official latest-truthy.nt.bz2 (~43 GB).'
+        required: false
+        type: string
+        default: 'https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2'
 
   # Scheduled trigger — quarterly, 1st of Jan/Apr/Jul/Oct at 02:00 UTC.
-  # Commented out until Phase 118 ships and the build script is verified
-  # end-to-end. Uncomment after Phase 118 close-out.
+  # Commented out until Phase 118b ships and a dump-based run is verified
+  # end-to-end. Uncomment via the Phase 118b "Workflow schedule activation"
+  # close-out commit (`ci: enable quarterly schedule for Wikidata index rebuild`).
   # schedule:
   #   - cron: '0 2 1 1,4,7,10 *'
 
@@ -41,15 +52,16 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}-wikidata-index
+  DUMP_PATH: /tmp/wikidata-truthy.nt.bz2
 
 jobs:
   rebuild:
     name: Build & Publish Wikidata Alias Index
     runs-on: ubuntu-latest
-    # Standard runners have a 6-hour job limit; the build script targets
-    # 2-6h runtime per the Phase 118 estimate. If the build approaches
-    # the limit consistently, switch to `ubuntu-latest-large` or a
-    # self-hosted runner.
+    # Standard runners have a 6-hour job limit. Phase 118b runtime budget:
+    # ~10-15 min download + ~2-3 h streaming build + ~30 min Docker build.
+    # If the build approaches the limit consistently, switch to
+    # `ubuntu-latest-large` or a self-hosted runner.
     timeout-minutes: 350  # 5h 50m — leaves margin under the 6h hard limit
 
     steps:
@@ -66,35 +78,53 @@ jobs:
         working-directory: ./scripts
         run: |
           python -m pip install --upgrade pip
-          # Phase 118 ships requirements file alongside the build script.
-          # Until then, this step will fail — workflow_dispatch only.
-          if [ -f requirements_wikidata_build.txt ]; then
-            pip install -r requirements_wikidata_build.txt
-          else
-            echo "::error::scripts/requirements_wikidata_build.txt not found — Phase 118 not yet shipped"
-            exit 1
-          fi
+          pip install -r requirements_wikidata_build.txt
+
+      - name: Show available disk
+        run: df -h /tmp /home
+
+      - name: Download Wikidata truthy dump
+        id: download
+        run: |
+          DUMP_URL="${{ inputs.dump_url || 'https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2' }}"
+          echo "Downloading: $DUMP_URL"
+          # `-c` resumes a partial download; `--tries=3` retries the whole
+          # transfer on TLS / connection failures; `--read-timeout=300`
+          # protects against silent stalls.
+          wget \
+            --continue \
+            --tries=3 \
+            --read-timeout=300 \
+            --progress=dot:giga \
+            --output-document="${DUMP_PATH}" \
+            "$DUMP_URL"
+          ls -lh "${DUMP_PATH}"
 
       - name: Resolve snapshot date
         id: snapshot
         run: |
           if [ -n "${{ inputs.snapshot_date }}" ]; then
             DATE="${{ inputs.snapshot_date }}"
+            SOURCE="workflow input"
           else
-            # Default: yesterday at 00:00 UTC (per Phase 118 spec)
-            DATE=$(date -u -d 'yesterday' +'%Y-%m-%d')
+            # Default: dump file mtime in UTC. The build script applies the
+            # same default; we resolve here so the value is visible in the
+            # step summary and stays in sync with the SQLite metadata.
+            DATE=$(date -u -r "${DUMP_PATH}" +'%Y-%m-%d')
+            SOURCE="dump file mtime"
           fi
           echo "date=$DATE" >> $GITHUB_OUTPUT
-          echo "Using snapshot date: $DATE"
+          echo "Using snapshot date: $DATE (source: $SOURCE)"
 
       - name: Build Wikidata alias index
         run: |
           python scripts/build_wikidata_index.py \
+            --dump-path "${DUMP_PATH}" \
             --snapshot-date "${{ steps.snapshot.outputs.date }}" \
             --languages "${{ inputs.languages || 'de,en,fr' }}" \
             --output-path /tmp/wikidata_aliases.db
-        # The build is the long-running step — 2-6h depending on
-        # SPARQL endpoint responsiveness and language scope.
+        # The build is the long-running step — ~2-3 h for the full
+        # latest-truthy.nt.bz2 (Phase 118b streaming-parser pipeline).
 
       - name: Verify output hash
         id: hash
@@ -104,11 +134,19 @@ jobs:
           SIZE=$(stat -c%s /tmp/wikidata_aliases.db)
           echo "size=$SIZE" >> $GITHUB_OUTPUT
           echo "Built wikidata_aliases.db — size: $SIZE bytes, sha256: $HASH"
-          # Sanity check: index should be 50-150 MB per Phase 118 estimate.
+          # Sanity check: index should be 50-150 MB per the Phase 118b estimate.
           if [ "$SIZE" -lt 10000000 ] || [ "$SIZE" -gt 500000000 ]; then
             echo "::error::Output size $SIZE bytes is outside expected 10MB-500MB range"
             exit 1
           fi
+
+      - name: Free dump file before Docker build
+        # The dump is ~43 GB. Docker buildx + image push needs free space on
+        # the same volume; deleting the dump now keeps the runner well under
+        # its 80 GB free-space ceiling. The SQLite output (50-150 MB) remains.
+        run: |
+          rm -f "${DUMP_PATH}"
+          df -h /tmp /home
 
       - name: Upload index as workflow artifact
         uses: actions/upload-artifact@v4
@@ -122,8 +160,6 @@ jobs:
 
       # ----------------------------------------------------------------------
       # Docker image build & publish
-      # ----------------------------------------------------------------------
-      # Docker image build & publish (Phase 118 — activated)
       # ----------------------------------------------------------------------
 
       - name: Set up Docker Buildx
@@ -167,6 +203,7 @@ jobs:
             ${{ steps.meta.outputs.labels }}
             org.aer.wikidata.snapshot-date=${{ steps.snapshot.outputs.date }}
             org.aer.wikidata.sha256=${{ steps.hash.outputs.hash }}
+            org.aer.wikidata.build-method=dump-stream
           provenance: true
           sbom: true
 
@@ -179,6 +216,7 @@ jobs:
         run: |
           echo "## Wikidata Index Rebuild Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Build method: \`dump-stream\` (Phase 118b)" >> $GITHUB_STEP_SUMMARY
           echo "- Snapshot date: \`${{ steps.snapshot.outputs.date }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Languages: \`${{ inputs.languages || 'de,en,fr' }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Output hash: \`${{ steps.hash.outputs.hash }}\`" >> $GITHUB_STEP_SUMMARY
