@@ -4,8 +4,8 @@ This section answers a single question: **"I want to extend AĒR with X — wher
 
 Each guide in this section is a *sequencing index*, not a substitute for the canonical procedures. The canonical procedures live in:
 
-- [Scientific Operations Guide](../scientific_operations_guide.md) — *why* this methodology
-- [Operations Playbook](../operations_playbook.md) — *what to type*
+- [Scientific Operations Guide](../operations/scientific_operations_guide.md) — *why* this methodology
+- [Operations Playbook](../operations/operations_playbook.md) — *what to type*
 - [Working Papers](../methodology/en/WP-001-en-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md) — *the scientific foundation*
 
 The guides here orchestrate those documents for specific extension scenarios.

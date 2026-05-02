@@ -31,7 +31,7 @@ Each workflow heading is a stable anchor and is referenced by the corresponding 
 **Anchor:** `#workflow-1-classifying-a-new-probe`
 **Working Paper:** WP-001 §4.4 — *Five-Step Probe Classification Process*
 **Roles:** Area Expert, Peer Reviewer, Engineering Lead, Ethical Reviewer
-**Templates:** [`docs/templates/probe_registration_template.yaml`](templates/probe_registration_template.yaml), [`docs/templates/observer_effect_assessment.yaml`](templates/observer_effect_assessment.yaml)
+**Templates:** [`docs/templates/probe_registration_template.yaml`](../templates/probe_registration_template.yaml), [`docs/templates/observer_effect_assessment.yaml`](../templates/observer_effect_assessment.yaml)
 **Outputs:**
 
 * New row in PostgreSQL `source_classifications`
@@ -44,7 +44,7 @@ Each workflow heading is a stable anchor and is referenced by the corresponding 
 Any of the following:
 
 * A research collaborator proposes a new data source that AĒR does not yet ingest.
-* The engineering team adds a source for pipeline calibration purposes (e.g., the rationale that produced Probe 0; see [Arc42 §13.10](arc42/13_scientific_foundations.md)).
+* The engineering team adds a source for pipeline calibration purposes (e.g., the rationale that produced Probe 0; see [Arc42 §13.10](../arc42/13_scientific_foundations.md)).
 * An existing source's discourse function is reclassified (this produces a *new* row in `source_classifications`, never an UPDATE — the composite primary key `(source_id, classification_date)` is designed for temporal tracking).
 
 ### The Five Steps (WP-001 §4.4)
@@ -54,7 +54,7 @@ Any of the following:
 | 1 | **Area Expert Nomination.** A domain specialist nominates the source, asserts a `primary_function` (and optionally `secondary_function`), and writes the `emic_designation` and `emic_context`. | Area Expert | Filled `probe_registration_template.yaml` |
 | 2 | **Peer Review.** A second domain specialist reviews the nomination. Disagreements are documented in the registration template under `peer_review_notes`. Quantification of `function_weights` (e.g. `{"primary": 0.7, "secondary": 0.3}`) requires both Steps 1 and 2 to be complete — until then, `function_weights` stays `NULL`. | Peer Reviewer | Updated registration template |
 | 3 | **Technical Feasibility.** Engineering assesses crawler viability — feed availability, format, terms of service, rate limits, expected volume, authentication, deduplication strategy. | Engineering Lead | Notes appended to the registration template |
-| 4 | **Ethical Review.** The proposer (with the ethical reviewer) fills out [`observer_effect_assessment.yaml`](templates/observer_effect_assessment.yaml). The completed assessment is committed to the Probe Dossier as `observer_effect.md`. | Ethical Reviewer | `docs/probes/<probe-id>/observer_effect.md` |
+| 4 | **Ethical Review.** The proposer (with the ethical reviewer) fills out [`observer_effect_assessment.yaml`](../templates/observer_effect_assessment.yaml). The completed assessment is committed to the Probe Dossier as `observer_effect.md`. | Ethical Reviewer | `docs/probes/<probe-id>/observer_effect.md` |
 | 5 | **Registration.** Engineering inserts a row into `source_classifications` with `review_status = 'provisional_engineering'` (or `'pending'` if all of Steps 1–4 are complete and the proposal awaits final sign-off), creates the Probe Dossier directory, and adds it to `mkdocs.yml`. | Engineering Lead | PostgreSQL row + dossier files |
 
 ### Technical Steps (Operations Playbook references)
@@ -79,14 +79,14 @@ Why `function_weights = NULL` until Steps 1–2 complete: weights are a quantita
 
 ### Probe 0 Walkthrough
 
-Probe 0 was classified **out of order**: registration (Step 5) preceded expert nomination and peer review (Steps 1–2) because Probe 0 was a deliberate engineering calibration probe, not a research-motivated probe. The chronology is recorded in [Arc42 §13.10](arc42/13_scientific_foundations.md) and reflected in the dossier.
+Probe 0 was classified **out of order**: registration (Step 5) preceded expert nomination and peer review (Steps 1–2) because Probe 0 was a deliberate engineering calibration probe, not a research-motivated probe. The chronology is recorded in [Arc42 §13.10](../arc42/13_scientific_foundations.md) and reflected in the dossier.
 
 | Step | Status | Notes |
 | :--- | :--- | :--- |
 | 1 — Area Expert Nomination | **outstanding** | No domain specialist has been engaged. The classification (`epistemic_authority` for `tagesschau.de`, `power_legitimation` for `bundesregierung.de`) is an engineering judgement. |
 | 2 — Peer Review | **outstanding** | Therefore `function_weights = NULL` for both sources. |
-| 3 — Technical Feasibility | **complete** | Both feeds are public, low-volume, free of authentication and engagement signals, and the RSS adapter exists. See [`docs/probes/probe-0-de-institutional-rss/README.md`](probes/probe-0-de-institutional-rss/README.md). |
-| 4 — Ethical Review | **complete** | [`docs/probes/probe-0-de-institutional-rss/observer_effect.md`](probes/probe-0-de-institutional-rss/observer_effect.md). |
+| 3 — Technical Feasibility | **complete** | Both feeds are public, low-volume, free of authentication and engagement signals, and the RSS adapter exists. See [`docs/probes/probe-0-de-institutional-rss/README.md`](../probes/probe-0-de-institutional-rss/README.md). |
+| 4 — Ethical Review | **complete** | [`docs/probes/probe-0-de-institutional-rss/observer_effect.md`](../probes/probe-0-de-institutional-rss/observer_effect.md). |
 | 5 — Registration | **complete (as `provisional_engineering`)** | Migration `infra/postgres/migrations/000006_probe_0_classification.up.sql` inserted both rows; the Probe Dossier exists. |
 
 The two `source_classifications` rows produced by Migration 000006 (one shown — see [Operations Playbook → Source Classifications](operations_playbook.md#source-classifications-wp-001) for the second):
@@ -114,7 +114,7 @@ SELECT source_id, primary_function, secondary_function,
 **Anchor:** `#workflow-2-validating-a-metric`
 **Working Paper:** WP-002 §6.2 — *Five-Step Validation Protocol*
 **Roles:** Annotation Lead, Annotators (≥ 3, independent), Methodologist
-**Template:** [`docs/templates/validation_study_template.yaml`](templates/validation_study_template.yaml)
+**Template:** [`docs/templates/validation_study_template.yaml`](../templates/validation_study_template.yaml)
 **Output:** Row in `aer_gold.metric_validity` with `(metric_name, context_key, alpha_score, correlation, n_annotated, error_taxonomy, valid_until)`.
 
 ### Trigger
@@ -313,7 +313,7 @@ The six `BiasContext` values for Probe 0 RSS sources (set by `RssAdapter`, ident
 | `engagement_data_available` | `false` |
 | `account_metadata_available` | `false` |
 
-The full prose treatment — including the five structural biases of the RSS protocol and the per-source biases (state-funding bias for `tagesschau.de`, government communication bias for `bundesregierung.de`) — is in [`docs/probes/probe-0-de-institutional-rss/bias_assessment.md`](probes/probe-0-de-institutional-rss/bias_assessment.md). For Probe 0, no domain-expertise split was needed: RSS is fully described by its protocol properties, and the per-source operator characteristics are publicly known.
+The full prose treatment — including the five structural biases of the RSS protocol and the per-source biases (state-funding bias for `tagesschau.de`, government communication bias for `bundesregierung.de`) — is in [`docs/probes/probe-0-de-institutional-rss/bias_assessment.md`](../probes/probe-0-de-institutional-rss/bias_assessment.md). For Probe 0, no domain-expertise split was needed: RSS is fully described by its protocol properties, and the per-source operator characteristics are publicly known.
 
 ---
 
@@ -421,7 +421,7 @@ Every value below is **manually set** rather than derived from the data. This is
 
 * [Operations Playbook](operations_playbook.md) — the "what to type" companion. Each section that touches a scientific touchpoint links back here under "Scientific rationale".
 * [Operations Playbook → Scientific Touchpoints Index](operations_playbook.md#scientific-touchpoints-index) — table mapping every touchpoint to (Playbook section, this guide's workflow).
-* [Working Papers](methodology/en/WP-001-en-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md) — the "why this methodology" companion.
-* [Arc42 §8.15 — Probe Dossier Pattern](arc42/08_concepts.md) — cross-cutting concept that this guide operationalises.
-* [Arc42 §13.10 — Probe 0 Source Selection Rationale](arc42/13_scientific_foundations.md) — the engineering-calibration justification for Probe 0.
-* [Phase 68 templates](templates/probe_registration_template.yaml) — the YAML templates used by Workflows 1, 2, and the ethical review step.
+* [Working Papers](../methodology/en/WP-001-en-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md) — the "why this methodology" companion.
+* [Arc42 §8.15 — Probe Dossier Pattern](../arc42/08_concepts.md) — cross-cutting concept that this guide operationalises.
+* [Arc42 §13.10 — Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification for Probe 0.
+* [Phase 68 templates](../templates/probe_registration_template.yaml) — the YAML templates used by Workflows 1, 2, and the ethical review step.

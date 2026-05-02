@@ -2,7 +2,7 @@
 
 This document records the etic/emic discourse-function classification of the two Probe 0 sources. The values mirror the rows inserted by `infra/postgres/migrations/000006_seed_probe0_classification.up.sql` into the `source_classifications` table — this file is the human-readable explanation of those rows.
 
-> **Status: `provisional_engineering`.** WP-001 §4.4 Steps 1–2 (area expert nomination, peer review) have not been executed. `function_weights = NULL` until that process produces quantified shares. See [Scientific Operations Guide → Workflow 1](../../scientific_operations_guide.md#workflow-1-classifying-a-new-probe) for the path from `provisional_engineering` to `reviewed`.
+> **Status: `provisional_engineering`.** WP-001 §4.4 Steps 1–2 (area expert nomination, peer review) have not been executed. `function_weights = NULL` until that process produces quantified shares. See [Scientific Operations Guide → Workflow 1](../../operations/scientific_operations_guide.md#workflow-1-classifying-a-new-probe) for the path from `provisional_engineering` to `reviewed`.
 
 ---
 
@@ -58,5 +58,5 @@ provisional_engineering  →  pending  →  reviewed   (or  contested)
 - Migration: `infra/postgres/migrations/000006_seed_probe0_classification.up.sql`
 - Schema: `infra/postgres/migrations/000005_source_classifications.up.sql`
 - WP-001 §4.4 — Five-step probe classification process
-- [Scientific Operations Guide → **Workflow 1: Classifying a New Probe**](../../scientific_operations_guide.md#workflow-1-classifying-a-new-probe)
-- [Operations Playbook → **Source Classifications (WP-001)**](../../operations_playbook.md#source-classifications-wp-001)
+- [Scientific Operations Guide → **Workflow 1: Classifying a New Probe**](../../operations/scientific_operations_guide.md#workflow-1-classifying-a-new-probe)
+- [Operations Playbook → **Source Classifications (WP-001)**](../../operations/operations_playbook.md#source-classifications-wp-001)

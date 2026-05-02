@@ -227,7 +227,7 @@ The working papers are designed to be shared with potential collaborators as sel
 
 ### 13.5.2 Manual Scientific Workflows
 
-Phases 62–68 introduced scientific infrastructure tables, config files, and templates whose contents are authored by researchers, not by the pipeline. These *manual workflows* live at the boundary between developer operations (the Operations Playbook — "what to type") and methodological reasoning (the Working Papers — "why this approach"). The canonical bridge document is the **[Scientific Operations Guide](../scientific_operations_guide.md)** (`docs/scientific_operations_guide.md`, Phase 71). Each workflow in that guide names its trigger, performer, Working Paper rationale, Playbook command sequence, Phase 68 template, destination table/config, and a concrete Probe 0 walkthrough.
+Phases 62–68 introduced scientific infrastructure tables, config files, and templates whose contents are authored by researchers, not by the pipeline. These *manual workflows* live at the boundary between developer operations (the Operations Playbook — "what to type") and methodological reasoning (the Working Papers — "why this approach"). The canonical bridge document is the **[Scientific Operations Guide](../operations/scientific_operations_guide.md)** (`docs/scientific_operations_guide.md`, Phase 71). Each workflow in that guide names its trigger, performer, Working Paper rationale, Playbook command sequence, Phase 68 template, destination table/config, and a concrete Probe 0 walkthrough.
 
 Workflows covered by the Scientific Operations Guide:
 

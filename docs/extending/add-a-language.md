@@ -155,6 +155,6 @@ Confirm by absence: no BFF endpoint changes, no frontend changes, no schema migr
 ## Cross-references
 
 - [Adding a Probe](add-a-probe.md) — the per-cultural-context guide; nearly always paired with adding a language for non-German contexts.
-- [Scientific Operations Guide → Workflow 6 (Cultural Calendar)](../scientific_operations_guide.md) — the canonical procedure for the cultural calendar bullet above.
+- [Scientific Operations Guide → Workflow 6 (Cultural Calendar)](../operations/scientific_operations_guide.md) — the canonical procedure for the cultural calendar bullet above.
 - [scalability-roadmap.md](scalability-roadmap.md) — the long-term plan for language capability scaling and the Capability Manifest.
 - [ADR-022 (planned): Multilingual Sentiment Strategy](../arc42/09_architecture_decisions.md) — when authored, will resolve the per-language vs. multilingual Tier 2 trade-off referenced in this matrix.

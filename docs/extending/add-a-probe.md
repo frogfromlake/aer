@@ -1,6 +1,6 @@
 # Adding a Probe — Solo-Developer Quickstart
 
-> **Audience.** A single engineer (the project's current state) who needs to add a new probe end-to-end without an interdisciplinary team. This guide is **not a substitute** for the [Scientific Operations Guide](../scientific_operations_guide.md) Workflow 1 — it is an index that sequences the existing workflows for the solo case and makes the scientific honesty mechanism (`provisional_engineering` status) explicit.
+> **Audience.** A single engineer (the project's current state) who needs to add a new probe end-to-end without an interdisciplinary team. This guide is **not a substitute** for the [Scientific Operations Guide](../operations/scientific_operations_guide.md) Workflow 1 — it is an index that sequences the existing workflows for the solo case and makes the scientific honesty mechanism (`provisional_engineering` status) explicit.
 >
 > **Scientific honesty contract.** When you add a probe alone, you cannot perform Steps 1–2 of WP-001 §4.4 (Area Expert Nomination + Peer Review). The architecture already handles this: the row goes in as `review_status = 'provisional_engineering'` with `function_weights = NULL`, and every consumer of the metrics sees `validation_status = unvalidated`. **Do not invent expert names, do not fabricate function weights, do not change the review status.** The unblocking action is to engage external experts later — that is the only legitimate path to `pending` and `reviewed`.
 
@@ -45,7 +45,7 @@ Each step links to the canonical procedure. **Do not duplicate** content from th
 
 ### Step D — Probe Dossier creation (Operations Playbook → Probe Dossier)
 
-Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../operations_playbook.md#probe-dossier) verbatim:
+Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../operations/operations_playbook.md#probe-dossier) verbatim:
 
 1. `mkdir docs/probes/<probe-id>/`
 2. Copy the five files from `docs/probes/../probes/probe-0-de-institutional-rss/` and replace the content. Keep the headings stable.
@@ -78,7 +78,7 @@ The Phase 122 validation block plus the cross-cutting checks from the Operations
 
 After everything is green:
 
-- [ ] **Provenance Inventory update.** Append rows to the table in [`docs/scientific_operations_guide.md` → Provenance Inventory](../scientific_operations_guide.md#provenance-inventory) for every manually-set value: per-source `BiasContext` fields, `min_meaningful_resolution` heuristics, the Cultural Calendar entries (if you added one).
+- [ ] **Provenance Inventory update.** Append rows to the table in [`docs/scientific_operations_guide.md` → Provenance Inventory](../operations/scientific_operations_guide.md#provenance-inventory) for every manually-set value: per-source `BiasContext` fields, `min_meaningful_resolution` heuristics, the Cultural Calendar entries (if you added one).
 - [ ] **Cross-link from Probe 0's `README.md`** to the new probe (so a reader landing on Probe 0's dossier discovers the second probe).
 - [ ] **ROADMAP update.** Mark Phase 122 as `[x] DONE` with the date, and note in the dossier README that Probe 1 is now operational. Do *not* mark Phase 123 — that is a separate phase that sequences the cross-probe operations.
 
@@ -99,9 +99,9 @@ These items are deliberately out of scope for the solo developer. They are unblo
 
 ## Cross-references
 
-- [Scientific Operations Guide → Workflow 1](../scientific_operations_guide.md#workflow-1-classifying-a-new-probe) — the canonical end-to-end probe classification process.
-- [Operations Playbook → Source Classifications (WP-001)](../operations_playbook.md#source-classifications-wp-001) — the SQL templates.
-- [Operations Playbook → Probe Dossier](../operations_playbook.md#probe-dossier) — the dossier-creation procedure.
+- [Scientific Operations Guide → Workflow 1](../operations/scientific_operations_guide.md#workflow-1-classifying-a-new-probe) — the canonical end-to-end probe classification process.
+- [Operations Playbook → Source Classifications (WP-001)](../operations/operations_playbook.md#source-classifications-wp-001) — the SQL templates.
+- [Operations Playbook → Probe Dossier](../operations/operations_playbook.md#probe-dossier) — the dossier-creation procedure.
 - [Probe 0 reference dossier](../probes/probe-0-de-institutional-rss/README.md) — the reference implementation. Copy this structure.
 - [Arc42 §8.15 Probe Dossier Pattern](../arc42/08_concepts.md) — the cross-cutting concept that this guide operationalises for the solo case.
 - [Arc42 §13.10 Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification, the precedent for solo-developer probe addition.

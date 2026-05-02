@@ -4,7 +4,7 @@ This document records the known structural biases of Probe 0 data sources follow
 
 WP-003 mandates a "document, don't filter" approach — non-human actors and platform biases are recorded as metadata (`BiasContext`), not used as exclusion criteria.
 
-> **Cross-reference.** The structured `BiasContext` values below are emitted into every Silver record by `RssAdapter` (`services/analysis-worker/internal/adapters/rss.py`). [Scientific Operations Guide → **Workflow 5: Assessing Bias for a Data Source**](../../scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) describes how these values are produced for new sources.
+> **Cross-reference.** The structured `BiasContext` values below are emitted into every Silver record by `RssAdapter` (`services/analysis-worker/internal/adapters/rss.py`). [Scientific Operations Guide → **Workflow 5: Assessing Bias for a Data Source**](../../operations/scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) describes how these values are produced for new sources.
 
 ---
 

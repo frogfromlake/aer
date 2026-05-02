@@ -1,7 +1,7 @@
 # Operations Playbook
 
 > **Purpose:** Practical reference for accessing, inspecting, and debugging every component in the AĒR infrastructure stack.
-> For *architectural rationale*, see the [arc42 documentation](arc42/01_introduction_and_goals.md). For *scientific workflows* (when and why to populate tables), see the [Scientific Operations Guide](scientific_operations_guide.md). This document covers *how to operate*.
+> For *architectural rationale*, see the [arc42 documentation](../arc42/01_introduction_and_goals.md). For *scientific workflows* (when and why to populate tables), see the [Scientific Operations Guide](scientific_operations_guide.md). This document covers *how to operate*.
 
 ---
 

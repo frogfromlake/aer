@@ -247,5 +247,5 @@ The scaffold is the architecturally honest default. The metric goes live as `unv
 
 - [ADR-016: Hybrid Tier Architecture](../arc42/09_architecture_decisions.md) — the tier classification system.
 - [ADR-017: Reflexive Architecture](../arc42/09_architecture_decisions.md) — Principle 1 (Methodological Transparency) drives the provenance requirement.
-- [Scientific Operations Guide → Workflow 2 (Validating a Metric)](../scientific_operations_guide.md) — the canonical procedure for promoting a metric to `validated`.
+- [Scientific Operations Guide → Workflow 2 (Validating a Metric)](../operations/scientific_operations_guide.md) — the canonical procedure for promoting a metric to `validated`.
 - [Arc42 §13.3: Tier 1 / Tier 2 Method Inventory](../arc42/13_scientific_foundations.md) — the running register of which methods fall in which tier.

@@ -40,8 +40,8 @@ The German cultural calendar lives at `configs/cultural_calendars/de.yaml`. It e
 See:
 
 - `configs/cultural_calendars/de.yaml` — the calendar file itself.
-- [Scientific Operations Guide → **Workflow 6: Updating the Cultural Calendar**](../../scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar).
-- [Operations Playbook → **Cultural Calendar Files**](../../operations_playbook.md#cultural-calendar-files).
+- [Scientific Operations Guide → **Workflow 6: Updating the Cultural Calendar**](../../operations/scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar).
+- [Operations Playbook → **Cultural Calendar Files**](../../operations/operations_playbook.md#cultural-calendar-files).
 
 ## Tiered Retention (Planned, Not Yet Active)
 
@@ -56,4 +56,4 @@ WP-005 §5.4 proposes a tiered retention strategy in which raw 5-minute samples 
 - Arc42 §8.8.1 — Tiered Retention status
 - `services/bff-api/internal/config/min_resolution.go` — `minMeaningfulResolution` config map
 - `configs/cultural_calendars/de.yaml` — German cultural calendar
-- [Scientific Operations Guide → **Workflow 6: Updating the Cultural Calendar**](../../scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar)
+- [Scientific Operations Guide → **Workflow 6: Updating the Cultural Calendar**](../../operations/scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar)

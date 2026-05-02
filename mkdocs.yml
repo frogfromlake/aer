@@ -222,6 +222,7 @@ nav:
       - "Design Brief": design/design_brief.md
       - "Visualization Guidelines": design/visualization_guidelines.md
       - "Design System": design/design_system.md
+      - "Reframing Note": design/reframing-note.md
 
   # ---------------------------------------------------------------------------
   # Probes
@@ -245,10 +246,11 @@ nav:
       - "Adding an Extractor": extending/add-an-extractor.md
       - "Scalability Roadmap": extending/scalability-roadmap.md
 
-  # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
   # Operations
   # ---------------------------------------------------------------------------
   - "Operations":
-      - "Developer Quickstart": developer_quickstart.md
-      - "Operations Playbook": operations_playbook.md
-      - "Scientific Operations Guide": scientific_operations_guide.md
+      - "Developer Quickstart": operations/developer_quickstart.md
+      - "Operations Playbook": operations/operations_playbook.md
+      - "Scientific Operations Guide": operations/scientific_operations_guide.md
+      - "Scheduled Work Inventory": operations/scheduled_work.md

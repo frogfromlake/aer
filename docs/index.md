@@ -31,10 +31,10 @@ The epistemological lens of the system. A series of six interdisciplinary workin
 The design language of the AĒR dashboard. The [Design Brief](design/design_brief.md) defines visual identity, interaction architecture, and extensibility commitments — the three surfaces, the five layers of progressive descent, the Dual-Register communication pattern, and the performance and equity constraints that any dashboard implementation must satisfy. The [Visualization Guidelines](design/visualization_guidelines.md) constrain individual rendering decisions (color palettes, uncertainty encoding, normative labels). The brief governs; the guidelines express it at the chart level.
 
 ### Operations Playbook
-The practical guide for system operators. It contains [runbooks](operations_playbook.md), infrastructure commands, and observability guidelines (Grafana, Tempo, Prometheus) for deploying and maintaining the stack — the *what to type* reference.
+The practical guide for system operators. It contains [runbooks](operations/operations_playbook.md), infrastructure commands, and observability guidelines (Grafana, Tempo, Prometheus) for deploying and maintaining the stack — the *what to type* reference.
 
 ### Scientific Operations Guide
-The bridge document between developer operations and scientific methodology. It maps every point at which scientific judgment enters the AĒR pipeline (`source_classifications`, `metric_validity`, `metric_equivalence`, `metric_baselines`, `BiasContext`, the Cultural Calendar, and the Probe Dossier) to the responsible role, the Working Paper rationale, the Operations Playbook commands, and the resulting persisted artefact. Six end-to-end workflows are documented, each with a concrete walkthrough using Probe 0 (German Institutional RSS) and real values. See the [Scientific Operations Guide](scientific_operations_guide.md).
+The bridge document between developer operations and scientific methodology. It maps every point at which scientific judgment enters the AĒR pipeline (`source_classifications`, `metric_validity`, `metric_equivalence`, `metric_baselines`, `BiasContext`, the Cultural Calendar, and the Probe Dossier) to the responsible role, the Working Paper rationale, the Operations Playbook commands, and the resulting persisted artefact. Six end-to-end workflows are documented, each with a concrete walkthrough using Probe 0 (German Institutional RSS) and real values. See the [Scientific Operations Guide](operations/scientific_operations_guide.md).
 
 ---
 
