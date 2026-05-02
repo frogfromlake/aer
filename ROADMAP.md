@@ -2256,7 +2256,7 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 # Iteration 6 — NLP Hardening & Scientific Rigor
 
-*Six phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
+*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
 
 *All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
 
@@ -2264,58 +2264,196 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ## Phase 118: NLP Hardening — Entity Linking (Wikidata) [P2] - [ ] TODO
 
-*Adds a Wikidata QID disambiguation step to the NER pipeline. Raw entity spans from spaCy are mapped to canonical Wikidata identifiers, resolving the surface-form fragmentation problem documented in WP-002 §4.2 ("Merkel", "Angela Merkel", and "Bundeskanzlerin Merkel" all resolve to `Q567`). Entity co-occurrence networks (Phase 102) become analytically meaningful at scale once canonical identifiers replace raw strings as the aggregation unit. The Wikidata alias index is multilingual by construction — it covers Probe 1 entities when Phase 122 ships without additional work. Tool rationale: a pre-built alias DB is the right architectural fit for Tier 1.5 — fully deterministic, no transformer inference at extraction time, multilingual without per-language tooling. Transformer-based entity linkers (BLINK, ReFinED, mGENRE) are explicitly rejected for this phase: they introduce model dependency, are predominantly English-trained, and require GPU inference. The alias-DB approach can be upgraded to a transformer fallback path as Tier 2 in a later iteration if disambiguation precision proves insufficient on Probe 1+.*
+*Adds a Wikidata QID disambiguation step to the NER pipeline. Raw entity spans from spaCy are mapped to canonical Wikidata identifiers, resolving the surface-form fragmentation problem documented in WP-002 §4.2 ("Merkel", "Angela Merkel", and "Bundeskanzlerin Merkel" all resolve to `Q567`). Entity co-occurrence networks (Phase 102) become analytically meaningful at scale once canonical identifiers replace raw strings as the aggregation unit. The alias index is multilingual by construction — it covers Probe 1 entities when Phase 122 ships without additional work. Tool rationale: a pre-built alias DB is the right architectural fit for Tier 1.5 — fully deterministic, no transformer inference at extraction time, multilingual without per-language tooling. Transformer-based entity linkers (BLINK, ReFinED, mGENRE) are explicitly rejected for this phase.*
+
+***Index scope (revised 2026-04-30).*** *The originally-specified "top 1M entities by inbound sitelink count" is **rejected** as the scope criterion. Sitelink rank above a threshold is dominated by content categories irrelevant to institutional editorial discourse (films, athletes, scholarly articles, asteroids, gene loci) and would inflate the index by ~70% noise without improving Probe 0/1 coverage. The architectural answer is a **type-driven index**: SPARQL pulls per Wikidata class (P31) plus role refinements (P106 etc.) for the entity classes that actually occur in institutional editorial RSS — political actors, sovereign states, sub-national regions, cities above a population threshold, international organizations, political parties, government agencies, central banks, regulatory bodies. Sitelinks remain in the index as a **disambiguation tiebreaker** (when "Berlin" matches both `Q64` city and `Q64427` surname, the higher-sitelink candidate wins), not as the primary inclusion gate. Realistic index size: 100k–200k entities, 50–150 MB SQLite, 2–6 h build time on commodity hardware via paginated SPARQL — solo-developer practicable.*
 
 ### Schema (ClickHouse)
 
 * [ ] **New table `aer_gold.entity_links`.** Schema: `(timestamp DateTime, article_id String, entity_text String, entity_label String, wikidata_qid String, link_confidence Float32, link_method String, ingestion_version UInt64)` — `ReplacingMergeTree(ingestion_version)`, `ORDER BY (article_id, entity_text)`, 365-day TTL on `timestamp`. `link_method` values: `exact_match`, `alias_lookup`, `unlinked`. New init migration in `infra/clickhouse/migrations/`.
 
+### Index Build Pipeline
+
+* [ ] **Type-bucket configuration.** New file `services/analysis-worker/data/wikidata_type_buckets.yaml` listing the entity classes the index covers, each with: human-readable name, SPARQL `WHERE` clause fragment, optional sitelink minimum, optional secondary filter (e.g. population ≥ 50000 for cities). Initial buckets — politicians (`P31=Q5 + P106 ∈ {Q82955, Q372436, Q372436, ...}`), sovereign states (`P31=Q3624078`), sub-national entities (`P31 ∈ {Q35657, Q34876, Q22387}`), cities above population threshold, international organisations (`P31/P279* ⊆ Q484652`), political parties (`P31/P279* ⊆ Q7278`), government agencies (`P31/P279* ⊆ Q327333`), central banks, news organisations, broadcasters, EU institutions. The YAML is the system of record for the index scope; adding a new bucket later is one PR with no code change.
+
+* [ ] **`scripts/build_wikidata_index.py`.** Standalone Python build script. For each type bucket: (1) execute paginated SPARQL queries via the Wikidata endpoint (`https://query.wikidata.org/sparql`) with `LIMIT 5000 OFFSET N`, polite User-Agent identifying the AĒR project, exponential backoff on `429`, deterministic snapshot filter (`?item schema:dateModified ?d . FILTER(?d <= "<snapshot-date>")` — snapshot date is a CLI argument, defaults to "yesterday at 00:00 UTC"); (2) for each entity, fetch `rdfs:label` and `skos:altLabel` in the configured language set (initial: `de`, `en`, `fr`; extended by editing the script's `LANGUAGES` list when a new probe needs additional alias coverage). The build script's language list is intentionally independent of the Phase 118a Capability Manifest: the manifest governs runtime extractor routing, while this script governs build-time alias coverage — the two concerns scale differently (manifest changes are per-deploy; index rebuilds are quarterly); (3) write to a staging SQLite via batched transactions; (4) after all buckets complete, run a deduplication pass (an entity may appear in multiple buckets — merge their alias sets); (5) emit the final `wikidata_aliases.db`. Output schema documented inline. Total expected runtime 2–6 h for the initial three-language scope; subsequent re-builds are full re-runs (the API does not support incremental).
+
+* [ ] **Output schema (SQLite).** `aliases (alias TEXT, language TEXT, wikidata_qid TEXT, sitelink_count INTEGER, alias_source TEXT, PRIMARY KEY (alias, language, wikidata_qid))` — `alias_source` ∈ `label`, `altLabel` for provenance. Plus `entities (wikidata_qid TEXT PRIMARY KEY, sitelink_count INTEGER, type_buckets TEXT)` for entity-level metadata (which buckets nominated this entity). Indexed on `(alias, language)` for the runtime lookup hot path. WAL mode disabled, journal mode TRUNCATE for byte-stable output.
+
+* [ ] **Determinism guarantees.** Build is deterministic given (a) snapshot date, (b) bucket YAML, (c) script version. Two builds with identical inputs produce byte-identical SQLite files. Achieved by: lexicographic sort of SPARQL result sets before insertion; fixed page-iteration order; Python `sqlite3` row insertion order preserved by primary key; SQLite `.dump | sqlite3 new.db` round-trip as the final canonicalisation step. Hash of the final DB is logged at build end and verified at extractor startup.
+
 ### Analysis Worker
 
-* [ ] **Alias index.** Bundle a pre-built SQLite alias database at `services/analysis-worker/data/wikidata_aliases.db` (target ≤ 300 MB, covering the top 1M entities by inbound sitelink count — sufficient for all major political, organizational, and geographic entities in European and global institutional discourse). Schema: `(alias TEXT, wikidata_qid TEXT, sitelink_count INTEGER, language TEXT, PRIMARY KEY (alias, language))`. Built offline by `scripts/build_wikidata_index.py`, baked into the Docker image.
-* [ ] **`build_wikidata_index.py`.** Standalone offline script: queries the Wikidata SPARQL endpoint for entities above a sitelink threshold and extracts all aliases and labels per language. Writes the SQLite DB. Run manually to refresh the index; document the procedure in `docs/operations_playbook.md`. Includes a fixed-seed deterministic build mode for reproducibility (sort the SPARQL result set lexicographically before insertion so the resulting SQLite file is byte-identical given the same Wikidata snapshot date).
-* [ ] **Entity-linking step in `NamedEntityExtractor`.** After spaCy NER extraction, look up each span (lowercased, punctuation-stripped) in the alias index, scoped by the document's `detected_language` (Phase 116). Select the highest-sitelink-count match above a confidence threshold (default 0.7). Write one row to `aer_gold.entity_links` per span. Entities with no match write `wikidata_qid=''` and `link_method='unlinked'` — no crash, no DLQ.
-* [ ] **Tests.** Pytest unit: (a) "Angela Merkel" → `Q567`; (b) unknown entity string → `unlinked` gracefully; (c) alias with multiple candidates → highest sitelink_count wins; (d) entity_links rows are idempotent via ReplacingMergeTree; (e) German vs English alias collision (e.g. "Berlin" the city vs. "Berlin" common surname) → language-scoped lookup picks the right candidate.
+* [ ] **Index distribution.** `wikidata_aliases.db` is **not** baked into the Docker image at build time of the analysis-worker — it is too large and rebuilds independently. Instead: a separate `aer-wikidata-index` image bakes the DB; the analysis-worker container mounts it at `/data/wikidata/` via a Docker volume or copies it into a named volume on first start. Image build cadence: quarterly, plus on-demand. The analysis-worker fails fast at startup with a clear error if the volume is empty or the DB hash does not match the expected hash recorded in its config (prevents silent index drift).
+
+* [ ] **Entity-linking step in `NamedEntityExtractor`.** After spaCy NER extraction, look up each span (lowercased, punctuation-stripped, accent-folded for `fr`) in the alias index, scoped by the document's `detected_language` (Phase 116). When multiple QIDs match the same alias for the same language, the highest-sitelink-count candidate wins (the disambiguation tiebreaker). Confidence scoring: 1.0 for exact label match, 0.85 for altLabel match, 0.7 for accent-folded match — these are heuristic Tier-1.5 weights, not validated. Below 0.7, treat as unlinked. Write one row to `aer_gold.entity_links` per span. Entities with no match write `wikidata_qid=''` and `link_method='unlinked'` — no crash, no DLQ. Document the heuristic-confidence claim in the extractor's docstring with a forward-link to a future WP-002 §4.2 validation study.
+
+* [ ] **Tests.** Pytest unit: (a) "Angela Merkel" → `Q567`; (b) unknown entity string → `unlinked` gracefully; (c) "Berlin" the city wins over "Berlin" the surname via sitelink-count tiebreaker; (d) entity_links rows are idempotent via ReplacingMergeTree; (e) German vs English alias collision (e.g. "Berlin" the city in `de` vs "Berlin" the surname in `en`) → language-scoped lookup picks the right candidate. Tests use a fixture SQLite with ~50 known entities, **not** the production index — the production index is a build artefact, not a test fixture.
 
 ### BFF API
 
 * [ ] **Entities endpoint enrichment.** `GET /api/v1/entities` response adds `wikidataQid String?` and `linkConfidence Float32?` per row (left-joined from `aer_gold.entity_links`). Entities with no link return `wikidataQid: null`. Update OpenAPI spec, `make codegen`.
+
 * [ ] **Co-occurrence endpoint enrichment.** `GET /api/v1/entities/cooccurrence` adds `wikidataQid String?` to each node — enables the frontend to surface Wikipedia/Wikidata external links on network-graph nodes without a follow-up call.
 
 ### Documentation
 
-* [ ] **CLAUDE.md.** Add `aer_gold.entity_links` to "ClickHouse Gold Schema". Note entity linking in the `NamedEntityExtractor` description. Add `wikidataQid` field to the `GET /api/v1/entities` and `GET /api/v1/entities/cooccurrence` endpoint descriptions.
-* [ ] **Operations Playbook.** Add "Refreshing the Wikidata alias index" section, including the deterministic-build-mode instructions and the recommended refresh cadence (quarterly).
-* [ ] **WP-002 cross-link.** Mark the entity-linking-absence bullet in §4.2 as **resolved**.
-* [ ] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: `GET /api/v1/entities` for a Probe 0 source returns non-null `wikidataQid` for prominent entities (Tagesschau, Bundesregierung, known political figures in the Probe 0 corpus).
+* [ ] **CLAUDE.md.** Add `aer_gold.entity_links` to "ClickHouse Gold Schema". Note entity linking in the `NamedEntityExtractor` description with the type-driven scope and the heuristic-confidence caveat. Add `wikidataQid` field to the `GET /api/v1/entities` and `GET /api/v1/entities/cooccurrence` endpoint descriptions.
+
+* [ ] **Operations Playbook.** New section "Building and refreshing the Wikidata alias index": (1) prerequisites (network bandwidth, disk space, runtime expectations); (2) snapshot-date convention; (3) full build command; (4) hash verification step; (5) deployment via the `aer-wikidata-index` image; (6) refresh cadence (quarterly, plus on Probe expansion to a new language); (7) extending the type-bucket YAML for new domains.
+
+* [ ] **WP-002 cross-link.** Mark the entity-linking-absence bullet in §4.2 as **resolved**. Add a footnote distinguishing the Tier-1.5 heuristic-confidence approach (this phase) from validated entity linking (deferred to a Tier-2 phase if disambiguation precision proves insufficient).
+
+* [ ] **`aer_gold.metric_validity` scaffold.** Add a row to `infra/clickhouse/seed/metric_validity_scaffold.sql` for `entity_link_confidence` with `validation_status='unvalidated'`, `tier=1.5`, `context_key='*:*:*'` (cross-context — the heuristic is not validated for any context yet). The `error_taxonomy` field lists the current heuristic confidence assignments as known unvalidated claims: `{"reason": "heuristic confidence weights (1.0/0.85/0.7) for label/altLabel/accent-fold matches are engineering defaults pending WP-002 §4.2 annotation study", "open_failure_modes": ["sitelink-tiebreaker may favour outdated entity references", "alias collisions across language boundaries not measured", "no precision/recall measurement on Probe 0 corpus"]}`. The `alpha_score` and `correlation` fields are `null`. This row is hand-maintained because `entity_link_confidence` is a cross-language heuristic; Phase 118a converts language-scoped scaffold rows to manifest-driven auto-generation, but cross-context rows like this one stay hand-maintained.
+
+* [ ] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: build the production index against a recent snapshot; verify hash; deploy via volume; `GET /api/v1/entities` for a Probe 0 source returns non-null `wikidataQid` for prominent entities (Tagesschau as `Q325817`, Bundesregierung as `Q3168143`, Olaf Scholz as `Q4093`, Friedrich Merz as `Q1124`, Berlin as `Q64`, Bundestag as `Q1055`, Europäische Union as `Q458`).
 
 ---
 
-## Phase 119: NLP Hardening — Tier 2 Sentiment Extractor [P2] - [ ] TODO
+## Phase 118a: Language Capability Manifest (ADR-024) [P2] - [ ] TODO
 
-*Adds a reproducible transformer-based German sentiment extractor alongside the existing SentiWS Tier 1 baseline. The new extractor writes a separate metric name (`sentiment_score_bert`) and does NOT replace `sentiment_score_sentiws`. The dashboard renders both with Epistemic Weight distinguishing them (Brief §7.8). Phase 63's `aer_gold.metric_validity` table captures each metric's validation status independently. Phase 116's language guard applies — the BERT extractor skips non-German documents identically to SentiWS.*
+*Implements ADR-024 — establishes `services/analysis-worker/configs/language_capabilities.yaml` as the system-of-record for per-language analytical capability and refactors the Phase 116 / Phase 117 outputs to read from it. Phase 116 and 117 shipped with hard-coded language maps in `NamedEntityExtractor`, `SentimentExtractor`, and `extractors/_negation_config.py`; that distribution makes adding a new language a five-touchpoint change with manual `metric_validity` scaffolding that drifts from reality. ADR-024 consolidates the touchpoints behind a single declarative source. This phase is the implementation; Phase 119 (multilingual sentiment per ADR-023) and Phase 122 (Probe 1 French) are direct downstream consumers.*
 
-*Model selection rationale.* The reflexive choice of `oliverguhr/german-sentiment-bert` is **rejected** for this phase. WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models; oliverguhr's training corpus is reviews and Twitter, while Probe 0 is institutional editorial RSS. The architectural choice is **`mdraw/german-news-sentiment-bert`** as the primary extractor — same German-BERT base but fine-tuned on German news headlines and ledes, which matches the Probe 0 register. To honour the methodological caution of WP-002, the phase additionally runs `oliverguhr/german-sentiment-bert` as a parallel-but-separately-named extractor (`sentiment_score_bert_review`) and records both — the first concrete on-pipeline domain-transfer comparison, ready for the Phase 63 validity table when annotation studies arrive.
+*Why a separate phase.* Phase 116 and 117 are already shipped without the manifest; introducing it inline in either phase would mean amending closed work. A dedicated migration phase is the architecturally honest answer — it captures the refactor as an explicit artefact and avoids the impression that 116/117 were "wrong". They were correct for their time; this phase is the consolidation step that ADR-024 describes.
 
-### Analysis Worker
+### Manifest Schema
 
-* [ ] **`GermanNewsBertSentimentExtractor` (primary, news-domain).** New `services/analysis-worker/internal/extractors/sentiment_bert_news.py`. Model: `mdraw/german-news-sentiment-bert`, pinned to a specific revision via `transformers` `revision` parameter. Determinism flags: `torch.manual_seed(42)`, `transformers.set_seed(42)`, model loaded with `torch.use_deterministic_algorithms(True)`. Output: scalar `sentiment_score_bert` in `[-1.0, 1.0]` (model softmax output mapped to scalar range). Registered in `main.py` alongside existing extractors.
-* [ ] **`GermanReviewBertSentimentExtractor` (secondary, domain-mismatch baseline).** Mirror extractor wrapping `oliverguhr/german-sentiment-bert`. Output: scalar `sentiment_score_bert_review`. Same determinism flags. The two metrics are NEVER averaged; they are recorded independently. The dashboard surfaces the difference between them as a **methodological observation** — the gap between news-domain and review-domain sentiment on the same document is itself a research signal that informs WP-002 §3.2's domain-transfer discussion.
-* [ ] **Tier 2 provenance.** `version_hash` property returns `sha256({model_name}:{model_revision}:{transformers_version}:{torch_version})`. Written to `SilverEnvelope.extraction_provenance` per Phase 46's mechanism.
-* [ ] **Determinism CI gate.** New pytest test: run each BERT extractor on 20 fixed German sentences twice in the same process; assert outputs are byte-identical. This test is the Tier 2 reproducibility guarantee and must remain green across library updates. A second cross-process test (re-launch the worker) asserts byte-identity across runs to catch CUDA-vs-CPU non-determinism if a GPU is added.
-* [ ] **`aer_gold.metric_validity` scaffold.** Add `sentiment_score_bert` and `sentiment_score_bert_review` rows to `infra/clickhouse/seed/metric_validity_scaffold.sql` with `validation_status='unvalidated'`, `tier=2`. The `alpha_score` and `correlation` fields are `null` pending WP-002 §6.2 annotation studies comparing each model's output to human judgments on the Probe 0 corpus.
-* [ ] **Tests.** Pytest unit: (a) known-positive German news sentence → both models score > 0; (b) known-negative news sentence → both models score < 0; (c) review-style positive German sentence — review model scores higher than news model (domain transfer signal); (d) English text → both extractors skipped via Phase 116 language guard, no metric row; (e) determinism gate passes for both extractors.
+* [ ] **Pydantic models.** New `services/analysis-worker/internal/models/language_capability.py` defining `LanguageCapability`, `NerCapability`, `SentimentTier1Capability`, `SentimentTier2Capability`, `NegationConfig`, `CulturalCalendarRef`, `SharedCapability`, `CapabilityManifest`. The `CapabilityManifest` is the root model, loaded once at worker startup from the YAML file. A `manifest_version: 1` field enables future schema evolution per ADR-024's versioning commitment. Validation errors at load time produce a structured fatal-startup error — the worker refuses to start with an invalid manifest, never silently falling back.
 
-### BFF API
+* [ ] **Manifest YAML.** New `services/analysis-worker/configs/language_capabilities.yaml` with the `de` block populated to match the current state of Phase 116/117 outputs:
+```yaml
+  manifest_version: 1
+  
+  languages:
+    de:
+      iso_code: de
+      display_name: German
+      
+      ner:
+        tier: 1.5
+        model: de_core_news_lg
+        model_version: "3.8.0"
+        provenance: "spaCy German news-domain large model"
+      
+      sentiment_tier1:
+        tier: 1
+        method: lexicon
+        lexicon: sentiws_v2.0
+        features: [negation_dependency, compound_split, custom_lexicon]
+        negation:
+          particles: ["nicht", "kein", "keine", "keiner", "keines", "keinem", "keinen", "niemals", "nie", "nirgends", "kaum"]
+          clause_boundaries: ["weil", "dass", "obwohl", "während", "nachdem", "bevor"]
+          spacy_neg_dep: "neg"
+        metric_name: sentiment_score_sentiws
+      
+      cultural_calendar:
+        region_default: de
+        file: cultural_calendars/de.yaml
+      
+      notes:
+        - "Compound-split is German-specific (Phase 117); not applicable to non-agglutinating languages."
+  
+  shared: {}   # populated by Phase 119 with shared.multilingual_bert
+```
+  Phase 119 extends the `de` block with `sentiment_tier2_default` and `sentiment_tier2_refinement` entries plus the `shared.multilingual_bert` block per ADR-023. Phase 122 adds the `fr` block.
 
-* [ ] **`/api/v1/metrics/available` exposes all three sentiment extractors.** `sentiment_score_sentiws` (Tier 1, `unvalidated`), `sentiment_score_bert` (Tier 2 news, `unvalidated`), `sentiment_score_bert_review` (Tier 2 review-domain baseline, `unvalidated`) appear as separate entries with distinct `tier` and `validationStatus`. No OpenAPI change required — existing metric-name parameterization handles arbitrary metric names transparently.
+### Refactors
+
+* [ ] **`NamedEntityExtractor` refactor.** Replace the hard-coded `NER_LANGUAGE_MODELS` map with a manifest lookup: `manifest.languages[detected_language].ner.model`. If the language is not in the manifest, or the `ner` block is absent, skip NER as before — write `entity_count = 0`, no spans, structured warning log (`"NER skipped: no manifest entry for language {lang}"`). Existing tests must continue to pass — this is a refactor, not a behaviour change. Adding a new language requires a manifest YAML edit + the spaCy model in `requirements.txt`; no extractor code touched.
+
+* [ ] **`SentimentExtractor` refactor.** Replace hard-coded language routing with `manifest.languages[detected_language].sentiment_tier1` lookup. The `features` list determines which sub-extractors run: `negation_dependency` reads `manifest.languages[detected_language].sentiment_tier1.negation` for the language-specific particles and clause boundaries; `compound_split` activates the German compound decomposer; `custom_lexicon` activates the YAML override merge. Languages without a `sentiment_tier1` block produce no sentiment output. The hard-coded `_negation_config.py` from Phase 117 is deleted — its content is now in the manifest under each language's `sentiment_tier1.negation`.
+
+* [ ] **Auto-generated `metric_validity` scaffold.** New `scripts/generate_metric_validity_scaffold.py`. Reads the manifest, walks every `(language, metric_name)` combination in `sentiment_tier1`, `sentiment_tier2_default`, `sentiment_tier2_refinement`, and the NER `entity_count` baseline. Emits `infra/clickhouse/seed/metric_validity_scaffold_generated.sql` with one row per combination: `validation_status='unvalidated'`, `tier=<from manifest>`, `context_key='<lang>:*:*'`, `error_taxonomy='{"reason":"engineering default; awaiting WP-002 annotation study"}'`. The hand-maintained `metric_validity_scaffold.sql` is preserved for cross-context entries (e.g. `entity_link_confidence` from Phase 118 with `context_key='*:*:*'`); the generated file covers per-language entries. Both seed files are loaded at ClickHouse init in lexicographic order. Manual edits to the generated file are forbidden — a CI gate enforces drift via `make scaffold-metric-validity && git diff --exit-code`.
+
+* [ ] **Makefile target.** New `make scaffold-metric-validity` invokes the generator. Wired into `make codegen` so a manifest change automatically regenerates the scaffold; the existing `git diff --exit-code` check catches drift.
+
+* [ ] **BFF `?language=` parameter validator.** The BFF reads the manifest at startup (via a small Go reader of the same YAML) and validates every endpoint that accepts a `language` query parameter against the manifest's `languages` keys. Unknown codes produce a structured `RefusalPayload` with `gate=invalid_language`, `valid_alternatives=[...manifest keys...]`. Replaces any previously hand-coded language-allowlist logic in BFF handlers.
+
+### Tests
+
+* [ ] **Manifest loading tests.** Pytest: (a) valid manifest loads without errors and exposes the expected `de` block; (b) invalid manifest (missing `manifest_version`, malformed YAML, unknown field) produces a structured `ConfigurationError` at load time; (c) Pydantic schema rejects entries with mismatched `tier`/`method` combinations; (d) cross-language metric-name uniqueness check (no two languages declare the same `metric_name` for different methods — this would break ClickHouse aggregation).
+
+* [ ] **Refactored extractor tests.** All Phase-116 and Phase-117 unit tests pass unchanged after the refactor. New tests: (a) NER routing reads model name from manifest; (b) Sentiment routing reads negation config from manifest; (c) `compound_split` feature flag toggles the decomposer; (d) Probe 0 German documents → entity count and sentiment within ±1% of pre-refactor baseline (regression guard — the refactor must not affect outputs).
+
+* [ ] **Scaffold-generator drift gate.** Pytest + Makefile: running `make scaffold-metric-validity` on a clean checkout produces an empty `git diff`. Modifying the manifest produces a non-empty diff; reverting the manifest restores the empty diff. Idempotency: two consecutive runs produce identical output.
 
 ### Documentation
 
-* [ ] **CLAUDE.md.** Add both BERT extractors to "Registered extractors". Note the dual-metric pattern (Tier 1 + Tier 2) and the secondary domain-mismatch baseline pattern.
-* [ ] **ADR-016 (Hybrid Tier Architecture).** Append a note recording the first concrete Tier 2 implementation: the news-domain primary choice, the review-domain secondary as on-pipeline domain-transfer evidence, the pinning strategy, the determinism CI gate, and the dual-metric policy (Tier 1 always shown; Tier 2 available alongside, not replacing).
-* [ ] **Arc42 §13.3.** Update the `Sentiment Analysis` row in the Tier 1 table to note both SentiWS (Tier 1) and the two BERT extractors (Tier 2 entry in §13.3.2). Document the news-domain choice and the methodological reasoning.
-* [ ] **Validation.** `make lint && make test` green. Determinism gate passes in CI. Manual: `/api/v1/metrics/available` lists all three sentiment metrics with distinct `validationStatus`.
+* [ ] **Arc42 §8.x.** New cross-cutting concept "Language Capability Manifest" describing the SSoT pattern, the consumers (NER, Sentiment, scaffold generator, BFF validator), the manifest-version-stability commitment per ADR-024, and the relationship to per-language extending guides in `docs/extending/`.
+
+* [ ] **CLAUDE.md.** Update `LanguageDetectionExtractor`, `NamedEntityExtractor`, and `SentimentExtractor` entries to reflect the manifest-driven routing. Add `language_capabilities.yaml` to the configs section.
+
+* [ ] **`docs/extending/add-a-language.md` cross-link.** Update the matrix to note that `NamedEntityExtractor`, `SentimentExtractor`, and the `metric_validity` scaffold are manifest-driven; the matrix becomes the human-readable view of the manifest. Mark the auto-generation of the matrix from the manifest as a future Phase 122a deliverable.
+
+* [ ] **Operations Playbook.** New section "Editing the Language Capability Manifest": (1) when to edit (adding a language, refining an existing block, declaring a new Tier 2.5 refinement); (2) the validation flow (`make scaffold-metric-validity` regenerates the scaffold; `make test` covers regression); (3) the `manifest_version` evolution policy.
+
+* [ ] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Probe 0 metrics regression-tested within ±1% of pre-refactor baseline. Manual: BFF `?language=xx` request with unknown code returns `400` with `gate=invalid_language` and the list of valid codes from the manifest.
+
+---
+
+## Phase 119: NLP Hardening — Tier 2 Sentiment Extractors (Multilingual + German Refinement) [P2] - [ ] TODO
+
+*Implements the Tier 2 sentiment layer per ADR-023: a multilingual default extractor that scales O(1) per language addition, plus an optional German-news-domain Tier 2.5 refinement that retains in-domain quality where it matters. The dashboard renders both with Epistemic Weight (Brief §7.8) distinguishing them; the gap between them is itself a research signal informing WP-002 §3.2's domain-transfer discussion. Phase 116's language-routing substrate and Phase 118a's Capability Manifest are hard prerequisites — both extractors register their entries via the manifest, not via hard-coded paths.*
+
+*Architectural shift from earlier draft.* The earlier Phase 119 specified `mdraw/german-news-sentiment-bert` as the primary and `oliverguhr/german-sentiment-bert` as a parallel domain-mismatch baseline. ADR-023 (2026-05-02) revised this: the multilingual model is now the Tier 2 default, the German news-domain model becomes a Tier 2.5 *refinement* (still shipped, still optional-quality-improvement), and the `oliverguhr` review-domain extractor is *demoted* to an optional Tier 2.5 entry that ships only if engineering capacity allows. The methodological purpose served by oliverguhr (on-pipeline domain-transfer evidence per WP-002 §3.2) is preserved by the gap between the multilingual default and the news-domain refinement, which provides the same signal at lower operational cost.
+
+### Analysis Worker
+
+* [ ] **`MultilingualBertSentimentExtractor` (Tier 2 default).** New `services/analysis-worker/internal/extractors/sentiment_bert_multilingual.py`. Model: `cardiffnlp/twitter-xlm-roberta-base-sentiment` (or the equivalent multilingual SOTA at implementation time — final selection part of this phase's work, recorded in the implementation outline of ADR-023). Pinned to a specific revision via `transformers` `revision` parameter. Determinism flags: `torch.manual_seed(42)`, `transformers.set_seed(42)`, `torch.use_deterministic_algorithms(True)`. Output: scalar `sentiment_score_bert_multilingual` in `[-1.0, 1.0]` (model softmax mapped to scalar range). Phase 116 language guard applies — the extractor reads the model's `supported_languages` from the Capability Manifest (`manifest.shared.multilingual_bert.supported_languages`) and skips documents whose `detected_language` is outside that set, writing no metric row.
+
+* [ ] **`GermanNewsBertSentimentExtractor` (Tier 2.5 refinement, German).** New `services/analysis-worker/internal/extractors/sentiment_bert_de_news.py`. Model: `mdraw/german-news-sentiment-bert`, pinned revision, same determinism flags. Output: scalar `sentiment_score_bert_de_news`. Activates only when `detected_language = 'de'` and the Capability Manifest declares `manifest.languages.de.sentiment_tier2_refinement` with this model. Registered alongside the multilingual extractor — both run on every German document, producing two parallel metrics.
+
+* [ ] **`oliverguhr/german-sentiment-bert` — optional Tier 2.5 review-domain entry (defer-friendly).** Per ADR-023, this extractor ships if and only if engineering capacity is available. When shipped: new `services/analysis-worker/internal/extractors/sentiment_bert_de_review.py`, output `sentiment_score_bert_de_review`. Same determinism flags. Activates only when the manifest declares the refinement entry. Skipping this bullet has no architectural cost — the methodological purpose (domain-transfer evidence) is already served by the multilingual-vs-news-domain gap above.
+
+* [ ] **Manifest extension for `de`.** Phase 118a ships the `de` manifest entry with `sentiment_tier1` only. This phase extends it with:
+```yaml
+  sentiment_tier2_default:
+    tier: 2
+    method: multilingual_bert
+    provided_by: shared.multilingual_bert
+    metric_name: sentiment_score_bert_multilingual
+  sentiment_tier2_refinement:
+    tier: 2.5
+    method: news_domain_bert
+    model: mdraw/german-news-sentiment-bert
+    model_revision: "<sha pinned at implementation>"
+    metric_name: sentiment_score_bert_de_news
+  # Optional, ships only if engineering capacity allows:
+  # sentiment_tier2_refinement_review:
+  #   tier: 2.5
+  #   method: review_domain_bert
+  #   model: oliverguhr/german-sentiment-bert
+  #   metric_name: sentiment_score_bert_de_review
+```
+  Plus the new `shared.multilingual_bert` block:
+```yaml
+  shared:
+    multilingual_bert:
+      model: cardiffnlp/twitter-xlm-roberta-base-sentiment
+      model_revision: "<sha>"
+      supported_languages: [de, en, fr, es, it, pt, ja, zh, ar, ...]
+```
+  The Phase 118a scaffold generator picks up the new entries automatically and adds the corresponding `metric_validity` rows.
+
+* [ ] **Tier 2 provenance.** Both extractors expose `version_hash` returning `sha256({model_name}:{model_revision}:{transformers_version}:{torch_version})`. Written to `SilverEnvelope.extraction_provenance` per Phase 46's mechanism.
+
+* [ ] **Determinism CI gate.** New pytest test: run each Tier 2 / Tier 2.5 extractor on 20 fixed German sentences twice in the same process; assert outputs are byte-identical. This test is the Tier 2 reproducibility guarantee and must remain green across library updates. A second cross-process test (re-launch the worker) asserts byte-identity across runs to catch CUDA-vs-CPU non-determinism if a GPU is added.
+
+* [ ] **Tests.** Pytest unit: (a) known-positive German news sentence → both `de_news` and `multilingual` extractors score > 0; (b) known-negative news sentence → both score < 0; (c) gap observation: review-style positive German sentence — `de_news` scores higher than `multilingual` (or vice versa) by a measurable margin (the domain-transfer signal); (d) English text → `de_news` skipped via manifest-driven language guard, no metric row; the `multilingual` extractor writes a metric row (English is in `supported_languages`); (e) Suaheli text (or any language outside the multilingual model's supported set) → both extractors skipped, no metric row; (f) determinism gate passes for both extractors; (g) `make scaffold-metric-validity` produces rows for `sentiment_score_bert_multilingual` (per supported language × Probe-0 context-keys) and `sentiment_score_bert_de_news` (German only).
+
+### BFF API
+
+* [ ] **`/api/v1/metrics/available` exposes Tier 2 hierarchy.** `sentiment_score_sentiws` (Tier 1, `unvalidated`), `sentiment_score_bert_multilingual` (Tier 2 default, `unvalidated`), `sentiment_score_bert_de_news` (Tier 2.5 refinement, `unvalidated`), and optionally `sentiment_score_bert_de_review` (Tier 2.5 baseline, `unvalidated`) appear as separate entries with distinct `tier` and `validationStatus`. No OpenAPI change required — existing metric-name parameterization handles arbitrary metric names transparently.
+
+### Documentation
+
+* [ ] **CLAUDE.md.** Add all Tier 2 / Tier 2.5 extractors to "Registered extractors". Note the dual-metric pattern (Tier 1 + Tier 2 + optional Tier 2.5) and reference ADR-023 for the architectural rationale.
+
+* [ ] **ADR-016 (Hybrid Tier Architecture).** Append a note recording the first concrete Tier 2 + Tier 2.5 implementation per ADR-023. The dual-metric policy (Tier 1 always shown; Tier 2 default available alongside; Tier 2.5 optional refinement) supersedes the originally-described "Tier 2 alongside Tier 1" pattern.
+
+* [ ] **Arc42 §13.3.** Update the `Sentiment Analysis` row to note all four extractors: SentiWS (Tier 1, deterministic lexicon), `multilingual_bert` (Tier 2 default, multilingual), `de_news` (Tier 2.5 refinement, German news-domain), `de_review` (Tier 2.5 optional baseline). Document the news-domain choice and the methodological reasoning per ADR-023.
+
+* [ ] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Determinism gate passes in CI. Manual: `/api/v1/metrics/available` lists three (or four if `de_review` shipped) sentiment metrics with distinct `validationStatus` and `tier`.
 
 ---
 
@@ -2372,17 +2510,17 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 # Iteration 7 — Probe Expansion & Cross-Cultural Operations
 
-*Two phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115) and the multilingual NLP foundation from Iteration 6 (Phases 116–121) and put them into operation. Phase 122 lands the second probe — the first non-German cultural context. Phase 123 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 122 establishes the second context; Phase 123 puts it into methodologically disciplined comparison.*
+*Three phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115) and the multilingual NLP foundation from Iteration 6 (Phases 116–121, plus 118a) and put them into operation. Phase 122 lands the second probe — the first non-German cultural context. Phase 122a operationalises the Coverage Map mandated by WP-001 §5.3 and consumes the Capability Manifest from Phase 118a. Phase 123 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 122 establishes the second context; Phase 122a makes the coverage transparent; Phase 123 puts the pair into methodologically disciplined comparison.*
 
 ---
 
 ## Phase 122: Probe 1 — French Institutional RSS [P2] - [ ] TODO
 
-*Lands the first non-German probe: `francetvinfo.fr` (`Audiovisuel public` analogue to Tagesschau, Epistemic Authority primary) + `gouvernement.fr` (`Service d'Information du Gouvernement` analogue to Bundesregierung, Power Legitimation primary). The probe deliberately mirrors Probe 0's discourse-function coverage so cross-probe composition (Phase 114) has overlapping lanes — Cohesion & Identity and Subversion & Friction remain unrepresented in both probes; that scope is reserved for a probe with a real WP-006 §5.2 ethical-review partner. Exercises the multi-probe composition infrastructure (Phase 114), the cross-cultural refusal surface (Phase 115), and the multilingual NLP pipeline (Phase 116) in production for the first time. Phase 116 is a hard technical prerequisite; Phases 117 and 119 are German-specific and not blocking; Phases 118 and 120 are multilingual-by-construction and produce a one-time backfill if they ship after this phase rather than before.*
+*Lands the first non-German probe: `francetvinfo.fr` (`Audiovisuel public` analogue to Tagesschau, Epistemic Authority primary) + `gouvernement.fr` (`Service d'Information du Gouvernement` analogue to Bundesregierung, Power Legitimation primary). The probe deliberately mirrors Probe 0's discourse-function coverage so cross-probe composition (Phase 114) has overlapping lanes — Cohesion & Identity and Subversion & Friction remain unrepresented in both probes; that scope is reserved for a probe with a real WP-006 §5.2 ethical-review partner. Exercises the multi-probe composition infrastructure (Phase 114), the cross-cultural refusal surface (Phase 115), and the multilingual NLP pipeline (Phase 116) in production for the first time. Phase 116 is a hard technical prerequisite; Phase 118a (Capability Manifest) is a hard prerequisite for the manifest-driven NLP entries below; Phases 117 and 119 are German-specific and not blocking; Phases 118 and 120 are multilingual-by-construction and produce a one-time backfill if they ship after this phase rather than before.*
 
-*Source-selection rationale (WP-001 §5.1).* France was selected as the first non-German cultural context for four engineering reasons: (1) `fr_core_news_lg` spaCy model exists, so Phase 116 NER routing works without per-language tooling work; (2) FEEL and `cmarkea/distilcamembert-base-sentiment` exist as Tier 1 / Tier 2 sentiment counterparts, so Phases 117 and 119 patterns extend cleanly; (3) structural parallelism with Probe 0 is high — republic with public broadcaster, formal government press releases — keeping the cross-probe composition methodologically clean; (4) latinic vs. germanic linguistic distance exercises the Phase 116 language router realistically. Non-European contexts (Japan, South Korea, MENA) are deferred to a later probe because they would simultaneously activate NER-model gaps, cultural-calendar complexity, topic-modeling ontology mismatches, and ethical-review hurdles — beyond the engineering-POC scope of this phase.*
+*Source-selection rationale (WP-001 §5.1).* France was selected as the first non-German cultural context for four engineering reasons: (1) `fr_core_news_lg` spaCy model exists, so Phase 116 NER routing works without per-language tooling work; (2) FEEL exists as a Tier 1 sentiment counterpart and `cmarkea/distilcamembert-base-sentiment` exists as a Tier 2.5 refinement (per ADR-023; the Tier 2 default is the multilingual model from Phase 119 which covers French automatically), so Phases 117 and 119 patterns extend cleanly; (3) structural parallelism with Probe 0 is high — republic with public broadcaster, formal government press releases — keeping the cross-probe composition methodologically clean; (4) latinic vs. germanic linguistic distance exercises the Phase 116 language router realistically. Non-European contexts (Japan, South Korea, MENA) are deferred to a later probe because they would simultaneously activate NER-model gaps, cultural-calendar complexity, topic-modeling ontology mismatches, and ethical-review hurdles — beyond the engineering-POC scope of this phase.*
 
-*Provisional engineering classification (Arc42 §13.10 precedent).* Both sources ship with `review_status = 'provisional_engineering'` and `function_weights = NULL` — WP-001 §4.4 Steps 1–2 (Area Expert Nomination + Peer Review) are outstanding for this probe in exactly the same way they are outstanding for Probe 0. Every Probe 1 metric reports `validation_status = unvalidated` in `GET /api/v1/metrics/available`. The architecture surfaces this honestly; no consumer-facing claim of validation is made. Solo-developer probe-add procedure: `docs/probes/_adding-a-probe-quickstart.md`.
+*Provisional engineering classification (Arc42 §13.10 precedent).* Both sources ship with `review_status = 'provisional_engineering'` and `function_weights = NULL` — WP-001 §4.4 Steps 1–2 (Area Expert Nomination + Peer Review) are outstanding for this probe in exactly the same way they are outstanding for Probe 0. Every Probe 1 metric reports `validation_status = unvalidated` in `GET /api/v1/metrics/available`. The architecture surfaces this honestly; no consumer-facing claim of validation is made. Solo-developer probe-add procedure: `docs/extending/add-a-probe.md`.
 
 ### Infrastructure
 
@@ -2396,9 +2534,49 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ### NLP
 
-* [ ] **spaCy model.** Add `fr_core_news_lg` to `services/analysis-worker/requirements.txt`. The Phase 116 language router selects it automatically via `detected_language = 'fr'` — no extractor code change.
-* [ ] **Sentiment Tier 1 (FEEL).** Integrate FEEL (`fr_feel.csv`, French Expanded Emotion Lexicon) following the Phase 117 custom-lexicon-hook pattern in `SentimentExtractor`. New metric name `sentiment_score_feel` honours ADR-016's dual-metric pattern (Tier 1 baseline alongside Tier 2). The Phase 116 language guard ensures the German SentiWS extractor cleanly skips French documents and vice versa. If Phase 117 has not yet shipped, defer this bullet — the Phase 116 language guard prevents German extractors from polluting French data, so French sentiment is genuinely absent rather than wrong. Document the deferred state as a row in `aer_gold.metric_validity` with `validation_status = unvalidated`, `error_taxonomy = '{"reason": "Tier 1 fr lexicon pending Phase 117 pattern"}'`.
-* [ ] **Sentiment Tier 2 (CamemBERT).** Integrate `cmarkea/distilcamembert-base-sentiment` as the French news-domain Tier 2 counterpart to Phase 119's `mdraw/german-news-sentiment-bert`. Following the Phase 119 dual-extractor pattern: pinned revision, determinism flags, output `sentiment_score_bert` scoped to `detected_language = 'fr'`. If Phase 119 has not yet shipped, defer this bullet — same absence-not-wrong guarantee as above. Defer-friendly: this phase remains valuable on Tier-1-only sentiment coverage; Phase 119 backfill is a re-run of the existing extractor, not a schema change.
+* [ ] **Capability Manifest extension for `fr` (ADR-024).** Add the `fr` block to `services/analysis-worker/configs/language_capabilities.yaml`:
+```yaml
+  fr:
+    iso_code: fr
+    display_name: French
+    
+    ner:
+      tier: 1.5
+      model: fr_core_news_lg
+      model_version: "3.8.0"
+    
+    sentiment_tier1:
+      tier: 1
+      method: lexicon
+      lexicon: feel_v1.0
+      features: [negation_dependency, custom_lexicon]   # no compound_split — French is non-agglutinating
+      negation:
+        particles: ["ne", "pas", "non", "jamais", "plus", "rien", "aucun", "aucune", "personne", "nulle"]
+        clause_boundaries: ["parce", "que", "lorsque", "quand", "bien"]
+        spacy_neg_dep: "neg"
+      metric_name: sentiment_score_feel
+    
+    sentiment_tier2_default:
+      tier: 2
+      method: multilingual_bert
+      provided_by: shared.multilingual_bert
+      metric_name: sentiment_score_bert_multilingual
+    
+    # sentiment_tier2_refinement is optional — see "Sentiment Tier 2.5 (CamemBERT)" bullet below
+    
+    cultural_calendar:
+      region_default: fr
+      file: cultural_calendars/fr.yaml
+```
+  This single YAML edit drives downstream: NER routing picks up `fr_core_news_lg` automatically; the auto-generated `metric_validity` scaffold adds rows for all `(metric_name, fr)` combinations; the BFF `?language=fr` validator accepts the code.
+
+* [ ] **spaCy model.** Add `fr_core_news_lg` to `services/analysis-worker/requirements.txt`. The Phase 118a manifest-driven language router selects it automatically via the manifest entry above — no extractor code change.
+
+* [ ] **Sentiment Tier 1 (FEEL).** Integrate FEEL (`fr_feel.csv`, French Expanded Emotion Lexicon) following the Phase 117 custom-lexicon-hook pattern. The manifest entry above declares `lexicon: feel_v1.0`; the `SentimentExtractor` reads this and loads the appropriate lexicon file. New metric name `sentiment_score_feel` honours ADR-016's dual-metric pattern (Tier 1 baseline alongside Tier 2). The Phase 116 language guard ensures the German SentiWS extractor cleanly skips French documents and vice versa. If Phase 117 has not yet shipped, defer the negation-dependency feature in the manifest entry — the lexicon-only Tier 1 still produces useful baseline data; negation is a defer-friendly enhancement.
+
+* [ ] **Sentiment Tier 2 default (multilingual).** Phase 119's `MultilingualBertSentimentExtractor` automatically covers French via `manifest.shared.multilingual_bert.supported_languages` including `fr`. No work in this phase. The `sentiment_score_bert_multilingual` metric is produced for every French document.
+
+* [ ] **Sentiment Tier 2.5 refinement (CamemBERT, optional).** Per ADR-023, this is the French equivalent of Phase 119's German news-domain refinement. New optional `services/analysis-worker/internal/extractors/sentiment_bert_fr_news.py` wrapping `cmarkea/distilcamembert-base-sentiment`. Pinned revision, determinism flags. Output: `sentiment_score_bert_fr_news`. Activates only when the manifest declares `sentiment_tier2_refinement` for `fr` with this model. Defer-friendly: this phase remains valuable on Tier-1 + Tier-2-default sentiment coverage; the Tier 2.5 refinement is a quality improvement, not a blocker.
 
 ### Documentation
 
@@ -2419,14 +2597,48 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ### Phase ordering note
 
-This phase has one hard prerequisite (Phase 116) and four defer-friendly upstream phases:
+This phase has two hard prerequisites (Phase 116 for language detection, Phase 118a for the Capability Manifest that the NLP entries above read from) and four defer-friendly upstream phases:
 
 - **Phase 117** (German Tier 1 hardening) is German-specific and does not block Probe 1. The French Tier 1 sentiment integration above can ship alongside or after Phase 117 depending on solo-developer scheduling; the language guard prevents cross-contamination either way.
 - **Phase 118** (Wikidata entity linking) is multilingual-by-construction. If it ships before this phase, Probe 1 entities are linked from day one. If it ships after, a single backfill run over the existing Probe 1 Gold data populates `aer_gold.entity_links` with no schema change.
-- **Phase 119** (Tier 2 BERT) — same defer-friendly pattern as Phase 117; the French Tier 2 integration above is the multilingual mirror of the German pattern.
+- **Phase 119** (Tier 2 Sentiment per ADR-023) — Phase 119's multilingual default extractor automatically covers French via its `supported_languages` declaration; no French-specific work is required for Tier 2 default coverage. The optional French Tier 2.5 refinement (CamemBERT) above is the structural mirror of Phase 119's German news-domain Tier 2.5 refinement; both are optional and defer-friendly. If Phase 119 has not yet shipped, the Tier 2 default sentiment is genuinely absent for French documents (no metric row written) — the language guard prevents incorrect output.
 - **Phase 120** (BERTopic) is multilingual-by-construction with per-language partitioning (WP-004 §3.4). If it ships after this phase, the next BERTopic cron run picks up Probe 1 documents in a separate French topic space; no manual intervention required.
 
 The Iteration-6 → Iteration-7 sequencing in the rationale block remains the recommended order for a fully-staffed team. Solo-developer scheduling may legitimately reorder 117/118/119/120 around this phase to test multi-probe composition earlier; the architecture supports it.
+
+---
+
+## Phase 122a: Probe Coverage Map (WP-001 §5.3) [P2] - [ ] TODO
+
+*Implements the Probe Coverage Map mandated by WP-001 §5.3 — a visualisation showing, for each cultural region with active probes, which discourse functions are covered and which remain unobserved, plus per-probe analytical capability (NER, sentiment, calendar coverage). At N=1 probe this would be premature; at N=2 (post-Phase 122) it becomes the navigational element that makes coverage gaps visible before the user encounters them as silent absences in lanes. Hard prerequisite: ADR-024 (Language Capability Manifest) must be implemented — the manifest is the data source for analytical-capability rendering.*
+
+*Architectural framing.* The Coverage Map is **not** a comparative ranking instrument (Brief §1.3 forbids that). It is a transparency surface — it shows what AĒR sees and, deliberately, what it is blind to (Manifesto §II Digital Divide acknowledgment). Negative-space markings for unobserved regions are a first-class element, not a styling afterthought.
+
+### Backend
+
+* [ ] **`GET /api/v1/coverage/map` endpoint.** Composite payload joining (a) the Language Capability Manifest from ADR-024, (b) the `source_classifications` table for active probes, (c) the per-probe function coverage from the existing Probe Dossier endpoint. Response shape: per-region cards listing probes, per-probe analytical-capability bullets (NER tier, sentiment tier, Tier 2.5 refinements, cultural calendar status), and per-probe WP-001 function coverage (N/4). OpenAPI update, codegen, integration tests.
+
+* [ ] **`metric_validity` integration.** The endpoint cross-joins per-(language, metric_name) validation status from `aer_gold.metric_validity` so the response can surface "Tier 2 sentiment unvalidated for `fr` — see WP-002" alongside the capability bullet. Validation status is rendered with the existing Epistemic Weight visual treatment, not raw enum values.
+
+### Frontend
+
+* [ ] **D3 world-map module on Surface I.** Togglable layer alongside the existing probe-glow indicator (Phase 110). Choropleth: covered regions in the Viridis palette, uncovered regions in the canonical negative-space treatment per `visualization_guidelines.md`. Hover surfaces probe list + function coverage. Click on a probe descends into its Dossier (Surface II L1).
+
+* [ ] **Probe Dossier "Coverage in context" panel.** New Dossier sidebar block reading the same endpoint, scoped to *this* probe's region: "Of the 4 WP-001 functions, this probe covers 2; the other 2 remain unobserved in `<region>`." Shows the same data the global map shows, scoped to the active probe's frame.
+
+* [ ] **`docs/extending/add-a-language.md` auto-generation.** The Capability Manifest (ADR-024) plus the templates in `docs/extending/` drive a build-time MkDocs macro that regenerates the language-extension matrix from live data. Manual matrix maintenance retired in this phase.
+
+### Documentation
+
+* [ ] **Arc42 §8.x.** New cross-cutting concept "Probe Coverage Map" with the negative-space architectural commitment.
+* [ ] **WP-001 §5.3 cross-link.** Mark the section as **operationalised**, with a forward-link to the Coverage Map endpoint and the Surface I module.
+* [ ] **CLAUDE.md.** Add the `/coverage/map` endpoint and the `language_capabilities.yaml` consumer note.
+
+### Validation
+
+* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
+* [ ] Manual: with Probe 0 + Probe 1 active, the Surface I map shows DE and FR as covered with their per-probe capability, and renders unobserved regions with the negative-space treatment. The Probe 0 Dossier "Coverage in context" panel shows 2/4 function coverage with explicit naming of the unobserved functions (Cohesion & Identity, Subversion & Friction).
+* [ ] The auto-generated `add-a-language.md` matches the hand-maintained version's content (one-time verification before retiring the hand-maintained source).
 
 ---
 
@@ -2527,10 +2739,13 @@ The Iteration-6 → Iteration-7 sequencing in the rationale block remains the re
 
 * [ ] **Arc42 updates.** §8.x chapters updated with the full Iteration-5/6/7/8 architecture: navigation chrome, three surfaces with their priorities, five-layer redistribution, view-mode matrix including topic cells, methodology tray, Silver-layer toggle, probe-first emission, Composition Workspace, multi-probe parallel streams, equivalence registry, normalization parameter, multilingual NLP routing, entity linking, Tier 2 BERT extractors, BERTopic per-language partitioning. Cross-references to the Design Brief.
 * [ ] **Reframing-note cleanup.** Delete `docs/design/reframing-note.md` — its content was merged into `design_brief.md` by Step 2 of the reframing; the file has served its purpose.
+* [ ] **`docs/extending/` consolidation review.** Verify the six extending guides (`README.md`, `add-a-probe.md`, `add-a-language.md`, `add-a-source-type.md`, `add-an-extractor.md`, `scalability-roadmap.md`) reflect the post-Iteration-7 reality: ADR-023 (multilingual sentiment), ADR-024 (Capability Manifest, implemented in Phase 118a), Phase 122a (Coverage Map operational), Phase 123 (first equivalence grant). Cross-references to `ROADMAP.md` use the GitHub absolute URL convention (`https://github.com/frogfromlake/aer/blob/main/ROADMAP.md`) per the MkDocs strict-build constraint.
+* [ ] **ADR-025 / ADR-026 deferred-status review.** ADRs 025 (Cultural Calendar Composition) and 026 (Multilingual NER Fallback) are deferred sketches. Verify their trigger conditions are still accurate against current probe count and language coverage; if a trigger has been hit (e.g. N≥10 probes, N≥5 unsupported languages), upgrade the ADR to "Pending implementation" and create a corresponding ROADMAP phase.
+* [ ] **Auto-generated `add-a-language.md` cutover.** Per Phase 122a, the `add-a-language.md` matrix is auto-generated from the Capability Manifest at MkDocs build time. Phase 128 verifies the cutover is complete: hand-maintained content has been migrated; the regenerated version matches the hand-maintained reference; the hand-maintained source is retired.
 * [ ] **Terminology reconciliation ADR.** Draft the post-Iteration-8 terminology-reconciliation ADR (Path A evaluation per Brief §6): scope the cost of renaming "Probe" → "Probe Constellation" and "Source" → "Probe" across schema, API, content, and UI. Now that two probes exist (Phase 122) and cross-probe operations are live (Phase 123), the renaming pressure is concrete rather than hypothetical. Propose either a migration path (Path A) or recommend sticking with Path B permanently. Opens as a PR for review; does not land in this phase.
 * [ ] **BFF Content Update.** With the NLP hardening we changed our approaches and updated methodology so we need to check if the static content the bff serves the frontend is still correct services/bff-api/configs/content/ and services/bff-api/configs/probes/.
 * [ ] **MkDocs navigation update.** Any new Arc42 sections reflected in `mkdocs.yml`.
-* [ ] **Operations Playbook update.** Any new operational procedures added since Phase 119 (probe-pair bring-up procedure, equivalence-grant procedure, baseline-run procedure, custom-lexicon extension, Wikidata-alias-index refresh, BERTopic re-fit).
+* [ ] **Operations Playbook update.** Any new operational procedures added since Phase 119 (probe-pair bring-up procedure, equivalence-grant procedure, baseline-run procedure, custom-lexicon extension, Wikidata-alias-index refresh, BERTopic re-fit, Language Capability Manifest editing).
 * [ ] **Validation.** MkDocs builds clean; all Arc42 cross-references resolve; terminology ADR PR opened; Completed Phases index in `ROADMAP.md` reflects all landed phases.
 
 ---
@@ -2542,7 +2757,9 @@ The Iteration-6 → Iteration-7 sequencing in the rationale block remains the re
 - **Iteration 6 (NLP Hardening) leads with Phase 116 (Multilingual Foundation)** because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not just a Probe 1 prerequisite. Fixing language routing before improving the German-specific extractors prevents contaminated near-zero values from accumulating in the Gold layer and ensures the German-path regression guards in Phases 117–118 run on clean baselines.
 - **Phase 117 (Sentiment Tier 1 hardening) uses dependency-based negation scope rather than token-distance heuristics**, and `compound-split` rather than a hand-maintained frequency list. Both choices are deterministic (Tier 1 compatible) but scientifically defensible (WP-002 §3.2 cites linguistic literature, not engineering heuristics). The metric is renamed `sentiment_score_sentiws` to make ADR-016's dual-metric pattern lexically explicit ahead of Phase 119.
 - **Phase 118 (Entity Linking) keeps the alias-DB approach** and explicitly rejects transformer-based linkers (BLINK, ReFinED, mGENRE) for this iteration: they are predominantly English-trained, require GPU inference, and add model-dependency risk. The alias-DB approach is multilingual-by-construction and Tier-1.5 in spirit — fully deterministic at extraction time. Transformer-based linking is a viable Tier-2 add-on for a later iteration.
-- **Phase 119 (Tier 2 BERT) chooses `mdraw/german-news-sentiment-bert` over `oliverguhr/german-sentiment-bert`** because the latter is review-trained and Probe 0 is editorial RSS — exactly the domain transfer WP-002 §3.2 documents as a primary failure mode. Both extractors run side-by-side as a deliberate on-pipeline domain-transfer comparison, ready for the Phase 63 validity-table population when annotation studies arrive.
+- **Phase 118a (Language Capability Manifest, ADR-024)** consolidates the per-language analytical capability declarations that Phase 116 and 117 shipped distributed across five touchpoints. The manifest is the SSoT for NER routing, Sentiment routing (including negation config), the auto-generated `metric_validity` scaffold, and the BFF `?language=` validator. Phase 119 and Phase 122 are direct downstream consumers — by the close of Iteration 7, adding a new language is a single YAML block with computable downstream effects rather than a five-touchpoint refactor. Phase 118a is positioned after 118 because 118 was already in implementation when ADR-024 was ratified; honest sequencing means a dedicated migration phase, not retroactive amendment.
+- **Phase 122a (Probe Coverage Map, WP-001 §5.3)** operationalises the coverage transparency that becomes a navigational necessity at N≥2 probes. Hard prerequisite is Phase 118a's Capability Manifest — the map's analytical-capability rendering reads from the manifest. The map is explicitly *not* a comparative ranking instrument (Brief §1.3 forbids that); it is a transparency surface that shows what AĒR sees and, deliberately, what it is blind to (Manifesto §II Digital Divide acknowledgment). The phase also retires the hand-maintained `docs/extending/add-a-language.md` matrix in favour of manifest-driven auto-generation.
+- **Phase 119 (Tier 2 Sentiment) implements ADR-023** — multilingual model as the Tier 2 default (one extractor, scales O(1) per language addition), German news-domain model as Tier 2.5 refinement (`mdraw/german-news-sentiment-bert`, in-domain quality where it matters), and the `oliverguhr/german-sentiment-bert` review-domain baseline demoted to an optional Tier 2.5 entry. The dual-metric pattern of ADR-016 is preserved; the methodological purpose of on-pipeline domain-transfer evidence (WP-002 §3.2) is served by the multilingual-vs-news-domain gap rather than the multilingual-vs-review-domain gap, at lower operational cost.
 - **Phase 120 (BERTopic) chooses `intfloat/multilingual-e5-large` over MPNet** because E5-large is the post-2024 multilingual SOTA on retrieval/clustering benchmarks (MTEB) and outperforms MPNet on long-form news text. Per-language topic partitioning honours WP-004 §3.4's "parallel topic discovery with human-validated alignment" recommendation explicitly.
 - **Iteration 7 splits Probe 1 (Phase 122) from Cross-Cultural Operations (Phase 123).** Phase 122 is the second-cultural-context infrastructure landing; Phase 123 is the operational counterpart to Phase 115's schema work — first baseline run, first equivalence grant (temporal level only — WP-004 Appendix B always-valid), first cross-probe lead-lag observation. The split honours the Brief §1.3 "composition, not comparison" boundary: 122 establishes the second context; 123 puts it into methodologically disciplined comparison.
 - **Iteration 8 (Composition + Interactive Reflection) requires the full upstream stack** to be scientifically meaningful: composition mode is richest with canonical entity nodes (118), topic-dimension cards (120), and real cross-probe data (122, 123); interactive Reflection illustrations need the negation handler (117), the equivalence gate (115), and real cross-probe data (123) to make the Level-3 refusal feel real.
