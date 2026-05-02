@@ -47,7 +47,7 @@ logging.basicConfig(
 log = logging.getLogger("build_wikidata_index")
 
 WIKIDATA_SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
-PAGE_SIZE = 5000
+PAGE_SIZE = 2000
 USER_AGENT = (
     "AER-WikidataIndexBuilder/1.0 "
     "(https://github.com/frogfromlake/aer; bot@example.invalid) "
