@@ -235,6 +235,17 @@ nav:
           - "Observer Effect (WP-006)": probes/probe-0-de-institutional-rss/observer_effect.md
 
   # ---------------------------------------------------------------------------
+  # Extending — NEU EINFÜGEN
+  # ---------------------------------------------------------------------------
+  - "Extending":
+      - "Overview": extending/README.md
+      - "Adding a Probe": extending/add-a-probe.md
+      - "Adding a Language": extending/add-a-language.md
+      - "Adding a Source Type": extending/add-a-source-type.md
+      - "Adding an Extractor": extending/add-an-extractor.md
+      - "Scalability Roadmap": extending/scalability-roadmap.md
+
+  # ---------------------------------------------------------------------------
   # Operations
   # ---------------------------------------------------------------------------
   - "Operations":

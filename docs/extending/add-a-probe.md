@@ -48,7 +48,7 @@ Each step links to the canonical procedure. **Do not duplicate** content from th
 Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../operations_playbook.md#probe-dossier) verbatim:
 
 1. `mkdir docs/probes/<probe-id>/`
-2. Copy the five files from `docs/probes/probe-0-de-institutional-rss/` and replace the content. Keep the headings stable.
+2. Copy the five files from `docs/probes/../probes/probe-0-de-institutional-rss/` and replace the content. Keep the headings stable.
 3. The `README.md` Exit Criteria section names the same four conditions as Probe 0's: Steps 1–2 of WP-001 §4.4, function-weight quantification, at least one validation study in the new context-keys, completed external ethical review.
 4. Add the dossier to `mkdocs.yml` under the `Probes` nav entry.
 
@@ -102,7 +102,7 @@ These items are deliberately out of scope for the solo developer. They are unblo
 - [Scientific Operations Guide → Workflow 1](../scientific_operations_guide.md#workflow-1-classifying-a-new-probe) — the canonical end-to-end probe classification process.
 - [Operations Playbook → Source Classifications (WP-001)](../operations_playbook.md#source-classifications-wp-001) — the SQL templates.
 - [Operations Playbook → Probe Dossier](../operations_playbook.md#probe-dossier) — the dossier-creation procedure.
-- [Probe 0 reference dossier](probe-0-de-institutional-rss/) — the reference implementation. Copy this structure.
+- [Probe 0 reference dossier](../probes/probe-0-de-institutional-rss/README.md) — the reference implementation. Copy this structure.
 - [Arc42 §8.15 Probe Dossier Pattern](../arc42/08_concepts.md) — the cross-cutting concept that this guide operationalises for the solo case.
 - [Arc42 §13.10 Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification, the precedent for solo-developer probe addition.
-- [ROADMAP Phase 122](../../ROADMAP.md) — the canonical engineering checklist for Probe 1.
+- [ROADMAP Phase 122](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.
