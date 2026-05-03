@@ -32,10 +32,10 @@ on:
         type: string
         default: 'de,en,fr'
       dump_url:
-        description: 'Wikidata truthy-dump URL. Default = official latest-truthy.nt.bz2 (~43 GB).'
+        description: 'Wikidata truthy-dump URL. Default = your.org mirror, latest-truthy.nt.bz2 (~43 GB).'
         required: false
         type: string
-        default: 'https://dumps.wikimedia.your.org/wikidatawiki/entities/latest-all.ttl.bz2'
+        default: 'https://dumps.wikimedia.your.org/wikidatawiki/entities/latest-truthy.nt.bz2'
 
   # Scheduled trigger — quarterly, 1st of Jan/Apr/Jul/Oct at 02:00 UTC.
   # Commented out until Phase 118b ships and a dump-based run is verified
@@ -52,7 +52,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}-wikidata-index
-  DUMP_PATH: /tmp/wikidata-all.ttl.bz2
+  DUMP_PATH: /tmp/wikidata-truthy.nt.bz2
 
 jobs:
   rebuild:
@@ -86,7 +86,7 @@ jobs:
       - name: Download Wikidata truthy dump
         id: download
         run: |
-          DUMP_URL="${{ inputs.dump_url || 'https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2' }}"
+          DUMP_URL="${{ inputs.dump_url || 'https://dumps.wikimedia.your.org/wikidatawiki/entities/latest-truthy.nt.bz2' }}"
           echo "Downloading: $DUMP_URL"
           # `-c` resumes a partial download; `--tries=3` retries the whole
           # transfer on TLS / connection failures; `--read-timeout=300`
