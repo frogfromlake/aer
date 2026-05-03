@@ -1,0 +1,85 @@
+# =============================================================================
+# Wikimedia Bandwidth Probe
+# =============================================================================
+# One-shot diagnostic workflow to measure effective download bandwidth from
+# GitHub-hosted runners to Wikimedia mirrors. Used to size Phase 118b's
+# wikidata_index_rebuild workflow against the realistic 6-hour-per-job
+# limit. Delete this file once the size question is settled.
+# =============================================================================
+
+name: Wikimedia Bandwidth Probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe Wikimedia mirror throughput
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Probe primary — dumps.wikimedia.org
+        run: |
+          echo "=== latest-truthy.nt.bz2 from dumps.wikimedia.org ==="
+          curl -o /dev/null \
+            -w "speed_download_bytes_per_sec=%{speed_download}\ntotal_seconds=%{time_total}\nbytes_downloaded=%{size_download}\nhttp_code=%{http_code}\n" \
+            --max-time 60 \
+            "https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2" \
+            || echo "curl exit code: $?"
+          echo
+
+          echo "=== latest-all.ttl.bz2 from dumps.wikimedia.org ==="
+          curl -o /dev/null \
+            -w "speed_download_bytes_per_sec=%{speed_download}\ntotal_seconds=%{time_total}\nbytes_downloaded=%{size_download}\nhttp_code=%{http_code}\n" \
+            --max-time 60 \
+            "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.ttl.bz2" \
+            || echo "curl exit code: $?"
+
+      - name: Probe US mirror — your.org
+        run: |
+          echo "=== latest-all.ttl.bz2 from dumps.wikimedia.your.org ==="
+          curl -o /dev/null \
+            -w "speed_download_bytes_per_sec=%{speed_download}\ntotal_seconds=%{time_total}\nbytes_downloaded=%{size_download}\nhttp_code=%{http_code}\n" \
+            --max-time 60 \
+            "https://dumps.wikimedia.your.org/wikidatawiki/entities/latest-all.ttl.bz2" \
+            || echo "curl exit code: $?"
+
+      - name: Probe UK mirror — bytemark
+        run: |
+          echo "=== latest-all.ttl.bz2 from wikimedia.bytemark.co.uk ==="
+          curl -o /dev/null \
+            -w "speed_download_bytes_per_sec=%{speed_download}\ntotal_seconds=%{time_total}\nbytes_downloaded=%{size_download}\nhttp_code=%{http_code}\n" \
+            --max-time 60 \
+            "https://wikimedia.bytemark.co.uk/wikidatawiki/entities/latest-all.ttl.bz2" \
+            || echo "curl exit code: $?"
+
+      - name: Probe Sweden mirror — acc.umu.se
+        run: |
+          echo "=== latest-all.ttl.bz2 from mirror.accum.se ==="
+          curl -o /dev/null \
+            -w "speed_download_bytes_per_sec=%{speed_download}\ntotal_seconds=%{time_total}\nbytes_downloaded=%{size_download}\nhttp_code=%{http_code}\n" \
+            --max-time 60 \
+            "https://mirror.accum.se/mirror/wikimedia.org/dumps/wikidatawiki/entities/latest-all.ttl.bz2" \
+            || echo "curl exit code: $?"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Bandwidth Probe Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Each probe ran for up to 60 seconds. Look for the highest" >> $GITHUB_STEP_SUMMARY
+          echo "\`speed_download_bytes_per_sec\` value in the step logs above." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Calibration table" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Speed | latest-truthy (43GB) | latest-all.ttl (74GB) |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 5 MB/s   | 2h 23min  | 4h 6min   |" >> $GITHUB_STEP_SUMMARY
+          echo "| 10 MB/s  | 1h 12min  | 2h 3min   |" >> $GITHUB_STEP_SUMMARY
+          echo "| 20 MB/s  | 36 min    | 62 min    |" >> $GITHUB_STEP_SUMMARY
+          echo "| 50 MB/s  | 14 min    | 25 min    |" >> $GITHUB_STEP_SUMMARY
+          echo "| 100 MB/s | 7 min     | 12 min    |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Add ~90min build time to download time for total job duration." >> $GITHUB_STEP_SUMMARY
+          echo "GitHub-Actions per-job hard limit: 6h (360min)." >> $GITHUB_STEP_SUMMARY
