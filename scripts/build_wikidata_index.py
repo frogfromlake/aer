@@ -187,7 +187,7 @@ def _iter_triples(
     truncated = False
     with _open_dump(dump_path) as f:
         try:
-            for quad in parse(input=f, format=RdfFormat.N_TRIPLES):
+            for quad in parse(input=line_bytes, format=RdfFormat.TURTLE):
                 n += 1
                 if n % PROGRESS_INTERVAL == 0:
                     log.info("scanned %d triples", n)
