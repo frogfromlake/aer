@@ -564,13 +564,23 @@ docker inspect ghcr.io/frogfromlake/aer-wikidata-index:${WIKIDATA_INDEX_TAG} \
 
 This is the silent-drift guard working correctly — never disable it in production.
 
-### `wikidata-index-init` exits non-zero
+### `wikidata-index-init` exits non-zero (sha256 mismatch)
 
 **Symptoms:** init container exits with non-zero code; logs show `sha256sum: WARNING: 1 computed checksum did NOT match`.
 
 **Cause:** the image was built with a corrupted `data/wikidata_aliases.db` that doesn't match its sidecar.
 
 **Resolution:** rebuild the image (Part 3 Step 3); the in-Dockerfile self-test (`CMD sha256sum -c`) would have caught this if you ran it (Step 3 final command).
+
+### `wikidata-index-init`: `cp: can't create '/data/…': Permission denied`
+
+**Symptoms:** init container exits 1 immediately; logs show `cp: can't create '/data/wikidata_aliases.db': Permission denied`.
+
+**Cause:** the image runs as `aer` (uid 10001) per its Dockerfile `USER` directive, but a freshly-created Docker named volume is owned by `root:root` mode 0755 — uid 10001 cannot write into it. This bites on first deployment of a fresh stack and on every `docker volume rm aer_wikidata_data` followed by re-init.
+
+**Resolution:** the compose service declares `user: "0:0"` so the init container runs as root for the provisioning phase. The provisioned files are `chmod 0644` so the analysis-worker reads them under any UID through its read-only mount. If you see this error after a deployment, verify `compose.yaml` still has `user: "0:0"` on `wikidata-index-init` — the override is load-bearing for fresh-volume bootstrap.
+
+This is the standard init-container pattern (mirrors `nats-init` / `minio-init` / `clickhouse-init`); Hard Rule 5 isolates provisioning from runtime.
 
 ---
 

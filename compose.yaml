@@ -335,18 +335,33 @@ services:
     image: ghcr.io/frogfromlake/aer-wikidata-index:${WIKIDATA_INDEX_TAG:-latest}
     container_name: aer_wikidata_index_init
     restart: "no"
+    # Run as root for the provisioning phase only — overriding the image's
+    # USER aer (uid 10001). A freshly-created Docker named volume is owned
+    # root:root 755 and an unprivileged user inside the container cannot
+    # write into it. The worker mounts the same volume read-only and reads
+    # the chmod 0644 files with any UID, so worker-side hardening is not
+    # affected. Standard init-container pattern; mirrors how nats-init /
+    # minio-init / clickhouse-init provision their respective stores
+    # (Hard Rule 5).
+    user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
+    # Mount path aligned with the analysis-worker's
+    # `wikidata_data:/data/wikidata:ro` mount — both containers see the
+    # index at the same path `/data/wikidata/wikidata_aliases.db`. The
+    # earlier asymmetric setup (init at /data, worker at /data/wikidata)
+    # was operationally confusing.
     command: >
       "
         set -e
-        cp /index/wikidata_aliases.db /data/
-        cp /index/wikidata_aliases.db.sha256 /data/
-        cd /data && sha256sum -c wikidata_aliases.db.sha256
+        cp /index/wikidata_aliases.db /data/wikidata/
+        cp /index/wikidata_aliases.db.sha256 /data/wikidata/
+        chmod 0644 /data/wikidata/wikidata_aliases.db /data/wikidata/wikidata_aliases.db.sha256
+        cd /data/wikidata && sha256sum -c wikidata_aliases.db.sha256
         echo 'wikidata-index-init: copy + checksum verified'
         cat wikidata_aliases.db.sha256
       "
     volumes:
-      - wikidata_data:/data
+      - wikidata_data:/data/wikidata
     networks:
       - aer-backend
 
