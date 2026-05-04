@@ -266,6 +266,7 @@ func (e ProbeDossierSourcesSecondaryFunction) Valid() bool {
 // Defines values for RefusalPayloadGate.
 const (
 	Equivalence       RefusalPayloadGate = "equivalence"
+	InvalidLanguage   RefusalPayloadGate = "invalid_language"
 	KAnonymity        RefusalPayloadGate = "k_anonymity"
 	MetricEquivalence RefusalPayloadGate = "metric_equivalence"
 	SilverEligibility RefusalPayloadGate = "silver_eligibility"
@@ -275,6 +276,8 @@ const (
 func (e RefusalPayloadGate) Valid() bool {
 	switch e {
 	case Equivalence:
+		return true
+	case InvalidLanguage:
 		return true
 	case KAnonymity:
 		return true
@@ -890,7 +893,7 @@ type RefusalPayload struct {
 	// Alternatives Concrete user-actionable alternatives the dashboard can offer when the gate refuses (Phase 115). Each entry is a short imperative describing what the user can do to obtain a comparable view — e.g. "drop normalization to Level 1 (temporal patterns only)", "constrain scope to one cultural frame", "use deviation labelling instead of an absolute claim".
 	Alternatives *[]string `json:"alternatives,omitempty"`
 
-	// Gate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
+	// Gate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`. The `invalid_language` value (Phase 118a / ADR-024) is returned when a `?language=` query parameter is not declared in the Language Capability Manifest; `alternatives` then carries the manifest's sorted language codes.
 	Gate RefusalPayloadGate `json:"gate"`
 
 	// Message Human-readable summary of the refusal.
@@ -906,7 +909,7 @@ type RefusalPayload struct {
 	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
-// RefusalPayloadGate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
+// RefusalPayloadGate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`. The `invalid_language` value (Phase 118a / ADR-024) is returned when a `?language=` query parameter is not declared in the Language Capability Manifest; `alternatives` then carries the manifest's sorted language codes.
 type RefusalPayloadGate string
 
 // Source defines model for Source.

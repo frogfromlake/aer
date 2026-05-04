@@ -8,6 +8,11 @@ WORKDIR /workspace
 COPY go.work go.work.sum ./
 COPY pkg/ pkg/
 COPY services/bff-api/ services/bff-api/
+# Phase 118a / ADR-024: the Language Capability Manifest is authored once
+# in the analysis worker's configs and consumed by both the worker and the
+# BFF (`?language=` validator). Copying it in at build time keeps the
+# manifest a single SoT.
+COPY services/analysis-worker/configs/language_capabilities.yaml services/bff-api/configs/language_capabilities.yaml
 # Workspace stubs: go.mod required for all modules listed in go.work
 COPY services/ingestion-api/go.mod services/ingestion-api/go.mod
 COPY crawlers/rss-crawler/go.mod crawlers/rss-crawler/go.mod

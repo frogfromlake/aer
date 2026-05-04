@@ -11,10 +11,10 @@ The architecture is layered. Some layers are language-agnostic (handle X without
 | Layer | Concern | Status | What you do for language X | Effort |
 | :--- | :--- | :--- | :--- | :--- |
 | **Language detection (Phase 116)** | Routing input | ✅ Multilingual-by-construction | Nothing. `lingua-py` covers 75+ languages. | 0 |
-| **NER (Phase 116 + 42)** | Entity extraction | 🔧 Language-routed | Add `<lang>_core_news_lg` to `requirements.txt`; one entry to NER language map. If no spaCy model exists, NER degrades gracefully (Phase 116 absence-not-wrong). | 5 min, or 0 with degraded NER |
+| **NER (Phase 116 + 42, manifest-driven Phase 118a)** | Entity extraction | 🔧 Manifest-routed | Add `<lang>_core_news_lg` to `requirements.txt`; add a `languages.<code>.ner` block to `configs/language_capabilities.yaml`. If no spaCy model exists, NER degrades gracefully (Phase 116 absence-not-wrong). | 5 min, or 0 with degraded NER |
 | **Wikidata Entity Linking (Phase 118)** | QID disambiguation | ✅ Multilingual-by-construction | Re-build the Wikidata alias index with the new language code in the build-script's language set. Quarterly rebuild anyway. | 0 marginal — fold into next index rebuild |
-| **Sentiment Tier 1 (Phase 117 pattern)** | Deterministic baseline | 🔧 Language-routed | If a deterministic lexicon exists for X (FEEL for `fr`, AFINN, custom YAML), add it via the custom-lexicon-hook pattern; add language to `SentimentExtractor` language map. If none exists: skip — Phase 116 language guard ensures graceful absence. | 1–4 h with lexicon, 0 without |
-| **Sentiment negation handler (Phase 117 pattern)** | Tier 1 quality | 🔧 Language-routed | Add language entry to `extractors/_negation_config.py`: negation particles + clause-coordinating conjunctions + spaCy `neg` dep tag for the language. Compound-split is German-specific and not needed for most other languages. | 1–2 h |
+| **Sentiment Tier 1 (Phase 117 / 118a pattern)** | Deterministic baseline | 🔧 Manifest-routed | If a deterministic lexicon exists for X (FEEL for `fr`, AFINN, custom YAML), add it via the custom-lexicon-hook pattern and add a `languages.<code>.sentiment_tier1` block to `configs/language_capabilities.yaml`. If none exists: skip — the absence of the block is the language guard. | 1–4 h with lexicon, 0 without |
+| **Sentiment negation handler (Phase 117 / 118a pattern)** | Tier 1 quality | 🔧 Manifest-routed | Author `languages.<code>.sentiment_tier1.negation` in the manifest: negation particles, clause-coordinating conjunctions, spaCy `neg` dep label, plus the clause-boundary dep set. Compound-split is German-specific and not needed for most other languages. | 1–2 h |
 | **Sentiment Tier 2 BERT (Phase 119 pattern)** | Validated transformer baseline | 🔧 Language-routed | Either (a) extend the multilingual BERT extractor (one model handles all languages — see ADR-022 *Multilingual Sentiment Strategy*) or (b) add a new per-language extractor following the Phase 119 dual-extractor pattern. Per-language is higher quality, multilingual is operationally cheaper. | 0 if multilingual default suffices, 0.5–1 day per per-language model |
 | **BERTopic (Phase 120)** | Topic modeling | ✅ Multilingual-by-construction | Nothing. `intfloat/multilingual-e5-large` covers 100 languages. Per-language topic partitioning is automatic via Phase 120's WP-004 §3.4 implementation. | 0 |
 | **Cultural Calendar** | Temporal context for WP-004 §6.3 Level 1 | 🔧 Per-region content | Author `services/analysis-worker/configs/cultural_calendars/<region>.yaml` with public holidays, election dates, recurring media events. Required *before* a temporal-equivalence grant for any probe-pair involving the new language (Phase 123 / Workflow 6). | 1–4 h |
@@ -51,44 +51,48 @@ For a probe where you want full analytical parity with German Probe 0:
 
 ---
 
-## Language Capability Manifest (planned)
+## Language Capability Manifest (Phase 118a / ADR-024)
 
-A planned addition (see [scalability-roadmap.md](scalability-roadmap.md) item #2) is a single source of truth for per-language capabilities at `services/analysis-worker/configs/language_capabilities.yaml`:
+`services/analysis-worker/configs/language_capabilities.yaml` is the single source of truth for per-language capability. It is the executable form of the matrix above.
 
 ```yaml
-# Example sketch — not yet implemented
-de:
-  ner_model: de_core_news_lg
-  ner_model_version: "3.8.0"
-  tier1_sentiment_lexicon: sentiws-v2.0
-  tier1_sentiment_features: [negation, compound_split, custom_lexicon]
-  tier2_sentiment_models:
-    - mdraw/german-news-sentiment-bert  # primary, news-domain
-    - oliverguhr/german-sentiment-bert  # secondary, review-domain baseline
-  cultural_calendar: de.yaml
-  multilingual_fallbacks_used: []
+manifest_version: 1
 
-fr:
-  ner_model: fr_core_news_lg
-  ner_model_version: "3.8.0"
-  tier1_sentiment_lexicon: feel-v1.0
-  tier1_sentiment_features: [negation, custom_lexicon]   # no compound_split
-  tier2_sentiment_models:
-    - cmarkea/distilcamembert-base-sentiment
-  cultural_calendar: fr.yaml
-  multilingual_fallbacks_used: []
+languages:
+  de:
+    iso_code: de
+    display_name: German
+    ner:
+      tier: 1.5
+      model: de_core_news_lg
+      model_version: "3.8.0"
+    sentiment_tier1:
+      tier: 1
+      method: lexicon
+      lexicon: sentiws_v2.0
+      features: [negation_dependency, compound_split, custom_lexicon]
+      negation:
+        particles: [nicht, kein, keine, ...]
+        clause_boundaries: [weil, dass, obwohl, ...]
+        spacy_neg_dep: neg
+        spacy_neg_deps_extra: [ng]
+        clause_boundary_deps: [cc, mark, cp, oc, re, cj, cd]
+      metric_name: sentiment_score_sentiws
+    cultural_calendar:
+      region_default: de
+      file: cultural_calendars/de.yaml
 
-# ...
+shared: {}   # populated by Phase 119 with shared.multilingual_bert
 ```
 
-Once implemented, the manifest drives:
+Consumers:
 
-- The NER and Sentiment language routing (replaces hard-coded language maps).
-- Auto-generation of `aer_gold.metric_validity` scaffold rows for each `(metric_name, context_key)` pair.
-- The Probe Coverage Map (planned phase) showing analytical capability per probe.
-- This very matrix — generated from the manifest, not hand-written.
+- `NamedEntityExtractor` reads `languages.<code>.ner.model` for routing.
+- `SentimentExtractor` reads `languages.<code>.sentiment_tier1` for the lexicon, feature flags, and negation cues.
+- `scripts/generate_metric_validity_scaffold.py` (run via `make scaffold-metric-validity`) emits one block per `(language, metric_name, tier)` triple into `infra/clickhouse/seed/metric_validity_scaffold_generated.sql`. Drift is a CI failure.
+- The BFF reads the same YAML at startup and gates every endpoint that accepts `?language=` against the manifest's keys; unknown values produce a structured `gate=invalid_language` refusal payload.
 
-Until the manifest exists, the touchpoint matrix above is the hand-maintained reference. The matrix and the manifest are equivalent in intent — the manifest is the executable form.
+The matrix above remains hand-maintained for now. Auto-generation of the matrix from the manifest is slated for Phase 122a.
 
 ---
 
@@ -104,31 +108,39 @@ Concrete diff for adding French support, as a reference for future language addi
 +https://github.com/explosion/spacy-models/releases/download/fr_core_news_lg-3.8.0/fr_core_news_lg-3.8.0-py3-none-any.whl
 ```
 
-### NER language map
+### `configs/language_capabilities.yaml`
+
+A single manifest edit replaces what used to be a NER map entry, a negation-config entry, and a metric_validity scaffold edit (Phase 118a / ADR-024):
 
 ```diff
- NER_LANGUAGE_MODELS = {
-     "de": "de_core_news_lg",
-+    "fr": "fr_core_news_lg",
- }
+ languages:
+   de:
+     iso_code: de
+     ...
++  fr:
++    iso_code: fr
++    display_name: French
++    ner:
++      tier: 1.5
++      model: fr_core_news_lg
++      model_version: "3.8.0"
++    sentiment_tier1:
++      tier: 1
++      method: lexicon
++      lexicon: feel_v1.0
++      features: [negation_dependency, custom_lexicon]   # no compound_split
++      negation:
++        particles: [ne, pas, non, jamais, plus, rien, aucun, aucune, personne, nulle]
++        clause_boundaries: [parce, que, lorsque, quand, bien]
++        spacy_neg_dep: neg
++        clause_boundary_deps: [cc, mark]
++      metric_name: sentiment_score_feel
++    cultural_calendar:
++      region_default: fr
++      file: cultural_calendars/fr.yaml
 ```
 
-### `extractors/_negation_config.py`
-
-```diff
- NEGATION_CONFIG = {
-     "de": NegationLanguageConfig(
-         particles={"nicht", "kein", "keine", "keiner", "keines", "keinem", "keinen", "niemals", "nie", "nirgends", "kaum"},
-         clause_boundaries={"weil", "dass", "obwohl", "während", "nachdem", "bevor"},
-         spacy_neg_dep="neg",
-     ),
-+    "fr": NegationLanguageConfig(
-+        particles={"ne", "pas", "non", "jamais", "plus", "rien", "aucun", "aucune", "personne", "nulle"},
-+        clause_boundaries={"parce", "que", "lorsque", "quand", "bien"},
-+        spacy_neg_dep="neg",
-+    ),
- }
-```
+Then run `make scaffold-metric-validity` to regenerate `infra/clickhouse/seed/metric_validity_scaffold_generated.sql` and commit the diff.
 
 ### `data/sentiment_lexica/`
 

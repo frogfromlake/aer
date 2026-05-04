@@ -68,11 +68,27 @@ def test_named_entity_extractor_protocol_conformance():
 def test_named_entity_extractor_satisfies_metric_extractor():
     """Tests that NamedEntityExtractor satisfies the unified MetricExtractor protocol.
 
-    Phase 116: the constructor now takes a `language_to_model` map. Pointing
-    every language at a non-installed model exercises the OSError fallback
-    path without requiring a real spaCy model on disk.
+    Phase 118a (ADR-024): language→model routing comes from the Capability
+    Manifest. Pointing the `de` block at a non-installed model exercises the
+    OSError fallback path without requiring a real spaCy model on disk.
     """
-    extractor = NamedEntityExtractor(language_to_model={"de": "nonexistent_model_for_test"})
+    from internal.models.language_capability import (
+        CapabilityManifest,
+        LanguageCapability,
+        NerCapability,
+    )
+
+    manifest = CapabilityManifest(
+        manifest_version=1,
+        languages={
+            "de": LanguageCapability(
+                iso_code="de",
+                display_name="German",
+                ner=NerCapability(tier=1.5, model="nonexistent_model_for_test", model_version="0"),
+            ),
+        },
+    )
+    extractor = NamedEntityExtractor(manifest=manifest)
     assert isinstance(extractor, MetricExtractor)
     assert extractor.name == "named_entity"
 

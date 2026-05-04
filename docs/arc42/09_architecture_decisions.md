@@ -1236,8 +1236,8 @@ Future probes:
 | Property | Value |
 | :--- | :--- |
 | **Date** | 2026-05-02 |
-| **Status** | Accepted |
-| **Relates to** | Phase 116, Phase 122, ADR-023, WP-001 §5.3 |
+| **Status** | Accepted — implemented in Phase 118a |
+| **Relates to** | Phase 116, Phase 118a, Phase 122, ADR-023, WP-001 §5.3 |
 
 ### Context
 

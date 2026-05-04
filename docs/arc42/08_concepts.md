@@ -943,3 +943,20 @@ Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 
 - The CSS filter approach for Surface I is deliberate: modifying the Three.js/WebGL rendering pipeline would require an engine API extension. A CSS filter applied to the canvas container achieves the visual inversion (foregrounding dark/unmonitored areas) without touching the engine. The filter is applied to the entire stage `div` so probe tooltips and the keyboard navigation list remain unaffected.
 - Demographic-skew annotations on Surface II are static prose referencing WP-003 §6.1. Dynamic annotation content (per-source demographic coverage assessments) is deferred pending CSS interdisciplinary review — static annotations prevent the overlay from silently doing nothing while keeping the research boundary visible.
 - The tray's `limitations-first` behaviour (Phase 108) is verified here end-to-end. The `negSpace` value read inside `MethodologyTray.svelte` flows from `urlState().negSpace` via `negativeSpaceActive()`, so the tray reacts reactively to URL changes without additional wiring.
+
+## 8.18 Language Capability Manifest (Phase 118a / ADR-024)
+
+`services/analysis-worker/configs/language_capabilities.yaml` is the system-of-record for per-language analytical capability across the AĒR analysis worker and the BFF API. It replaces the hard-coded language maps that lived inside `NamedEntityExtractor` (`_LANGUAGE_TO_MODEL`) and `SentimentExtractor` (the module-level `_NEGATION_CUES`, `_NEGATION_DEPS`, `_CLAUSE_BOUNDARY_DEPS` frozensets and the `_SUPPORTED_LANGUAGES` set) prior to Phase 118a.
+
+**Schema.** The Pydantic models live in `services/analysis-worker/internal/models/language_capability.py`. Root model `CapabilityManifest` carries `manifest_version: 1`, a `languages` map keyed by ISO code, and a `shared` block (Phase 119 will populate `shared.multilingual_bert` per ADR-023). Each `LanguageCapability` declares optional `ner`, `sentiment_tier1`, `sentiment_tier2_default`, `sentiment_tier2_refinement`, and `cultural_calendar` blocks. Validation errors at load time produce a structured `ConfigurationError` and the worker (or the BFF) refuses to start — there is no silent fallback.
+
+**Consumers.**
+
+- **`NamedEntityExtractor`** — model selection per detected language. Adding a new language is a manifest YAML edit plus the spaCy model in `requirements.txt`; the extractor stays untouched.
+- **`SentimentExtractor`** — negation particles, neg-dep labels, clause-boundary dep labels, and feature flags (`negation_dependency`, `compound_split`, `custom_lexicon`) are all read from the manifest's `sentiment_tier1.negation` block.
+- **`scripts/generate_metric_validity_scaffold.py`** — auto-emits `infra/clickhouse/seed/metric_validity_scaffold_generated.sql` with one block per `(language, metric_name, tier)` triple. The hand-maintained `metric_validity_scaffold.sql` is preserved for cross-context entries (e.g. `entity_link_confidence`). `make scaffold-metric-validity-check` is the CI drift gate.
+- **BFF `?language=` validator** — `config.LoadLanguageManifest` reads the same YAML (copied into the BFF runtime image at build time, see `services/bff-api/Dockerfile`). The validator gates every endpoint that takes a `?language=` query parameter; unknown codes produce HTTP 400 with the structured `gate=invalid_language` refusal payload and `alternatives=[...]` listing the manifest's sorted language codes.
+
+**Versioning commitment.** `manifest_version: 1` is the only currently-recognised version. Future schema bumps will arrive with explicit migration guidance per ADR-024; the `manifest_version` field exists precisely so a stale worker reading a future manifest fails fast at startup rather than silently degrading. The same fail-fast contract applies to the BFF.
+
+**Adding a language.** See `docs/extending/add-a-language.md` for the operator workflow. The matrix in that document is the human-readable view of the manifest; auto-generation of the matrix from the manifest is slated for Phase 122a.

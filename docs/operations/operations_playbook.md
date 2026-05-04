@@ -1272,6 +1272,35 @@ Adding a new domain is a one-PR change: append a YAML entry, run a workflow_disp
 
 ---
 
+## Editing the Language Capability Manifest
+
+`services/analysis-worker/configs/language_capabilities.yaml` is the system-of-record for per-language analytical capability across the analysis worker (`NamedEntityExtractor`, `SentimentExtractor`) and the BFF API (`?language=` validator). Phase 118a (ADR-024) introduced it as a single source of truth; before then the per-language settings were scattered across module-level constants in the extractors.
+
+### When to edit
+
+* **Adding a language.** Append a new top-level entry under `languages:` and add the corresponding spaCy model to `services/analysis-worker/requirements.txt` (the BFF needs no extra dependency; it copies the manifest in at image build time). The minimum useful entry has just `iso_code` and `display_name` — the BFF validator will then accept `?language=<code>`. Add `ner` and/or `sentiment_tier1` blocks to wire up extraction.
+* **Refining an existing block.** For sentiment, the `sentiment_tier1.features` flags (`negation_dependency`, `compound_split`, `custom_lexicon`) are validated against the extractor's known set — typos fail at startup. The `negation` sub-block lifts what used to be the module-level frozensets in `internal/extractors/sentiment.py`.
+* **Declaring a Tier-2 / Tier-2.5 refinement.** Phase 119 introduces `sentiment_tier2_default` and `sentiment_tier2_refinement`. Today these stay unset; the manifest schema accepts them so the scaffold generator picks them up automatically when Phase 119 lands.
+
+### Validation flow
+
+1. Run `make scaffold-metric-validity` after every manifest edit. The script regenerates `infra/clickhouse/seed/metric_validity_scaffold_generated.sql` deterministically from the manifest.
+2. Run `make test` (or at least `cd services/analysis-worker && ./.venv/bin/python -m pytest tests/test_phase118a_language_manifest.py tests/test_phase116_multilingual.py tests/test_phase117_sentiment.py`). The Phase 116/117 regression guards will refuse manifest edits that drift the German extractor outputs by more than the documented tolerance.
+3. The CI drift gate is `make scaffold-metric-validity-check` (or equivalently `git diff --exit-code` after the regenerate step).
+4. The worker's startup validates the manifest via Pydantic. Invalid YAML, an unknown top-level field, or an unsupported `manifest_version` produces a structured `ConfigurationError` and the container refuses to boot — never a silent fallback. The BFF carries the same fail-fast contract.
+
+### `manifest_version` evolution policy
+
+`manifest_version: 1` is the only currently-recognised value. Per ADR-024, any future schema-breaking change ships with:
+
+* a new `manifest_version` integer (no minor versioning);
+* a migration note in the ADR addendum;
+* simultaneous worker + BFF reader updates (so neither component can be partially-upgraded against an incompatible manifest).
+
+A worker (or BFF) reading a manifest with an unrecognised `manifest_version` refuses to start. This is the wedge that lets us evolve the schema safely without grandfather code paths.
+
+---
+
 ## Volume Management
 
 ```bash

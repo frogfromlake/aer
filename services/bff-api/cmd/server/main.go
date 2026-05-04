@@ -101,6 +101,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 6e. Load the Language Capability Manifest (ADR-024 / Phase 118a). The
+	// manifest is the SoT for valid `?language=` query-parameter values across
+	// every endpoint that takes one. Malformed or absent → fatal startup so
+	// the validator never silently degrades to a permissive default.
+	//
+	// In the runtime image the file is copied alongside the binary by the
+	// Dockerfile. For local `go run` the bundled BFF configs/ directory does
+	// not carry it, so we fall back to the SoT path under
+	// services/analysis-worker/configs/.
+	manifestPath := filepath.Join(cfg.ConfigDir, "language_capabilities.yaml")
+	if _, statErr := os.Stat(manifestPath); statErr != nil {
+		manifestPath = filepath.Join("..", "analysis-worker", "configs", "language_capabilities.yaml")
+	}
+	languageManifest, err := config.LoadLanguageManifest(manifestPath)
+	if err != nil {
+		slog.Error("Failed to load language capability manifest", "error", err)
+		os.Exit(1)
+	}
+
 	// 6c. Open the read-only PostgreSQL pool that backs /api/v1/sources.
 	// The pool is intentionally tiny: /sources is served from a TTL cache
 	// so we only need enough capacity to refresh every BFF_SOURCES_CACHE_TTL
@@ -132,6 +151,7 @@ func main() {
 		Articles:            chStore,
 		Silver:              silverStore,
 		KAnonymityThreshold: cfg.KAnonymityThreshold,
+		LanguageManifest:    languageManifest,
 	})
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 

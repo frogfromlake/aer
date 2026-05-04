@@ -1,0 +1,100 @@
+# Language Capability Manifest (ADR-024 / Phase 118a).
+#
+# Single system-of-record for per-language analytical capability across the
+# AĒR analysis worker and the BFF API. See
+# `services/analysis-worker/internal/models/language_capability.py` for the
+# Pydantic schema and `docs/extending/add-a-language.md` for the editorial
+# workflow.
+#
+# Editing rules:
+#   * Adding a language: add a new top-level entry under `languages:` and add
+#     the spaCy model to `services/analysis-worker/requirements.txt`. Then
+#     run `make scaffold-metric-validity` and commit the resulting diff in
+#     `infra/clickhouse/seed/metric_validity_scaffold_generated.sql`.
+#   * Refining an existing block: feature flags under `sentiment_tier1.features`
+#     are validated against the extractor's known set — typos fail at startup.
+#   * Tier-2 entries (`sentiment_tier2_default`, `sentiment_tier2_refinement`)
+#     are consumed from Phase 119 onward; today they remain unset.
+#   * `manifest_version` evolution policy is governed by ADR-024.
+
+manifest_version: 1
+
+languages:
+  de:
+    iso_code: de
+    display_name: German
+
+    # Phase 116/117 baseline. NER tier 1.5 = spaCy de_core_news_lg with the
+    # Wikidata alias-resolution sidecar wired up in Phase 118.
+    ner:
+      tier: 1.5
+      model: de_core_news_lg
+      model_version: "3.8.0"
+      provenance: "spaCy German news-domain large model"
+
+    # Phase 117 hardening: dependency-based negation, compound split, and
+    # custom-lexicon override. The negation block lifts the constants that
+    # used to live as module-level frozensets in
+    # `internal/extractors/sentiment.py` so a new language is a manifest
+    # edit, not an extractor patch.
+    sentiment_tier1:
+      tier: 1
+      method: lexicon
+      lexicon: sentiws_v2.0
+      features:
+        - negation_dependency
+        - compound_split
+        - custom_lexicon
+      negation:
+        # Surface-form negation cues. Includes the inflected forms of `kein`
+        # plus the standard sentence- and clause-level negators.
+        particles:
+          - nicht
+          - kein
+          - keine
+          - keiner
+          - keines
+          - keinem
+          - keinen
+          - keinerlei
+          - niemals
+          - nie
+          - nirgends
+          - nirgendwo
+          - kaum
+        # German subordinators that mark embedded-clause boundaries. Used by
+        # the operator-facing extending guide; the dependency walk uses the
+        # `clause_boundary_deps` list below for the actual scope clamp.
+        clause_boundaries:
+          - weil
+          - dass
+          - obwohl
+          - während
+          - nachdem
+          - bevor
+        # spaCy / TIGER dep relations that mark a negation cue.
+        spacy_neg_dep: neg
+        spacy_neg_deps_extra:
+          - ng
+        # Dep relations that the negation walk treats as clause edges so the
+        # inversion scope does not bleed into embedded clauses.
+        clause_boundary_deps:
+          - cc      # UD coordination
+          - mark    # UD subordinator
+          - cp      # TIGER complementiser
+          - oc      # TIGER clausal object
+          - re      # TIGER relative clause
+          - cj      # TIGER conjunct
+          - cd      # TIGER coordinator
+      metric_name: sentiment_score_sentiws
+
+    cultural_calendar:
+      region_default: de
+      file: cultural_calendars/de.yaml
+
+    notes:
+      - "Compound-split is German-specific (Phase 117); not applicable to non-agglutinating languages."
+
+# Cross-language shared resources. Phase 119 will populate
+# `shared.multilingual_bert` per ADR-023.
+shared: {}

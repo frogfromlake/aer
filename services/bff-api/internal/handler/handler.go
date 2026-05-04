@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -120,6 +121,12 @@ type Server struct {
 	articles            ArticleQuerier
 	silver              SilverFetcher
 	kAnonymityThreshold int
+	// languageManifest gates the `?language=` query parameter (Phase 118a /
+	// ADR-024). Nil is permitted only in legacy test constructors that do
+	// not exercise language-validated endpoints — callers that hit a
+	// language gate with a nil manifest get the same 500 path as a
+	// misconfigured stack.
+	languageManifest *config.LanguageManifest
 }
 
 // ServerOptions carries the optional, Phase 101-introduced dependencies
@@ -130,6 +137,7 @@ type ServerOptions struct {
 	Articles            ArticleQuerier
 	Silver              SilverFetcher
 	KAnonymityThreshold int
+	LanguageManifest    *config.LanguageManifest
 }
 
 // NewServer creates a new API server instance with only the legacy
@@ -151,6 +159,7 @@ func NewServerWithOptions(db Store, provenance config.MetricProvenanceMap, sourc
 	if s.kAnonymityThreshold <= 0 {
 		s.kAnonymityThreshold = 10
 	}
+	s.languageManifest = opts.LanguageManifest
 	return s
 }
 
@@ -186,6 +195,60 @@ var crossFrameRefusalAlternatives = []string{
 // crossFrameRefusalMessage is the human-readable summary attached to the
 // 400 RefusalPayload when a cross-frame normalization request is refused.
 const crossFrameRefusalMessage = "cross-cultural normalization requires validated metric equivalence across the resolved language set; granted out-of-band via WP-004 §5.2"
+
+// invalidLanguageGateID matches RefusalPayloadGate's invalid_language value
+// (Phase 118a / ADR-024).
+const invalidLanguageGateID = "invalid_language"
+
+// invalidLanguageAnchor points into the methodological surface entry that
+// describes the Capability Manifest workflow (Operations Playbook section
+// "Editing the Language Capability Manifest"). It is intentionally not a
+// working-paper anchor — the gate is engineering-procedural, not
+// methodological.
+const invalidLanguageAnchor = "ops/playbook#language-capability-manifest"
+
+// validateLanguageQueryParam returns nil if the manifest declares the given
+// language code (or if no language was supplied / no manifest is wired).
+// Otherwise it returns the structured Error body for the invalid_language
+// gate, with `alternatives` set to the manifest's sorted language codes.
+//
+// Phase 118a / ADR-024: replaces any hand-coded language allowlist in BFF
+// handlers. Every endpoint that takes a `?language=` query parameter must
+// route through this helper before issuing a query.
+func (s *Server) validateLanguageQueryParam(raw *string) (errBody *struct {
+	Message            string
+	Gate               string
+	WorkingPaperAnchor string
+	Alternatives       []string
+}, ok bool) {
+	if raw == nil || *raw == "" {
+		return nil, true
+	}
+	if s.languageManifest == nil {
+		// No manifest wired — the validator cannot run. Permit the request
+		// rather than 500, matching the legacy behaviour for tests that
+		// construct Server without the manifest dependency.
+		return nil, true
+	}
+	if s.languageManifest.IsKnown(*raw) {
+		return nil, true
+	}
+	codes := s.languageManifest.LanguageCodes()
+	return &struct {
+		Message            string
+		Gate               string
+		WorkingPaperAnchor string
+		Alternatives       []string
+	}{
+		Message: fmt.Sprintf(
+			"unknown language %q; the Language Capability Manifest declares: %v",
+			*raw, codes,
+		),
+		Gate:               invalidLanguageGateID,
+		WorkingPaperAnchor: invalidLanguageAnchor,
+		Alternatives:       codes,
+	}, false
+}
 
 // crossFrameRefusal constructs the structured 400 body for the
 // metric_equivalence gate. The fields piggy-back on the Error schema's
@@ -397,6 +460,17 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 	}
 	if limit < 1 || limit > 1000 {
 		return GetLanguages400JSONResponse{Message: "limit must be between 1 and 1000"}, nil
+	}
+	if errBody, ok := s.validateLanguageQueryParam(request.Params.Language); !ok {
+		gate := errBody.Gate
+		anchor := errBody.WorkingPaperAnchor
+		alts := errBody.Alternatives
+		return GetLanguages400JSONResponse{
+			Message:            errBody.Message,
+			Gate:               &gate,
+			WorkingPaperAnchor: &anchor,
+			Alternatives:       &alts,
+		}, nil
 	}
 
 	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)

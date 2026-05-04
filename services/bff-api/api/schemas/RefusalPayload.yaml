@@ -16,7 +16,11 @@ properties:
       Machine identifier of the gate that fired. The `metric_equivalence`
       value (Phase 115) is returned when a cross-frame normalization
       request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
-    enum: [k_anonymity, silver_eligibility, equivalence, metric_equivalence]
+      The `invalid_language` value (Phase 118a / ADR-024) is returned when
+      a `?language=` query parameter is not declared in the Language
+      Capability Manifest; `alternatives` then carries the manifest's
+      sorted language codes.
+    enum: [k_anonymity, silver_eligibility, equivalence, metric_equivalence, invalid_language]
     example: k_anonymity
   alternatives:
     type: array

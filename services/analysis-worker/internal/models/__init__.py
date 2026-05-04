@@ -5,6 +5,15 @@ import hashlib
 
 from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext, ProbeEticTag, ProbeEmicTag
+from internal.models.language_capability import (
+    CapabilityManifest,
+    ConfigurationError,
+    LanguageCapability,
+    NegationConfig,
+    NerCapability,
+    SentimentTier1Capability,
+    load_manifest,
+)
 
 
 class SilverCore(BaseModel):
@@ -73,4 +82,6 @@ def generate_document_id(source: str, bronze_object_key: str) -> str:
 __all__ = [
     "SilverCore", "SilverMeta", "SilverEnvelope", "generate_document_id", "ValidationError",
     "BiasContext", "DiscourseContext", "ProbeEticTag", "ProbeEmicTag",
+    "CapabilityManifest", "ConfigurationError", "LanguageCapability",
+    "NegationConfig", "NerCapability", "SentimentTier1Capability", "load_manifest",
 ]

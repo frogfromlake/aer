@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset backfill-entity-links setup deps-refresh
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset backfill-entity-links setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -247,7 +247,7 @@ swagger-down:
 	@docker compose --profile dev rm --stop --force swagger-ui 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Swagger UI stopped.$(RESET)"
 
-codegen:
+codegen: scaffold-metric-validity
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
 	@cd services/bff-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml
 	@if [ -f services/ingestion-api/api/codegen.yaml ]; then \
@@ -255,6 +255,24 @@ codegen:
 		cd services/ingestion-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml; \
 	fi
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)API contracts generated successfully.$(RESET)"
+
+# Phase 118a / ADR-024: regenerate the manifest-driven metric_validity
+# scaffold. CI guards drift via `make scaffold-metric-validity-check`.
+scaffold-metric-validity:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Generating metric_validity scaffold from language manifest...$(RESET)"
+	@if [ -f services/analysis-worker/.venv/bin/python ]; then \
+		services/analysis-worker/.venv/bin/python scripts/generate_metric_validity_scaffold.py; \
+	else \
+		python scripts/generate_metric_validity_scaffold.py; \
+	fi
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Scaffold generated.$(RESET)"
+
+scaffold-metric-validity-check:
+	@if [ -f services/analysis-worker/.venv/bin/python ]; then \
+		services/analysis-worker/.venv/bin/python scripts/generate_metric_validity_scaffold.py --check; \
+	else \
+		python scripts/generate_metric_validity_scaffold.py --check; \
+	fi
 
 build-services:
 	@echo -e "$(BOLD)$(CYAN)Compiling AĒR binaries...$(RESET)"

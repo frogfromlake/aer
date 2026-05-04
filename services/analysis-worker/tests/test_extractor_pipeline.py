@@ -181,12 +181,28 @@ def test_stub_extractor_protocol_conformance():
 
 def test_all_extractors_satisfy_metric_extractor_protocol():
     """Tests that all registered extractors satisfy the unified MetricExtractor protocol."""
+    from internal.models.language_capability import (
+        CapabilityManifest,
+        LanguageCapability,
+        NerCapability,
+    )
+
+    manifest = CapabilityManifest(
+        manifest_version=1,
+        languages={
+            "de": LanguageCapability(
+                iso_code="de",
+                display_name="German",
+                ner=NerCapability(tier=1.5, model="nonexistent_model_for_test", model_version="0"),
+            ),
+        },
+    )
     extractors = [
         WordCountExtractor(),
         TemporalDistributionExtractor(),
         LanguageDetectionExtractor(),
         SentimentExtractor(sentiws_dir=Path("/nonexistent")),
-        NamedEntityExtractor(language_to_model={"de": "nonexistent_model_for_test"}),
+        NamedEntityExtractor(manifest=manifest),
     ]
     for extractor in extractors:
         assert isinstance(extractor, MetricExtractor), f"{extractor.name} does not satisfy MetricExtractor"

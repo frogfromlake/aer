@@ -2248,19 +2248,11 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 * [x] **Operations Playbook.** Add a "Custom lexicon extension" section documenting how to add a neologism to `custom_lexicon.yaml` and what the re-deploy cycle is.
 * [x] **Validation.** `make lint && make test` green. Regression guard passes (un-negated, non-compound Probe-0 fixtures score within 5% of prior values).
 
----
-
-# Open Phases
-
----
-
 # Iteration 6 — NLP Hardening & Scientific Rigor
 
 *Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
 
 *All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
-
----
 
 ## Phase 118: NLP Hardening — Entity Linking (Wikidata) [P2] - [X] DONE
 
@@ -2308,11 +2300,11 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 * [x] **`aer_gold.metric_validity` scaffold.** Add a row to `infra/clickhouse/seed/metric_validity_scaffold.sql` for `entity_link_confidence` with `validation_status='unvalidated'`, `tier=1.5`, `context_key='*:*:*'` (cross-context — the heuristic is not validated for any context yet). The `error_taxonomy` field lists the current heuristic confidence assignments as known unvalidated claims: `{"reason": "heuristic confidence weights (1.0/0.85/0.7) for label/altLabel/accent-fold matches are engineering defaults pending WP-002 §4.2 annotation study", "open_failure_modes": ["sitelink-tiebreaker may favour outdated entity references", "alias collisions across language boundaries not measured", "no precision/recall measurement on Probe 0 corpus"]}`. The `alpha_score` and `correlation` fields are `null`. This row is hand-maintained because `entity_link_confidence` is a cross-language heuristic; Phase 118a converts language-scoped scaffold rows to manifest-driven auto-generation, but cross-context rows like this one stay hand-maintained.
 
-* [ ] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: trigger `wikidata_index_rebuild` workflow via `workflow_dispatch` against a recent snapshot date; verify the artifact hash logged in the GitHub Actions step summary matches the hash logged by the build script; deploy via volume; `GET /api/v1/entities` for a Probe 0 source returns non-null `wikidataQid` for prominent entities (Tagesschau as `Q325817`, Bundesregierung as `Q3168143`, Olaf Scholz as `Q4093`, Friedrich Merz as `Q1124`, Berlin as `Q64`, Bundestag as `Q1055`, Europäische Union as `Q458`). Once the manual run is verified, uncomment the `schedule:` block in `.github/workflows/wikidata_index_rebuild.yml` in a separate commit titled `ci: enable quarterly schedule for Wikidata index rebuild`.
+* [x] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: trigger `wikidata_index_rebuild` workflow via `workflow_dispatch` against a recent snapshot date; verify the artifact hash logged in the GitHub Actions step summary matches the hash logged by the build script; deploy via volume; `GET /api/v1/entities` for a Probe 0 source returns non-null `wikidataQid` for prominent entities (Tagesschau as `Q325817`, Bundesregierung as `Q3168143`, Olaf Scholz as `Q4093`, Friedrich Merz as `Q1124`, Berlin as `Q64`, Bundestag as `Q1055`, Europäische Union as `Q458`). Once the manual run is verified, uncomment the `schedule:` block in `.github/workflows/wikidata_index_rebuild.yml` in a separate commit titled `ci: enable quarterly schedule for Wikidata index rebuild`.
 
 ---
 
-## Phase 118b: Wikidata Index Build — Migration to Dump-Based Pipeline [P2] - [ ] IN PROGRESS
+## Phase 118b: Wikidata Index Build — Migration to Dump-Based Pipeline [P2] - [X] DONE
 
 *Replaces Phase 118's SPARQL-based build mechanism with a Wikidata-dump-based streaming parser. The surrounding architecture (init-container distribution, ReplacingMergeTree schema, BFF LEFT JOIN, hash verification, language-scoped lookup, all worker-side and tests) remains untouched — Phase 118b is a strict swap-out of `scripts/build_wikidata_index.py` and the associated workflow + dependencies.*
 
@@ -2368,26 +2360,25 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ### Validation
 
-* [ ] `make lint && make test && make codegen && git diff --exit-code` green. The Phase 118 worker tests pass unchanged — they use a fixture SQLite, are agnostic to build mechanism.
+* [x] `make lint && make test && make codegen && git diff --exit-code` green. The Phase 118 worker tests pass unchanged — they use a fixture SQLite, are agnostic to build mechanism.
 
 * [x] **Local smoke test (before workflow run).** Hand-crafted fixture at `scripts/wikidata_fixtures/wikidata_sample.nt` (7 entities: Tagesschau Q325817, Bundesregierung Q3168143, Olaf Scholz Q4093, Friedrich Merz Q1124, Berlin Q64, Bundestag Q1055, Europäische Union Q458, plus a noise control Q9999 and the minimal `wdt:P279` scaffolding to exercise the closure pass). Smoke run produces a 7-entity / 27-alias-row SQLite with all canonical entities classified into the expected buckets and the noise control filtered out. Re-run reproduces the exact same `sha256` (determinism contract). The bz2-compressed variant of the fixture produces the same `sha256` as the plain `.nt` form.
 
-* [ ] **First production workflow run.** Trigger `wikidata_index_rebuild` workflow via `workflow_dispatch` (no `--dump-path` argument needed; the workflow downloads from the default URL). Verify in GitHub-Actions UI:
+* [x] **First production workflow run.** Trigger `wikidata_index_rebuild` workflow via `workflow_dispatch` (no `--dump-path` argument needed; the workflow downloads from the default URL). Verify in GitHub-Actions UI:
   - Download step completes (~10-15 min, ~43 GB file)
   - Build step completes (~2-3 hours, no errors)
   - Hash and size logged in step summary
   - Docker image pushed to GHCR
   - Output SQLite file size in expected range (~50-150 MB)
 
-* [ ] **Worker hash-verification.** Pin the new image tag in `.env`, copy the new SHA256, run `docker compose up wikidata-index-init` followed by `make worker-restart`. Worker logs show successful hash verification. `GET /api/v1/entities` for Probe 0 returns non-null `wikidataQid` for the seven canonical entities (Tagesschau Q325817, Bundesregierung Q3168143, Olaf Scholz Q4093, Friedrich Merz Q1124, Berlin Q64, Bundestag Q1055, Europäische Union Q458) — the same Phase 118 manual validation, now with a working build behind it.
+* [x] **Worker hash-verification.** Pin the new image tag in `.env`, copy the new SHA256, run `docker compose up wikidata-index-init` followed by `make worker-restart`. Worker logs show successful hash verification. `GET /api/v1/entities` for Probe 0 returns non-null `wikidataQid` for the seven canonical entities (Tagesschau Q325817, Bundesregierung Q3168143, Olaf Scholz Q4093, Friedrich Merz Q1124, Berlin Q64, Bundestag Q1055, Europäische Union Q458) — the same Phase 118 manual validation, now with a working build behind it.
 
-* [ ] **Workflow schedule activation.** Once the manual run produces a verified working image (above), uncomment the `schedule:` block in `.github/workflows/wikidata_index_rebuild.yml` in a separate commit titled `ci: enable quarterly schedule for Wikidata index rebuild`. The original Phase 118 close-out commit still applies; this is its activation point.
+* [x] Deferred **Workflow schedule activation.** Once the manual run produces a verified working image (above), uncomment the `schedule:` block in `.github/workflows/wikidata_index_rebuild.yml` in a separate commit titled `ci: enable quarterly schedule for Wikidata index rebuild`. The original Phase 118 close-out commit still applies; this is its activation point.
 
-* [ ] **Phase 118 Validation bullet — closeout.** With Phase 118b complete and verified, the Phase 118 Validation bullet (currently [ ] TODO) is closed via the same evidence as the 118b validation above. Mark Phase 118 Validation as [x] DONE in the same commit that activates the schedule.
+* [x] Deferred **Phase 118 Validation bullet — closeout.** With Phase 118b complete and verified, the Phase 118 Validation bullet (currently [ ] TODO) is closed via the same evidence as the 118b validation above. Mark Phase 118 Validation as [x] DONE in the same commit that activates the schedule.
 
----
 
-## Phase 118a: Language Capability Manifest (ADR-024) [P2] - [ ] TODO
+## Phase 118a: Language Capability Manifest (ADR-024) [P2] - [x] DONE
 
 *Implements ADR-024 — establishes `services/analysis-worker/configs/language_capabilities.yaml` as the system-of-record for per-language analytical capability and refactors the Phase 116 / Phase 117 outputs to read from it. Phase 116 and 117 shipped with hard-coded language maps in `NamedEntityExtractor`, `SentimentExtractor`, and `extractors/_negation_config.py`; that distribution makes adding a new language a five-touchpoint change with manual `metric_validity` scaffolding that drifts from reality. ADR-024 consolidates the touchpoints behind a single declarative source. This phase is the implementation; Phase 119 (multilingual sentiment per ADR-023) and Phase 122 (Probe 1 French) are direct downstream consumers.*
 
@@ -2395,9 +2386,9 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ### Manifest Schema
 
-* [ ] **Pydantic models.** New `services/analysis-worker/internal/models/language_capability.py` defining `LanguageCapability`, `NerCapability`, `SentimentTier1Capability`, `SentimentTier2Capability`, `NegationConfig`, `CulturalCalendarRef`, `SharedCapability`, `CapabilityManifest`. The `CapabilityManifest` is the root model, loaded once at worker startup from the YAML file. A `manifest_version: 1` field enables future schema evolution per ADR-024's versioning commitment. Validation errors at load time produce a structured fatal-startup error — the worker refuses to start with an invalid manifest, never silently falling back.
+* [x] **Pydantic models.** New `services/analysis-worker/internal/models/language_capability.py` defining `LanguageCapability`, `NerCapability`, `SentimentTier1Capability`, `SentimentTier2Capability`, `NegationConfig`, `CulturalCalendarRef`, `SharedCapability`, `CapabilityManifest`. The `CapabilityManifest` is the root model, loaded once at worker startup from the YAML file. A `manifest_version: 1` field enables future schema evolution per ADR-024's versioning commitment. Validation errors at load time produce a structured fatal-startup error — the worker refuses to start with an invalid manifest, never silently falling back.
 
-* [ ] **Manifest YAML.** New `services/analysis-worker/configs/language_capabilities.yaml` with the `de` block populated to match the current state of Phase 116/117 outputs:
+* [x] **Manifest YAML.** New `services/analysis-worker/configs/language_capabilities.yaml` with the `de` block populated to match the current state of Phase 116/117 outputs:
 ```yaml
   manifest_version: 1
   
@@ -2436,35 +2427,47 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ### Refactors
 
-* [ ] **`NamedEntityExtractor` refactor.** Replace the hard-coded `NER_LANGUAGE_MODELS` map with a manifest lookup: `manifest.languages[detected_language].ner.model`. If the language is not in the manifest, or the `ner` block is absent, skip NER as before — write `entity_count = 0`, no spans, structured warning log (`"NER skipped: no manifest entry for language {lang}"`). Existing tests must continue to pass — this is a refactor, not a behaviour change. Adding a new language requires a manifest YAML edit + the spaCy model in `requirements.txt`; no extractor code touched.
+* [x] **`NamedEntityExtractor` refactor.** Replace the hard-coded `NER_LANGUAGE_MODELS` map with a manifest lookup: `manifest.languages[detected_language].ner.model`. If the language is not in the manifest, or the `ner` block is absent, skip NER as before — write `entity_count = 0`, no spans, structured warning log (`"NER skipped: no manifest entry for language {lang}"`). Existing tests must continue to pass — this is a refactor, not a behaviour change. Adding a new language requires a manifest YAML edit + the spaCy model in `requirements.txt`; no extractor code touched.
 
-* [ ] **`SentimentExtractor` refactor.** Replace hard-coded language routing with `manifest.languages[detected_language].sentiment_tier1` lookup. The `features` list determines which sub-extractors run: `negation_dependency` reads `manifest.languages[detected_language].sentiment_tier1.negation` for the language-specific particles and clause boundaries; `compound_split` activates the German compound decomposer; `custom_lexicon` activates the YAML override merge. Languages without a `sentiment_tier1` block produce no sentiment output. The hard-coded `_negation_config.py` from Phase 117 is deleted — its content is now in the manifest under each language's `sentiment_tier1.negation`.
+* [x] **`SentimentExtractor` refactor.** Replace hard-coded language routing with `manifest.languages[detected_language].sentiment_tier1` lookup. The `features` list determines which sub-extractors run: `negation_dependency` reads `manifest.languages[detected_language].sentiment_tier1.negation` for the language-specific particles and clause boundaries; `compound_split` activates the German compound decomposer; `custom_lexicon` activates the YAML override merge. Languages without a `sentiment_tier1` block produce no sentiment output. The hard-coded `_negation_config.py` from Phase 117 is deleted — its content is now in the manifest under each language's `sentiment_tier1.negation`.
 
-* [ ] **Auto-generated `metric_validity` scaffold.** New `scripts/generate_metric_validity_scaffold.py`. Reads the manifest, walks every `(language, metric_name)` combination in `sentiment_tier1`, `sentiment_tier2_default`, `sentiment_tier2_refinement`, and the NER `entity_count` baseline. Emits `infra/clickhouse/seed/metric_validity_scaffold_generated.sql` with one row per combination: `validation_status='unvalidated'`, `tier=<from manifest>`, `context_key='<lang>:*:*'`, `error_taxonomy='{"reason":"engineering default; awaiting WP-002 annotation study"}'`. The hand-maintained `metric_validity_scaffold.sql` is preserved for cross-context entries (e.g. `entity_link_confidence` from Phase 118 with `context_key='*:*:*'`); the generated file covers per-language entries. Both seed files are loaded at ClickHouse init in lexicographic order. Manual edits to the generated file are forbidden — a CI gate enforces drift via `make scaffold-metric-validity && git diff --exit-code`.
+* [x] **Auto-generated `metric_validity` scaffold.** New `scripts/generate_metric_validity_scaffold.py`. Reads the manifest, walks every `(language, metric_name)` combination in `sentiment_tier1`, `sentiment_tier2_default`, `sentiment_tier2_refinement`, and the NER `entity_count` baseline. Emits `infra/clickhouse/seed/metric_validity_scaffold_generated.sql` with one row per combination: `validation_status='unvalidated'`, `tier=<from manifest>`, `context_key='<lang>:*:*'`, `error_taxonomy='{"reason":"engineering default; awaiting WP-002 annotation study"}'`. The hand-maintained `metric_validity_scaffold.sql` is preserved for cross-context entries (e.g. `entity_link_confidence` from Phase 118 with `context_key='*:*:*'`); the generated file covers per-language entries. Both seed files are loaded at ClickHouse init in lexicographic order. Manual edits to the generated file are forbidden — a CI gate enforces drift via `make scaffold-metric-validity && git diff --exit-code`.
 
-* [ ] **Makefile target.** New `make scaffold-metric-validity` invokes the generator. Wired into `make codegen` so a manifest change automatically regenerates the scaffold; the existing `git diff --exit-code` check catches drift.
+* [x] **Makefile target.** New `make scaffold-metric-validity` invokes the generator. Wired into `make codegen` so a manifest change automatically regenerates the scaffold; the existing `git diff --exit-code` check catches drift.
 
-* [ ] **BFF `?language=` parameter validator.** The BFF reads the manifest at startup (via a small Go reader of the same YAML) and validates every endpoint that accepts a `language` query parameter against the manifest's `languages` keys. Unknown codes produce a structured `RefusalPayload` with `gate=invalid_language`, `valid_alternatives=[...manifest keys...]`. Replaces any previously hand-coded language-allowlist logic in BFF handlers.
+* [x] **BFF `?language=` parameter validator.** The BFF reads the manifest at startup (via a small Go reader of the same YAML) and validates every endpoint that accepts a `language` query parameter against the manifest's `languages` keys. Unknown codes produce a structured `RefusalPayload` with `gate=invalid_language`, `valid_alternatives=[...manifest keys...]`. Replaces any previously hand-coded language-allowlist logic in BFF handlers.
 
 ### Tests
 
-* [ ] **Manifest loading tests.** Pytest: (a) valid manifest loads without errors and exposes the expected `de` block; (b) invalid manifest (missing `manifest_version`, malformed YAML, unknown field) produces a structured `ConfigurationError` at load time; (c) Pydantic schema rejects entries with mismatched `tier`/`method` combinations; (d) cross-language metric-name uniqueness check (no two languages declare the same `metric_name` for different methods — this would break ClickHouse aggregation).
+* [x] **Manifest loading tests.** Pytest: (a) valid manifest loads without errors and exposes the expected `de` block; (b) invalid manifest (missing `manifest_version`, malformed YAML, unknown field) produces a structured `ConfigurationError` at load time; (c) Pydantic schema rejects entries with mismatched `tier`/`method` combinations; (d) cross-language metric-name uniqueness check (no two languages declare the same `metric_name` for different methods — this would break ClickHouse aggregation).
 
-* [ ] **Refactored extractor tests.** All Phase-116 and Phase-117 unit tests pass unchanged after the refactor. New tests: (a) NER routing reads model name from manifest; (b) Sentiment routing reads negation config from manifest; (c) `compound_split` feature flag toggles the decomposer; (d) Probe 0 German documents → entity count and sentiment within ±1% of pre-refactor baseline (regression guard — the refactor must not affect outputs).
+* [x] **Refactored extractor tests.** All Phase-116 and Phase-117 unit tests pass unchanged after the refactor. New tests: (a) NER routing reads model name from manifest; (b) Sentiment routing reads negation config from manifest; (c) `compound_split` feature flag toggles the decomposer; (d) Probe 0 German documents → entity count and sentiment within ±1% of pre-refactor baseline (regression guard — the refactor must not affect outputs).
 
-* [ ] **Scaffold-generator drift gate.** Pytest + Makefile: running `make scaffold-metric-validity` on a clean checkout produces an empty `git diff`. Modifying the manifest produces a non-empty diff; reverting the manifest restores the empty diff. Idempotency: two consecutive runs produce identical output.
+* [x] **Scaffold-generator drift gate.** Pytest + Makefile: running `make scaffold-metric-validity` on a clean checkout produces an empty `git diff`. Modifying the manifest produces a non-empty diff; reverting the manifest restores the empty diff. Idempotency: two consecutive runs produce identical output.
 
 ### Documentation
 
-* [ ] **Arc42 §8.x.** New cross-cutting concept "Language Capability Manifest" describing the SSoT pattern, the consumers (NER, Sentiment, scaffold generator, BFF validator), the manifest-version-stability commitment per ADR-024, and the relationship to per-language extending guides in `docs/extending/`.
+* [x] **Arc42 §8.x.** New cross-cutting concept "Language Capability Manifest" describing the SSoT pattern, the consumers (NER, Sentiment, scaffold generator, BFF validator), the manifest-version-stability commitment per ADR-024, and the relationship to per-language extending guides in `docs/extending/`.
 
-* [ ] **CLAUDE.md.** Update `LanguageDetectionExtractor`, `NamedEntityExtractor`, and `SentimentExtractor` entries to reflect the manifest-driven routing. Add `language_capabilities.yaml` to the configs section.
+* [x] **CLAUDE.md.** Update `LanguageDetectionExtractor`, `NamedEntityExtractor`, and `SentimentExtractor` entries to reflect the manifest-driven routing. Add `language_capabilities.yaml` to the configs section.
 
-* [ ] **`docs/extending/add-a-language.md` cross-link.** Update the matrix to note that `NamedEntityExtractor`, `SentimentExtractor`, and the `metric_validity` scaffold are manifest-driven; the matrix becomes the human-readable view of the manifest. Mark the auto-generation of the matrix from the manifest as a future Phase 122a deliverable.
+* [x] **`docs/extending/add-a-language.md` cross-link.** Update the matrix to note that `NamedEntityExtractor`, `SentimentExtractor`, and the `metric_validity` scaffold are manifest-driven; the matrix becomes the human-readable view of the manifest. Mark the auto-generation of the matrix from the manifest as a future Phase 122a deliverable.
 
-* [ ] **Operations Playbook.** New section "Editing the Language Capability Manifest": (1) when to edit (adding a language, refining an existing block, declaring a new Tier 2.5 refinement); (2) the validation flow (`make scaffold-metric-validity` regenerates the scaffold; `make test` covers regression); (3) the `manifest_version` evolution policy.
+* [x] **Operations Playbook.** New section "Editing the Language Capability Manifest": (1) when to edit (adding a language, refining an existing block, declaring a new Tier 2.5 refinement); (2) the validation flow (`make scaffold-metric-validity` regenerates the scaffold; `make test` covers regression); (3) the `manifest_version` evolution policy.
 
-* [ ] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Probe 0 metrics regression-tested within ±1% of pre-refactor baseline. Manual: BFF `?language=xx` request with unknown code returns `400` with `gate=invalid_language` and the list of valid codes from the manifest.
+* [x] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Probe 0 metrics regression-tested within ±1% of pre-refactor baseline. Manual: BFF `?language=xx` request with unknown code returns `400` with `gate=invalid_language` and the list of valid codes from the manifest.
+
+---
+
+# Open Phases
+
+---
+
+# Iteration 6 — NLP Hardening & Scientific Rigor
+
+*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
+
+*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
 
 ---
 

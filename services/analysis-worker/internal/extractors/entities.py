@@ -3,6 +3,7 @@ import spacy
 
 from internal.extractors.base import GoldEntity, GoldEntityLink, GoldMetric, ExtractionResult
 from internal.extractors.entity_linking import WikidataAliasIndex
+from internal.models.language_capability import CapabilityManifest, load_manifest
 
 logger = structlog.get_logger()
 
@@ -42,25 +43,33 @@ class NamedEntityExtractor:
       to other domains or registers.
     """
 
-    # Phase 116: language-routing map. New languages are added by extending
-    # this dict and adding the corresponding spaCy model to requirements.txt
-    # (e.g. `fr: fr_core_news_lg`). No extractor code change required.
+    # Phase 116: language-routing. As of Phase 118a (ADR-024) the routing
+    # table comes from the Language Capability Manifest — see
+    # `configs/language_capabilities.yaml`. Adding a new language is a
+    # manifest YAML edit plus the spaCy model in requirements.txt; this
+    # extractor stays untouched.
     # Empty / "und" language tags resolve to the default model so legacy
     # documents that predate language detection are still NER-ed.
-    _LANGUAGE_TO_MODEL: dict[str, str] = {
-        "de": "de_core_news_lg",
-    }
     _LEGACY_LANGUAGE_TAGS = {"", "und"}
 
     def __init__(
         self,
-        language_to_model: dict[str, str] | None = None,
+        manifest: CapabilityManifest | None = None,
         default_language: str = "de",
         alias_index: WikidataAliasIndex | None = None,
     ):
-        self._language_to_model = dict(language_to_model or self._LANGUAGE_TO_MODEL)
+        self._manifest = manifest if manifest is not None else load_manifest()
         self._default_language = default_language
         self._alias_index = alias_index
+        # Build the routing map from manifest entries that declare an `ner`
+        # block. Languages without `ner` are simply absent from the map and
+        # fall through to the structured-warning skip path at request time.
+        language_to_model: dict[str, str] = {
+            lang_code: lang.ner.model
+            for lang_code, lang in self._manifest.languages.items()
+            if lang.ner is not None
+        }
+        self._language_to_model = language_to_model
         self._nlp_by_language: dict[str, "spacy.Language"] = {}
         for lang, model_name in self._language_to_model.items():
             try:
@@ -104,7 +113,7 @@ class NamedEntityExtractor:
         nlp = self._nlp_by_language.get(lang)
         if nlp is None:
             logger.warning(
-                "NER skipped: no model loaded for language",
+                "NER skipped: no manifest entry for language",
                 language=lang,
                 source=core.source,
             )
