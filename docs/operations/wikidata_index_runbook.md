@@ -449,7 +449,26 @@ docker compose logs --tail=30 analysis-worker | grep -i "wikidata\|alias"
 
 **Bei Hash-Mismatch im Worker-Log:** `.env`-Hash stimmt nicht mit Image-Hash. Tag/SHA gegenchecken. Der Worker startet bewusst nicht — silent-drift guard.
 
-### Schritt 7 — Smoke-Test im laufenden System
+### Schritt 7 — Backfill existierender Entity-Spans
+
+**Quarterly-relevant.** Jeder neue Wikidata-Index erweitert die Coverage gegenüber dem vorigen — Entitäten, die im alten Index nicht aufgelöst wurden, sind möglicherweise jetzt verlinkbar. Der Backfill-Lauf wendet die neue Lookup-Coverage retroaktiv auf die bereits in `aer_gold.entities` gespeicherten Spans an, ohne NER neu zu starten oder Bronze/Silver anzufassen.
+
+```bash
+# Voller Backfill (alle historischen Entitäten in aer_gold.entities)
+make backfill-entity-links
+
+# Mit Filter — etwa nur eine Quelle oder ein Zeitfenster
+make backfill-entity-links BACKFILL_ARGS="--source bundesregierung --start 2026-01-01"
+
+# Erst trocken laufen, um die Match-Rate zu schätzen
+make backfill-entity-links BACKFILL_ARGS="--dry-run --limit 1000"
+```
+
+**Idempotent via `ReplacingMergeTree(ingestion_version)`** — der Insert nutzt die ursprüngliche Span-Timestamp als `ingestion_version`, sodass mehrfache Backfill-Läufe gegen dieselbe Span-Menge keine Duplikate erzeugen. Zukünftige Live-Events für dasselbe `(article_id, entity_text)` kollabieren ebenfalls sauber.
+
+**Erwartete Match-Rate** für deutsches RSS-Probe-0-Material: 20–30 % der Entity-Spans liefern einen QID über dem 0.7-Confidence-Threshold. Der Rest sind Lokalfiguren / NER-Over-Merges / nicht-bucket-abgedeckte Orte (per WP-002 §4.2 Footnote: "the type-bucket scope is curated for institutional editorial discourse and may under-cover entities salient outside that frame"). Wenn die Match-Rate über mehrere Quartale hinweg stagniert, ist das der Trigger für die in ADR-027 erwähnte Wikipedia-Scope-Migration.
+
+### Schritt 8 — Smoke-Test im laufenden System
 
 Crawler-Run gegen Probe-0 triggern.
 

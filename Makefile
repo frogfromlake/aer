@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset setup deps-refresh
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset backfill-entity-links setup deps-refresh
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -280,6 +280,18 @@ crawl-reset:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Removing rss-crawler dedup state volume...$(RESET)"
 	@docker volume rm aer_rss_crawler_state 2>/dev/null || true
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)State cleared. Next `make crawl` will re-ingest every feed item.$(RESET)"
+
+# Backfill aer_gold.entity_links from existing aer_gold.entities. Runs the
+# Phase-118 alias-index lookup over historical entity spans without
+# touching NER, Bronze, or Silver. Idempotent via ReplacingMergeTree —
+# safe to re-run after each quarterly Wikidata-index rebuild to catch
+# entities the new index now resolves. See
+# docs/operations/wikidata_index_runbook.md §"Quarterly backfill".
+backfill-entity-links:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Wikidata entity-link backfill against aer_gold.entities...$(RESET)"
+	@docker cp scripts/backfill_entity_links.py aer_analysis_worker:/tmp/backfill_entity_links.py
+	@docker compose exec -T analysis-worker python /tmp/backfill_entity_links.py $(BACKFILL_ARGS)
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Backfill complete.$(RESET)"
 
 # ==========================================
 # 5. TESTING & LINTING
@@ -585,6 +597,7 @@ help:
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
 	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Run the RSS crawler as a one-shot container on aer-backend$(RESET)"
 	@echo -e "  $(GOLD)crawl-reset$(RESET)         $(GRAY)Wipe crawler dedup state volume so next crawl re-ingests everything$(RESET)"
+	@echo -e "  $(GREEN)backfill-entity-links$(RESET) $(GRAY)Run Wikidata linking on existing aer_gold.entities (quarterly post-rebuild)$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"
