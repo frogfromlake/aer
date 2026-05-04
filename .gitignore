@@ -58,3 +58,8 @@ services/dashboard/build/
 services/dashboard/playwright-report/
 services/dashboard/test-results/
 services/dashboard/coverage/
+
+# Wikidata index build-context staging (Phase 118b)
+# Populated by scripts/build_wikidata_index.py output before docker build;
+# kept out of git so the 134 MB SQLite never lands in a commit.
+infra/wikidata-index/data/

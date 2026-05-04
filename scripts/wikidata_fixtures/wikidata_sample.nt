@@ -1,78 +1,86 @@
 # Hand-crafted Wikidata N-Triples fixture for the Phase 118b dump-streaming
-# build script (scripts/build_wikidata_index.py). Covers seven well-known
-# entities — the Phase 118 manual-validation set — plus the minimal
-# scaffolding (P279 edges, type-entity nodes) needed to exercise the
-# transitive-closure + bucket-evaluation logic end-to-end without
-# downloading the full ~43 GB latest-truthy.nt.bz2.
+# build script (scripts/build_wikidata_index.py). Covers the canonical-
+# seven manual-validation set with the entity QIDs verified against
+# Wikidata 2026-05 (the original Phase-118 brief had several wrong QIDs:
+# Q4093 was Glasgow not Olaf Scholz; Q1124 was Bill Clinton not Friedrich
+# Merz; etc.).
 #
-# Sort order: lexicographic by subject URI. The streaming algorithm in
-# build_wikidata_index.py groups consecutive triples by subject and asserts
-# each subject is seen exactly once, so this ordering is load-bearing.
-# When adding entries, sort the resulting file with `LC_ALL=C sort -u`
-# to preserve byte-stable test runs.
+# Faithful to the production-dump shape: no P279 transitive-closure
+# edges (Phase 118b removed the closure walk) and no `wikibase:sitelinks`
+# triples (the truthy-dump does not carry them; sitelinks come from
+# Pass C SPARQL).
 #
-# Coverage map (entity → bucket(s) → why this fixture entry exists):
-#   Q4093  Olaf Scholz       politicians                p31_any [Q5] + p106_any [Q82955]
-#   Q1124  Friedrich Merz    politicians                p31_any [Q5] + p106_any [Q82955]
-#   Q325817 Tagesschau       broadcasters               p31 → Q1616075 (P279* → Q15265344)
-#   Q3168143 Bundesregierung government_agencies        p31 → Q3624080 (P279* → Q327333)
-#   Q1055  Bundestag         government_agencies        p31 → Q11204   (P279* → Q327333)
-#   Q458   European Union    international_organizations p31 → Q1335818 (P279* → Q484652)
-#   Q64    Berlin            cities_population_threshold p31 → Q1549591 (P279* → Q515) + P1082 ≥ 50k
+# Sort order: lexicographic by subject URI (LC_ALL=C). The streaming
+# algorithm in build_wikidata_index.py groups consecutive triples by
+# subject and asserts each subject is seen exactly once, so this
+# ordering is load-bearing. After edits, sort the data lines with
+# `LC_ALL=C grep -v '^#' file.nt | LC_ALL=C sort -u` and check.
 #
-# Negative control: Q9999 (a fictional concept) carries labels but no P31
-# / P106 that maps to any bucket, and must NOT appear in the output index.
-
-<http://www.wikidata.org/entity/Q1055> <http://wikiba.se/ontology#sitelinks> "70"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2000/01/rdf-schema#label> "Bundestag"@de .
-<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2000/01/rdf-schema#label> "Bundestag"@en .
-<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2000/01/rdf-schema#label> "Bundestag"@fr .
-<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2004/02/skos/core#altLabel> "Deutscher Bundestag"@de .
-<http://www.wikidata.org/entity/Q1055> <http://www.w3.org/2004/02/skos/core#altLabel> "German Bundestag"@en .
-<http://www.wikidata.org/entity/Q1055> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q11204> .
-<http://www.wikidata.org/entity/Q11204> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q327333> .
-<http://www.wikidata.org/entity/Q1124> <http://wikiba.se/ontology#sitelinks> "55"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://www.wikidata.org/entity/Q1124> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@de .
-<http://www.wikidata.org/entity/Q1124> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@en .
-<http://www.wikidata.org/entity/Q1124> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@fr .
-<http://www.wikidata.org/entity/Q1124> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
-<http://www.wikidata.org/entity/Q1124> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
-<http://www.wikidata.org/entity/Q1335818> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q484652> .
-<http://www.wikidata.org/entity/Q1549591> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q515> .
-<http://www.wikidata.org/entity/Q1616075> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q15265344> .
-<http://www.wikidata.org/entity/Q3168143> <http://wikiba.se/ontology#sitelinks> "60"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2000/01/rdf-schema#label> "Bundesregierung"@de .
-<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2000/01/rdf-schema#label> "Federal Government of Germany"@en .
-<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2000/01/rdf-schema#label> "Gouvernement fédéral allemand"@fr .
-<http://www.wikidata.org/entity/Q3168143> <http://www.w3.org/2004/02/skos/core#altLabel> "Deutsche Bundesregierung"@de .
-<http://www.wikidata.org/entity/Q3168143> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q3624080> .
-<http://www.wikidata.org/entity/Q325817> <http://wikiba.se/ontology#sitelinks> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://www.wikidata.org/entity/Q325817> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@de .
-<http://www.wikidata.org/entity/Q325817> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@en .
-<http://www.wikidata.org/entity/Q325817> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@fr .
-<http://www.wikidata.org/entity/Q325817> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q1616075> .
-<http://www.wikidata.org/entity/Q3624080> <http://www.wikidata.org/prop/direct/P279> <http://www.wikidata.org/entity/Q327333> .
-<http://www.wikidata.org/entity/Q4093> <http://wikiba.se/ontology#sitelinks> "120"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://www.wikidata.org/entity/Q4093> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@de .
-<http://www.wikidata.org/entity/Q4093> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@en .
-<http://www.wikidata.org/entity/Q4093> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@fr .
-<http://www.wikidata.org/entity/Q4093> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
-<http://www.wikidata.org/entity/Q4093> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
-<http://www.wikidata.org/entity/Q458> <http://wikiba.se/ontology#sitelinks> "300"^^<http://www.w3.org/2001/XMLSchema#integer> .
+# Coverage map (entity → bucket(s) → reason):
+#   Q64       Berlin                cities_population_threshold P31 Q42744322
+#   Q61053    Olaf Scholz           politicians                  P31 Q5 + P106 Q82955
+#   Q566257   Friedrich Merz        politicians                  P31 Q5 + P106 Q82955
+#   Q567      Angela Merkel         politicians                  P31 Q5 + P106 Q82955
+#   Q154797   German Bundestag      government_agencies          P31 Q11204
+#   Q313827   Bundesregierung (DE)  government_agencies          P31 Q35798
+#   Q162222   Deutsche Bundesbank   central_banks                P31 Q66344
+#   Q458      European Union        eu_institutions              qid_any
+#
+# Negative / out-of-scope controls:
+#   Q565    (Wikimedia Commons, P31=Q166118 archives) — must NOT match
+#           broadcasters; defends against the Phase 118 relapse trap.
+#   Q703907 (Tagesschau, P31=Q15416 TV program)       — out-of-scope:
+#           deliberately excluded; "TV program" would flood the index.
+#   Q131478 (Der Spiegel, P31=Q41298 magazine)        — out-of-scope:
+#           deliberately excluded; "magazine" would flood the index.
+#   Q9999   (synthetic noise, P31=Q35120) — must not appear.
+<http://www.wikidata.org/entity/Q131478> <http://www.w3.org/2000/01/rdf-schema#label> "Der Spiegel"@de .
+<http://www.wikidata.org/entity/Q131478> <http://www.w3.org/2000/01/rdf-schema#label> "Der Spiegel"@en .
+<http://www.wikidata.org/entity/Q131478> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q41298> .
+<http://www.wikidata.org/entity/Q142> <http://www.w3.org/2000/01/rdf-schema#label> "France"@en .
+<http://www.wikidata.org/entity/Q142> <http://www.w3.org/2000/01/rdf-schema#label> "Frankreich"@de .
+<http://www.wikidata.org/entity/Q142> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q3624078> .
+<http://www.wikidata.org/entity/Q154797> <http://www.w3.org/2000/01/rdf-schema#label> "Deutscher Bundestag"@de .
+<http://www.wikidata.org/entity/Q154797> <http://www.w3.org/2000/01/rdf-schema#label> "German Bundestag"@en .
+<http://www.wikidata.org/entity/Q154797> <http://www.w3.org/2004/02/skos/core#altLabel> "Bundestag"@de .
+<http://www.wikidata.org/entity/Q154797> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q11204> .
+<http://www.wikidata.org/entity/Q162222> <http://www.w3.org/2000/01/rdf-schema#label> "Deutsche Bundesbank"@de .
+<http://www.wikidata.org/entity/Q162222> <http://www.w3.org/2000/01/rdf-schema#label> "German Federal Bank"@en .
+<http://www.wikidata.org/entity/Q162222> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q66344> .
+<http://www.wikidata.org/entity/Q183> <http://www.w3.org/2000/01/rdf-schema#label> "Deutschland"@de .
+<http://www.wikidata.org/entity/Q183> <http://www.w3.org/2000/01/rdf-schema#label> "Germany"@en .
+<http://www.wikidata.org/entity/Q183> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q3624078> .
+<http://www.wikidata.org/entity/Q313827> <http://www.w3.org/2000/01/rdf-schema#label> "Bundesregierung"@de .
+<http://www.wikidata.org/entity/Q313827> <http://www.w3.org/2000/01/rdf-schema#label> "Government of the Federal Republic of Germany"@en .
+<http://www.wikidata.org/entity/Q313827> <http://www.w3.org/2004/02/skos/core#altLabel> "Deutsche Bundesregierung"@de .
+<http://www.wikidata.org/entity/Q313827> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q35798> .
 <http://www.wikidata.org/entity/Q458> <http://www.w3.org/2000/01/rdf-schema#label> "European Union"@en .
 <http://www.wikidata.org/entity/Q458> <http://www.w3.org/2000/01/rdf-schema#label> "Europäische Union"@de .
-<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2000/01/rdf-schema#label> "Union européenne"@fr .
 <http://www.wikidata.org/entity/Q458> <http://www.w3.org/2004/02/skos/core#altLabel> "EU"@de .
 <http://www.wikidata.org/entity/Q458> <http://www.w3.org/2004/02/skos/core#altLabel> "EU"@en .
-<http://www.wikidata.org/entity/Q458> <http://www.w3.org/2004/02/skos/core#altLabel> "UE"@fr .
 <http://www.wikidata.org/entity/Q458> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q1335818> .
-<http://www.wikidata.org/entity/Q64> <http://wikiba.se/ontology#sitelinks> "250"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q565> <http://www.w3.org/2000/01/rdf-schema#label> "Wikimedia Commons"@de .
+<http://www.wikidata.org/entity/Q565> <http://www.w3.org/2000/01/rdf-schema#label> "Wikimedia Commons"@en .
+<http://www.wikidata.org/entity/Q565> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q166118> .
+<http://www.wikidata.org/entity/Q566257> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@de .
+<http://www.wikidata.org/entity/Q566257> <http://www.w3.org/2000/01/rdf-schema#label> "Friedrich Merz"@en .
+<http://www.wikidata.org/entity/Q566257> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
+<http://www.wikidata.org/entity/Q566257> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
+<http://www.wikidata.org/entity/Q567> <http://www.w3.org/2000/01/rdf-schema#label> "Angela Merkel"@de .
+<http://www.wikidata.org/entity/Q567> <http://www.w3.org/2000/01/rdf-schema#label> "Angela Merkel"@en .
+<http://www.wikidata.org/entity/Q567> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
+<http://www.wikidata.org/entity/Q567> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
+<http://www.wikidata.org/entity/Q61053> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@de .
+<http://www.wikidata.org/entity/Q61053> <http://www.w3.org/2000/01/rdf-schema#label> "Olaf Scholz"@en .
+<http://www.wikidata.org/entity/Q61053> <http://www.wikidata.org/prop/direct/P106> <http://www.wikidata.org/entity/Q82955> .
+<http://www.wikidata.org/entity/Q61053> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q5> .
 <http://www.wikidata.org/entity/Q64> <http://www.w3.org/2000/01/rdf-schema#label> "Berlin"@de .
 <http://www.wikidata.org/entity/Q64> <http://www.w3.org/2000/01/rdf-schema#label> "Berlin"@en .
-<http://www.wikidata.org/entity/Q64> <http://www.w3.org/2000/01/rdf-schema#label> "Berlin"@fr .
 <http://www.wikidata.org/entity/Q64> <http://www.wikidata.org/prop/direct/P1082> "3677472"^^<http://www.w3.org/2001/XMLSchema#decimal> .
-<http://www.wikidata.org/entity/Q64> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q1549591> .
-<http://www.wikidata.org/entity/Q9999> <http://wikiba.se/ontology#sitelinks> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.wikidata.org/entity/Q64> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q42744322> .
+<http://www.wikidata.org/entity/Q703907> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@de .
+<http://www.wikidata.org/entity/Q703907> <http://www.w3.org/2000/01/rdf-schema#label> "Tagesschau"@en .
+<http://www.wikidata.org/entity/Q703907> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q15416> .
 <http://www.wikidata.org/entity/Q9999> <http://www.w3.org/2000/01/rdf-schema#label> "FixtureNoise"@de .
 <http://www.wikidata.org/entity/Q9999> <http://www.w3.org/2000/01/rdf-schema#label> "FixtureNoise"@en .
 <http://www.wikidata.org/entity/Q9999> <http://www.wikidata.org/prop/direct/P31> <http://www.wikidata.org/entity/Q35120> .

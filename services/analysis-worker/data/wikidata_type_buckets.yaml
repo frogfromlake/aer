@@ -7,31 +7,43 @@
 # unchanged. Sort additions to the end of the list to preserve byte-stable
 # rebuilds across releases.
 #
-# Each bucket carries TWO membership specifications:
+# Phase 118b post-mortem (2026-05): the original DSL exposed
+# `p31_subclass_of` (transitive P279* walk from a root class). Three
+# pathological behaviours surfaced in production output:
+#   1. `min_sitelinks` was applied during Pass B, but the truthy-dump
+#      carries no `wikibase:sitelinks` triples — sitelinks are hydrated
+#      in Pass C, so the threshold zero-matched every bucket that used
+#      it. Architectural fix: bucket evaluation moved to *after* Pass C.
+#   2. Wikidata's P279 graph is crowdsourced and pathologically wide on
+#      non-trivial subgraphs (e.g. Q3152824 "EU institution" closes over
+#      Q565 Wikimedia Commons via `archives → Wikimedia projects →
+#      cultural institution`; Q515 "city" closes over Q1055 Bundestag).
+#      Subclass walks therefore cannot be trusted for schema-level scope
+#      — closure is removed from the DSL.
+#   3. `cities_population_threshold` matched Q1055 Bundestag and Q4093
+#      Olaf Scholz because Wikidata had attributed the population of
+#      surrounding Berlin to a building and a person. Direct P31 match
+#      with a curated class set fixes this.
 #
-#   * `where_clause` — SPARQL fragment, kept as human-readable documentation
-#     of the entity scope. Phase 118 used this directly against the public
-#     SPARQL endpoint; Phase 118b switched to a dump-based pipeline and the
-#     SPARQL form is now reference-only. It is not parsed at build time.
+# DSL — supported `match` keys (all AND-combined; empty clauses are
+# no-ops):
 #
-#   * `match` — structured DSL evaluated by `BucketMatcher` in
-#     `scripts/build_wikidata_index.py`. Supported keys:
-#       p31_any:           [Qxxx, ...]   entity has any of these as P31
-#       p106_any:          [Qxxx, ...]   entity has any of these as P106
-#       p31_subclass_of:   [Qxxx, ...]   entity's P31 ∈ closure(P279*, root)
-#       min_population:    int           entity's P1082 ≥ value
+#   qid_any:           [Qxxx, ...]   subject QID is in this set (curated)
+#   p31_any:           [Qxxx, ...]   entity has any of these as P31
+#   p106_any:          [Qxxx, ...]   entity has any of these as P106
+#   min_population:    int           entity's P1082 ≥ value
 #
-#   * `min_sitelinks` (top-level, optional) — sitelinks-count threshold,
-#     applied during hydration after bucket membership is decided.
+#   `min_sitelinks` (top-level, optional) — sitelinks-count threshold,
+#   evaluated *after* Pass C SPARQL hydration so it operates on real
+#   sitelink counts, not zeroes from the truthy dump.
 #
-# When updating a bucket, keep `where_clause` and `match` semantically in
-# sync. The two-form contract exists so that the SPARQL fragment remains
-# the explanatory artefact for newcomers while the build script consumes
-# the structured form.
+# `where_clause` is reference SPARQL kept for human readers; it is not
+# parsed at build time.
 #
-# Adding a new bucket is a one-PR operation: append an entry below, run the
-# workflow_dispatch trigger of wikidata_index_rebuild, and verify the resulting
-# index size + hash match expectations. No code change required.
+# Adding a new bucket is a one-PR operation: append an entry below, run
+# the workflow_dispatch trigger of wikidata_index_rebuild, and verify
+# the resulting index size + hash match expectations. No code change
+# required.
 
 buckets:
   - name: politicians
@@ -72,84 +84,198 @@ buckets:
       p31_any: [Q3624078]
 
   - name: subnational_entities
-    description: First-level administrative divisions (Bundesländer, régions, states)
+    description: |
+      First-level administrative divisions (Bundesländer, régions,
+      states). Class QIDs verified against Wikidata 2026-05 — earlier
+      Phase-118b draft had Q22387 (Lipsheim, a French commune),
+      Q9357527 (territory of Canada), and Q11618417 (LAU 2 statistical
+      unit) wrongly listed as state classes; replaced by the correct
+      values below.
     where_clause: |
       ?item wdt:P31 ?cls .
       VALUES ?cls {
-        wd:Q35657   # state of Germany
-        wd:Q34876   # province
-        wd:Q22387   # state of the United States
-        wd:Q9357527 # autonomous community of Spain
-        wd:Q36784   # region of France
+        wd:Q1221156 wd:Q35657 wd:Q10742 wd:Q261543
+        wd:Q34876 wd:Q36784 wd:Q23058
       }
     match:
       p31_any:
-        - Q35657    # state of Germany
-        - Q34876    # province
-        - Q22387    # state of the United States
-        - Q9357527  # autonomous community of Spain
-        - Q36784    # region of France
+        - Q1221156   # federated state of Germany (Bundesland)
+        - Q35657     # U.S. state
+        - Q10742     # autonomous community of Spain
+        - Q261543    # federal state of Austria (Bundesland)
+        - Q34876     # province
+        - Q36784     # region of France
+        - Q23058     # canton of Switzerland
 
   - name: cities_population_threshold
-    description: Cities with population >= 50,000
+    description: |
+      Cities with population ≥ 50,000. Curated class set explicitly avoids
+      Q279 walks (Phase 118b post-mortem). German diagnostic-validation
+      revealed that real major cities (Berlin Q64, Munich Q1726) are
+      typed via Q42744322 / Q15974307 / Q1549591 / Q200250 rather than
+      Q515 directly — the class set must include those subtypes for
+      coverage. min_population guards against false positives on
+      synthetic small-population entries.
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q515 ;
+      ?item wdt:P31 ?cls ;
             wdt:P1082 ?pop .
+      VALUES ?cls {
+        wd:Q515 wd:Q1093829 wd:Q5119 wd:Q3957
+        wd:Q200250 wd:Q1549591 wd:Q42744322 wd:Q15974307
+      }
       FILTER(?pop >= 50000)
     match:
-      p31_subclass_of: [Q515]
+      p31_any:
+        - Q515       # city
+        - Q1093829   # city in the United States
+        - Q5119      # capital city
+        - Q3957      # town
+        - Q200250    # metropolis              (e.g. Berlin, Munich)
+        - Q1549591   # big city / Großstadt    (e.g. Berlin, Munich)
+        - Q42744322  # urban municipality in Germany (e.g. Berlin, Munich)
+        - Q15974307  # Unitary municipality in Germany (e.g. Berlin)
       min_population: 50000
 
   - name: international_organizations
-    description: International organisations (UN, NATO, OECD, etc.)
+    description: International / intergovernmental organisations (UN, NATO, OECD, etc.)
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q484652 .
+      ?item wdt:P31 ?cls .
+      VALUES ?cls { wd:Q484652 wd:Q245065 }
     match:
-      p31_subclass_of: [Q484652]
+      p31_any:
+        - Q484652    # international organization
+        - Q245065    # intergovernmental organization
     min_sitelinks: 3
 
   - name: political_parties
     description: Political parties (current and historical)
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q7278 .
+      ?item wdt:P31 wd:Q7278 .
     match:
-      p31_subclass_of: [Q7278]
+      p31_any: [Q7278]
     min_sitelinks: 2
 
   - name: government_agencies
-    description: Government agencies, ministries, regulatory bodies
+    description: |
+      Government agencies, ministries, regulatory bodies, parliaments.
+      Class QIDs verified 2026-05: earlier draft had Q11857481 (Ella
+      Lahtinen, a person) wrongly listed as ministry, Q11707895 (empty)
+      as regulatory agency, and Q1752346 (assembly) duplicated with
+      legislature. Real ministry class is Q192350; real regulatory
+      agency class is Q1639780.
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q327333 .
+      ?item wdt:P31 ?cls .
+      VALUES ?cls {
+        wd:Q327333 wd:Q192350 wd:Q11204 wd:Q35798 wd:Q1639780
+      }
     match:
-      p31_subclass_of: [Q327333]
+      p31_any:
+        - Q327333    # government agency
+        - Q192350    # ministry
+        - Q11204     # legislature / parliament
+        - Q35798     # executive branch
+        - Q1639780   # regulatory agency
     min_sitelinks: 2
 
   - name: central_banks
-    description: Central banks (ECB, Fed, Bundesbank, etc.)
+    description: |
+      Central banks (ECB, Fed, Bundesbank, etc.). Class QID verified
+      2026-05: Q1242737 was empty/unmapped in production Wikidata,
+      replaced by Q66344 ("central bank"), confirmed via Deutsche
+      Bundesbank Q162222 P31 = Q66344.
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q1242737 .
+      ?item wdt:P31 wd:Q66344 .
     match:
-      p31_subclass_of: [Q1242737]
+      p31_any: [Q66344]
 
   - name: news_organisations
-    description: News agencies, newspapers, news websites
+    description: |
+      News agencies, newspapers, news magazines. Class QIDs verified
+      2026-05: earlier draft had Q11030 (journalism — generic activity,
+      not an org), Q673281 (sexual assault!), and Q19842222 (empty)
+      wrongly listed; replaced/dropped accordingly. Generic Q41298
+      (magazine) deliberately excluded — too broad, would flood the
+      index with hobby/lifestyle titles.
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q1002697 .
+      ?item wdt:P31 ?cls .
+      VALUES ?cls { wd:Q192283 wd:Q11032 wd:Q1110794 wd:Q1684600 }
     match:
-      p31_subclass_of: [Q1002697]
+      p31_any:
+        - Q192283    # news agency
+        - Q11032     # newspaper
+        - Q1110794   # daily newspaper
+        - Q1684600   # news magazine
     min_sitelinks: 3
 
   - name: broadcasters
-    description: Public and private broadcasters
+    description: |
+      Public and private broadcasters, television/radio stations.
+      Class QIDs verified 2026-05: Q166118 was wrongly comment-labelled
+      "television channel" but is actually "archives" — a Phase-118
+      pathology relapse waiting to happen (Q565 Wikimedia Commons has
+      P31=Q166118 → would have leaked into broadcasters). Replaced by
+      the real Q2001305 ("television channel"). Generic Q15416
+      ("television program") deliberately excluded — would flood the
+      index with millions of show entries.
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q15265344 .
+      ?item wdt:P31 ?cls .
+      VALUES ?cls { wd:Q15265344 wd:Q1616075 wd:Q2001305 wd:Q14350 }
     match:
-      p31_subclass_of: [Q15265344]
+      p31_any:
+        - Q15265344  # broadcaster
+        - Q1616075   # television station
+        - Q2001305   # television channel
+        - Q14350     # radio station
     min_sitelinks: 3
 
   - name: eu_institutions
-    description: EU institutions and bodies (Commission, Parliament, ECJ, etc.)
+    description: |
+      EU treaty institutions, advisory bodies, and major agencies. Curated
+      QID list — Wikidata's P279 graph is unreliable here (Q3152824 closes
+      over Wikimedia Commons via "cultural institution"), so we enumerate
+      explicitly. Extend as needed; "as much as is maintainable" is the
+      design intent.
     where_clause: |
-      ?item wdt:P31/wdt:P279* wd:Q3152824 .
+      VALUES ?item {
+        wd:Q458 wd:Q8889 wd:Q8896 wd:Q8880 wd:Q4346 wd:Q193563 wd:Q8901 wd:Q56022
+        wd:Q3239427 wd:Q1255921 wd:Q1196044 wd:Q263181 wd:Q1374660 wd:Q1407110 wd:Q907312
+        wd:Q272125 wd:Q899025 wd:Q726740 wd:Q1370610
+        wd:Q1377627 wd:Q1377590 wd:Q1377596
+        wd:Q381559 wd:Q1366559 wd:Q1367586 wd:Q907311
+        wd:Q1063335 wd:Q726733
+      }
     match:
-      p31_subclass_of: [Q3152824]
+      qid_any:
+        # Treaty institutions
+        - Q458       # European Union (umbrella)
+        - Q8889      # European Commission
+        - Q8896      # European Parliament
+        - Q8880      # Council of the European Union
+        - Q4346      # European Council
+        - Q193563    # Court of Justice of the European Union
+        - Q8901      # European Central Bank
+        - Q56022     # European Court of Auditors
+        # Bodies & advisory
+        - Q3239427   # European External Action Service
+        - Q1255921   # European Economic and Social Committee
+        - Q1196044   # European Committee of the Regions
+        - Q263181    # European Investment Bank
+        - Q1374660   # European Investment Fund
+        - Q1407110   # European Ombudsman
+        - Q907312    # European Data Protection Supervisor
+        # Major justice / home-affairs agencies
+        - Q272125    # Frontex
+        - Q899025    # Europol
+        - Q726740    # Eurojust
+        - Q1370610   # European Defence Agency
+        # Financial supervisory authorities (ESAs)
+        - Q1377627   # European Banking Authority
+        - Q1377590   # European Insurance and Occupational Pensions Authority
+        - Q1377596   # European Securities and Markets Authority
+        # Operational agencies (selection)
+        - Q381559    # European Environment Agency
+        - Q1366559   # European Food Safety Authority
+        - Q1367586   # European Medicines Agency
+        - Q907311    # European Centre for Disease Prevention and Control
+        - Q1063335   # European Agency for Safety and Health at Work
+        - Q726733    # Cedefop

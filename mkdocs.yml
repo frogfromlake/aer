@@ -254,3 +254,4 @@ nav:
       - "Operations Playbook": operations/operations_playbook.md
       - "Scientific Operations Guide": operations/scientific_operations_guide.md
       - "Scheduled Work Inventory": operations/scheduled_work.md
+      - "Wikidata Index Runbook": operations/wikidata_index_runbook.md

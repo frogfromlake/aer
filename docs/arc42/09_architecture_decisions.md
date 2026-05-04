@@ -1532,3 +1532,55 @@ Any of:
 - **Status:** Deferred. Path documented; implementation pending trigger.
 
 ---
+## ADR-027: Wikidata Entity Linking is Disambiguation, not Discovery
+
+**Date:** 2026-05-04
+**Status:** Accepted
+**Related ADRs:** ADR-016 (Hybrid Tier Architecture), ADR-020 (Frontend Stack)
+**Related Phases:** 102 (`EntityCoOccurrenceExtractor`), 118 (Wikidata alias index), 118b (dump-stream build pipeline)
+
+### Context
+
+Phase 118 introduces a Wikidata alias index that maps NER surface forms to canonical QIDs. During the Phase-118b post-mortem (2026-05) — triggered by three semantic bugs in the first 157k-entity production build — a deeper architectural question surfaced that had never been written down: **is the index meant to be a *Disambiguation* layer (resolve fragmented surface forms when possible; canonical store stays string-keyed) or a *Discovery* layer (the index defines what entities the system can perceive)?**
+
+The two interpretations have very different consequences. Discovery makes Coverage a hard requirement: every news brand, every regional politician, every culturally-relevant entity in every probe's language must be in the index, or the system is "blind" to it. Disambiguation makes Coverage optional: unlinked entities flow through the pipeline as string-keyed nodes; linking adds a canonical-id sidecar where it can.
+
+The implicit Coverage anxiety — *"if we're missing Tagesschau, the system can't see news brands; if we're missing French politicians, Probe 2 is broken"* — would force the YAML bucket curation to scale to N≈30 probes across all language and domain frames. That is not a maintainable trajectory and was the visible source of the Phase-118b post-mortem's open question.
+
+This ADR resolves that question by reading what the codebase *actually does*, not what either interpretation might prefer.
+
+### Decision
+
+**Phase 118 is Disambiguation. The Wikidata alias index is a metadata sidecar over `aer_gold.entities`, not the canonical entity registry.**
+
+Specifically:
+
+1. **All NER spans land unconditionally in `aer_gold.entities`** (`NamedEntityExtractor.extract_all` in `services/analysis-worker/internal/extractors/entities.py`). This table is the canonical record of every entity surface form the system has ever observed.
+2. **`aer_gold.entity_links` rows exist only for spans that the alias index successfully resolves above the 0.7 confidence threshold** — the table is proportional to *linked* entities, not to *all* entities (ROADMAP Phase 118 line: *"important during early Probe 0/1 operation when the linked rate is expected to be low"*).
+3. **The Phase-102 `EntityCoOccurrenceExtractor` operates on `(entity_text, entity_label)` tuples** and has no QID input. Co-occurrence networks are built from surface forms; QIDs never enter the storage pipeline.
+4. **The BFF read path uses `LEFT JOIN`, never `INNER JOIN`** — `services/bff-api/internal/storage/entities_query.go` and `cooccurrence_query.go`. Unlinked entities surface with `wikidataQid = null`. The cooccurrence-handler comment is explicit: *"entity linking is a metadata layer over the canonical `aer_gold.entities` data, not a load-bearing dependency."*
+5. **The frontend types declare `wikidataQid?: string | null`**; consumers handle the null branch (currently the View-Mode cells render string-keyed nodes whether or not a QID is attached).
+
+Coverage of the alias index is therefore **scoped, not exhaustive**. WP-002 §4.2's footnote codifies this directly: *"the type-bucket scope is curated for institutional editorial discourse and may under-cover entities salient outside that frame."*
+
+### Consequences
+
+* **Positive:** The architecture absorbs a low link rate gracefully. Unlinked entities (Tagesschau as `Q703907`/`Q15416 television program`; Der Spiegel as `Q131478`/`Q41298 magazine`; locally-prominent journalists; long-tail social-media figures) appear as string-keyed co-occurrence nodes — analytically usable, just not collapsed into a canonical QID. Bucket curation has a defined ceiling: high-precision political/institutional entities for the institutional-discourse domain, nothing more. Adding a new probe in a new language does not require a synchronous bucket-curation push for that language's news landscape — the system continues to function on string-keyed nodes while the curation catches up (or never does, if the value is judged insufficient).
+* **Positive:** Phase-118 maintenance burden is bounded. The quarterly rebuild is automation-driven; YAML changes are PR-driven; misses do not block analytics. The implicit "coverage debt" that Discovery would impose disappears.
+* **Negative:** Disambiguation precision is the only dimension that matters, and it is currently Tier-1.5-heuristic (sitelink-count tiebreaker, no annotation-validated weights). A wrong link (e.g. "Merkel" → an unrelated `Q…` named Merkel because of bad sitelink ranking) is a *worse* outcome than no link, because it produces a false canonical clustering in the co-occurrence view. This is the Tier-2 work documented in WP-002 §4.2 footnote¹ and `aer_gold.metric_validity` (`entity_link_confidence` row, `validation_status='unvalidated'`).
+* **Negative:** Operators reading dashboards must understand that "entities not in the index" are not "entities the system missed" — they are "entities not yet collapsed to canonical IDs." This is a documentation burden, addressed by the Operations Playbook section "Reading the entity-linking confidence column" (cross-link to be added when the playbook lands the section).
+
+**Non-goals.** This ADR does not commit to the current YAML bucket scope as the long-term architecture. A future Phase-119/120 may migrate to a Wikipedia-sitelink-based scope that eliminates per-domain YAML curation; that migration is in scope of a separate ADR if it ships, and is consistent with the Disambiguation framing — Wikipedia-scope is one mechanism for choosing *which* surface forms get a canonical ID, not a redefinition of what the index *is*.
+
+### What this rules out
+
+* The Wikidata index is **not** a "registry of relevant entities for AĒR." Operators must not interpret missing entities as out-of-scope-for-analysis.
+* Future code must **not** introduce paths that drop unlinked entities. INNER JOIN against `entity_links` is forbidden in the BFF storage layer; lint-equivalent: any handler that depends on `wikidata_qid != ''` for correctness has misunderstood the architecture.
+* Bucket curation is **not** a multi-language, multi-domain coverage commitment. Buckets exist to make the precision of the institutional-political-discourse linking high; their absence in other domains is acceptable per the design.
+
+### Decision Record
+
+- **Drafted:** 2026-05-04 by Fabian Quist with AĒR, after the Phase-118b post-mortem revealed the Disambiguation-vs-Discovery question had never been written down explicitly.
+- **Status:** Accepted. The codebase already implements Disambiguation consistently across worker, BFF, and frontend; this ADR codifies the existing implementation rather than directing a change.
+
+---
