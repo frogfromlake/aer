@@ -149,14 +149,56 @@ def test_sitelink_tiebreak_prefers_higher_count(
     fixture_index: WikidataAliasIndex,
 ) -> None:
     # Berlin city (350 sitelinks, label) wins over Berlin surname
-    # (5 sitelinks, altLabel) — even though both share the surface form,
-    # the label-tier match preempts altLabel and within the label tier the
-    # city is the only candidate. This test guards both behaviours: the
-    # method-tier ordering and the in-tier sitelink ordering.
+    # (5 sitelinks, altLabel). After the Tier-1.6 refinement (2026-05-04)
+    # the lookup ranks across both alias sources by sitelink count, so
+    # this test now guards the unified-source sitelink ordering rather
+    # than the old label-preempts-altLabel tier behaviour.
     candidate = fixture_index.lookup("Berlin", "de")
     assert candidate is not None
     assert candidate.wikidata_qid == "Q64"
     assert candidate.method == "exact_match"
+
+
+def test_high_sitelink_altlabel_beats_low_sitelink_label(tmp_path: Path) -> None:
+    # Phase-118b post-mortem regression test for the Bundestag misrouting
+    # discovered on 2026-05-04. Before the Tier-1.6 fix, the strict
+    # label > altLabel tier ordering preferred Q547751 ("Federal
+    # Convention 1815-1848", `Bundestag` as primary label, 13 sitelinks)
+    # over Q154797 (modern German Bundestag, `Bundestag` as altLabel,
+    # 90 sitelinks) — wrong for the news-domain. The unified-source
+    # sitelink-tiebreaker resolves this in favour of the modern entity.
+    db = tmp_path / "tier16.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE aliases (
+            alias TEXT NOT NULL,
+            language TEXT NOT NULL,
+            wikidata_qid TEXT NOT NULL,
+            sitelink_count INTEGER NOT NULL,
+            alias_source TEXT NOT NULL,
+            PRIMARY KEY (alias, language, wikidata_qid)
+        );
+        CREATE TABLE entities (wikidata_qid TEXT PRIMARY KEY, sitelink_count INTEGER NOT NULL, type_buckets TEXT NOT NULL);
+        CREATE TABLE build_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        """
+    )
+    conn.executemany(
+        "INSERT INTO aliases (alias, language, wikidata_qid, sitelink_count, alias_source) VALUES (?, ?, ?, ?, ?)",
+        [
+            ("bundestag", "de", "Q547751", 13, "label"),
+            ("bundestag", "de", "Q154797", 90, "altLabel"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    idx = WikidataAliasIndex(db)
+    candidate = idx.lookup("Bundestag", "de")
+    assert candidate is not None
+    assert candidate.wikidata_qid == "Q154797"
+    assert candidate.method == "alias_lookup"
+    assert candidate.confidence == CONFIDENCE_ALIAS
+    idx.close()
 
 
 def test_language_scoping_isolates_collisions(

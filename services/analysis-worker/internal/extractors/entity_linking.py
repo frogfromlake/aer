@@ -116,9 +116,25 @@ class WikidataAliasIndex:
         """Resolve a surface form to a single best Wikidata candidate.
 
         Returns None when no candidate clears `CONFIDENCE_THRESHOLD`. The
-        sitelink tiebreaker is applied within each method tier — the
-        highest-confidence method that has any match wins, and within that
-        method the highest-sitelink QID wins.
+        sitelink tiebreaker is applied across both `label` and `altLabel`
+        sources — the highest-sitelink QID wins regardless of which side
+        of the alias-source ladder it came from. On equal sitelinks
+        `label` wins over `altLabel` (lexicographic DESC on `alias_source`
+        because `'l'abel > 'a'ltLabel`); on equal sitelinks AND equal
+        source, the lexicographically-earliest QID wins for determinism.
+
+        Phase 118b post-mortem fix (2026-05-04). The original tiered
+        lookup matched `label` first regardless of sitelink count, then
+        fell back to `altLabel`. That misranked the German news-domain
+        case `"Bundestag"` — Q547751 (Federal Convention 1815-1848,
+        13 sitelinks, primary `label`) preempted Q154797 (modern
+        German Bundestag, 90 sitelinks, `altLabel`). Conflating the
+        two sources at the SQL layer and ranking purely by sitelinks
+        moves the news-domain bias toward the modern entity without
+        a Tier-2 transformer linker — see WP-002 §4.2 footnote¹ for
+        the open evaluation work that distinguishes Tier-1.5 from
+        validated entity linking. Confidence weights remain unchanged
+        (1.00 / 0.85) so the methodology contract is preserved.
         """
         if not surface or not language:
             return None
@@ -127,30 +143,27 @@ class WikidataAliasIndex:
         if not normalised:
             return None
 
-        # Tier 1: exact match against rdfs:label.
+        # Combined label + altLabel match. `alias_source DESC` makes
+        # 'label' > 'altLabel' on lexicographic sort, which is the
+        # correct tiebreaker on equal sitelinks.
         row = self._conn.execute(
-            "SELECT wikidata_qid, sitelink_count FROM aliases "
-            "WHERE alias = ? AND language = ? AND alias_source = 'label' "
-            "ORDER BY sitelink_count DESC, wikidata_qid ASC LIMIT 1",
+            "SELECT wikidata_qid, sitelink_count, alias_source FROM aliases "
+            "WHERE alias = ? AND language = ? "
+            "AND alias_source IN ('label', 'altLabel') "
+            "ORDER BY sitelink_count DESC, alias_source DESC, wikidata_qid ASC "
+            "LIMIT 1",
             (normalised, language),
         ).fetchone()
         if row is not None:
+            qid, _sitelinks, alias_source = row
+            if alias_source == "label":
+                return LinkCandidate(
+                    wikidata_qid=qid,
+                    confidence=CONFIDENCE_EXACT,
+                    method="exact_match",
+                )
             return LinkCandidate(
-                wikidata_qid=row[0],
-                confidence=CONFIDENCE_EXACT,
-                method="exact_match",
-            )
-
-        # Tier 2: skos:altLabel.
-        row = self._conn.execute(
-            "SELECT wikidata_qid, sitelink_count FROM aliases "
-            "WHERE alias = ? AND language = ? AND alias_source = 'altLabel' "
-            "ORDER BY sitelink_count DESC, wikidata_qid ASC LIMIT 1",
-            (normalised, language),
-        ).fetchone()
-        if row is not None:
-            return LinkCandidate(
-                wikidata_qid=row[0],
+                wikidata_qid=qid,
                 confidence=CONFIDENCE_ALIAS,
                 method="alias_lookup",
             )
