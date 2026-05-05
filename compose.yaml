@@ -399,11 +399,6 @@ services:
       - WIKIDATA_INDEX_SHA256=${WIKIDATA_INDEX_SHA256:-}
     volumes:
       - wikidata_data:/data/wikidata:ro
-      # Phase 119: HuggingFace cache for Tier-2 BERT sentiment models
-      # (cardiffnlp/twitter-xlm-roberta-base-sentiment, mdraw/german-news-sentiment-bert).
-      # First inference downloads ~1.5 GB on the slowest call; subsequent
-      # container recreations hit this volume without touching the network.
-      - hf_cache:/hf-cache
     networks:
       - aer-backend
     depends_on:
@@ -747,10 +742,6 @@ volumes:
   tempo_data:
   rss_crawler_state:
   wikidata_data:
-  # Phase 119: persistent HuggingFace model cache for the analysis
-  # worker's Tier-2 BERT sentiment extractors. Survives container
-  # recreations so models download exactly once per host.
-  hf_cache:
 
 networks:
   aer-frontend:

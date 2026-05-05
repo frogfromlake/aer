@@ -25,14 +25,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends unzip wget \
     && rm /tmp/sentiws.zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Phase 119 (ADR-023) — Tier-2 sentiment models are downloaded on first
-# inference into a persistent HF_HOME volume rather than baked at build
-# time. Build-time bake-in was attempted but proved fragile under
-# bandwidth-limited environments (HuggingFace 10s read timeout aborts the
-# entire image build); the volume cache makes the first worker startup
-# slower while keeping the build deterministic and fast. The model
-# revisions still get pinned via the Language Capability Manifest at
-# inference time, so supply-chain integrity is preserved.
+# Phase 119 (ADR-023) — Pre-download Tier-2 BERT sentiment models so the
+# runtime image is self-contained and can run with TRANSFORMERS_OFFLINE=1.
+# Revisions are read from the Language Capability Manifest (the same SoT
+# the extractors use at construction time per ADR-024), keeping
+# supply-chain integrity consistent with SentiWS (hash-pinned above) and
+# the spaCy model wheels. The prefetch script retries with backoff to
+# survive transient HuggingFace timeouts.
+ENV HF_HOME=/hf-cache \
+    HF_HUB_DOWNLOAD_TIMEOUT=300 \
+    PYTHONPATH=/install/lib/python3.14/site-packages
+COPY services/analysis-worker/configs/language_capabilities.yaml /tmp/language_capabilities.yaml
+COPY services/analysis-worker/scripts/prefetch_bert_models.py /tmp/prefetch_bert_models.py
+# BuildKit cache mount keeps downloaded model weights between rebuilds on
+# the same host — bumping a single model revision then redownloads only
+# the changed model. The cache does not affect the resulting image layer:
+# weights are copied into /hf-cache regardless of cache hit/miss, so the
+# image is a deterministic function of source.
+RUN --mount=type=cache,target=/hf-build-cache,id=aer-analysis-worker-hf-models \
+    mkdir -p /hf-cache \
+    && python /tmp/prefetch_bert_models.py /tmp/language_capabilities.yaml /hf-build-cache \
+    && cp -a /hf-build-cache/. /hf-cache/
 
 # Runtime — digest pinned for reproducibility (Phase 84).
 FROM python:3.14.3-slim-bookworm@sha256:f21c0d5a44c56805654c15abccc1b2fd576c8d93aca0a3f74b4aba2dc92510e2
@@ -49,17 +62,17 @@ RUN apt-get update \
 COPY --from=builder /install /usr/local
 COPY services/analysis-worker/ .
 COPY --from=builder /sentiws /app/data/sentiws
+COPY --from=builder /hf-cache /hf-cache
 
-# Phase 119 — HF model cache lives at /hf-cache and is mounted as a
-# named volume in compose so models persist across container recreations
-# (first inference downloads, subsequent runs hit the volume).
-RUN mkdir -p /hf-cache && chown -R aer:aer /app /hf-cache
+RUN chown -R aer:aer /app /hf-cache
 
 USER aer
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/hf-cache
+    HF_HOME=/hf-cache \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_OFFLINE=1
 
 EXPOSE 8001
 
