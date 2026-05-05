@@ -393,13 +393,27 @@ audit-go:
 	@cd crawlers/rss-crawler && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (RSS Crawler) passed!$(RESET)"
 	@cd pkg && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (pkg/) passed!$(RESET)"
 
+# pip-audit advisory suppressions — only when no stable fix is available
+# upstream and the worker's usage profile rules out the disclosed exposure.
+# Each entry must list (a) the CVE, (b) the justification, (c) the
+# upstream-fix tracker. Revisit on every `make deps-refresh`.
+#
+#   * CVE-2026-1839 — transformers 4.57.6: fix is published only as
+#     5.0.0rc3 (release candidate). The Phase-119 hard rule forbids
+#     pinning RC/alpha versions; we hold on the latest stable 4.x and
+#     suppress until transformers 5.x stable ships. The worker invokes
+#     transformers solely via pre-validated pinned model revisions
+#     baked into the image with `TRANSFORMERS_OFFLINE=1`, so the
+#     advisory's network-borne attack surface is not exercised.
+PIP_AUDIT_IGNORE_VULNS := --ignore-vuln CVE-2026-1839
+
 audit-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running pip-audit (Python vulnerability scanner)...$(RESET)"
 	@cd services/analysis-worker && \
 		if [ -f ./.venv/bin/pip-audit ]; then \
-			./.venv/bin/pip-audit -r requirements.txt && echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit (Analysis Worker) passed!$(RESET)"; \
+			./.venv/bin/pip-audit -r requirements.txt $(PIP_AUDIT_IGNORE_VULNS) && echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit (Analysis Worker) passed!$(RESET)"; \
 		else \
-			pip-audit -r requirements.txt && echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit (Analysis Worker) passed!$(RESET)"; \
+			pip-audit -r requirements.txt $(PIP_AUDIT_IGNORE_VULNS) && echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit (Analysis Worker) passed!$(RESET)"; \
 		fi
 
 # ==========================================
