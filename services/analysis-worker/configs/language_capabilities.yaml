@@ -141,3 +141,19 @@ shared:
       - it
       - pt
       - es
+
+  # Phase 120: BERTopic embedding model for the corpus-level
+  # `TopicModelingExtractor`. Multilingual by construction — Probe-1
+  # French documents and any future probe land in their own per-language
+  # topic partition without per-language retraining (WP-004 §3.4).
+  # Memory footprint ~2.2 GB. mpnet (paraphrase-multilingual-mpnet-base-v2)
+  # is a viable fallback if E5 proves untenable on the deployment target;
+  # see Operations Playbook §"Topic-Modeling Embedding Fallback".
+  topic_modeling:
+    model: intfloat/multilingual-e5-large
+    # Pinned commit on the HuggingFace model repo. Rotate via
+    # `make deps-refresh` per docs/operations_playbook.md.
+    model_revision: "ab10c1a7f42e74530fe7ae5be82e6d4f11a719eb"
+    bertopic_version_floor: "0.16.0"
+    umap_seed: 42
+    hdbscan_seed: 42

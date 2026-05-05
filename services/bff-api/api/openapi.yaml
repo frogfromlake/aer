@@ -39,6 +39,8 @@ paths:
     $ref: './paths/entities.yaml'
   /entities/cooccurrence:
     $ref: './paths/entities_cooccurrence.yaml'
+  /topics/distribution:
+    $ref: './paths/topics_distribution.yaml'
   /languages:
     $ref: './paths/languages.yaml'
   /sources:
@@ -139,3 +141,5 @@ components:
       $ref: './schemas/SilverDocumentDetail.yaml'
     SilverAggregationResponse:
       $ref: './schemas/SilverAggregationResponse.yaml'
+    TopicDistributionResponse:
+      $ref: './schemas/TopicDistributionResponse.yaml'

@@ -21,6 +21,11 @@ from internal.extractors.metric_baseline import (
     compute_baseline_rows,
     compute_mean_std,
 )
+from internal.extractors.topic_modeling import (
+    DocumentRecord,
+    TopicAssignmentRow,
+    TopicModelingExtractor,
+)
 
 __all__ = [
     "MetricExtractor",
@@ -50,4 +55,7 @@ __all__ = [
     "build_baseline_rows",
     "compute_baseline_rows",
     "compute_mean_std",
+    "DocumentRecord",
+    "TopicAssignmentRow",
+    "TopicModelingExtractor",
 ]

@@ -37,6 +37,13 @@ def _collect_targets(manifest: dict) -> list[tuple[str, str]]:
     if multilingual:
         targets.append((multilingual["model"], multilingual["model_revision"]))
 
+    # Phase 120: BERTopic embedding model. Same prefetch path as the
+    # sentiment models so the deployed worker can run with
+    # TRANSFORMERS_OFFLINE=1.
+    topic_modeling = shared.get("topic_modeling")
+    if topic_modeling:
+        targets.append((topic_modeling["model"], topic_modeling["model_revision"]))
+
     for lang_block in (manifest.get("languages") or {}).values():
         refinement = lang_block.get("sentiment_tier2_refinement")
         if refinement and refinement.get("method") == "news_domain_bert":

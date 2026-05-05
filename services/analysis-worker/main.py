@@ -32,13 +32,16 @@ from internal.extractors import (
     NamedEntityExtractor,
     EntityCoOccurrenceExtractor,
     MetricBaselineExtractor,
+    TopicModelingExtractor,
     WikidataAliasIndex,
 )
 from internal.corpus import (
     BaselineConfig,
     CorpusConfig,
+    TopicConfig,
     baseline_extraction_loop,
     corpus_extraction_loop,
+    topic_extraction_loop,
 )
 
 load_dotenv()
@@ -400,6 +403,20 @@ async def main(config: WorkerConfig | None = None):
         )
     )
 
+    # Phase 120: BERTopic topic-modeling sweep. Opt-in (default disabled)
+    # until the E5-large-bearing image is deployed; once enabled, runs on
+    # a weekly cadence over a 30-day rolling window per WP-004 §3.4.
+    topic_config = TopicConfig()
+    topic_task = asyncio.create_task(
+        topic_extraction_loop(
+            ch_client,
+            minio_client,
+            TopicModelingExtractor(),
+            topic_config,
+            stop_event,
+        )
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -423,6 +440,9 @@ async def main(config: WorkerConfig | None = None):
 
         logger.info("Waiting for baseline-extraction loop to drain...")
         await baseline_task
+
+        logger.info("Waiting for topic-extraction loop to drain...")
+        await topic_task
 
         await nc.close()
 

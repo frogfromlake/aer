@@ -155,12 +155,32 @@ class MultilingualBertCapability(BaseModel):
     supported_languages: list[str] = Field(default_factory=list)
 
 
+class TopicModelingCapability(BaseModel):
+    """Shared BERTopic embedding-model registration (Phase 120 consumer).
+
+    Drives the ``TopicModelingExtractor`` corpus loop and the worker
+    Dockerfile's build-time prefetch script. Per WP-004 §3.4 BERTopic is
+    fit per language partition; this block supplies the embedding model
+    that is shared across partitions and the deterministic seeds for
+    UMAP / HDBSCAN.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    model: str
+    model_revision: str = ""
+    bertopic_version_floor: str = ""
+    umap_seed: int = 42
+    hdbscan_seed: int = 42
+
+
 class SharedCapability(BaseModel):
     """Cross-language shared resources."""
 
     model_config = ConfigDict(extra="forbid")
 
     multilingual_bert: MultilingualBertCapability | None = None
+    topic_modeling: TopicModelingCapability | None = None
 
 
 class CapabilityManifest(BaseModel):
@@ -261,5 +281,6 @@ __all__ = [
     "SentimentTier2DefaultCapability",
     "SentimentTier2RefinementCapability",
     "SharedCapability",
+    "TopicModelingCapability",
     "load_manifest",
 ]

@@ -236,12 +236,24 @@ log_info "using pip-tools==$PIP_TOOLS_VERSION (from .tool-versions)"
 if [[ "$DRY_RUN" == 1 ]]; then
     log_info "would: pip-compile --generate-hashes --allow-unsafe inside $PYTHON_REF"
 else
+    # Some C-extension dependencies (notably scikit-learn / scipy / hdbscan
+    # for cp314 in early-2026) ship sdists without manylinux wheels. Install a
+    # minimal build toolchain inside the pip-compile container so pip can
+    # generate hashes for those sdists; without it `meson` aborts with
+    # "Unknown compiler(s)". The toolchain is install-time only — the produced
+    # lockfile + hashes are consumed by the runtime image, which never sees
+    # gcc.
     docker run --rm \
         -v "${REPO_ROOT}/services/analysis-worker:/work" \
         -w /work \
         "$PYTHON_REF" \
         bash -c "
             set -euo pipefail
+            apt-get update -qq
+            apt-get install -y --no-install-recommends \
+                gcc g++ gfortran make \
+                python3-dev libopenblas-dev liblapack-dev \
+                pkg-config ninja-build > /dev/null
             pip install --quiet --disable-pip-version-check 'pip-tools==${PIP_TOOLS_VERSION}'
             pip-compile \
                 --quiet \

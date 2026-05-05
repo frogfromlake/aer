@@ -1,0 +1,89 @@
+get:
+  tags: [Analysis]
+  summary: Per-scope topic distribution (Episteme x ridgeline / stream-graph)
+  description: >
+    Returns the per-language topic distribution over the window for the
+    resolved scope. Backs the Phase 121 `topic_distribution` and
+    `topic_evolution` view-mode cells. Topics come from BERTopic
+    (`aer_gold.topic_assignments`, Phase 120) — fit per language partition,
+    so cross-language `topic_id` comparisons are explicitly meaningless and
+    must not be performed at the rendering layer.
+
+    Scope is resolved from the union of `scopeId`, `probeIds`, and
+    `sourceIds`; at least one must be present. The `language` parameter
+    further restricts the response to one language partition. Outliers
+    (`topic_id == -1`) are excluded by default — set `includeOutlier=true`
+    to surface them as an `uncategorised` ridge per the Phase 121 design.
+
+    Topic cap: 50 topics by `articleCount` descending.
+  operationId: getTopicDistribution
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when
+        `probeIds` and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - name: start
+      in: query
+      description: Inclusive start of the query window (RFC 3339). Optional — defaults to the latest available BERTopic sweep window when omitted.
+      required: false
+      schema:
+        type: string
+        format: date-time
+    - name: end
+      in: query
+      description: Exclusive end of the query window (RFC 3339). Optional — defaults to now.
+      required: false
+      schema:
+        type: string
+        format: date-time
+    - $ref: '../parameters/language.yaml'
+    - name: minConfidence
+      in: query
+      description: >
+        Minimum `topic_confidence` for a row to be included in the
+        aggregation. Defaults to 0.0 (include all assignments).
+      required: false
+      schema:
+        type: number
+        format: float
+        default: 0.0
+        minimum: 0.0
+        maximum: 1.0
+    - name: includeOutlier
+      in: query
+      description: >
+        When `true`, the outlier topic (`topic_id == -1`) is included in the
+        response as an `uncategorised` entry. Defaults to false.
+      required: false
+      schema:
+        type: boolean
+        default: false
+  responses:
+    '200':
+      description: Topic distribution payload.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/TopicDistributionResponse.yaml'
+    '400':
+      description: Invalid scope, unknown probe / source, or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

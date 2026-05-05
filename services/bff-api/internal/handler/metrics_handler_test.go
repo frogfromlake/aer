@@ -54,6 +54,10 @@ type mockStore struct {
 	correlationErr       error
 	cooccurrence         storage.CoOccurrenceResult
 	cooccurrenceErr      error
+	// Phase 120 topic-distribution mocks.
+	topicDistribution    []storage.TopicDistributionRow
+	topicDistributionErr error
+	capturedTopicParams  storage.TopicDistributionParams
 	// Phase 103b silver-aggregation mocks.
 	silverDistribution    storage.DistributionResult
 	silverDistributionErr error
@@ -200,6 +204,14 @@ func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, s
 	m.capturedEnd = end
 	m.capturedTopN = topN
 	return m.cooccurrence, m.cooccurrenceErr
+}
+
+func (m *mockStore) GetTopicDistribution(_ context.Context, params storage.TopicDistributionParams) ([]storage.TopicDistributionRow, error) {
+	m.capturedTopicParams = params
+	m.capturedSources = params.Sources
+	m.capturedStart = params.Start
+	m.capturedEnd = params.End
+	return m.topicDistribution, m.topicDistributionErr
 }
 
 func (m *mockStore) GetSilverDistribution(_ context.Context, field string, source string, start, end time.Time, bins int) (storage.DistributionResult, error) {

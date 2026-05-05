@@ -115,6 +115,8 @@ Topic Modeling (LDA, BERTopic) entdeckt latente thematische Strukturen in Dokume
 
 Dies bewahrt die kulturelle Spezifität jedes Topics und ermöglicht gleichzeitig validierten interkulturellen Vergleich — eine direkte Anwendung des Etisch/Emisch-Prinzips aus WP-001.
 
+> **Implementierungsstand (Phase 120):** Schritt 1 (intrakulturelle Themenentdeckung pro Sprachpartition) ist umgesetzt. Der `TopicModelingExtractor` (`services/analysis-worker/internal/extractors/topic_modeling.py`) partitioniert den Korpus vor dem BERTopic-Fit nach `detected_language`; jede Sprache erhält einen eigenen Themenraum, und `topic_id` ist ausschließlich innerhalb einer Sprachpartition eindeutig. Schritt 2 (mehrsprachige Embeddings als Alignment-Vorschläge) ist über das gemeinsame `intfloat/multilingual-e5-large`-Modell vorbereitet, aber **kein erzwungenes sprachübergreifendes Alignment** wird auf Speicher- oder Render-Ebene durchgeführt. Schritte 3 und 4 (menschliche Validierung durch Regionalexperten und separate Mapping-Tabelle) bleiben ein wissenschaftlicher Workflow für eine spätere Iteration und sind nicht Teil der Engineering-POC-Phase.
+
 ---
 
 ## 4. Kulturelle Vergleichbarkeit: Jenseits der Sprache

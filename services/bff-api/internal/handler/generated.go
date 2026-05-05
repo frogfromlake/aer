@@ -605,6 +605,24 @@ func (e GetSourceArticlesParamsSentimentBand) Valid() bool {
 	}
 }
 
+// Defines values for GetTopicDistributionParamsScope.
+const (
+	GetTopicDistributionParamsScopeProbe  GetTopicDistributionParamsScope = "probe"
+	GetTopicDistributionParamsScopeSource GetTopicDistributionParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetTopicDistributionParamsScope enum.
+func (e GetTopicDistributionParamsScope) Valid() bool {
+	switch e {
+	case GetTopicDistributionParamsScopeProbe:
+		return true
+	case GetTopicDistributionParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // ArticleDetail Full article payload for L5 Evidence (Design Brief §4.5.5 in the Iteration 5 rewrite). Includes Bronze cleaned text, Silver metadata, and per-extractor provenance. Subject to a k-anonymity gate (WP-006 §7): if the article's aggregation group for the referenced metric is below the configured threshold, the BFF returns 403 with a methodological refusal payload instead of the article body.
 type ArticleDetail struct {
 	ArticleId string `json:"articleId"`
@@ -1228,6 +1246,39 @@ type GetSourceArticlesParams struct {
 // GetSourceArticlesParamsSentimentBand defines parameters for GetSourceArticles.
 type GetSourceArticlesParamsSentimentBand string
 
+// GetTopicDistributionParams defines parameters for GetTopicDistribution.
+type GetTopicDistributionParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetTopicDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — defaults to the latest available BERTopic sweep window when omitted.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — defaults to now.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// Language Filter by ISO 639-1 language code (e.g., "de", "en").
+	Language *string `form:"language,omitempty" json:"language,omitempty"`
+
+	// MinConfidence Minimum `topic_confidence` for a row to be included in the aggregation. Defaults to 0.0 (include all assignments).
+	MinConfidence *float32 `form:"minConfidence,omitempty" json:"minConfidence,omitempty"`
+
+	// IncludeOutlier When `true`, the outlier topic (`topic_id == -1`) is included in the response as an `uncategorised` entry. Defaults to false.
+	IncludeOutlier *bool `form:"includeOutlier,omitempty" json:"includeOutlier,omitempty"`
+}
+
+// GetTopicDistributionParamsScope defines parameters for GetTopicDistribution.
+type GetTopicDistributionParamsScope string
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// L5 Evidence — article detail with k-anonymity gate
@@ -1296,6 +1347,9 @@ type ServerInterface interface {
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams)
+	// Per-scope topic distribution (Episteme x ridgeline / stream-graph)
+	// (GET /topics/distribution)
+	GetTopicDistribution(w http.ResponseWriter, r *http.Request, params GetTopicDistributionParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1431,6 +1485,12 @@ func (_ Unimplemented) GetSourceById(w http.ResponseWriter, r *http.Request, id 
 // Paginated article listing for a source
 // (GET /sources/{id}/articles)
 func (_ Unimplemented) GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-scope topic distribution (Episteme x ridgeline / stream-graph)
+// (GET /topics/distribution)
+func (_ Unimplemented) GetTopicDistribution(w http.ResponseWriter, r *http.Request, params GetTopicDistributionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2807,6 +2867,103 @@ func (siw *ServerInterfaceWrapper) GetSourceArticles(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetTopicDistribution operation middleware
+func (siw *ServerInterfaceWrapper) GetTopicDistribution(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTopicDistributionParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "language" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "language", r.URL.Query(), &params.Language, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "language", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "minConfidence" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "minConfidence", r.URL.Query(), &params.MinConfidence, runtime.BindQueryParameterOptions{Type: "number", Format: "float"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "minConfidence", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "includeOutlier" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "includeOutlier", r.URL.Query(), &params.IncludeOutlier, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "includeOutlier", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTopicDistribution(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -2985,6 +3142,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources/{id}/articles", wrapper.GetSourceArticles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/topics/distribution", wrapper.GetTopicDistribution)
 	})
 
 	return r
@@ -4744,6 +4904,114 @@ func (response GetSourceArticles500JSONResponse) VisitGetSourceArticlesResponse(
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetTopicDistributionRequestObject struct {
+	Params GetTopicDistributionParams
+}
+
+type GetTopicDistributionResponseObject interface {
+	VisitGetTopicDistributionResponse(w http.ResponseWriter) error
+}
+
+type GetTopicDistribution200JSONResponse struct {
+	// Language The language filter actually applied. Empty when no `language` parameter was supplied — in that case the `topics` array contains one entry per (language, topic_id) pair, sorted by `articleCount` across all languages.
+	Language *string `json:"language,omitempty"`
+	Scope    *string `json:"scope,omitempty"`
+	ScopeId  *string `json:"scopeId,omitempty"`
+
+	// Topics Topic entries sorted by `articleCount` descending. Capped at 50. The outlier topic (`topicId == -1`) is omitted unless the request sets `includeOutlier=true`; when present, its `label` is "uncategorised" per the Phase 121 frontend convention.
+	Topics []struct {
+		// ArticleCount Distinct articles assigned to this topic in the window.
+		ArticleCount int64 `json:"articleCount"`
+
+		// AvgConfidence Mean `topic_confidence` over the included rows.
+		AvgConfidence float32 `json:"avgConfidence"`
+
+		// Label BERTopic c-TF-IDF / KeyBERT representation, or "uncategorised" for outliers.
+		Label string `json:"label"`
+
+		// Language ISO-639-1 language code of the language partition.
+		Language string `json:"language"`
+
+		// ModelHash BERTopic model-provenance hash (Phase 120). When the topic was assigned by more than one model in the window, the most-recent hash is reported — clients should treat a non-unique value as a signal that topic identity has rotated within the window.
+		ModelHash *string `json:"modelHash,omitempty"`
+
+		// TopicId BERTopic numeric identifier; `-1` is the outlier class.
+		TopicId int32 `json:"topicId"`
+	} `json:"topics"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+}
+
+func (response GetTopicDistribution200JSONResponse) VisitGetTopicDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetTopicDistribution400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetTopicDistribution400JSONResponse) VisitGetTopicDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetTopicDistribution404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetTopicDistribution404JSONResponse) VisitGetTopicDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetTopicDistribution500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetTopicDistribution500JSONResponse) VisitGetTopicDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// L5 Evidence — article detail with k-anonymity gate
@@ -4812,6 +5080,9 @@ type StrictServerInterface interface {
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(ctx context.Context, request GetSourceArticlesRequestObject) (GetSourceArticlesResponseObject, error)
+	// Per-scope topic distribution (Episteme x ridgeline / stream-graph)
+	// (GET /topics/distribution)
+	GetTopicDistribution(ctx context.Context, request GetTopicDistributionRequestObject) (GetTopicDistributionResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -5410,6 +5681,32 @@ func (sh *strictHandler) GetSourceArticles(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSourceArticlesResponseObject); ok {
 		if err := validResponse.VisitGetSourceArticlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTopicDistribution operation middleware
+func (sh *strictHandler) GetTopicDistribution(w http.ResponseWriter, r *http.Request, params GetTopicDistributionParams) {
+	var request GetTopicDistributionRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTopicDistribution(ctx, request.(GetTopicDistributionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTopicDistribution")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTopicDistributionResponseObject); ok {
+		if err := validResponse.VisitGetTopicDistributionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

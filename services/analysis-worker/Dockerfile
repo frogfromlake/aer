@@ -25,13 +25,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends unzip wget \
     && rm /tmp/sentiws.zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Phase 119 (ADR-023) — Pre-download Tier-2 BERT sentiment models so the
-# runtime image is self-contained and can run with TRANSFORMERS_OFFLINE=1.
-# Revisions are read from the Language Capability Manifest (the same SoT
-# the extractors use at construction time per ADR-024), keeping
-# supply-chain integrity consistent with SentiWS (hash-pinned above) and
-# the spaCy model wheels. The prefetch script retries with backoff to
-# survive transient HuggingFace timeouts.
+# Phase 119 (ADR-023) / Phase 120 — Pre-download Tier-2 BERT sentiment models
+# AND the BERTopic embedding model (intfloat/multilingual-e5-large, ~2.2 GB)
+# so the runtime image is self-contained and can run with
+# TRANSFORMERS_OFFLINE=1. Revisions are read from the Language Capability
+# Manifest (the same SoT the extractors use at construction time per
+# ADR-024), keeping supply-chain integrity consistent with SentiWS
+# (hash-pinned above) and the spaCy model wheels. The prefetch script
+# retries with backoff to survive transient HuggingFace timeouts.
 ENV HF_HOME=/hf-cache \
     HF_HUB_DOWNLOAD_TIMEOUT=300 \
     PYTHONPATH=/install/lib/python3.14/site-packages

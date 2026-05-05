@@ -1,0 +1,74 @@
+type: object
+description: >
+  Per-language topic distribution payload backing the Episteme-pillar
+  `topic_distribution` and `topic_evolution` view modes. Topics are fit
+  per language by BERTopic (Phase 120 / WP-004 §3.4); the `language`
+  field on each entry is mandatory and `topic_id` is unique only within
+  one language partition. Cross-language topic comparisons are
+  meaningless and must not be performed at the rendering layer.
+required:
+  - windowStart
+  - windowEnd
+  - topics
+properties:
+  scope:
+    type: string
+  scopeId:
+    type: string
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
+  language:
+    type: string
+    description: >
+      The language filter actually applied. Empty when no `language`
+      parameter was supplied — in that case the `topics` array contains
+      one entry per (language, topic_id) pair, sorted by `articleCount`
+      across all languages.
+  topics:
+    type: array
+    description: >
+      Topic entries sorted by `articleCount` descending. Capped at 50.
+      The outlier topic (`topicId == -1`) is omitted unless the request
+      sets `includeOutlier=true`; when present, its `label` is
+      "uncategorised" per the Phase 121 frontend convention.
+    items:
+      type: object
+      required:
+        - topicId
+        - label
+        - articleCount
+        - avgConfidence
+        - language
+      properties:
+        topicId:
+          type: integer
+          format: int32
+          description: BERTopic numeric identifier; `-1` is the outlier class.
+        label:
+          type: string
+          description: BERTopic c-TF-IDF / KeyBERT representation, or "uncategorised" for outliers.
+        articleCount:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Distinct articles assigned to this topic in the window.
+        avgConfidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Mean `topic_confidence` over the included rows.
+        language:
+          type: string
+          description: ISO-639-1 language code of the language partition.
+        modelHash:
+          type: string
+          description: >
+            BERTopic model-provenance hash (Phase 120). When the topic was
+            assigned by more than one model in the window, the most-recent
+            hash is reported — clients should treat a non-unique value as
+            a signal that topic identity has rotated within the window.

@@ -2594,7 +2594,7 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ---
 
-## Phase 120: Corpus-Level Extractors — Topic Modeling (WP-001, Arc42 §13.3) [P2] - [ ] TODO
+## Phase 120: Corpus-Level Extractors — Topic Modeling (WP-001, Arc42 §13.3) [P2] - [x] DONE
 
 *Implements a BERTopic-based `CorpusExtractor` — the first method for the Episteme pillar. Topic assignments are stored in a new Gold table and exposed via a new BFF endpoint, unlocking Phase 121's topic view modes. BERTopic is Tier 2: reproducible with pinned sentence-transformer model version and seeded HDBSCAN, not bit-for-bit deterministic across platforms.*
 
