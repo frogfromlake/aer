@@ -4,10 +4,18 @@ FROM python:3.14.3-slim-bookworm@sha256:f21c0d5a44c56805654c15abccc1b2fd576c8d93
 
 WORKDIR /app
 
+# Build toolchain. Phase 120 added BERTopic, which transitively pulls
+# scikit-learn, scipy, hdbscan and numpy — none of which ship cp314
+# manylinux wheels yet (early 2026), so pip falls back to sdist and
+# Meson/CMake need a full C/C++/Fortran toolchain plus BLAS/LAPACK
+# headers. The runtime image (final FROM stage below) does NOT carry
+# these — only the compiled wheels copied from /install. Drop these
+# build-deps once cp314 wheels become available upstream.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    python3-dev \
+    gcc g++ gfortran make \
+    libpq-dev python3-dev \
+    libopenblas-dev liblapack-dev \
+    pkg-config ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 COPY services/analysis-worker/requirements.lock.txt .
