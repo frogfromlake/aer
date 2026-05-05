@@ -1,5 +1,5 @@
 .PHONY: help up down stop restart
-.PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse
+.PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse reset reset-state reset-validate
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
@@ -148,6 +148,42 @@ infra-clean-minio:
 
 infra-clean-clickhouse:
 	@./scripts/clean_infra.sh clickhouse
+
+# ------------------------------------------------------------------
+# Phase-120b supervised reset — single canonical wipe path.
+#
+# `make reset-state`     stops the stack, wipes runtime state volumes
+#                        (Postgres, MinIO, ClickHouse, RSS dedup),
+#                        preserves build-time artefacts (HF model cache,
+#                        Wikidata alias index, Tempo traces), and brings
+#                        the stack back up via `make up`. The init
+#                        containers re-create schema, buckets, the
+#                        AER_LAKE stream, and seed-migration tables.
+#
+# `make reset-validate`  runs scripts/reset_validate.sh — checks every
+#                        layer (volumes, MinIO, Postgres, ClickHouse,
+#                        NATS, service readiness) is in the canonical
+#                        post-reset shape. Non-zero exit on any drift.
+#
+# `make reset`           meta-target: reset-state + reset-validate.
+#                        The supervised wipe entrypoint Phase 120b
+#                        documents. Use this rather than calling
+#                        `clean_infra.sh` directly.
+# ------------------------------------------------------------------
+
+reset-state:
+	@echo -e "$(BOLD)$(GRAY)--- PHASE 120B: SUPERVISED STATE RESET ---$(RESET)"
+	@./scripts/clean_infra.sh all
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Bringing the stack back up (init containers re-provision schema)...$(RESET)"
+	@$(MAKE) up
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Reset complete. Run '$(BOLD)make reset-validate$(RESET)$(GREEN)' to confirm clean state.$(RESET)"
+
+reset-validate:
+	@echo -e "$(BOLD)$(GRAY)--- POST-RESET INVARIANT CHECK ---$(RESET)"
+	@./scripts/reset_validate.sh
+
+reset: reset-state reset-validate
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)System is in canonical post-reset state. Run '$(BOLD)make crawl$(RESET)$(GREEN)' to repopulate.$(RESET)"
 
 # ==========================================
 # 2. APPLICATION SERVICES (INDIVIDUAL)
@@ -628,7 +664,10 @@ help:
 	@echo -e "  $(CYAN)infra-restart$(RESET)       $(GRAY)Restart backend infra$(RESET)"
 	@echo -e "  $(CYAN)debug-up$(RESET)            $(GRAY)Expose internal infra ports to host for debugging$(RESET)"
 	@echo -e "  $(GOLD)debug-down$(RESET)          $(GRAY)Close debug port forwarder (services keep running)$(RESET)"
-	@echo -e "  $(GOLD)infra-clean$(RESET)         $(GRAY)Wipe ALL infra volumes (interactive); append -postgres/-minio/-clickhouse for specific$(RESET)"
+	@echo -e "  $(GOLD)infra-clean$(RESET)         $(GRAY)Wipe runtime infra volumes (preserves hf_cache/wikidata_data/tempo_data); append -postgres/-minio/-clickhouse for one layer$(RESET)"
+	@echo -e "  $(GOLD)reset$(RESET)               $(GRAY)Phase-120b supervised reset: stop → wipe runtime state → re-up → validate. Use this rather than infra-clean for a full reset.$(RESET)"
+	@echo -e "  $(CYAN)reset-state$(RESET)         $(GRAY)Wipe + re-up only (no validation)$(RESET)"
+	@echo -e "  $(CYAN)reset-validate$(RESET)      $(GRAY)Run post-reset invariant check (volumes, MinIO buckets, Postgres seeds, ClickHouse tables, NATS, readiness)$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Services:$(RESET)"
 	@echo -e "  $(GREEN)services-up$(RESET)         $(GRAY)Start ingestion, worker, and bff services$(RESET)"
