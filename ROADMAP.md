@@ -2580,6 +2580,37 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 * [x] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Determinism gate passes in CI. Manual: `/api/v1/metrics/available` lists three (or four if `de_review` shipped) sentiment metrics with distinct `validationStatus` and `tier`.
 
+
+## Phase 120: Corpus-Level Extractors — Topic Modeling (WP-001, Arc42 §13.3) [P2] - [x] DONE
+
+*Implements a BERTopic-based `CorpusExtractor` — the first method for the Episteme pillar. Topic assignments are stored in a new Gold table and exposed via a new BFF endpoint, unlocking Phase 121's topic view modes. BERTopic is Tier 2: reproducible with pinned sentence-transformer model version and seeded HDBSCAN, not bit-for-bit deterministic across platforms.*
+
+*Embedding-model rationale.* The previously-considered `sentence-transformers/paraphrase-multilingual-mpnet-base-v2` is **superseded** by `intfloat/multilingual-e5-large` as the primary embedding model. E5-large has been the multilingual SOTA on retrieval and clustering benchmarks since 2024 (MTEB leaderboard) and outperforms MPNet on long-form news text — exactly the AĒR corpus shape. mpnet remains a viable fallback if E5's memory footprint (~2.2 GB) proves untenable on the deployment target; the choice is a one-line config swap. Bake the chosen model into the Docker image at build time per the Phase-42 spaCy-model pattern.
+
+### Schema (ClickHouse)
+
+* [x] **New table `aer_gold.topic_assignments`.** Schema: `(window_start DateTime, window_end DateTime, source String, article_id String, topic_id Int32, topic_label String, topic_confidence Float32, model_hash String, ingestion_version UInt64)` — `ReplacingMergeTree(ingestion_version)`, `ORDER BY (window_start, source, article_id)`, 365-day TTL on `window_start`. `topic_id = -1` is BERTopic's outlier class; stored and reportable. New init migration in `infra/clickhouse/migrations/`.
+
+### Analysis Worker
+
+* [x] **`TopicModelingExtractor` (corpus-level).** New `services/analysis-worker/internal/extractors/topic_modeling.py`. Implements the existing `CorpusExtractor` protocol. Reads `cleaned_text` from Silver documents (via MinIO) for a configurable rolling window (default 30 days). Runs BERTopic with `intfloat/multilingual-e5-large` as the embedding model (multilingual — covers German and Probe-1 sources from Phase 122 without per-language retraining), UMAP seeded (`random_state=42`), HDBSCAN seeded. Topic labels via BERTopic's KeyBERT + c-TF-IDF representation. Writes one row per `(article_id, topic_id)` to `aer_gold.topic_assignments`. NATS-triggered on the same weekly cadence as `EntityCoOccurrenceExtractor` (Phase 102).
+* [x] **Per-language topic discovery (WP-004 §3.4).** Per WP-004's "parallel topic discovery with human-validated alignment" recommendation, the corpus is **partitioned by `detected_language`** before BERTopic is fit — separate topic spaces per language, no forced cross-lingual alignment. Alignment is explicitly out of scope; this phase produces intra-cultural topic discovery only. Cross-cultural topic alignment is a manual scientific workflow, slated for Iteration 7.
+* [x] **Model hash.** `model_hash = sha256({sentence_transformer_model}:{e5_revision}:{bertopic_version}:{umap_seed}:{hdbscan_seed}:{language_partition})` — written per row as the Tier 2 reproducibility anchor.
+* [x] **Model bake-in.** Pre-download the E5 model into the Docker image at build time (same pattern as spaCy models). Add the download step to the analysis-worker `Dockerfile`. Document in the Operations Playbook including the fallback procedure to mpnet if memory pressure becomes an issue.
+* [x] **Tests.** Pytest unit + Testcontainers integration: (a) empty Silver corpus → no rows written, no crash; (b) 10-document corpus with two topic clusters → at least 2 topics with `topic_id >= 0`; (c) outlier rows (`topic_id=-1`) written correctly; (d) idempotent re-run via ReplacingMergeTree; (e) two-language corpus (post-Phase-116 mixed) → two separate language-partitioned topic spaces, no cross-language topic IDs.
+
+### BFF API
+
+* [x] **`GET /api/v1/topics/distribution`.** New endpoint. Parameters: `scope=probe|source` (default `probe`), `scopeId`, optional `start`, `end`, `minConfidence` (default 0.0), optional `language` (default: all available — when present, scopes to one language partition per the per-language partitioning). Response: `{ topics: [{ topicId, label, articleCount, avgConfidence, language }] }` sorted by `articleCount` descending. Cap: 50 topics. Outlier topic excluded unless `includeOutlier=true`. Update OpenAPI spec, `make codegen`, implement handler.
+* [x] **Integration tests.** Testcontainers: (a) empty `aer_gold.topic_assignments` → empty array, not 500; (b) known fixtures → correct topic distribution; (c) `probeId` scope resolves to source union consistently with other view-mode endpoints; (d) `language` parameter returns only that language's topic partition.
+
+### Documentation
+
+* [x] **CLAUDE.md.** Add `aer_gold.topic_assignments` to "ClickHouse Gold Schema". Add `GET /api/v1/topics/distribution` to "BFF API Endpoints". Add `TopicModelingExtractor` to "Registered extractors" (under the CorpusExtractor note alongside `EntityCoOccurrenceExtractor`).
+* [x] **Arc42 §13.3.** Update the `Topic Modeling (BERTopic)` row in the Tier 2 table from planned to "Implemented — Phase 120" with model, version, seed, and language-partition details.
+* [x] **WP-004 cross-link.** Add a backwards reference in §3.4 noting that per-language topic discovery is implemented; cross-language alignment remains a scientific workflow.
+* [x] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: after triggering a corpus run, `GET /api/v1/topics/distribution?scope=probe&scopeId=0&start=…&end=…` returns a non-empty list with recognisable German news topics.
+
 ---
 
 # Open Phases
@@ -2594,35 +2625,118 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ---
 
-## Phase 120: Corpus-Level Extractors — Topic Modeling (WP-001, Arc42 §13.3) [P2] - [x] DONE
+## Phase 120b: System State Reset & Verification [P2] - [ ] TODO
 
-*Implements a BERTopic-based `CorpusExtractor` — the first method for the Episteme pillar. Topic assignments are stored in a new Gold table and exposed via a new BFF endpoint, unlocking Phase 121's topic view modes. BERTopic is Tier 2: reproducible with pinned sentence-transformer model version and seeded HDBSCAN, not bit-for-bit deterministic across platforms.*
+*A one-shot, supervised reset of every state-bearing layer in the stack so the system enters Phase 121 in a known-clean baseline. Iteration 6 added four schema- or extractor-level changes that produced **mixed-vintage Gold data**: Phase 117 renamed `sentiment_score` → `sentiment_score_sentiws` and changed the value computation (negation-dependency, compound-split, custom-lexicon hook); Phase 118 added `aer_gold.entity_links` populated only for documents processed after the alias-index ship date; Phase 119 added `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news` populated only for post-Phase-119 documents; Phase 120 added `aer_gold.topic_assignments`, populated only on the first sweep after the loop is enabled. The result is a Gold layer where different rows reflect different extractor versions — a methodological failure mode the project explicitly rejects (Manifesto §III). This phase wipes runtime data, preserves heavy build-time artefacts (BERT models, Wikidata index), validates the clean state layer-by-layer, and ends with a fresh `make crawl` whose every Gold row carries the canonical Iteration-6 extractor fingerprint.*
 
-*Embedding-model rationale.* The previously-considered `sentence-transformers/paraphrase-multilingual-mpnet-base-v2` is **superseded** by `intfloat/multilingual-e5-large` as the primary embedding model. E5-large has been the multilingual SOTA on retrieval and clustering benchmarks since 2024 (MTEB leaderboard) and outperforms MPNet on long-form news text — exactly the AĒR corpus shape. mpnet remains a viable fallback if E5's memory footprint (~2.2 GB) proves untenable on the deployment target; the choice is a one-line config swap. Bake the chosen model into the Docker image at build time per the Phase-42 spaCy-model pattern.
+*Scope discipline.* This is **not** a backfill phase. Backfilling would require four separate replay pipelines (one per Iteration-6 phase) plus per-row provenance reconciliation, all to preserve a corpus of pre-launch RSS articles whose loss is bounded to the German RSS retention window (a few days to weeks). For a pre-deployment, pre-public engineering POC, full reset is the simpler and methodologically cleaner choice. The Phase-121b `/metrics/available` alias-key filter remains worthwhile *as a defensive guard* against future drift but is not the primary remediation path.
 
-### Schema (ClickHouse)
+*Operator-supervised — single-command reset.* The full reset path is encapsulated in three Makefile targets introduced by this phase: `make reset-state` (stop → wipe runtime state volumes by name → re-up via init containers), `make reset-validate` (per-layer invariant check), and `make reset` (the meta-target — both, in order). The supervised wipe **never** touches the build-time artefact volumes (`aer_hf_cache`, `aer_wikidata_data`, `aer_tempo_data`); `scripts/clean_infra.sh` asserts they survive the wipe and aborts loudly if they do not. Phase 120c (next) consolidates the remaining one-shot scripts that previously duplicated this workflow.
 
-* [ ] **New table `aer_gold.topic_assignments`.** Schema: `(window_start DateTime, window_end DateTime, source String, article_id String, topic_id Int32, topic_label String, topic_confidence Float32, model_hash String, ingestion_version UInt64)` — `ReplacingMergeTree(ingestion_version)`, `ORDER BY (window_start, source, article_id)`, 365-day TTL on `window_start`. `topic_id = -1` is BERTopic's outlier class; stored and reportable. New init migration in `infra/clickhouse/migrations/`.
+### Pre-flight: capture anything irreplaceable
 
-### Analysis Worker
+* [ ] **Postgres dump of any out-of-band scientific records.** These tables are empty by design today (Phase 115 ships the schema, not the data), but verify before wiping:
+  ```bash
+  docker compose exec postgres psql -U "$POSTGRES_USER" -d aer -c "
+    SELECT 'equivalence_reviews' AS t, count(*) FROM equivalence_reviews
+    UNION ALL
+    SELECT 'sources', count(*) FROM sources
+    UNION ALL
+    SELECT 'source_classifications', count(*) FROM source_classifications;"
+  ```
+  If `equivalence_reviews` is non-zero, dump it before proceeding (`pg_dump -t equivalence_reviews aer > /tmp/equivalence_reviews.sql`). `sources` and `source_classifications` are re-applied by the seed migrations in `infra/postgres/migrations/`, so their counts can be ignored — they reappear identically.
+* [ ] **Confirm no in-flight ingestion.** `docker compose ps aer_analysis_worker` reports `healthy`, and `make logs` shows no recent `Processing event` lines for at least 60 seconds. Wiping during an active ingestion produces a half-processed PG row that survives the wipe and creates a duplicate when crawl restarts.
 
-* [ ] **`TopicModelingExtractor` (corpus-level).** New `services/analysis-worker/internal/extractors/topic_modeling.py`. Implements the existing `CorpusExtractor` protocol. Reads `cleaned_text` from Silver documents (via MinIO) for a configurable rolling window (default 30 days). Runs BERTopic with `intfloat/multilingual-e5-large` as the embedding model (multilingual — covers German and Probe-1 sources from Phase 122 without per-language retraining), UMAP seeded (`random_state=42`), HDBSCAN seeded. Topic labels via BERTopic's KeyBERT + c-TF-IDF representation. Writes one row per `(article_id, topic_id)` to `aer_gold.topic_assignments`. NATS-triggered on the same weekly cadence as `EntityCoOccurrenceExtractor` (Phase 102).
-* [ ] **Per-language topic discovery (WP-004 §3.4).** Per WP-004's "parallel topic discovery with human-validated alignment" recommendation, the corpus is **partitioned by `detected_language`** before BERTopic is fit — separate topic spaces per language, no forced cross-lingual alignment. Alignment is explicitly out of scope; this phase produces intra-cultural topic discovery only. Cross-cultural topic alignment is a manual scientific workflow, slated for Iteration 7.
-* [ ] **Model hash.** `model_hash = sha256({sentence_transformer_model}:{e5_revision}:{bertopic_version}:{umap_seed}:{hdbscan_seed}:{language_partition})` — written per row as the Tier 2 reproducibility anchor.
-* [ ] **Model bake-in.** Pre-download the E5 model into the Docker image at build time (same pattern as spaCy models). Add the download step to the analysis-worker `Dockerfile`. Document in the Operations Playbook including the fallback procedure to mpnet if memory pressure becomes an issue.
-* [ ] **Tests.** Pytest unit + Testcontainers integration: (a) empty Silver corpus → no rows written, no crash; (b) 10-document corpus with two topic clusters → at least 2 topics with `topic_id >= 0`; (c) outlier rows (`topic_id=-1`) written correctly; (d) idempotent re-run via ReplacingMergeTree; (e) two-language corpus (post-Phase-116 mixed) → two separate language-partitioned topic spaces, no cross-language topic IDs.
+### Supervised reset — single-command
 
-### BFF API
+* [ ] **`make reset`.** End-to-end supervised reset path:
+  - Stops the stack via `docker compose down --remove-orphans`.
+  - Wipes exactly four runtime state volumes by name: `aer_postgres_data`, `aer_minio_data`, `aer_clickhouse_data`, `aer_rss_crawler_state`.
+  - Asserts the preserved set (`aer_hf_cache`, `aer_wikidata_data`, `aer_tempo_data`) survives the wipe — aborts loudly on any drift so the operator does not silently re-download multi-GB build-time artefacts.
+  - Brings the stack back up via `make up`. Init containers re-apply Postgres migrations (000001+ including the seed sources), ClickHouse migrations (000001 through 000018 — Phase 120's `topic_assignments` table), MinIO bucket creation + ILM policies, and the NATS `AER_LAKE` stream definition.
+  - Runs `scripts/reset_validate.sh` — checks every layer is in the canonical post-reset shape (preserved volumes intact, MinIO buckets empty, Postgres `documents=0` and `sources >= 2`, every Gold/Silver table exists with 0 rows, NATS `AER_LAKE` re-provisioned, worker + BFF readiness probes respond).
+  - Returns non-zero on any drift; the phase does not proceed to crawl until validation is green.
+  - **Set `AER_RESET_NONINTERACTIVE=1`** in the environment to skip the confirmation prompt (default is interactive, which is what an operator running this manually wants).
+* [ ] **Inspect the validator output.** Every step in `make reset-validate` prints `✔` (passed), `·` (skipped — service not running, expected for partial-up scenarios), or `✗` (failed). A `✗` blocks the phase; investigate the named layer before retrying.
 
-* [ ] **`GET /api/v1/topics/distribution`.** New endpoint. Parameters: `scope=probe|source` (default `probe`), `scopeId`, optional `start`, `end`, `minConfidence` (default 0.0), optional `language` (default: all available — when present, scopes to one language partition per the per-language partitioning). Response: `{ topics: [{ topicId, label, articleCount, avgConfidence, language }] }` sorted by `articleCount` descending. Cap: 50 topics. Outlier topic excluded unless `includeOutlier=true`. Update OpenAPI spec, `make codegen`, implement handler.
-* [ ] **Integration tests.** Testcontainers: (a) empty `aer_gold.topic_assignments` → empty array, not 500; (b) known fixtures → correct topic distribution; (c) `probeId` scope resolves to source union consistently with other view-mode endpoints; (d) `language` parameter returns only that language's topic partition.
+### Fresh crawl
+
+* [ ] **`make crawl`.** Runs the RSS crawler as a one-shot container against the live ingestion-api. Watch `make logs` while it runs — every fetched article must travel Bronze → Silver → Gold within seconds.
+* [ ] **End-to-end invariant after crawl.** A single SQL spot-check confirms every Iteration-6 extractor wrote a row for the same fresh article:
+  ```bash
+  docker compose exec clickhouse clickhouse-client -q "
+    SELECT
+      (SELECT count(*) FROM aer_gold.metrics)             AS metrics,
+      (SELECT count(*) FROM aer_gold.entities)            AS entities,
+      (SELECT count(*) FROM aer_gold.entity_links)        AS entity_links,
+      (SELECT count(*) FROM aer_gold.language_detections) AS langs,
+      (SELECT count(*) FROM aer_silver.documents)         AS silver,
+      (SELECT count(DISTINCT metric_name) FROM aer_gold.metrics) AS metric_names;"
+  ```
+  Expected: all five row counts non-zero; `metric_names` includes `sentiment_score_sentiws`, `sentiment_score_bert_multilingual`, `sentiment_score_bert_de_news` (for German articles) plus `language_confidence`, `word_count`, `publication_hour`, `publication_weekday`, `entity_count`. Specifically: `sentiment_score` (without `_sentiws` suffix) **must not appear** — its absence is the primary success signal of this reset.
+* [ ] **Topic-assignments invariant (deferred).** `aer_gold.topic_assignments` remains 0 immediately after crawl — the BERTopic loop runs on a weekly cadence and is gated behind `TOPIC_EXTRACTION_ENABLED=true`. To verify the loop end-to-end without waiting a week, set `TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS=60` and `TOPIC_EXTRACTION_INTERVAL_SECONDS=300` in `.env` for the duration of validation, restart the worker, and after one interval confirm at least one row exists with the canonical Phase-120 `model_hash`. Restore the production cadence before declaring the phase complete.
+* [ ] **BFF smoke check.** `GET /api/v1/metrics/available` returns the canonical Iteration-6 metric set; `GET /api/v1/entities/cooccurrence?…` returns nodes whose `wikidataQid` field is populated for canonical entities. The duplicate `sentiment_score` legacy row is gone — **without** the Phase-121b alias-key filter being applied, because the underlying data is now correct.
 
 ### Documentation
 
-* [ ] **CLAUDE.md.** Add `aer_gold.topic_assignments` to "ClickHouse Gold Schema". Add `GET /api/v1/topics/distribution` to "BFF API Endpoints". Add `TopicModelingExtractor` to "Registered extractors" (under the CorpusExtractor note alongside `EntityCoOccurrenceExtractor`).
-* [ ] **Arc42 §13.3.** Update the `Topic Modeling (BERTopic)` row in the Tier 2 table from planned to "Implemented — Phase 120" with model, version, seed, and language-partition details.
-* [ ] **WP-004 cross-link.** Add a backwards reference in §3.4 noting that per-language topic discovery is implemented; cross-language alignment remains a scientific workflow.
-* [ ] **Validation.** `make lint && make test && make codegen && git diff --exit-code` green. Manual: after triggering a corpus run, `GET /api/v1/topics/distribution?scope=probe&scopeId=0&start=…&end=…` returns a non-empty list with recognisable German news topics.
+* [ ] **Operations Playbook entry — "Full system reset (one-shot)".** Capture the procedure so it is not reinvented. Single canonical command: `make reset`. Include the explicit "preserved volumes" list (`aer_hf_cache`, `aer_wikidata_data`, `aer_tempo_data`) because the most common post-reset pain point is accidentally re-downloading BERT models. Document the `AER_RESET_NONINTERACTIVE=1` flag for non-interactive (CI-style) runs, plus the targeted escape hatches `make infra-clean-{postgres,minio,clickhouse}` for one-layer wipes.
+* [ ] **CLAUDE.md.** Under "Data Lifecycle (ILM)", add a one-line pointer to the playbook section so the reset procedure is discoverable from the CLAUDE.md table of contents.
+
+### Validation
+
+* [ ] `make reset` completes cleanly (`✔ Runtime state wiped. Build-time artefacts preserved.` from `clean_infra.sh`, then every per-layer `✔` from `reset_validate.sh`).
+* [ ] `make crawl` completes successfully; the post-crawl SQL spot-check passes.
+* [ ] No `sentiment_score` (without `_sentiws` suffix) row exists in `aer_gold.metrics`.
+* [ ] `aer_gold.entity_links` is populated for the new crawl (`SELECT count(*) FROM aer_gold.entity_links` > 0).
+* [ ] Both Tier-2 BERT sentiment extractors produce rows on the new crawl.
+* [ ] System is ready for Phase 121 (topic view modes) and Phase 121b (Iteration-6 dashboard completion) without inheriting any pre-Iteration-6 Gold artefact.
+
+---
+
+## Phase 120c: Operational Hygiene & Scripts Audit [P2] - [ ] TODO
+
+*Closes the operational debt accumulated across Iteration 6. After Phase 120b's wipe, the four `backfill_*.py` scripts under `scripts/` exist to patch pre-feature-shipping data that no longer exists; the mid-flight reconciliation workarounds (`reconcile_documents.py`, `replay_bronze.py`) exist because mid-iteration extractor changes left orphan rows that the wipe-and-recrawl pattern now supersedes; the `clean.sh` / `clean_infra.sh` cleanup utilities are wrapped by the new Phase-120b `make reset` target. The result is a `scripts/` folder where every routine operation has a Makefile entrypoint and every remaining `python scripts/...` invocation is documented as a genuine one-shot operation. After this phase, the operator's surface for routine ops is "the Makefile and the operations playbook" — running a raw script is a deliberate, documented exception, not the default workflow.*
+
+*Scope discipline.* This phase **deletes code**, it does not write new code. The only additions are: documentation (operations playbook entries describing each surviving script's "when to run / when not to run" semantics) and Makefile target wrappers around any surviving routine workflow. No extractor change, no schema change, no API change.
+
+### Inventory & classification
+
+* [ ] **Catalogue every entry in `scripts/`.** Produce a single table classifying each script as one of:
+  - **DELETE** — backfill scripts whose target data no longer exists post-Phase-120b reset, or one-shot reconciliation workarounds superseded by the wipe path.
+  - **PROMOTE** — operational workflow that should be invokable via a Makefile target rather than a raw script call.
+  - **KEEP-DOCUMENT** — genuinely one-shot or rarely-run, but still useful (e.g. `scripts/operations/compute_baselines.py` for first-run baseline urgency); requires a playbook entry stating exactly when to run it and when not to.
+  - **KEEP-INVOKED-BY-MAKEFILE** — already wrapped by a Make target; verify the wrapper is documented in `make help` and leave both the script and the target in place.
+  Initial classification (subject to verification during the phase):
+  - **DELETE**: `backfill_article_id.py`, `backfill_bert_sentiment.py`, `backfill_entity_links.py`, `backfill_silver_projection.py`, `reconcile_documents.py`, `replay_bronze.py`. Each targets data that no longer exists after Phase 120b's wipe, and the wipe-and-recrawl pattern is the canonical replacement.
+  - **PROMOTE / KEEP-INVOKED-BY-MAKEFILE**: `clean.sh`, `clean_infra.sh` (already wrapped by `make services-clean`, `make infra-clean*`, and the Phase-120b `make reset`); `e2e_smoke_test.sh`, `e2e_helpers.sh` (wrapped by `make test-e2e`); `deps_refresh.sh` (wrapped by `make deps-refresh`); `generate_metric_validity_scaffold.py` (wrapped by `make scaffold-metric-validity`); `openapi_bundle.py`, `openapi_ref_style_check.sh` (wrapped by `make codegen` / lint); `build_wikidata_index.py`, `wikidata_validate.sh` (wrapped by `make build-wikidata-index` if it exists; otherwise PROMOTE in this phase); `prefetch_bert_models.py` (consumed by the worker Dockerfile, not a developer-facing script).
+  - **KEEP-DOCUMENT**: `compute_baselines.py` (first-run-only, "skip the 24 h baseline-loop wait" tool — explicit playbook entry required).
+  - **KEEP-INFRASTRUCTURE**: `hooks/` (git pre-commit + pre-push, mandatory).
+
+### Cleanup execution
+
+* [ ] **Delete the six identified scripts and their tests.** `git rm scripts/backfill_*.py scripts/reconcile_documents.py scripts/replay_bronze.py services/analysis-worker/tests/test_*backfill*.py services/analysis-worker/tests/test_reconcile*.py` (verify each test file actually targets one of the deleted scripts before removing it). Update any `Makefile` target that referenced them — current grep candidates: `make backfill-entity-links`, `make backfill-bert-sentiment` are documented in `make help` line ~681; both targets get removed.
+* [ ] **Reorganise survivors into `scripts/operations/` and `scripts/build/`.** Path semantics should be greppable: anything in `scripts/operations/` is a manual one-shot the operator might run; anything in `scripts/build/` is invoked at build/codegen time and never by an operator. After the move:
+  - `scripts/operations/compute_baselines.py`
+  - `scripts/operations/clean_infra.sh`
+  - `scripts/operations/reset_validate.sh`
+  - `scripts/build/openapi_bundle.py`, `scripts/build/openapi_ref_style_check.sh`, `scripts/build/generate_metric_validity_scaffold.py`, `scripts/build/build_wikidata_index.py`, `scripts/build/wikidata_validate.sh`, `scripts/build/deps_refresh.sh`
+  - `scripts/build/e2e_smoke_test.sh`, `scripts/build/e2e_helpers.sh`, `scripts/build/e2e_fixtures/`
+  - `scripts/hooks/` stays where it is (git looks at `.git/hooks/` after the symlink).
+  Update every Makefile target's path references to the new locations. Run `make lint && make test && make codegen` to verify no path is missed.
+* [ ] **Remove `make backfill-*` targets and their help entries.** Now-dead Makefile targets that delegated to the deleted scripts. Sweep the Makefile help block to confirm no `make help` line references a deleted target.
+
+### Operations playbook consolidation
+
+* [ ] **"Routine operations" section.** A single table listing every Make target that an operator runs in steady state (`make crawl`, `make reset`, `make deps-refresh`, `make scaffold-metric-validity`, `make codegen`, `make logs`, etc.) with a one-sentence purpose for each. The invariant: every operation a developer is expected to perform routinely has a Makefile target. Anything not on this list is either build-time (codegen, lint, test) or a one-shot.
+* [ ] **"One-shot operations" section.** Lists each surviving `scripts/operations/*` entry with explicit "when to run / when not to run" guidance. The canonical entry is `compute_baselines.py`: run it once after a fresh `make reset && make crawl` if you don't want to wait 24 h for the `MetricBaselineExtractor` daily loop to populate baselines. Do not run it in steady state — the loop is the canonical source.
+* [ ] **"Deleted scripts — for the historical record" section.** A short addendum naming each deleted script and a one-sentence rationale (`backfill_entity_links.py — superseded by wipe-and-recrawl after Phase 120b; pre-Phase-118 entity rows no longer exist`). Anchored against the git history in case a future contributor wonders why the script disappeared.
+
+### Validation
+
+* [ ] `git status` shows the deletions; `git ls-files scripts/` shows only the reorganised survivors plus `hooks/`.
+* [ ] `make lint && make test && make codegen && make test-e2e` all pass — confirms no Makefile target points at a deleted script and no test imports a deleted module.
+* [ ] `make help` lists every routine operation; running `grep -r "python scripts/" Makefile` returns no hits except the `scripts/operations/` and `scripts/build/` paths (no raw `python scripts/<root>.py` invocations remain).
+* [ ] Operations playbook's "Routine operations" table is the complete set of steady-state developer commands; a fresh contributor can onboard with the playbook + `make help` alone.
 
 ---
 
@@ -2645,9 +2759,61 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ---
 
+## Phase 121b: Iteration 6 Dashboard Completion [P2] - [ ] TODO
+
+*Closes the dashboard-wiring gap left after Iteration 6's backend phases (116, 117, 118, 118a, 119) shipped without dedicated frontend work. Each preceding phase either deferred its dashboard surface to "manual smoke test" (Phase 119), exposed a new field that the frontend never consumed (Phase 118 `wikidataQid`), or surfaced an artefact the dashboard inherited without explicit cleanup (Phase 117 legacy `sentiment_score` row in `/metrics/available`). This phase makes the iteration's user-visible promises concrete before Iteration 7 lands a second probe and amplifies any latent UI gap.*
+
+*Scope discipline.* This phase adds **no new metrics, no new endpoints, no new methodology**. Every item is either (a) wiring frontend code to a backend field that already exists, (b) removing or deduplicating a stale artefact, or (c) verifying that a piece of Iteration-6 work the previous phase left as "manual smoke test" actually renders correctly under live data. Anything found broken that requires a backend change is split into its own follow-up ticket — this phase does not absorb scope creep.
+
+### Phase 117 cleanup — legacy `sentiment_score` deduplication
+
+* [ ] **`/metrics/available` filters Phase-117 alias keys.** Root cause: the Phase-117 rename `sentiment_score` → `sentiment_score_sentiws` rewrites *incoming* requests via `metric_aliases.go::canonicalMetricName`, but `/metrics/available` reads `SELECT DISTINCT metric_name FROM aer_gold.metrics`, which still surfaces pre-rename rows (TTL is 365 days). Fix: in the BFF handler `GetMetricsAvailable`, drop any row whose `metricName` is a key of `metricNameAliases` — the canonical name already appears in the same response. Add a regression test in `services/bff-api/internal/handler/metrics_handler_test.go` that seeds both names and asserts only the canonical one is returned. Result: the dashboard's `MetricSwitcher` stops showing the duplicate.
+* [ ] **Methodology tray verification for `sentiment_score_sentiws`.** Manual: open the methodology tray for the SentiWS metric, confirm it lists the three Phase-117 hardening features (dependency-based negation, compound split, custom lexicon) and references ADR-016's dual-metric pattern. If the content YAML at `services/bff-api/configs/content/{en,de}/metrics/sentiment_score_sentiws.yaml` does not yet describe the Phase-117 hardening, file a content-only PR — no code change.
+
+### Phase 118 — Wikidata / Wikipedia external links on entities
+
+* [ ] **External-link rendering on entity nodes (force-directed graph).** The BFF already returns `wikidataQid` on `aer_gold.entity_links` LEFT-JOINed onto `/entities/cooccurrence` graph nodes (Phase 118 line 34: "enables the frontend to surface Wikipedia/Wikidata external links on network-graph nodes without a follow-up call"). The dashboard component that renders the node detail panel / hover card must build the link as `https://www.wikidata.org/wiki/<QID>` (canonical, language-agnostic) plus an optional Wikipedia link via `https://www.wikidata.org/wiki/Special:GoToLinkedPage/<lang>wiki/<QID>` for the active locale. Nodes without a `wikidataQid` (linker found no match) render the existing tooltip with no external-link section — absence is not wrong (Brief §7.7).
+* [ ] **External-link rendering on entity table rows (`/entities` endpoint).** The same `wikidataQid` field is exposed on the aggregated entities response. Wherever the dashboard renders a tabular or list view of entities, attach the Wikidata link as a small icon-only `<a target="_blank" rel="noopener">` next to the entity text. Methodology-tray content carries the Phase-118 link-confidence + link-method explanation (`exact_match` / `alias_lookup` / `accent_fold`) so the user understands why a link is or is not present.
+* [ ] **a11y + reduced-motion.** External links must be keyboard-reachable, announce as "external" via `aria-label`, and respect the existing icon-button focus ring. No new motion — this is markup only.
+* [ ] **Tests.** Vitest: a node payload with `wikidataQid: "Q42"` renders an `<a>` whose `href` matches the Wikidata canonical pattern; a node without `wikidataQid` does not render an `<a>`. Playwright E2E: clicking through to Wikidata in a real cooccurrence graph opens the QID page (use `expect(page).toHaveURL(...)` against the canonical pattern; do not actually navigate the browser to the public site in CI — the assertion is on the `href` attribute).
+
+### Phase 118a — language-refusal payload UI verification
+
+* [ ] **`gate=invalid_language` refusal renders correctly.** The BFF returns a structured 400 with `gate=invalid_language`, `workingPaperAnchor=ops/playbook#language-capability-manifest`, and `alternatives=[manifest language codes]` when an unknown `?language=` is requested. The dashboard's existing refusal-rendering component (built for Phase 115 cross-frame refusals) must pick this up unchanged — verify, don't reimplement. If the refusal renders with a missing or wrong anchor link, file a content-only fix referencing the operations-playbook section instead of the working-paper anchor (the gate is engineering-procedural, not methodological — this is the existing distinction in `handler.go` line 208).
+
+### Phase 119 — Tier-2 sentiment dashboard wiring (verification, not net-new)
+
+* [ ] **Tier-2 metrics appear in `MetricSwitcher`.** Manual: confirm `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news` both appear as switchable metrics. If `MetricSwitcher` filters by tier and incorrectly hides Tier-2.5, file a follow-up ticket — do not extend this phase's scope.
+* [ ] **Epistemic Weight badge collapses Tier 2.5 → Tier 2.** Per Phase 119's instruction (line 2566), `pickBadgeTier` in `services/dashboard/src/lib/components/chrome/methodology-tray-internals.ts` must already collapse `tier 2 unvalidated` and `tier 2.5 unvalidated` to the same `tier1-unvalidated`-style Epistemic Weight badge (Brief §5.8 — Epistemic Weight is a function of evidence, not naming). Add a Vitest unit test pinning this collapse: input `{tier: 2.5, validationStatus: "unvalidated"}` → output the `tier1-unvalidated` badge variant. Without the test, a future refactor silently drifts the rendering away from the Brief.
+* [ ] **Methodology-tray content audit for the three sentiment metrics.** Open each metric's methodology tray (`sentiment_score_sentiws`, `sentiment_score_bert_multilingual`, `sentiment_score_bert_de_news`) and confirm each one cites: its model + revision, the Phase-119 determinism gate, ADR-023 for the tier hierarchy, and WP-002 §3.2 for the domain-transfer caveat (Tier-2 entries only). Missing items are content-YAML fixes, not code changes.
+* [ ] **`/reflection/metric/<name>` smoke check.** Phase 119 line 2565 mandated `/reflection/metric/<name>` renders without "unavailable" state for the new metrics. Convert the manual check into a Playwright E2E that visits each of the three sentiment URLs and asserts no error banner is rendered.
+
+### Phase 116 — `language_variety` decision
+
+* [ ] **Make a deliberate visibility decision for `language_variety`.** The Phase-116 column (`de-AT` / `de-CH` / `de-DE`) is populated and sits unused on the dashboard. Two acceptable resolutions, decide once and document:
+  - **(A)** Surface it as a coarse sub-grouping in the language-detections panel and the methodology tray of language-routed metrics. Implementation: minor frontend tweak — add `languageVariety?: string` to the language-detection result and render as a small caption below the language code.
+  - **(B)** Keep it metadata-only with an explicit note in the language-detections methodology tray: "TLD-derived publishing locale, retained for Silver provenance only — not a dialect classifier (WP-002 §3.4)." No frontend wiring.
+  Either choice is correct under the Brief; the wrong move is to leave it half-surfaced. Record the decision as a one-paragraph addendum to ADR-024 (Capability Manifest) under "Out-of-scope: language varieties".
+
+### Documentation
+
+* [ ] **ROADMAP closure.** Mark Iteration 6 as fully closed at the dashboard layer once all bullets above are checked.
+* [ ] **CLAUDE.md.** No structural changes expected — this phase is a wiring closure, not a new architectural concept. Add a one-line note to "BFF API Endpoints" if the `/metrics/available` alias-filter behaviour is worth surfacing (it is — clients depend on the de-duplication contract).
+* [ ] **ADR-024 addendum.** Capture the `language_variety` visibility decision (option A or B above) so a future contributor does not relitigate it.
+
+### Validation
+
+* [ ] `make lint && make test && make fe-check && git diff --exit-code` green.
+* [ ] `MetricSwitcher` shows exactly one entry per canonical sentiment metric (no `sentiment_score` legacy duplicate).
+* [ ] Co-occurrence graph nodes with a `wikidataQid` render an external-link affordance; nodes without one do not.
+* [ ] Manual: an unknown `?language=` parameter surfaces the Phase-118a refusal payload through the existing refusal-rendering component; the methodology / operations-playbook anchor is reachable.
+* [ ] Manual: `pickBadgeTier` Epistemic Weight collapse for Tier 2.5 is locked by the new Vitest test; switching between the three sentiment metrics renders without console errors.
+
+---
+
 # Iteration 7 — Probe Expansion & Cross-Cultural Operations
 
-*Three phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115) and the multilingual NLP foundation from Iteration 6 (Phases 116–121, plus 118a) and put them into operation. Phase 122 lands the second probe — the first non-German cultural context. Phase 122a operationalises the Coverage Map mandated by WP-001 §5.3 and consumes the Capability Manifest from Phase 118a. Phase 123 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 122 establishes the second context; Phase 122a makes the coverage transparent; Phase 123 puts the pair into methodologically disciplined comparison.*
+*Three phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115) and the multilingual NLP foundation from Iteration 6 (Phases 116–121b, plus 118a) and put them into operation. Phase 122 lands the second probe — the first non-German cultural context. Phase 122a operationalises the Coverage Map mandated by WP-001 §5.3 and consumes the Capability Manifest from Phase 118a. Phase 123 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 122 establishes the second context; Phase 122a makes the coverage transparent; Phase 123 puts the pair into methodologically disciplined comparison.*
 
 ---
 
