@@ -1,0 +1,46 @@
+entityId: distribution_sentiment_score_bert_de_news
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Deutsche Nachrichten-BERT-Sentiment-Verteilung. Polaritätsstreuung für deutsche Artikel, gelesen von einem auf Nachrichten feinjustierten Transformer-Modell."
+    long: >
+      Die Verteilungsansicht für sentiment_score_bert_de_news rendert die Streuung
+      der Polaritätswerte, die das deutsche Nachrichtendomänen-Transformer-Modell
+      über alle deutschen Artikel im ausgewählten Geltungsbereich und Fenster
+      erzeugt. Im Vergleich zur mehrsprachigen BERT-Verteilung wird dieser View
+      voraussichtlich für institutionelle Quellen etwas enger um null peaken —
+      das Modell ist näher am AĒR-Quellenregister und neigt daher weniger dazu,
+      neutrale institutionelle Prosa fälschlich als positiv oder negativ zu
+      klassifizieren. Der Formunterschied zwischen den drei
+      Sentiment-Verteilungen (Lexikon, mehrsprachiges BERT, deutsches
+      Nachrichten-BERT) für denselben Geltungsbereich ist im Methodologie-Tray
+      seiner Inspektion wert; er macht das WP-002-§3.2-Domänentransfer-Bedenken
+      konkret. Nur Deutsch per Design.
+  methodological:
+    short: "Histogramm / Dichte des mdraw/german-news-sentiment-bert-Skalars ([-1, +1]). Tier-2.5-Verfeinerung gemäß ADR-023. Nur Deutsch. Tail-Form ist das aussagekräftige Signal."
+    long: >
+      Die Verteilung ist ein Histogramm über sentiment_score_bert_de_news-Werte
+      (deutsches Nachrichtendomänen-BERT, P(positiv) − P(negativ), [-1, +1]) für
+      den ausgewählten Geltungsbereich und Zeitraum. Tier-2.5-Verfeinerung gemäß
+      ADR-023; reduziert auf tier_classification=2 im OpenAPI-Wire-Format.
+      Interpretationshinweise: (1) für deutsche institutionelle Quellen wird die
+      Verteilung erwartungsgemäß eng um null gepeakt — dies ist das kalibrierte
+      Verhalten für dieses Register; (2) das aussagekräftige Signal liegt in der
+      Tail-Form und etwaigen Nebengipfeln; (3) alle deutschen
+      Nachrichten-BERT-Einschränkungen gelten gleichermaßen für die
+      Verteilungsform — Genre-Enge (Nachrichten vs. Pressemitteilung),
+      Einzelsprachen-Geltungsbereich, Tier-2-Same-Process-Reproduzierbarkeit
+      (WP-002 §3.2); (4) die Bin-Anzahl hat standardmäßig 30 über [-1, +1].
+      Quellenübergreifender Vergleich innerhalb des deutschen Sprachraums ist
+      methodologisch sauber, weil beide Quellen sich ein sprachliches Register
+      teilen; sprachübergreifender Vergleich ist für diese Metrik strukturell
+      unmöglich (sie erzeugt keine Zeilen für nicht-deutsche Dokumente).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"

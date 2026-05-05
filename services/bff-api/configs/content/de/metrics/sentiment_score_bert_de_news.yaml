@@ -1,0 +1,58 @@
+entityId: sentiment_score_bert_de_news
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Ein Wert von −1 bis +1, der die emotionale Polarität eines Artikels mit einem auf deutsche Nachrichten spezialisierten BERT-Modell misst. Nur für deutschsprachige Dokumente."
+    long: >
+      Der deutsche Nachrichten-Sentimentscore verwendet ein Transformer-Modell,
+      das auf deutschen Nachrichtentexten feinjustiert wurde, und wendet es
+      artikelweise an. Die drei Klassen des Modells (negativ / neutral / positiv)
+      werden zu einer einzigen Zahl zwischen −1 und +1 zusammengefasst. Im
+      Vergleich zum mehrsprachigen Sentiment (sentiment_score_bert_multilingual)
+      liegt dieses Modell näher am Quellenregister von AĒR — es hat Texte
+      gelesen, die stilistisch dem ähneln, was es bewerten soll, während das
+      mehrsprachige Modell auf Twitter-Texten vieler Sprachen trainiert wurde.
+      Die beiden Metriken laufen parallel; die Lücke zwischen ihnen ist ein
+      Forschungssignal darüber, wie stark die Wahl des Trainingskorpus das
+      Urteil verschiebt — kein Mangel, der durch Mittelung wegzubügeln wäre. Die
+      Metrik ist absichtlich nur für Deutsch: Dokumente in anderen Sprachen
+      erzeugen keinen Eintrag. Als Tier-2.5-Verfeinerung bleibt sie vorläufig —
+      nützlich, aber noch nicht durch eine Annotationsstudie auf
+      Probe-0-Institutionsquellen kalibriert.
+  methodological:
+    short: "mdraw/german-news-sentiment-bert, gepinnte HuggingFace-Revision. Tier-2.5-Verfeinerung gemäß ADR-023. P(pos) − P(neg), geklippt auf [-1, +1]. Strikter de-only-Sprachfilter. WP-002 §3.2."
+    long: >
+      sentiment_score_bert_de_news wird vom GermanNewsBertSentimentExtractor
+      berechnet, der mdraw/german-news-sentiment-bert ausführt, gepinnt per
+      HuggingFace-Commit-Revision im
+      languages.de.sentiment_tier2_refinement-Block des Language Capability
+      Manifests. Gleiche Skalar-Reduktion wie der mehrsprachige Default —
+      P(positiv) − P(negativ), geklippt auf [-1, +1] — gleiche
+      Determinismus-Flags, gleiches Phase-119-CI-Gate. Gemäß ADR-023 ist dies
+      die Tier-2.5-Verfeinerungsschicht: optional, sprachgebunden, und ersetzt
+      weder den Tier-1-Lexikonscore (sentiment_score_sentiws) noch den
+      Tier-2-Multilingual-Default (sentiment_score_bert_multilingual). Das
+      Dashboard zeigt alle drei gemäß ADR-016s Dual-Metric-Muster; die Lücke
+      zwischen Multilingual-Default und domänenspezifischer Verfeinerung ist
+      das WP-002-§3.2-Domänentransfer-Signal. Das OpenAPI-TierClassification-
+      Enum ist [1, 2, 3]; Tier 2.5 wird im Wire-Format auf 2 reduziert, die
+      Verfeinerungs-Distinktion lebt in dieser Beschreibung. Strikter
+      Sprachfilter: core.language muss 'de' sein — die `und`/leer-
+      Fall-Through-Logik des Tier-1-Lexikons fehlt hier absichtlich, weil der
+      Sinn der Verfeinerung in domänennaher Qualität auf bestätigtem deutschen
+      Text liegt. Bekannte Einschränkungen (WP-002 §3.2): (1) Domänenenge —
+      das Modell wurde auf Nachrichten feinjustiert, nicht auf
+      Regierungspressemitteilungen; Genretransfer auf institutionelles
+      redaktionelles Register ist plausibel, aber nicht validiert; (2)
+      Einzelsprachen-Geltungsbereich per Design; (3) Bindung an die
+      Modellrevision — Kalibrierung verschiebt sich mit der gepinnten
+      Revision; (4) keine Koreferenz, kein Sarkasmus, keine
+      Langkontext-rhetorische Umkehrung. Validierungsstatus: nicht validiert.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "ADR-023"

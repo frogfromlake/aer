@@ -35,12 +35,14 @@ word_count:
   extractor_version_hash: v1
   wp_reference: WP-002 §3
 
-sentiment_score:
+sentiment_score_sentiws:
   tier_classification: 1
   algorithm_description: >
     Lexicon-based polarity score using SentiWS v2.0. Per-token polarity
     values are averaged over the document's cleaned text. Implemented by
-    SentimentExtractor.
+    SentimentExtractor. Phase 117 renamed `sentiment_score` →
+    `sentiment_score_sentiws` to make ADR-016's dual-metric pattern lexically
+    explicit; the read-side alias in the BFF still rewrites the old name.
   known_limitations:
     - "Negation blindness — SentiWS does not propagate negation scope; 'nicht gut' scores as positive because 'gut' matches the lexicon (WP-002 §3)."
     - "Compound word failure — German noun compounds outside the lexicon score as neutral; 'Umweltkatastrophe' is not decomposed into 'Katastrophe' before lookup (WP-002 §3)."
@@ -80,6 +82,55 @@ publication_weekday:
   known_limitations: []
   extractor_version_hash: v1
   wp_reference: WP-005 §3
+
+sentiment_score_bert_multilingual:
+  tier_classification: 2
+  algorithm_description: >
+    Multilingual BERT sentiment classifier. The model emits a 3-class
+    softmax (negative / neutral / positive); the metric is the scalar
+    P(positive) − P(negative) clipped to [-1, +1]. Implemented by
+    MultilingualBertSentimentExtractor against the model registered in
+    the Language Capability Manifest's shared.multilingual_bert block
+    (currently cardiffnlp/twitter-xlm-roberta-base-sentiment, pinned by
+    HuggingFace commit revision). ADR-023 is the architectural rationale
+    for choosing a single multilingual default over per-language models —
+    sentiment coverage scales O(1) per new language. The Tier-2.5
+    refinement distinction (news-domain vs. multilingual) lives in this
+    description rather than in tier_classification because the OpenAPI
+    TierClassification enum is [1, 2, 3]; 2.5 collapses to 2 by design,
+    not by accident.
+  known_limitations:
+    - "Domain transfer — the model was trained on Twitter; institutional editorial RSS prose is out of distribution. The gap between this metric and the per-language news-domain refinement (sentiment_score_bert_de_news for German) is itself the WP-002 §3.2 domain-transfer signal — neither metric is the ground truth (WP-002 §3.2)."
+    - "Model-revision binding — calibration is tied to a specific HuggingFace commit revision. Bumping the revision shifts every language's baseline simultaneously; the Phase 119 determinism CI gate detects byte-level drift but not semantic drift across revisions."
+    - "Multilingual cross-language calibration drift — a score of 0.4 in German is not necessarily comparable to 0.4 in French; the multilingual model has different per-language calibration. Cross-cultural comparison requires the metric_equivalence registry (ADR-016) to grant a deviation level (z-score / percentile) before the BFF will normalise across language frames."
+    - "Tier-2 reproducibility — outputs are reproducible across runs in the same process with seeded determinism flags, but not bit-for-bit deterministic across CUDA backends. CPU-only deployment is the calibrated baseline."
+  extractor_version_hash: bert-multilingual-tier2
+  wp_reference: WP-002 §3.2
+
+sentiment_score_bert_de_news:
+  tier_classification: 2
+  algorithm_description: >
+    German news-domain BERT sentiment classifier. Same scalar collapse
+    (P(positive) − P(negative)) as the multilingual default, but trained
+    on German news text — calibration on the AĒR Probe-0 corpus is
+    expected to be tighter than the multilingual model. Implemented by
+    GermanNewsBertSentimentExtractor against
+    mdraw/german-news-sentiment-bert pinned to a HuggingFace commit
+    revision in the Language Capability Manifest under
+    languages.de.sentiment_tier2_refinement. Per ADR-023 this is the
+    Tier-2.5 refinement layer — optional, language-bound, ships
+    alongside (never instead of) the multilingual default; the dashboard
+    surfaces both metrics under ADR-016's dual-metric pattern.
+    tier_classification is 2 in the API enum (no 2.5 slot); the
+    refinement distinction is recorded here in the description.
+  known_limitations:
+    - "Domain narrowness — the model was fine-tuned on German news, not on government press releases or institutional communication. Genre transfer to the institutional editorial register of Probe 0 is plausible but not validated (WP-002 §3.2)."
+    - "Single-language scope — produces metric rows for German documents only. Documents whose detected_language is not 'de' produce no row. This is by design — Tier-2.5 refinements are language-bound; cross-language coverage is the multilingual Tier-2 default's job."
+    - "Model-revision binding — calibration is tied to a specific HuggingFace commit revision. The Phase 119 determinism CI gate detects byte-level drift but not semantic drift across revisions."
+    - "Tier-2 reproducibility — outputs are reproducible across runs in the same process with seeded determinism flags, but not bit-for-bit deterministic across CUDA backends. CPU-only deployment is the calibrated baseline."
+    - "No coreference or compositionality — single-pass token-classification model; sarcasm, negation across long contexts, and document-level rhetorical inversion remain failure modes (WP-002 §3.2)."
+  extractor_version_hash: bert-de-news-tier2_5
+  wp_reference: WP-002 §3.2
 
 entity_count:
   tier_classification: 1

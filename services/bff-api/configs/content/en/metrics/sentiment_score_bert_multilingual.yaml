@@ -1,0 +1,52 @@
+entityId: sentiment_score_bert_multilingual
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "A score from −1 to +1 measuring an article's emotional polarity using a multilingual BERT model. Available across many languages, not only German."
+    long: >
+      Multilingual sentiment score reads a complete article through a transformer model
+      that has been trained on text from many languages at once. The model's three-way
+      verdict (negative / neutral / positive) is collapsed into a single number between
+      −1 and +1 — values near +1 mean the model classified the article as positively
+      framed, near −1 as negatively framed, near 0 as mixed or neutral. The model reads
+      the article as a whole, so context like negation and word order does inform the
+      score — a difference from the lexicon-based Tier-1 sentiment_score_sentiws metric,
+      which only counts which words are present. This metric is shown alongside (not
+      instead of) the lexicon-based score; the gap between them is itself a research
+      signal. As a Tier-2 metric it is reproducible with pinned model versions but not
+      yet scientifically validated for the institutional editorial register of AĒR's
+      current sources — interpret as a baseline measurement, not a calibrated truth.
+  methodological:
+    short: "cardiffnlp/twitter-xlm-roberta-base-sentiment, pinned HuggingFace revision. Tier-2 multilingual default per ADR-023. P(pos) − P(neg) clipped to [-1, +1]. Domain-transfer caveat: trained on Twitter, applied to institutional RSS (WP-002 §3.2)."
+    long: >
+      sentiment_score_bert_bert_multilingual is computed by
+      MultilingualBertSentimentExtractor running the multilingual XLM-RoBERTa model
+      cardiffnlp/twitter-xlm-roberta-base-sentiment, pinned by HuggingFace commit
+      revision in the Language Capability Manifest's shared.multilingual_bert block.
+      The model emits a 3-class softmax (negative / neutral / positive); the scalar is
+      P(positive) − P(negative), clipped to [-1, +1]. Determinism flags
+      (torch.manual_seed(42), transformers.set_seed(42),
+      torch.use_deterministic_algorithms(True)) are applied at construction; the
+      Phase-119 CI gate verifies byte-identical outputs across consecutive in-process
+      calls. Per ADR-023 this is the Tier-2 default — a single multilingual model
+      replaces the per-language Tier-2 fleet that the original Phase-119 draft would
+      have required, scaling sentiment coverage O(1) per new language. The optional
+      Tier-2.5 refinement (sentiment_score_bert_de_news for German) ships in parallel,
+      not as a replacement; the dashboard surfaces both. Known limitations
+      (WP-002 §3.2): (1) domain transfer — model was trained on Twitter, not
+      institutional press; the per-language news-domain refinement is the calibrated
+      counterpart for languages where one is registered, and the gap between the two
+      is itself a research signal; (2) cross-language calibration drift — a score of
+      0.4 in German is not necessarily comparable to 0.4 in French; cross-cultural
+      comparison requires a metric_equivalence registry entry (ADR-016) before the
+      BFF will normalise across language frames; (3) Tier-2 reproducibility — outputs
+      are reproducible across same-process runs but not bit-for-bit deterministic
+      across CUDA backends. Validation status: unvalidated.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "ADR-023"

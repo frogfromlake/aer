@@ -1,0 +1,46 @@
+entityId: time_series_sentiment_score_bert_de_news
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "German news-domain BERT sentiment over time. Same shape as the multilingual time series, but read by a model fine-tuned on German news — closer to AĒR's source register, German-only."
+    long: >
+      This view plots sentiment_score_bert_de_news as a time series. The metric is the
+      domain-specialist counterpart to the multilingual BERT sentiment score: the model
+      reads the same articles, but it has been fine-tuned on German news text rather
+      than multilingual Twitter, so its calibration on AĒR's German institutional
+      sources is expected to be tighter. Compare this time series with the multilingual
+      one (sentiment_score_bert_bert_multilingual) and with the lexicon-based score
+      (sentiment_score_sentiws) — the gap between the three lines is the WP-002 §3.2
+      domain-transfer signal made visible. The view is German-only by design: scoping
+      to non-German sources renders an empty stream, which is correct (the metric is
+      genuinely absent, not zero). As a Tier-2.5 refinement this remains provisional.
+  methodological:
+    short: "5-minute downsampled mean of mdraw/german-news-sentiment-bert scalar (P(pos) − P(neg), [-1, +1]). Tier-2.5 refinement per ADR-023. German-only. Genre-transfer caveat: news training, institutional application (WP-002 §3.2)."
+    long: >
+      sentiment_score_bert_de_news in this view is a 5-minute downsampled time series
+      over the scalar P(positive) − P(negative) emitted by
+      mdraw/german-news-sentiment-bert, pinned by HuggingFace commit revision in the
+      Language Capability Manifest's languages.de.sentiment_tier2_refinement block.
+      Same determinism flags and Phase-119 CI gate as the multilingual default. Per
+      ADR-023 this is the Tier-2.5 refinement layer: ships alongside the multilingual
+      Tier-2 default, never instead of it. The OpenAPI TierClassification enum is
+      [1, 2, 3]; Tier 2.5 collapses to 2 in the wire format. Strict language guard:
+      the extractor only emits a row for documents with core.language == 'de' —
+      no `und`/empty fall-through, because the entire purpose of the refinement is
+      in-domain quality on confirmed-German text. Critical limitations
+      (WP-002 §3.2): (1) genre narrowness — the model was fine-tuned on German news
+      text, not on government press releases; transfer to institutional editorial
+      register is plausible but not validated; (2) single-language scope by design;
+      (3) no compositional understanding of long-context rhetorical inversion — a
+      satirical article framed as news may be scored at face value; (4) Tier-2
+      reproducibility profile — same-process byte-identical, not bit-for-bit
+      deterministic across CUDA backends. Validation status: unvalidated.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"

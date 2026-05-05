@@ -264,8 +264,15 @@ func (s *ClickHouseStorage) GetMetricValidationStatus(ctx context.Context, metri
 	var result []struct {
 		Status string
 	}
+	// ClickHouse aggregations always return one row even when the source is
+	// empty (max() yields NULL, which `if(NULL > now(), ...)` resolves to the
+	// `'expired'` branch). Guard with `count() > 0` so an absent metric reads
+	// back as the empty string and the caller can map it to "unvalidated".
 	err := s.conn.Select(ctx, &result, `
-		SELECT if(max(valid_until) > now(), 'validated', 'expired') AS Status
+		SELECT
+			if(count() > 0,
+			   if(max(valid_until) > now(), 'validated', 'expired'),
+			   '') AS Status
 		FROM aer_gold.metric_validity
 		WHERE metric_name = $1
 	`, metricName)

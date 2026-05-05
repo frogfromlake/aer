@@ -1,4 +1,4 @@
-entityId: time_series_sentiment_score
+entityId: time_series_sentiment_score_sentiws
 entityType: view_mode
 locale: de
 registers:

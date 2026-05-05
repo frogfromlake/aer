@@ -25,6 +25,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends unzip wget \
     && rm /tmp/sentiws.zip \
     && rm -rf /var/lib/apt/lists/*
 
+# Phase 119 (ADR-023) — Tier-2 sentiment models are downloaded on first
+# inference into a persistent HF_HOME volume rather than baked at build
+# time. Build-time bake-in was attempted but proved fragile under
+# bandwidth-limited environments (HuggingFace 10s read timeout aborts the
+# entire image build); the volume cache makes the first worker startup
+# slower while keeping the build deterministic and fast. The model
+# revisions still get pinned via the Language Capability Manifest at
+# inference time, so supply-chain integrity is preserved.
+
 # Runtime — digest pinned for reproducibility (Phase 84).
 FROM python:3.14.3-slim-bookworm@sha256:f21c0d5a44c56805654c15abccc1b2fd576c8d93aca0a3f74b4aba2dc92510e2
 
@@ -41,12 +50,16 @@ COPY --from=builder /install /usr/local
 COPY services/analysis-worker/ .
 COPY --from=builder /sentiws /app/data/sentiws
 
-RUN chown -R aer:aer /app
+# Phase 119 — HF model cache lives at /hf-cache and is mounted as a
+# named volume in compose so models persist across container recreations
+# (first inference downloads, subsequent runs hit the volume).
+RUN mkdir -p /hf-cache && chown -R aer:aer /app /hf-cache
 
 USER aer
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/hf-cache
 
 EXPOSE 8001
 

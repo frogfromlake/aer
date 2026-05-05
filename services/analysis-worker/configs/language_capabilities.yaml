@@ -88,6 +88,28 @@ languages:
           - cd      # TIGER coordinator
       metric_name: sentiment_score_sentiws
 
+    # Phase 119: Tier-2 sentiment per ADR-023. The multilingual default is
+    # provided centrally via `shared.multilingual_bert`; only the metric name
+    # is repeated here so the manifest exposes the per-language metric set
+    # without consumers having to follow the `provided_by` indirection.
+    sentiment_tier2_default:
+      tier: 2
+      method: multilingual_bert
+      provided_by: shared.multilingual_bert
+      metric_name: sentiment_score_bert_multilingual
+
+    # Phase 119: Tier-2.5 German news-domain refinement. The gap between this
+    # extractor and the multilingual default is the WP-002 §3.2 domain-transfer
+    # signal mentioned in ADR-023.
+    sentiment_tier2_refinement:
+      tier: 2.5
+      method: news_domain_bert
+      model: mdraw/german-news-sentiment-bert
+      # Pinned commit on the HuggingFace model repo. Rotate via
+      # `make deps-refresh` per docs/operations_playbook.md.
+      model_revision: "6e3e756d9242be48e27f6233a6c1e557726c1bfa"
+      metric_name: sentiment_score_bert_de_news
+
     cultural_calendar:
       region_default: de
       file: cultural_calendars/de.yaml
@@ -95,6 +117,27 @@ languages:
     notes:
       - "Compound-split is German-specific (Phase 117); not applicable to non-agglutinating languages."
 
-# Cross-language shared resources. Phase 119 will populate
-# `shared.multilingual_bert` per ADR-023.
-shared: {}
+# Cross-language shared resources.
+#
+# Phase 119: `multilingual_bert` registers the Tier-2 default sentiment model
+# used by `MultilingualBertSentimentExtractor`. Per-language `sentiment_tier2_default`
+# blocks reference this entry via `provided_by: shared.multilingual_bert` so the
+# model is loaded once per worker, not once per supported language.
+shared:
+  multilingual_bert:
+    model: cardiffnlp/twitter-xlm-roberta-base-sentiment
+    # Pinned commit on the HuggingFace model repo. Rotate via
+    # `make deps-refresh` per docs/operations_playbook.md.
+    model_revision: "f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
+    # The set of ISO codes the upstream model card lists as supported. The
+    # extractor uses this list as a hard language guard — documents whose
+    # detected_language falls outside the set produce no metric row.
+    supported_languages:
+      - ar
+      - en
+      - fr
+      - de
+      - hi
+      - it
+      - pt
+      - es

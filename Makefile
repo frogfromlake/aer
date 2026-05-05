@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset backfill-entity-links setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset backfill-entity-links backfill-bert-sentiment setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -309,6 +309,19 @@ backfill-entity-links:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Wikidata entity-link backfill against aer_gold.entities...$(RESET)"
 	@docker cp scripts/backfill_entity_links.py aer_analysis_worker:/tmp/backfill_entity_links.py
 	@docker compose exec -T analysis-worker python /tmp/backfill_entity_links.py $(BACKFILL_ARGS)
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Backfill complete.$(RESET)"
+
+# Phase 119: retroactively populate the Tier-2 BERT sentiment metrics
+# (sentiment_score_bert_multilingual, sentiment_score_bert_de_news) on
+# Silver envelopes that pre-date the Phase-119 worker image. Reads the
+# canonical Silver JSON from MinIO, runs the new extractors, writes
+# rows directly to aer_gold.metrics. The PostgreSQL idempotency table
+# is not touched. Pass extra args via BACKFILL_ARGS, e.g.:
+#   make backfill-bert-sentiment BACKFILL_ARGS="--dry-run --limit 50"
+backfill-bert-sentiment:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Phase-119 BERT sentiment backfill against silver/ envelopes...$(RESET)"
+	@docker cp scripts/backfill_bert_sentiment.py aer_analysis_worker:/tmp/backfill_bert_sentiment.py
+	@docker compose exec -T analysis-worker python /tmp/backfill_bert_sentiment.py $(BACKFILL_ARGS)
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Backfill complete.$(RESET)"
 
 # ==========================================
@@ -616,6 +629,7 @@ help:
 	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Run the RSS crawler as a one-shot container on aer-backend$(RESET)"
 	@echo -e "  $(GOLD)crawl-reset$(RESET)         $(GRAY)Wipe crawler dedup state volume so next crawl re-ingests everything$(RESET)"
 	@echo -e "  $(GREEN)backfill-entity-links$(RESET) $(GRAY)Run Wikidata linking on existing aer_gold.entities (quarterly post-rebuild)$(RESET)"
+	@echo -e "  $(GREEN)backfill-bert-sentiment$(RESET) $(GRAY)Generate Phase-119 BERT sentiment metrics on existing Silver envelopes$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"

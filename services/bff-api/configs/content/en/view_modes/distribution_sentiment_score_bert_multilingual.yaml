@@ -1,0 +1,44 @@
+entityId: distribution_sentiment_score_bert_multilingual
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Multilingual BERT sentiment distribution. Shows the spread of polarity values assigned by a multilingual transformer model across all articles in the window."
+    long: >
+      The distribution view for sentiment_score_bert_multilingual renders the full
+      spread of polarity values produced by the multilingual transformer model across
+      all articles in the selected scope and window. As with the lexicon distribution,
+      this is often more informative than a mean: a source with a mean near zero may
+      produce uniformly neutral content or alternate between strongly positive and
+      strongly negative articles that cancel out. The distribution reveals which case
+      applies. Compared to the lexicon distribution (sentiment_score_sentiws), this
+      view has access to whole-article context and is therefore expected to spread
+      slightly wider — the model can detect irony or negation that the lexicon misses.
+      The shape difference between the two distributions is itself worth inspecting
+      under the methodology tray.
+  methodological:
+    short: "Histogram / density of cardiffnlp/twitter-xlm-roberta-base-sentiment scalar (range [-1, +1]). Tier-2 default per ADR-023. Tail shape is the meaningful signal; do not compare absolute shapes across languages without a metric_equivalence entry (WP-004 §3)."
+    long: >
+      The distribution is a histogram over sentiment_score_bert_multilingual values
+      (multilingual XLM-RoBERTa, P(positive) − P(negative), [-1, +1]) for the
+      selected scope and window. Tier-2 default per ADR-023. Interpretive notes:
+      (1) for institutional editorial sources, the distribution is expected to be
+      tightly peaked near zero — this reflects the institutional register, not a
+      model limitation; (2) the meaningful signal is in the tail shape and any
+      secondary peaks; (3) all multilingual-BERT limitations apply equally to
+      distributional shape — domain transfer (Twitter training, institutional
+      application), cross-language calibration drift, Tier-2 same-process
+      reproducibility (WP-002 §3.2); (4) bin count defaults to 30 across
+      [-1, +1]; with a narrow distribution, reducing bin count improves
+      readability. Cross-cultural comparison of absolute distribution shapes is
+      gated: when the active scope spans more than one detected language, the BFF
+      requires a metric_equivalence registry entry (ADR-016) granting a deviation
+      level before normalisation across language frames is permitted (WP-004 §3).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"

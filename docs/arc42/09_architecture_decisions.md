@@ -422,6 +422,10 @@ We adopt **Option C — Hybrid Tier Architecture** with the following structure:
 * **Positive:** The system is immediately usable with current provisional metrics. Methodological transparency is maintained — consumers can distinguish validated from unvalidated metrics. The architecture supports incremental validation without requiring a system-wide freeze. The dashboard principle (never hide Tier 1 behind Tier 2/3) prevents the common pitfall of sophisticated models silently replacing simpler, more auditable baselines.
 * **Negative:** Consumers must understand the tier system to correctly interpret results. The validation table is initially empty, meaning all current metrics report `unvalidated` — which is honest but may reduce perceived system maturity. The tier classification decision for each future metric requires interdisciplinary agreement, adding process overhead.
 
+### Implementation Notes
+
+* **Phase 119 — first concrete Tier 2 + Tier 2.5 implementation (per ADR-023).** German documents now produce three sentiment metrics in parallel: `sentiment_score_sentiws` (Tier 1, deterministic lexicon — Phase 117), `sentiment_score_bert_multilingual` (Tier 2 default, multilingual XLM-R), and `sentiment_score_bert_de_news` (Tier 2.5 refinement, German news-domain BERT). The dual-metric policy described above is generalised: Tier 1 is always shown; the Tier 2 multilingual default ships alongside; Tier 2.5 per-language refinements are optional, language-bound, and add a third row where shipped. None of the three displaces the others — Progressive Disclosure adds information, it does not replace it. The gap between the multilingual and the news-domain metrics is itself a Tier-2 research signal informing WP-002 §3.2's domain-transfer discussion.
+
 ---
 
 ## ADR-017: Reflexive Architecture Principles

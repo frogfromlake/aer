@@ -1,0 +1,48 @@
+entityId: distribution_sentiment_score_bert_multilingual
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Mehrsprachige BERT-Sentiment-Verteilung. Zeigt die Streuung der von einem mehrsprachigen Transformer-Modell vergebenen Polaritätswerte über alle Artikel im Fenster."
+    long: >
+      Die Verteilungsansicht für sentiment_score_bert_multilingual stellt die
+      vollständige Streuung der vom mehrsprachigen Transformer-Modell erzeugten
+      Polaritätswerte über alle Artikel im ausgewählten Geltungsbereich und Fenster
+      dar. Wie bei der Lexikon-Verteilung ist dies oft aussagekräftiger als ein
+      Mittelwert: Eine Quelle mit einem Mittelwert nahe null kann gleichmäßig
+      neutrale Inhalte produzieren oder zwischen stark positiven und stark
+      negativen Artikeln wechseln, die sich aufheben. Die Verteilung offenbart,
+      welcher Fall vorliegt. Im Vergleich zur Lexikon-Verteilung
+      (sentiment_score_sentiws) hat diese Ansicht Zugriff auf den
+      Gesamtartikel-Kontext und streut daher voraussichtlich etwas weiter — das
+      Modell kann Ironie oder Negation erkennen, die das Lexikon übersieht. Der
+      Formunterschied zwischen den beiden Verteilungen ist im Methodologie-Tray
+      seiner Inspektion wert.
+  methodological:
+    short: "Histogramm / Dichte des cardiffnlp/twitter-xlm-roberta-base-sentiment-Skalars (Bereich [-1, +1]). Tier-2-Default gemäß ADR-023. Tail-Form ist das aussagekräftige Signal; absolute Formen sprachübergreifend ohne metric_equivalence-Eintrag nicht vergleichen (WP-004 §3)."
+    long: >
+      Die Verteilung ist ein Histogramm über sentiment_score_bert_multilingual-Werte
+      (mehrsprachiges XLM-RoBERTa, P(positiv) − P(negativ), [-1, +1]) für den
+      ausgewählten Geltungsbereich und Zeitraum. Tier-2-Default gemäß ADR-023.
+      Interpretationshinweise: (1) für institutionelle redaktionelle Quellen wird
+      die Verteilung erwartungsgemäß eng um null gepeakt — dies spiegelt das
+      institutionelle Register wider, nicht ein Modelldefizit; (2) das
+      aussagekräftige Signal liegt in der Tail-Form und etwaigen Nebengipfeln;
+      (3) alle Multilingual-BERT-Einschränkungen gelten gleichermaßen für die
+      Verteilungsform — Domänentransfer (Twitter-Training, institutionelle
+      Anwendung), sprachübergreifende Kalibrierungsverschiebung,
+      Tier-2-Same-Process-Reproduzierbarkeit (WP-002 §3.2); (4) die Bin-Anzahl
+      hat standardmäßig 30 über [-1, +1]; bei enger Verteilung verbessert eine
+      Reduktion die Lesbarkeit. Sprachübergreifender Vergleich absoluter
+      Verteilungsformen ist gegated: wenn der aktive Geltungsbereich mehr als
+      eine erkannte Sprache umfasst, fordert die BFF einen Eintrag im
+      metric_equivalence-Register (ADR-016), der ein Abweichungsniveau gewährt,
+      bevor die Normalisierung über sprachliche Frames zulässig ist (WP-004 §3).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"

@@ -1,0 +1,53 @@
+entityId: sentiment_score_bert_de_news
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "A score from −1 to +1 measuring an article's emotional polarity using a German news-domain BERT model. German-language documents only."
+    long: >
+      German news-domain sentiment score uses a transformer model fine-tuned on
+      German news text, applied to one article at a time. The model's three-way
+      verdict (negative / neutral / positive) is collapsed into a single number
+      between −1 and +1. Compared to the multilingual sentiment metric
+      (sentiment_score_bert_multilingual), this model is closer to AĒR's source
+      register — it has read text similar in style to what it is asked to score,
+      whereas the multilingual model was trained on Twitter text from many
+      languages. The two metrics ship side by side; the gap between them is a
+      research signal about how much the choice of training corpus changes the
+      verdict, not a flaw to be averaged out. The metric is German-only by design:
+      documents in any other language produce no row. As a Tier-2.5 refinement it
+      remains provisional — useful but not yet calibrated against an annotation
+      study on Probe-0 institutional sources.
+  methodological:
+    short: "mdraw/german-news-sentiment-bert, pinned HuggingFace revision. Tier-2.5 refinement per ADR-023. P(pos) − P(neg) clipped to [-1, +1]. Strict de-only language guard. WP-002 §3.2."
+    long: >
+      sentiment_score_bert_de_news is computed by GermanNewsBertSentimentExtractor
+      running mdraw/german-news-sentiment-bert, pinned by HuggingFace commit
+      revision in the Language Capability Manifest's
+      languages.de.sentiment_tier2_refinement block. Same scalar collapse as the
+      multilingual default — P(positive) − P(negative), clipped to [-1, +1] —
+      same determinism flags, same Phase-119 CI gate. Per ADR-023 this is the
+      Tier-2.5 refinement layer: optional, language-bound, and never displaces
+      either the Tier-1 lexicon score (sentiment_score_sentiws) or the Tier-2
+      multilingual default (sentiment_score_bert_multilingual). The dashboard
+      surfaces all three under ADR-016's dual-metric pattern; the gap between the
+      multilingual default and this domain-fine-tuned refinement is the WP-002
+      §3.2 domain-transfer signal. The OpenAPI TierClassification enum is [1, 2,
+      3]; Tier 2.5 collapses to 2 in the wire format and the refinement
+      distinction lives in this description. Strict language guard:
+      core.language must equal 'de' — the legacy `und`/empty fall-through that
+      the lexicon Tier-1 honours is intentionally absent here, because the
+      whole point of the refinement is in-domain quality on confirmed-German
+      text. Known limitations (WP-002 §3.2): (1) domain narrowness — the model
+      was fine-tuned on news, not on government press releases; genre transfer
+      to institutional editorial register is plausible but not validated; (2)
+      single-language scope by design; (3) model-revision binding — calibration
+      moves with the pinned revision; (4) no coreference, sarcasm, or
+      long-context rhetorical inversion. Validation status: unvalidated.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "ADR-023"

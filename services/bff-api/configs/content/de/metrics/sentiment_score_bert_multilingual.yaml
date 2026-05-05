@@ -1,0 +1,57 @@
+entityId: sentiment_score_bert_multilingual
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Ein Wert von −1 bis +1, der die emotionale Polarität eines Artikels mit einem mehrsprachigen BERT-Modell misst. Funktioniert über viele Sprachen, nicht nur Deutsch."
+    long: >
+      Der mehrsprachige Sentimentscore liest einen vollständigen Artikel durch ein
+      Transformer-Modell, das gleichzeitig auf Texten vieler Sprachen trainiert
+      wurde. Die drei Klassen des Modells (negativ / neutral / positiv) werden zu
+      einer einzigen Zahl zwischen −1 und +1 zusammengefasst — Werte nahe +1
+      bedeuten, dass das Modell den Artikel als positiv gerahmt einstuft, nahe −1
+      als negativ, nahe 0 als gemischt oder neutral. Das Modell betrachtet den
+      Artikel als Ganzes, sodass Kontext wie Negation und Wortstellung in den Score
+      einfließen — ein Unterschied zum lexikonbasierten Tier-1-Wert
+      sentiment_score_sentiws, der nur zählt, welche Wörter vorkommen. Diese
+      Metrik wird neben (nicht statt) dem lexikonbasierten Score angezeigt; die
+      Lücke zwischen beiden ist selbst ein Forschungssignal. Als Tier-2-Metrik ist
+      sie mit gepinnten Modellversionen reproduzierbar, aber für das institutionelle
+      redaktionelle Register der derzeitigen AĒR-Quellen wissenschaftlich noch nicht
+      validiert — als Basismessung interpretieren, nicht als kalibrierte Wahrheit.
+  methodological:
+    short: "cardiffnlp/twitter-xlm-roberta-base-sentiment, gepinnte HuggingFace-Revision. Tier-2-Default gemäß ADR-023. P(pos) − P(neg), geklippt auf [-1, +1]. Domänentransfer-Vorbehalt: auf Twitter trainiert, auf institutionellem RSS angewendet (WP-002 §3.2)."
+    long: >
+      sentiment_score_bert_multilingual wird vom MultilingualBertSentimentExtractor
+      berechnet, der das mehrsprachige XLM-RoBERTa-Modell
+      cardiffnlp/twitter-xlm-roberta-base-sentiment ausführt, gepinnt per
+      HuggingFace-Commit-Revision im shared.multilingual_bert-Block des Language
+      Capability Manifests. Das Modell liefert ein 3-Klassen-Softmax (negativ /
+      neutral / positiv); der Skalar ist P(positiv) − P(negativ), geklippt auf
+      [-1, +1]. Determinismus-Flags (torch.manual_seed(42),
+      transformers.set_seed(42), torch.use_deterministic_algorithms(True)) werden
+      bei der Konstruktion gesetzt; das Phase-119-CI-Gate prüft byte-identische
+      Ausgaben über aufeinanderfolgende Aufrufe im selben Prozess. Gemäß ADR-023
+      ist dies der Tier-2-Default — ein einziges mehrsprachiges Modell ersetzt die
+      pro-Sprach-Tier-2-Flotte des ursprünglichen Phase-119-Entwurfs und skaliert
+      die Sentimentabdeckung O(1) pro neuer Sprache. Die optionale
+      Tier-2.5-Verfeinerung (sentiment_score_bert_de_news für Deutsch) läuft
+      parallel, nicht als Ersatz; das Dashboard zeigt beide. Bekannte
+      Einschränkungen (WP-002 §3.2): (1) Domänentransfer — das Modell wurde auf
+      Twitter trainiert, nicht auf institutioneller Presse; die domänenspezifische
+      Verfeinerung pro Sprache ist das kalibrierte Gegenstück, wo eine registriert
+      ist, und die Lücke zwischen beiden ist selbst ein Forschungssignal;
+      (2) sprachübergreifende Kalibrierungsverschiebung — ein Score von 0,4 im
+      Deutschen ist nicht zwingend mit 0,4 im Französischen vergleichbar;
+      kulturübergreifender Vergleich erfordert einen Eintrag im
+      metric_equivalence-Register (ADR-016), bevor die BFF zwischen sprachlichen
+      Frames normalisiert; (3) Tier-2-Reproduzierbarkeit — Ausgaben sind über
+      Same-Process-Läufe reproduzierbar, aber nicht bit-genau deterministisch über
+      CUDA-Backends hinweg. Validierungsstatus: nicht validiert.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "ADR-023"

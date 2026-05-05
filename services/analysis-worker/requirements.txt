@@ -55,3 +55,14 @@ lingua-language-detector==2.2.0
 compound-split==1.0.2
 # YAML loader for the operator-managed `data/custom_lexicon.yaml` extension.
 PyYAML==6.0.2
+
+# --- Phase 119: Tier 2 Sentiment Extractors (ADR-023) ---
+# CPU-only torch is sufficient — the deployed worker runs on CPU and the
+# determinism CI gate (Phase 119) explicitly guards against CUDA-driven
+# non-determinism. Versions selected for Python 3.14 wheel availability.
+torch==2.11.0
+transformers==4.57.6
+# Tokenizer + sentencepiece backends pulled by the multilingual XLM-R
+# model card. Listed explicitly so they survive a future
+# `pip-compile --strip-extras`.
+sentencepiece==0.2.1

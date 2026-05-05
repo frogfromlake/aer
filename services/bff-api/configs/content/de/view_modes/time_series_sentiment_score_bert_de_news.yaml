@@ -1,0 +1,54 @@
+entityId: time_series_sentiment_score_bert_de_news
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Deutsches Nachrichten-BERT-Sentiment über die Zeit. Gleiche Form wie die mehrsprachige Zeitreihe, aber gelesen von einem auf deutsche Nachrichten feinjustierten Modell — näher am AĒR-Quellenregister, nur Deutsch."
+    long: >
+      Diese Ansicht stellt sentiment_score_bert_de_news als Zeitreihe dar. Die
+      Metrik ist das domänenspezialisierte Gegenstück zum mehrsprachigen
+      BERT-Sentimentscore: Das Modell liest dieselben Artikel, wurde aber auf
+      deutschen Nachrichtentexten feinjustiert, nicht auf mehrsprachigem Twitter,
+      sodass seine Kalibrierung auf den deutschen institutionellen Quellen von AĒR
+      voraussichtlich enger ist. Vergleichen Sie diese Zeitreihe mit der
+      mehrsprachigen (sentiment_score_bert_multilingual) und mit dem
+      lexikonbasierten Score (sentiment_score_sentiws) — die Lücke zwischen den
+      drei Linien macht das WP-002-§3.2-Domänentransfer-Signal sichtbar. Die
+      Ansicht ist absichtlich nur für Deutsch: Eine Eingrenzung auf
+      nicht-deutsche Quellen rendert einen leeren Stream, was korrekt ist (die
+      Metrik fehlt tatsächlich, ist nicht null). Als Tier-2.5-Verfeinerung
+      bleibt sie vorläufig.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert des mdraw/german-news-sentiment-bert-Skalars (P(pos) − P(neg), [-1, +1]). Tier-2.5-Verfeinerung gemäß ADR-023. Nur Deutsch. Genretransfer-Vorbehalt: Nachrichtentraining, institutionelle Anwendung (WP-002 §3.2)."
+    long: >
+      sentiment_score_bert_de_news ist in dieser Ansicht eine
+      5-Minuten-Downsampling-Zeitreihe über den Skalar P(positiv) − P(negativ),
+      ausgegeben von mdraw/german-news-sentiment-bert, gepinnt per
+      HuggingFace-Commit-Revision im
+      languages.de.sentiment_tier2_refinement-Block des Language Capability
+      Manifests. Gleiche Determinismus-Flags und gleiches Phase-119-CI-Gate wie
+      der mehrsprachige Default. Gemäß ADR-023 ist dies die
+      Tier-2.5-Verfeinerungsschicht: läuft neben dem Multilingual-Tier-2-Default,
+      niemals an seiner Stelle. Das OpenAPI-TierClassification-Enum ist [1, 2, 3];
+      Tier 2.5 wird im Wire-Format auf 2 reduziert. Strikter Sprachfilter: Der
+      Extraktor emittiert nur Zeilen für Dokumente mit core.language == 'de' —
+      keine `und`/leer-Fall-Through-Logik, weil der gesamte Sinn der
+      Verfeinerung in domänennaher Qualität auf bestätigtem deutschen Text liegt.
+      Kritische Einschränkungen (WP-002 §3.2): (1) Genre-Enge — das Modell wurde
+      auf deutschem Nachrichtentext feinjustiert, nicht auf
+      Regierungspressemitteilungen; Transfer auf institutionelles redaktionelles
+      Register ist plausibel, aber nicht validiert; (2) Einzelsprachen-
+      Geltungsbereich per Design; (3) kein kompositionelles Verständnis von
+      Langkontext-rhetorischer Umkehrung — ein als Nachricht gerahmter
+      satirischer Artikel kann beim Nennwert bewertet werden;
+      (4) Tier-2-Reproduzierbarkeitsprofil — Same-Process-byte-identisch, nicht
+      bit-genau deterministisch über CUDA-Backends. Validierungsstatus: nicht
+      validiert.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"

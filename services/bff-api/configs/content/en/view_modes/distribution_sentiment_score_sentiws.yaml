@@ -1,4 +1,4 @@
-entityId: distribution_sentiment_score
+entityId: distribution_sentiment_score_sentiws
 entityType: view_mode
 locale: en
 registers:

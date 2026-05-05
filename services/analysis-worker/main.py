@@ -27,6 +27,8 @@ from internal.extractors import (
     TemporalDistributionExtractor,
     LanguageDetectionExtractor,
     SentimentExtractor,
+    MultilingualBertSentimentExtractor,
+    GermanNewsBertSentimentExtractor,
     NamedEntityExtractor,
     EntityCoOccurrenceExtractor,
     MetricBaselineExtractor,
@@ -72,6 +74,13 @@ DEFAULT_EXTRACTOR_CLASSES = [
     TemporalDistributionExtractor,
     LanguageDetectionExtractor,
     SentimentExtractor,
+    # Phase 119 / ADR-023: Tier-2 default + Tier-2.5 German-news refinement
+    # register alongside Tier-1 SentiWS. Both produce no metric row when
+    # transformers/torch are absent at runtime (graceful degradation), so
+    # ordering them after the Tier-1 extractor keeps SentiWS's coverage
+    # whole even if the BERT path fails to initialise.
+    MultilingualBertSentimentExtractor,
+    GermanNewsBertSentimentExtractor,
     NamedEntityExtractor,
 ]
 

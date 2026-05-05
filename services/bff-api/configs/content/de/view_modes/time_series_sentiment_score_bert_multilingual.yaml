@@ -1,0 +1,55 @@
+entityId: time_series_sentiment_score_bert_multilingual
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Mehrsprachiges BERT-Sentiment über die Zeit. Zeigt, wie sich der emotionale Register veröffentlichter Texte — gelesen von einem Transformer-Modell, das viele Sprachen beherrscht — im Beobachtungsfenster bewegt."
+    long: >
+      Diese Ansicht stellt sentiment_score_bert_multilingual als Zeitreihe dar und
+      zeigt, wie sich der aggregierte emotionale Register einer Quelle im Zeitverlauf
+      verschiebt, wenn er von einem mehrsprachigen Transformer-Modell gelesen wird.
+      Im Vergleich zur lexikonbasierten Zeitreihe (sentiment_score_sentiws) liest
+      dieser Score jeden Artikel als Ganzes — Kontext wie Negation, Wortstellung
+      und Ironie kann zumindest teilweise erkannt werden. Anhaltende Verschiebungen
+      sind wie zuvor interpretierbar; abrupte Tagesbewegungen korrelieren häufig
+      mit großen Nachrichtenereignissen. Diese Metrik funktioniert über viele
+      Sprachen, daher ist sie die natürliche Zeitreihenansicht, wenn der aktive
+      Geltungsbereich mehr als einen kulturell-sprachlichen Frame umfasst. Da das
+      Sentiment auf Quellebene aggregiert wird, identifiziert die Zeitreihenansicht
+      nicht, welche Artikel das Muster antreiben — dafür eignet sich die
+      Verteilungsansicht. Als Tier-2-Metrik ist sie vorläufig: über Läufe
+      reproduzierbar, aber noch nicht durch eine Annotationsstudie kalibriert.
+  methodological:
+    short: "5-Minuten-Downsampling-Mittelwert des cardiffnlp/twitter-xlm-roberta-base-sentiment-Skalars (P(pos) − P(neg), [-1, +1]). Tier-2-Default gemäß ADR-023. Domänentransfer-Vorbehalt: auf Twitter trainiert, auf institutionellem RSS angewendet (WP-002 §3.2)."
+    long: >
+      sentiment_score_bert_multilingual wird in dieser Ansicht als
+      5-Minuten-Downsampling-Zeitreihe gerendert. Unsicherheitsbänder spiegeln die
+      Varianz innerhalb der Buckets wider. Die Metrik wird vom
+      MultilingualBertSentimentExtractor berechnet, der
+      cardiffnlp/twitter-xlm-roberta-base-sentiment ausführt, gepinnt per
+      HuggingFace-Commit-Revision im shared.multilingual_bert-Block des Language
+      Capability Manifests; der Skalar ist P(positiv) − P(negativ), geklippt auf
+      [-1, +1]. Tier-2-Default gemäß ADR-023; das Phase-119-Determinismus-Gate
+      garantiert byte-identische Ausgaben über aufeinanderfolgende Aufrufe im
+      selben Prozess unter gepinnter Modellrevision plus torch.manual_seed(42),
+      transformers.set_seed(42), torch.use_deterministic_algorithms(True).
+      Kritische Einschränkungen (WP-002 §3.2): (1) Domänentransfer — das Modell
+      wurde auf Twitter trainiert, nicht auf institutioneller Presse; die Lücke
+      zur domänenspezifischen Verfeinerung pro Sprache
+      (sentiment_score_bert_de_news für Deutsch) ist selbst das WP-002-Signal,
+      kein Mangel zur Mittelung; (2) sprachübergreifende
+      Kalibrierungsverschiebung — Zeitreihen-Vergleich über zwei Sprachen
+      erfordert einen Eintrag im metric_equivalence-Register, der ein
+      Abweichungsniveau gewährt (ADR-016), bevor die Normalisierung über
+      kulturell-sprachliche Frames hinweg zulässig ist; (3) Tier-2-
+      Reproduzierbarkeit — Same-Process-Läufe reproduzierbar, nicht bit-genau
+      deterministisch über CUDA-Backends; (4) die Mittelwertaggregation reagiert
+      empfindlich auf Ausreißer in kurzen Fenstern.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"

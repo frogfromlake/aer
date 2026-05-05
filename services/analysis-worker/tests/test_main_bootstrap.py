@@ -13,7 +13,9 @@ from pathlib import Path
 import pytest
 
 from internal.extractors import (
+    GermanNewsBertSentimentExtractor,
     LanguageDetectionExtractor,
+    MultilingualBertSentimentExtractor,
     NamedEntityExtractor,
     SentimentExtractor,
     TemporalDistributionExtractor,
@@ -28,6 +30,10 @@ def test_default_classes_match_expected_pipeline():
         TemporalDistributionExtractor,
         LanguageDetectionExtractor,
         SentimentExtractor,
+        # Phase 119: Tier-2 default + Tier-2.5 German-news refinement
+        # register alongside Tier-1 SentiWS (ADR-023).
+        MultilingualBertSentimentExtractor,
+        GermanNewsBertSentimentExtractor,
         NamedEntityExtractor,
     ]
 

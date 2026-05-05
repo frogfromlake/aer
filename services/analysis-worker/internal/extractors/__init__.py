@@ -4,6 +4,8 @@ from internal.extractors.word_count import WordCountExtractor
 from internal.extractors.temporal import TemporalDistributionExtractor
 from internal.extractors.language import LanguageDetectionExtractor
 from internal.extractors.sentiment import SentimentExtractor
+from internal.extractors.sentiment_bert_multilingual import MultilingualBertSentimentExtractor
+from internal.extractors.sentiment_bert_de_news import GermanNewsBertSentimentExtractor
 from internal.extractors.entities import NamedEntityExtractor
 from internal.extractors.entity_cooccurrence import (
     EntityCoOccurrenceExtractor,
@@ -35,6 +37,8 @@ __all__ = [
     "TemporalDistributionExtractor",
     "LanguageDetectionExtractor",
     "SentimentExtractor",
+    "MultilingualBertSentimentExtractor",
+    "GermanNewsBertSentimentExtractor",
     "NamedEntityExtractor",
     "EntityCoOccurrenceExtractor",
     "CoOccurrenceRow",

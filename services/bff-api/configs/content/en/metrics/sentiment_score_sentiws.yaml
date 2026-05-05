@@ -1,4 +1,4 @@
-entityId: sentiment_score
+entityId: sentiment_score_sentiws
 entityType: metric
 locale: en
 registers:

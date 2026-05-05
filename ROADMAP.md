@@ -2457,21 +2457,8 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 * [x] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Probe 0 metrics regression-tested within ±1% of pre-refactor baseline. Manual: BFF `?language=xx` request with unknown code returns `400` with `gate=invalid_language` and the list of valid codes from the manifest.
 
----
 
-# Open Phases
-
----
-
-# Iteration 6 — NLP Hardening & Scientific Rigor
-
-*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
-
-*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
-
----
-
-## Phase 119: NLP Hardening — Tier 2 Sentiment Extractors (Multilingual + German Refinement) [P2] - [ ] TODO
+## Phase 119: NLP Hardening — Tier 2 Sentiment Extractors (Multilingual + German Refinement) [P2] - [x] DONE
 
 *Implements the Tier 2 sentiment layer per ADR-023: a multilingual default extractor that scales O(1) per language addition, plus an optional German-news-domain Tier 2.5 refinement that retains in-domain quality where it matters. The dashboard renders both with Epistemic Weight (Brief §7.8) distinguishing them; the gap between them is itself a research signal informing WP-002 §3.2's domain-transfer discussion. Phase 116's language-routing substrate and Phase 118a's Capability Manifest are hard prerequisites — both extractors register their entries via the manifest, not via hard-coded paths.*
 
@@ -2479,13 +2466,13 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 
 ### Analysis Worker
 
-* [ ] **`MultilingualBertSentimentExtractor` (Tier 2 default).** New `services/analysis-worker/internal/extractors/sentiment_bert_multilingual.py`. Model: `cardiffnlp/twitter-xlm-roberta-base-sentiment` (or the equivalent multilingual SOTA at implementation time — final selection part of this phase's work, recorded in the implementation outline of ADR-023). Pinned to a specific revision via `transformers` `revision` parameter. Determinism flags: `torch.manual_seed(42)`, `transformers.set_seed(42)`, `torch.use_deterministic_algorithms(True)`. Output: scalar `sentiment_score_bert_multilingual` in `[-1.0, 1.0]` (model softmax mapped to scalar range). Phase 116 language guard applies — the extractor reads the model's `supported_languages` from the Capability Manifest (`manifest.shared.multilingual_bert.supported_languages`) and skips documents whose `detected_language` is outside that set, writing no metric row.
+* [x] **`MultilingualBertSentimentExtractor` (Tier 2 default).** New `services/analysis-worker/internal/extractors/sentiment_bert_multilingual.py`. Model: `cardiffnlp/twitter-xlm-roberta-base-sentiment` (or the equivalent multilingual SOTA at implementation time — final selection part of this phase's work, recorded in the implementation outline of ADR-023). Pinned to a specific revision via `transformers` `revision` parameter. Determinism flags: `torch.manual_seed(42)`, `transformers.set_seed(42)`, `torch.use_deterministic_algorithms(True)`. Output: scalar `sentiment_score_bert_multilingual` in `[-1.0, 1.0]` (model softmax mapped to scalar range). Phase 116 language guard applies — the extractor reads the model's `supported_languages` from the Capability Manifest (`manifest.shared.multilingual_bert.supported_languages`) and skips documents whose `detected_language` is outside that set, writing no metric row.
 
-* [ ] **`GermanNewsBertSentimentExtractor` (Tier 2.5 refinement, German).** New `services/analysis-worker/internal/extractors/sentiment_bert_de_news.py`. Model: `mdraw/german-news-sentiment-bert`, pinned revision, same determinism flags. Output: scalar `sentiment_score_bert_de_news`. Activates only when `detected_language = 'de'` and the Capability Manifest declares `manifest.languages.de.sentiment_tier2_refinement` with this model. Registered alongside the multilingual extractor — both run on every German document, producing two parallel metrics.
+* [x] **`GermanNewsBertSentimentExtractor` (Tier 2.5 refinement, German).** New `services/analysis-worker/internal/extractors/sentiment_bert_de_news.py`. Model: `mdraw/german-news-sentiment-bert`, pinned revision, same determinism flags. Output: scalar `sentiment_score_bert_de_news`. Activates only when `detected_language = 'de'` and the Capability Manifest declares `manifest.languages.de.sentiment_tier2_refinement` with this model. Registered alongside the multilingual extractor — both run on every German document, producing two parallel metrics.
 
-* [ ] **`oliverguhr/german-sentiment-bert` — optional Tier 2.5 review-domain entry (defer-friendly).** Per ADR-023, this extractor ships if and only if engineering capacity is available. When shipped: new `services/analysis-worker/internal/extractors/sentiment_bert_de_review.py`, output `sentiment_score_bert_de_review`. Same determinism flags. Activates only when the manifest declares the refinement entry. Skipping this bullet has no architectural cost — the methodological purpose (domain-transfer evidence) is already served by the multilingual-vs-news-domain gap above.
+* [ ] **`oliverguhr/german-sentiment-bert` — optional Tier 2.5 review-domain entry (defer-friendly).** *(Deferred per ADR-023 — methodological purpose served by the multilingual-vs-news-domain gap.)* Per ADR-023, this extractor ships if and only if engineering capacity is available. When shipped: new `services/analysis-worker/internal/extractors/sentiment_bert_de_review.py`, output `sentiment_score_bert_de_review`. Same determinism flags. Activates only when the manifest declares the refinement entry. Skipping this bullet has no architectural cost — the methodological purpose (domain-transfer evidence) is already served by the multilingual-vs-news-domain gap above.
 
-* [ ] **Manifest extension for `de`.** Phase 118a ships the `de` manifest entry with `sentiment_tier1` only. This phase extends it with:
+* [x] **Manifest extension for `de`.** Phase 118a ships the `de` manifest entry with `sentiment_tier1` only. This phase extends it with:
 ```yaml
   sentiment_tier2_default:
     tier: 2
@@ -2515,25 +2502,95 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 ```
   The Phase 118a scaffold generator picks up the new entries automatically and adds the corresponding `metric_validity` rows.
 
-* [ ] **Tier 2 provenance.** Both extractors expose `version_hash` returning `sha256({model_name}:{model_revision}:{transformers_version}:{torch_version})`. Written to `SilverEnvelope.extraction_provenance` per Phase 46's mechanism.
+* [x] **Tier 2 provenance.** Both extractors expose `version_hash` returning `sha256({model_name}:{model_revision}:{transformers_version}:{torch_version})`. Written to `SilverEnvelope.extraction_provenance` per Phase 46's mechanism.
 
-* [ ] **Determinism CI gate.** New pytest test: run each Tier 2 / Tier 2.5 extractor on 20 fixed German sentences twice in the same process; assert outputs are byte-identical. This test is the Tier 2 reproducibility guarantee and must remain green across library updates. A second cross-process test (re-launch the worker) asserts byte-identity across runs to catch CUDA-vs-CPU non-determinism if a GPU is added.
+* [x] **Determinism CI gate.** New pytest test: run each Tier 2 / Tier 2.5 extractor on 20 fixed German sentences twice in the same process; assert outputs are byte-identical. This test is the Tier 2 reproducibility guarantee and must remain green across library updates. A second cross-process test (re-launch the worker) asserts byte-identity across runs to catch CUDA-vs-CPU non-determinism if a GPU is added.
 
-* [ ] **Tests.** Pytest unit: (a) known-positive German news sentence → both `de_news` and `multilingual` extractors score > 0; (b) known-negative news sentence → both score < 0; (c) gap observation: review-style positive German sentence — `de_news` scores higher than `multilingual` (or vice versa) by a measurable margin (the domain-transfer signal); (d) English text → `de_news` skipped via manifest-driven language guard, no metric row; the `multilingual` extractor writes a metric row (English is in `supported_languages`); (e) Suaheli text (or any language outside the multilingual model's supported set) → both extractors skipped, no metric row; (f) determinism gate passes for both extractors; (g) `make scaffold-metric-validity` produces rows for `sentiment_score_bert_multilingual` (per supported language × Probe-0 context-keys) and `sentiment_score_bert_de_news` (German only).
+* [x] **Tests.** Pytest unit: (a) known-positive German news sentence → both `de_news` and `multilingual` extractors score > 0; (b) known-negative news sentence → both score < 0; (c) gap observation: review-style positive German sentence — `de_news` scores higher than `multilingual` (or vice versa) by a measurable margin (the domain-transfer signal); (d) English text → `de_news` skipped via manifest-driven language guard, no metric row; the `multilingual` extractor writes a metric row (English is in `supported_languages`); (e) Suaheli text (or any language outside the multilingual model's supported set) → both extractors skipped, no metric row; (f) determinism gate passes for both extractors; (g) `make scaffold-metric-validity` produces rows for `sentiment_score_bert_multilingual` (per supported language × Probe-0 context-keys) and `sentiment_score_bert_de_news` (German only).
 
 ### BFF API
 
-* [ ] **`/api/v1/metrics/available` exposes Tier 2 hierarchy.** `sentiment_score_sentiws` (Tier 1, `unvalidated`), `sentiment_score_bert_multilingual` (Tier 2 default, `unvalidated`), `sentiment_score_bert_de_news` (Tier 2.5 refinement, `unvalidated`), and optionally `sentiment_score_bert_de_review` (Tier 2.5 baseline, `unvalidated`) appear as separate entries with distinct `tier` and `validationStatus`. No OpenAPI change required — existing metric-name parameterization handles arbitrary metric names transparently.
+* [x] **`/api/v1/metrics/available` exposes Tier 2 hierarchy.** `sentiment_score_sentiws` (Tier 1, `unvalidated`), `sentiment_score_bert_multilingual` (Tier 2 default, `unvalidated`), `sentiment_score_bert_de_news` (Tier 2.5 refinement, `unvalidated`), and optionally `sentiment_score_bert_de_review` (Tier 2.5 baseline, `unvalidated`) appear as separate entries with distinct `tier` and `validationStatus`. No OpenAPI change required — existing metric-name parameterization handles arbitrary metric names transparently.
+
+### Content & Provenance
+
+* [x] **`metric_provenance.yaml` Einträge.** Drei (oder vier) neue Einträge in
+      `services/bff-api/configs/metric_provenance.yaml` für
+      `sentiment_score_bert_multilingual`, `sentiment_score_bert_de_news`,
+      und optional `sentiment_score_bert_de_review`. `tier_classification: 2`
+      für alle drei — das `TierClassification`-OpenAPI-Schema ist
+      `enum: [1, 2, 3]`, also collapsed Tier 2.5 architektonisch auf Tier 2;
+      die Refinement-Distinktion lebt im `algorithm_description`-Text, nicht
+      im `tier`-Integer (bewusste Designentscheidung, kein Schema-Drift).
+      `algorithm_description` zitiert ADR-023 für die Tier-2-Default-Wahl
+      bzw. die News-Domain-Refinement-Begründung. `known_limitations` aus
+      WP-002 §3.2: domain-transfer (multilingual auf institutionellen
+      RSS-Texten), model-revision-binding, multilingual cross-language
+      calibration drift. `extractor_version_hash` verweist auf den
+      `version_hash` den der Extractor per Phase 46 emittiert. Verifiziert
+      durch den bestehenden BFF-Handler-Test, der die registered-metric-
+      Invariante prüft (jede Metrik aus `/metrics/available` hat einen
+      Provenance-Eintrag) — wenn der Test heute nicht auf neue Metriken
+      regrediert, wird er hier ergänzt.
+
+* [x] **Metrik-Content-Catalog (Phase 95-Pattern).** Drei (oder vier)
+      Datei-Paare in `services/bff-api/configs/content/{en,de}/metrics/`.
+      Dual-Register pro Brief §5.7: `registers.semantic.{short,long}`
+      erklärt, was die Metrik misst, ohne den Tier-Unterschied zur SentiWS-
+      Tier-1-Variante methodologisch wegzuerklären; `registers.methodological.
+      {short,long}` benennt das konkrete Modell (`cardiffnlp/twitter-xlm-
+      roberta-base-sentiment` bzw. `mdraw/german-news-sentiment-bert`),
+      die `model_revision`, das Determinismus-Regime (Phase-119 CI-Gate),
+      die Tier-2-vs-Tier-2.5-Begründung aus ADR-023, und den Domain-
+      Transfer-Gap aus WP-002 §3.2 als ausdrückliche bekannte Einschränkung.
+      `workingPaperAnchors`: `["WP-002 §3.2"]` plus ADR-023 als Free-Form-
+      Citation. EN zuerst, DE in einem separaten Commit nach EN-Review
+      (Phase-95-Pattern).
+
+* [x] **View-Mode-Cell-Content.** Pro neuer Metrik × `time_series` und
+      `distribution` je eine YAML in
+      `services/bff-api/configs/content/{en,de}/view_modes/<presentation>_<metric>.yaml`.
+      Sechs Files pro Locale (drei Metriken × zwei Präsentationen), zwölf
+      insgesamt. `cooccurrence_network` ist sentiment-agnostisch — keine
+      neuen Files. Inhalt nach Vorlage von
+      `time_series_sentiment_score_sentiws.yaml` /
+      `distribution_sentiment_score_sentiws.yaml`, mit der Tier-2-vs-Tier-
+      2.5-Methodik-Notiz im methodologischen Register.
+
+* [ ] **Frontend-Konsumption-Smoke-Test.** Manuell nach Deploy: (a)
+      `MetricSwitcher` listet alle drei (oder vier) neuen Metriken; (b)
+      Switch auf jede neue Metrik rendert `time_series`- und
+      `distribution`-Cells ohne 404; (c) Methodology Tray öffnet ohne
+      Lade-Fehler-State und zeigt korrekte Provenance + Dual-Register-
+      Content; (d) `/reflection/metric/<name>` rendert ohne "unavailable"-
+      State; (e) `pickBadgeTier`-Mapping in
+      `services/dashboard/src/lib/components/chrome/methodology-tray-
+      internals.ts` collapsed `tier 2 unvalidated` auf den
+      `tier1-unvalidated`-Badge wie spezifiziert (Brief §5.8 — Epistemic
+      Weight als Funktion der Evidenz, nicht des Namings) — hier nur als
+      Bestätigung dokumentiert, kein Code-Change.
 
 ### Documentation
 
-* [ ] **CLAUDE.md.** Add all Tier 2 / Tier 2.5 extractors to "Registered extractors". Note the dual-metric pattern (Tier 1 + Tier 2 + optional Tier 2.5) and reference ADR-023 for the architectural rationale.
+* [x] **CLAUDE.md.** Add all Tier 2 / Tier 2.5 extractors to "Registered extractors". Note the dual-metric pattern (Tier 1 + Tier 2 + optional Tier 2.5) and reference ADR-023 for the architectural rationale.
 
-* [ ] **ADR-016 (Hybrid Tier Architecture).** Append a note recording the first concrete Tier 2 + Tier 2.5 implementation per ADR-023. The dual-metric policy (Tier 1 always shown; Tier 2 default available alongside; Tier 2.5 optional refinement) supersedes the originally-described "Tier 2 alongside Tier 1" pattern.
+* [x] **ADR-016 (Hybrid Tier Architecture).** Append a note recording the first concrete Tier 2 + Tier 2.5 implementation per ADR-023. The dual-metric policy (Tier 1 always shown; Tier 2 default available alongside; Tier 2.5 optional refinement) supersedes the originally-described "Tier 2 alongside Tier 1" pattern.
 
-* [ ] **Arc42 §13.3.** Update the `Sentiment Analysis` row to note all four extractors: SentiWS (Tier 1, deterministic lexicon), `multilingual_bert` (Tier 2 default, multilingual), `de_news` (Tier 2.5 refinement, German news-domain), `de_review` (Tier 2.5 optional baseline). Document the news-domain choice and the methodological reasoning per ADR-023.
+* [x] **Arc42 §13.3.** Update the `Sentiment Analysis` row to note all four extractors: SentiWS (Tier 1, deterministic lexicon), `multilingual_bert` (Tier 2 default, multilingual), `de_news` (Tier 2.5 refinement, German news-domain), `de_review` (Tier 2.5 optional baseline). Document the news-domain choice and the methodological reasoning per ADR-023.
 
-* [ ] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Determinism gate passes in CI. Manual: `/api/v1/metrics/available` lists three (or four if `de_review` shipped) sentiment metrics with distinct `validationStatus` and `tier`.
+* [x] **Validation.** `make lint && make test && make scaffold-metric-validity && git diff --exit-code` green. Determinism gate passes in CI. Manual: `/api/v1/metrics/available` lists three (or four if `de_review` shipped) sentiment metrics with distinct `validationStatus` and `tier`.
+
+---
+
+# Open Phases
+
+---
+
+# Iteration 6 — NLP Hardening & Scientific Rigor
+
+*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
+
+*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
 
 ---
 
@@ -2765,18 +2822,438 @@ The Iteration-6 → Iteration-7 sequencing in the rationale block remains the re
 
 ## Phase 124: Exploratory Composition Mode (Brief §4.2.5) [P3] - [ ] TODO
 
-*Delivers the Kriesel-style free-form metadata exploration reserved in Brief §4.2.5. The user selects metrics, entities (by Wikidata QID from Phase 118), topics, or probes, and the instrument renders how they relate — via a D3-force node-link canvas, cross-correlation lead-lag views (WP-005 §6 Rhizome pillar), and connection-card pairs. This is the Relational Networks visualization domain from Brief §7.9, architecturally reserved since the design brief was written. Depends on: multi-probe composition (114) for cross-probe exploration; entity linking (118) for canonical entity nodes; topic modeling (120) for topic-dimension cards; Phase 122 for real multi-probe data in production; Phase 123 for the cross-probe lead-lag query path it consumes.*
+*Delivers the Kriesel-style free-form metadata exploration reserved in
+Brief §4.2.5. The user selects metrics, entities (by Wikidata QID from
+Phase 118), topics, or probes, and the instrument renders how they
+relate — via a D3-force node-link canvas, cross-correlation lead-lag
+views (WP-005 §6 Rhizome pillar), and connection-card pairs. This is
+the Relational Networks visualization domain from Brief §7.9,
+architecturally reserved since the design brief was written. Depends
+on: multi-probe composition (114) for cross-probe exploration; entity
+linking (118) for canonical entity nodes; topic modeling (120) for
+topic-dimension cards; Phase 122 for real multi-probe data in
+production; Phase 123 for the cross-probe lead-lag query path it
+consumes.*
 
-[Inhalt unverändert gegenüber aktueller Roadmap, mit angepassten Phasen-Referenzen (122 statt 126, 123 statt neu).]
+*Architectural framing — a fourth surface, not a Surface II mode.* The
+Composition Workspace is the fourth dashboard surface, with its own
+URL subtree (`/compose`), its own ScopeBar content, and its own
+interaction grammar. The reason: §4.2.5's interaction posture (free-
+form, manipulable, multi-dimensional, scope-free) is incompatible with
+the Function Lane shell's discipline (fixed WP-001 lanes, scope-bound
+view modes, parallel-stream rendering). Forcing it into Surface II
+would either dilute the lane shell or constrain the Workspace below
+the brief's intent. The fourth-surface framing is consistent with the
+Phase 126 surface-transition list ("Atmosphere ↔ Function Lanes ↔
+Reflection ↔ Composition Workspace") and the Phase 127 a11y target
+("three surfaces × Composition Workspace"). The Workspace is reachable
+from a fourth left-side-rail anchor; the methodology tray remains
+co-present and binds to the actively-focused card. The same refusal
+surfaces (Phase 115 cross-frame normalization gate, Phase 103 Silver-
+eligibility) apply unchanged — the Workspace inherits the system's
+methodological discipline rather than escaping it.
 
+*Scope discipline (Brief §1.3 — composition, not comparison).* The
+Workspace produces *relations*, not *rankings*. Lead-lag charts show
+temporal patterns; co-occurrence networks show structural adjacency;
+correlation matrices show statistical co-variation. None of these
+become "X causes Y" or "Probe A is more X than Probe B". Cross-probe
+relations crossing an unvalidated equivalence boundary refuse with
+the standard Phase-115 refusal surface inline within the connection
+card. The Workspace is exploratory, not interpretive.
+
+### Backend
+
+* [ ] **Cross-correlation lead-lag endpoint promotion.** Phase 123
+      ships the cross-probe lead-lag computation as an internal helper
+      to the existing correlation handler. Phase 124 promotes it to a
+      public BFF endpoint `GET /api/v1/correlation/lead-lag` with
+      parameters `(metricName, scopeAId, scopeBId, start, end,
+      lagWindowHours=168, lagStepHours=1)` and the same refusal-on-
+      cross-frame-without-equivalence behaviour as the existing
+      `?normalization=zscore` gate. Response: `{ lags: [{ hours,
+      pearson_r, sample_count }], peakLag: { hours, pearson_r },
+      equivalenceStatus: …}`. OpenAPI spec, `make codegen`. The
+      endpoint is also usable from the existing `time_series` cell in
+      Surface II as a follow-up enhancement, but is owned by Phase 124
+      because it is the primary consumer.
+
+* [ ] **Composition card-resolution endpoint.** New endpoint
+      `GET /api/v1/compose/cards/{cardType}?q=<text>` that resolves
+      free-form text into typed cards. `cardType` ∈ `{metric, entity,
+      topic, probe, source}`. The endpoint is the autocomplete backend
+      for the Workspace's card-search affordance — it returns the same
+      shape as `/metrics/available` for metrics, the Wikidata-aliased
+      entity records from Phase 118 for entities, the topic
+      distribution from Phase 120 for topics, and the registered
+      probes/sources for those types. Cross-resolves the user's typed
+      string against the language-scoped alias index per the
+      `?language=` parameter (Phase 116/118a). Cap response at 20
+      results. Integration tests: each `cardType` resolves correctly;
+      unknown `cardType` returns 400; unknown text returns empty array,
+      not 500.
+
+* [ ] **No new ClickHouse tables.** All connection types are derived at
+      query time from existing Gold tables: lead-lag from
+      `aer_gold.metrics`, co-occurrence from `aer_gold.entities` +
+      `aer_gold.entity_links`, topic-by-source from
+      `aer_gold.topic_assignments`, probe-pair-equivalence from
+      `aer_gold.metric_equivalence`. The Workspace is a *visualization*
+      of relations, not a *storage* of them — relations are
+      recomputable on every load.
+
+### Frontend (Composition Workspace)
+
+* [ ] **Route + ScopeBar.** New SvelteKit route subtree
+      `/compose`. The default landing (`/compose`) shows an empty
+      canvas with a card-search affordance and a one-paragraph primer
+      drawn from the content catalog (`refusals/` is the wrong slot —
+      a new `surfaces/composition_workspace.yaml` content entry
+      under `services/bff-api/configs/content/{en,de}/`, with the
+      same Dual-Register shape). The ScopeBar exposes a
+      `prefers-language` filter (defaults to none — composition is
+      cross-language by construction, but the user can scope) and
+      the standard time-window controls. The right-edge methodology
+      tray remains co-present and follows the actively-focused card.
+
+* [ ] **Card palette — five card types.** Implemented under
+      `services/dashboard/src/lib/components/compose/cards/`:
+      - `MetricCard` — name, tier badge, validation status,
+        small inline sparkline of recent values for the active scope.
+      - `EntityCard` — Wikidata QID + label + alias-source badge
+        (label / altLabel / accent-fold per Phase 118), small inline
+        co-occurrence-degree number for the active scope.
+      - `TopicCard` — topic ID + KeyBERT label + per-language partition
+        indicator (Phase 120), small inline article-count.
+      - `ProbeCard` — probe id + cultural-context tag + function-
+        coverage indicator (N/4 from Phase 122a).
+      - `SourceCard` — source name + emic designation + Silver-
+        eligibility badge.
+      Each card is roughly 240×120 px, dark-mode-native, draggable.
+      Cards are pure render targets; the canvas owns positioning.
+
+* [ ] **Connection types — five edges.** Implemented under
+      `services/dashboard/src/lib/components/compose/connections/`:
+      - `CrossCorrelation` — two `MetricCard`s, edge label = Pearson r
+        at lag 0 over the active window. Tooltip shows the full
+        lag-by-r curve from `/api/v1/correlation/lead-lag`.
+      - `LeadLag` — two `MetricCard`s scoped to two different probes.
+        Edge label = peak-lag hours + r at peak. Refusal surface
+        renders inline if the two probes lack a granted equivalence
+        for the metric.
+      - `CoOccurrence` — two `EntityCard`s. Edge weight = co-occurrence
+        count from `aer_gold.entities` over the active window. The
+        canonical entity-by-QID connection — the Phase 118 payoff.
+      - `TopicByEntity` — `EntityCard` + `TopicCard`. Edge weight =
+        article count where both appear (joins
+        `aer_gold.entity_links` × `aer_gold.topic_assignments`).
+      - `ProbeEquivalence` — two `ProbeCard`s. Edge label = highest
+        granted equivalence level (Level 1 / 2 / 3) from
+        `aer_gold.metric_equivalence`. Reads from
+        `/api/v1/probes/{probeId}/equivalence?comparedTo=<otherProbeId>`
+        (Phase 123).
+      Connection rendering uses D3-force-layout link rendering for
+      the relaxed state and a curved-line "physical-string-like"
+      style per Brief §7.9.
+
+* [ ] **D3-force canvas.** Implemented as
+      `services/dashboard/src/lib/components/compose/Canvas.svelte`,
+      lazy-loaded. Uses `d3-force` (already on the dashboard's
+      dependency surface from Phase 107's
+      `cooccurrence_network` cell — no new bundle weight at the
+      package level, only at the chunk level). The simulation runs
+      per Phase 107's pattern: `forceSimulation`, `forceLink`,
+      `forceCharge`, `forceCenter`. New cards drop at the cursor
+      position; existing cards relax around them. The simulation
+      damps after ~3 s of inactivity to keep the canvas stable.
+      `prefers-reduced-motion: reduce` skips the simulation
+      animation and renders the final relaxed layout directly.
+
+* [ ] **Direct manipulation.** Cards are drag-grabbable; on drag
+      they pin (`fx`/`fy` set) and the simulation re-relaxes around
+      them. Double-click on a card releases the pin. Right-click
+      (or long-press) opens a card context menu: open in Surface II
+      (for `MetricCard`/`SourceCard`/`ProbeCard`), open in
+      Reflection (for any card with WP-anchored content), remove
+      from canvas. The Brief §7.9 "physical-string-like" semantics
+      live here — when a card moves, its connection strings stretch
+      and the connected cards drift toward equilibrium.
+
+* [ ] **URL-state for card layout.** The Workspace state is encoded
+      in `/compose?layout=<base64>` where the base64 payload is a
+      gzipped JSON `{ cards: [{type, id, x, y, pinned}], connections:
+      [{aIdx, bIdx, type}], window: {start, end} }`. The encoding is
+      stable: two equivalent layouts produce byte-identical query
+      strings. Deep-linking restores both card positions and
+      connection topology exactly. URL length is bounded to 8 kB
+      gzipped — beyond that, the Workspace migrates the layout into
+      a server-side `aer_gold.compose_layouts` table (deferred —
+      first iteration uses URL only; the migration fires the moment
+      a real user hits the limit). Phase 126's URL-state-robustness
+      bullet covers the deep-link round-trip test for this state.
+
+* [ ] **Methodology-tray binding.** Hovering or focusing a card sets
+      the `focusedMetric` (or analogous `focusedEntity`,
+      `focusedTopic`, `focusedProbe`) store. The methodology tray
+      reads the focused card's content and provenance via the same
+      content-catalog + provenance endpoints as Surface II. New
+      content-catalog entity types are introduced for entities
+      (`/content/entity/{qid}`), topics (`/content/topic/{topicId}`),
+      and probes (existing `/content/probe/{probeId}`); the metric
+      and probe content types are already shipped. Each new entity
+      type reads from a separate seed under
+      `services/bff-api/configs/content/{en,de}/`.
+
+* [ ] **Refusal surface inline within connections.** A `LeadLag`
+      connection between probes that lack the required equivalence
+      grant renders the standard Phase-115 refusal-surface component
+      inline as the edge label, with the methodological-register
+      expansion in a tooltip. The refusal is the connection — the
+      user can still see *that* the cards are connected, just not at
+      the absolute scale they hoped for. Alternatives (drop
+      normalization, change to within-frame Level 1 temporal) appear
+      as one-click affordances next to the refusal text.
+
+* [ ] **Bundle posture.** The Composition Workspace is dynamic-
+      imported as a separate chunk (~120 kB gzipped budget,
+      includes the canvas, all card components, all connection
+      components, and the d3-force simulation). The shell budget
+      (80 kB gz, Phase 99a) is unchanged. The third-largest lazy-
+      chunk gate (`scripts/check-bundle-size.mjs`) gains a
+      Composition-Workspace entry at 120 kB.
+
+### Tests
+
+* [ ] **Vitest unit.** Card-palette: each card type renders correctly
+      with a fixture data record. Connection-palette: each connection
+      type renders correctly with a fixture pair. Layout encoding:
+      a known card layout round-trips exactly through the base64
+      encoder/decoder. Refusal surface: cross-probe `LeadLag` without
+      equivalence renders the refusal text and alternatives.
+
+* [ ] **Playwright E2E.** Navigate to `/compose`, search for a metric,
+      drop the resulting card; search for an entity, drop a second
+      card; create a co-occurrence connection between two entity
+      cards; create a cross-correlation between two metric cards;
+      drag a card and confirm the connection re-relaxes; share the
+      URL, open in a new browser context, confirm the layout restores
+      exactly. Plus the cross-probe-refusal happy path: drop two
+      `MetricCard`s scoped to different probes, request a `LeadLag`,
+      see the refusal-as-connection.
+
+* [ ] **A11y E2E (handed off to Phase 127).** The Phase-127 axe pass
+      explicitly covers the Composition Workspace; Phase 124 ships
+      with the structural a11y in place (role, aria-label, keyboard
+      reachability, screen-reader-announced card connections per the
+      Phase-127 bullet) but the formal audit is in 127.
+
+### Documentation
+
+* [ ] **Arc42 §8.x — new "Surface IV: Composition Workspace"
+      subsection.** Mirrors §8.14 (Surface III) in structure: route
+      structure, content sources, card palette, connection palette,
+      D3-force engine boundary, URL-state encoding, bundle posture,
+      methodology-tray binding, the four-surface principle that
+      replaces the previous three-surface architecture.
+
+* [ ] **Brief §4.2.5 cross-link.** Mark §4.2.5 as **operationalised**
+      with a forward-link to `/compose` and to the Arc42 §8.x
+      subsection. Promote the section title from "(reserved and
+      named)" to "(operational)" — the brief tracks the realisation
+      state of its own reservations.
+
+* [ ] **ADR-020 §Implementation-Outline · Phase 124.** Record the
+      fourth-surface decision and its rationale (the Surface II
+      lane-discipline incompatibility argument); the
+      cross-correlation lead-lag endpoint promotion from Phase-123-
+      internal to Phase-124-public; the URL-encoded layout state and
+      its 8-kB-gz boundary; the deferral of the
+      `aer_gold.compose_layouts` server-side table until URL-length
+      pressure is observed.
+
+* [ ] **Operations Playbook — new section "Composition Workspace
+      operations".** Covers: how a new card type is added (matrix:
+      content-catalog entity type + card component + canvas
+      registration); how a new connection type is added (similar
+      matrix); the refusal-as-connection pattern; the URL-state-to-
+      server-state migration trigger and procedure.
+
+* [ ] **CLAUDE.md.** New "Composition Workspace" subsection under
+      Frontend Architecture summarising the four surfaces, the card
+      palette, and the connection palette. Add the
+      `/api/v1/correlation/lead-lag` and `/api/v1/compose/cards/*`
+      endpoints to the BFF endpoint list.
+
+### Validation
+
+* [ ] `make lint && make test && make fe-check && make codegen &&
+      git diff --exit-code` green.
+
+* [ ] Manual end-to-end: open `/compose`, search and drop a metric
+      card (e.g. `sentiment_score_sentiws`), an entity card (e.g.
+      `Q4093` Olaf Scholz), a topic card from the active Probe-0
+      topic distribution, and a probe card for `probe-0-de-
+      institutional-rss`. Create a co-occurrence connection between
+      two entity cards. Create a cross-correlation connection
+      between two metric cards. Drag the entity card; confirm the
+      string stretches and the canvas re-relaxes. Share the URL,
+      open it in a new browser tab, confirm exact restore. Add a
+      `probe-1-fr-institutional-rss` card and request a lead-lag
+      against the probe-0 metric; confirm the refusal-as-connection
+      renders with WP-004 §5.2 anchor and Level-1 temporal
+      alternative (a working alternative, post-Phase-123).
+
+### Phase ordering note
+
+This phase is the natural next step once Iterations 6–7 stabilise the
+extractor inventory and the equivalence registry. The hard
+prerequisites are:
+- Phase 114 (multi-probe composition — for the `LeadLag` connection
+  to have two scopes to span)
+- Phase 118 (Wikidata entity linking — for the `EntityCard` to
+  identify entities canonically rather than by surface form, and for
+  `CoOccurrence` connections to be analytically meaningful at scale)
+- Phase 120 (BERTopic — for the `TopicCard` to have content)
+- Phase 122 (Probe 1 — for cross-probe `LeadLag` to have a real
+  second probe)
+- Phase 123 (cross-probe lead-lag query path + first equivalence
+  grant — for the lead-lag connection to actually compute, and for
+  the refusal surface to have a working alternative to point to)
+
+The phase is P3 because it is the open-ended exploration surface — a
+wide-aperture instrument for users who already understand the
+constrained Surface II views. Without the upstream foundation, the
+Workspace renders empty cards or refuses every connection — the
+fragility of premature shipping is what justifies the late
+sequencing.
 ---
 
 ## Phase 125: Interactive Reflection Papers (Brief §4.3.3) [P3] - [ ] TODO
 
-*Adds inline interactive illustrations to Surface III Working Papers following the Distill.pub pattern (Brief §4.3.3). The same Observable Plot / uPlot / D3 modules that power Surface II also power these illustrations — the paper and the dashboard share a vocabulary (Brief §7.9 visualization-stack separation). The WP-002 reader manipulates a negation parameter and observes the effect on real Probe 0 sentiment data. The WP-004 reader toggles normalization levels and encounters the equivalence gate inline within the argument text. Depends on Phase 117 (negation handler, for the WP-002 illustration), Phase 115 (equivalence gate, for the WP-004 illustration), and Phase 123 (real cross-probe data to make the WP-004 Level 1 grant feel real and the Level 3 refusal feel real).*
+*Adds inline interactive illustrations to Surface III Working Papers
+following the Distill.pub pattern (Brief §4.3.3). The same Observable Plot /
+uPlot / D3 modules that power Surface II also power these illustrations —
+the paper and the dashboard share a vocabulary (Brief §7.9 visualization-
+stack separation). The WP-002 reader manipulates a negation parameter and
+observes the effect on real Probe 0 sentiment data; sees the three
+sentiment tiers (Tier 1 SentiWS, Tier 2 multilingual BERT, Tier 2.5 German
+news-domain BERT) overlaid on the same article pool — making the domain-
+transfer gap that motivates ADR-023 inspectable rather than asserted; and
+the WP-004 reader toggles normalization levels and encounters the
+equivalence gate inline within the argument text. Depends on Phase 117
+(negation handler, for the WP-002 negation illustration), Phase 119 (Tier 2
+/ Tier 2.5 sentiment metrics, for the tier-comparison illustration), Phase
+115 (equivalence gate, for the WP-004 illustration), and Phase 123 (real
+cross-probe data to make the WP-004 Level 1 grant feel real and the Level 3
+refusal feel real).*
 
-[Inhalt unverändert gegenüber aktueller Roadmap, mit angepassten Phasen-Referenzen.]
+*Architectural framing.* This phase is the canonical realisation of the
+ADR-016 / ADR-023 "alongside, not instead of" principle for the dashboard
+surface. Outside the inline reflection cells declared here, parallel-tier
+rendering is intentionally not offered — the View-Mode Matrix on Surface II
+remains one-metric-at-a-time, and the methodology tray's per-metric framing
+remains the L4 primary. The argument is that side-by-side tier comparison
+is a *teaching* artifact (Surface III) rather than a *daily-use* artifact
+(Surface II); putting it here keeps Surface II focused and makes the
+comparison itself part of the methodological literature instead of a
+dashboard mode that drifts free of its argument.
 
+### Frontend (Inline Cells)
+
+* [ ] **WP-002 §3 — Negation parameter cell (extension of `sentiment-
+      window-demo`).** Add a "Negation handling: ON / OFF" toggle to the
+      existing Phase-109 cell. ON fetches `sentiment_score_sentiws` (Phase
+      117 dependency-based negation scope); OFF fetches the (now-frozen)
+      pre-Phase-117 score from a pinned-window snapshot file checked into
+      `services/dashboard/static/content/papers/fixtures/`. The reader
+      sees the same Probe 0 articles plotted twice — the methodological
+      argument of WP-002 §3 (negation blindness materially shifts polarity)
+      becomes empirically inspectable rather than narrated. The frozen-
+      baseline file is regenerated only when WP-002 is materially revised;
+      it is a teaching fixture, not a live signal.
+
+* [ ] **WP-002 §3.2 — Tier comparison cell (`tier-comparison-demo`,
+      ADR-023 demonstrator).** New inline cell after WP-002 §3.2 (the
+      domain-transfer subsection). Renders three time-series overlays of
+      the same Probe 0 article pool: `sentiment_score_sentiws` (Tier 1,
+      stroke = `weight-tier1-unvalidated`), `sentiment_score_bert_
+      multilingual` (Tier 2 default, medium stroke), `sentiment_score_
+      bert_de_news` (Tier 2.5 refinement, bold stroke). A small toggle
+      group lets the reader hide/show each tier independently; default
+      state shows all three. Hovering a time-bucket reveals the absolute
+      gap between the three values for that bucket — the empirical
+      instantiation of the ADR-023 closing rationale ("the gap between
+      multilingual and news-domain is itself a research signal"). The
+      cell consumes the per-metric data from the existing
+      `/api/v1/metrics` endpoint via three parallel `metricsQuery`
+      calls — no new BFF endpoint required. `papers.ts` `interactiveCells`
+      for `wp-002` gains `{ afterSection: '3.2', cellId: 'tier-comparison-
+      demo' }`. This bullet is the visual realisation of the ADR-016
+      "alongside, not instead of" principle that Phase 119 satisfies
+      informationally but not visually.
+
+* [ ] **WP-004 §6.3 — Normalization level cell.** Inline cell exposing
+      a `Raw / Deviation (Level 2) / Absolute (Level 3)` toggle.
+      Selecting `Absolute` for a cross-probe scope triggers the existing
+      Phase-115 refusal surface inline within the prose — the equivalence-
+      gate refusal becomes a teaching moment rather than a frustration
+      moment. Selecting `Deviation` requires real cross-probe data and is
+      conditional on Phase 123 (first Level-1 temporal grant + first
+      baseline run on Probe 0 + Probe 1).
+
+* [ ] **`InlineChart` extension.** `services/dashboard/src/lib/components/
+      reflection/InlineChart.svelte` gains a `cellId`-driven dispatch to
+      the three new cell types. Each cell has its own dedicated render
+      function under `services/dashboard/src/lib/components/reflection/
+      cells/`; shared concerns (TanStack Query setup, ResizeObserver,
+      design-token colours, the focusedMetric subscription) stay in the
+      component shell. Each cell lazy-loads only when the section that
+      declares it is in the viewport (extends the Phase-109 lazy pattern;
+      the existing pattern is per-component, so this is a one-line
+      adaptation). The shell-bundle gate (80 kB gz) and the second-largest
+      lazy-chunk gate (160 kB gz) remain unchanged.
+
+* [ ] **Tests.** Vitest: `papers.ts` includes the three new
+      `interactiveCells` entries; the cell renderer dispatches on `cellId`
+      correctly; the tier-comparison cell handles the case where one of
+      the three metrics has no data (e.g. before Phase 119 has produced
+      enough Probe 0 data, or the multilingual extractor hasn't yet
+      backfilled) by fading that line and surfacing a small inline "no
+      data yet for <metric>" annotation, not a hard error; the
+      focusedMetric store updates to follow the actively-hovered tier so
+      the methodology tray content reflects the user's current
+      methodological focus. Playwright E2E: `/reflection/wp/wp-002?section=
+      3.2` renders the tier-comparison cell with three lines visible;
+      toggle interactions update the chart without re-fetching; the
+      methodology tray follows the hovered tier.
+
+### Documentation
+
+* [ ] **Arc42 §8.14.** Update the Surface III "Inline interactive cells"
+      subsection to document the three new cells, the cell-dispatch
+      pattern, the `cells/` subdirectory, and the dependency on Phase
+      119 / 117 / 115 / 123 metrics being live.
+
+* [ ] **Brief §4.3.3 cross-link.** Add a forward-reference noting that
+      the WP-002 §3.2 tier-comparison cell is the canonical realisation
+      of the ADR-016 / ADR-023 "alongside, not instead of" principle on
+      the dashboard surface — the rationale being that side-by-side tier
+      comparison is a teaching artifact (Surface III) rather than a
+      daily-use artifact (Surface II).
+
+* [ ] **ADR-016 / ADR-023 closeout note.** Append a short paragraph to
+      both ADRs noting that Phase 125's `tier-comparison-demo` is the
+      visual operationalisation of the "alongside" commitment, and that
+      Phase 119 deliberately ships without a Surface II side-by-side
+      mode pending this phase. The split is recorded so a future
+      reviewer doesn't read Phase 119 as architecturally incomplete.
+
+* [ ] **Validation.** `make fe-check` green. Manual: open
+      `/reflection/wp/wp-002?section=3.2` and confirm the three sentiment
+      lines render with their distinct strokes; toggle each tier off/on
+      and confirm the chart updates without re-fetching; hover a bucket
+      and confirm the gap-readout is visible; the methodology tray on
+      the right shows the content for the actively-hovered tier.
 ---
 
 # Iteration 5 Deferred Closure — Polish, Audit, Documentation

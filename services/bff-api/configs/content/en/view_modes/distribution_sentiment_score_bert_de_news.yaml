@@ -1,0 +1,42 @@
+entityId: distribution_sentiment_score_bert_de_news
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "German news-domain BERT sentiment distribution. Polarity spread for German articles read by a news-fine-tuned transformer model."
+    long: >
+      The distribution view for sentiment_score_bert_de_news renders the spread of
+      polarity values produced by the German news-domain transformer model across
+      all German articles in the selected scope and window. Compared to the
+      multilingual BERT distribution, this view is expected to peak slightly tighter
+      around zero for institutional sources — the model is closer to AĒR's source
+      register and is therefore less prone to mis-classifying neutral institutional
+      prose as either positive or negative. The shape difference between the three
+      sentiment distributions (lexicon, multilingual BERT, German news BERT) for the
+      same scope is itself worth inspecting under the methodology tray; it makes the
+      WP-002 §3.2 domain-transfer concern concrete. German-only by design.
+  methodological:
+    short: "Histogram / density of mdraw/german-news-sentiment-bert scalar ([-1, +1]). Tier-2.5 refinement per ADR-023. German-only. Tail shape is the meaningful signal."
+    long: >
+      The distribution is a histogram over sentiment_score_bert_de_news values
+      (German news-domain BERT, P(positive) − P(negative), [-1, +1]) for the
+      selected scope and window. Tier-2.5 refinement per ADR-023; collapses to
+      tier_classification=2 in the OpenAPI wire format. Interpretive notes:
+      (1) for German institutional sources, the distribution is expected to peak
+      tightly near zero — this is the calibrated behaviour for that register;
+      (2) the meaningful signal is in the tail shape and any secondary peaks;
+      (3) all German-news-BERT limitations apply equally to distributional shape
+      — genre narrowness (news vs. press release), single-language scope,
+      Tier-2 same-process reproducibility (WP-002 §3.2); (4) bin count defaults
+      to 30 across [-1, +1]. Cross-source comparison within the German-language
+      scope is methodologically clean because both sources share a linguistic
+      register; cross-cultural comparison is structurally impossible for this
+      metric (it produces no rows for non-German documents).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-04"
+workingPaperAnchors:
+  - "WP-002 §3.2"
+  - "WP-002 §5"
+  - "WP-004 §3"
+  - "ADR-023"
