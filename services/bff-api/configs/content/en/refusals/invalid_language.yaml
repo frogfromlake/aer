@@ -1,0 +1,39 @@
+entityId: invalid_language
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "The requested language is not declared in AĒR's Language Capability Manifest. Choose one of the supported codes."
+    long: >
+      You requested a view filtered by a language code that AĒR does not
+      currently process. The system declines to fabricate an answer for an
+      unknown frame and instead surfaces the codes it actually supports —
+      these are the languages for which a per-language capability entry
+      exists in the manifest (NER models, sentiment behaviour, topic
+      partitioning). Pick a supported language from the listed alternatives,
+      or remove the `?language=` filter to read across the full corpus. Adding
+      a new language is a manifest-and-model operation handled by the
+      operations team rather than a request-time fallback.
+  methodological:
+    short: "HTTP 400 with RefusalPayload(gate=invalid_language). Engineering-procedural gate, not methodological. `alternatives` carries the manifest's sorted language codes."
+    long: >
+      This refusal is emitted by the BFF's request-validator when a
+      `?language=` query parameter is not present in the runtime Language
+      Capability Manifest (Phase 118a / ADR-024,
+      `services/analysis-worker/configs/language_capabilities.yaml`). The
+      gate is engineering-procedural — it does not reflect a methodological
+      claim about cross-cultural equivalence. The structured payload carries
+      `alternatives = [<sorted manifest language codes>]` so the dashboard
+      (or any client) can present the user with the actual valid set
+      without a follow-up call. Procedure for adding a new language is
+      documented in the Operations Playbook section "Editing the Language
+      Capability Manifest"; the manifest edit + model availability + worker
+      restart are the canonical path. There is no request-time bypass — the
+      manifest is the source of truth for which languages the system can
+      process under the absence-not-wrong guarantee.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-06"
+workingPaperAnchors:
+  - "ADR-024"
+  - "ops/playbook#editing-the-language-capability-manifest"

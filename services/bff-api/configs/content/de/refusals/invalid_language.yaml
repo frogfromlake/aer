@@ -1,0 +1,43 @@
+entityId: invalid_language
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Die angefragte Sprache ist im AĒR-Language-Capability-Manifest nicht deklariert. Bitte einen der unterstützten Codes wählen."
+    long: >
+      Sie haben eine nach Sprachcode gefilterte Sicht angefordert, die AĒR
+      derzeit nicht verarbeitet. Das System lehnt ab, eine Antwort für einen
+      unbekannten Frame zu fabrizieren, und nennt stattdessen die
+      tatsächlich unterstützten Codes — also jene Sprachen, für die ein
+      Eintrag im Capability Manifest existiert (NER-Modelle,
+      Sentiment-Verhalten, Topic-Partitionierung). Wählen Sie eine
+      unterstützte Sprache aus den vorgeschlagenen Alternativen oder
+      entfernen Sie den `?language=`-Filter, um das gesamte Korpus zu
+      lesen. Eine neue Sprache hinzuzufügen ist eine
+      Manifest-und-Modell-Operation des Operations-Teams, kein
+      Request-Time-Fallback.
+  methodological:
+    short: "HTTP 400 mit RefusalPayload(gate=invalid_language). Engineering-prozeduraler Gate, nicht methodologisch. `alternatives` listet die sortierten Manifest-Sprachcodes."
+    long: >
+      Diese Ablehnung wird vom Request-Validator des BFF erzeugt, wenn ein
+      `?language=`-Query-Parameter im Laufzeit-Language-Capability-Manifest
+      (Phase 118a / ADR-024,
+      `services/analysis-worker/configs/language_capabilities.yaml`) nicht
+      vorhanden ist. Der Gate ist engineering-prozedural — er repräsentiert
+      keine methodologische Aussage über interkulturelle Äquivalenz. Das
+      strukturierte Payload trägt
+      `alternatives = [<sortierte Manifest-Sprachcodes>]`, sodass das
+      Dashboard (oder jeder Client) dem Nutzer ohne Folgeanfrage die
+      tatsächlich gültige Menge anzeigen kann. Die Prozedur zum Hinzufügen
+      einer neuen Sprache ist im Operations Playbook-Abschnitt "Editing
+      the Language Capability Manifest" dokumentiert; der kanonische Pfad
+      ist Manifest-Edit + Modell-Verfügbarkeit + Worker-Neustart. Es gibt
+      keinen Request-Time-Bypass — das Manifest ist die Source of Truth
+      darüber, welche Sprachen das System unter der
+      Absence-Not-Wrong-Garantie verarbeiten kann.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-06"
+workingPaperAnchors:
+  - "ADR-024"
+  - "ops/playbook#editing-the-language-capability-manifest"

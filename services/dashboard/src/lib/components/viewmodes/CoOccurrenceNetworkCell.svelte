@@ -13,6 +13,7 @@
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import ArticlePreviewList from '$lib/components/lanes/ArticlePreviewList.svelte';
+  import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import type { ViewModeCellProps } from '$lib/viewmodes';
 
   let {
@@ -48,6 +49,7 @@
     id: string;
     label: string;
     radius: number;
+    wikidataQid?: string | null;
     x?: number;
     y?: number;
     fx?: number | null;
@@ -73,7 +75,8 @@
     const seedNodes: SimNode[] = data.nodes.map((n) => ({
       id: n.text,
       label: n.label,
-      radius: 4 + 14 * Math.sqrt(n.totalCount / maxTotal)
+      radius: 4 + 14 * Math.sqrt(n.totalCount / maxTotal),
+      wikidataQid: n.wikidataQid ?? null
     }));
     const seedEdges: SimEdge[] = data.edges.map((e) => ({
       source: e.a,
@@ -193,8 +196,14 @@
     text: string;
     label: string;
     coOccursWith: string[];
+    wikidataQid?: string | null;
   }
   let selectedEntity = $state<SelectedEntity | null>(null);
+
+  // Phase 118 / 121b: external Wikidata + Wikipedia links for entity nodes
+  // whose Wikidata QID was resolved by the Phase-118 alias index. Helpers
+  // live in cooccurrence-network-internals.ts so vitest can pin the URL
+  // shape without a Svelte compiler pass.
 
   // ── Node drag + click distinction ────────────────────────────────────────────
 
@@ -235,7 +244,12 @@
           .filter((ed) => nodeId(ed.source) === n.id || nodeId(ed.target) === n.id)
           .map((ed) => (nodeId(ed.source) === n.id ? nodeId(ed.target) : nodeId(ed.source)))
           .sort();
-        selectedEntity = { text: n.id, label: n.label, coOccursWith };
+        selectedEntity = {
+          text: n.id,
+          label: n.label,
+          coOccursWith,
+          wikidataQid: n.wikidataQid ?? null
+        };
       }
     }
     draggingNode.fx = null;
@@ -371,6 +385,32 @@
       <header class="entity-panel-header">
         <span class="entity-name">{selectedEntity.text}</span>
         <span class="entity-label-badge">{selectedEntity.label}</span>
+        {#if selectedEntity.wikidataQid}
+          <span class="external-links" data-testid="entity-external-links">
+            <!-- eslint-disable svelte/no-navigation-without-resolve -->
+            <a
+              class="ext-link"
+              href={wikidataHref(selectedEntity.wikidataQid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Wikidata page for ${selectedEntity.text} (external, opens in new tab)`}
+              title="Open Wikidata page"
+            >
+              <span aria-hidden="true">↗ Wikidata</span>
+            </a>
+            <a
+              class="ext-link"
+              href={wikipediaHref(selectedEntity.wikidataQid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Wikipedia article for ${selectedEntity.text} (external, opens in new tab)`}
+              title="Open Wikipedia article"
+            >
+              <span aria-hidden="true">↗ Wikipedia</span>
+            </a>
+            <!-- eslint-enable svelte/no-navigation-without-resolve -->
+          </span>
+        {/if}
         {#if selectedEntity.coOccursWith.length > 0}
           <span class="cooccurs-hint">
             co-occurs with:
@@ -386,7 +426,12 @@
                         nodeId(ed.source) === peer ? nodeId(ed.target) : nodeId(ed.source)
                       )
                       .sort();
-                    selectedEntity = { text: peer, label: n.label, coOccursWith };
+                    selectedEntity = {
+                      text: peer,
+                      label: n.label,
+                      coOccursWith,
+                      wikidataQid: n.wikidataQid ?? null
+                    };
                   }
                 }}>{peer}</button
               >
@@ -526,6 +571,30 @@
     border-radius: var(--radius-sm);
     padding: 0 5px;
     line-height: 1.6;
+  }
+
+  .external-links {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .ext-link {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--color-fg-muted);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 5px;
+    line-height: 1.6;
+    text-decoration: none;
+  }
+  .ext-link:hover,
+  .ext-link:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: none;
   }
 
   .cooccurs-hint {

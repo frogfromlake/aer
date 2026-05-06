@@ -29,6 +29,11 @@ registers:
       identify multilingual passages; (3) the fixed seed ensures reproducibility but also means
       that internal tie-breaking always resolves identically, which may produce spuriously high
       confidence on ambiguous inputs. Extractor: langdetect-1.0.9. Validation status: unvalidated.
+      Note on `language_variety` (Phase 116; ADR-024 addendum): the
+      `aer_gold.language_detections.language_variety` column carries a coarse source-locale
+      tag derived from the RSS feed-URL TLD (`de-AT` / `de-CH` / `de-DE` for German texts,
+      empty otherwise). It is retained for Silver-provenance auditing only and is not surfaced
+      on the dashboard — it is not a dialect classifier (WP-002 §3.4).
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-04-19"

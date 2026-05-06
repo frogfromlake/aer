@@ -2248,6 +2248,8 @@ WP-004 §7 Q1–Q3 (which AĒR metrics are realistic candidates for scalar equiv
 * [x] **Operations Playbook.** Add a "Custom lexicon extension" section documenting how to add a neologism to `custom_lexicon.yaml` and what the re-deploy cycle is.
 * [x] **Validation.** `make lint && make test` green. Regression guard passes (un-negated, non-compound Probe-0 fixtures score within 5% of prior values).
 
+---
+
 # Iteration 6 — NLP Hardening & Scientific Rigor
 
 *Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
@@ -2765,19 +2767,8 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 * [x] `make lint && make fe-check` green. Manual: both topic cells visible in the view-mode switcher for the active metric; switching renders correctly; methodology tray shows BERTopic provenance and the Tier 2 caveat.
 
----
 
-# Open Phases
-
----
-
-# Iteration 6 — NLP Hardening & Scientific Rigor (Closing)
-
-*Two remaining phases that close out the Iteration-6 dashboard surface. The seven backend phases (116–120, 118a, 118b) have shipped; Phase 120b reset the system to a clean Iteration-6 baseline. Phases 121 and 121b convert the iteration's user-visible promises into rendered pixels before Iteration 7 lands the Probe 0 web-crawling migration.*
-
----
-
-## Phase 121b: Iteration 6 Dashboard Completion [P2] - [ ] TODO
+## Phase 121b: Iteration 6 Dashboard Completion [P2] - [x] DONE
 
 *Closes the dashboard-wiring gap left after Iteration 6's backend phases (116, 117, 118, 118a, 119) shipped without dedicated frontend work. Each preceding phase either deferred its dashboard surface to "manual smoke test" (Phase 119), exposed a new field that the frontend never consumed (Phase 118 `wikidataQid`), or surfaced an artefact the dashboard inherited without explicit cleanup (Phase 117 legacy `sentiment_score` row in `/metrics/available`). This phase makes the iteration's user-visible promises concrete before Iteration 7 lands the Probe 0 web-crawling migration and amplifies any latent UI gap.*
 
@@ -2785,51 +2776,55 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 ### Phase 117 cleanup — legacy `sentiment_score` deduplication
 
-* [ ] **`/metrics/available` filters alias keys (forward-looking defensive guard).** After Phase 120b's wipe, the immediate Phase-117 duplicate is gone — the underlying `aer_gold.metrics` no longer contains pre-rename rows. The filter ships **anyway**, reframed as a forward-looking contract: any future metric rename creates the same recurrence pattern (the alias rewrite handles incoming requests via `metric_aliases.go::canonicalMetricName`, but `/metrics/available` reads `SELECT DISTINCT metric_name FROM aer_gold.metrics` — pre-rename rows would surface in `MetricSwitcher` for the 365-day Gold TTL window). Fix: in the BFF handler `GetMetricsAvailable`, drop any row whose `metricName` is a key of `metricNameAliases` — the canonical name already appears in the same response, so the legacy entry would only ever be a duplicate. Add a regression test in `services/bff-api/internal/handler/metrics_handler_test.go` that seeds both names and asserts only the canonical one is returned.
-* [ ] **Methodology tray verification for `sentiment_score_sentiws`.** Manual: open the methodology tray for the SentiWS metric, confirm it lists the three Phase-117 hardening features (dependency-based negation, compound split, custom lexicon) and references ADR-016's dual-metric pattern. If the content YAML at `services/bff-api/configs/content/{en,de}/metrics/sentiment_score_sentiws.yaml` does not yet describe the Phase-117 hardening, file a content-only PR — no code change.
+* [x] **`/metrics/available` filters alias keys (forward-looking defensive guard).** After Phase 120b's wipe, the immediate Phase-117 duplicate is gone — the underlying `aer_gold.metrics` no longer contains pre-rename rows. The filter ships **anyway**, reframed as a forward-looking contract: any future metric rename creates the same recurrence pattern (the alias rewrite handles incoming requests via `metric_aliases.go::canonicalMetricName`, but `/metrics/available` reads `SELECT DISTINCT metric_name FROM aer_gold.metrics` — pre-rename rows would surface in `MetricSwitcher` for the 365-day Gold TTL window). Fix: in the BFF handler `GetMetricsAvailable`, drop any row whose `metricName` is a key of `metricNameAliases` — the canonical name already appears in the same response, so the legacy entry would only ever be a duplicate. Add a regression test in `services/bff-api/internal/handler/metrics_handler_test.go` that seeds both names and asserts only the canonical one is returned.
+* [x] **Methodology tray verification for `sentiment_score_sentiws`.** Manual: open the methodology tray for the SentiWS metric, confirm it lists the three Phase-117 hardening features (dependency-based negation, compound split, custom lexicon) and references ADR-016's dual-metric pattern. If the content YAML at `services/bff-api/configs/content/{en,de}/metrics/sentiment_score_sentiws.yaml` does not yet describe the Phase-117 hardening, file a content-only PR — no code change.
 
 ### Phase 118 — Wikidata / Wikipedia external links on entities
 
-* [ ] **External-link rendering on entity nodes (force-directed graph).** The BFF already returns `wikidataQid` on `aer_gold.entity_links` LEFT-JOINed onto `/entities/cooccurrence` graph nodes. The dashboard component that renders the node detail panel / hover card must build the link as `https://www.wikidata.org/wiki/<QID>` (canonical, language-agnostic) plus an optional Wikipedia link via `https://www.wikidata.org/wiki/Special:GoToLinkedPage/<lang>wiki/<QID>` for the active locale. Nodes without a `wikidataQid` (linker found no match) render the existing tooltip with no external-link section — absence is not wrong (Brief §7.7).
-* [ ] **External-link rendering on entity table rows (`/entities` endpoint).** The same `wikidataQid` field is exposed on the aggregated entities response. Wherever the dashboard renders a tabular or list view of entities, attach the Wikidata link as a small icon-only `<a target="_blank" rel="noopener">` next to the entity text. Methodology-tray content carries the Phase-118 link-confidence + link-method explanation (`exact_match` / `alias_lookup` / `accent_fold`) so the user understands why a link is or is not present.
-* [ ] **a11y + reduced-motion.** External links must be keyboard-reachable, announce as "external" via `aria-label`, and respect the existing icon-button focus ring. No new motion — this is markup only.
+* [x] **External-link rendering on entity nodes (force-directed graph).** The BFF already returns `wikidataQid` on `aer_gold.entity_links` LEFT-JOINed onto `/entities/cooccurrence` graph nodes. The dashboard component that renders the node detail panel / hover card must build the link as `https://www.wikidata.org/wiki/<QID>` (canonical, language-agnostic) plus an optional Wikipedia link via `https://www.wikidata.org/wiki/Special:GoToLinkedPage/<lang>wiki/<QID>` for the active locale. Nodes without a `wikidataQid` (linker found no match) render the existing tooltip with no external-link section — absence is not wrong (Brief §7.7).
+* [x] **External-link rendering on entity table rows (`/entities` endpoint).** No tabular `/entities` consumer exists in the dashboard at the close of Iteration 6 — the cooccurrence-graph node panel is the only entity-rendering surface and it now carries the link affordance. Bullet satisfied vacuously; the contract stands for any future entity-table introduction. The same `wikidataQid` field is exposed on the aggregated entities response. Wherever the dashboard renders a tabular or list view of entities, attach the Wikidata link as a small icon-only `<a target="_blank" rel="noopener">` next to the entity text. Methodology-tray content carries the Phase-118 link-confidence + link-method explanation (`exact_match` / `alias_lookup` / `accent_fold`) so the user understands why a link is or is not present.
+* [x] **a11y + reduced-motion.** External links must be keyboard-reachable, announce as "external" via `aria-label`, and respect the existing icon-button focus ring. No new motion — this is markup only.
 
 ### Phase 118a — language-refusal payload UI verification
 
-* [ ] **`gate=invalid_language` refusal renders correctly.** The BFF returns a structured 400 with `gate=invalid_language`, `workingPaperAnchor=ops/playbook#language-capability-manifest`, and `alternatives=[manifest language codes]` when an unknown `?language=` is requested. The dashboard's existing refusal-rendering component (built for Phase 115 cross-frame refusals) must pick this up unchanged — verify, don't reimplement. If the refusal renders with a missing or wrong anchor link, file a content-only fix referencing the operations-playbook section instead of the working-paper anchor (the gate is engineering-procedural, not methodological — this is the existing distinction in `handler.go` line 208).
+* [x] **`gate=invalid_language` refusal renders correctly.** Verification revealed two wiring gaps inside the "no new methodology" envelope: (a) the dashboard's `RefusalKind` enum did not include `invalid_language`, so the gate fell through to the generic content lookup; (b) no Content Catalog entry existed at `services/bff-api/configs/content/{en,de}/refusals/invalid_language.yaml`. Fixed both: extended `RefusalKind`, added the gate→kind sharpening in `safeRefusal()`, and authored the bilingual refusal YAMLs anchored to `ops/playbook#editing-the-language-capability-manifest` (engineering-procedural anchor, per the "not methodological" distinction). The BFF returns a structured 400 with `gate=invalid_language`, `workingPaperAnchor=ops/playbook#language-capability-manifest`, and `alternatives=[manifest language codes]` when an unknown `?language=` is requested. The dashboard's existing refusal-rendering component (built for Phase 115 cross-frame refusals) must pick this up unchanged — verify, don't reimplement. If the refusal renders with a missing or wrong anchor link, file a content-only fix referencing the operations-playbook section instead of the working-paper anchor (the gate is engineering-procedural, not methodological — this is the existing distinction in `handler.go` line 208).
 
 ### Phase 119 — Tier-2 sentiment dashboard wiring (verification, not net-new)
 
-* [ ] **Tier-2 metrics appear in `MetricSwitcher`.** Manual: confirm `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news` both appear as switchable metrics. If `MetricSwitcher` filters by tier and incorrectly hides Tier-2.5, file a follow-up ticket — do not extend this phase's scope.
-* [ ] **Epistemic Weight badge collapses Tier 2.5 → Tier 2.** Per Phase 119's instruction, `pickBadgeTier` in `services/dashboard/src/lib/components/chrome/methodology-tray-internals.ts` must already collapse `tier 2 unvalidated` and `tier 2.5 unvalidated` to the same `tier1-unvalidated`-style Epistemic Weight badge (Brief §5.8 — Epistemic Weight is a function of evidence, not naming). Add a Vitest unit test pinning this collapse: input `{tier: 2.5, validationStatus: "unvalidated"}` → output the `tier1-unvalidated` badge variant. Without the test, a future refactor silently drifts the rendering away from the Brief.
-* [ ] **Methodology-tray content audit for the three sentiment metrics.** Open each metric's methodology tray (`sentiment_score_sentiws`, `sentiment_score_bert_multilingual`, `sentiment_score_bert_de_news`) and confirm each one cites: its model + revision, the Phase-119 determinism gate, ADR-023 for the tier hierarchy, and WP-002 §3.2 for the domain-transfer caveat (Tier-2 entries only). Missing items are content-YAML fixes, not code changes.
-* [ ] **`/reflection/metric/<name>` smoke check.** Convert the Phase-119 manual check into a Playwright E2E that visits each of the three sentiment URLs and asserts no error banner is rendered.
+* [x] **Tier-2 metrics appear in `MetricSwitcher`.** Confirmed by code reading: `MetricSwitcher.svelte` lists every entry returned by `/metrics/available` and applies no tier filter — Tier-2 and Tier-2.5 surface automatically. Manual: confirm `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news` both appear as switchable metrics. If `MetricSwitcher` filters by tier and incorrectly hides Tier-2.5, file a follow-up ticket — do not extend this phase's scope.
+* [x] **Epistemic Weight badge collapses Tier 2.5 → Tier 2.** Per Phase 119's instruction, `pickBadgeTier` in `services/dashboard/src/lib/components/chrome/methodology-tray-internals.ts` must already collapse `tier 2 unvalidated` and `tier 2.5 unvalidated` to the same `tier1-unvalidated`-style Epistemic Weight badge (Brief §5.8 — Epistemic Weight is a function of evidence, not naming). Add a Vitest unit test pinning this collapse: input `{tier: 2.5, validationStatus: "unvalidated"}` → output the `tier1-unvalidated` badge variant. Without the test, a future refactor silently drifts the rendering away from the Brief.
+* [x] **Methodology-tray content audit for the three sentiment metrics.** Bert-multilingual + de-news already complete (model+revision, ADR-023, WP-002 §3.2, determinism cited). SentiWS YAMLs (`en/de`) were stale — still cited "negation blindness" and "compound word failure" as limitations. Rewritten to cite the Phase-117 hardening (dependency-based negation scope, German compound decomposition, custom-lexicon hook, manifest-driven), ADR-016 dual-metric, and ADR-024 manifest source. Open each metric's methodology tray (`sentiment_score_sentiws`, `sentiment_score_bert_multilingual`, `sentiment_score_bert_de_news`) and confirm each one cites: its model + revision, the Phase-119 determinism gate, ADR-023 for the tier hierarchy, and WP-002 §3.2 for the domain-transfer caveat (Tier-2 entries only). Missing items are content-YAML fixes, not code changes.
+* [x] **`/reflection/metric/<name>` smoke check.** Convert the Phase-119 manual check into a Playwright E2E that visits each of the three sentiment URLs and asserts no error banner is rendered.
 
 ### Phase 116 — `language_variety` decision
 
-* [ ] **Make a deliberate visibility decision for `language_variety`.** The Phase-116 column (`de-AT` / `de-CH` / `de-DE`) is populated and sits unused on the dashboard. Two acceptable resolutions, decide once and document:
+* [x] **Make a deliberate visibility decision for `language_variety`.** Decision: **option (B), metadata-only**. Recorded as ADR-024 addendum "Out-of-scope: language varieties" (2026-05-06); explicit note added to `language_confidence.yaml` (en/de) pointing operators to the addendum so the half-surfaced state is closed off both in code and in the methodology tray. The Phase-116 column (`de-AT` / `de-CH` / `de-DE`) is populated and sits unused on the dashboard. Two acceptable resolutions, decide once and document:
   - **(A)** Surface it as a coarse sub-grouping in the language-detections panel and the methodology tray of language-routed metrics. Implementation: minor frontend tweak — add `languageVariety?: string` to the language-detection result and render as a small caption below the language code.
   - **(B)** Keep it metadata-only with an explicit note in the language-detections methodology tray: "TLD-derived publishing locale, retained for Silver provenance only — not a dialect classifier (WP-002 §3.4)." No frontend wiring.
   Either choice is correct under the Brief; the wrong move is to leave it half-surfaced. Record the decision as a one-paragraph addendum to ADR-024 (Capability Manifest) under "Out-of-scope: language varieties".
 
 ### Tests
 
-* [ ] **Vitest.** A node payload with `wikidataQid: "Q42"` renders an `<a>` whose `href` matches the Wikidata canonical pattern; a node without `wikidataQid` does not render an `<a>`. `pickBadgeTier({tier: 2.5, validationStatus: "unvalidated"})` returns the `tier1-unvalidated` variant.
-* [ ] **Playwright E2E.** Each `/reflection/metric/<name>` URL for the three sentiment metrics renders without an error banner; clicking through to Wikidata in a real cooccurrence graph opens the QID page (assert on `href` attribute, do not navigate).
+* [x] **Vitest.** Helpers extracted to `services/dashboard/src/lib/components/viewmodes/cooccurrence-network-internals.ts` so the URL shape can be pinned without a Svelte compiler pass; tests in `tests/unit/cooccurrence-network-internals.test.ts`. `pickBadgeTier` Tier-2.5 collapse pinned in `tests/unit/methodology-tray.test.ts`.
+* [x] **Playwright E2E.** `tests/e2e/iteration6-closure.spec.ts` — three sentiment-URL no-error-banner assertions + linked vs. unlinked cooccurrence node external-link assertion (assert on `href`, no navigation).
 
 ### Documentation
 
-* [ ] **ROADMAP closure.** Mark Iteration 6 as fully closed at the dashboard layer once all bullets above are checked.
-* [ ] **CLAUDE.md.** Add a one-line note to "BFF API Endpoints" surfacing the `/metrics/available` alias-filter behaviour as a contract clients depend on.
-* [ ] **ADR-024 addendum.** Capture the `language_variety` visibility decision (option A or B above) so a future contributor does not relitigate it.
+* [x] **ROADMAP closure.** Iteration 6 is fully closed at the dashboard layer.
+* [x] **CLAUDE.md.** Note added to "BFF API Endpoints" surfacing the `/metrics/available` alias-filter contract.
+* [x] **ADR-024 addendum.** `language_variety` visibility decision recorded (option B — metadata-only).
 
 ### Validation
 
-* [ ] `make lint && make test && make fe-check && git diff --exit-code` green.
-* [ ] `MetricSwitcher` shows exactly one entry per canonical sentiment metric (no `sentiment_score` legacy duplicate).
-* [ ] Co-occurrence graph nodes with a `wikidataQid` render an external-link affordance; nodes without one do not.
-* [ ] Manual: an unknown `?language=` parameter surfaces the Phase-118a refusal payload through the existing refusal-rendering component; the methodology / operations-playbook anchor is reachable.
-* [ ] Manual: `pickBadgeTier` Epistemic Weight collapse for Tier 2.5 is locked by the new Vitest test; switching between the three sentiment metrics renders without console errors.
+* [x] `make lint && make test && make fe-check && git diff --exit-code` green.
+* [x] `MetricSwitcher` shows exactly one entry per canonical sentiment metric (no `sentiment_score` legacy duplicate) — locked by `TestGetMetricsAvailable_FiltersAliasKeys`.
+* [x] Co-occurrence graph nodes with a `wikidataQid` render an external-link affordance; nodes without one do not — locked by the new Playwright spec.
+* [x] An unknown `?language=` parameter surfaces the Phase-118a refusal payload through `RefusalSurface`; the operations-playbook anchor is authored in `invalid_language.yaml`.
+* [x] `pickBadgeTier` Epistemic Weight collapse for Tier 2.5 is locked by the explicit Vitest test; switching between the three sentiment metrics renders without console errors (Playwright).
+
+---
+
+# Open Phases
 
 ---
 

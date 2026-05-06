@@ -52,6 +52,7 @@ export type RefusalKind =
   | 'validation_missing'
   | 'k_anonymity_threshold_not_met'
   | 'silver_eligibility'
+  | 'invalid_language'
   | 'unspecified';
 
 export interface RefusalOutcome {
@@ -190,6 +191,10 @@ async function safeRefusal(
   }
   let refusalKind = expectedRefusal;
   if (gate === 'metric_equivalence') refusalKind = 'cross_frame_equivalence_missing';
+  // Phase 118a / 121b: invalid_language is an engineering-procedural gate
+  // (unknown ?language=). Route to its own Content Catalog entry so the
+  // operator-facing methodology tray is used instead of a generic refusal.
+  if (gate === 'invalid_language') refusalKind = 'invalid_language';
   const out: RefusalOutcome = {
     kind: 'refusal',
     refusalKind,

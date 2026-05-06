@@ -28,6 +28,12 @@ registers:
       Passagen nicht identifizieren; (3) der fixe Seed gewährleistet Reproduzierbarkeit,
       kann aber bei ambigen Eingaben künstlich hohe Konfidenz erzeugen. Extraktor:
       langdetect-1.0.9. Validierungsstatus: nicht validiert.
+      Hinweis zu `language_variety` (Phase 116; ADR-024 Addendum): die Spalte
+      `aer_gold.language_detections.language_variety` enthält eine grobe, aus der
+      RSS-Feed-URL-TLD abgeleitete Source-Locale-Markierung (`de-AT` / `de-CH` / `de-DE`
+      für deutsche Texte, ansonsten leer). Sie wird ausschließlich für die
+      Silver-Provenance-Prüfung aufbewahrt und nicht im Dashboard angezeigt — es handelt
+      sich nicht um einen Dialektklassifikator (WP-002 §3.4).
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-04-19"

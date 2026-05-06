@@ -9,29 +9,60 @@ registers:
       Gewicht der enthaltenen Wörter basiert. Ein Wert nahe +1 bedeutet, dass das Vokabular
       des Artikels positiv besetzt ist (optimistisch, bekräftigend, feierlich); ein Wert nahe
       −1 steht für negativ besetztes Vokabular (kritisch, alarmierend, konfliktiv). Werte
-      nahe 0 sind typisch für neutrale oder gemischte Berichterstattung. Der Score aggregiert
-      einzelne Wortpolaritäten, ohne Satzstruktur oder Diskurskontext zu berücksichtigen — er
-      misst, welche Wörter vorhanden sind, nicht wie sie verwendet werden. Da er auf einem
-      deutschen Lexikon basiert, gilt der Score nur für deutschsprachige Texte. Als "vorläufig"
-      markierte Ergebnisse tragen diesen Vorbehalt explizit: die Metrik ist technisch
-      funktionsfähig, aber wissenschaftlich nicht validiert.
+      nahe 0 sind typisch für neutrale oder gemischte Berichterstattung. Der Score liest die
+      Polarität jedes Tokens aus einem Lexikon und prüft anschließend die syntaktische
+      Struktur des Satzes, um Negationen zu erkennen ("nicht gut") und deutsche Komposita zu
+      zerlegen ("Regierungskrise" → "Regierung" + "Krise"); so spiegelt die Polarität wider,
+      was der Text aussagt, nicht nur welche Wörter er enthält. Da der Score auf einem
+      deutschen Lexikon basiert, gilt er nur für deutschsprachige Texte. Als "vorläufig"
+      markierte Ergebnisse tragen diesen Vorbehalt explizit: Die Metrik ist technisch
+      funktionsfähig, aber wissenschaftlich nicht validiert. Eine zweite Sentiment-Metrik —
+      sentiment_score_bert_multilingual — läuft gemäß ADR-016 parallel; die Differenz
+      zwischen beiden ist ein Forschungssignal, kein Widerspruch.
   methodological:
-    short: "SentiWS v2.0 Lexikon-Lookup, polaritätsgewichtete Summe normiert auf gematchte Tokens. Tier 1 (deterministisch). Negationsblind; keine Kompositionalität. WP-002 §3."
+    short: "SentiWS v2.0 Lexikon, polaritätsgewichtete Summe normiert auf gematchte Tokens. Tier 1 (deterministisch). Phase-117-Härtung: dependency-basierter Negationsscope, deutsche Kompositum-Zerlegung, Custom-Lexikon-Hook. ADR-016 Dual-Metric. WP-002 §3."
     long: >
-      sentiment_score wird berechnet, indem jedes Token in cleaned_text gegen das SentiWS v2.0
-      Deutsch-Sentiment-Lexikon (~16.000 Lemma–PoS-Paare mit Polaritätsgewichten in [−1, +1])
-      abgeglichen wird. Der Score ist die Summe der gematchten Token-Gewichte geteilt durch die
-      Anzahl der Matches. Ungematchte Tokens tragen null bei. Tier-1-Metrik gemäß WP-002 §3.
-      Fünf dokumentierte Einschränkungen: (1) Negationsblindheit — "nicht gut" wird bewertet
-      als ob "gut" erscheint; (2) Kompositum-Versagen — Komposita wie "Regierungskrise"
-      werden ggf. nicht auf ihre Lemma-Einträge aufgelöst; (3) Genre-Drift — SentiWS wurde
-      auf Zeitungstext trainiert; Gewichte übertragen sich möglicherweise nicht auf
-      Regierungspressemitteilungen; (4) keine Kompositionalität — Dokument-Sentiment ist
-      ein Durchschnitt, kein modelliertes Ganzes; (5) keine Ironie- oder Sarkasmuserkennung.
-      Extraktor: sentiws-2.0. Validierungsstatus: nicht validiert.
-contentVersion: "v2026-04-a"
+      sentiment_score_sentiws wird vom SentimentExtractor berechnet, indem jedes Token in
+      cleaned_text gegen das SentiWS v2.0 Deutsch-Sentiment-Lexikon (~16.000 Lemma–PoS-Paare
+      mit Polaritätsgewichten in [−1, +1]) abgeglichen wird. Der Score ist die Summe der
+      gematchten Token-Gewichte geteilt durch die Anzahl der Matches. Ungematchte Tokens
+      tragen null bei. Tier-1-Metrik gemäß WP-002 §3 und ADR-016. Phase 117 hat drei
+      Härtungs-Erweiterungen eingeführt, welche die zuvor "negationsblinde,
+      kompositum-blinde" Charakteristik des Extractors ablösen: (1) dependency-basierter
+      Negationsscope — für jedes polaritätsbewertete Token läuft der Extractor den
+      spaCy-Dependency-Baum entlang, um eine Negationspartikel zu finden, und invertiert
+      die Polarität für Tokens innerhalb des syntaktischen Scopes des Cues, begrenzt durch
+      Clause-Edge-Dependencies, sodass eingebettete Nebensätze ("weil", "dass", "obwohl")
+      nicht überlaufen. Seit Phase 118a / ADR-024 stammen Negationspartikel, dep-Labels und
+      Clause-Boundary-Labels aus dem Language Capability Manifest — eine neue Sprache
+      hinzuzufügen ist eine YAML-Änderung, kein Extractor-Patch. (2) Deutsche
+      Kompositum-Zerlegung über die deterministische, frequenzlistenbasierte Bibliothek
+      compound-split (Manifest-Feature-Flag `compound_split`) — vom Lexikon nicht gematchte
+      Tokens werden in Kopf/Schwanz aufgeteilt; wenn beide Sub-Wörter im SentiWS enthalten
+      sind, wird der Mittelwert der Polaritäten verwendet; andernfalls bleibt das Token
+      unbewertet (keine False Positives). (3) Custom-Lexikon-Hook (Manifest-Feature-Flag
+      `custom_lexicon`) — die Datei
+      services/analysis-worker/data/custom_lexicon.yaml (eingecheckt, initial leer) wird
+      beim Start mit SentiWS zusammengeführt und stellt den vorgesehenen Out-of-Band-Pfad
+      für Neologismen ("toxisch", "Querdenker", "Wutbürger") bereit, ohne die versionierte
+      Lexikon-Datei zu modifizieren. Sprach-Guard (Phase 116 / 118a): das
+      `sentiment_tier1.method=lexicon`-Block des Manifests deklariert, auf welchen Sprachen
+      dieser Extractor operiert; nicht unterstützte Dokumente erzeugen keine Metric-Zeile.
+      Verbleibende methodologische Einschränkungen: (a) Genre-Drift — SentiWS wurde auf
+      Zeitungstext trainiert; Gewichte übertragen sich möglicherweise nicht sauber auf
+      Regierungspressemitteilungen; (b) keine Kompositionalität auf Dokumentebene —
+      Satzpolarität wird gemittelt, nicht als Ganzes modelliert; (c) keine Ironie- oder
+      Sarkasmuserkennung; (d) heuristische Disambiguierung von Mehrwort-Polaritätsclustern
+      ist eine bekannte Grenze jedes lexikonbasierten Ansatzes. Die Tier-2-Metrik
+      sentiment_score_bert_multilingual läuft gemäß ADR-016 / ADR-023 parallel; die
+      Differenz zwischen beiden ist das WP-002 §3.2-Domain-Transfer-Signal. Extraktor:
+      sentiws-2.0 (Phase-117-gehärtet). Validierungsstatus: nicht validiert.
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-19"
+lastReviewedDate: "2026-05-06"
 workingPaperAnchors:
   - "WP-002 §3"
-  - "WP-002 §4"
+  - "WP-002 §3.2"
+  - "ADR-016"
+  - "ADR-023"
+  - "ADR-024"

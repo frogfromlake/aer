@@ -463,7 +463,7 @@ func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 	store := &mockStore{
 		availableMetrics: []storage.AvailableMetricRow{
 			{MetricName: "entity_count", ValidationStatus: "unvalidated"},
-			{MetricName: "sentiment_score", ValidationStatus: "validated"},
+			{MetricName: "sentiment_score_sentiws", ValidationStatus: "validated"},
 			{MetricName: "word_count", ValidationStatus: "expired"},
 		},
 	}
@@ -722,7 +722,7 @@ func TestGetMetricsAvailable_IncludesEquivalenceMetadata(t *testing.T) {
 	equivLevel := "deviation"
 	store := &mockStore{
 		availableMetrics: []storage.AvailableMetricRow{
-			{MetricName: "sentiment_score", ValidationStatus: "unvalidated", EticConstruct: &etic, EquivalenceLevel: &equivLevel},
+			{MetricName: "sentiment_score_sentiws", ValidationStatus: "unvalidated", EticConstruct: &etic, EquivalenceLevel: &equivLevel},
 			{MetricName: "word_count", ValidationStatus: "unvalidated"},
 		},
 	}
@@ -755,6 +755,55 @@ func TestGetMetricsAvailable_IncludesEquivalenceMetadata(t *testing.T) {
 	}
 	if got[1].EquivalenceLevel != nil {
 		t.Errorf("expected nil equivalenceLevel for word_count, got %v", *got[1].EquivalenceLevel)
+	}
+}
+
+// TestGetMetricsAvailable_FiltersAliasKeys verifies the Phase 121b
+// forward-looking guard: rows whose metric_name is a key of
+// metric_aliases.go::metricNameAliases (currently `sentiment_score`) are
+// dropped from the /metrics/available response, since the canonical name
+// (`sentiment_score_sentiws`) already appears in the same response and the
+// legacy entry would only ever surface as a duplicate in MetricSwitcher.
+func TestGetMetricsAvailable_FiltersAliasKeys(t *testing.T) {
+	store := &mockStore{
+		availableMetrics: []storage.AvailableMetricRow{
+			{MetricName: "sentiment_score", ValidationStatus: "unvalidated"},
+			{MetricName: "sentiment_score_sentiws", ValidationStatus: "unvalidated"},
+			{MetricName: "word_count", ValidationStatus: "unvalidated"},
+		},
+	}
+	s := NewServer(store, nil, nil, nil, nil)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
+		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetricsAvailable200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200, got %T", resp)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 metrics after alias filter (sentiment_score dropped), got %d", len(got))
+	}
+	for _, m := range got {
+		if m.MetricName == "sentiment_score" {
+			t.Errorf("alias key sentiment_score must be filtered out, but appeared in response")
+		}
+	}
+	// Canonical name must still be present.
+	var sawCanonical bool
+	for _, m := range got {
+		if m.MetricName == "sentiment_score_sentiws" {
+			sawCanonical = true
+		}
+	}
+	if !sawCanonical {
+		t.Errorf("expected canonical sentiment_score_sentiws in response, got %v", got)
 	}
 }
 

@@ -55,6 +55,20 @@ describe('pickBadgeTier', () => {
     );
   });
 
+  // Phase 119 / 121b: ADR-023 introduces a Tier-2.5 refinement layer
+  // (German news-domain BERT). The OpenAPI TierClassification enum is
+  // [1, 2, 3] — Tier 2.5 collapses to 2 in the wire format, and the
+  // Brief §5.8 Epistemic Weight badge collapses Tier 2-unvalidated and
+  // Tier 2.5-unvalidated onto the same `tier1-unvalidated` visual since
+  // Epistemic Weight is a function of evidence, not naming. This test
+  // pins the wire-level Tier 2.5 case explicitly so a future refactor
+  // cannot drift the rendering.
+  it('collapses tier 2.5 unvalidated (wire-level Tier 2) onto the tier1-unvalidated visual', () => {
+    expect(pickBadgeTier(prov({ tierClassification: 2, validationStatus: 'unvalidated' }))).toBe(
+      'tier1-unvalidated'
+    );
+  });
+
   it('maps tier 3 to tier3 regardless of validation', () => {
     expect(pickBadgeTier(prov({ tierClassification: 3, validationStatus: 'validated' }))).toBe(
       'tier3'

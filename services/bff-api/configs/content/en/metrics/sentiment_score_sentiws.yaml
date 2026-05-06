@@ -9,28 +9,57 @@ registers:
       of the words it contains. A score near +1 indicates that the article's vocabulary skews
       toward positively-loaded terms (optimistic, affirmative, celebratory); a score near −1
       indicates negatively-loaded vocabulary (critical, alarming, conflictual). Values near 0
-      are typical of neutral or mixed reporting. The score aggregates individual word polarities
-      rather than analyzing sentence structure or discourse context — it measures what words are
-      present, not how they are used. Because it relies on a German lexicon, the score is valid
-      only for German-language text. Results labeled "provisional" carry this caveat explicitly:
-      the metric is technically operational but not scientifically validated for research use.
+      are typical of neutral or mixed reporting. The score reads each token's polarity from a
+      lexicon, then walks the sentence's syntactic structure to detect negations ("nicht gut")
+      and to inspect German compounds ("Regierungskrise" → "Regierung" + "Krise") so the
+      polarity assigned to the article reflects what the text says, not just which words it
+      contains. Because it relies on a German lexicon, the score is valid only for
+      German-language text. Results labeled "provisional" carry this caveat explicitly: the
+      metric is technically operational but not yet scientifically validated for research use.
+      A second sentiment metric — sentiment_score_bert_multilingual — runs in parallel under
+      ADR-016's dual-metric pattern; the gap between the two is itself a research signal, not
+      a contradiction.
   methodological:
-    short: "SentiWS v2.0 lexicon, polarity-weighted sum normalized by matched tokens. Tier 1 (deterministic). Negation-blind; no compositionality. WP-002 §3."
+    short: "SentiWS v2.0 lexicon, polarity sum normalised by matched tokens. Tier 1 (deterministic). Phase-117 hardening: dependency-based negation scope, German compound decomposition, custom-lexicon hook. ADR-016 dual-metric pattern. WP-002 §3."
     long: >
-      sentiment_score is computed by matching each token in cleaned_text against the SentiWS
-      v2.0 German sentiment lexicon (~16,000 lemma–PoS pairs with polarity weights in [−1, +1]).
-      The score is the sum of matched token weights divided by the number of matched tokens,
-      producing a normalized average polarity. Unmatched tokens contribute zero. The extractor
-      is stateless and reproducible — Tier 1 deterministic under WP-002 §3. Five documented
-      methodological limitations: (1) negation blindness — "nicht gut" is scored as if "gut"
-      appeared; (2) compound word failure — German compounds like "Regierungskrise" may not
-      resolve to their component lemma entries; (3) genre drift — SentiWS was trained on
-      newspaper text; weights may not transfer to government press releases; (4) no
-      compositionality — document-level sentiment is an average, not a modeled whole;
-      (5) no irony or sarcasm detection. Extractor: sentiws-2.0. Validation status: unvalidated.
-contentVersion: "v2026-04-a"
+      sentiment_score_sentiws is computed by SentimentExtractor matching each token in
+      cleaned_text against the SentiWS v2.0 German sentiment lexicon (~16,000 lemma–PoS pairs
+      with polarity weights in [−1, +1]). The score is the sum of matched token weights divided
+      by the number of matched tokens, producing a normalised average polarity. Unmatched
+      tokens contribute zero. The extractor is stateless and reproducible — Tier 1
+      deterministic under WP-002 §3 and ADR-016. Phase 117 introduced three hardening upgrades
+      that change the previous "negation-blind, compound-blind" character of the extractor:
+      (1) dependency-based negation scope — for each polarity-scored token, the extractor
+      walks the spaCy dependency tree to find a negation cue, and inverts polarity for tokens
+      within the cue's syntactic scope, bounded by clause-edge dependencies so embedded
+      clauses ("weil", "dass", "obwohl") do not leak. As of Phase 118a / ADR-024 the negation
+      particles, dep labels, and clause-boundary dep labels are read from the Language
+      Capability Manifest, so adding a new language is a YAML edit, not an extractor patch.
+      (2) German compound decomposition via the deterministic frequency-list-based
+      compound-split library (manifest feature flag `compound_split`) — tokens unmatched by
+      the lexicon are split into head/tail; if both sub-words are in SentiWS, the polarities
+      are averaged; otherwise the token remains unscored (no false positives). (3) Custom
+      lexicon hook (manifest feature flag `custom_lexicon`) — the file
+      services/analysis-worker/data/custom_lexicon.yaml (checked in, initially empty) is
+      merged with SentiWS at startup, providing the designated out-of-band path for
+      neologisms ("toxisch", "Querdenker", "Wutbürger") without patching the versioned
+      lexicon file. Phase 116 / 118a language guard: the manifest's
+      `sentiment_tier1.method=lexicon` block declares which languages this extractor
+      operates on; non-supported documents produce no metric row. Remaining methodological
+      limitations: (a) genre drift — SentiWS was trained on newspaper text; weights may not
+      transfer cleanly to government press releases; (b) no compositionality at the document
+      level — sentence-level polarity is averaged, not modelled as a whole; (c) no irony or
+      sarcasm detection; (d) the heuristic disambiguation of multi-word polarity clusters is
+      a known limit of any lexicon-only approach. The Tier-2 multilingual metric
+      sentiment_score_bert_multilingual ships alongside this one per ADR-016 / ADR-023; the
+      gap between the two is the WP-002 §3.2 domain-transfer signal. Extractor:
+      sentiws-2.0 (Phase-117 hardened). Validation status: unvalidated.
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-19"
+lastReviewedDate: "2026-05-06"
 workingPaperAnchors:
   - "WP-002 §3"
-  - "WP-002 §4"
+  - "WP-002 §3.2"
+  - "ADR-016"
+  - "ADR-023"
+  - "ADR-024"

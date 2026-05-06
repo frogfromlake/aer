@@ -1394,6 +1394,17 @@ Estimated effort: 1 working day for the refactor + scaffold-generator. The fr-la
 - **Ratified:** 2026-05-02 by the implementing engineer.
 - **Review date:** 2027-05 or when language count exceeds 10.
 
+### Addendum (Phase 121b, 2026-05-06): Out-of-scope — language varieties
+
+Phase 116 introduced the `aer_gold.language_detections.language_variety` column, populated by the processor (`_derive_language_variety`) from the RSS feed-URL TLD (`de-AT` / `de-CH` / `de-DE` for German texts, empty otherwise). After review during the Iteration-6 dashboard-completion sweep, we ratify the **metadata-only** disposition for this signal (option B in Phase 121b's two acceptable resolutions):
+
+- The column is retained for Silver-layer provenance auditing and for the `make reset && make crawl` empirical reproducibility chain.
+- It is **not surfaced** on the dashboard, neither in the language-detections panel nor as a sub-grouping on language-routed metrics.
+- It is **not a dialect classifier**. The TLD heuristic captures publishing locale, not the linguistic variety of the text — Austrian and Swiss German publishers routinely publish standard-German prose, and the `de-DE` TLD includes Austrian-German rebroadcasts. Surfacing it as if it were a dialect signal would be a category error per WP-002 §3.4.
+- The methodology-tray content for `language_confidence` carries an explicit note pointing readers to this addendum so a future contributor can answer "why is this column populated but not rendered?" without re-running the analysis.
+
+If a probe-specific dialect requirement appears in a future iteration (Probe 1 onwards), the right path is a new tier of language-variety extraction (e.g. dialect-classifier model gated by the manifest), not retrofitting `language_variety` into a UI affordance.
+
 ---
 
 ## ADR-025: Cultural Calendar Composition

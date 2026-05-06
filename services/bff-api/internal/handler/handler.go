@@ -625,6 +625,16 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 
 	var response GetMetricsAvailable200JSONResponse
 	for _, r := range rows {
+		// Phase 121b: forward-looking alias guard. Any metric name registered
+		// as an alias key in metric_aliases.go is dropped from the response —
+		// its canonical replacement already appears in the same set, so the
+		// alias entry can only ever surface as a duplicate in MetricSwitcher.
+		// Pre-rename rows produced before a renaming Phase remain in the Gold
+		// layer for the 365-day TTL window; this filter prevents them from
+		// leaking back into the dashboard.
+		if _, isAlias := metricNameAliases[r.MetricName]; isAlias {
+			continue
+		}
 		m := AvailableMetric{
 			MetricName:       r.MetricName,
 			ValidationStatus: AvailableMetricValidationStatus(r.ValidationStatus),
