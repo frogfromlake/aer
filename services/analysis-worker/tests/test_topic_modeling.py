@@ -161,6 +161,15 @@ def test_extract_topics_returns_rows_when_partition_succeeds():
     sys.modules.setdefault("sentence_transformers", MagicMock())
     sys.modules.setdefault("umap", MagicMock())
     sys.modules.setdefault("hdbscan", MagicMock())
+    # Phase 120b: per-language stopword filter wraps a real CountVectorizer
+    # constructor; stub the import so the test does not require sklearn.
+    fake_sklearn = MagicMock()
+    fake_sklearn.feature_extraction.text.CountVectorizer = MagicMock()
+    sys.modules.setdefault("sklearn", fake_sklearn)
+    sys.modules.setdefault("sklearn.feature_extraction", fake_sklearn.feature_extraction)
+    sys.modules.setdefault(
+        "sklearn.feature_extraction.text", fake_sklearn.feature_extraction.text
+    )
 
     docs = [_doc(f"a{i}", "tagesschau", "de", f"text {i}") for i in range(n_docs)]
     rows = extractor.extract_topics(docs, WINDOW)
@@ -176,6 +185,32 @@ def test_extract_topics_returns_rows_when_partition_succeeds():
     assert all(r.topic_confidence == 1.0 for r in assigned)
     # All rows from the same partition share the same model_hash.
     assert len({r.model_hash for r in rows}) == 1
+
+
+def test_resolve_stopwords_loads_spacy_for_de(tmp_path):
+    """Manifest entry `source: spacy` resolves to the spaCy STOP_WORDS set
+    when the lang package is importable. Validates the new Phase-120b
+    BERTopic label-quality fix without forcing the unit suite to depend
+    on the slim worker image's spaCy install."""
+    manifest = tmp_path / "manifest.yaml"
+    manifest.write_text(
+        "languages:\n"
+        "  xx:\n"
+        "    topic_modeling:\n"
+        "      stopwords:\n"
+        "        source: ['alpha', 'beta', 'gamma']\n",
+        encoding="utf-8",
+    )
+    extractor = TopicModelingExtractor(
+        embedding_model="m",
+        embedding_revision="r",
+        manifest_path=str(manifest),
+    )
+    assert extractor._resolve_stopwords("xx") == ["alpha", "beta", "gamma"]
+    # Languages without a manifest entry get None — preserves the
+    # opt-in semantics so today's behaviour is not silently changed
+    # for any language other than `de`.
+    assert extractor._resolve_stopwords("yy") is None
 
 
 @pytest.mark.skipif(

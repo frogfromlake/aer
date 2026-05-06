@@ -14,9 +14,14 @@
 #   aer_rss_crawler_state     — RSS dedup state (must travel with Bronze + documents)
 #
 # Volumes the `all` target PRESERVES (build-time artefacts; wasteful to refetch):
-#   aer_hf_cache              — Phase 119 BERT models + Phase 120 BERTopic embeddings (~3-4 GB)
 #   aer_wikidata_data         — Phase 118 Wikidata alias index (~190 MB)
 #   aer_tempo_data            — Phase 80 observability traces (no operational impact, just retention)
+#
+# The Phase 119 BERT models + Phase 120 BERTopic embeddings (~10 GB) are
+# baked into the worker image at /hf-cache, NOT held in a named volume —
+# the worker runs with TRANSFORMERS_OFFLINE=1, so the image is the
+# canonical store. Rebuilding the worker image is what protects model
+# state across resets, not a Docker volume.
 #
 # The targeted modes (postgres / minio / clickhouse) NEVER touch the
 # preserved volumes. Use them when only one storage layer needs wiping.
@@ -50,7 +55,6 @@ RUNTIME_STATE_VOLUMES=(
 # Volumes deliberately preserved across resets. Listed here for visibility
 # and post-wipe assertion only — the script never deletes these names.
 PRESERVED_VOLUMES=(
-    "${PROJECT_NAME}_hf_cache"
     "${PROJECT_NAME}_wikidata_data"
     "${PROJECT_NAME}_tempo_data"
 )
@@ -83,7 +87,7 @@ assert_preserved() {
     # Verify that the volumes we promised to preserve are still present
     # after the wipe. If a preserved volume was wiped by mistake (e.g. a
     # rogue `docker compose down -v` elsewhere), abort loudly so the
-    # operator does not silently re-download multi-GB BERT models.
+    # operator does not silently lose the Wikidata index or trace history.
     local missing=()
     for v in "${PRESERVED_VOLUMES[@]}"; do
         if ! docker volume inspect "$v" >/dev/null 2>&1; then

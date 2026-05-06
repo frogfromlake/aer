@@ -16,6 +16,16 @@
 
 set -euo pipefail
 
+# Load .env so POSTGRES_USER / POSTGRES_DB / MINIO_ROOT_* are available to
+# the per-layer probes below. The repo root is one level up from this script.
+ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
+if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+
 GREEN='\033[38;5;76m'
 RED='\033[38;5;196m'
 GOLD='\033[38;5;214m'
@@ -39,32 +49,44 @@ SKIP_SERVICES="${SKIP_SERVICES:-0}"
 
 # ---------------------------------------------------------------------------
 step "1. Docker volumes — preserved set intact"
-for v in ${PROJECT}_hf_cache ${PROJECT}_wikidata_data ${PROJECT}_tempo_data; do
+for v in ${PROJECT}_wikidata_data ${PROJECT}_tempo_data; do
     if docker volume inspect "$v" >/dev/null 2>&1; then
         ok "preserved: $v"
     else
-        fail "preserved volume missing: $v (build-time artefact will be re-fetched on next image build)"
+        fail "preserved volume missing: $v"
     fi
 done
 
 # ---------------------------------------------------------------------------
 step "2. MinIO — buckets exist and are empty"
 if docker compose ps minio --format '{{.State}}' 2>/dev/null | grep -q running; then
-    for bucket in bronze silver bronze-quarantine; do
-        # `mc ls` exit code is non-zero on a missing bucket and zero on
-        # an empty bucket. Distinguish empty-vs-missing by counting lines.
-        out=$(docker compose exec -T minio mc ls "minio/${bucket}" 2>&1 || true)
-        if echo "$out" | grep -qiE 'does not exist|not found'; then
-            fail "bucket missing: $bucket"
-        else
-            count=$(echo "$out" | grep -cE '^\[' || true)
-            if [[ "$count" == "0" ]]; then
-                ok "bucket empty: $bucket"
+    # The `minio` container has the `mc` binary but no client alias is
+    # configured by default — that lives in the `minio-init` container.
+    # Configure the alias inline using root credentials from .env, then
+    # query each bucket. `mc ls` returns non-zero for missing buckets and
+    # zero with empty stdout for empty buckets.
+    alias_setup=$(docker compose exec -T -e MINIO_ROOT_USER="${MINIO_ROOT_USER:-}" \
+        -e MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}" minio \
+        sh -c 'mc alias set m http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" 2>&1' || true)
+    if ! echo "$alias_setup" | grep -qiE 'success|added'; then
+        fail "MinIO alias setup failed: $alias_setup"
+    else
+        for bucket in bronze silver bronze-quarantine; do
+            out=$(docker compose exec -T minio mc ls "m/${bucket}" 2>&1 || true)
+            if echo "$out" | grep -qiE 'does not exist|not found|specified bucket'; then
+                fail "bucket missing: $bucket"
             else
-                fail "bucket non-empty: $bucket ($count entries)"
+                # Each object in a non-empty bucket prints one line; empty
+                # buckets print nothing. Strip blanks before counting.
+                count=$(echo "$out" | grep -cE '\S' || true)
+                if [[ "$count" == "0" ]]; then
+                    ok "bucket empty: $bucket"
+                else
+                    fail "bucket non-empty: $bucket ($count entries)"
+                fi
             fi
-        fi
-    done
+        done
+    fi
 else
     note "MinIO container not running — skipping (start the stack first)"
 fi
@@ -72,9 +94,12 @@ fi
 # ---------------------------------------------------------------------------
 step "3. PostgreSQL — documents empty, sources re-seeded"
 if docker compose ps postgres --format '{{.State}}' 2>/dev/null | grep -q running; then
-    docs=$(docker compose exec -T postgres psql -U "${POSTGRES_USER:-aer}" -d "${POSTGRES_DB:-aer}" \
+    # POSTGRES_USER / POSTGRES_DB are loaded from .env at the top of this
+    # script. The fallback defaults match `.env.example` so a fresh checkout
+    # without a customised .env still validates correctly.
+    docs=$(docker compose exec -T postgres psql -U "${POSTGRES_USER:-aer_admin}" -d "${POSTGRES_DB:-aer_metadata}" \
         -tA -c "SELECT count(*) FROM documents;" 2>/dev/null || echo "ERROR")
-    srcs=$(docker compose exec -T postgres psql -U "${POSTGRES_USER:-aer}" -d "${POSTGRES_DB:-aer}" \
+    srcs=$(docker compose exec -T postgres psql -U "${POSTGRES_USER:-aer_admin}" -d "${POSTGRES_DB:-aer_metadata}" \
         -tA -c "SELECT count(*) FROM sources;" 2>/dev/null || echo "ERROR")
     if [[ "$docs" == "0" ]]; then
         ok "documents empty (count=0)"
@@ -124,9 +149,16 @@ fi
 # ---------------------------------------------------------------------------
 step "5. NATS JetStream — AER_LAKE stream re-provisioned"
 if docker compose ps nats --format '{{.State}}' 2>/dev/null | grep -q running; then
-    if docker compose exec -T nats nats stream info AER_LAKE >/dev/null 2>&1; then
-        msgs=$(docker compose exec -T nats nats stream info AER_LAKE --json 2>/dev/null \
-            | grep -oE '"messages":[0-9]+' | head -1 | grep -oE '[0-9]+' || echo "?")
+    # The `nats` server image does not ship the `nats` CLI — that lives in
+    # the `nats-init` container (natsio/nats-box). Run a one-shot nats-box
+    # invocation against the live nats server to query the stream.
+    info=$(docker compose run --rm --no-deps --entrypoint sh nats-init \
+        -c "nats --server nats:4222 stream info AER_LAKE --json" 2>/dev/null || echo "")
+    if [[ -n "$info" ]] && echo "$info" | grep -q '"name"'; then
+        # `messages` lives under `state` in the stream-info JSON (nats CLI
+        # 0.x), so a top-level grep misses it. Use Python to read the
+        # nested key — Python is already a hard dependency on this host.
+        msgs=$(echo "$info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('state',{}).get('messages','?'))" 2>/dev/null || echo "?")
         if [[ "$msgs" == "0" ]]; then
             ok "AER_LAKE stream exists (messages=0)"
         else
@@ -143,8 +175,10 @@ fi
 step "6. Worker + BFF readiness"
 if [[ "$SKIP_SERVICES" == "1" ]]; then
     note "SKIP_SERVICES=1 — skipping service readiness probes"
-elif docker compose ps aer_analysis_worker --format '{{.State}}' 2>/dev/null | grep -q running; then
-    if docker compose exec -T aer_analysis_worker python -c "
+elif docker compose ps analysis-worker --format '{{.State}}' 2>/dev/null | grep -q running; then
+    # `docker compose ps` and `exec` take the *service* name (analysis-worker,
+    # bff-api), not the container name (aer_analysis_worker, aer_bff_api).
+    if docker compose exec -T analysis-worker python -c "
 import urllib.request,sys
 sys.exit(0) if urllib.request.urlopen('http://localhost:8001/metrics', timeout=3).status == 200 else sys.exit(1)
 " >/dev/null 2>&1; then
@@ -152,7 +186,7 @@ sys.exit(0) if urllib.request.urlopen('http://localhost:8001/metrics', timeout=3
     else
         fail "analysis-worker /metrics did not respond"
     fi
-    if docker compose exec -T aer_bff_api wget -q -O- http://localhost:8080/api/v1/readyz >/dev/null 2>&1; then
+    if docker compose exec -T bff-api wget -q -O- http://localhost:8080/api/v1/readyz >/dev/null 2>&1; then
         ok "bff-api /readyz responds"
     else
         fail "bff-api /readyz did not respond"

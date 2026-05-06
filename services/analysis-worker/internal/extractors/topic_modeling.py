@@ -110,8 +110,9 @@ class TopicModelingExtractor:
         hdbscan_seed: int = _DEFAULT_HDBSCAN_SEED,
         manifest_path: str | None = None,
     ) -> None:
+        resolved_path = self._resolve_manifest_path(manifest_path)
         resolved_model, resolved_revision = self._resolve_embedding_config(
-            manifest_path,
+            resolved_path,
             embedding_model,
             embedding_revision,
         )
@@ -119,14 +120,36 @@ class TopicModelingExtractor:
         self.embedding_revision = resolved_revision
         self.umap_seed = umap_seed
         self.hdbscan_seed = hdbscan_seed
+        self._manifest_path = resolved_path
 
     @property
     def name(self) -> str:
         return "topic_modeling"
 
     @staticmethod
+    def _resolve_manifest_path(manifest_path: str | None) -> str:
+        if manifest_path is not None:
+            return manifest_path
+        return os.getenv(
+            "LANGUAGE_CAPABILITY_MANIFEST_PATH",
+            str(
+                Path(__file__).resolve().parents[2]
+                / "configs"
+                / "language_capabilities.yaml"
+            ),
+        )
+
+    @staticmethod
+    def _read_manifest(manifest_path: str) -> dict:
+        try:
+            return yaml.safe_load(Path(manifest_path).read_text(encoding="utf-8")) or {}
+        except (FileNotFoundError, OSError):
+            return {}
+
+    @classmethod
     def _resolve_embedding_config(
-        manifest_path: str | None,
+        cls,
+        manifest_path: str,
         explicit_model: str | None,
         explicit_revision: str | None,
     ) -> tuple[str, str]:
@@ -142,31 +165,63 @@ class TopicModelingExtractor:
         if explicit_model and explicit_revision:
             return explicit_model, explicit_revision
 
-        if manifest_path is None:
-            manifest_path = os.getenv(
-                "LANGUAGE_CAPABILITY_MANIFEST_PATH",
-                str(
-                    Path(__file__).resolve().parents[2]
-                    / "configs"
-                    / "language_capabilities.yaml"
-                ),
-            )
-
-        try:
-            data = yaml.safe_load(Path(manifest_path).read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError):
-            return (
-                explicit_model or _DEFAULT_EMBEDDING_MODEL,
-                explicit_revision or _DEFAULT_EMBEDDING_REVISION,
-            )
-
-        shared = (data or {}).get("shared", {}) or {}
+        data = cls._read_manifest(manifest_path)
+        shared = data.get("shared", {}) or {}
         topic_block = shared.get("topic_modeling") or {}
         return (
             explicit_model or topic_block.get("model", _DEFAULT_EMBEDDING_MODEL),
             explicit_revision
             or topic_block.get("model_revision", _DEFAULT_EMBEDDING_REVISION),
         )
+
+    def _resolve_stopwords(self, language: str) -> list[str] | None:
+        """Resolve the stopword list for one language partition.
+
+        Reads ``languages.<iso>.topic_modeling.stopwords`` from the
+        manifest. Two source forms are accepted:
+
+          * ``source: spacy`` — load ``spacy.lang.<iso>.stop_words.STOP_WORDS``
+            at fit time. No inline word list to maintain in YAML.
+          * ``source: [word1, word2, ...]`` — explicit inline list (used
+            primarily by unit tests).
+
+        Returns ``None`` when no manifest entry exists or the spaCy lang
+        package is not importable; BERTopic then runs with the
+        ``CountVectorizer`` default (no filter), preserving today's
+        behaviour for languages that have not opted in. Stopwords do not
+        enter ``model_hash`` — they govern label generation only, not
+        clustering, so changes do not rotate topic identity.
+        """
+        data = self._read_manifest(self._manifest_path)
+        block = (
+            (data.get("languages") or {})
+            .get(language, {})
+            .get("topic_modeling", {})
+        ) or {}
+        cfg = block.get("stopwords") or {}
+        source = cfg.get("source")
+
+        if isinstance(source, list):
+            return [str(w) for w in source]
+
+        if source == "spacy":
+            try:
+                module = __import__(
+                    f"spacy.lang.{language}.stop_words",
+                    fromlist=["STOP_WORDS"],
+                )
+                stop_words = getattr(module, "STOP_WORDS", None)
+                if stop_words:
+                    return sorted(str(w) for w in stop_words)
+            except (ImportError, AttributeError) as exc:
+                logger.warning(
+                    "topic_modeling.stopwords_unavailable",
+                    language=language,
+                    error=str(exc),
+                )
+                return None
+
+        return None
 
     def model_hash(self, language_partition: str, bertopic_version: str) -> str:
         """Composite reproducibility hash, written per row.
@@ -292,6 +347,7 @@ class TopicModelingExtractor:
         from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]
         from umap import UMAP  # type: ignore[import-not-found]
         from hdbscan import HDBSCAN  # type: ignore[import-not-found]
+        from sklearn.feature_extraction.text import CountVectorizer  # type: ignore[import-not-found]
 
         embedder = SentenceTransformer(
             self.embedding_model,
@@ -312,11 +368,20 @@ class TopicModelingExtractor:
             prediction_data=True,
         )
 
+        # Per-language stopword filter for the c-TF-IDF representation
+        # step. Without this, labels degenerate to the most frequent
+        # function words on small corpora.
+        stop_words = self._resolve_stopwords(language)
+        vectorizer_model = (
+            CountVectorizer(stop_words=stop_words) if stop_words else None
+        )
+
         BERTopic = bertopic_module.BERTopic
         topic_model = BERTopic(
             embedding_model=embedder,
             umap_model=umap_model,
             hdbscan_model=hdbscan_model,
+            vectorizer_model=vectorizer_model,
             calculate_probabilities=False,
             verbose=False,
         )

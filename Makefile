@@ -664,7 +664,7 @@ help:
 	@echo -e "  $(CYAN)infra-restart$(RESET)       $(GRAY)Restart backend infra$(RESET)"
 	@echo -e "  $(CYAN)debug-up$(RESET)            $(GRAY)Expose internal infra ports to host for debugging$(RESET)"
 	@echo -e "  $(GOLD)debug-down$(RESET)          $(GRAY)Close debug port forwarder (services keep running)$(RESET)"
-	@echo -e "  $(GOLD)infra-clean$(RESET)         $(GRAY)Wipe runtime infra volumes (preserves hf_cache/wikidata_data/tempo_data); append -postgres/-minio/-clickhouse for one layer$(RESET)"
+	@echo -e "  $(GOLD)infra-clean$(RESET)         $(GRAY)Wipe runtime infra volumes (preserves wikidata_data/tempo_data); append -postgres/-minio/-clickhouse for one layer$(RESET)"
 	@echo -e "  $(GOLD)reset$(RESET)               $(GRAY)Phase-120b supervised reset: stop → wipe runtime state → re-up → validate. Use this rather than infra-clean for a full reset.$(RESET)"
 	@echo -e "  $(CYAN)reset-state$(RESET)         $(GRAY)Wipe + re-up only (no validation)$(RESET)"
 	@echo -e "  $(CYAN)reset-validate$(RESET)      $(GRAY)Run post-reset invariant check (volumes, MinIO buckets, Postgres seeds, ClickHouse tables, NATS, readiness)$(RESET)"

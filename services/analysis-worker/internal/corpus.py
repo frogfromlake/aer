@@ -350,6 +350,20 @@ async def corpus_extraction_loop(
     logger.info("corpus.loop.stopped", extractor=extractor.name)
 
 
+def _run_baseline_sweep(ch_pool, extractor: MetricBaselineExtractor, window: TimeWindow):
+    """Borrow a client from the pool for a single baseline sweep.
+
+    MetricBaselineExtractor.run expects a clickhouse-connect *client* with
+    a .query() method, but the loop only holds the *pool*. Mirrors the
+    borrow pattern used by run_sweep / fetch_entities_for_window.
+    """
+    client = ch_pool.getconn()
+    try:
+        return extractor.run(client, window)
+    finally:
+        ch_pool.putconn(client)
+
+
 async def baseline_extraction_loop(
     ch_pool,
     extractor: MetricBaselineExtractor,
@@ -396,7 +410,7 @@ async def baseline_extraction_loop(
 
         try:
             with corpus_extraction_duration_seconds.labels(extractor=extractor.name).time():
-                result = await asyncio.to_thread(extractor.run, ch_pool, window)
+                result = await asyncio.to_thread(_run_baseline_sweep, ch_pool, extractor, window)
             corpus_extraction_runs_total.labels(
                 extractor=extractor.name, outcome="ok"
             ).inc()

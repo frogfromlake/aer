@@ -31,10 +31,11 @@
 11. [Dashboard / Frontend Iteration](#dashboard-frontend-iteration)
 12. [Testing](#testing)
 13. [Dependency Refresh (Supply-Chain Baseline)](#dependency-refresh-supply-chain-baseline)
-14. [Volume Management](#volume-management)
-15. [Network Architecture](#network-architecture)
-16. [Scientific Touchpoints Index](#scientific-touchpoints-index)
-17. [Quick Reference Card](#quick-reference-card)
+14. [Full system reset (one-shot)](#full-system-reset-one-shot)
+15. [Volume Management](#volume-management)
+16. [Network Architecture](#network-architecture)
+17. [Scientific Touchpoints Index](#scientific-touchpoints-index)
+18. [Quick Reference Card](#quick-reference-card)
 
 Sections marked *touchpoint* are points at which scientific judgment enters the pipeline. Each touchpoint links to the corresponding workflow in the [Scientific Operations Guide](scientific_operations_guide.md), and that guide links back here for the exact commands. The mapping is consolidated in the [Scientific Touchpoints Index](#scientific-touchpoints-index) below.
 
@@ -1301,6 +1302,102 @@ A worker (or BFF) reading a manifest with an unrecognised `manifest_version` ref
 
 ---
 
+## Full system reset (one-shot)
+
+A supervised, end-to-end reset of every state-bearing layer in the stack. Use it whenever the Gold layer carries mixed-vintage rows (different rows reflecting different extractor versions) or when a reproducibility gate has been tripped — the `aer_gold` Manifesto §III invariant is "every row reflects the same extractor fingerprint", and a one-shot reset is the canonical way to restore it. The reset wipes runtime data **only**; multi-GB build-time artefacts (BERT models, the Wikidata alias index, Tempo trace history) are preserved.
+
+```bash
+make reset                   # Stop → wipe runtime state → up → validate
+```
+
+Under the hood `make reset` runs three Make targets in order: `make reset-state` (the wipe), `make up` (recreate via init containers), and `make reset-validate` (per-layer invariant check). Either the meta-target or its constituents can be run individually.
+
+**Wiped — runtime state, recreated by init containers on next `make up`:**
+
+| Volume | Layer | Recreated by |
+| :--- | :--- | :--- |
+| `aer_postgres_data` | sources, documents, ingestion jobs | `infra/postgres/migrations/` (000001+) |
+| `aer_minio_data` | Bronze, Silver, DLQ buckets | `minio-init` (`infra/minio/setup.sh`) |
+| `aer_clickhouse_data` | every Gold + Silver projection table | `clickhouse-init` (`infra/clickhouse/migrations/`, 000001 → latest) |
+| `aer_rss_crawler_state` | crawler dedup state — forces full re-crawl on next `make crawl` | (recreated empty by the named-volume) |
+
+**Preserved — build-time artefacts, NEVER wiped:**
+
+| Volume | Why preserved |
+| :--- | :--- |
+| `aer_wikidata_data` | Wikidata alias index built by `scripts/build_wikidata_index.py` from `latest-truthy.nt.bz2`. ~30-min rebuild. |
+| `aer_tempo_data` | Distributed trace history. Re-creating destroys debugging context for prior incidents. |
+
+`scripts/clean_infra.sh` asserts the preserved set survives the wipe and aborts loudly if any of those volumes is missing afterward — so an accidental `docker volume prune` between two `make reset` invocations cannot silently lose the Wikidata index or trace history.
+
+> **BERT models are NOT in a volume.** The Phase 119 BERT sentiment models and Phase 120 BERTopic embedding model are baked into the worker image at `/hf-cache` and the worker runs with `TRANSFORMERS_OFFLINE=1` — the image is the canonical store. `make reset` does not touch model state because it does not need to: the running container points at the image's `/hf-cache`. Models change only when the worker image is rebuilt (manifest revision rotation → `docker compose build analysis-worker`). Phase-120b removed the previously-documented `aer_hf_cache` volume from the preserved set because it was never actually mounted on the worker — a documentation/wiring drift surfaced during this phase.
+
+### When to run
+
+Run `make reset` when **any** of the following is true:
+
+- A schema migration shipped that altered an existing Gold table's row layout (rename, computation change, semantics shift). Backfill is harder than reset for a pre-deployment POC.
+- A new extractor was registered that emits rows tagged with a version string different from the prior extractor — the result is mixed-vintage Gold.
+- The Wikidata index, `model_hash`, or any other reproducibility anchor has rotated, and the prior rows no longer correspond to the current extractor fingerprint.
+- A targeted infra-layer wipe (`make infra-clean-postgres` etc.) is not enough because a downstream layer references the wiped layer's IDs.
+
+Do **not** run `make reset` to clear a transient "looks weird" state — read the validator output first; the per-layer `✗` is usually more informative than a wipe.
+
+### Operator workflow
+
+```bash
+# Pre-flight: confirm no in-flight ingestion. The validator does not
+# protect you from racing the wipe against an active crawl.
+make logs | grep -E "Processing event|ingest" | tail -5
+
+# Optional: dump out-of-band scientific records (Phase 115; empty by
+# design today, but verify before wiping).
+docker compose exec postgres psql -U "$POSTGRES_USER" -d aer -c "
+  SELECT 'equivalence_reviews' AS t, count(*) FROM equivalence_reviews;"
+
+# Run the supervised reset.
+make reset
+
+# Fresh crawl. Every Gold row from this point forward carries the
+# canonical extractor fingerprint.
+make crawl
+```
+
+Validator output ([`scripts/reset_validate.sh`](../../scripts/reset_validate.sh)) prints `✔` / `·` / `✗` per layer:
+
+| Symbol | Meaning |
+| :--- | :--- |
+| `✔` | Layer passed the invariant. |
+| `·` | Layer skipped — service not running (expected for partial-up scenarios). |
+| `✗` | Layer failed. The reset does **not** proceed to a healthy state — investigate the named layer before retrying. |
+
+### Non-interactive runs
+
+```bash
+AER_RESET_NONINTERACTIVE=1 make reset
+```
+
+`make reset` is interactive by default (it prompts before destroying data). Set `AER_RESET_NONINTERACTIVE=1` for CI-style or scripted runs — the prompt is skipped, the wipe proceeds. Required when running `make reset` from a non-TTY environment (a Cron job, a remote-trigger script, etc.).
+
+### Targeted escape hatches (one-layer wipes)
+
+When the full reset is overkill — a single Gold table is corrupted but the surrounding state is fine — use the per-layer wipes:
+
+```bash
+make infra-clean-postgres    # Postgres only — sources, documents, ingestion jobs
+make infra-clean-minio       # MinIO only — Bronze, Silver, DLQ buckets
+make infra-clean-clickhouse  # ClickHouse only — every Gold + Silver projection
+make infra-clean             # All three above, plus the crawler dedup volume
+```
+
+These also require interactive confirmation. They do **not** run the post-wipe validator — `make reset` is the canonical path when you want layer-by-layer assurance that the recreated state is clean.
+
+### Common pitfall — image rebuilds that re-download models
+
+`make reset` never re-downloads BERT models because it never touches the worker image. **`docker compose build analysis-worker` does**, and any edit to `services/analysis-worker/configs/language_capabilities.yaml` or `services/analysis-worker/requirements.lock.txt` invalidates the prefetch layer's cache key, forcing a re-download of the multilingual-XLM-R, German-news-BERT, and multilingual-E5-large model weights (~10 GB total). On a fast connection that is ~10 minutes; on a slow one it can be over an hour. The Dockerfile's BuildKit cache mount (`id=aer-analysis-worker-hf-models`) can short-circuit the redownload if the cache is warm, but Docker's cache is not free-tier-permanent — `docker buildx prune` and Docker Desktop disk-pressure eviction can wipe it without warning. If you find yourself re-downloading often, audit which of the prefetch-layer inputs you keep editing and consider whether the change really has to invalidate the prefetch.
+
+---
+
 ## Volume Management
 
 ```bash
@@ -1310,7 +1407,7 @@ make infra-clean-minio       # Wipe MinIO only (Bronze, Silver, DLQ data)
 make infra-clean-clickhouse  # Wipe ClickHouse only (Gold metrics)
 ```
 
-All wipe commands require interactive confirmation. After wiping, the next `make up` will re-run init containers and migrations automatically.
+All wipe commands require interactive confirmation. After wiping, the next `make up` will re-run init containers and migrations automatically. For the supervised end-to-end path that also re-runs init containers and validates the result, see [Full system reset (one-shot)](#full-system-reset-one-shot).
 
 ---
 

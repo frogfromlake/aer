@@ -49,10 +49,18 @@ func (s *ClickHouseStorage) GetTopicDistribution(
 		params.Limit = 200
 	}
 
-	args := []any{params.Start, params.End}
+	// Overlap semantics — a topic sweep is in scope when its data window
+	// [window_start, window_end) overlaps the requested [Start, End).
+	// The earlier `window_start >= Start AND window_start < End` form
+	// silently dropped sweeps whose 30-day data window opens slightly
+	// before a same-shaped query window — e.g. a sweep started at
+	// 23:45:36 with window_start=now-30d is invisible to a query made
+	// 6 minutes later with start=now-30d, because the sweep's window_start
+	// is 6 minutes "in the past" relative to the query's start.
+	args := []any{params.End, params.Start}
 	clauses := []string{
-		"window_start >= $1",
-		"window_start < $2",
+		"window_start < $1",
+		"window_end > $2",
 	}
 	if !params.IncludeOutlier {
 		clauses = append(clauses, "topic_id != -1")

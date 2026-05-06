@@ -110,6 +110,17 @@ languages:
       model_revision: "6e3e756d9242be48e27f6233a6c1e557726c1bfa"
       metric_name: sentiment_score_bert_de_news
 
+    # Phase 120b: per-language stopword filter for BERTopic's c-TF-IDF
+    # representation step. Without this, topic labels degenerate to the
+    # most frequent function words (`mehr_und_die_von`, `in_der_mit`).
+    # `source: spacy` resolves to `spacy.lang.<iso>.stop_words.STOP_WORDS`
+    # at fit time — no inline word list to maintain. Stopwords do not
+    # enter `model_hash` (post-clustering label generation only); rotating
+    # the list does not invalidate prior topic identity.
+    topic_modeling:
+      stopwords:
+        source: spacy
+
     cultural_calendar:
       region_default: de
       file: cultural_calendars/de.yaml

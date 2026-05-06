@@ -344,24 +344,24 @@ services:
     # minio-init / clickhouse-init provision their respective stores
     # (Hard Rule 5).
     user: "0:0"
-    entrypoint: ["/bin/sh", "-c"]
     # Mount path aligned with the analysis-worker's
     # `wikidata_data:/data/wikidata:ro` mount — both containers see the
-    # index at the same path `/data/wikidata/wikidata_aliases.db`. The
-    # earlier asymmetric setup (init at /data, worker at /data/wikidata)
-    # was operationally confusing.
-    command: >
-      "
-        set -e
-        cp /index/wikidata_aliases.db /data/wikidata/
-        cp /index/wikidata_aliases.db.sha256 /data/wikidata/
-        chmod 0644 /data/wikidata/wikidata_aliases.db /data/wikidata/wikidata_aliases.db.sha256
-        cd /data/wikidata && sha256sum -c wikidata_aliases.db.sha256
-        echo 'wikidata-index-init: copy + checksum verified'
-        cat wikidata_aliases.db.sha256
-      "
+    # index at the same path `/data/wikidata/wikidata_aliases.db`.
+    #
+    # Phase 120b: the previous form combined a custom entrypoint
+    # (["/bin/sh", "-c"]) with a YAML folded-scalar `command: > "..."`
+    # body. The script ran to completion successfully but the container
+    # then never reaped — `docker inspect` showed Status=running with
+    # FinishedAt=0001-01-01T00:00:00Z while no processes existed inside
+    # it. `docker compose up --wait` blocked indefinitely waiting for
+    # service_completed_successfully, making `make reset` take 10+
+    # minutes per run. Switching to the bind-mounted script pattern
+    # used by minio-init eliminates the YAML-quoting interaction and
+    # the zombie behaviour.
+    entrypoint: ["/bin/sh", "/init.sh"]
     volumes:
       - wikidata_data:/data/wikidata
+      - ./infra/wikidata-index/init.sh:/init.sh:ro
     networks:
       - aer-backend
 
@@ -377,6 +377,7 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+      - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}
       - WORKER_COUNT=${WORKER_COUNT:-5}
       - MINIO_ENDPOINT=minio:9000
       - WORKER_MINIO_ACCESS_KEY=${WORKER_MINIO_ACCESS_KEY}
@@ -386,17 +387,51 @@ services:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
       - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      # Storage timeouts named as security defaults in CLAUDE.md. Without
+      # these, the worker silently falls back to code defaults — patches
+      # applied here so the .env values actually reach the process.
+      - CLICKHOUSE_POOL_TIMEOUT_SECONDS=${CLICKHOUSE_POOL_TIMEOUT_SECONDS:-30}
+      - WORKER_PG_STATEMENT_TIMEOUT_MS=${WORKER_PG_STATEMENT_TIMEOUT_MS:-5000}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - WORKER_BRONZE_BUCKET=${WORKER_BRONZE_BUCKET:-bronze}
+      # Phase 102 / 115 / 120 corpus-loop cadences. Production defaults
+      # match .env.example (1h corpus, 24h baseline, weekly topic). The
+      # dev-mode .env overrides all three to fire within minutes — both
+      # paths flow through these compose entries.
+      - CORPUS_EXTRACTION_ENABLED=${CORPUS_EXTRACTION_ENABLED:-true}
+      - CORPUS_EXTRACTION_INTERVAL_SECONDS=${CORPUS_EXTRACTION_INTERVAL_SECONDS:-3600}
+      - CORPUS_EXTRACTION_WINDOW_SECONDS=${CORPUS_EXTRACTION_WINDOW_SECONDS:-3600}
+      - CORPUS_EXTRACTION_INITIAL_DELAY_SECONDS=${CORPUS_EXTRACTION_INITIAL_DELAY_SECONDS:-60}
+      - BASELINE_EXTRACTION_ENABLED=${BASELINE_EXTRACTION_ENABLED:-true}
+      - BASELINE_EXTRACTION_INTERVAL_SECONDS=${BASELINE_EXTRACTION_INTERVAL_SECONDS:-86400}
+      - BASELINE_EXTRACTION_WINDOW_SECONDS=${BASELINE_EXTRACTION_WINDOW_SECONDS:-7776000}
+      - BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS=${BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS:-300}
+      - TOPIC_EXTRACTION_ENABLED=${TOPIC_EXTRACTION_ENABLED:-false}
+      - TOPIC_EXTRACTION_INTERVAL_SECONDS=${TOPIC_EXTRACTION_INTERVAL_SECONDS:-604800}
+      - TOPIC_EXTRACTION_WINDOW_SECONDS=${TOPIC_EXTRACTION_WINDOW_SECONDS:-2592000}
+      - TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS=${TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS:-600}
       # Phase 118: Wikidata alias index, populated into wikidata_data by the
       # wikidata-index-init service. Empty WIKIDATA_INDEX_SHA256 disables the
       # fail-fast hash check (recommended only for development).
       - WIKIDATA_INDEX_PATH=${WIKIDATA_INDEX_PATH:-/data/wikidata/wikidata_aliases.db}
       - WIKIDATA_INDEX_SHA256=${WIKIDATA_INDEX_SHA256:-}
+      # Phase 120b: numba JIT cache directory. Required because the `aer`
+      # runtime user has no home (--no-create-home in the Dockerfile) and
+      # /usr/local/lib/python*/site-packages is root-owned, so numba's
+      # default in-tree and user-wide cache locators both fail. Without
+      # this, importing UMAP via BERTopic raises:
+      #   RuntimeError: cannot cache function 'rdist': no locator available
+      # which the topic-modeling extractor catches and logs as
+      # `topic_modeling.dependencies_missing`. /hf-cache is the worker-
+      # owned directory baked into the image (see Dockerfile); the JIT
+      # cache lives there at runtime in the container's writable upper
+      # layer (~10 s recompile cost on container recreation, not worth
+      # a named volume).
+      - NUMBA_CACHE_DIR=/hf-cache/numba
     volumes:
       - wikidata_data:/data/wikidata:ro
     networks:

@@ -8,7 +8,7 @@ from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
 from internal.models import ValidationError
 from internal.adapters.registry import AdapterRegistry
-from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldEntityLink, GoldLanguageDetection
+from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldEntityLink, GoldLanguageDetection, ExtractionResult
 from internal.metrics import (
     events_processed_total,
     event_processing_duration_seconds,
@@ -159,45 +159,38 @@ class DataProcessor:
             self._quarantine(obj_key, raw_content, "silver_validation_failed", span)
             return
 
-        # --- 6. Upload to Silver Layer ---
-        _silver_module.upload_silver(self.minio, obj_key, core, meta, self._extraction_provenance)
-
-        # --- 7. Extract and load to Gold Layer (ClickHouse) via Extractor Pipeline ---
+        # --- 6. Language detection (must precede Silver writes) ---
+        # Phase 120b: detection runs *before* the Silver layers so the
+        # rank=1 consensus winner replaces the adapter-set placeholder on
+        # core.language for *every* downstream consumer — both Silver
+        # writes (MinIO envelope + ClickHouse projection) and the
+        # per-document extractors below. Pre-Phase-120b the detection
+        # ran inside the extractor loop after Silver was already written,
+        # so the ClickHouse Silver projection always carried "und" and
+        # corpus-level extractors that partition by language (e.g. the
+        # BERTopic loop in Phase 120) silently dropped every RSS doc.
         article_id = core.document_id
-
-        all_metrics: list[GoldMetric] = []
-        all_entities: list[GoldEntity] = []
-        all_entity_links: list[GoldEntityLink] = []
-        all_language_detections: list[GoldLanguageDetection] = []
-
-        # Phase 116: language-detection-first ordering. The
-        # LanguageDetectionExtractor (recognised by name) runs before any
-        # other extractor so its rank=1 consensus winner can replace the
-        # adapter-set placeholder on `core.language` for downstream
-        # extractors. Without this step, NER routing and the sentiment
-        # language guard fall back to the adapter default ("und"/"de") and
-        # English RSS articles are silently scored by the German pipeline.
-        ordered: list = sorted(
-            self.extractors,
-            key=lambda e: 0 if e.name == "language_detection" else 1,
+        working_core, detection_result = self._run_language_detection(
+            core, article_id, obj_key
         )
-        working_core = core
-        for extractor in ordered:
+
+        # --- 7. Upload to Silver Layer (envelope + ClickHouse projection) ---
+        _silver_module.upload_silver(self.minio, obj_key, working_core, meta, self._extraction_provenance)
+
+        # --- 8. Extract and load to Gold Layer (ClickHouse) via Extractor Pipeline ---
+        all_metrics: list[GoldMetric] = list(detection_result.metrics)
+        all_entities: list[GoldEntity] = list(detection_result.entities)
+        all_entity_links: list[GoldEntityLink] = list(detection_result.entity_links)
+        all_language_detections: list[GoldLanguageDetection] = list(detection_result.language_detections)
+
+        for extractor in self.extractors:
+            if extractor.name == "language_detection":
+                continue  # already ran in step 6
             try:
                 result = extractor.extract_all(working_core, article_id)
                 all_metrics.extend(result.metrics)
                 all_entities.extend(result.entities)
                 all_entity_links.extend(result.entity_links)
-                all_language_detections.extend(result.language_detections)
-                if extractor.name == "language_detection":
-                    primary = next(
-                        (d for d in result.language_detections if d.rank == 1),
-                        None,
-                    )
-                    if primary is not None and primary.detected_language:
-                        working_core = working_core.model_copy(
-                            update={"language": primary.detected_language}
-                        )
             except Exception as e:
                 logger.error(
                     "Extractor failed. Skipping this extractor; other extractors continue.",
@@ -217,7 +210,10 @@ class DataProcessor:
         # Phase 103b: write the Silver projection row to ClickHouse so the
         # aggregation endpoints can run as cheap GROUP BYs over
         # `aer_silver.documents` instead of scanning MinIO per request.
-        _silver_projection_module.upload_silver_projection(self.ch, core, ingestion_version, obj_key)
+        # Uses `working_core` (with consensus language patched in by step 6)
+        # so the projection's `language` column matches Gold rather than
+        # carrying the adapter's "und" placeholder.
+        _silver_projection_module.upload_silver_projection(self.ch, working_core, ingestion_version, obj_key)
 
         # Phase 91: wrap Gold inserts so a partial ClickHouse failure does not
         # NAK the message, causing a full reprocessing cycle.  Successfully
@@ -373,6 +369,45 @@ class DataProcessor:
     def _update_document_status(self, obj_key: str, status: str) -> None:
         """Updates the document status in PostgreSQL."""
         update_document_status(self.pg, obj_key, status)
+
+    def _run_language_detection(self, core, article_id, obj_key):
+        """Run the LanguageDetectionExtractor (if registered) before Silver writes.
+
+        Returns ``(working_core, extraction_result)``. ``working_core``
+        carries the rank=1 consensus winner on its ``language`` field when
+        detection succeeded, otherwise the unmodified ``core`` so downstream
+        consumers degrade to the adapter placeholder rather than crashing.
+        ``extraction_result`` is the detector's full ExtractionResult so the
+        caller can persist the ``language_confidence`` metric and the
+        per-rank language_detection rows alongside the rest of the Gold
+        inserts. An empty result is returned when detection is absent or
+        crashed.
+        """
+        detection = next(
+            (e for e in self.extractors if e.name == "language_detection"),
+            None,
+        )
+        empty = ExtractionResult(metrics=[], entities=[], entity_links=[], language_detections=[])
+        if detection is None:
+            return core, empty
+        try:
+            result = detection.extract_all(core, article_id)
+        except Exception as e:
+            logger.error(
+                "Language detection failed before Silver write. "
+                "Continuing with adapter language; other extractors run.",
+                object=obj_key,
+                error=str(e),
+            )
+            return core, empty
+        primary = next(
+            (d for d in result.language_detections if d.rank == 1),
+            None,
+        )
+        if primary is None or not primary.detected_language:
+            return core, result
+        working = core.model_copy(update={"language": primary.detected_language})
+        return working, result
 
     def _quarantine(self, obj_key: str, raw_content: dict, reason: str, span) -> None:
         """Routes a document to the DLQ with standard bookkeeping."""

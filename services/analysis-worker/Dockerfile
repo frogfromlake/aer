@@ -63,17 +63,21 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --only-upgrade libssl3 openssl \
-    && apt-get install -y --no-install-recommends libpq5 \
+    && apt-get install -y --no-install-recommends libpq5 libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r aer --gid 10001 \
     && useradd -r -g aer --uid 10001 --no-create-home --shell /usr/sbin/nologin aer
 
 COPY --from=builder /install /usr/local
-COPY services/analysis-worker/ .
-COPY --from=builder /sentiws /app/data/sentiws
-COPY --from=builder /hf-cache /hf-cache
-
-RUN chown -R aer:aer /app /hf-cache
+# Phase 120b: --chown on COPY instead of a follow-up `RUN chown -R`. The
+# /hf-cache directory is ~10 GB; chowning it via a separate RUN layer
+# triggers overlayfs copy-on-write of every file and *doubles* the image
+# size (one layer of root-owned files + a second layer of aer-owned
+# duplicates). --chown applies the ownership during the COPY, producing a
+# single layer.
+COPY --chown=aer:aer services/analysis-worker/ .
+COPY --chown=aer:aer --from=builder /sentiws /app/data/sentiws
+COPY --chown=aer:aer --from=builder /hf-cache /hf-cache
 
 USER aer
 
