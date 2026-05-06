@@ -17,7 +17,7 @@ The architecture is layered. Some layers are language-agnostic (handle X without
 | **Sentiment negation handler (Phase 117 / 118a pattern)** | Tier 1 quality | 🔧 Manifest-routed | Author `languages.<code>.sentiment_tier1.negation` in the manifest: negation particles, clause-coordinating conjunctions, spaCy `neg` dep label, plus the clause-boundary dep set. Compound-split is German-specific and not needed for most other languages. | 1–2 h |
 | **Sentiment Tier 2 BERT (Phase 119 pattern)** | Validated transformer baseline | 🔧 Language-routed | Either (a) extend the multilingual BERT extractor (one model handles all languages — see ADR-022 *Multilingual Sentiment Strategy*) or (b) add a new per-language extractor following the Phase 119 dual-extractor pattern. Per-language is higher quality, multilingual is operationally cheaper. | 0 if multilingual default suffices, 0.5–1 day per per-language model |
 | **BERTopic (Phase 120)** | Topic modeling | ✅ Multilingual-by-construction | Nothing. `intfloat/multilingual-e5-large` covers 100 languages. Per-language topic partitioning is automatic via Phase 120's WP-004 §3.4 implementation. | 0 |
-| **Cultural Calendar** | Temporal context for WP-004 §6.3 Level 1 | 🔧 Per-region content | Author `services/analysis-worker/configs/cultural_calendars/<region>.yaml` with public holidays, election dates, recurring media events. Required *before* a temporal-equivalence grant for any probe-pair involving the new language (Phase 123 / Workflow 6). | 1–4 h |
+| **Cultural Calendar** | Temporal context for WP-004 §6.3 Level 1 | 🔧 Per-region content | Author `services/analysis-worker/configs/cultural_calendars/<region>.yaml` with public holidays, election dates, recurring media events. Required *before* a temporal-equivalence grant for any probe-pair involving the new language (Phase 126 / Workflow 6). | 1–4 h |
 | **Frontend rendering** | Dashboard | ✅ Language-agnostic | Nothing. View modes render any number of language partitions in parallel (Brief §4.2.2). | 0 |
 | **BFF API** | Endpoints | ✅ Language-agnostic | Nothing. `language` parameter is already a query string parameter on relevant endpoints. | 0 |
 | **Equivalence registry (Phase 115)** | Cross-frame methodology | ✅ Default-deny | Nothing. Cross-frame `?normalization=zscore` requests against the new language refuse out-of-the-box. Granting equivalence is a Phase-123-style operations workflow, not an extension. | 0 |
@@ -92,13 +92,13 @@ Consumers:
 - `scripts/build/generate_metric_validity_scaffold.py` (run via `make scaffold-metric-validity`) emits one block per `(language, metric_name, tier)` triple into `infra/clickhouse/seed/metric_validity_scaffold_generated.sql`. Drift is a CI failure.
 - The BFF reads the same YAML at startup and gates every endpoint that accepts `?language=` against the manifest's keys; unknown values produce a structured `gate=invalid_language` refusal payload.
 
-The matrix above remains hand-maintained for now. Auto-generation of the matrix from the manifest is slated for Phase 122a.
+The matrix above remains hand-maintained for now. Auto-generation of the matrix from the manifest is slated for Phase 125a.
 
 ---
 
 ## Worked example: adding French (Probe 1)
 
-Concrete diff for adding French support, as a reference for future language additions. This is what Phase 122 actually does, condensed.
+Concrete diff for adding French support, as a reference for future language additions. This is what Phase 125 actually does, condensed.
 
 ### `services/analysis-worker/requirements.txt`
 
@@ -148,7 +148,7 @@ New file: `feel.csv` from the FEEL French Expanded Emotion Lexicon (CC-licensed)
 
 ### `configs/cultural_calendars/fr.yaml`
 
-New file. Initial content per Phase 122: French federal public holidays, presidential/legislative election dates, Bastille Day, August holiday rhythm, Easter-based movable feasts.
+New file. Initial content per Phase 125: French federal public holidays, presidential/legislative election dates, Bastille Day, August holiday rhythm, Easter-based movable feasts.
 
 ### Tier 2 BERT
 

@@ -11,7 +11,7 @@
 --
 -- Type-choice rationale: String DEFAULT '', not Nullable(String). An
 -- equivalence entry without a notes summary is valid (e.g. the temporal-Level
--- grant for Probe 0 × Probe 1 in Phase 123, whose rationale is fully captured
+-- grant for Probe 0 × Probe 1 in Phase 126, whose rationale is fully captured
 -- in WP-004 Appendix B and needs no additional paraphrase). The IF NOT EXISTS
 -- guard matches the existing migration idempotency pattern.
 

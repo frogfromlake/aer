@@ -959,4 +959,4 @@ Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 
 
 **Versioning commitment.** `manifest_version: 1` is the only currently-recognised version. Future schema bumps will arrive with explicit migration guidance per ADR-024; the `manifest_version` field exists precisely so a stale worker reading a future manifest fails fast at startup rather than silently degrading. The same fail-fast contract applies to the BFF.
 
-**Adding a language.** See `docs/extending/add-a-language.md` for the operator workflow. The matrix in that document is the human-readable view of the manifest; auto-generation of the matrix from the manifest is slated for Phase 122a.
+**Adding a language.** See `docs/extending/add-a-language.md` for the operator workflow. The matrix in that document is the human-readable view of the manifest; auto-generation of the matrix from the manifest is slated for Phase 125a.

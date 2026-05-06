@@ -17,7 +17,7 @@ These layers are multilingual-by-construction or trivially additive. Adding the 
 | Phase 120 BERTopic with E5-large | `intfloat/multilingual-e5-large` covers 100 languages on the MTEB benchmark; per-language partitioning is automatic | All 100 E5 languages |
 | Phase 121 Topic View Modes | Sprachagnostisches frontend rendering | Any number of language partitions in parallel |
 | Phase 115 Equivalence Registry | Default-deny — empty table scales trivially; equivalence grants are individual scientific decisions | Up to N×(N−1)/2 probe-pair entries |
-| Cultural Calendar | Linear per-region YAML files; trivial to author and version | Verified for `de`; `fr` planned (Phase 122) |
+| Cultural Calendar | Linear per-region YAML files; trivial to author and version | Verified for `de`; `fr` planned (Phase 125) |
 | Phase 114 Multi-Probe Composition | ClickHouse `IN (...)` indexed scan; scales with index, not probe count | Tested with 1 probe; designed for arbitrary N |
 | Probe Registry | Pure config in BFF | Linear additive |
 | Frontend rendering | Sprachagnostisches; view modes render arbitrary language partitions in parallel | Limited only by visual complexity at high N |
@@ -54,7 +54,7 @@ These are real bottlenecks. They are not blockers today — they will become pai
 
 **Threshold:** Probe 3 (i.e., now — Probe 1 already triggers this).
 
-**Problem:** Phase 119 ships `mdraw/german-news-sentiment-bert` as the German Tier 2 extractor. Phase 122's NLP section sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. **At 50 languages, maintaining 50 separate per-language BERT extractors is operationally untenable**: 50 pinned model revisions, 50 determinism CI gates, exploding Docker image size, 50 memory footprints.
+**Problem:** Phase 119 ships `mdraw/german-news-sentiment-bert` as the German Tier 2 extractor. Phase 125's NLP section sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. **At 50 languages, maintaining 50 separate per-language BERT extractors is operationally untenable**: 50 pinned model revisions, 50 determinism CI gates, exploding Docker image size, 50 memory footprints.
 
 The methodological tension is real: per-language models trained on the news domain (like `mdraw`) offer better in-domain accuracy than multilingual models, but that quality advantage scales as N, not log(N).
 
@@ -66,7 +66,7 @@ The methodological tension is real: per-language models trained on the news doma
 - Optional Tier 2.5 per-language refinement: `mdraw/german-news-sentiment-bert`, `cmarkea/distilcamembert-...`, etc. Metric name `sentiment_score_bert_<lang>_<domain>`. Available where higher-quality per-language models exist on Hugging Face Hub.
 - Both metrics ship in parallel where both apply. Dashboard renders both with Epistemic Weight per Brief §7.8. The gap between them is itself a methodological observation (domain transfer signal per WP-002 §3.2).
 
-**Why this matters now:** Phase 122 will ship Probe 1 with French sentiment. The decision *which* Tier 2 model to use for French, and how it relates to a future multilingual default, should be captured in an ADR before that pattern hardens. **Recommendation:** author ADR-022 before Phase 119 implementation begins for the second language.
+**Why this matters now:** Phase 125 will ship Probe 1 with French sentiment. The decision *which* Tier 2 model to use for French, and how it relates to a future multilingual default, should be captured in an ADR before that pattern hardens. **Recommendation:** author ADR-022 before Phase 119 implementation begins for the second language.
 
 ### Cultural Calendar composition
 
@@ -100,13 +100,13 @@ events:
 
 At N = 3 probes, the lack of a coverage map becomes acutely felt: which language has Tier 1 sentiment? Which has NER? Which discourse functions are covered for Germany? For France? Today the answer requires reading three dossier README files; it should be one visual.
 
-**Proposed answer:** a new ROADMAP phase, sequenced after Phase 122 (Probe 1 lands → coverage map becomes meaningful) and before Phase 124 (Composition Mode → coverage map is its prerequisite navigational element). Sketch:
+**Proposed answer:** a new ROADMAP phase, sequenced after Phase 125 (Probe 1 lands → coverage map becomes meaningful) and before Phase 127 (Composition Mode → coverage map is its prerequisite navigational element). Sketch:
 
 - Backend: `GET /api/v1/coverage/map` returning per-region per-discourse-function coverage status, plus per-probe analytical capability (NER tier, sentiment tier, calendar coverage).
 - Frontend: a D3-based world map module on Surface I, layered as a togglable view alongside the probe glow. Negative-space markings for unobserved regions.
 - Doc: WP-001 §5.3 cross-link marked as operationalised.
 
-**When to plan:** insert as a P2 phase right after Phase 122 in the next ROADMAP revision.
+**When to plan:** insert as a P2 phase right after Phase 125 in the next ROADMAP revision.
 
 ### Equivalence Registry UX scaling
 
@@ -139,8 +139,8 @@ In rough priority order — these are the ADRs that should land before they beco
 | Priority | ADR | Trigger | Owner | Effort |
 | :--- | :--- | :--- | :--- | :--- |
 | **High** | ADR-022: Multilingual Sentiment Strategy | Before Phase 119 implementation for the second language | Engineering Lead | 1 afternoon |
-| **High** | Language Capability Manifest | Before Phase 122 — drives `metric_validity` scaffolds, Coverage Map, [add-a-language.md](add-a-language.md) | Engineering Lead | 1 day |
-| **Medium** | Probe Coverage Map (ROADMAP phase, not ADR) | Before Phase 124 — Coverage Map is a prerequisite navigation element | Engineering Lead | 2–3 days for the phase itself |
+| **High** | Language Capability Manifest | Before Phase 125 — drives `metric_validity` scaffolds, Coverage Map, [add-a-language.md](add-a-language.md) | Engineering Lead | 1 day |
+| **Medium** | Probe Coverage Map (ROADMAP phase, not ADR) | Before Phase 127 — Coverage Map is a prerequisite navigation element | Engineering Lead | 2–3 days for the phase itself |
 | **Medium** | ADR (sketch only): Cultural Calendar Composition | At N = 10 probes | Engineering Lead | Sketch now (this doc), full ADR later |
 | **Low** | ADR (sketch only): Multilingual NER Fallback | At N = 5 probes without spaCy NER coverage | Engineering Lead | Out-of-band |
 

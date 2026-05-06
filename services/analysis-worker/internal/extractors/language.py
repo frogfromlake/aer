@@ -17,7 +17,7 @@ logger = structlog.get_logger()
 # so on disagreement lingua-py is the de-facto decider for Probe 0. langdetect
 # still contributes to the consensus when it agrees with lingua-py and is
 # preserved in `aer_gold.language_detections` at rank 2..N+1 for audit. The
-# threshold becomes load-bearing for longer-text probes (Phase 122+).
+# threshold becomes load-bearing for longer-text probes (Phase 125+).
 _SHORT_TEXT_THRESHOLD = 100
 
 

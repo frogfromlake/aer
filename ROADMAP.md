@@ -2740,56 +2740,59 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 * [x] `make help` lists every routine operation; running `grep -r "python scripts/" Makefile` returns no hits except the `scripts/operations/` and `scripts/build/` paths (no raw `python scripts/<root>.py` invocations remain).
 * [x] Operations playbook's "Routine operations" table is the complete set of steady-state developer commands; a fresh contributor can onboard with the playbook + `make help` alone.
 
+
+## Phase 121: Topic View Modes (Frontend) [P2] - [x] DONE
+
+*Adds two topic-based cells to the view-mode matrix (Brief §4.2.3): a topic distribution ridgeline plot and a temporal topic evolution stream graph. Both are Episteme-pillar view modes — the first dashboard cells that directly operationalise "measuring shifts in the expressible" (Arc42 §13.4). Depends on Phase 120 (BFF `GET /api/v1/topics/distribution`).*
+
+### Frontend (Dashboard)
+
+* [x] **Topic distribution cell.** Register `topic_distribution` in the view-mode matrix catalog (`services/bff-api/configs/content/`). Presentation form: ridgeline or violin plot (Observable Plot, same pattern as Phase 107 EDA distribution cells). One ridge per topic, width = article count in window, sorted by volume descending. Outlier topic (`topic_id=-1`) rendered as a greyed "uncategorised" ridge, not hidden — the outlier is an observation, not an error. Dual-Register tooltip: semantic register shows the topic label; methodological register shows `model_hash`, BERTopic version, the embedding model (E5-large), and the WP-002 §8.1 Option C Tier 2 caveat (reproducible with pinned version, not bit-for-bit deterministic).
+* [x] **Temporal topic evolution cell.** Register `topic_evolution` in the view-mode matrix. Presentation: Observable Plot stacked area / stream graph. X-axis: time window; Y-axis: article volume per topic per time slice; streams coloured by Viridis palette (no valence — topic colour is arbitrary). `prefers-reduced-motion` degrades to a static stacked bar chart. This cell answers the Episteme question directly: how do the discourse topic boundaries shift over the observed period?
+* [x] **Language-partition awareness.** Both cells respect Phase 120's per-language topic partitioning: when the active scope spans multiple languages, the cell renders one ridge-set / stream-set per language, side-by-side, not merged. Forced cross-language topic alignment is explicitly refused at the rendering layer with a methodological-register tooltip pointing to WP-004 §3.4.
+* [x] **Content catalog entries.** Both cells get Dual-Register content catalog entries in `services/bff-api/configs/content/` with semantic-register description, methodological-register prose (BERTopic, sentence-transformer model, Tier 2 status caveat, WP-001 cross-link to the four discourse functions as the expected high-level topic structure), and WP-002 §8.1 anchor.
+
+### Tests
+
+* [x] **Vitest unit.** Catalog entries render correct Dual-Register structure; outlier topic renders as "uncategorised" not hidden.
+* [x] **Playwright E2E.** Switching to `topic_distribution` view mode calls `/api/v1/topics/distribution` and renders at least one ridge.
+
+### Documentation
+
+* [x] **ADR-020 §Implementation-Outline · Phase 121.** Record the two new matrix cells, the stream graph as the Episteme-pillar-native rendering primitive, the language-partition awareness, and the Dual-Register Tier 2 methodology-tray content.
+
+### Validation
+
+* [x] `make lint && make fe-check` green. Manual: both topic cells visible in the view-mode switcher for the active metric; switching renders correctly; methodology tray shows BERTopic provenance and the Tier 2 caveat.
+
 ---
 
 # Open Phases
 
 ---
 
-# Iteration 6 — NLP Hardening & Scientific Rigor
+# Iteration 6 — NLP Hardening & Scientific Rigor (Closing)
 
-*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
-
-*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
-
----
-
-## Phase 121: Topic View Modes (Frontend) [P2] - [ ] TODO
-
-*Adds two topic-based cells to the view-mode matrix (Brief §4.2.3): a topic distribution ridgeline plot and a temporal topic evolution stream graph. Both are Episteme-pillar view modes — the first dashboard cells that directly operationalise "measuring shifts in the expressible" (Arc42 §13.4). Depends on Phase 120 (BFF `GET /api/v1/topics/distribution`).*
-
-### Frontend (Dashboard)
-
-* [ ] **Topic distribution cell.** Register `topic_distribution` in the view-mode matrix catalog (`services/bff-api/configs/content/`). Presentation form: ridgeline or violin plot (Observable Plot, same pattern as Phase 107 EDA distribution cells). One ridge per topic, width = article count in window, sorted by volume descending. Outlier topic (`topic_id=-1`) rendered as a greyed "uncategorised" ridge, not hidden — the outlier is an observation, not an error. Dual-Register tooltip: semantic register shows the topic label; methodological register shows `model_hash`, BERTopic version, the embedding model (E5-large), and the WP-002 §8.1 Option C Tier 2 caveat (reproducible with pinned version, not bit-for-bit deterministic).
-* [ ] **Temporal topic evolution cell.** Register `topic_evolution` in the view-mode matrix. Presentation: Observable Plot stacked area / stream graph. X-axis: time window; Y-axis: article volume per topic per time slice; streams coloured by Viridis palette (no valence — topic colour is arbitrary). `prefers-reduced-motion` degrades to a static stacked bar chart. This cell answers the Episteme question directly: how do the discourse topic boundaries shift over the observed period?
-* [ ] **Language-partition awareness.** Both cells respect Phase 120's per-language topic partitioning: when the active scope spans multiple languages, the cell renders one ridge-set / stream-set per language, side-by-side, not merged. Forced cross-language topic alignment is explicitly refused at the rendering layer with a methodological-register tooltip pointing to WP-004 §3.4.
-* [ ] **Content catalog entries.** Both cells get Dual-Register content catalog entries in `services/bff-api/configs/content/` with semantic-register description, methodological-register prose (BERTopic, sentence-transformer model, Tier 2 status caveat, WP-001 cross-link to the four discourse functions as the expected high-level topic structure), and WP-002 §8.1 anchor.
-* [ ] **Tests.** Vitest: catalog entries render correct Dual-Register structure; outlier topic renders as "uncategorised" not hidden. Playwright E2E: switching to `topic_distribution` view mode calls `/api/v1/topics/distribution` and renders at least one ridge.
-
-### Documentation
-
-* [ ] **ADR-020 §Implementation-Outline · Phase 121.** Record the two new matrix cells, the stream graph as the Episteme-pillar-native rendering primitive, the language-partition awareness, and the Dual-Register Tier 2 methodology-tray content.
-* [ ] **Validation.** `make lint && make fe-check` green. Manual: both topic cells visible in the view-mode switcher for the active metric; switching renders correctly; methodology tray shows BERTopic provenance and the Tier 2 caveat.
+*Two remaining phases that close out the Iteration-6 dashboard surface. The seven backend phases (116–120, 118a, 118b) have shipped; Phase 120b reset the system to a clean Iteration-6 baseline. Phases 121 and 121b convert the iteration's user-visible promises into rendered pixels before Iteration 7 lands the Probe 0 web-crawling migration.*
 
 ---
 
 ## Phase 121b: Iteration 6 Dashboard Completion [P2] - [ ] TODO
 
-*Closes the dashboard-wiring gap left after Iteration 6's backend phases (116, 117, 118, 118a, 119) shipped without dedicated frontend work. Each preceding phase either deferred its dashboard surface to "manual smoke test" (Phase 119), exposed a new field that the frontend never consumed (Phase 118 `wikidataQid`), or surfaced an artefact the dashboard inherited without explicit cleanup (Phase 117 legacy `sentiment_score` row in `/metrics/available`). This phase makes the iteration's user-visible promises concrete before Iteration 7 lands a second probe and amplifies any latent UI gap.*
+*Closes the dashboard-wiring gap left after Iteration 6's backend phases (116, 117, 118, 118a, 119) shipped without dedicated frontend work. Each preceding phase either deferred its dashboard surface to "manual smoke test" (Phase 119), exposed a new field that the frontend never consumed (Phase 118 `wikidataQid`), or surfaced an artefact the dashboard inherited without explicit cleanup (Phase 117 legacy `sentiment_score` row in `/metrics/available`). This phase makes the iteration's user-visible promises concrete before Iteration 7 lands the Probe 0 web-crawling migration and amplifies any latent UI gap.*
 
 *Scope discipline.* This phase adds **no new metrics, no new endpoints, no new methodology**. Every item is either (a) wiring frontend code to a backend field that already exists, (b) removing or deduplicating a stale artefact, or (c) verifying that a piece of Iteration-6 work the previous phase left as "manual smoke test" actually renders correctly under live data. Anything found broken that requires a backend change is split into its own follow-up ticket — this phase does not absorb scope creep.
 
 ### Phase 117 cleanup — legacy `sentiment_score` deduplication
 
-* [ ] **`/metrics/available` filters alias keys (forward-looking defensive guard).** After Phase 120b's wipe, the immediate Phase-117 duplicate is gone — the underlying `aer_gold.metrics` no longer contains pre-rename rows. The filter ships **anyway**, reframed as a forward-looking contract: any future metric rename creates the same recurrence pattern (the alias rewrite handles incoming requests via `metric_aliases.go::canonicalMetricName`, but `/metrics/available` reads `SELECT DISTINCT metric_name FROM aer_gold.metrics` — pre-rename rows would surface in `MetricSwitcher` for the 365-day Gold TTL window). Fix: in the BFF handler `GetMetricsAvailable`, drop any row whose `metricName` is a key of `metricNameAliases` — the canonical name already appears in the same response, so the legacy entry would only ever be a duplicate. Add a regression test in `services/bff-api/internal/handler/metrics_handler_test.go` that seeds both names and asserts only the canonical one is returned. Cost: ~3 lines of Go + 1 test. Benefit: no future rename ever surfaces a duplicate, regardless of whether or not a wipe has occurred.
+* [ ] **`/metrics/available` filters alias keys (forward-looking defensive guard).** After Phase 120b's wipe, the immediate Phase-117 duplicate is gone — the underlying `aer_gold.metrics` no longer contains pre-rename rows. The filter ships **anyway**, reframed as a forward-looking contract: any future metric rename creates the same recurrence pattern (the alias rewrite handles incoming requests via `metric_aliases.go::canonicalMetricName`, but `/metrics/available` reads `SELECT DISTINCT metric_name FROM aer_gold.metrics` — pre-rename rows would surface in `MetricSwitcher` for the 365-day Gold TTL window). Fix: in the BFF handler `GetMetricsAvailable`, drop any row whose `metricName` is a key of `metricNameAliases` — the canonical name already appears in the same response, so the legacy entry would only ever be a duplicate. Add a regression test in `services/bff-api/internal/handler/metrics_handler_test.go` that seeds both names and asserts only the canonical one is returned.
 * [ ] **Methodology tray verification for `sentiment_score_sentiws`.** Manual: open the methodology tray for the SentiWS metric, confirm it lists the three Phase-117 hardening features (dependency-based negation, compound split, custom lexicon) and references ADR-016's dual-metric pattern. If the content YAML at `services/bff-api/configs/content/{en,de}/metrics/sentiment_score_sentiws.yaml` does not yet describe the Phase-117 hardening, file a content-only PR — no code change.
 
 ### Phase 118 — Wikidata / Wikipedia external links on entities
 
-* [ ] **External-link rendering on entity nodes (force-directed graph).** The BFF already returns `wikidataQid` on `aer_gold.entity_links` LEFT-JOINed onto `/entities/cooccurrence` graph nodes (Phase 118 line 34: "enables the frontend to surface Wikipedia/Wikidata external links on network-graph nodes without a follow-up call"). The dashboard component that renders the node detail panel / hover card must build the link as `https://www.wikidata.org/wiki/<QID>` (canonical, language-agnostic) plus an optional Wikipedia link via `https://www.wikidata.org/wiki/Special:GoToLinkedPage/<lang>wiki/<QID>` for the active locale. Nodes without a `wikidataQid` (linker found no match) render the existing tooltip with no external-link section — absence is not wrong (Brief §7.7).
+* [ ] **External-link rendering on entity nodes (force-directed graph).** The BFF already returns `wikidataQid` on `aer_gold.entity_links` LEFT-JOINed onto `/entities/cooccurrence` graph nodes. The dashboard component that renders the node detail panel / hover card must build the link as `https://www.wikidata.org/wiki/<QID>` (canonical, language-agnostic) plus an optional Wikipedia link via `https://www.wikidata.org/wiki/Special:GoToLinkedPage/<lang>wiki/<QID>` for the active locale. Nodes without a `wikidataQid` (linker found no match) render the existing tooltip with no external-link section — absence is not wrong (Brief §7.7).
 * [ ] **External-link rendering on entity table rows (`/entities` endpoint).** The same `wikidataQid` field is exposed on the aggregated entities response. Wherever the dashboard renders a tabular or list view of entities, attach the Wikidata link as a small icon-only `<a target="_blank" rel="noopener">` next to the entity text. Methodology-tray content carries the Phase-118 link-confidence + link-method explanation (`exact_match` / `alias_lookup` / `accent_fold`) so the user understands why a link is or is not present.
 * [ ] **a11y + reduced-motion.** External links must be keyboard-reachable, announce as "external" via `aria-label`, and respect the existing icon-button focus ring. No new motion — this is markup only.
-* [ ] **Tests.** Vitest: a node payload with `wikidataQid: "Q42"` renders an `<a>` whose `href` matches the Wikidata canonical pattern; a node without `wikidataQid` does not render an `<a>`. Playwright E2E: clicking through to Wikidata in a real cooccurrence graph opens the QID page (use `expect(page).toHaveURL(...)` against the canonical pattern; do not actually navigate the browser to the public site in CI — the assertion is on the `href` attribute).
 
 ### Phase 118a — language-refusal payload UI verification
 
@@ -2798,9 +2801,9 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 ### Phase 119 — Tier-2 sentiment dashboard wiring (verification, not net-new)
 
 * [ ] **Tier-2 metrics appear in `MetricSwitcher`.** Manual: confirm `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news` both appear as switchable metrics. If `MetricSwitcher` filters by tier and incorrectly hides Tier-2.5, file a follow-up ticket — do not extend this phase's scope.
-* [ ] **Epistemic Weight badge collapses Tier 2.5 → Tier 2.** Per Phase 119's instruction (line 2566), `pickBadgeTier` in `services/dashboard/src/lib/components/chrome/methodology-tray-internals.ts` must already collapse `tier 2 unvalidated` and `tier 2.5 unvalidated` to the same `tier1-unvalidated`-style Epistemic Weight badge (Brief §5.8 — Epistemic Weight is a function of evidence, not naming). Add a Vitest unit test pinning this collapse: input `{tier: 2.5, validationStatus: "unvalidated"}` → output the `tier1-unvalidated` badge variant. Without the test, a future refactor silently drifts the rendering away from the Brief.
+* [ ] **Epistemic Weight badge collapses Tier 2.5 → Tier 2.** Per Phase 119's instruction, `pickBadgeTier` in `services/dashboard/src/lib/components/chrome/methodology-tray-internals.ts` must already collapse `tier 2 unvalidated` and `tier 2.5 unvalidated` to the same `tier1-unvalidated`-style Epistemic Weight badge (Brief §5.8 — Epistemic Weight is a function of evidence, not naming). Add a Vitest unit test pinning this collapse: input `{tier: 2.5, validationStatus: "unvalidated"}` → output the `tier1-unvalidated` badge variant. Without the test, a future refactor silently drifts the rendering away from the Brief.
 * [ ] **Methodology-tray content audit for the three sentiment metrics.** Open each metric's methodology tray (`sentiment_score_sentiws`, `sentiment_score_bert_multilingual`, `sentiment_score_bert_de_news`) and confirm each one cites: its model + revision, the Phase-119 determinism gate, ADR-023 for the tier hierarchy, and WP-002 §3.2 for the domain-transfer caveat (Tier-2 entries only). Missing items are content-YAML fixes, not code changes.
-* [ ] **`/reflection/metric/<name>` smoke check.** Phase 119 line 2565 mandated `/reflection/metric/<name>` renders without "unavailable" state for the new metrics. Convert the manual check into a Playwright E2E that visits each of the three sentiment URLs and asserts no error banner is rendered.
+* [ ] **`/reflection/metric/<name>` smoke check.** Convert the Phase-119 manual check into a Playwright E2E that visits each of the three sentiment URLs and asserts no error banner is rendered.
 
 ### Phase 116 — `language_variety` decision
 
@@ -2809,10 +2812,15 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
   - **(B)** Keep it metadata-only with an explicit note in the language-detections methodology tray: "TLD-derived publishing locale, retained for Silver provenance only — not a dialect classifier (WP-002 §3.4)." No frontend wiring.
   Either choice is correct under the Brief; the wrong move is to leave it half-surfaced. Record the decision as a one-paragraph addendum to ADR-024 (Capability Manifest) under "Out-of-scope: language varieties".
 
+### Tests
+
+* [ ] **Vitest.** A node payload with `wikidataQid: "Q42"` renders an `<a>` whose `href` matches the Wikidata canonical pattern; a node without `wikidataQid` does not render an `<a>`. `pickBadgeTier({tier: 2.5, validationStatus: "unvalidated"})` returns the `tier1-unvalidated` variant.
+* [ ] **Playwright E2E.** Each `/reflection/metric/<name>` URL for the three sentiment metrics renders without an error banner; clicking through to Wikidata in a real cooccurrence graph opens the QID page (assert on `href` attribute, do not navigate).
+
 ### Documentation
 
 * [ ] **ROADMAP closure.** Mark Iteration 6 as fully closed at the dashboard layer once all bullets above are checked.
-* [ ] **CLAUDE.md.** No structural changes expected — this phase is a wiring closure, not a new architectural concept. Add a one-line note to "BFF API Endpoints" if the `/metrics/available` alias-filter behaviour is worth surfacing (it is — clients depend on the de-duplication contract).
+* [ ] **CLAUDE.md.** Add a one-line note to "BFF API Endpoints" surfacing the `/metrics/available` alias-filter behaviour as a contract clients depend on.
 * [ ] **ADR-024 addendum.** Capture the `language_variety` visibility decision (option A or B above) so a future contributor does not relitigate it.
 
 ### Validation
@@ -2825,125 +2833,269 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 ---
 
-# Iteration 7 — Probe Expansion & Cross-Cultural Operations
+# Iteration 7 — Data Collection Maturation & Authenticity Foundation
 
-*Three phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115) and the multilingual NLP foundation from Iteration 6 (Phases 116–121b, plus 118a) and put them into operation. Phase 122 lands the second probe — the first non-German cultural context. Phase 122a operationalises the Coverage Map mandated by WP-001 §5.3 and consumes the Capability Manifest from Phase 118a. Phase 123 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 122 establishes the second context; Phase 122a makes the coverage transparent; Phase 123 puts the pair into methodologically disciplined comparison.*
+*Three phases that mature AĒR's data-collection layer from RSS-snippet calibration to scientifically defensible full-article ingestion, and that lay the architectural foundation for the WP-003 §5 non-human-actor research question. Phase 122 retires the RSS pipeline in favour of polite, robots-respecting full-article web crawling — RSS snippets are too short for meaningful sentiment, NER, or topic modelling, and contaminate Gold-layer baselines with truncated text. Phase 123 implements the first Tier-1 stylometric authenticity extractors that operate on the new full-text corpus, giving the system a deterministic baseline for AI-generated and bot-amplified content detection. Phase 124 surfaces the authenticity signals through the existing dashboard architecture (no new surface — Solo-developer scope discipline). The iteration is positioned before Probe 1 (Phase 125) so the second probe inherits the mature pattern from day one rather than requiring a parallel migration later.*
 
 ---
 
-## Phase 122: Probe 1 — French Institutional RSS [P2] - [ ] TODO
+## Phase 122: Probe 0 Migration — Full-Article Web Crawling [P1] - [ ] TODO
 
-*Lands the first non-German probe: `francetvinfo.fr` (`Audiovisuel public` analogue to Tagesschau, Epistemic Authority primary) + `gouvernement.fr` (`Service d'Information du Gouvernement` analogue to Bundesregierung, Power Legitimation primary). The probe deliberately mirrors Probe 0's discourse-function coverage so cross-probe composition (Phase 114) has overlapping lanes — Cohesion & Identity and Subversion & Friction remain unrepresented in both probes; that scope is reserved for a probe with a real WP-006 §5.2 ethical-review partner. Exercises the multi-probe composition infrastructure (Phase 114), the cross-cultural refusal surface (Phase 115), and the multilingual NLP pipeline (Phase 116) in production for the first time. Phase 116 is a hard technical prerequisite; Phase 118a (Capability Manifest) is a hard prerequisite for the manifest-driven NLP entries below; Phases 117 and 119 are German-specific and not blocking; Phases 118 and 120 are multilingual-by-construction and produce a one-time backfill if they ship after this phase rather than before.*
+*Migrates Probe 0's two sources (`tagesschau.de`, `bundesregierung.de`) from RSS-feed ingestion to full-article web crawling. RSS feeds deliver title + short description (typically 100–300 characters); the analysis worker has been operating on truncated text since Phase 40, which materially undermines every downstream extractor: SentiWS scores compounds whose disambiguating context is missing, spaCy NER misses entities that appear only in article bodies, BERTopic clusters on titles instead of full discourse, and the Tier-2 BERT sentiment models (Phase 119) operate well below their actual capability. This phase replaces RSS with a polite, robots-respecting full-article crawler using state-of-the-art free open-source tooling, retains the Bronze/Silver/Gold Medallion architecture unchanged, extends `SilverMeta` with a new `WebMeta` envelope, and produces dramatically higher-quality inputs for every downstream extractor without altering a single Gold table schema.*
 
-*Source-selection rationale (WP-001 §5.1).* France was selected as the first non-German cultural context for four engineering reasons: (1) `fr_core_news_lg` spaCy model exists, so Phase 116 NER routing works without per-language tooling work; (2) FEEL exists as a Tier 1 sentiment counterpart and `cmarkea/distilcamembert-base-sentiment` exists as a Tier 2.5 refinement (per ADR-023; the Tier 2 default is the multilingual model from Phase 119 which covers French automatically), so Phases 117 and 119 patterns extend cleanly; (3) structural parallelism with Probe 0 is high — republic with public broadcaster, formal government press releases — keeping the cross-probe composition methodologically clean; (4) latinic vs. germanic linguistic distance exercises the Phase 116 language router realistically. Non-European contexts (Japan, South Korea, MENA) are deferred to a later probe because they would simultaneously activate NER-model gaps, cultural-calendar complexity, topic-modeling ontology mismatches, and ethical-review hurdles — beyond the engineering-POC scope of this phase.*
+*Tooling rationale (state of the art, April 2026).* Three free open-source choices, each industry-leading and Apache 2.0 / MIT / GPL-compatible:
+- **Content extraction: `trafilatura`** (Apache 2.0). State-of-the-art article extractor since 2022; consistently outperforms `readability`, `goose3`, `newspaper3k`, and `boilerpipe` on the standard CleanEval / GoldenStandard benchmarks. Handles main-content extraction, metadata (author, date, language, categories), and emits cleaned plaintext + structured XML in one pass. Pure Python, deterministic, no GPU.
+- **Crawl orchestration: `Scrapy 2.x`** (BSD-3). Mature, battle-tested asynchronous crawler framework. Handles robots.txt, rate limiting, conditional GETs (`If-Modified-Since` / `ETag`), retry logic, and politeness defaults better than any alternative. The site set for Probe 0 is server-side rendered (no JavaScript dependency) — Scrapy is the right tool; Playwright/Crawlee is held in reserve for Phase 125+ if a future site requires JS execution.
+- **Sitemap discovery: `ultimate-sitemap-parser`** (MIT). Parses `sitemap.xml` indices recursively and yields URLs with last-modified timestamps. Both Probe 0 sources publish sitemaps; this is the primary URL-discovery path. RSS feeds remain a secondary discovery hint for newly-published items not yet in sitemaps.
+
+*Architectural shape.* The new crawler is a standalone Python binary (`crawlers/probe0-de-web/`) following the Phase-40 RSS-crawler pattern but in Python rather than Go — Python is chosen because trafilatura is Python-only and the alternative (Go crawler invoking trafilatura via subprocess) introduces process-boundary overhead and deployment complexity for no architectural benefit. The crawler container joins the existing `aer-backend` network and posts to `ingestion-api:8081/api/v1/ingest` with the existing `X-API-Key` auth — the ingestion contract is unchanged. The Bronze layer ingests raw HTML + fetch metadata; the analysis worker's new `WebAdapter` (per ADR-015) extracts cleaned text via trafilatura at harmonisation time and writes the result to Silver. This places content extraction at the Bronze → Silver boundary, consistent with the Manifesto's commitment that Bronze is verbatim source-of-truth.
+
+### Schema (PostgreSQL + ClickHouse + MinIO)
+
+* [ ] **PostgreSQL seed migrations.** Two migrations (use the next free indices — verify with `ls infra/postgres/migrations/`):
+  - `0000NN_probe0_web_source_type.up.sql`: updates the existing Probe 0 `sources` rows to `source_type = 'web'` (was `'rss'`). Down migration restores `'rss'`. Comment block documents that the source identity is unchanged — only the collection method.
+  - `0000NN_probe0_documentation_url_refresh.up.sql`: refreshes the `documentation_url` column to point at the updated Probe 0 dossier post-migration.
+* [ ] **MinIO Bronze key pattern.** New pattern: `web/<source>/<sha256(canonical_url)>/<published_date>.json`. Replaces the RSS pattern `rss/<source>/<guid_hash>/<date>.json`. Old keys remain readable for the 90-day Bronze TTL window; the Phase 122 cutover runs `make reset` followed by `make crawl-probe0-web` — the same wipe-and-recrawl pattern Phase 120b established.
+* [ ] **`SilverMeta` extension — `WebMeta`.** New Pydantic class `services/analysis-worker/internal/adapters/web_meta.py` mirroring the `RssMeta` shape: `canonical_url`, `original_url` (in case of redirects), `author`, `published_date`, `modified_date`, `html_lang`, `categories: list[str]`, `paywall_indicator: bool`, `sitemap_section: str | None`. ADR-015 explicitly marks `SilverMeta` subclasses as unstable; no ADR amendment is required for this addition.
+* [ ] **No Gold-layer schema changes.** Every existing extractor (sentiment, NER, language detection, topic modelling, entity linking) operates on `SilverCore.cleaned_text` and is schema-agnostic to the source type. The Gold tables (`aer_gold.metrics`, `aer_gold.entities`, `aer_gold.entity_links`, `aer_gold.topic_assignments`, `aer_gold.language_detections`) are untouched.
+
+### Crawler
+
+* [ ] **Implement `crawlers/probe0-de-web/`.** Standalone Python binary, own `pyproject.toml`, Dockerfile, image registered under `ghcr.io/frogfromlake/aer-probe0-de-web-crawler`:
+  - `main.py` — CLI entry point. Flags: `-config <path>`, `-api-url`, `-sources-url`, `-api-key`. Reads source config, resolves `source_id` per source via `GET /api/v1/sources?name=<n>`, orchestrates crawl, posts to ingestion API.
+  - `internal/discovery/sitemap.py` — Sitemap parsing via `ultimate-sitemap-parser`. Yields `(url, last_modified)` tuples. Fallback: RSS feed parsing for items not yet in sitemap (existing `gofeed`-equivalent pattern via `feedparser`).
+  - `internal/fetch/scrapy_spider.py` — Scrapy spider with: robots.txt enforcement (`ROBOTSTXT_OBEY = True`), per-domain rate limiting (`DOWNLOAD_DELAY = 1.0`, `AUTOTHROTTLE_ENABLED = True`), `If-Modified-Since` / `ETag` conditional GETs against the dedup state, exponential-backoff retry on 5xx, transparent gzip/brotli decompression, polite `User-Agent` identifying AĒR + contact email per WP-006 §5.1 transparency principle.
+  - `internal/extract/trafilatura_extract.py` — Trafilatura wrapper. Operates on raw HTML, returns `{ cleaned_text, author, published_date, modified_date, html_lang, categories }`. Deterministic per the trafilatura contract; pinned version via `requirements.txt`.
+  - `internal/state/dedup.py` — PostgreSQL-backed dedup state (replaces the RSS crawler's local JSON file). Tracks `(source_id, canonical_url, last_fetched, etag, last_modified, content_hash)`. New table `crawler_state` via migration `0000NN_create_crawler_state.up.sql`. Prevents re-ingestion on repeated runs and supports cross-container persistence.
+  - `internal/translate/contract.py` — Maps fetched + extracted data to the Ingestion Contract. Sets `source_type: "web"` in the `data` payload. Embeds the raw HTML, fetch metadata (status, headers minus tracking cookies, fetch_at timestamp), and trafilatura-extracted fields. The `WebAdapter` in the analysis worker pulls the trafilatura output into `SilverCore.cleaned_text`; raw HTML stays Bronze-only and is not promoted to Silver per Manifesto §III data-minimisation.
+* [ ] **Sources config (`sources.yaml`).** Replaces `feeds.yaml` for the web crawler. Each source entry: `{ name, sitemap_url, rss_fallback_url, allowed_paths: [<regex>], denylist_paths: [<regex>], crawl_depth: 1 }`. Adding a new web source is one YAML entry plus the existing PostgreSQL seed-migration pattern.
+* [ ] **Compose service.** New service `probe0-de-web-crawler` under Compose profile `crawlers`, joining the `aer-backend` network. Persists dedup state in PostgreSQL (no named volume needed — the crawler is now stateless on disk). Image is built in CI via the new workflow `.github/workflows/crawler-probe0-de-web-build.yml` and pushed to GHCR.
+* [ ] **Makefile target.** New `make crawl-probe0` target invokes the web crawler service. The legacy `make crawl` target is retained as an alias for one release cycle, then retired in Phase 131.
+* [ ] **`go.work` retirement of the RSS crawler.** Remove `crawlers/rss-crawler/` from `go.work`. Move the directory to `crawlers/_archived/rss-crawler/` with a README explaining the migration. The `_archived/` prefix is excluded from `make lint && make test` via the existing `.gitignore`-style filter; the code remains for git-history traceability and is removed entirely in Phase 131.
+
+### Analysis Worker
+
+* [ ] **Implement `WebAdapter`.** New `services/analysis-worker/internal/adapters/web.py` implementing the `SourceAdapter` protocol from Phase 39. Maps web-specific raw fields to `SilverCore` + `WebMeta`. The adapter pulls `cleaned_text` directly from the trafilatura output already in the Bronze payload (no second extraction at the worker layer — the crawler-side extraction is the single source of truth for content cleanliness). Registered in `adapters/registry.py` keyed on `source_type = "web"`.
+* [ ] **`SourceAdapter` protocol confirmation.** No protocol changes — `WebAdapter` slots into the existing pattern alongside `RssAdapter` and `LegacyAdapter`. ADR-015 cross-references confirm.
+* [ ] **Worker tests.** `tests/test_web_adapter.py`: mock Bronze payload with trafilatura output → correct `SilverCore` + `WebMeta` mapping; missing optional fields (no `published_date`) → adapter populates from `event_time` per the existing fallback pattern.
+
+### Cutover Procedure
+
+* [ ] **Pre-flight check.** Verify Probe 0 sources publish sitemaps and that `tagesschau.de/robots.txt` + `bundesregierung.de/robots.txt` permit our `User-Agent`. Document the verification in the Probe 0 Dossier.
+* [ ] **Wipe-and-recrawl.** Run `make reset` (Phase 120b's canonical procedure), then `make crawl-probe0-web`. Bronze, Silver, Gold are repopulated from the web crawl. Bronze build-time artefacts (Wikidata index, BERT models in worker image) survive per the established procedure.
+* [ ] **Spot-check invariants.** Same SQL spot-check pattern as Phase 120b — non-zero row counts in `aer_gold.metrics`, `aer_gold.entities`, `aer_gold.entity_links`, `aer_silver.documents`. Additional invariant: the median `word_count` per article must increase by at least an order of magnitude versus the pre-migration baseline (RSS snippets ≈ 50 words; full articles ≈ 500–1500 words). Record the before/after distribution in the Probe 0 Dossier as the empirical justification for the migration.
+
+### Documentation
+
+* [ ] **New ADR-028: Web Crawling Architecture.** `docs/arc42/09_architecture_decisions.md`. Records: (i) the trafilatura + Scrapy + ultimate-sitemap-parser tooling choice and rationale; (ii) the Python-vs-Go decision for the crawler binary; (iii) the Bronze-as-raw-HTML / Silver-as-trafilatura-output boundary; (iv) the WebMeta SilverMeta subclass; (v) the cutover procedure; (vi) the explicit deferral of headless-browser execution to a future phase if a JS-only site enters scope.
+* [ ] **Probe 0 Dossier update.** `docs/probes/probe-0-de-institutional-rss/` is renamed to `docs/probes/probe-0-de-institutional-web/` (mkdocs nav updated, redirect note added). All five mandatory files updated:
+  - `README.md` — Source list unchanged; collection method updated; migration milestone recorded; before/after word-count distribution included as empirical evidence.
+  - `bias_assessment.md` — Editorial-curation bias remains identical; the structural bias of "RSS-only summary visibility" is removed; new structural-bias dimension "depth of article body access depends on paywall handling" is added per WP-003 §3.2.
+  - `temporal_profile.md` — Sitemap-driven discovery cadence supersedes RSS poll cadence; the `min_meaningful_resolution` heuristic is recomputed against the new publication-rate signal.
+  - `classification.md`, `observer_effect.md` — Reviewed for accuracy; no substantive changes expected.
+* [ ] **Operations Playbook update.** New section "Probe 0 web-crawl operations": `make crawl-probe0` command, sitemap-discovery semantics, dedup-state inspection, robots.txt verification procedure, polite-crawl defaults. Cross-links to the deprecated RSS-crawler section (which moves to an "Archived procedures" appendix for one release cycle).
+* [ ] **Arc42 §13.10 update.** Probe 0 description updated to reflect the web-crawl collection method. The Manifesto cross-reference (Probe Principle, §IV) is unchanged — this is a calibration improvement, not a methodological rescope.
+* [ ] **CLAUDE.md.** Update the "Crawlers" section to reflect the new Python web crawler. Update the `SourceAdapter` registry list to include `WebAdapter`. Note the deprecation of the Go RSS crawler with a one-release-cycle retirement window.
+* [ ] **Reflection paper cross-link.** WP-003 §3 is updated with a footnote noting that Probe 0 transitioned from RSS-summary to full-article web crawling in Phase 122; the editorial-curation bias remains the dominant structural bias of the probe.
+
+### Validation
+
+* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
+* [ ] `make reset && make crawl-probe0` completes cleanly; the post-crawl SQL spot-check passes the pre-migration invariants AND the new word-count invariant (median article body ≥ 10× the pre-migration RSS-snippet median).
+* [ ] Manual: `GET /api/v1/articles/{id}` for a freshly-crawled article returns a `cleanedText` field with the full article body (not just title + description); the `meta` field carries `WebMeta` keys (`canonical_url`, `author`, `published_date`, `categories`); the `sourceType` is `"web"`.
+* [ ] Manual: BERTopic re-run after the migration produces topic labels that visibly reflect article-body content rather than RSS-summary keywords (qualitative check, recorded in the Probe 0 Dossier).
+* [ ] Manual: SentiWS sentiment distribution shifts away from the near-zero artefact characteristic of short RSS snippets toward a fuller distribution. The shift is documented in WP-002 §3.2 as empirical confirmation that snippet-truncation was a measurable confound.
+
+### Phase ordering note
+
+This phase is the gating prerequisite for Phase 123 (authenticity foundation requires full article text — stylometric features on RSS summaries are noise) and for Phase 125 (Probe 1 inherits this pattern, never seeing the RSS-summary layer). Phase 122 must land before either successor; once it has, Phase 123 and Phase 125 can proceed in parallel. The phase intentionally ships before Phase 121b's dashboard polish — the polish bullets are non-blocking, and shipping web-crawled data into the dashboard is more valuable than perfecting the rendering of RSS-summary-derived data that will be wiped on cutover.
+
+---
+
+## Phase 123: Non-Human Actor Detection — Foundation [P2] - [ ] TODO
+
+*Operationalises the WP-003 §5 research question on non-human actors by implementing the first deterministic and statistical authenticity extractors. AI-generated content is no longer a future concern — by 2026 a non-trivial fraction of institutional press releases and news articles is authored or assisted by large language models, and the Manifesto's commitment to observing "the underlying human impulses" (§III) requires the system to make this prevalence measurable rather than invisible. This phase ships Tier-1 stylometric features (deterministic, fast, defensible under WP-002 §3.1 validity criteria) and an optional Tier-2 AI-detection extractor (statistical, gated behind a feature flag so the determinism CI gate is not destabilised). The extractor architecture is deliberately multi-source-extensible: today it operates on Probe 0 full articles (post-Phase 122); future social-media probes (Twitter/X, Reddit, Telegram) plug in account-level and coordination-level signals via the same plugin registry without schema changes.*
+
+*Scope discipline.* This phase is **not** a content-moderation system. Authenticity signals are annotations, not filters; no article is suppressed, hidden, or down-ranked based on its score. The dashboard surface (Phase 124) presents signals as observations, with explicit WP-006 §6 reflexive caveats: false positives are real, scores are correlational not causal, and the distinction between "AI-assisted" and "AI-generated" is methodologically contested. The architecture surfaces the uncertainty rather than hiding it. Account-level features (account age, posting frequency, follower graphs) are explicitly out of scope — they require a social-media probe that does not yet exist; the architecture leaves the slot open.
+
+*Scientific positioning.* All authenticity metrics ship with `validation_status = unvalidated` per the existing WP-002 §3.1 protocol. The `metric_validity` scaffold rows record the known limitations (stylometric features are vulnerable to adversarial paraphrasing; AI-detection accuracy degrades rapidly as model generations advance per WP-003 §5.2) honestly. Validation against annotated corpora is an interdisciplinary out-of-band activity and is captured as an open research question in the Reflection hub.
+
+### Schema (ClickHouse)
+
+* [ ] **New table `aer_gold.authenticity_signals`.** Schema: `(timestamp DateTime, source String, article_id String, ttr Float32, sentence_length_mean Float32, sentence_length_std Float32, function_word_perplexity Float32, burstiness_index Float32, ai_likelihood_score Nullable(Float32), ai_likelihood_method LowCardinality(String), extractor_version String, ingestion_version UInt64)`. `ReplacingMergeTree(ingestion_version)`, `ORDER BY (source, timestamp, article_id)`, 365-day TTL on `timestamp`. The `ai_likelihood_*` columns are nullable so Tier-1-only deployments do not write nulls-as-zero — absence is not wrong (Brief §7.7). New init migration in `infra/clickhouse/migrations/`.
+
+### Analysis Worker
+
+* [ ] **Authenticity extractor architecture.** New `services/analysis-worker/internal/extractors/authenticity/` directory. Implements a plugin-style registry mirroring the existing extractor pattern but partitioned by signal layer:
+  - `text_features/` — Tier-1 deterministic stylometric features. Operates on `SilverCore.cleaned_text` only. No external models, no GPU, no randomness.
+  - `model_features/` — Tier-2 model-based AI-detection. Operates on `SilverCore.cleaned_text`. Gated behind `AUTHENTICITY_AI_DETECTION_ENABLED=false` by default.
+  - `account_features/` — Tier-1 account-level signals. **Empty** in this phase; reserved for social-media probes. The directory and protocol stub ship now so the architecture extension is not relitigated later.
+  - `network_features/` — Tier-2 coordination-detection. **Empty** in this phase; reserved for social-media probes.
+* [ ] **Tier-1 stylometric features.** Five deterministic features per article, all language-agnostic by construction (operate on whitespace-tokenised text):
+  - **Type-Token Ratio (TTR)** — vocabulary diversity. AI-generated text often has lower TTR than human-authored news writing.
+  - **Sentence-length mean and standard deviation** — AI text is typically more uniform in sentence length; humans show higher variance.
+  - **Function-word perplexity** — language-model-free perplexity estimate using a precomputed background distribution of German function-word frequencies (extensible per language via the Capability Manifest, ADR-024). AI text tends to under-use rare function words.
+  - **Burstiness index** — Kwon (2003) burstiness measure of word usage. Human writing has higher burstiness (rare words cluster); AI writing is more uniform.
+  - All five are implemented in `text_features/stylometric.py`. Pure-Python, no NumPy randomness, deterministic. Unit tests pin exact values for fixture inputs to prevent silent drift.
+* [ ] **Tier-2 AI-detection extractor (optional).** `model_features/binoculars_extractor.py` wraps the open-source [Binoculars](https://github.com/ahans30/Binoculars) zero-shot AI-text detector (MIT-licensed, paper Hans et al. 2024). Two-model spectral approach using `tiiuae/falcon-7b` + `tiiuae/falcon-7b-instruct` — pinned revisions, deterministic decoding (`do_sample=False`), `TRANSFORMERS_OFFLINE=1`. Output: `ai_likelihood_score ∈ [0.0, 1.0]` with `ai_likelihood_method = "binoculars_falcon7b"`. Determinism CI gate per the Phase-119 pattern. Defer-friendly: this entire extractor is gated behind `AUTHENTICITY_AI_DETECTION_ENABLED` and ships disabled by default — the GPU/CPU footprint of a 7B model is not warranted on the standard deployment until interdisciplinary validation justifies it. The infrastructure ships; the activation is a separate operational decision recorded in `metric_validity`.
+* [ ] **Plugin registration.** All four feature classes register via the same `MetricExtractor` protocol used by Phase 41's framework. The processor's `extract_all()` dispatches to authenticity extractors alongside sentiment, NER, and topic extractors. No special-case wiring.
+* [ ] **`metric_validity` scaffold rows.** One row per Tier-1 feature in `(metric_name, context_key='de:web:epistemic_authority')` and `(de:web:power_legitimation)` with `validation_status='unvalidated'`. The `error_taxonomy` JSON enumerates the known limitations: adversarial-paraphrasing vulnerability, language-specific function-word distributions, domain-specific writing-style baselines (institutional press releases differ from feature journalism), no precision/recall measurement on AĒR's corpus. Tier-2 (Binoculars) rows are scaffolded but the `validation_status` is locked to `unvalidated` until the determinism gate has run a full epoch.
+
+### BFF API
+
+* [ ] **`/api/v1/metrics/available` extension.** Authenticity features appear in the existing endpoint with `tier=1` (stylometric) or `tier=2` (Binoculars). No endpoint shape changes. The frontend `MetricSwitcher` picks them up automatically.
+* [ ] **`/api/v1/metrics/{name}/distribution` works for authenticity features unchanged.** The endpoint is metric-agnostic; authenticity metrics flow through the existing aggregation path.
+* [ ] **Article detail enrichment.** `GET /api/v1/articles/{id}` response gains an `authenticity` object: `{ ttr, sentenceLengthMean, sentenceLengthStd, functionWordPerplexity, burstinessIndex, aiLikelihoodScore: number | null, aiLikelihoodMethod: string | null }`. Subject to the existing k-anonymity gate (WP-006 §7) — when the article's aggregation group is below threshold, the `authenticity` field is omitted with the standard refusal pattern. OpenAPI spec, `make codegen`.
+
+### Documentation
+
+* [ ] **New ADR-029: Authenticity Extractor Architecture.** Records the four-layer plugin partition (text / model / account / network), the deterministic Tier-1 vs. statistical Tier-2 split, the gating flag for Binoculars, the deliberate scope exclusion of content moderation, and the architectural contract that account/network signals slot in without schema change when a social-media probe lands.
+* [ ] **WP-003 §5 cross-link.** Add a backwards reference in `docs/methodology/en/WP-003-en-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md` §5.2 noting that the text-only stylometric features (Q3 in §7.2) are operationalised in this phase. The §5.2 known-limitations enumeration is now partially realised infrastructurally; methodological validation remains an open research question.
+* [ ] **Operations Playbook — new section "Authenticity extractor operations".** Covers: enabling/disabling Binoculars via `AUTHENTICITY_AI_DETECTION_ENABLED`, function-word-frequency table maintenance per language (cross-link to the Capability Manifest editing procedure), interpreting authenticity scores (the hard rule: never as a sole signal for editorial action — only as one of many transparency annotations).
+* [ ] **CLAUDE.md.** Add `aer_gold.authenticity_signals` to "ClickHouse Gold Schema". Add the four-layer authenticity extractor partition to "Registered extractors" with the explicit note that account/network layers are reserved.
+* [ ] **Reflection paper hub entry.** New entry in the Open Research Questions hub mapping to WP-003 §7.2 questions Q3, Q4, Q5 — declaring that the engineering hooks for non-human-actor detection are now in place, and inviting interdisciplinary validation studies on the AĒR corpus.
+
+### Tests
+
+* [ ] **Stylometric unit tests.** Five fixture articles (handcrafted: low-TTR vs. high-TTR; uniform vs. variable sentence length; AI-typical vs. human-typical function-word distribution; high vs. low burstiness) produce expected exact values. Determinism guard: identical input → byte-identical output across runs.
+* [ ] **Binoculars determinism gate.** Two consecutive scoring calls in the same process produce byte-identical output (mirrors the Phase-119 pattern). Skipped when `transformers` extras are absent.
+* [ ] **Adapter compatibility test.** Authenticity extractors run successfully against `SilverCore` records produced by both `WebAdapter` (Probe 0 post-Phase-122) and `LegacyAdapter` (pre-Phase-39 records). The architecture is source-type-agnostic at the extractor layer; this test pins the contract.
+
+### Validation
+
+* [ ] `make lint && make test && make codegen && git diff --exit-code` green. Tier-1 determinism gate passes in CI.
+* [ ] Manual: after a Phase-122 web-crawl, `GET /api/v1/articles/{id}` for a sample article returns the `authenticity` object with all five Tier-1 fields populated and `aiLikelihoodScore: null` (Tier-2 disabled by default).
+* [ ] Manual (Tier-2 smoke test, optional): with `AUTHENTICITY_AI_DETECTION_ENABLED=true` and the Binoculars models pre-cached, restart the worker; the next Bronze event produces an `aiLikelihoodScore` value; two re-runs produce identical scores per the determinism gate.
+* [ ] All authenticity metrics report `validation_status = unvalidated` in `GET /api/v1/metrics/available`. This is the correct, honest state — methodological validation is interdisciplinary out-of-band work.
+
+### Phase ordering note
+
+Phase 122 is a hard prerequisite — stylometric features on RSS-summary text are statistically meaningless. Phase 124 is the immediate successor and renders the signals on the dashboard. Future social-media probes (Phase 125+ candidate, not yet roadmapped) plug `account_features/` and `network_features/` into the existing registry without schema or protocol changes; this is the architectural reservation made today.
+
+---
+
+## Phase 124: Authenticity Dashboard Surface [P2] - [ ] TODO
+
+*Surfaces the Phase-123 authenticity signals through the existing dashboard architecture without introducing a fourth surface or a new pillar — Solo-developer scope discipline. The integration uses the established View-Mode Matrix (Brief §4.2.3) and Methodology Tray (Brief §5.4) primitives: a new view-mode cell renders authenticity distribution per source, the article-detail pane (L5 Evidence) gains an authenticity panel, and the Negative Space overlay (Phase 113) extends to highlight articles flagged as likely non-human-authored. The methodology tray binds rich content from WP-003 §5 so users encounter the methodological caveats inline with the data, not buried in documentation. The phase is explicitly modest in surface area: it makes the signals legible, not interpretive — interpretation is the user's responsibility, framed by the WP-003 prose.*
+
+*Architectural framing.* Authenticity is a *cross-cutting concern* in WP-001 terms — it is not a fifth discourse function, and treating it as one would dilute the four-function taxonomy. Instead, authenticity signals are *modifiers* on existing function-lane data: every metric in every lane can be sliced or filtered by authenticity, every article in L5 Evidence carries its authenticity annotation. The dashboard treatment mirrors this conceptual position.
+
+### Frontend (Dashboard)
+
+* [ ] **Authenticity-distribution view-mode cell.** Register `authenticity_distribution` in the view-mode matrix catalog. Presentation: Observable Plot ridgeline plot (consistent with the Phase-107 EDA pattern). One ridge per Tier-1 feature, x-axis = feature value, y-axis = article density. When Tier-2 (Binoculars) is enabled, an additional ridge appears for `ai_likelihood_score`. Dual-Register tooltip: semantic register names the feature ("Vocabulary diversity"); methodological register cites the algorithm, ADR-029 for the architecture, WP-003 §5.2 for the limitations.
+* [ ] **L5 Evidence — authenticity panel.** The article-detail reader-pane (Brief §4.5.5) gains a small panel below the article body rendering the five Tier-1 features as a compact horizontal bar group, with the (optional) `aiLikelihoodScore` as a separate prominently-labelled element when present. Each feature has a hover-card explaining what the score means and what its limitations are. Conservative visual treatment: no red/green colouring for Tier-1 (Brief §7.7 — Non-Prescriptive Visualization, WP-006 §6); the `aiLikelihoodScore` uses a neutral diverging palette with explicit numerical labelling.
+* [ ] **Negative Space overlay extension.** When the Negative Space toggle is on (Phase 113), articles whose Tier-1 features fall above a configurable percentile threshold (default: 95th percentile across the Probe 0 corpus, computed by the existing `MetricBaselineExtractor`) are visually annotated in the article list and the L5 Evidence pane with a small icon and the methodological-register caption "Stylometric outlier — see methodology tray for context". The overlay does **not** filter or hide; it surfaces. The 95th-percentile threshold is operator-configurable per WP-003 §5.4 and recorded in the Operations Playbook.
+* [ ] **MetricSwitcher integration.** Authenticity metrics appear in the existing `MetricSwitcher` under a new "Authenticity (provisional)" group, separated from sentiment/NER/topic groups by the existing visual divider pattern. The "(provisional)" tag matches the `validation_status = unvalidated` Epistemic Weight badge.
+* [ ] **Methodology tray content binding.** Each authenticity metric gets a Dual-Register content-catalog entry under `services/bff-api/configs/content/{en,de}/metrics/authenticity_<feature>.yaml`. The methodological-register prose anchors directly into WP-003 §5.2 with the appropriate `[WP-003 §5.2]` cross-reference syntax (resolved by the existing Phase-109 anchor resolver).
+
+### BFF API
+
+* [ ] **No new endpoints.** Authenticity metrics flow through the existing `/api/v1/metrics/available`, `/api/v1/metrics/{name}/distribution`, and `/api/v1/articles/{id}` endpoints (Phase 123 wired the data; this phase wires the rendering). The existing endpoints remain shape-stable.
+* [ ] **Content catalog extension.** New entries under `services/bff-api/configs/content/{en,de}/metrics/` for each Tier-1 feature plus the optional Tier-2 score. The semantic-register description is plain-language ("How varied is the vocabulary in this article?"); the methodological-register description cites ADR-029 + WP-003 §5.2 + the `metric_validity` row.
+* [ ] **Open Research Question entries.** The Reflection hub gains entries pointing to WP-003 §7.2 Q3, Q4, Q5 — the operationalised-but-unvalidated state of the authenticity extractors is itself the live research question.
+
+### Tests
+
+* [ ] **Vitest unit.** `authenticity_distribution` cell renders correctly with fixture data; the L5 Evidence authenticity panel renders all five Tier-1 features and conditionally the Tier-2 score; the Negative Space overlay correctly annotates articles above the 95th-percentile threshold; the methodology-tray content binding resolves WP-003 §5.2 cross-references.
+* [ ] **Playwright E2E.** Switching to `authenticity_distribution` view mode renders ridges; opening an article in L5 shows the authenticity panel; toggling Negative Space adds the stylometric-outlier annotation to flagged articles; the methodology tray shows WP-003 §5.2 prose for an authenticity metric.
+* [ ] **a11y E2E (handed off to Phase 130).** Phase 130's axe pass covers the new view-mode cell and the L5 panel; this phase ships the structural a11y in place (`aria-label`, keyboard reachability) but the formal audit happens in 130.
+
+### Documentation
+
+* [ ] **Arc42 §8.x — new "Authenticity Dashboard Integration" subsection.** Records the no-new-surface decision, the cross-cutting-modifier framing, the WP-003 §5 anchoring, and the Negative Space overlay extension contract.
+* [ ] **Brief §7.7 cross-link.** Add a forward-reference noting that authenticity is the canonical realisation of the "Negative Space as observation, not absence" principle on dashboard data.
+* [ ] **CLAUDE.md.** New "Authenticity Surface" subsection under Frontend Architecture, summarising the view-mode cell, L5 panel, and Negative Space integration.
+
+### Validation
+
+* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
+* [ ] Manual end-to-end: with Probe 0 web-crawled and Phase-123 authenticity extractors live, switch the view mode to `authenticity_distribution` — five ridges render, one per Tier-1 feature; toggle Negative Space — at least one article in the active scope receives the stylometric-outlier annotation; open an article in L5 — the authenticity panel renders all five Tier-1 features with their methodology-tray cross-references; hover a feature — the methodological-register tooltip cites WP-003 §5.2.
+* [ ] Manual: confirm none of the authenticity metrics carry red/green colouring (Brief §7.7 Non-Prescriptive-Visualization compliance); the only valenced colour is on the optional `aiLikelihoodScore` and uses a diverging neutral palette with explicit labels.
+
+### Phase ordering note
+
+Phase 123 is a hard prerequisite (the data must exist before the dashboard renders it). Phase 130 (Accessibility Audit) covers the new surfaces; this phase delivers structural a11y and hands off the formal audit. The phase is sized for solo-dev velocity — single-week scope at a normal cadence — because it deliberately reuses existing primitives (view-mode matrix cell registration, content-catalog entries, methodology-tray binding) rather than introducing new ones.
+
+---
+
+# Iteration 8 — Probe Expansion & Cross-Cultural Operations
+
+*Three phases that take the cross-cultural infrastructure shipped in Iteration 5 (Phase 115), the multilingual NLP foundation from Iteration 6 (Phases 116–121b, plus 118a), and the mature web-crawling pipeline from Iteration 7 (Phase 122) and put them into operation. Phase 125 lands the second probe — the first non-German cultural context — using the web-crawl pattern from day one (no RSS-summary detour). Phase 125a operationalises the Coverage Map mandated by WP-001 §5.3 and consumes the Capability Manifest from Phase 118a. Phase 126 is the operational counterpart to Phase 115's schema work: it computes the first per-source baselines on real multi-probe data, drafts the first equivalence-registry entry (temporal level — always valid), exercises the cross-probe lead-lag analysis, and produces the first multi-probe scientific output. The split honours the Brief §1.3 "composition, not comparison" boundary: Phase 125 establishes the second context; Phase 125a makes the coverage transparent; Phase 126 puts the pair into methodologically disciplined comparison.*
+
+---
+
+## Phase 125: Probe 1 — French Institutional Sources [P2] - [ ] TODO
+
+*Lands the first non-German probe: `francetvinfo.fr` (`Audiovisuel public` analogue to Tagesschau, Epistemic Authority primary) + `gouvernement.fr` (`Service d'Information du Gouvernement` analogue to Bundesregierung, Power Legitimation primary). Uses the Phase-122 web-crawling pipeline directly — no RSS-summary detour. The probe deliberately mirrors Probe 0's discourse-function coverage so cross-probe composition (Phase 114) has overlapping lanes — Cohesion & Identity and Subversion & Friction remain unrepresented in both probes; that scope is reserved for a probe with a real WP-006 §5.2 ethical-review partner. Exercises the multi-probe composition infrastructure (Phase 114), the cross-cultural refusal surface (Phase 115), the multilingual NLP pipeline (Phase 116), and the web-crawl pattern (Phase 122) in production for the first time on a non-German cultural context.*
+
+*Source-selection rationale (WP-001 §5.1).* France was selected as the first non-German cultural context for four engineering reasons: (1) `fr_core_news_lg` spaCy model exists, so Phase 116 NER routing works without per-language tooling work; (2) FEEL exists as a Tier 1 sentiment counterpart and `cmarkea/distilcamembert-base-sentiment` exists as a Tier 2.5 refinement (per ADR-023; the Tier 2 default is the multilingual model from Phase 119 which covers French automatically), so Phase 117 and 119 patterns extend cleanly; (3) structural parallelism with Probe 0 is high — republic with public broadcaster, formal government press releases — keeping the cross-probe composition methodologically clean; (4) latinic vs. germanic linguistic distance exercises the Phase 116 language router realistically. Non-European contexts (Japan, South Korea, MENA) are deferred to a later probe because they would simultaneously activate NER-model gaps, cultural-calendar complexity, topic-modeling ontology mismatches, and ethical-review hurdles — beyond the engineering-POC scope of this phase.
 
 *Provisional engineering classification (Arc42 §13.10 precedent).* Both sources ship with `review_status = 'provisional_engineering'` and `function_weights = NULL` — WP-001 §4.4 Steps 1–2 (Area Expert Nomination + Peer Review) are outstanding for this probe in exactly the same way they are outstanding for Probe 0. Every Probe 1 metric reports `validation_status = unvalidated` in `GET /api/v1/metrics/available`. The architecture surfaces this honestly; no consumer-facing claim of validation is made. Solo-developer probe-add procedure: `docs/extending/add-a-probe.md`.
 
 ### Infrastructure
 
 * [ ] **PostgreSQL seed migrations.** Three migrations (use the next free indices — verify with `ls infra/postgres/migrations/`):
-  - `0000NN_seed_probe1_fr_sources.up.sql`: registers both sources in `public.sources` with `source_type = 'rss'`, `silver_eligible = false` (Silver toggle requires a separate WP-006 §5.2 ethical review).
+  - `0000NN_seed_probe1_fr_sources.up.sql`: registers both sources in `public.sources` with `source_type = 'web'`, `silver_eligible = false` (Silver toggle requires a separate WP-006 §5.2 ethical review).
   - `0000NN_probe1_fr_classification.up.sql`: inserts `source_classifications` rows — `francetvinfo.fr` → `epistemic_authority` / `power_legitimation`, `gouvernement.fr` → `power_legitimation` / `epistemic_authority`. Both `function_weights = NULL`, `review_status = 'provisional_engineering'`, `classified_by = 'WP-001/Probe-1-engineering-poc'`. Inline SQL comment links to the dossier and to `docs/scientific_operations_guide.md` Workflow 1.
-  - `0000NN_probe1_documentation_url.up.sql`: points `sources.documentation_url` at `docs/probes/probe-1-fr-institutional-rss/` (mirrors Probe 0's migration `000008` pattern).
-* [ ] **ProbeRegistry update.** BFF config registers `probe-1-fr-institutional-rss` with `probeId`, name, language `fr`, source set `[francetvinfo, gouvernement]`. New content directory `services/bff-api/configs/content/probe1/` per the Phase 104 structure: probe-metadata file (emic designation untranslated per WP-001 §4.2, cultural context, WP-001 function classification), source-card files per source (etic function, emic name, accessibility metadata per WP-003 §3.2 `BiasContext`).
-* [ ] **Crawler.** New standalone Go binary `crawlers/probe1-fr-rss/` following the Phase 40 RSS crawler pattern: own `go.mod`, `feeds.yaml` baked into the image, `X-API-Key` auth, `source_type = "rss"` in the ingest payload. Added to `go.work`, `make crawl-probe1` Makefile target, CI pipeline.
-* [ ] **Source Adapter.** If French RSS shape matches `RssMeta` structurally, the existing `RSSAdapter` handles Probe 1 transparently — no new adapter code, only registry confirmation. If structural differences emerge (atypical feed shape, embedded media metadata), implement a thin adapter subclass; do not duplicate the harmonisation logic.
+  - `0000NN_probe1_documentation_url.up.sql`: points `sources.documentation_url` at `docs/probes/probe-1-fr-institutional-web/`.
+* [ ] **ProbeRegistry update.** BFF config registers `probe-1-fr-institutional-web` with `probeId`, name, language `fr`, source set `[francetvinfo, gouvernement]`. New content directory `services/bff-api/configs/content/probe1/` per the Phase 104 structure: probe-metadata file (emic designation untranslated per WP-001 §4.2, cultural context, WP-001 function classification), source-card files per source (etic function, emic name, accessibility metadata per WP-003 §3.2 `BiasContext`).
+* [ ] **Crawler.** New standalone Python binary `crawlers/probe1-fr-web/` following the Phase 122 web-crawler pattern: own `pyproject.toml`, `sources.yaml` baked into the image, `X-API-Key` auth, `source_type = "web"` in the ingest payload. Added to the build-and-push CI workflow, `make crawl-probe1` Makefile target.
+* [ ] **Source Adapter.** The existing `WebAdapter` (Phase 122) handles Probe 1 transparently — French web sources have the same trafilatura-extracted shape as German web sources. No new adapter code, only registry confirmation.
 
 ### NLP
 
-* [ ] **Capability Manifest extension for `fr` (ADR-024).** Add the `fr` block to `services/analysis-worker/configs/language_capabilities.yaml`:
-```yaml
-  fr:
-    iso_code: fr
-    display_name: French
-    
-    ner:
-      tier: 1.5
-      model: fr_core_news_lg
-      model_version: "3.8.0"
-    
-    sentiment_tier1:
-      tier: 1
-      method: lexicon
-      lexicon: feel_v1.0
-      features: [negation_dependency, custom_lexicon]   # no compound_split — French is non-agglutinating
-      negation:
-        particles: ["ne", "pas", "non", "jamais", "plus", "rien", "aucun", "aucune", "personne", "nulle"]
-        clause_boundaries: ["parce", "que", "lorsque", "quand", "bien"]
-        spacy_neg_dep: "neg"
-      metric_name: sentiment_score_feel
-    
-    sentiment_tier2_default:
-      tier: 2
-      method: multilingual_bert
-      provided_by: shared.multilingual_bert
-      metric_name: sentiment_score_bert_multilingual
-    
-    # sentiment_tier2_refinement is optional — see "Sentiment Tier 2.5 (CamemBERT)" bullet below
-    
-    cultural_calendar:
-      region_default: fr
-      file: cultural_calendars/fr.yaml
-```
-  This single YAML edit drives downstream: NER routing picks up `fr_core_news_lg` automatically; the auto-generated `metric_validity` scaffold adds rows for all `(metric_name, fr)` combinations; the BFF `?language=fr` validator accepts the code.
-
-* [ ] **spaCy model.** Add `fr_core_news_lg` to `services/analysis-worker/requirements.txt`. The Phase 118a manifest-driven language router selects it automatically via the manifest entry above — no extractor code change.
-
-* [ ] **Sentiment Tier 1 (FEEL).** Integrate FEEL (`fr_feel.csv`, French Expanded Emotion Lexicon) following the Phase 117 custom-lexicon-hook pattern. The manifest entry above declares `lexicon: feel_v1.0`; the `SentimentExtractor` reads this and loads the appropriate lexicon file. New metric name `sentiment_score_feel` honours ADR-016's dual-metric pattern (Tier 1 baseline alongside Tier 2). The Phase 116 language guard ensures the German SentiWS extractor cleanly skips French documents and vice versa. If Phase 117 has not yet shipped, defer the negation-dependency feature in the manifest entry — the lexicon-only Tier 1 still produces useful baseline data; negation is a defer-friendly enhancement.
-
+* [ ] **Capability Manifest extension for `fr` (ADR-024).** Single YAML edit to `services/analysis-worker/configs/language_capabilities.yaml` adding the `fr` block: NER (`fr_core_news_lg`), Sentiment Tier 1 (FEEL lexicon, French negation config — `ne`, `pas`, `non`, `jamais`, etc.; clause boundaries — `parce`, `que`, `lorsque`; spaCy `neg` dep label; clause-boundary deps `cc`, `mark`), and cultural calendar reference (`fr.yaml`). The Phase 116 language guard ensures the German SentiWS extractor cleanly skips French documents and vice versa. If Phase 117 has not yet shipped, defer the negation-dependency feature in the manifest entry — the lexicon-only Tier 1 still produces useful baseline data; negation is a defer-friendly enhancement.
 * [ ] **Sentiment Tier 2 default (multilingual).** Phase 119's `MultilingualBertSentimentExtractor` automatically covers French via `manifest.shared.multilingual_bert.supported_languages` including `fr`. No work in this phase. The `sentiment_score_bert_multilingual` metric is produced for every French document.
-
 * [ ] **Sentiment Tier 2.5 refinement (CamemBERT, optional).** Per ADR-023, this is the French equivalent of Phase 119's German news-domain refinement. New optional `services/analysis-worker/internal/extractors/sentiment_bert_fr_news.py` wrapping `cmarkea/distilcamembert-base-sentiment`. Pinned revision, determinism flags. Output: `sentiment_score_bert_fr_news`. Activates only when the manifest declares `sentiment_tier2_refinement` for `fr` with this model. Defer-friendly: this phase remains valuable on Tier-1 + Tier-2-default sentiment coverage; the Tier 2.5 refinement is a quality improvement, not a blocker.
+* [ ] **Authenticity (Phase 123) coverage for `fr`.** Authenticity Tier-1 stylometric features are language-agnostic by construction (Phase 123); they apply to French articles automatically. The function-word-perplexity feature requires a French function-word frequency table — added to `data/function_word_distributions/fr.csv` per the ADR-024 manifest reference. Tier-2 (Binoculars) covers French via the underlying multilingual model — no extractor change.
 
 ### Documentation
 
-* [ ] **Probe Dossier.** `docs/probes/probe-1-fr-institutional-rss/` with the five mandatory files per Arc42 §8.15, copied from `docs/probes/probe-0-de-institutional-rss/` and adapted: `README.md` (purpose, sources, calibration status, exit criteria, WP coverage matrix), `classification.md` (etic/emic mirror of `source_classifications` rows), `bias_assessment.md` (RSS-protocol structural biases per WP-003 — chronological visibility, no engagement signals, institutional editorial register), `temporal_profile.md` (publication-rate heuristic, `min_meaningful_resolution`, FR cultural-calendar pointer), `observer_effect.md` (completed `observer_effect_assessment.yaml` — institutional public-RSS sources, no vulnerable-population concerns, the assessment is short).
-* [ ] **Cultural Calendar (FR).** New `services/analysis-worker/configs/cultural_calendars/fr.yaml` per the Operations Playbook procedure. Minimum content for the POC: French federal public holidays, presidential / legislative election dates in the observation window, Bastille Day, August holiday rhythm (institutional volume drops), Easter-based movable feasts. Phase 123 extends this when granting the first temporal-equivalence level for Probe 0 × Probe 1.
+* [ ] **Probe Dossier.** `docs/probes/probe-1-fr-institutional-web/` with the five mandatory files per Arc42 §8.15, copied from `docs/probes/probe-0-de-institutional-web/` and adapted: `README.md` (purpose, sources, calibration status, exit criteria, WP coverage matrix), `classification.md` (etic/emic mirror of `source_classifications` rows), `bias_assessment.md` (web-crawl structural biases per WP-003 — chronological visibility, no engagement signals, institutional editorial register), `temporal_profile.md` (publication-rate heuristic, `min_meaningful_resolution`, FR cultural-calendar pointer), `observer_effect.md` (completed `observer_effect_assessment.yaml` — institutional public sources, no vulnerable-population concerns, the assessment is short).
+* [ ] **Cultural Calendar (FR).** New `services/analysis-worker/configs/cultural_calendars/fr.yaml`. Minimum content for the POC: French public holidays, presidential / legislative election dates in the observation window, Bastille Day, August holiday rhythm (institutional volume drops), Easter-based movable feasts. Phase 126 extends this when granting the first temporal-equivalence level for Probe 0 × Probe 1.
 * [ ] **MkDocs nav.** Add the new dossier under `mkdocs.yml` `Probes` entry.
-* [ ] **Arc42 §13.** New §13.11 "Probe 1: Engineering POC (French Institutional RSS)" mirroring §13.10's structure for Probe 0 — purpose (engineering POC, not scientifically representative), source-selection criteria (engineering parallels to Probe 0, not interdisciplinary research design), milieu bias acknowledgment (institutional editorial voice only, mirroring Probe 0's limitation in a second cultural frame), exit criteria. Two-paragraph length; the Dossier README carries the detail.
-* [ ] **CLAUDE.md.** Update the ProbeRegistry section to reflect both probes. Note that the `metric_equivalence` registry remains empty until Phase 123 grants Level 1 — this is the correct, honest state through Probe 1's standalone operational period.
+* [ ] **Arc42 §13.** New §13.11 "Probe 1: Engineering POC (French Institutional Web)" mirroring §13.10's structure for Probe 0 — purpose (engineering POC, not scientifically representative), source-selection criteria (engineering parallels to Probe 0, not interdisciplinary research design), milieu bias acknowledgment (institutional editorial voice only, mirroring Probe 0's limitation in a second cultural frame), exit criteria. Two-paragraph length; the Dossier README carries the detail.
+* [ ] **CLAUDE.md.** Update the ProbeRegistry section to reflect both probes. Note that the `metric_equivalence` registry remains empty until Phase 126 grants Level 1 — this is the correct, honest state through Probe 1's standalone operational period.
 
 ### Validation
 
 * [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
-* [ ] `make crawl-probe1` fetches articles from both French sources and they reach `aer_gold.metrics` via the full Bronze → Silver → Gold pipeline. Phase 116 `detected_language = 'fr'` for the documents.
+* [ ] `make crawl-probe1` fetches articles from both French sources via the Phase-122 web-crawl pattern; they reach `aer_gold.metrics` via the full Bronze → Silver → Gold pipeline. Phase 116 `detected_language = 'fr'` for the documents.
 * [ ] Manual: Probe 1 appears as a second luminous point on the Surface I globe; the Phase 113e/114 scope bar composes Probe 0 + Probe 1 and produces parallel streams in the EA and PL function lanes, with empty CI and SF lanes (Brief §4.2.2 + §7.7 — the empty stream is the question, not a hidden case, on both sides).
-* [ ] `GET /api/v1/probes/probe-1-fr-institutional-rss/equivalence` (Phase 115) returns Level 1 only — the registry is empty until Phase 123.
+* [ ] `GET /api/v1/probes/probe-1-fr-institutional-web/equivalence` (Phase 115) returns Level 1 only — the registry is empty until Phase 126.
 * [ ] Cross-frame `?normalization=zscore` request across Probe 0 + Probe 1 returns the Phase 115 refusal surface with WP-004 §5.2 anchor and the three valid alternatives. This is the first production exercise of the cross-frame gate against real bilingual data.
 * [ ] All Probe 1 metrics report `validation_status = unvalidated` in `GET /api/v1/metrics/available`. This is the correct, honest state.
+* [ ] Manual: authenticity signals (Phase 123) appear for French articles in the L5 Evidence panel and the `authenticity_distribution` view-mode cell — the cross-language extension of the authenticity foundation lands automatically via the language-agnostic Tier-1 features.
 
 ### Phase ordering note
 
-This phase has two hard prerequisites (Phase 116 for language detection, Phase 118a for the Capability Manifest that the NLP entries above read from) and four defer-friendly upstream phases:
+This phase has three hard prerequisites (Phase 116 for language detection, Phase 118a for the Capability Manifest that the manifest-driven NLP entries above read from, and Phase 122 for the web-crawl pipeline) and four defer-friendly upstream phases:
 
 - **Phase 117** (German Tier 1 hardening) is German-specific and does not block Probe 1. The French Tier 1 sentiment integration above can ship alongside or after Phase 117 depending on solo-developer scheduling; the language guard prevents cross-contamination either way.
 - **Phase 118** (Wikidata entity linking) is multilingual-by-construction. If it ships before this phase, Probe 1 entities are linked from day one. If it ships after, a single backfill run over the existing Probe 1 Gold data populates `aer_gold.entity_links` with no schema change.
-- **Phase 119** (Tier 2 Sentiment per ADR-023) — Phase 119's multilingual default extractor automatically covers French via its `supported_languages` declaration; no French-specific work is required for Tier 2 default coverage. The optional French Tier 2.5 refinement (CamemBERT) above is the structural mirror of Phase 119's German news-domain Tier 2.5 refinement; both are optional and defer-friendly. If Phase 119 has not yet shipped, the Tier 2 default sentiment is genuinely absent for French documents (no metric row written) — the language guard prevents incorrect output.
+- **Phase 119** (Tier 2 Sentiment per ADR-023) — Phase 119's multilingual default extractor automatically covers French via its `supported_languages` declaration; no French-specific work is required for Tier 2 default coverage. The optional French Tier 2.5 refinement (CamemBERT) above is the structural mirror of Phase 119's German news-domain Tier 2.5 refinement; both are optional and defer-friendly.
 - **Phase 120** (BERTopic) is multilingual-by-construction with per-language partitioning (WP-004 §3.4). If it ships after this phase, the next BERTopic cron run picks up Probe 1 documents in a separate French topic space; no manual intervention required.
 
-The Iteration-6 → Iteration-7 sequencing in the rationale block remains the recommended order for a fully-staffed team. Solo-developer scheduling may legitimately reorder 117/118/119/120 around this phase to test multi-probe composition earlier; the architecture supports it.
+The Iteration 6 → Iteration 7 → Iteration 8 sequencing in the rationale block remains the recommended order for a fully-staffed team. Solo-developer scheduling may legitimately reorder the defer-friendly upstreams around this phase to test multi-probe composition earlier; the architecture supports it.
 
 ---
 
-## Phase 122a: Probe Coverage Map (WP-001 §5.3) [P2] - [ ] TODO
+## Phase 125a: Probe Coverage Map (WP-001 §5.3) [P2] - [ ] TODO
 
-*Implements the Probe Coverage Map mandated by WP-001 §5.3 — a visualisation showing, for each cultural region with active probes, which discourse functions are covered and which remain unobserved, plus per-probe analytical capability (NER, sentiment, calendar coverage). At N=1 probe this would be premature; at N=2 (post-Phase 122) it becomes the navigational element that makes coverage gaps visible before the user encounters them as silent absences in lanes. Hard prerequisite: ADR-024 (Language Capability Manifest) must be implemented — the manifest is the data source for analytical-capability rendering.*
+*Implements the Probe Coverage Map mandated by WP-001 §5.3 — a visualisation showing, for each cultural region with active probes, which discourse functions are covered and which remain unobserved, plus per-probe analytical capability (NER, sentiment, calendar coverage). At N=1 probe this would be premature; at N=2 (post-Phase 125) it becomes the navigational element that makes coverage gaps visible before the user encounters them as silent absences in lanes. Hard prerequisite: ADR-024 (Language Capability Manifest) must be implemented — the manifest is the data source for analytical-capability rendering.*
 
 *Architectural framing.* The Coverage Map is **not** a comparative ranking instrument (Brief §1.3 forbids that). It is a transparency surface — it shows what AĒR sees and, deliberately, what it is blind to (Manifesto §II Digital Divide acknowledgment). Negative-space markings for unobserved regions are a first-class element, not a styling afterthought.
 
-### Backend
+### Backend (BFF)
 
-* [ ] **`GET /api/v1/coverage/map` endpoint.** Composite payload joining (a) the Language Capability Manifest from ADR-024, (b) the `source_classifications` table for active probes, (c) the per-probe function coverage from the existing Probe Dossier endpoint. Response shape: per-region cards listing probes, per-probe analytical-capability bullets (NER tier, sentiment tier, Tier 2.5 refinements, cultural calendar status), and per-probe WP-001 function coverage (N/4). OpenAPI update, codegen, integration tests.
+* [ ] **`GET /api/v1/coverage/map`.** New endpoint. Returns per-region coverage data: `{ regions: [{ regionCode, displayName, probes: [{ probeId, language, functionsCovered: [<WP-001-function>], analyticalCapability: { ner: boolean, sentimentTier1: boolean, sentimentTier2: boolean, sentimentTier2_5: boolean, culturalCalendar: boolean, authenticity: boolean } }], functionsUnobserved: [<WP-001-function>] }] }`. Reads probe registration from PostgreSQL; reads analytical capability from the Phase 118a Capability Manifest; reads cultural-calendar presence from the manifest's `cultural_calendar` block. OpenAPI spec, `make codegen`.
+* [ ] **Integration tests.** Testcontainers: with two probes registered (DE + FR), the response correctly enumerates two regions; the unobserved discourse functions (CI + SF) are explicitly listed in the `functionsUnobserved` array on both regions.
 
-* [ ] **`metric_validity` integration.** The endpoint cross-joins per-(language, metric_name) validation status from `aer_gold.metric_validity` so the response can surface "Tier 2 sentiment unvalidated for `fr` — see WP-002" alongside the capability bullet. Validation status is rendered with the existing Epistemic Weight visual treatment, not raw enum values.
+### Frontend (Surface I + Probe Dossier)
 
-### Frontend
-
-* [ ] **D3 world-map module on Surface I.** Togglable layer alongside the existing probe-glow indicator (Phase 110). Choropleth: covered regions in the Viridis palette, uncovered regions in the canonical negative-space treatment per `visualization_guidelines.md`. Hover surfaces probe list + function coverage. Click on a probe descends into its Dossier (Surface II L1).
-
-* [ ] **Probe Dossier "Coverage in context" panel.** New Dossier sidebar block reading the same endpoint, scoped to *this* probe's region: "Of the 4 WP-001 functions, this probe covers 2; the other 2 remain unobserved in `<region>`." Shows the same data the global map shows, scoped to the active probe's frame.
-
-* [ ] **`docs/extending/add-a-language.md` auto-generation.** The Capability Manifest (ADR-024) plus the templates in `docs/extending/` drive a build-time MkDocs macro that regenerates the language-extension matrix from live data. Manual matrix maintenance retired in this phase.
+* [ ] **Coverage Map module on Surface I.** New globe overlay (toggleable via the Pillar Mode bar) rendering each active region with its covered discourse functions as small lane indicators above the luminous probe glyph. Unobserved regions render with the existing Negative Space treatment — visible as deliberate absence, not stylistic gap. Cross-language: each region shows its language code; clicking a region opens the corresponding Probe Dossier.
+* [ ] **Probe Dossier "Coverage in context" panel.** New panel on the Probe Dossier surface (Phase 106) showing the dossier-probe's coverage relative to the global coverage map: `2/4 functions covered (Epistemic Authority, Power Legitimation); Cohesion & Identity and Subversion & Friction unobserved in this region`. This makes the methodological boundary of the probe legible up front.
+* [ ] **Auto-generated `add-a-language.md` matrix.** Per Phase 122a's reservation: the manifest-driven matrix is generated at MkDocs build time via `scripts/build/generate_language_matrix.py`. Manual matrix maintenance retired in this phase.
 
 ### Documentation
 
@@ -2959,546 +3111,204 @@ The Iteration-6 → Iteration-7 sequencing in the rationale block remains the re
 
 ---
 
-## Phase 123: Cross-Probe & Cross-Cultural Operations [P2] - [ ] TODO
+## Phase 126: Cross-Probe & Cross-Cultural Operations [P2] - [ ] TODO
 
-*The operational counterpart to Phase 115's schema work. Phase 115 built the equivalence registry, the per-source baseline table, the `?normalization=` parameter, and the refusal surfaces — but those tables ship empty. Phase 123 puts them into operation now that real multi-probe data exists from Phase 122 (Probe 0 German institutional RSS + Probe 1 French institutional RSS). The phase is deliberately conservative on what it grants: the **temporal equivalence level** (WP-004 Appendix B) is always valid for any pair of probes — temporal patterns (publication frequency, time-of-day distribution, weekly rhythm) do not require validated metric equivalence. Phase 123 grants this level for Probe 0 × Probe 1, computes the first set of within-frame z-score baselines, exercises the cross-probe lead-lag tooling, and produces the first concrete multi-probe scientific output — the first observation that AĒR is no longer a single-context macroscope.*
+*The operational counterpart to Phase 115's schema work. Phase 115 built the equivalence registry, the per-source baseline table, the `?normalization=` parameter, and the refusal surfaces — but those tables ship empty. Phase 126 puts them into operation now that real multi-probe data exists from Phase 125 (Probe 0 German institutional web + Probe 1 French institutional web). The phase is deliberately conservative on what it grants: the **temporal equivalence level** (WP-004 Appendix B) is always valid for any pair of probes — temporal patterns (publication frequency, time-of-day distribution, weekly rhythm) do not require validated metric equivalence. Phase 126 grants this level for Probe 0 × Probe 1, computes the first set of within-frame z-score baselines, exercises the cross-probe lead-lag tooling, and produces the first concrete multi-probe scientific output — the first observation that AĒR is no longer a single-context macroscope.*
 
 *Scope discipline (Brief §7.4).* This phase does **not** grant scalar (Level 3) equivalence for any metric. Granting Level 3 requires the WP-002 §6.2 five-step validation protocol, which involves interdisciplinary annotation studies and is explicitly out of scope for engineering. The phase produces the architectural readiness for Level 3 grants and one concrete Level-1 (temporal) grant; further grants are out-of-band scientific decisions documented in `equivalence_reviews` (Phase 115) and applied by the existing operations procedure.
 
-*Probe-pair concreteness.* This phase consumes Probe 0 (`probe-0-de-institutional-rss`, language `de`, sources `tagesschau` + `bundesregierung`) and Probe 1 (`probe-1-fr-institutional-rss`, language `fr`, sources `francetvinfo` + `gouvernement`). The structural parallelism between the two probes — both are institutional public-RSS, both cover Epistemic Authority + Power Legitimation, both operate on the chronological-visibility paradigm without engagement signals — is what makes the Level-1 temporal grant methodologically clean: the temporal patterns being compared (publication rhythm of public broadcasters and government press offices) are functionally analogous discourse acts in functionally analogous institutions, differing only in cultural-calendar context.
+*Probe-pair concreteness.* This phase consumes Probe 0 (`probe-0-de-institutional-web`, language `de`, sources `tagesschau` + `bundesregierung`) and Probe 1 (`probe-1-fr-institutional-web`, language `fr`, sources `francetvinfo` + `gouvernement`).
 
-### Operations
+### Operational Workflows
 
-* [ ] **First baseline run.** Execute `scripts/compute_baselines.py` (Phase 115 / Workflow 4 in the Scientific Operations Guide) against the consolidated Probe 0 + Probe 1 corpus. Verify per-source baselines populate `aer_gold.metric_baselines` correctly for all four sources, partitioned by `(metric_name, source, language)` — yielding rows for `(*, tagesschau, de)`, `(*, bundesregierung, de)`, `(*, francetvinfo, fr)`, `(*, gouvernement, fr)` per active metric. Document the first-run output in the Operations Playbook as the canonical example for future baseline runs. The baseline window must be at least 30 days post-Probe-1-launch to produce statistically meaningful French baselines; document the chosen window in the Workflow 4 walkthrough.
-* [ ] **First equivalence grant — temporal level.** Execute Workflow 3 (Establishing Metric Equivalence) for the temporal-pattern metric family — `publication_hour`, `publication_weekday`, `temporal_distribution` — across Probe 0 (`de`) and Probe 1 (`fr`). Per WP-004 Appendix B, temporal patterns are always-valid for cross-cultural comparison given cultural-calendar awareness. Insert the corresponding rows into `aer_gold.metric_equivalence` with `validation_status='validated'`, `equivalence_type='temporal'`, `validation_method='wp-004-appendix-b'`, `notes='Level 1 temporal grant for institutional public-RSS pair DE×FR. Both probes operate on chronological visibility, no engagement signals. Cultural-calendar contexts: configs/cultural_calendars/de.yaml + fr.yaml. See equivalence_reviews row for full rationale.'`, and a corresponding `equivalence_reviews` Postgres record citing WP-004 §6.3 Level 1 and both cultural calendars. This is the first non-empty entry in the equivalence registry — the canonical example for future grants.
-* [ ] **Cultural calendar for Probe 1 (FR) — extension.** Phase 122 shipped `configs/cultural_calendars/fr.yaml` with the POC minimum (federal holidays, election dates, Bastille Day, August holiday rhythm, Easter-based movable feasts). Phase 123 extends it for the temporal-equivalence grant: add the `media events` category (Cannes Film Festival, Festival d'Avignon, Tour de France — recurring publication-volume signals analogous to Berlinale/Buchmesse on the German side), add the `parliamentary recess` rhythm of the Assemblée Nationale, and verify that the German calendar (`configs/cultural_calendars/de.yaml`) covers the symmetric structural categories. Document both calendars' coverage parity in the temporal-equivalence `equivalence_reviews` record — the Level-1 grant is conditional on both calendars being structurally comparable, not just both existing.
+* [ ] **First-baseline run for Probe 1.** Execute `scripts/operations/compute_baselines.py --probe probe-1-fr-institutional-web --window 90d` for Probe 1's two sources. Produces `aer_gold.metric_baselines` rows for every metric currently present in Probe 1's Gold data (sentiment, NER counts, language confidence, topic distribution, temporal-distribution metrics, authenticity Tier-1 features). The computation is byte-identical to the auto-extractor path; this is a one-shot bootstrap so within-frame z-score views work immediately for Probe 1.
+* [ ] **First equivalence-registry entry — temporal level (WP-004 Appendix B).** Insert one `aer_gold.metric_equivalence` row per temporal metric (`temporal_distribution`, `publication_hour`, `publication_weekday`) with `level='temporal'`, `etic_construct='temporal_pattern'`, `validated_by='WP-004 §6.3 Level 1 — institutional public-web pair, temporal patterns are language-independent'`, `validation_date=NOW()`, and a `notes` field (≤ 280 chars, mirrors Phase 115 structuring): `'Validated under WP-004 Appendix B — temporal patterns are always cross-culturally comparable. Both probes operate on chronological visibility, no engagement signals. Cultural-calendar contexts: configs/cultural_calendars/de.yaml + fr.yaml. See equivalence_reviews row for full rationale.'`, and a corresponding `equivalence_reviews` Postgres record citing WP-004 §6.3 Level 1 and both cultural calendars. This is the first non-empty entry in the equivalence registry — the canonical example for future grants.
+* [ ] **Cultural calendar for Probe 1 (FR) — extension.** Phase 125 shipped `configs/cultural_calendars/fr.yaml` with the POC minimum (federal holidays, election dates, Bastille Day, August holiday rhythm, Easter-based movable feasts). Phase 126 extends it for the temporal-equivalence grant: add the `media events` category (Cannes Film Festival, Festival d'Avignon, Tour de France — recurring publication-volume signals analogous to Berlinale/Buchmesse on the German side), add the `parliamentary recess` rhythm of the Assemblée Nationale, and verify that the German calendar (`configs/cultural_calendars/de.yaml`) covers the symmetric structural categories. Document both calendars' coverage parity in the temporal-equivalence `equivalence_reviews` record — the Level-1 grant is conditional on both calendars being structurally comparable, not just both existing.
 
 ### Backend Tooling
 
-* [ ] **Cross-probe lead-lag query path.** A new BFF query helper (no new public endpoint — internal to the existing correlation handler) that, given two probe scopes, computes Pearson correlation of the same metric across the two probes at varying lags from −168 hours to +168 hours (one week each direction), step 1 hour. Caps lag granularity to keep ClickHouse query bounded. The result is consumed by the Phase 124 Composition Mode lead-lag chart, but is exercised end-to-end in this phase via a test fixture (Probe 0 × Probe 1 temporal-distribution lead-lag) so the implementation lands before the UX consumes it.
+* [ ] **Cross-probe lead-lag query path.** A new BFF query helper (no new public endpoint — internal to the existing correlation handler) that, given two probe scopes, computes Pearson correlation of the same metric across the two probes at varying lags from −168 hours to +168 hours (one week each direction), step 1 hour. Caps lag granularity to keep ClickHouse query bounded. The result is consumed by the Phase 127 Composition Mode lead-lag chart, but is exercised end-to-end in this phase via a test fixture (Probe 0 × Probe 1 temporal-distribution lead-lag) so the implementation lands before the UX consumes it.
 * [ ] **Probe-pair equivalence summary view.** Extend `GET /api/v1/probes/{probeId}/equivalence` (Phase 115) to optionally accept a `comparedTo=<otherProbeId>` query parameter that scopes the response to the equivalence relationship between the two probes. For Probe 0 × Probe 1, the response now reports Level-1 temporal as `validated` with the new `notes` field populated; Levels 2 and 3 remain `null` (no grant). The Probe Dossier "valid comparisons" panel reads this endpoint and surfaces the temporal grant as the first concrete evidence of cross-probe methodological discipline.
 
 ### Frontend
 
-* [ ] **Cross-probe temporal-equivalence in the lane.** When the user composes Probe 0 + Probe 1 in a temporal-distribution view mode, the methodology tray now displays the **active equivalence grant** — Level 1 temporal, with both cultural-calendar contexts (`de.yaml` + `fr.yaml`) side by side in the methodology tray, and the WP-004 Appendix B anchor. Reuses the Phase 115 deviation-labelling component; the difference is that the byline is no longer "deviation only — Level 3 refused", but "temporal pattern — Level 1 validated". The Dossier "valid comparisons" panel for Probe 0 (and symmetrically Probe 1) now shows Level 1 as available against the other probe.
-* [ ] **First multi-probe scientific observation, surfaced.** A short (1–2 paragraph) Observation entry in the Surface III Reflection — drafted from the first lead-lag run on `temporal_distribution` across Probe 0 + Probe 1 — published in the open-questions hub (Phase 109) as the first multi-probe Reflection entry. The observation should describe the structural finding (e.g., "French institutional publication peaks lag German peaks by N hours in the observation window, attributable to the time-zone offset and the post-lunch publication rhythm of `gouvernement.fr` versus the morning rhythm of `bundesregierung.de`") with full methodological framing — what the metric measures, what the lead-lag means within the Level-1 temporal grant, what it does NOT mean (no claim about discourse content, no claim about polarity, no claim about influence). This is the project's first concrete cross-cultural finding, however small; its purpose is as much demonstration of the methodological discipline as discovery.
+* [ ] **Cross-probe temporal-equivalence in the lane.** When the user composes Probe 0 + Probe 1 in a temporal-distribution view mode, the methodology tray now displays the **active equivalence grant** — Level 1 temporal, with both cultural-calendar contexts (`de.yaml` + `fr.yaml`) side by side in the methodology tray, and the WP-004 Appendix B anchor.
+* [ ] **First cross-probe scientific output — temporal lead-lag panel on the Probe 0 Dossier.** A small panel on each Dossier surfaces the cross-probe temporal lead-lag chart for the institutional-public-web pair. The panel renders inline below the existing single-probe time-distribution panel and links forward to Phase 127's Composition Workspace where the same analysis can be carried out for any metric pair. Methodology tray shows the WP-004 Appendix B anchor and the equivalence-grant `notes` field.
 
 ### Documentation
 
-* [ ] **Operations Playbook.** New section "Probe-Pair Bring-Up Procedure": the canonical end-to-end runbook for adding cross-probe operations after a new probe is registered. Sequences the steps: cultural calendar extension → baseline run → temporal-equivalence grant → first lead-lag observation. Probe 0 (`de`) × Probe 1 (`fr`) is the worked example — the actual SQL inserts, the actual baseline-window choice, the actual equivalence-review prose, the actual lead-lag fixture output.
-* [ ] **WP-004 cross-link.** Mark §6.3 Level 1 (temporal) as **operationalised** with a forward-link to the Operations Playbook section above. Add a footnote to §6.3 noting that the first concrete grant is the institutional public-RSS pair DE×FR, with both probes structurally parallel by design (Phase 122 source-selection rationale). §6.3 Levels 2 and 3 remain pending interdisciplinary validation.
-* [ ] **Arc42 §13.4 (DNA mapping).** Update the Aleph row from "Crawler expansion pending" to "First multi-cultural composition operational — Probes 0+1 (DE+FR institutional public-RSS), temporal equivalence validated (WP-004 §6.3 Level 1)".
+* [ ] **Operations Playbook — new section "Cross-probe operations".** Documents the `compute_baselines.py` first-run for a new probe, the `metric_equivalence` insert procedure for granting equivalence levels, the symmetric cultural-calendar coverage requirement for Level-1 temporal grants, and the cross-probe lead-lag query path. Worked example: the Probe 0 × Probe 1 temporal grant landed in this phase.
+* [ ] **WP-004 cross-link.** Mark §6.3 Level 1 (temporal) as **operationalised** with a forward-link to the Operations Playbook section above. Add a footnote to §6.3 noting that the first concrete grant is the institutional public-web pair DE×FR, with both probes structurally parallel by design (Phase 125 source-selection rationale). §6.3 Levels 2 and 3 remain pending interdisciplinary validation.
+* [ ] **Arc42 §13.4 (DNA mapping).** Update the Aleph row from "Crawler expansion pending" to "First multi-cultural composition operational — Probes 0+1 (DE+FR institutional public-web), temporal equivalence validated (WP-004 §6.3 Level 1)".
 * [ ] **CLAUDE.md.** Reflect the populated `metric_equivalence` registry — note that the first rows exist (`temporal_distribution` / `publication_hour` / `publication_weekday` for Probe 0 × Probe 1) and document their semantics as the reference example. Update the BFF API endpoint list with the `comparedTo` parameter on `/api/v1/probes/{probeId}/equivalence`.
-* [ ] **Probe Dossier cross-references.** Both `docs/probes/probe-0-de-institutional-rss/README.md` and `docs/probes/probe-1-fr-institutional-rss/README.md` get a new "Cross-Probe Operations" section in the WP Coverage Matrix area, citing Phase 123 as the source of the Level-1 temporal grant and linking to the Operations Playbook walkthrough. This is the first time per-probe dossiers reference a system-wide table (`aer_gold.metric_equivalence`) bidirectionally — exactly the pattern §8.15 describes for cross-probe scientific axes.
-* [ ] **Validation.** `make lint && make test && make fe-check` green. Manual: a `?normalization=zscore` request on a temporal metric across Probe 0 + Probe 1 succeeds (validated equivalence) and renders the deviation-labelled chart with both cultural-calendar contexts in the methodology tray; the same request on `sentiment_score_sentiws` across the two probes still refuses (no Level 2 sentiment equivalence granted); the same request on `sentiment_score_feel` (FR) across Probe 1 internally (within-frame, single-language) succeeds via the existing within-frame Phase-115 path; `GET /api/v1/probes/probe-0-de-institutional-rss/equivalence?comparedTo=probe-1-fr-institutional-rss` returns the Level-1 temporal grant with the `notes` field populated.
-
----
-
-# Iteration 8 — Advanced Composition & Reflection
-
-*Two P3 phases that require the full multi-probe and validated-extractor foundation to be scientifically meaningful. They build on top of Iterations 5–7 to deliver the open-ended exploration surface (Composition Mode) and the in-prose interactive arguments of Surface III (Interactive Reflection Papers).*
-
----
-
-## Phase 124: Exploratory Composition Mode (Brief §4.2.5) [P3] - [ ] TODO
-
-*Delivers the Kriesel-style free-form metadata exploration reserved in
-Brief §4.2.5. The user selects metrics, entities (by Wikidata QID from
-Phase 118), topics, or probes, and the instrument renders how they
-relate — via a D3-force node-link canvas, cross-correlation lead-lag
-views (WP-005 §6 Rhizome pillar), and connection-card pairs. This is
-the Relational Networks visualization domain from Brief §7.9,
-architecturally reserved since the design brief was written. Depends
-on: multi-probe composition (114) for cross-probe exploration; entity
-linking (118) for canonical entity nodes; topic modeling (120) for
-topic-dimension cards; Phase 122 for real multi-probe data in
-production; Phase 123 for the cross-probe lead-lag query path it
-consumes.*
-
-*Architectural framing — a fourth surface, not a Surface II mode.* The
-Composition Workspace is the fourth dashboard surface, with its own
-URL subtree (`/compose`), its own ScopeBar content, and its own
-interaction grammar. The reason: §4.2.5's interaction posture (free-
-form, manipulable, multi-dimensional, scope-free) is incompatible with
-the Function Lane shell's discipline (fixed WP-001 lanes, scope-bound
-view modes, parallel-stream rendering). Forcing it into Surface II
-would either dilute the lane shell or constrain the Workspace below
-the brief's intent. The fourth-surface framing is consistent with the
-Phase 126 surface-transition list ("Atmosphere ↔ Function Lanes ↔
-Reflection ↔ Composition Workspace") and the Phase 127 a11y target
-("three surfaces × Composition Workspace"). The Workspace is reachable
-from a fourth left-side-rail anchor; the methodology tray remains
-co-present and binds to the actively-focused card. The same refusal
-surfaces (Phase 115 cross-frame normalization gate, Phase 103 Silver-
-eligibility) apply unchanged — the Workspace inherits the system's
-methodological discipline rather than escaping it.
-
-*Scope discipline (Brief §1.3 — composition, not comparison).* The
-Workspace produces *relations*, not *rankings*. Lead-lag charts show
-temporal patterns; co-occurrence networks show structural adjacency;
-correlation matrices show statistical co-variation. None of these
-become "X causes Y" or "Probe A is more X than Probe B". Cross-probe
-relations crossing an unvalidated equivalence boundary refuse with
-the standard Phase-115 refusal surface inline within the connection
-card. The Workspace is exploratory, not interpretive.
-
-### Backend
-
-* [ ] **Cross-correlation lead-lag endpoint promotion.** Phase 123
-      ships the cross-probe lead-lag computation as an internal helper
-      to the existing correlation handler. Phase 124 promotes it to a
-      public BFF endpoint `GET /api/v1/correlation/lead-lag` with
-      parameters `(metricName, scopeAId, scopeBId, start, end,
-      lagWindowHours=168, lagStepHours=1)` and the same refusal-on-
-      cross-frame-without-equivalence behaviour as the existing
-      `?normalization=zscore` gate. Response: `{ lags: [{ hours,
-      pearson_r, sample_count }], peakLag: { hours, pearson_r },
-      equivalenceStatus: …}`. OpenAPI spec, `make codegen`. The
-      endpoint is also usable from the existing `time_series` cell in
-      Surface II as a follow-up enhancement, but is owned by Phase 124
-      because it is the primary consumer.
-
-* [ ] **Composition card-resolution endpoint.** New endpoint
-      `GET /api/v1/compose/cards/{cardType}?q=<text>` that resolves
-      free-form text into typed cards. `cardType` ∈ `{metric, entity,
-      topic, probe, source}`. The endpoint is the autocomplete backend
-      for the Workspace's card-search affordance — it returns the same
-      shape as `/metrics/available` for metrics, the Wikidata-aliased
-      entity records from Phase 118 for entities, the topic
-      distribution from Phase 120 for topics, and the registered
-      probes/sources for those types. Cross-resolves the user's typed
-      string against the language-scoped alias index per the
-      `?language=` parameter (Phase 116/118a). Cap response at 20
-      results. Integration tests: each `cardType` resolves correctly;
-      unknown `cardType` returns 400; unknown text returns empty array,
-      not 500.
-
-* [ ] **No new ClickHouse tables.** All connection types are derived at
-      query time from existing Gold tables: lead-lag from
-      `aer_gold.metrics`, co-occurrence from `aer_gold.entities` +
-      `aer_gold.entity_links`, topic-by-source from
-      `aer_gold.topic_assignments`, probe-pair-equivalence from
-      `aer_gold.metric_equivalence`. The Workspace is a *visualization*
-      of relations, not a *storage* of them — relations are
-      recomputable on every load.
-
-### Frontend (Composition Workspace)
-
-* [ ] **Route + ScopeBar.** New SvelteKit route subtree
-      `/compose`. The default landing (`/compose`) shows an empty
-      canvas with a card-search affordance and a one-paragraph primer
-      drawn from the content catalog (`refusals/` is the wrong slot —
-      a new `surfaces/composition_workspace.yaml` content entry
-      under `services/bff-api/configs/content/{en,de}/`, with the
-      same Dual-Register shape). The ScopeBar exposes a
-      `prefers-language` filter (defaults to none — composition is
-      cross-language by construction, but the user can scope) and
-      the standard time-window controls. The right-edge methodology
-      tray remains co-present and follows the actively-focused card.
-
-* [ ] **Card palette — five card types.** Implemented under
-      `services/dashboard/src/lib/components/compose/cards/`:
-      - `MetricCard` — name, tier badge, validation status,
-        small inline sparkline of recent values for the active scope.
-      - `EntityCard` — Wikidata QID + label + alias-source badge
-        (label / altLabel / accent-fold per Phase 118), small inline
-        co-occurrence-degree number for the active scope.
-      - `TopicCard` — topic ID + KeyBERT label + per-language partition
-        indicator (Phase 120), small inline article-count.
-      - `ProbeCard` — probe id + cultural-context tag + function-
-        coverage indicator (N/4 from Phase 122a).
-      - `SourceCard` — source name + emic designation + Silver-
-        eligibility badge.
-      Each card is roughly 240×120 px, dark-mode-native, draggable.
-      Cards are pure render targets; the canvas owns positioning.
-
-* [ ] **Connection types — five edges.** Implemented under
-      `services/dashboard/src/lib/components/compose/connections/`:
-      - `CrossCorrelation` — two `MetricCard`s, edge label = Pearson r
-        at lag 0 over the active window. Tooltip shows the full
-        lag-by-r curve from `/api/v1/correlation/lead-lag`.
-      - `LeadLag` — two `MetricCard`s scoped to two different probes.
-        Edge label = peak-lag hours + r at peak. Refusal surface
-        renders inline if the two probes lack a granted equivalence
-        for the metric.
-      - `CoOccurrence` — two `EntityCard`s. Edge weight = co-occurrence
-        count from `aer_gold.entities` over the active window. The
-        canonical entity-by-QID connection — the Phase 118 payoff.
-      - `TopicByEntity` — `EntityCard` + `TopicCard`. Edge weight =
-        article count where both appear (joins
-        `aer_gold.entity_links` × `aer_gold.topic_assignments`).
-      - `ProbeEquivalence` — two `ProbeCard`s. Edge label = highest
-        granted equivalence level (Level 1 / 2 / 3) from
-        `aer_gold.metric_equivalence`. Reads from
-        `/api/v1/probes/{probeId}/equivalence?comparedTo=<otherProbeId>`
-        (Phase 123).
-      Connection rendering uses D3-force-layout link rendering for
-      the relaxed state and a curved-line "physical-string-like"
-      style per Brief §7.9.
-
-* [ ] **D3-force canvas.** Implemented as
-      `services/dashboard/src/lib/components/compose/Canvas.svelte`,
-      lazy-loaded. Uses `d3-force` (already on the dashboard's
-      dependency surface from Phase 107's
-      `cooccurrence_network` cell — no new bundle weight at the
-      package level, only at the chunk level). The simulation runs
-      per Phase 107's pattern: `forceSimulation`, `forceLink`,
-      `forceCharge`, `forceCenter`. New cards drop at the cursor
-      position; existing cards relax around them. The simulation
-      damps after ~3 s of inactivity to keep the canvas stable.
-      `prefers-reduced-motion: reduce` skips the simulation
-      animation and renders the final relaxed layout directly.
-
-* [ ] **Direct manipulation.** Cards are drag-grabbable; on drag
-      they pin (`fx`/`fy` set) and the simulation re-relaxes around
-      them. Double-click on a card releases the pin. Right-click
-      (or long-press) opens a card context menu: open in Surface II
-      (for `MetricCard`/`SourceCard`/`ProbeCard`), open in
-      Reflection (for any card with WP-anchored content), remove
-      from canvas. The Brief §7.9 "physical-string-like" semantics
-      live here — when a card moves, its connection strings stretch
-      and the connected cards drift toward equilibrium.
-
-* [ ] **URL-state for card layout.** The Workspace state is encoded
-      in `/compose?layout=<base64>` where the base64 payload is a
-      gzipped JSON `{ cards: [{type, id, x, y, pinned}], connections:
-      [{aIdx, bIdx, type}], window: {start, end} }`. The encoding is
-      stable: two equivalent layouts produce byte-identical query
-      strings. Deep-linking restores both card positions and
-      connection topology exactly. URL length is bounded to 8 kB
-      gzipped — beyond that, the Workspace migrates the layout into
-      a server-side `aer_gold.compose_layouts` table (deferred —
-      first iteration uses URL only; the migration fires the moment
-      a real user hits the limit). Phase 126's URL-state-robustness
-      bullet covers the deep-link round-trip test for this state.
-
-* [ ] **Methodology-tray binding.** Hovering or focusing a card sets
-      the `focusedMetric` (or analogous `focusedEntity`,
-      `focusedTopic`, `focusedProbe`) store. The methodology tray
-      reads the focused card's content and provenance via the same
-      content-catalog + provenance endpoints as Surface II. New
-      content-catalog entity types are introduced for entities
-      (`/content/entity/{qid}`), topics (`/content/topic/{topicId}`),
-      and probes (existing `/content/probe/{probeId}`); the metric
-      and probe content types are already shipped. Each new entity
-      type reads from a separate seed under
-      `services/bff-api/configs/content/{en,de}/`.
-
-* [ ] **Refusal surface inline within connections.** A `LeadLag`
-      connection between probes that lack the required equivalence
-      grant renders the standard Phase-115 refusal-surface component
-      inline as the edge label, with the methodological-register
-      expansion in a tooltip. The refusal is the connection — the
-      user can still see *that* the cards are connected, just not at
-      the absolute scale they hoped for. Alternatives (drop
-      normalization, change to within-frame Level 1 temporal) appear
-      as one-click affordances next to the refusal text.
-
-* [ ] **Bundle posture.** The Composition Workspace is dynamic-
-      imported as a separate chunk (~120 kB gzipped budget,
-      includes the canvas, all card components, all connection
-      components, and the d3-force simulation). The shell budget
-      (80 kB gz, Phase 99a) is unchanged. The third-largest lazy-
-      chunk gate (`scripts/check-bundle-size.mjs`) gains a
-      Composition-Workspace entry at 120 kB.
-
-### Tests
-
-* [ ] **Vitest unit.** Card-palette: each card type renders correctly
-      with a fixture data record. Connection-palette: each connection
-      type renders correctly with a fixture pair. Layout encoding:
-      a known card layout round-trips exactly through the base64
-      encoder/decoder. Refusal surface: cross-probe `LeadLag` without
-      equivalence renders the refusal text and alternatives.
-
-* [ ] **Playwright E2E.** Navigate to `/compose`, search for a metric,
-      drop the resulting card; search for an entity, drop a second
-      card; create a co-occurrence connection between two entity
-      cards; create a cross-correlation between two metric cards;
-      drag a card and confirm the connection re-relaxes; share the
-      URL, open in a new browser context, confirm the layout restores
-      exactly. Plus the cross-probe-refusal happy path: drop two
-      `MetricCard`s scoped to different probes, request a `LeadLag`,
-      see the refusal-as-connection.
-
-* [ ] **A11y E2E (handed off to Phase 127).** The Phase-127 axe pass
-      explicitly covers the Composition Workspace; Phase 124 ships
-      with the structural a11y in place (role, aria-label, keyboard
-      reachability, screen-reader-announced card connections per the
-      Phase-127 bullet) but the formal audit is in 127.
-
-### Documentation
-
-* [ ] **Arc42 §8.x — new "Surface IV: Composition Workspace"
-      subsection.** Mirrors §8.14 (Surface III) in structure: route
-      structure, content sources, card palette, connection palette,
-      D3-force engine boundary, URL-state encoding, bundle posture,
-      methodology-tray binding, the four-surface principle that
-      replaces the previous three-surface architecture.
-
-* [ ] **Brief §4.2.5 cross-link.** Mark §4.2.5 as **operationalised**
-      with a forward-link to `/compose` and to the Arc42 §8.x
-      subsection. Promote the section title from "(reserved and
-      named)" to "(operational)" — the brief tracks the realisation
-      state of its own reservations.
-
-* [ ] **ADR-020 §Implementation-Outline · Phase 124.** Record the
-      fourth-surface decision and its rationale (the Surface II
-      lane-discipline incompatibility argument); the
-      cross-correlation lead-lag endpoint promotion from Phase-123-
-      internal to Phase-124-public; the URL-encoded layout state and
-      its 8-kB-gz boundary; the deferral of the
-      `aer_gold.compose_layouts` server-side table until URL-length
-      pressure is observed.
-
-* [ ] **Operations Playbook — new section "Composition Workspace
-      operations".** Covers: how a new card type is added (matrix:
-      content-catalog entity type + card component + canvas
-      registration); how a new connection type is added (similar
-      matrix); the refusal-as-connection pattern; the URL-state-to-
-      server-state migration trigger and procedure.
-
-* [ ] **CLAUDE.md.** New "Composition Workspace" subsection under
-      Frontend Architecture summarising the four surfaces, the card
-      palette, and the connection palette. Add the
-      `/api/v1/correlation/lead-lag` and `/api/v1/compose/cards/*`
-      endpoints to the BFF endpoint list.
+* [ ] **Probe Dossier cross-references.** Both `docs/probes/probe-0-de-institutional-web/README.md` and `docs/probes/probe-1-fr-institutional-web/README.md` get a new "Cross-Probe Operations" section in the WP Coverage Matrix area, citing Phase 126 as the source of the Level-1 temporal grant and linking to the Operations Playbook walkthrough. This is the first time per-probe dossiers reference a system-wide table (`aer_gold.metric_equivalence`) bidirectionally — exactly the pattern §8.15 describes for cross-probe scientific axes.
 
 ### Validation
 
-* [ ] `make lint && make test && make fe-check && make codegen &&
-      git diff --exit-code` green.
+* [ ] `make lint && make test && make fe-check` green.
+* [ ] Manual: a `?normalization=zscore` request on a temporal metric across Probe 0 + Probe 1 succeeds (validated equivalence) and renders the deviation-labelled chart with both cultural-calendar contexts in the methodology tray; the same request on `sentiment_score_sentiws` across the two probes still refuses (no Level 2 sentiment equivalence granted); the same request on `sentiment_score_feel` (FR) across Probe 1 internally (within-frame, single-language) succeeds via the existing within-frame Phase-115 path; `GET /api/v1/probes/probe-0-de-institutional-web/equivalence?comparedTo=probe-1-fr-institutional-web` returns the Level-1 temporal grant with the `notes` field populated.
 
-* [ ] Manual end-to-end: open `/compose`, search and drop a metric
-      card (e.g. `sentiment_score_sentiws`), an entity card (e.g.
-      `Q4093` Olaf Scholz), a topic card from the active Probe-0
-      topic distribution, and a probe card for `probe-0-de-
-      institutional-rss`. Create a co-occurrence connection between
-      two entity cards. Create a cross-correlation connection
-      between two metric cards. Drag the entity card; confirm the
-      string stretches and the canvas re-relaxes. Share the URL,
-      open it in a new browser tab, confirm exact restore. Add a
-      `probe-1-fr-institutional-rss` card and request a lead-lag
-      against the probe-0 metric; confirm the refusal-as-connection
-      renders with WP-004 §5.2 anchor and Level-1 temporal
-      alternative (a working alternative, post-Phase-123).
-
-### Phase ordering note
-
-This phase is the natural next step once Iterations 6–7 stabilise the
-extractor inventory and the equivalence registry. The hard
-prerequisites are:
-- Phase 114 (multi-probe composition — for the `LeadLag` connection
-  to have two scopes to span)
-- Phase 118 (Wikidata entity linking — for the `EntityCard` to
-  identify entities canonically rather than by surface form, and for
-  `CoOccurrence` connections to be analytically meaningful at scale)
-- Phase 120 (BERTopic — for the `TopicCard` to have content)
-- Phase 122 (Probe 1 — for cross-probe `LeadLag` to have a real
-  second probe)
-- Phase 123 (cross-probe lead-lag query path + first equivalence
-  grant — for the lead-lag connection to actually compute, and for
-  the refusal surface to have a working alternative to point to)
-
-The phase is P3 because it is the open-ended exploration surface — a
-wide-aperture instrument for users who already understand the
-constrained Surface II views. Without the upstream foundation, the
-Workspace renders empty cards or refuses every connection — the
-fragility of premature shipping is what justifies the late
-sequencing.
 ---
 
-## Phase 125: Interactive Reflection Papers (Brief §4.3.3) [P3] - [ ] TODO
+# Iteration 9 — Advanced Composition & Reflection
 
-*Adds inline interactive illustrations to Surface III Working Papers
-following the Distill.pub pattern (Brief §4.3.3). The same Observable Plot /
-uPlot / D3 modules that power Surface II also power these illustrations —
-the paper and the dashboard share a vocabulary (Brief §7.9 visualization-
-stack separation). The WP-002 reader manipulates a negation parameter and
-observes the effect on real Probe 0 sentiment data; sees the three
-sentiment tiers (Tier 1 SentiWS, Tier 2 multilingual BERT, Tier 2.5 German
-news-domain BERT) overlaid on the same article pool — making the domain-
-transfer gap that motivates ADR-023 inspectable rather than asserted; and
-the WP-004 reader toggles normalization levels and encounters the
-equivalence gate inline within the argument text. Depends on Phase 117
-(negation handler, for the WP-002 negation illustration), Phase 119 (Tier 2
-/ Tier 2.5 sentiment metrics, for the tier-comparison illustration), Phase
-115 (equivalence gate, for the WP-004 illustration), and Phase 123 (real
-cross-probe data to make the WP-004 Level 1 grant feel real and the Level 3
-refusal feel real).*
+*Two P3 phases that require the full multi-probe and validated-extractor foundation to be scientifically meaningful. They build on top of Iterations 5–8 to deliver the open-ended exploration surface (Composition Mode) and the in-prose interactive arguments of Surface III (Interactive Reflection Papers).*
 
-*Architectural framing.* This phase is the canonical realisation of the
-ADR-016 / ADR-023 "alongside, not instead of" principle for the dashboard
-surface. Outside the inline reflection cells declared here, parallel-tier
-rendering is intentionally not offered — the View-Mode Matrix on Surface II
-remains one-metric-at-a-time, and the methodology tray's per-metric framing
-remains the L4 primary. The argument is that side-by-side tier comparison
-is a *teaching* artifact (Surface III) rather than a *daily-use* artifact
-(Surface II); putting it here keeps Surface II focused and makes the
-comparison itself part of the methodological literature instead of a
-dashboard mode that drifts free of its argument.
+---
 
-### Frontend (Inline Cells)
+## Phase 127: Exploratory Composition Mode (Brief §4.2.5) [P3] - [ ] TODO
 
-* [ ] **WP-002 §3 — Negation parameter cell (extension of `sentiment-
-      window-demo`).** Add a "Negation handling: ON / OFF" toggle to the
-      existing Phase-109 cell. ON fetches `sentiment_score_sentiws` (Phase
-      117 dependency-based negation scope); OFF fetches the (now-frozen)
-      pre-Phase-117 score from a pinned-window snapshot file checked into
-      `services/dashboard/static/content/papers/fixtures/`. The reader
-      sees the same Probe 0 articles plotted twice — the methodological
-      argument of WP-002 §3 (negation blindness materially shifts polarity)
-      becomes empirically inspectable rather than narrated. The frozen-
-      baseline file is regenerated only when WP-002 is materially revised;
-      it is a teaching fixture, not a live signal.
+*Delivers the Kriesel-style free-form metadata exploration reserved in Brief §4.2.5. The user selects metrics, entities (by Wikidata QID from Phase 118), topics, or probes, and the instrument renders how they relate — via a D3-force node-link canvas, cross-correlation lead-lag views (WP-005 §6 Rhizome pillar), and connection-card pairs. This is the Relational Networks visualization domain from Brief §7.9, architecturally reserved since the design brief was written. Depends on: multi-probe composition (114) for cross-probe exploration; entity linking (118) for canonical entity nodes; topic modeling (120) for topic-dimension cards; Phase 125 for real multi-probe data in production; Phase 126 for the cross-probe lead-lag query path it consumes.*
 
-* [ ] **WP-002 §3.2 — Tier comparison cell (`tier-comparison-demo`,
-      ADR-023 demonstrator).** New inline cell after WP-002 §3.2 (the
-      domain-transfer subsection). Renders three time-series overlays of
-      the same Probe 0 article pool: `sentiment_score_sentiws` (Tier 1,
-      stroke = `weight-tier1-unvalidated`), `sentiment_score_bert_
-      multilingual` (Tier 2 default, medium stroke), `sentiment_score_
-      bert_de_news` (Tier 2.5 refinement, bold stroke). A small toggle
-      group lets the reader hide/show each tier independently; default
-      state shows all three. Hovering a time-bucket reveals the absolute
-      gap between the three values for that bucket — the empirical
-      instantiation of the ADR-023 closing rationale ("the gap between
-      multilingual and news-domain is itself a research signal"). The
-      cell consumes the per-metric data from the existing
-      `/api/v1/metrics` endpoint via three parallel `metricsQuery`
-      calls — no new BFF endpoint required. `papers.ts` `interactiveCells`
-      for `wp-002` gains `{ afterSection: '3.2', cellId: 'tier-comparison-
-      demo' }`. This bullet is the visual realisation of the ADR-016
-      "alongside, not instead of" principle that Phase 119 satisfies
-      informationally but not visually.
+*Architectural framing — a fourth surface, not a Surface II mode.* The Composition Workspace is the fourth dashboard surface, with its own URL subtree (`/compose`), its own ScopeBar content, and its own interaction grammar. The reason: §4.2.5's interaction posture (free-form, manipulable, multi-dimensional, scope-free) is incompatible with the Function Lane shell's discipline (fixed WP-001 lanes, scope-bound view modes, parallel-stream rendering). Forcing it into Surface II would either dilute the lane shell or constrain the Workspace below the brief's intent. The fourth-surface framing is consistent with the Phase 129 surface-transition list ("Atmosphere ↔ Function Lanes ↔ Reflection ↔ Composition Workspace") and the Phase 130 a11y target ("three surfaces × Composition Workspace"). The Workspace is reachable from a fourth left-side-rail anchor; the methodology tray remains co-present and binds to the actively-focused card. The same refusal surfaces (Phase 115 cross-frame normalization gate, Phase 103 Silver-eligibility) apply unchanged — the Workspace inherits the system's methodological discipline rather than escaping it.
 
-* [ ] **WP-004 §6.3 — Normalization level cell.** Inline cell exposing
-      a `Raw / Deviation (Level 2) / Absolute (Level 3)` toggle.
-      Selecting `Absolute` for a cross-probe scope triggers the existing
-      Phase-115 refusal surface inline within the prose — the equivalence-
-      gate refusal becomes a teaching moment rather than a frustration
-      moment. Selecting `Deviation` requires real cross-probe data and is
-      conditional on Phase 123 (first Level-1 temporal grant + first
-      baseline run on Probe 0 + Probe 1).
+*Scope discipline (Brief §1.3 — composition, not comparison).* The Workspace produces *relations*, not *rankings*. Lead-lag charts show temporal patterns; co-occurrence networks show structural adjacency; correlation matrices show statistical co-variation. None of these become "X causes Y" or "Probe A is more X than Probe B". Cross-probe relations crossing an unvalidated equivalence boundary refuse with the standard Phase-115 refusal surface inline within the connection card. The Workspace is exploratory, not interpretive.
 
-* [ ] **`InlineChart` extension.** `services/dashboard/src/lib/components/
-      reflection/InlineChart.svelte` gains a `cellId`-driven dispatch to
-      the three new cell types. Each cell has its own dedicated render
-      function under `services/dashboard/src/lib/components/reflection/
-      cells/`; shared concerns (TanStack Query setup, ResizeObserver,
-      design-token colours, the focusedMetric subscription) stay in the
-      component shell. Each cell lazy-loads only when the section that
-      declares it is in the viewport (extends the Phase-109 lazy pattern;
-      the existing pattern is per-component, so this is a one-line
-      adaptation). The shell-bundle gate (80 kB gz) and the second-largest
-      lazy-chunk gate (160 kB gz) remain unchanged.
+### Backend
 
-* [ ] **Tests.** Vitest: `papers.ts` includes the three new
-      `interactiveCells` entries; the cell renderer dispatches on `cellId`
-      correctly; the tier-comparison cell handles the case where one of
-      the three metrics has no data (e.g. before Phase 119 has produced
-      enough Probe 0 data, or the multilingual extractor hasn't yet
-      backfilled) by fading that line and surfacing a small inline "no
-      data yet for <metric>" annotation, not a hard error; the
-      focusedMetric store updates to follow the actively-hovered tier so
-      the methodology tray content reflects the user's current
-      methodological focus. Playwright E2E: `/reflection/wp/wp-002?section=
-      3.2` renders the tier-comparison cell with three lines visible;
-      toggle interactions update the chart without re-fetching; the
-      methodology tray follows the hovered tier.
+* [ ] **Cross-correlation lead-lag endpoint promotion.** Phase 126 ships the cross-probe lead-lag computation as an internal helper to the existing correlation handler. Phase 127 promotes it to a public BFF endpoint `GET /api/v1/correlation/lead-lag` with parameters `(metricName, scopeAId, scopeBId, start, end, lagWindowHours=168, lagStepHours=1)` and the same refusal-on-cross-frame-without-equivalence behaviour as the existing `?normalization=zscore` gate. Response: `{ lags: [{ hours, pearson_r, sample_count }], peakLag: { hours, pearson_r }, equivalenceStatus: …}`. OpenAPI spec, `make codegen`. The endpoint is also usable from the existing `time_series` cell in Surface II as a follow-up enhancement, but is owned by Phase 127 because it is the primary consumer.
+* [ ] **Composition card-resolution endpoint.** New endpoint `GET /api/v1/compose/cards/{cardType}?q=<text>` that resolves free-form text into typed cards. `cardType` ∈ `{metric, entity, topic, probe, source}`. The endpoint is the autocomplete backend for the Workspace's card-search affordance — it returns the same shape as `/metrics/available` for metrics, the Wikidata-aliased entity records from Phase 118 for entities, the topic distribution from Phase 120 for topics, and the registered probes/sources for those types. Cross-resolves the user's typed string against the language-scoped alias index per the `?language=` parameter (Phase 116/118a). Cap response at 20 results. Integration tests: each `cardType` resolves correctly; unknown `cardType` returns 400; unknown text returns empty array, not 500.
+* [ ] **No new ClickHouse tables.** All connection types are derived at query time from existing Gold tables: lead-lag from `aer_gold.metrics`, co-occurrence from `aer_gold.entities` + `aer_gold.entity_links`, topic-by-source from `aer_gold.topic_assignments`, probe-pair-equivalence from `aer_gold.metric_equivalence`. The Workspace is a *visualization* of relations, not a *storage* of them — relations are recomputable on every load.
+
+### Frontend (Composition Workspace)
+
+* [ ] **Route + ScopeBar.** New SvelteKit route subtree `/compose`. The ScopeBar carries the time window, the selected card-search affordance, and the layout-share affordance. The Pillar Mode toggle is hidden — pillars do not apply to the open-ended Workspace.
+* [ ] **Card palette.** Five card types, each rendered by a dedicated component: `MetricCard`, `EntityCard`, `TopicCard`, `ProbeCard`, `SourceCard`. Each card carries: a title, a small inline visualisation appropriate to the type (sparkline for metrics, top-co-occurrents for entities, topic-volume bar for topics, scope summary for probes/sources), and a methodology-tray hook on hover/focus.
+* [ ] **Connection palette.** Four connection types as edges between cards: `CoOccurrence` (entity ↔ entity), `LeadLag` (metric ↔ metric), `TopicScope` (topic ↔ probe / source), `Equivalence` (probe ↔ probe). Each connection renders an inline mini-chart (lead-lag curve, co-occurrence bar, etc.) at the edge midpoint; connection state is reactive to card position via the d3-force simulation.
+* [ ] **D3-force canvas.** `d3-force-ts` simulation engine. Cards are nodes; connections are forces. Card drag updates simulation state; pinned cards anchor their position. `prefers-reduced-motion` degrades to a static layout where cards land in their initial positions and do not animate.
+* [ ] **URL-state for card layout.** The Workspace state is encoded in `/compose?layout=<base64>` where the base64 payload is a gzipped JSON `{ cards: [{type, id, x, y, pinned}], connections: [{aIdx, bIdx, type}], window: {start, end} }`. The encoding is stable: two equivalent layouts produce byte-identical query strings. Deep-linking restores both card positions and connection topology exactly. URL length is bounded to 8 kB gzipped — beyond that, the Workspace migrates the layout into a server-side `aer_gold.compose_layouts` table (deferred — first iteration uses URL only; the migration fires the moment a real user hits the limit). Phase 129's URL-state-robustness bullet covers the deep-link round-trip test for this state.
+* [ ] **Methodology-tray binding.** Hovering or focusing a card sets the `focusedMetric` (or analogous `focusedEntity`, `focusedTopic`, `focusedProbe`) store. The methodology tray reads the focused card's content and provenance via the same content-catalog + provenance endpoints as Surface II. New content-catalog entity types are introduced for entities (`/content/entity/{qid}`), topics (`/content/topic/{topicId}`), and probes (existing `/content/probe/{probeId}`); the metric and probe content types are already shipped. Each new entity type reads from a separate seed under `services/bff-api/configs/content/{en,de}/`.
+* [ ] **Refusal surface inline within connections.** A `LeadLag` connection between probes that lack the required equivalence grant renders the standard Phase-115 refusal-surface component inline as the edge label, with the methodological-register expansion in a tooltip. The refusal is the connection — the user can still see *that* the cards are connected, just not at the absolute scale they hoped for. Alternatives (drop normalization, change to within-frame Level 1 temporal) appear as one-click affordances next to the refusal text.
+* [ ] **Bundle posture.** The Composition Workspace is dynamic-imported as a separate chunk (~120 kB gzipped budget, includes the canvas, all card components, all connection components, and the d3-force simulation). The shell budget (80 kB gz, Phase 99a) is unchanged. The third-largest lazy-chunk gate (`scripts/check-bundle-size.mjs`) gains a Composition-Workspace entry at 120 kB.
+
+### Tests
+
+* [ ] **Vitest unit.** Card-palette: each card type renders correctly with a fixture data record. Connection-palette: each connection type renders correctly with a fixture pair. Layout encoding: a known card layout round-trips exactly through the base64 encoder/decoder. Refusal surface: cross-probe `LeadLag` without equivalence renders the refusal text and alternatives.
+* [ ] **Playwright E2E.** Navigate to `/compose`, search for a metric, drop the resulting card; search for an entity, drop a second card; create a co-occurrence connection between two entity cards; create a cross-correlation between two metric cards; drag a card and confirm the connection re-relaxes; share the URL, open in a new browser context, confirm the layout restores exactly. Plus the cross-probe-refusal happy path: drop two `MetricCard`s scoped to different probes, request a `LeadLag`, see the refusal-as-connection.
+* [ ] **a11y E2E (handed off to Phase 130).** The Phase-130 axe pass explicitly covers the Composition Workspace; Phase 127 ships with the structural a11y in place (role, aria-label, keyboard reachability, screen-reader-announced card connections per the Phase-130 bullet) but the formal audit is in 130.
 
 ### Documentation
 
-* [ ] **Arc42 §8.14.** Update the Surface III "Inline interactive cells"
-      subsection to document the three new cells, the cell-dispatch
-      pattern, the `cells/` subdirectory, and the dependency on Phase
-      119 / 117 / 115 / 123 metrics being live.
+* [ ] **Arc42 §8.x — new "Surface IV: Composition Workspace" subsection.** Mirrors §8.14 (Surface III) in structure: route structure, content sources, card palette, connection palette, D3-force engine boundary, URL-state encoding, bundle posture, methodology-tray binding, the four-surface principle that replaces the previous three-surface architecture.
+* [ ] **Brief §4.2.5 cross-link.** Mark §4.2.5 as **operationalised** with a forward-link to `/compose` and to the Arc42 §8.x subsection. Promote the section title from "(reserved and named)" to "(operational)" — the brief tracks the realisation state of its own reservations.
+* [ ] **ADR-020 §Implementation-Outline · Phase 127.** Record the fourth-surface decision and its rationale (the Surface II lane-discipline incompatibility argument); the cross-correlation lead-lag endpoint promotion from Phase-126-internal to Phase-127-public; the URL-encoded layout state and its 8-kB-gz boundary; the deferral of the `aer_gold.compose_layouts` server-side table until URL-length pressure is observed.
+* [ ] **Operations Playbook — new section "Composition Workspace operations".** Covers: how a new card type is added (matrix: content-catalog entity type + card component + canvas registration); how a new connection type is added (similar matrix); the refusal-as-connection pattern; the URL-state-to-server-state migration trigger and procedure.
+* [ ] **CLAUDE.md.** New "Composition Workspace" subsection under Frontend Architecture summarising the four surfaces, the card palette, and the connection palette. Add the `/api/v1/correlation/lead-lag` and `/api/v1/compose/cards/*` endpoints to the BFF endpoint list.
 
-* [ ] **Brief §4.3.3 cross-link.** Add a forward-reference noting that
-      the WP-002 §3.2 tier-comparison cell is the canonical realisation
-      of the ADR-016 / ADR-023 "alongside, not instead of" principle on
-      the dashboard surface — the rationale being that side-by-side tier
-      comparison is a teaching artifact (Surface III) rather than a
-      daily-use artifact (Surface II).
+### Validation
 
-* [ ] **ADR-016 / ADR-023 closeout note.** Append a short paragraph to
-      both ADRs noting that Phase 125's `tier-comparison-demo` is the
-      visual operationalisation of the "alongside" commitment, and that
-      Phase 119 deliberately ships without a Surface II side-by-side
-      mode pending this phase. The split is recorded so a future
-      reviewer doesn't read Phase 119 as architecturally incomplete.
+* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
+* [ ] Manual end-to-end: open `/compose`, search and drop a metric card (e.g. `sentiment_score_sentiws`), an entity card (e.g. `Q4093` Olaf Scholz), a topic card from the active Probe-0 topic distribution, and a probe card for `probe-0-de-institutional-web`. Create a co-occurrence connection between two entity cards. Create a cross-correlation connection between two metric cards. Drag the entity card; confirm the string stretches and the canvas re-relaxes. Share the URL, open it in a new browser tab, confirm exact restore. Add a `probe-1-fr-institutional-web` card and request a lead-lag against the probe-0 metric; confirm the refusal-as-connection renders with WP-004 §5.2 anchor and Level-1 temporal alternative (a working alternative, post-Phase-126).
 
-* [ ] **Validation.** `make fe-check` green. Manual: open
-      `/reflection/wp/wp-002?section=3.2` and confirm the three sentiment
-      lines render with their distinct strokes; toggle each tier off/on
-      and confirm the chart updates without re-fetching; hover a bucket
-      and confirm the gap-readout is visible; the methodology tray on
-      the right shows the content for the actively-hovered tier.
+### Phase ordering note
+
+This phase is the natural next step once Iterations 6–8 stabilise the extractor inventory and the equivalence registry. The hard prerequisites are:
+- Phase 114 (multi-probe composition — for the `LeadLag` connection to have two scopes to span)
+- Phase 118 (Wikidata entity linking — for the `EntityCard` to identify entities canonically rather than by surface form, and for `CoOccurrence` connections to be analytically meaningful at scale)
+- Phase 120 (BERTopic — for the `TopicCard` to have content)
+- Phase 125 (Probe 1 — for cross-probe `LeadLag` to have a real second probe)
+- Phase 126 (cross-probe lead-lag query path + first equivalence grant — for the lead-lag connection to actually compute, and for the refusal surface to have a working alternative to point to)
+
+The phase is P3 because it is the open-ended exploration surface — a wide-aperture instrument for users who already understand the constrained Surface II views. Without the upstream foundation, the Workspace renders empty cards or refuses every connection — the fragility of premature shipping is what justifies the late sequencing.
+
+---
+
+## Phase 128: Interactive Reflection Papers (Brief §4.3.3) [P3] - [ ] TODO
+
+*Adds inline interactive illustrations to Surface III Working Papers following the Distill.pub pattern (Brief §4.3.3). The same Observable Plot / uPlot / D3 modules that power Surface II also power these illustrations — the paper and the dashboard share a vocabulary (Brief §7.9 visualization-stack separation). The WP-002 reader manipulates a negation parameter and observes the effect on real Probe 0 sentiment data; sees the three sentiment tiers (Tier 1 SentiWS, Tier 2 multilingual BERT, Tier 2.5 German news-domain BERT) overlaid on the same article pool — making the domain-transfer gap that motivates ADR-023 inspectable rather than asserted; the WP-003 reader inspects the authenticity-distribution data live, with the methodological caveats foregrounded; and the WP-004 reader toggles normalization levels and encounters the equivalence gate inline within the argument text. Depends on Phase 117 (negation handler, for the WP-002 negation illustration), Phase 119 (Tier 2 / Tier 2.5 sentiment metrics, for the tier-comparison illustration), Phase 115 (equivalence gate, for the WP-004 illustration), Phase 123 (authenticity foundation, for the WP-003 illustration), and Phase 126 (real cross-probe data to make the WP-004 Level 1 grant feel real and the Level 3 refusal feel real).*
+
+*Architectural framing.* This phase is the canonical realisation of the ADR-016 / ADR-023 "alongside, not instead of" principle for the dashboard surface. Outside the inline reflection cells declared here, parallel-tier rendering is intentionally not offered — the View-Mode Matrix on Surface II remains one-metric-at-a-time, and the methodology tray's per-metric framing remains the L4 primary. The argument is that side-by-side tier comparison is a *teaching* artifact (Surface III) rather than a *daily-use* artifact (Surface II); putting it here keeps Surface II focused and makes the comparison itself part of the methodological literature instead of a dashboard mode that drifts free of its argument.
+
+### Frontend (Inline Cells)
+
+* [ ] **WP-002 §3 — Negation parameter cell.** Add a "Negation handling: ON / OFF" toggle to the existing Phase-109 `sentiment-window-demo` cell. ON fetches `sentiment_score_sentiws` (Phase 117 dependency-based negation scope); OFF fetches the (now-frozen) pre-Phase-117 score from a pinned-window snapshot file checked into `services/dashboard/static/content/papers/fixtures/`. The reader sees the same Probe 0 articles plotted twice — the methodological argument of WP-002 §3 (negation blindness materially shifts polarity) becomes empirically inspectable rather than narrated. The frozen-baseline file is regenerated only when WP-002 is materially revised; it is a teaching fixture, not a live signal.
+* [ ] **WP-002 §3.2 — Tier comparison cell (`tier-comparison-demo`, ADR-023 demonstrator).** Renders three sentiment lines on the same Probe 0 corpus: Tier 1 SentiWS, Tier 2 multilingual BERT, Tier 2.5 German news-domain BERT. Each line carries its own Epistemic Weight badge and methodology-tray hook. Hover a bucket: gap-readout shows the absolute difference between the three at that bucket — the domain-transfer gap WP-002 §3.2 argues for becomes a number on the page.
+* [ ] **WP-003 §5 — Authenticity-distribution cell.** New cell rendering the live Tier-1 stylometric distribution for the active Probe 0 corpus (Phase 123). Reader toggles between the five Tier-1 features and (when Phase 123 Tier-2 is enabled) the Binoculars score. Inline methodological caveats foregrounded: false-positive rate, language-specific calibration, the deliberate non-moderation framing.
+* [ ] **WP-004 §6 — Normalization parameter cell.** Reader toggles between `raw / zscore / percentile` on a cross-probe metric pair. Within-frame requests render normally; cross-frame `zscore` triggers the Phase-115 refusal surface inline; the Level-1 temporal alternative resolves to a working chart (post-Phase-126). The argument of WP-004 §6 — equivalence is not free, the system enforces the boundary — becomes interactive rather than asserted.
+* [ ] **Cell-dispatch infrastructure.** Each cell lazy-loads only when the section that declares it is in the viewport (extends the Phase-109 lazy pattern; the existing pattern is per-component, so this is a one-line adaptation). The shell-bundle gate (80 kB gz) and the second-largest lazy-chunk gate (160 kB gz) remain unchanged.
+
+### Tests
+
+* [ ] **Vitest.** `papers.ts` includes the four new `interactiveCells` entries; the cell renderer dispatches on `cellId` correctly; the tier-comparison cell handles the case where one of the three metrics has no data by fading that line and surfacing a small inline "no data yet for <metric>" annotation, not a hard error; the focusedMetric store updates to follow the actively-hovered tier so the methodology tray content reflects the user's current methodological focus.
+* [ ] **Playwright E2E.** `/reflection/wp/wp-002?section=3.2` renders the tier-comparison cell with three lines visible; toggle interactions update the chart without re-fetching; the methodology tray follows the hovered tier. `/reflection/wp/wp-003?section=5` renders the authenticity-distribution cell; toggling between Tier-1 features updates the chart. `/reflection/wp/wp-004?section=6` renders the normalization parameter cell; switching to cross-frame `zscore` triggers the refusal-surface; switching to the Level-1 temporal alternative renders a working chart.
+
+### Documentation
+
+* [ ] **Arc42 §8.14.** Update the Surface III "Inline interactive cells" subsection to document the four new cells, the cell-dispatch pattern, the `cells/` subdirectory, and the dependency on Phase 119 / 117 / 115 / 123 / 126 metrics being live.
+* [ ] **Brief §4.3.3 cross-link.** Add a forward-reference noting that the WP-002 §3.2 tier-comparison cell is the canonical realisation of the ADR-016 / ADR-023 "alongside, not instead of" principle on the dashboard surface — the rationale being that side-by-side tier comparison is a teaching artifact (Surface III) rather than a daily-use artifact (Surface II).
+* [ ] **ADR-016 / ADR-023 closeout note.** Append a short paragraph to both ADRs noting that Phase 128's `tier-comparison-demo` is the visual operationalisation of the "alongside" commitment, and that Phase 119 deliberately ships without a Surface II side-by-side mode pending this phase. The split is recorded so a future reviewer doesn't read Phase 119 as architecturally incomplete.
+
+### Validation
+
+* [ ] `make fe-check` green. Manual: open `/reflection/wp/wp-002?section=3.2` and confirm the three sentiment lines render with their distinct strokes; toggle each tier off/on and confirm the chart updates without re-fetching; hover a bucket and confirm the gap-readout is visible; the methodology tray on the right shows the content for the actively-hovered tier. Open `/reflection/wp/wp-003?section=5` and confirm the authenticity-distribution cell renders Tier-1 features with the methodological caveats foregrounded.
+
 ---
 
 # Iteration 5 Deferred Closure — Polish, Audit, Documentation
 
-*The originally-Iteration-5 polish phases, deliberately deferred until Iterations 6–8 have stabilised the surface topology, the metric inventory, and the terminology. Polish on a moving target is doubled work; this block does the polish once, against a final surface. All three phases run in close succession; together they constitute the "ready for first external user" gate.*
+*The originally-Iteration-5 polish phases, deliberately deferred until Iterations 6–9 have stabilised the surface topology, the metric inventory, the data-collection method, and the terminology. Polish on a moving target is doubled work; this block does the polish once, against a final surface. All three phases run in close succession; together they constitute the "ready for first external user" gate.*
 
 ---
 
-## Phase 126: Progressive Descent Infrastructure (Iteration 5 Deferred) [P2] - [ ] TODO
+## Phase 129: Progressive Descent Infrastructure (Iteration 5 Deferred) [P2] - [ ] TODO
 
-*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that all surfaces, view modes, composition mode, and probe-expansion content are in place. Depends on Phases 106, 109, 110, 114, 115, 121, 122, 124, 125 — i.e. on the full surface inventory.*
+*Cross-cutting infrastructure that polishes transitions, keyboard navigation, and URL-state robustness now that all surfaces, view modes, composition mode, web-crawled data, authenticity signals, and probe-expansion content are in place. Depends on Phases 106, 109, 110, 114, 115, 121, 122, 124, 125, 127, 128 — i.e. on the full surface inventory.*
 
 * [ ] **View Transitions API wiring.** Atmosphere ↔ Function Lanes ↔ Reflection ↔ Composition Workspace surface transitions; descent and ascent animations per `prefers-reduced-motion: reduce`.
 * [ ] **Keyboard-nav completeness.** All five layers on all three surfaces plus the Composition Workspace reachable via keyboard; surface switching via keyboard shortcuts (documented in `design_system.md`); methodology-tray toggle via keyboard.
-* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state, composition-mode card layout encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
-* [ ] **L5 Evidence polish.** Reader-pane overlay rendering refined (trace-ID copy affordance, content-catalog evidence-metadata rendering, reduced-motion fade).
-* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests including composition state; `prefers-reduced-motion` verification; L5 reader-pane E2E.
+* [ ] **URL-state robustness.** Every scope change, view-mode change, tray state, pillar mode, Negative Space state, composition-mode card layout, authenticity-overlay state encoded in the URL. Deep-link to any state from a bookmark or shared link restores it exactly.
+* [ ] **L5 Evidence polish.** Reader-pane overlay rendering refined (trace-ID copy affordance, content-catalog evidence-metadata rendering, authenticity-panel rendering, reduced-motion fade).
+* [ ] **Tests.** Full keyboard-only descent E2E on each surface; deep-link round-trip tests including composition state and authenticity-overlay state; `prefers-reduced-motion` verification; L5 reader-pane E2E.
 * [ ] **Arc42 update.** §8.x Progressive Descent Infrastructure + keyboard-nav map.
 * [ ] **Validation.** `make fe-check` green; Playwright keyboard-only E2E green.
 
 ---
 
-## Phase 127: Accessibility Audit + High-Fi Performance Verification (Iteration 5 Deferred) [P1] - [ ] TODO
+## Phase 130: Accessibility Audit + High-Fi Performance Verification (Iteration 5 Deferred) [P1] - [ ] TODO
 
-*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all surfaces, view modes, composition mode, and probe-expansion content. Depends on Phase 126 being substantially in place.*
+*Full WCAG 2.2 AA audit + Lighthouse CI tightening + High-Fi hardware-class performance testing across all surfaces, view modes, composition mode, authenticity surface, and probe-expansion content. Depends on Phase 129 being substantially in place.*
 
-* [ ] **Axe audit.** `@axe-core/playwright` covers every route state: three surfaces × Composition Workspace × reachable layers × methodology-tray open/closed × Negative Space on/off. Zero WCAG 2.2 AA violations.
+* [ ] **Axe audit.** `@axe-core/playwright` covers every route state: three surfaces × Composition Workspace × reachable layers × methodology-tray open/closed × Negative Space on/off × authenticity panel visible/hidden. Zero WCAG 2.2 AA violations.
 * [ ] **Lighthouse CI tightening.** Budgets per Brief §10: first meaningful paint, interactivity, descent latency, frame budgets during transitions. CI fails on regression.
-* [ ] **High-Fi hardware testing.** Manual verification on a 2021 M1 MacBook Air equivalent: all surfaces fluid at 60 fps; descent transitions under 500 ms; chart rendering under 16 ms/frame with ≤10k points; topic-evolution stream graph rendering under 16 ms/frame. Results recorded in `docs/operations_playbook.md`.
-* [ ] **Screen-reader pass.** Each surface narrated correctly; descent announcements clear; landmarks correct; Composition Workspace card connections announced.
+* [ ] **High-Fi hardware testing.** Manual verification on a 2021 M1 MacBook Air equivalent: all surfaces fluid at 60 fps; descent transitions under 500 ms; chart rendering under 16 ms/frame with ≤10k points; topic-evolution stream graph rendering under 16 ms/frame; authenticity-distribution ridgeline rendering under 16 ms/frame. Results recorded in `docs/operations/operations_playbook.md`.
+* [ ] **Screen-reader pass.** Each surface narrated correctly; descent announcements clear; landmarks correct; Composition Workspace card connections announced; authenticity panel narrated with explicit methodological framing.
 * [ ] **Reduced-motion pass.** Motion removed but all functions preserved; no animation-dependent interactions; topic-evolution stream graph degrades to static stacked bar chart.
 * [ ] **Arc42 update.** §8.x Accessibility and Performance Envelope; CI gate specification.
 * [ ] **Validation.** All CI gates green; manual hardware-test log filed.
 
 ---
 
-## Phase 128: Documentation Sweep + Terminology Reconciliation ADR (Iteration 5 Deferred) [P-Docs] - [ ] TODO
+## Phase 131: Documentation Sweep + Terminology Reconciliation ADR (Iteration 5 Deferred) [P-Docs] - [ ] TODO
 
-*Final documentation consolidation. Closes the deferred Iteration 5 closure block and produces the post-Iteration-5/6/7/8 terminology-reconciliation decision. The Low-Fidelity-Mode phase originally planned as Iteration-5 closure (former Phase 118) is **removed from the roadmap entirely** — Brief §7.6 requires a deployed High-Fi baseline to reduce from, and Low-Fi can be re-planned later when an actual hardware/network constituency exists.*
+*Final documentation consolidation. Closes the deferred Iteration 5 closure block and produces the post-Iteration-5/6/7/8/9 terminology-reconciliation decision. The Low-Fidelity-Mode phase originally planned as Iteration-5 closure is **removed from the roadmap entirely** — Brief §7.6 requires a deployed High-Fi baseline to reduce from, and Low-Fi can be re-planned later when an actual hardware/network constituency exists.*
 
-* [ ] **Arc42 updates.** §8.x chapters updated with the full Iteration-5/6/7/8 architecture: navigation chrome, three surfaces with their priorities, five-layer redistribution, view-mode matrix including topic cells, methodology tray, Silver-layer toggle, probe-first emission, Composition Workspace, multi-probe parallel streams, equivalence registry, normalization parameter, multilingual NLP routing, entity linking, Tier 2 BERT extractors, BERTopic per-language partitioning. Cross-references to the Design Brief.
+* [ ] **Arc42 updates.** §8.x chapters updated with the full Iteration-5/6/7/8/9 architecture: navigation chrome, three surfaces with their priorities, five-layer redistribution, view-mode matrix including topic and authenticity cells, methodology tray, Silver-layer toggle, probe-first emission, Composition Workspace, multi-probe parallel streams, equivalence registry, normalization parameter, multilingual NLP routing, entity linking, Tier 2 BERT extractors, BERTopic per-language partitioning, web-crawl data-collection method, authenticity-signal extractor architecture. Cross-references to the Design Brief.
 * [ ] **Reframing-note cleanup.** Delete `docs/design/reframing-note.md` — its content was merged into `design_brief.md` by Step 2 of the reframing; the file has served its purpose.
-* [ ] **`docs/extending/` consolidation review.** Verify the six extending guides (`README.md`, `add-a-probe.md`, `add-a-language.md`, `add-a-source-type.md`, `add-an-extractor.md`, `scalability-roadmap.md`) reflect the post-Iteration-7 reality: ADR-023 (multilingual sentiment), ADR-024 (Capability Manifest, implemented in Phase 118a), Phase 122a (Coverage Map operational), Phase 123 (first equivalence grant). Cross-references to `ROADMAP.md` use the GitHub absolute URL convention (`https://github.com/frogfromlake/aer/blob/main/ROADMAP.md`) per the MkDocs strict-build constraint.
+* [ ] **`docs/extending/` consolidation review.** Verify the six extending guides (`README.md`, `add-a-probe.md`, `add-a-language.md`, `add-a-source-type.md`, `add-an-extractor.md`, `scalability-roadmap.md`) reflect the post-Iteration-9 reality: ADR-023 (multilingual sentiment), ADR-024 (Capability Manifest, implemented in Phase 118a), ADR-028 (Web Crawling Architecture), ADR-029 (Authenticity Extractor Architecture), Phase 122 (web-crawl migration), Phase 123 (authenticity foundation), Phase 125a (Coverage Map operational), Phase 126 (first equivalence grant). Cross-references to `ROADMAP.md` use the GitHub absolute URL convention (`https://github.com/frogfromlake/aer/blob/main/ROADMAP.md`) per the MkDocs strict-build constraint.
 * [ ] **ADR-025 / ADR-026 deferred-status review.** ADRs 025 (Cultural Calendar Composition) and 026 (Multilingual NER Fallback) are deferred sketches. Verify their trigger conditions are still accurate against current probe count and language coverage; if a trigger has been hit (e.g. N≥10 probes, N≥5 unsupported languages), upgrade the ADR to "Pending implementation" and create a corresponding ROADMAP phase.
-* [ ] **Auto-generated `add-a-language.md` cutover.** Per Phase 122a, the `add-a-language.md` matrix is auto-generated from the Capability Manifest at MkDocs build time. Phase 128 verifies the cutover is complete: hand-maintained content has been migrated; the regenerated version matches the hand-maintained reference; the hand-maintained source is retired.
-* [ ] **Terminology reconciliation ADR.** Draft the post-Iteration-8 terminology-reconciliation ADR (Path A evaluation per Brief §6): scope the cost of renaming "Probe" → "Probe Constellation" and "Source" → "Probe" across schema, API, content, and UI. Now that two probes exist (Phase 122) and cross-probe operations are live (Phase 123), the renaming pressure is concrete rather than hypothetical. Propose either a migration path (Path A) or recommend sticking with Path B permanently. Opens as a PR for review; does not land in this phase.
-* [ ] **BFF Content Update.** With the NLP hardening we changed our approaches and updated methodology so we need to check if the static content the bff serves the frontend is still correct services/bff-api/configs/content/ and services/bff-api/configs/probes/.
+* [ ] **Auto-generated `add-a-language.md` cutover.** Per Phase 125a, the `add-a-language.md` matrix is auto-generated from the Capability Manifest at MkDocs build time. Phase 131 verifies the cutover is complete: hand-maintained content has been migrated; the regenerated version matches the hand-maintained reference; the hand-maintained source is retired.
+* [ ] **Terminology reconciliation ADR.** Draft the post-Iteration-9 terminology-reconciliation ADR (Path A evaluation per Brief §6): scope the cost of renaming "Probe" → "Probe Constellation" and "Source" → "Probe" across schema, API, content, and UI. Now that two probes exist (Phase 125) and cross-probe operations are live (Phase 126), the renaming pressure is concrete rather than hypothetical. Propose either a migration path (Path A) or recommend sticking with Path B permanently. Opens as a PR for review; does not land in this phase.
+* [ ] **BFF Content Update.** With the NLP hardening, the web-crawl migration, and the authenticity foundation we changed our approaches and updated methodology so we need to check if the static content the bff serves the frontend is still correct: `services/bff-api/configs/content/` and `services/bff-api/configs/probes/`.
+* [ ] **RSS-crawler retirement.** Phase 122 archived the Go RSS crawler at `crawlers/_archived/rss-crawler/`. Phase 131 deletes the archived directory entirely — git history retains the code for permanent record. The corresponding "Archived procedures" appendix in the Operations Playbook is also deleted.
 * [ ] **MkDocs navigation update.** Any new Arc42 sections reflected in `mkdocs.yml`.
-* [ ] **Operations Playbook update.** Any new operational procedures added since Phase 119 (probe-pair bring-up procedure, equivalence-grant procedure, baseline-run procedure, custom-lexicon extension, Wikidata-alias-index refresh, BERTopic re-fit, Language Capability Manifest editing).
+* [ ] **Operations Playbook update.** Any new operational procedures added since Phase 119 (probe-pair bring-up procedure, equivalence-grant procedure, baseline-run procedure, custom-lexicon extension, Wikidata-alias-index refresh, BERTopic re-fit, Language Capability Manifest editing, web-crawl operations, authenticity-extractor operations, cross-probe operations).
 * [ ] **Validation.** MkDocs builds clean; all Arc42 cross-references resolve; terminology ADR PR opened; Completed Phases index in `ROADMAP.md` reflects all landed phases.
 
 ---
 
 ### Rationale for the post-Iteration-5 phase layout
 
-- **Iteration 5 closes on the multi-context backbone (Phases 114, 115).** The originally-planned Iteration-5 polish phases — Progressive Descent Infrastructure, Accessibility/High-Fi Performance Audit, Documentation Sweep + Terminology Reconciliation — are **deferred to Phases 126–128** and consolidated into a single closure block after Iterations 6–8 have stabilised the surface topology, the metric inventory, and the terminology. Polish on a moving target is doubled work; the deferral honours Occam's Razor at the iteration boundary.
+- **Iteration 5 closes on the multi-context backbone (Phases 114, 115).** The originally-planned Iteration-5 polish phases — Progressive Descent Infrastructure, Accessibility/High-Fi Performance Audit, Documentation Sweep + Terminology Reconciliation — are **deferred to Phases 129–131** and consolidated into a single closure block after Iterations 6–9 have stabilised the surface topology, the metric inventory, the data-collection method, and the terminology. Polish on a moving target is doubled work; the deferral honours Occam's Razor at the iteration boundary.
 - **The original Phase 118 (Low-Fidelity Mode) is removed from the roadmap entirely.** Brief §7.6 requires a deployed High-Fi baseline to reduce from. AĒR is not deployed; Low-Fi cannot be meaningfully spec'd. Re-introduction is out-of-band when a concrete hardware or network constituency exists.
 - **Iteration 6 (NLP Hardening) leads with Phase 116 (Multilingual Foundation)** because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not just a Probe 1 prerequisite. Fixing language routing before improving the German-specific extractors prevents contaminated near-zero values from accumulating in the Gold layer and ensures the German-path regression guards in Phases 117–118 run on clean baselines.
 - **Phase 117 (Sentiment Tier 1 hardening) uses dependency-based negation scope rather than token-distance heuristics**, and `compound-split` rather than a hand-maintained frequency list. Both choices are deterministic (Tier 1 compatible) but scientifically defensible (WP-002 §3.2 cites linguistic literature, not engineering heuristics). The metric is renamed `sentiment_score_sentiws` to make ADR-016's dual-metric pattern lexically explicit ahead of Phase 119.
 - **Phase 118 (Entity Linking) keeps the alias-DB approach** and explicitly rejects transformer-based linkers (BLINK, ReFinED, mGENRE) for this iteration: they are predominantly English-trained, require GPU inference, and add model-dependency risk. The alias-DB approach is multilingual-by-construction and Tier-1.5 in spirit — fully deterministic at extraction time. Transformer-based linking is a viable Tier-2 add-on for a later iteration.
-- **Phase 118b (Dump-Based Build Migration)** replaces Phase 118's SPARQL-paginated index build with a Wikidata-dump streaming parser, after the SPARQL approach was empirically verified to fail on the public Wikidata SPARQL endpoints for high-volume buckets (the documented 60-second per-query timeout makes bucket-discovery against `?item wdt:P106 ...` impossible regardless of pagination, query splitting, or backend choice). The dump-based build is the industry-standard pattern for serious Wikidata bulk-imports and is structurally immune to API rate-limiting and timeout failures. The surrounding Phase 118 architecture (init-container distribution, ReplacingMergeTree schema, BFF LEFT JOIN, worker-side hash verification, language-scoped lookup) is preserved unchanged — only the build mechanism is swapped. This separation of concerns is why the migration is its own phase rather than an amendment of Phase 118: the architecture was correct, the build path was wrong, and an honest project records both facts.
-- **Phase 118a (Language Capability Manifest, ADR-024)** consolidates the per-language analytical capability declarations that Phase 116 and 117 shipped distributed across five touchpoints. The manifest is the SSoT for NER routing, Sentiment routing (including negation config), the auto-generated `metric_validity` scaffold, and the BFF `?language=` validator. Phase 119 and Phase 122 are direct downstream consumers — by the close of Iteration 7, adding a new language is a single YAML block with computable downstream effects rather than a five-touchpoint refactor. Phase 118a is positioned after 118 because 118 was already in implementation when ADR-024 was ratified; honest sequencing means a dedicated migration phase, not retroactive amendment.
-- **Phase 122a (Probe Coverage Map, WP-001 §5.3)** operationalises the coverage transparency that becomes a navigational necessity at N≥2 probes. Hard prerequisite is Phase 118a's Capability Manifest — the map's analytical-capability rendering reads from the manifest. The map is explicitly *not* a comparative ranking instrument (Brief §1.3 forbids that); it is a transparency surface that shows what AĒR sees and, deliberately, what it is blind to (Manifesto §II Digital Divide acknowledgment). The phase also retires the hand-maintained `docs/extending/add-a-language.md` matrix in favour of manifest-driven auto-generation.
+- **Phase 118a (Language Capability Manifest, ADR-024)** consolidates the per-language analytical capability declarations that Phase 116 and 117 shipped distributed across five touchpoints. The manifest is the SSoT for NER routing, Sentiment routing (including negation config), the auto-generated `metric_validity` scaffold, and the BFF `?language=` validator. Phase 119 and Phase 125 are direct downstream consumers — by the close of Iteration 8, adding a new language is a single YAML block with computable downstream effects rather than a five-touchpoint refactor.
+- **Phase 118b (Dump-Based Build Migration)** replaces Phase 118's SPARQL-paginated index build with a Wikidata-dump streaming parser, after the SPARQL approach was empirically verified to fail on the public Wikidata SPARQL endpoints for high-volume buckets. The dump-based build is the industry-standard pattern for serious Wikidata bulk-imports and is structurally immune to API rate-limiting and timeout failures. The surrounding Phase 118 architecture is preserved unchanged — only the build mechanism is swapped.
 - **Phase 119 (Tier 2 Sentiment) implements ADR-023** — multilingual model as the Tier 2 default (one extractor, scales O(1) per language addition), German news-domain model as Tier 2.5 refinement (`mdraw/german-news-sentiment-bert`, in-domain quality where it matters), and the `oliverguhr/german-sentiment-bert` review-domain baseline demoted to an optional Tier 2.5 entry. The dual-metric pattern of ADR-016 is preserved; the methodological purpose of on-pipeline domain-transfer evidence (WP-002 §3.2) is served by the multilingual-vs-news-domain gap rather than the multilingual-vs-review-domain gap, at lower operational cost.
 - **Phase 120 (BERTopic) chooses `intfloat/multilingual-e5-large` over MPNet** because E5-large is the post-2024 multilingual SOTA on retrieval/clustering benchmarks (MTEB) and outperforms MPNet on long-form news text. Per-language topic partitioning honours WP-004 §3.4's "parallel topic discovery with human-validated alignment" recommendation explicitly.
-- **Iteration 7 splits Probe 1 (Phase 122) from Cross-Cultural Operations (Phase 123).** Phase 122 is the second-cultural-context infrastructure landing; Phase 123 is the operational counterpart to Phase 115's schema work — first baseline run, first equivalence grant (temporal level only — WP-004 Appendix B always-valid), first cross-probe lead-lag observation. The split honours the Brief §1.3 "composition, not comparison" boundary: 122 establishes the second context; 123 puts it into methodologically disciplined comparison.
-- **Iteration 8 (Composition + Interactive Reflection) requires the full upstream stack** to be scientifically meaningful: composition mode is richest with canonical entity nodes (118), topic-dimension cards (120), and real cross-probe data (122, 123); interactive Reflection illustrations need the negation handler (117), the equivalence gate (115), and real cross-probe data (123) to make the Level-3 refusal feel real.
-- **The closure block (Phases 126–128)** lands a11y, performance, and final documentation against a stable surface — the right time to draft the terminology-reconciliation ADR, since two probes now exist and the rename pressure is concrete rather than hypothetical.
+- **Iteration 7 (Data Collection Maturation & Authenticity Foundation) is positioned before Probe Expansion** because the RSS-snippet collection method was always a calibration choice, not a destination. Migrating Probe 0 to full-article web crawling (Phase 122) before Probe 1 lands ensures the second probe inherits the mature pattern from day one — avoiding a parallel migration later and avoiding the contamination of cross-probe baselines with a snippet-vs-full-article confound. Phase 123 (Non-Human Actor Detection Foundation) leverages the new full-article corpus immediately: stylometric features on RSS summaries are statistical noise; on full articles they have analytical value. Phase 124 (Authenticity Dashboard Surface) deliberately uses the existing dashboard primitives rather than introducing a fourth surface — Solo-developer scope discipline.
+- **Phase 125a (Probe Coverage Map, WP-001 §5.3)** operationalises the coverage transparency that becomes a navigational necessity at N≥2 probes. Hard prerequisite is Phase 118a's Capability Manifest — the map's analytical-capability rendering reads from the manifest. The map is explicitly *not* a comparative ranking instrument (Brief §1.3 forbids that); it is a transparency surface that shows what AĒR sees and, deliberately, what it is blind to (Manifesto §II Digital Divide acknowledgment). The phase also retires the hand-maintained `docs/extending/add-a-language.md` matrix in favour of manifest-driven auto-generation.
+- **Iteration 8 splits Probe 1 (Phase 125) from Cross-Cultural Operations (Phase 126).** Phase 125 is the second-cultural-context infrastructure landing; Phase 126 is the operational counterpart to Phase 115's schema work — first baseline run, first equivalence grant (temporal level only — WP-004 Appendix B always-valid), first cross-probe lead-lag observation. The split honours the Brief §1.3 "composition, not comparison" boundary: 125 establishes the second context; 126 puts it into methodologically disciplined comparison.
+- **Iteration 9 (Composition + Interactive Reflection) requires the full upstream stack** to be scientifically meaningful: composition mode is richest with canonical entity nodes (118), topic-dimension cards (120), full-article web data (122), authenticity signals (123), and real cross-probe data (125, 126); interactive Reflection illustrations need the negation handler (117), the equivalence gate (115), the authenticity foundation (123), and real cross-probe data (126) to make the Level-3 refusal feel real.
+- **The closure block (Phases 129–131)** lands a11y, performance, and final documentation against a stable surface — the right time to draft the terminology-reconciliation ADR, since two probes now exist and the rename pressure is concrete rather than hypothetical.

@@ -52,9 +52,9 @@ Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../ope
 3. The `README.md` Exit Criteria section names the same four conditions as Probe 0's: Steps 1–2 of WP-001 §4.4, function-weight quantification, at least one validation study in the new context-keys, completed external ethical review.
 4. Add the dossier to `mkdocs.yml` under the `Probes` nav entry.
 
-### Step E — Engineering work (ROADMAP Phase 122 checklist)
+### Step E — Engineering work (ROADMAP Phase 125 checklist)
 
-The ROADMAP Phase 122 entry is the canonical engineering checklist. The solo developer executes the full list — there are no items that require a second person:
+The ROADMAP Phase 125 entry is the canonical engineering checklist. The solo developer executes the full list — there are no items that require a second person:
 
 - [ ] PostgreSQL seed migration (sources + source_classifications, both `provisional_engineering`).
 - [ ] New crawler binary in `crawlers/<probe-id>-rss/`, own `go.mod`, registered in `go.work` and Makefile.
@@ -66,12 +66,12 @@ The ROADMAP Phase 122 entry is the canonical engineering checklist. The solo dev
 
 ### Step F — Validation
 
-The Phase 122 validation block plus the cross-cutting checks from the Operations Playbook:
+The Phase 125 validation block plus the cross-cutting checks from the Operations Playbook:
 
 - [ ] `make lint && make test && make fe-check` green.
 - [ ] `make crawl-<probe-id>` fetches articles and they reach `aer_gold.metrics`.
 - [ ] Manual: probe appears as a second luminous point on the Surface I globe; Phase 114 scope bar composes Probe 0 + new probe and produces parallel streams in lanes.
-- [ ] `GET /api/v1/probes/<probe-id>/equivalence` (Phase 115 endpoint) returns Level-1-only — empty equivalence registry until Phase 123 grants the temporal level.
+- [ ] `GET /api/v1/probes/<probe-id>/equivalence` (Phase 115 endpoint) returns Level-1-only — empty equivalence registry until Phase 126 grants the temporal level.
 - [ ] All metrics from the new probe report `validation_status = unvalidated` in `GET /api/v1/metrics/available`. This is correct.
 
 ### Step G — Honesty pass
@@ -80,7 +80,7 @@ After everything is green:
 
 - [ ] **Provenance Inventory update.** Append rows to the table in [`docs/scientific_operations_guide.md` → Provenance Inventory](../operations/scientific_operations_guide.md#provenance-inventory) for every manually-set value: per-source `BiasContext` fields, `min_meaningful_resolution` heuristics, the Cultural Calendar entries (if you added one).
 - [ ] **Cross-link from Probe 0's `README.md`** to the new probe (so a reader landing on Probe 0's dossier discovers the second probe).
-- [ ] **ROADMAP update.** Mark Phase 122 as `[x] DONE` with the date, and note in the dossier README that Probe 1 is now operational. Do *not* mark Phase 123 — that is a separate phase that sequences the cross-probe operations.
+- [ ] **ROADMAP update.** Mark Phase 125 as `[x] DONE` with the date, and note in the dossier README that Probe 1 is now operational. Do *not* mark Phase 126 — that is a separate phase that sequences the cross-probe operations.
 
 ---
 
@@ -92,7 +92,7 @@ These items are deliberately out of scope for the solo developer. They are unblo
 | :--- | :--- | :--- |
 | WP-001 §4.4 Steps 1–2 (Area Expert + Peer Review) | Requires two independent domain specialists. Engineering judgement is *not* the same epistemic act. | When external experts are engaged. Apply the Workflow 1 update procedure (insert a *new* `source_classifications` row, do not UPDATE). |
 | WP-002 validation studies | Requires ≥ 3 independent annotators and Krippendorff's alpha ≥ 0.667. | When an annotation team is funded or volunteered. |
-| WP-004 Level 2/3 equivalence grants | Requires interdisciplinary methodological review. | Phase 123 grants Level 1 (temporal — always valid) for the first probe pair; Levels 2/3 are out-of-band scientific decisions. |
+| WP-004 Level 2/3 equivalence grants | Requires interdisciplinary methodological review. | Phase 126 grants Level 1 (temporal — always valid) for the first probe pair; Levels 2/3 are out-of-band scientific decisions. |
 | Ethical review for non-institutional sources | Requires a credible second reviewer per WP-006 §5.2. | When an ethical-review partner is engaged. |
 
 ---
@@ -105,4 +105,4 @@ These items are deliberately out of scope for the solo developer. They are unblo
 - [Probe 0 reference dossier](../probes/probe-0-de-institutional-rss/README.md) — the reference implementation. Copy this structure.
 - [Arc42 §8.15 Probe Dossier Pattern](../arc42/08_concepts.md) — the cross-cutting concept that this guide operationalises for the solo case.
 - [Arc42 §13.10 Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification, the precedent for solo-developer probe addition.
-- [ROADMAP Phase 122](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.
+- [ROADMAP Phase 125](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.

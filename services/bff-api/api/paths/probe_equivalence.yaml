@@ -4,7 +4,7 @@ get:
   description: >
     Returns per-metric Level-1 / Level-2 / Level-3 availability for the
     probe's resolved source set (Phase 115). Drives the Probe Dossier
-    "what comparisons are valid here" panel. Phase 123 will extend this
+    "what comparisons are valid here" panel. Phase 126 will extend this
     endpoint with an optional `comparedTo=<otherProbeId>` query parameter
     for the multi-probe case.
   operationId: getProbeEquivalence

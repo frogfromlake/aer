@@ -489,7 +489,7 @@ mirrors the WP-006 §5.2 Silver-eligibility review pattern (Phase 103).
 dashboard methodology tray. It is not authoritative; the Postgres
 `equivalence_reviews` row holds the full review prose. An empty
 string is valid (e.g. the temporal-Level grant for Probe 0 × Probe 1
-in Phase 123, whose rationale is fully captured in WP-004 Appendix B
+in Phase 126, whose rationale is fully captured in WP-004 Appendix B
 and needs no additional paraphrase).
 
 #### Automated baseline maintenance (Phase 115)
@@ -1448,7 +1448,7 @@ Scripts under `scripts/operations/` are operator-invokable one-shots. They have 
 
 ### `scripts/operations/compute_baselines.py`
 
-**When to run:** once after a fresh `make reset && make crawl` if you do not want to wait 24 h for the in-worker `MetricBaselineExtractor` daily loop (Phase 115) to populate `aer_gold.metric_baselines`. Also: as the canonical example in [Workflow 4 of the Scientific Operations Guide](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines), and as the explicit first-baseline-run step on a new probe (Phase 123 worked example).
+**When to run:** once after a fresh `make reset && make crawl` if you do not want to wait 24 h for the in-worker `MetricBaselineExtractor` daily loop (Phase 115) to populate `aer_gold.metric_baselines`. Also: as the canonical example in [Workflow 4 of the Scientific Operations Guide](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines), and as the explicit first-baseline-run step on a new probe (Phase 126 worked example).
 
 **When NOT to run:** in steady state. The `MetricBaselineExtractor` corpus loop inside the analysis worker is the canonical source. Running the standalone script while the loop is also active is harmless (`ReplacingMergeTree(compute_date)` collapses duplicate keys), but it is a sign that the loop is not actually doing what it is supposed to be doing — investigate that first.
 

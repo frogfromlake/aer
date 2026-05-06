@@ -375,7 +375,7 @@ export interface paths {
         };
         /**
          * Per-probe equivalence summary
-         * @description Returns per-metric Level-1 / Level-2 / Level-3 availability for the probe's resolved source set (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel. Phase 123 will extend this endpoint with an optional `comparedTo=<otherProbeId>` query parameter for the multi-probe case.
+         * @description Returns per-metric Level-1 / Level-2 / Level-3 availability for the probe's resolved source set (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel. Phase 126 will extend this endpoint with an optional `comparedTo=<otherProbeId>` query parameter for the multi-probe case.
          */
         get: operations["getProbeEquivalence"];
         put?: never;
@@ -544,7 +544,7 @@ export interface components {
             /** @description The finest temporal resolution at which this (metric, source) pair yields statistically meaningful aggregates. Derived from a static BFF config map seeded by Probe 0 publication rates. Null if no heuristic has been recorded for the metric-source pair. */
             minMeaningfulResolution?: components["schemas"]["Resolution"] | null;
         };
-        /** @description Per-metric equivalence availability for one probe (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a function lane. Phase 123 will extend this endpoint with an optional `comparedTo=<otherProbeId>` parameter for the multi-probe case; this phase only ships the single-probe form. */
+        /** @description Per-metric equivalence availability for one probe (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a function lane. Phase 126 will extend this endpoint with an optional `comparedTo=<otherProbeId>` parameter for the multi-probe case; this phase only ships the single-probe form. */
         ProbeEquivalenceSummary: {
             /** @description The probe whose source set was evaluated. */
             probeId: string;

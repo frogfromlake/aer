@@ -147,7 +147,7 @@ To prevent this inventory from drifting out of sync with reality, every ROADMAP 
 
 > **Scheduled-work registration.** Append the new workload to `docs/operations/scheduled_work.md` under the appropriate category, with Purpose, Trigger, Cadence, and Phase fields populated. If the workload is Category C, the corresponding `.github/workflows/<workload>.yml` is committed in the same phase.
 
-Phase 128 (Documentation Sweep) explicitly verifies this discipline holds: the inventory is reconciled against the actual `scripts/` directory, `services/analysis-worker/main.py` extractor loops, and `.github/workflows/` files. Drift is treated as a documentation bug.
+Phase 131 (Documentation Sweep) explicitly verifies this discipline holds: the inventory is reconciled against the actual `scripts/` directory, `services/analysis-worker/main.py` extractor loops, and `.github/workflows/` files. Drift is treated as a documentation bug.
 
 ---
 

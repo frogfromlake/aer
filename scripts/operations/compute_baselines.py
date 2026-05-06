@@ -2,7 +2,7 @@
 """Compute metric baselines for z-score normalization (manual / ad-hoc path).
 
 Phase 115 retains this script for ad-hoc operations: first-run on a new
-probe (Phase 123 uses it explicitly), manual recompute after a schema
+probe (Phase 126 uses it explicitly), manual recompute after a schema
 change, and Operations-Playbook walkthroughs. Periodic baseline
 maintenance is handled by ``MetricBaselineExtractor`` running inside the
 analysis-worker (see ``internal/corpus.py::baseline_extraction_loop``).
