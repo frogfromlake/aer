@@ -122,33 +122,75 @@ The boot order is deterministic: `nats` → `nats-init` → `minio` (waits for J
 
 ## 8.5 CI/CD Pipeline
 
-AĒR uses GitHub Actions (`.github/workflows/ci.yml`) with four parallel jobs triggered on every push and pull request to `main`.
+AĒR uses GitHub Actions (`.github/workflows/ci.yml`) with seven independent jobs triggered on every push and pull request to `main`. The full-stack end-to-end smoke test is decoupled into a separate workflow (`.github/workflows/e2e_smoke_nightly.yml`) on a nightly schedule plus a path-trigger for compose/infra/script edits — it is no longer on the per-push critical path.
 
 ```mermaid
 graph LR
     subgraph "python-pipeline"
-        PL["Ruff Lint"] --> PT["pytest<br/>(Unit + Integration)"]
+        PL["Ruff Lint"] --> PT["pytest<br/>(unit + BERT/BERTopic e2e)"]
     end
 
-    subgraph "go-pipeline"
-        GL["golangci-lint"] --> GC["OpenAPI Contract Check<br/>(codegen + git diff)"]
-        GC --> GT["Go Integration Tests<br/>(Testcontainers)"]
+    subgraph "Go track (parallel)"
+        GL["go-lint<br/>(golangci-lint × 4 modules)"]
+        GCS["go-codegen-sync<br/>(OpenAPI codegen + diff)"]
+        GT["go-test<br/>(Testcontainers × 4 modules)"]
+    end
+
+    subgraph "frontend-pipeline"
+        FL["ESLint + Prettier + svelte-check"] --> FU["Vitest"]
+        FU --> FB["Static build"]
+        FB --> FBS["Bundle-size gate"]
+        FBS --> FE["Playwright<br/>(visual + axe a11y)"]
     end
 
     subgraph "dependency-audit"
-        GV["govulncheck<br/>(Go)"] --> PA["pip-audit<br/>(Python)"]
+        GV["govulncheck<br/>(Go × 4 modules)"] --> PA["make audit-python<br/>(pip-audit + ignore-vuln SoT)"]
     end
 
     subgraph "container-security-scan"
-        DB["Docker Build<br/>(all 3 images)"] --> TR["Trivy Scan<br/>(HIGH/CRITICAL)"]
+        DB["Docker Build × 4<br/>(GHA layer cache, per-image scope)"] --> TR["Trivy Scan<br/>(HIGH/CRITICAL + reporting-only MEDIUM)"]
     end
 ```
 
-**Performance optimizations:** Testcontainers Docker images are cached as tarballs via `actions/cache@v4` and loaded from disk on cache hits, avoiding registry pulls. Go tools (`golangci-lint`, `oapi-codegen`) are cached in `~/go/bin` keyed to the `.tool-versions` file hash. Go module caches and Python pip caches are enabled via the respective setup actions.
+**Performance optimisations.** The Go pipeline is split into three independent jobs (`go-lint`, `go-codegen-sync`, `go-test`) so wall-clock time is dominated by the slowest job (`go-test`) instead of summing the three sequentially. Testcontainer Docker images are cached as tarballs via `actions/cache@v5` keyed to `compose.yaml`'s SHA. Go tools (`golangci-lint`, `oapi-codegen`) live in a shared `~/go/bin` cache keyed to `.tool-versions`. The Phase-119 BERT determinism test and the Phase-120 BERTopic end-to-end test pull HuggingFace model snapshots on first run (~2 GB combined); the `~/.cache/huggingface` directory is cached keyed to the language-capability manifest hash, so warm runs skip the download entirely. Container scans use `docker/build-push-action@v6` with GHA layer cache (`cache-from`/`cache-to: type=gha`) scoped per image — a change in one Dockerfile does not bust the others.
 
-**Security gates:** Trivy scans all three Dockerfiles for HIGH/CRITICAL CVEs with `ignore-unfixed: true` and `exit-code: 1` — unfixed critical vulnerabilities break the build. `govulncheck` audits Go dependencies, and `pip-audit` audits Python dependencies.
+**Security gates.** Trivy scans every service image for HIGH/CRITICAL CVEs with `ignore-unfixed: true` and `exit-code: 1` — unfixed critical vulnerabilities break the build. A second pass with `severity: MEDIUM` and `exit-code: 0` is reporting-only; it surfaces drift early without blocking the build. `govulncheck` audits Go dependencies across all four modules. The Python audit step delegates to `make audit-python`, which is the **single source of truth** for `pip-audit` advisory suppressions: each entry in the Makefile `PIP_AUDIT_IGNORE_VULNS` variable carries CVE ID, justification, and upstream-fix tracker, and is revisited on every `make deps-refresh`.
 
-**Tooling version pinning:** All CI tools are pinned to exact versions to prevent silent breakage from upstream updates. `golangci-lint` and `oapi-codegen` are installed via `go install <module>@vX.Y.Z`. `pip-audit` is installed via `pip install pip-audit==X.Y.Z`. `govulncheck` is installed via `go install golang.org/x/vuln/cmd/govulncheck@vX.Y.Z`. Pinned versions are declared in `.tool-versions` — the Single Source of Truth for developer tooling versions. Both the CI pipeline and the Makefile (`make setup`) consume this file directly: CI loads it into `$GITHUB_ENV`, the Makefile uses `include .tool-versions`. The Go tools cache key is keyed to the `.tool-versions` file hash, so upgrades require an intentional edit to that file.
+**Tooling version pinning.** All CI tools are pinned to exact versions in `.tool-versions` (the developer-tooling SSoT). Both the CI pipeline and the Makefile (`make setup`) consume this file directly: CI loads it into `$GITHUB_ENV`, the Makefile uses `include .tool-versions`. The Go tools cache key is keyed to the `.tool-versions` file hash, so upgrades require an intentional edit to that file.
+
+### 8.5.1 GitHub Actions Pinning Policy
+
+Every reusable action is pinned to a current major tag (e.g. `actions/checkout@v6`), not a SHA. The major tag receives the upstream Node-runtime upgrade automatically — once `actions/*` action majors track Node 24, the workflow runs on Node 24 without further intervention. SHA-pinning was rejected for two reasons: (a) the per-action SHA-rotation overhead is not justified by AĒR's threat model — the pipeline already enforces image-digest pinning and Trivy scans for the runtime supply chain — and (b) SHA-pinned actions silently miss minor security backports unless a bot rotates them. The escape-hatch env `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`, used briefly during the Node-20 deprecation window, was removed once every action major used in the workflow tracked Node 24.
+
+A Renovate / Dependabot configuration is the planned next step for major-tag rotation; it lives in *11.2 → D-12* until shipped.
+
+### 8.5.2 Secret Inventory & Workflow Defaults
+
+GitHub Actions Secrets carry only values that are actually secrets. Non-secret defaults (role names, usernames, hostnames, ports, database names) live in workflow `env:` blocks or are synthesised at runtime — keeping the secrets surface minimal and rotation cheap.
+
+**Required GitHub Actions Secrets (boot- or infra-validated):**
+
+| Secret name | Consumer | Validation |
+|-------------|----------|------------|
+| `BFF_API_KEY` | bff-api | boot |
+| `BFF_DB_PASSWORD` | bff-api | boot (Phase 87) |
+| `BFF_MINIO_ACCESS_KEY` / `BFF_MINIO_SECRET_KEY` | bff-api | minio-init |
+| `INGESTION_API_KEY` | ingestion-api | boot |
+| `INGESTION_MINIO_ACCESS_KEY` / `INGESTION_MINIO_SECRET_KEY` | ingestion-api | minio-init |
+| `WORKER_MINIO_ACCESS_KEY` / `WORKER_MINIO_SECRET_KEY` | analysis-worker | minio-init |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | minio | server |
+| `POSTGRES_PASSWORD` | postgres | server |
+| `CLICKHOUSE_PASSWORD` | clickhouse | server |
+| `GF_SECURITY_ADMIN_PASSWORD` | grafana | server |
+
+**Workflow-only defaults (NOT secrets):**
+
+- `POSTGRES_USER` → `aer_admin` (workflow `env:`)
+- `BFF_DB_USER` → `bff_readonly` (workflow `env:`, role provisioned by `postgres-init-roles`)
+- `POSTGRES_DB` / `CLICKHOUSE_USER` / `CLICKHOUSE_DB` / `GF_SECURITY_ADMIN_USER` → `.env.example` defaults; not overridden in CI.
+- `DB_URL` is **synthesised** in the workflow from `POSTGRES_USER` + `POSTGRES_PASSWORD`, identical in shape to the boot-time validation in `services/ingestion-api`. It is *not* a separate secret.
+
+Adding a new boot-validated credential is a three-step change: (a) add it to `.env.example` with a `REPLACE-ME` placeholder, (b) add the boot-time check in the consuming service, (c) splice it into the nightly E2E workflow's `.env` setup step. Anything that is *not* secret material — role names, hostnames — must remain in workflow `env:` blocks, never as Secrets.
 
 ## 8.6 Observability
 

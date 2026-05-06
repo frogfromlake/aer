@@ -1,0 +1,104 @@
+# =============================================================================
+# AĒR — Nightly End-to-End Smoke Test
+# =============================================================================
+# Boots the full Docker Compose stack, runs the RSS crawler against a local
+# fixture server, and asserts every BFF endpoint. Unique coverage versus the
+# per-push CI: Compose wiring, init-container provisioning, healthcheck graph,
+# NATS stream, end-to-end image-to-image routing.
+#
+# Moved off the per-push critical path (May 2026) — testcontainer suites
+# (Go) and pytest (Python) cover service-level integration; this workflow
+# is the wiring check, not a unit/integration regression gate. Cadence is
+# nightly + on-demand + change-triggered for compose/init/script edits.
+#
+# Failure handling: artefact upload on failure (logs/e2e/), retention 14d.
+# Re-run a failed nightly via the "Run workflow" button (workflow_dispatch).
+# =============================================================================
+
+name: E2E Smoke (Nightly)
+
+on:
+  # Nightly at 02:30 UTC. Off-peak for GitHub-hosted runners; gives a fresh
+  # signal every morning before the dev day starts.
+  schedule:
+    - cron: '30 2 * * *'
+
+  # Manual trigger — for pre-release verification or post-merge confidence
+  # checks on a non-trivial change.
+  workflow_dispatch:
+
+  # Path-triggered runs on main. Edits to Compose wiring, init scripts, or
+  # the smoke script itself bypass the nightly cadence and verify on merge.
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'compose.yaml'
+      - 'compose.prod.yaml'
+      - 'infra/**'
+      - 'scripts/build/e2e_smoke_test.sh'
+      - 'scripts/build/e2e_helpers.sh'
+      - 'scripts/build/e2e_fixtures/**'
+      - '.github/workflows/e2e_smoke_nightly.yml'
+
+jobs:
+  e2e-smoke:
+    name: Full-stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # Workflow-level non-secret defaults — keep them out of GitHub
+      # Secrets so rotation only touches values that are actually
+      # secrets. POSTGRES_USER / POSTGRES_DB / CLICKHOUSE_USER /
+      # CLICKHOUSE_DB / GF_SECURITY_ADMIN_USER / BFF_DB_USER all match
+      # the .env.example defaults; if those defaults change in the
+      # repo, this block must be updated to match.
+      - name: Create .env for smoke test
+        env:
+          POSTGRES_USER_DEFAULT: aer_admin
+          BFF_DB_USER_DEFAULT: bff_readonly
+        run: |
+          cp .env.example .env
+
+          # Boot-validated secrets (Phase 75).
+          sed -i "s|^BFF_API_KEY=.*|BFF_API_KEY=${{ secrets.BFF_API_KEY }}|" .env
+          sed -i "s|^INGESTION_API_KEY=.*|INGESTION_API_KEY=${{ secrets.INGESTION_API_KEY }}|" .env
+          sed -i "s|^CLICKHOUSE_PASSWORD=.*|CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}|" .env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}|" .env
+
+          # DB_URL is *synthesised* from POSTGRES_USER + POSTGRES_PASSWORD
+          # rather than carried as a separate secret. Identical to the
+          # boot-time validation in services/ingestion-api — same shape,
+          # one source of credentials.
+          sed -i "s|^DB_URL=.*|DB_URL=postgres://${POSTGRES_USER_DEFAULT}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/aer_metadata?sslmode=disable|" .env
+
+          # BFF_DB_USER defaults to the bff_readonly role provisioned by
+          # postgres-init-roles (Phase 87). The role name is a workflow
+          # convention, not a secret.
+          sed -i "s|^BFF_DB_USER=.*|BFF_DB_USER=${BFF_DB_USER_DEFAULT}|" .env
+
+          # Infra/service credentials that no longer ship as defaults (Phase 79).
+          sed -i "s|^MINIO_ROOT_USER=.*|MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}|" .env
+          sed -i "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}|" .env
+          sed -i "s|^INGESTION_MINIO_ACCESS_KEY=.*|INGESTION_MINIO_ACCESS_KEY=${{ secrets.INGESTION_MINIO_ACCESS_KEY }}|" .env
+          sed -i "s|^INGESTION_MINIO_SECRET_KEY=.*|INGESTION_MINIO_SECRET_KEY=${{ secrets.INGESTION_MINIO_SECRET_KEY }}|" .env
+          sed -i "s|^WORKER_MINIO_ACCESS_KEY=.*|WORKER_MINIO_ACCESS_KEY=${{ secrets.WORKER_MINIO_ACCESS_KEY }}|" .env
+          sed -i "s|^WORKER_MINIO_SECRET_KEY=.*|WORKER_MINIO_SECRET_KEY=${{ secrets.WORKER_MINIO_SECRET_KEY }}|" .env
+          sed -i "s|^BFF_MINIO_ACCESS_KEY=.*|BFF_MINIO_ACCESS_KEY=${{ secrets.BFF_MINIO_ACCESS_KEY }}|" .env
+          sed -i "s|^BFF_MINIO_SECRET_KEY=.*|BFF_MINIO_SECRET_KEY=${{ secrets.BFF_MINIO_SECRET_KEY }}|" .env
+          sed -i "s|^BFF_DB_PASSWORD=.*|BFF_DB_PASSWORD=${{ secrets.BFF_DB_PASSWORD }}|" .env
+          sed -i "s|^GF_SECURITY_ADMIN_PASSWORD=.*|GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}|" .env
+
+      - name: Run E2E smoke test
+        run: bash scripts/build/e2e_smoke_test.sh
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-failure-logs
+          path: logs/e2e/
+          retention-days: 14

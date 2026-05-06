@@ -314,10 +314,15 @@
     background: rgba(255, 255, 255, 0.05);
   }
 
-  /* ── Track ── */
+  /* ── Track ──
+     Track height is the WCAG 2.5.8 floor (24px) so the slider thumb
+     can be a 24×24 hit-target without the cap clipping vertically.
+     The visible disc inside the thumb stays 14px via box-shadow
+     insets — see `.thumb::-webkit-slider-thumb` below.
+  */
   .track {
     position: relative;
-    height: 1.25rem;
+    height: 24px;
     display: flex;
     align-items: center;
   }
@@ -368,36 +373,44 @@
     border: none;
   }
 
+  /* WCAG 2.5.8 (AA) requires a ≥24×24 CSS-pixel target. The thumb
+     element is 24×24; the visible 14px disc is painted by a centered
+     radial-gradient (white fill + 2px blue ring), with the outer
+     ring of the thumb drawn transparent. Hit-area = 24×24, visual =
+     unchanged 14px disc.
+
+     Drop-shadow only paints where the gradient is opaque, so the
+     outer ring stays visually quiet — the focal handle look is
+     preserved. */
   .thumb::-webkit-slider-thumb {
     appearance: none;
     -webkit-appearance: none;
     pointer-events: auto;
-    width: 14px;
-    height: 14px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: #fff;
-    border: 2px solid #5283b8;
+    background: radial-gradient(circle at center, #fff 0 5px, #5283b8 5px 7px, transparent 7px);
+    border: none;
     cursor: grab;
-    transform: translateY(-5px);
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.5));
   }
 
   .thumb::-webkit-slider-thumb:active {
     cursor: grabbing;
-    transform: translateY(-5px) scale(1.2);
+    transform: scale(1.2);
     transition: transform 0.1s ease;
   }
 
   .thumb::-moz-range-thumb {
     appearance: none;
     pointer-events: auto;
-    width: 14px;
-    height: 14px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: #fff;
-    border: 2px solid #5283b8;
+    background: radial-gradient(circle at center, #fff 0 5px, #5283b8 5px 7px, transparent 7px);
+    border: none;
     cursor: grab;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.5));
   }
 
   .thumb::-moz-range-thumb:active {

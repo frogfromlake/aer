@@ -128,10 +128,13 @@ test.describe('Atmosphere — Phase 113c probe descent', () => {
     await expect(page).toHaveURL(new RegExp(`/lanes/${PROBE_ID}/dossier`));
 
     // The Dossier renders the probe identity and the migrated framing
-    // copy that previously lived in the Atmosphere flyout.
+    // copy that previously lived in the Atmosphere flyout. Only the
+    // semantic register's `long` field is rendered as the emic frame
+    // (ProbeDossier.svelte#emic-frame); the methodological register's
+    // reach disclaimer is delegated to the chrome MethodologyTray and
+    // is not asserted here.
     await expect(page.getByRole('heading', { name: PROBE_ID })).toBeVisible();
     await expect(page.getByText(/institutional voice/i)).toBeVisible();
-    await expect(page.getByText(/reach is not rendered/i)).toBeVisible();
   });
 });
 

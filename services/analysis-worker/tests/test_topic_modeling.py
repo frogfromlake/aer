@@ -113,7 +113,7 @@ def test_topic_assignment_row_is_frozen():
         row.topic_id = 99  # type: ignore[misc]
 
 
-def test_extract_topics_returns_rows_when_partition_succeeds():
+def test_extract_topics_returns_rows_when_partition_succeeds(monkeypatch):
     """End-to-end with a stubbed BERTopic to bypass the heavy import path.
 
     Verifies the extractor: wires the (article_id, language, topic_id)
@@ -155,20 +155,25 @@ def test_extract_topics_returns_rows_when_partition_succeeds():
 
     extractor._import_bertopic = lambda: (fake_module, "0.17.0")  # type: ignore[assignment]
 
-    # Stub the third-party heavy imports inside _fit_partition.
+    # Stub the third-party heavy imports inside _fit_partition. Use
+    # monkeypatch.setitem so an earlier test that genuinely loaded
+    # sentence_transformers (e.g. test_phase119_sentiment_bert) does
+    # not leak through — sys.modules.setdefault would silently no-op
+    # there and the real SentenceTransformer would try to fetch the
+    # placeholder model "m" from HuggingFace.
     import sys
 
-    sys.modules.setdefault("sentence_transformers", MagicMock())
-    sys.modules.setdefault("umap", MagicMock())
-    sys.modules.setdefault("hdbscan", MagicMock())
+    monkeypatch.setitem(sys.modules, "sentence_transformers", MagicMock())
+    monkeypatch.setitem(sys.modules, "umap", MagicMock())
+    monkeypatch.setitem(sys.modules, "hdbscan", MagicMock())
     # Phase 120b: per-language stopword filter wraps a real CountVectorizer
     # constructor; stub the import so the test does not require sklearn.
     fake_sklearn = MagicMock()
     fake_sklearn.feature_extraction.text.CountVectorizer = MagicMock()
-    sys.modules.setdefault("sklearn", fake_sklearn)
-    sys.modules.setdefault("sklearn.feature_extraction", fake_sklearn.feature_extraction)
-    sys.modules.setdefault(
-        "sklearn.feature_extraction.text", fake_sklearn.feature_extraction.text
+    monkeypatch.setitem(sys.modules, "sklearn", fake_sklearn)
+    monkeypatch.setitem(sys.modules, "sklearn.feature_extraction", fake_sklearn.feature_extraction)
+    monkeypatch.setitem(
+        sys.modules, "sklearn.feature_extraction.text", fake_sklearn.feature_extraction.text
     )
 
     docs = [_doc(f"a{i}", "tagesschau", "de", f"text {i}") for i in range(n_docs)]

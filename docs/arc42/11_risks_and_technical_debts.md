@@ -370,6 +370,38 @@ The `DataProcessor` dispatch loop used `isinstance()` checks against `LanguageDe
 
 ---
 
+### D-12: GitHub Actions Major-Tag Rotation Has No Bot
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | `.github/workflows/*` |
+| **Status** | Open |
+
+The CI pipeline pins every reusable action to a current major tag (e.g. `actions/checkout@v6`) — see *§8.5.1 GitHub Actions Pinning Policy*. Major-tag pinning auto-tracks Node-runtime upgrades and minor security backports, but it does *not* handle the *next* major upgrade: when an action ships a `vN+1` whose breaking changes are relevant (Node-runtime change, action.yml shape change, deprecated input), nothing in the repo signals it. The Phase-128 "actions deprecation" ticket only fired because Node 20 was scheduled for removal on the runner — a quieter breaking change would have gone undetected.
+
+**Mitigation (planned):** Configure Renovate (or Dependabot's `github-actions` package ecosystem) to open weekly PRs against the workflow files, raising any action whose `current-major + 1` exists upstream. The bot must NOT auto-merge; the PR is a notification, not a rotation. Reviewer makes the call, runs the change locally with `act` if needed, and merges. The Renovate config lives in `.github/renovate.json` once shipped.
+
+**Why this is debt, not a risk:** the failure mode is "future Node-runtime deprecation goes silently late," not "active breakage." The pipeline today is healthy; the bot is a watch-tower, not a fix.
+
+---
+
+### D-13: Pipeline Health Dashboard
+
+| Property | Value |
+| :--- | :--- |
+| **Severity** | Low |
+| **Affected Component** | CI / Operations |
+| **Status** | Open |
+
+CI run history is queryable only through the GitHub Actions UI. There is no aggregated view of: (a) median per-job wall time over the last N weeks, (b) flake rate per test (especially Playwright's visual gate), (c) cache-hit ratio for the testcontainer / HF-snapshot / Docker-layer caches. Without this, runtime regressions go unnoticed until a manual audit (the Phase-128 work that produced this entry).
+
+**Mitigation (planned):** Export GitHub Actions run metrics via the REST API into a single Grafana panel — same observability stack the runtime services already use (§8.6). Per-job duration, success-rate, cache-hit ratio. Threshold alerts on any job exceeding 1.3× its 30-day median.
+
+**Why this is debt, not a risk:** there is no incident risk to a missing dashboard; the cost is one-off audit time when budgets drift. Defer until the runtime budget shows signs of regression again.
+
+---
+
 ## 11.3 Risk Matrix Overview
 
 ```mermaid

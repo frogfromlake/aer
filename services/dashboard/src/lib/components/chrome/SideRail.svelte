@@ -102,9 +102,12 @@
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- all rail links are internal surface routes -->
 <nav class="rail" aria-label="Primary navigation">
-  <!-- AĒR branding — top of rail, fills the scope-bar height zone -->
-  <div class="logo" aria-label="AĒR">
-    <span class="logo-text" aria-hidden="true">AĒR</span>
+  <!-- AĒR branding — top of rail, fills the scope-bar height zone.
+       The wrapping <div> has no role, so aria-label is prohibited
+       (axe `aria-prohibited-attr`). The inner text "AĒR" is the
+       accessible name; no aria-* is needed. -->
+  <div class="logo">
+    <span class="logo-text">AĒR</span>
   </div>
 
   <!-- Planet glyph: Surface I — Atmosphere -->

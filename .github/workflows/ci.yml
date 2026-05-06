@@ -6,22 +6,34 @@ on:
   pull_request:
     branches: [ "main" ]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  
 jobs:
   python-pipeline:
     name: Python Lint & Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14' # Matches production Dockerfile (python:3.14.3-slim-bookworm)
           cache: 'pip'
+
+      # The Phase-119 BERT determinism test and the Phase-120 BERTopic
+      # end-to-end test pull HuggingFace model snapshots on first run
+      # (~2 GB combined). Caching the HF home directory keyed on the
+      # model revisions in the language-capability manifest skips the
+      # download on warm runs and cuts the python pipeline by 5-7 min.
+      # Cache key falls back to the manifest hash so a revision bump
+      # invalidates automatically.
+      - name: Cache HuggingFace model snapshots
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-${{ hashFiles('services/analysis-worker/configs/language_capabilities.yaml') }}
+          restore-keys: |
+            hf-${{ runner.os }}-
 
       - name: Install Dependencies
         working-directory: ./services/analysis-worker
@@ -37,18 +49,110 @@ jobs:
         working-directory: ./services/analysis-worker
         run: python -m pytest tests/ -v
 
-  go-pipeline:
-    name: Go Lint & Integration Test
+  # The Go pipeline is split into three independent jobs that run in
+  # parallel: linting (4 modules), the OpenAPI contract-sync check, and
+  # the testcontainer-backed integration tests. End-to-end wall time is
+  # dominated by the slowest job (tests) instead of the sum, cutting
+  # ~3 min off the per-push budget. Setup-Go cache + a shared go-tools
+  # cache amortise the per-job setup cost.
+
+  go-lint:
+    name: Go Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Load tool versions from .tool-versions
         run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.2'
+          cache: true
+          cache-dependency-path: |
+            services/ingestion-api/go.sum
+            services/bff-api/go.sum
+            pkg/go.sum
+            crawlers/rss-crawler/go.sum
+
+      - name: Cache Go tools (golangci-lint)
+        uses: actions/cache@v5
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-${{ hashFiles('.tool-versions') }}
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+
+      - name: Lint Ingestion API
+        working-directory: ./services/ingestion-api
+        run: golangci-lint run
+
+      - name: Lint BFF API
+        working-directory: ./services/bff-api
+        run: golangci-lint run
+
+      - name: Lint pkg/
+        working-directory: ./pkg
+        run: golangci-lint run
+
+      - name: Lint RSS Crawler
+        working-directory: ./crawlers/rss-crawler
+        run: golangci-lint run
+
+  go-codegen-sync:
+    name: Go OpenAPI Contract Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Load tool versions from .tool-versions
+        run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.2'
+          cache: true
+          cache-dependency-path: |
+            services/ingestion-api/go.sum
+            services/bff-api/go.sum
+
+      - name: Cache Go tools (oapi-codegen)
+        uses: actions/cache@v5
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-${{ hashFiles('.tool-versions') }}
+
+      - name: Install oapi-codegen
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@${{ env.OAPI_CODEGEN_VERSION }}
+
+      - name: OpenAPI $ref-style lint (ADR-021)
+        run: make openapi-lint
+
+      - name: OpenAPI Contract Test (codegen sync check)
+        run: |
+          make codegen
+          git diff --exit-code services/bff-api/internal/handler/generated.go services/ingestion-api/internal/handler/generated.go
+
+      - name: OpenAPI Bundle (Swagger UI artifact)
+        run: make openapi-bundle
+
+  go-test:
+    name: Go Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Load tool versions from .tool-versions
+        run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
           go-version: '1.26.2'
           cache: true
@@ -66,7 +170,7 @@ jobs:
           echo "clickhouse=$(yq '.services.clickhouse.image' compose.yaml)" >> $GITHUB_OUTPUT
 
       - name: Cache Testcontainers Docker images
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: docker-cache
         with:
           path: /tmp/docker-images
@@ -91,47 +195,6 @@ jobs:
           docker save ${{ steps.tc-images.outputs.postgres }} -o /tmp/docker-images/postgres.tar
           docker save ${{ steps.tc-images.outputs.clickhouse }} -o /tmp/docker-images/clickhouse.tar
 
-      # Manual installation is required because the pre-built action binary
-      # does not yet support Go 1.26.2 features.
-      - name: Cache Go tools (golangci-lint, oapi-codegen)
-        uses: actions/cache@v4
-        with:
-          path: ~/go/bin
-          key: go-tools-${{ runner.os }}-${{ hashFiles('.tool-versions') }}
-
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
-
-      - name: Lint Ingestion API
-        working-directory: ./services/ingestion-api
-        run: golangci-lint run
-
-      - name: Lint BFF API
-        working-directory: ./services/bff-api
-        run: golangci-lint run
-
-      - name: Lint pkg/
-        working-directory: ./pkg
-        run: golangci-lint run
-
-      - name: Lint RSS Crawler
-        working-directory: ./crawlers/rss-crawler
-        run: golangci-lint run
-
-      - name: Install oapi-codegen
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@${{ env.OAPI_CODEGEN_VERSION }}
-
-      - name: OpenAPI $ref-style lint (ADR-021)
-        run: make openapi-lint
-
-      - name: OpenAPI Contract Test (codegen sync check)
-        run: |
-          make codegen
-          git diff --exit-code services/bff-api/internal/handler/generated.go services/ingestion-api/internal/handler/generated.go
-
-      - name: OpenAPI Bundle (Swagger UI artifact)
-        run: make openapi-bundle
-
       - name: Run Go Crawler Tests
         run: cd crawlers/rss-crawler && go test -v ./...
 
@@ -146,13 +209,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Load tool versions from .tool-versions
         run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -160,7 +223,7 @@ jobs:
         run: corepack enable
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/share/pnpm/store
           key: pnpm-${{ runner.os }}-${{ hashFiles('services/dashboard/pnpm-lock.yaml') }}
@@ -194,7 +257,7 @@ jobs:
 
       - name: Upload Playwright artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: |
@@ -207,13 +270,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Load tool versions from .tool-versions
         run: grep -E '^[A-Z_]+=' .tool-versions >> $GITHUB_ENV
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.26.2'
           cache: true
@@ -242,7 +305,7 @@ jobs:
         run: govulncheck ./...
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14' # Matches production Dockerfile (python:3.14.3-slim-bookworm)
           cache: 'pip'
@@ -250,9 +313,12 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit==${{ env.PIP_AUDIT_VERSION }}
 
+      # Delegating to `make audit-python` keeps a single source of truth
+      # for `--ignore-vuln` suppressions (Makefile `PIP_AUDIT_IGNORE_VULNS`).
+      # Each entry there carries CVE, justification, and upstream-fix
+      # tracker — revisited on every `make deps-refresh`.
       - name: Run pip-audit (analysis-worker)
-        working-directory: ./services/analysis-worker
-        run: pip-audit -r requirements.txt
+        run: make audit-python
 
       - name: Verify hash-pinned lockfile installs (analysis-worker)
         working-directory: ./services/analysis-worker
@@ -265,10 +331,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python (for OpenAPI bundler)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14'
 
@@ -281,20 +347,55 @@ jobs:
       - name: Bundle OpenAPI spec (required for dashboard image build)
         run: make openapi-bundle
 
+      # Buildx + GHA layer cache. With four service images, the cold-run
+      # cost is ~5-7 min of builds; warm runs reuse the GHA layer cache
+      # and finish in ~1 min. The cache scope is per-image so a change
+      # in one Dockerfile does not bust the others.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build ingestion-api image
-        run: docker build -t aer/ingestion-api:ci -f services/ingestion-api/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/ingestion-api/Dockerfile
+          tags: aer/ingestion-api:ci
+          load: true
+          cache-from: type=gha,scope=ingestion-api
+          cache-to: type=gha,mode=max,scope=ingestion-api
 
       - name: Build bff-api image
-        run: docker build -t aer/bff-api:ci -f services/bff-api/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/bff-api/Dockerfile
+          tags: aer/bff-api:ci
+          load: true
+          cache-from: type=gha,scope=bff-api
+          cache-to: type=gha,mode=max,scope=bff-api
 
       - name: Build analysis-worker image
-        run: docker build -t aer/analysis-worker:ci -f services/analysis-worker/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/analysis-worker/Dockerfile
+          tags: aer/analysis-worker:ci
+          load: true
+          cache-from: type=gha,scope=analysis-worker
+          cache-to: type=gha,mode=max,scope=analysis-worker
 
       - name: Build dashboard image
-        run: docker build -t aer/dashboard:ci -f services/dashboard/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/dashboard/Dockerfile
+          tags: aer/dashboard:ci
+          load: true
+          cache-from: type=gha,scope=dashboard
+          cache-to: type=gha,mode=max,scope=dashboard
 
       - name: Trivy scan — ingestion-api
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/ingestion-api:ci'
           format: 'table'
@@ -303,7 +404,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — bff-api
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/bff-api:ci'
           format: 'table'
@@ -312,7 +413,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — analysis-worker
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/analysis-worker:ci'
           format: 'table'
@@ -321,7 +422,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — dashboard
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/dashboard:ci'
           format: 'table'
@@ -332,7 +433,7 @@ jobs:
       # Phase 84: MEDIUM-severity scan is reporting-only (exit-code: 0).
       # Catches drift early without blocking the build.
       - name: Trivy scan (MEDIUM, reporting-only) — ingestion-api
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/ingestion-api:ci'
           format: 'table'
@@ -341,7 +442,7 @@ jobs:
           severity: 'MEDIUM'
 
       - name: Trivy scan (MEDIUM, reporting-only) — bff-api
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/bff-api:ci'
           format: 'table'
@@ -350,7 +451,7 @@ jobs:
           severity: 'MEDIUM'
 
       - name: Trivy scan (MEDIUM, reporting-only) — analysis-worker
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/analysis-worker:ci'
           format: 'table'
@@ -359,7 +460,7 @@ jobs:
           severity: 'MEDIUM'
 
       - name: Trivy scan (MEDIUM, reporting-only) — dashboard
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/dashboard:ci'
           format: 'table'
@@ -367,41 +468,8 @@ jobs:
           ignore-unfixed: true
           severity: 'MEDIUM'
 
-  e2e-smoke:
-    name: E2E Smoke Test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Create .env for smoke test
-        run: |
-          cp .env.example .env
-          # Boot-validated secrets (Phase 75).
-          sed -i "s|^BFF_API_KEY=.*|BFF_API_KEY=${{ secrets.BFF_API_KEY }}|" .env
-          sed -i "s|^INGESTION_API_KEY=.*|INGESTION_API_KEY=${{ secrets.INGESTION_API_KEY }}|" .env
-          sed -i "s|^CLICKHOUSE_PASSWORD=.*|CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}|" .env
-          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}|" .env
-          sed -i "s|^DB_URL=.*|DB_URL=postgres://aer_admin:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/aer_metadata?sslmode=disable|" .env
-          # Infra/service credentials that no longer ship as defaults (Phase 79).
-          sed -i "s|^MINIO_ROOT_USER=.*|MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}|" .env
-          sed -i "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}|" .env
-          sed -i "s|^INGESTION_MINIO_ACCESS_KEY=.*|INGESTION_MINIO_ACCESS_KEY=${{ secrets.INGESTION_MINIO_ACCESS_KEY }}|" .env
-          sed -i "s|^INGESTION_MINIO_SECRET_KEY=.*|INGESTION_MINIO_SECRET_KEY=${{ secrets.INGESTION_MINIO_SECRET_KEY }}|" .env
-          sed -i "s|^WORKER_MINIO_ACCESS_KEY=.*|WORKER_MINIO_ACCESS_KEY=${{ secrets.WORKER_MINIO_ACCESS_KEY }}|" .env
-          sed -i "s|^WORKER_MINIO_SECRET_KEY=.*|WORKER_MINIO_SECRET_KEY=${{ secrets.WORKER_MINIO_SECRET_KEY }}|" .env
-          sed -i "s|^BFF_MINIO_ACCESS_KEY=.*|BFF_MINIO_ACCESS_KEY=${{ secrets.BFF_MINIO_ACCESS_KEY }}|" .env
-          sed -i "s|^BFF_MINIO_SECRET_KEY=.*|BFF_MINIO_SECRET_KEY=${{ secrets.BFF_MINIO_SECRET_KEY }}|" .env
-          sed -i "s|^GF_SECURITY_ADMIN_PASSWORD=.*|GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}|" .env
-
-      - name: Run E2E Smoke Test
-        run: bash scripts/build/e2e_smoke_test.sh
-
-      - name: Upload e2e failure logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-failure-logs
-          path: logs/e2e/
-          retention-days: 7
+# E2E smoke test moved to .github/workflows/e2e_smoke_nightly.yml.
+# Rationale: testcontainer suites cover service-level integration; the
+# Compose-wiring smoke check is unique value but not a per-push regression
+# gate. Cadence is now nightly + workflow_dispatch + path-triggered on
+# compose/infra/script edits.

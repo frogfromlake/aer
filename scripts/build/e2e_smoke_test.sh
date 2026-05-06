@@ -156,14 +156,18 @@ else
     log_info "Response: $(cat /tmp/aer_e2e_wc.json 2>/dev/null || echo '<empty>')"
 fi
 
-# ── Step 6: Assert GET /api/v1/metrics?metricName=sentiment_score ────────
-log_step "Step 6: GET /api/v1/metrics?metricName=sentiment_score"
+# ── Step 6: Assert GET /api/v1/metrics?metricName=sentiment_score_sentiws ─
+# Phase 117 renamed `sentiment_score` to `sentiment_score_sentiws` to make
+# ADR-016's dual-metric (Tier-1 lexicon vs. Tier-2 transformer) pattern
+# lexically explicit. Query the canonical name — the request-boundary alias
+# rewrite is one-cycle deprecation cover and not what we want to verify.
+log_step "Step 6: GET /api/v1/metrics?metricName=sentiment_score_sentiws"
 
 SENTIMENT_STATUS=$(curl -sf \
     -o /tmp/aer_e2e_sent.json \
     -w "%{http_code}" \
     -H "X-API-Key: ${BFF_API_KEY}" \
-    "${BFF_URL}/metrics?metricName=sentiment_score&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || SENTIMENT_STATUS="000"
+    "${BFF_URL}/metrics?metricName=sentiment_score_sentiws&startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || SENTIMENT_STATUS="000"
 
 if [[ "$SENTIMENT_STATUS" == "200" ]]; then
     SENT_COUNT=$(python3 -c "import json; d=json.load(open('/tmp/aer_e2e_sent.json')); print(len(d.get('data', [])) if isinstance(d, dict) else 0)" 2>/dev/null || echo "0")
@@ -176,17 +180,17 @@ points = d.get('data', []) if isinstance(d, dict) else []
 print('ok' if all(-1.0 <= p['value'] <= 1.0 for p in points) else 'out_of_range')
 " 2>/dev/null || echo "error")
         if [[ "$SENT_VALID" == "ok" ]]; then
-            log_ok "sentiment_score metrics: $SENT_COUNT data point(s), all within [-1, 1]."
+            log_ok "sentiment_score_sentiws metrics: $SENT_COUNT data point(s), all within [-1, 1]."
         else
-            log_fail "sentiment_score values out of expected range [-1, 1]."
+            log_fail "sentiment_score_sentiws values out of expected range [-1, 1]."
             log_info "Response: $(cat /tmp/aer_e2e_sent.json)"
         fi
     else
-        log_fail "sentiment_score returned 200 but 0 data points."
+        log_fail "sentiment_score_sentiws returned 200 but 0 data points."
         log_info "Response: $(cat /tmp/aer_e2e_sent.json)"
     fi
 else
-    log_fail "sentiment_score endpoint returned HTTP $SENTIMENT_STATUS."
+    log_fail "sentiment_score_sentiws endpoint returned HTTP $SENTIMENT_STATUS."
 fi
 
 # ── Step 7: Assert GET /api/v1/entities ──────────────────────────────────
@@ -221,8 +225,10 @@ AVAILABLE_STATUS=$(curl -sf \
     "${BFF_URL}/metrics/available?startDate=${ONE_HOUR_AGO}&endDate=${NOW}" 2>/dev/null) || AVAILABLE_STATUS="000"
 
 if [[ "$AVAILABLE_STATUS" == "200" ]]; then
-    # Check that expected metric names are present
-    EXPECTED_METRICS=("word_count" "sentiment_score" "entity_count" "language_confidence" "publication_hour" "publication_weekday")
+    # Check that expected metric names are present.
+    # Phase 121b drops alias rows from this response, so `sentiment_score`
+    # is no longer surfaced — the canonical name is `sentiment_score_sentiws`.
+    EXPECTED_METRICS=("word_count" "sentiment_score_sentiws" "entity_count" "language_confidence" "publication_hour" "publication_weekday")
     MISSING=""
     for m in "${EXPECTED_METRICS[@]}"; do
         HAS=$(python3 -c "
@@ -426,11 +432,13 @@ except Exception as e:
     fi
 }
 
-# EN + DE for one metric
-assert_content "metric/sentiment_score?locale=en" \
-    "content/metric/sentiment_score?locale=en" /tmp/aer_e2e_content_metric_en.json
-assert_content "metric/sentiment_score?locale=de" \
-    "content/metric/sentiment_score?locale=de" /tmp/aer_e2e_content_metric_de.json
+# EN + DE for one metric. The content catalog is keyed by the canonical
+# Phase-117 names (sentiment_score_sentiws / sentiment_score_bert_*); the
+# legacy `sentiment_score` key was removed with the rename.
+assert_content "metric/sentiment_score_sentiws?locale=en" \
+    "content/metric/sentiment_score_sentiws?locale=en" /tmp/aer_e2e_content_metric_en.json
+assert_content "metric/sentiment_score_sentiws?locale=de" \
+    "content/metric/sentiment_score_sentiws?locale=de" /tmp/aer_e2e_content_metric_de.json
 
 # EN probe
 assert_content "probe/probe-0-de-institutional-rss?locale=en" \

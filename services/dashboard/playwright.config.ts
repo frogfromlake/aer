@@ -4,7 +4,11 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
-  retries: process.env['CI'] ? 2 : 0,
+  // CI retries=1 (one re-attempt) is the right point on the
+  // flake-vs-runtime curve for visual + a11y gates: a flaky pixel
+  // diff or transient layout reflow gets one chance to settle,
+  // budget cost stays bounded. Trace is captured on the retry.
+  retries: process.env['CI'] ? 1 : 0,
   workers: process.env['CI'] ? 1 : undefined,
   reporter: process.env['CI'] ? 'github' : 'list',
   snapshotPathTemplate: '{testDir}/__snapshots__/{testFilePath}/{arg}{ext}',
