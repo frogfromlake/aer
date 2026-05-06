@@ -1,0 +1,38 @@
+entityId: topic_evolution_sentiment_score_sentiws
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Topic evolution. A stream graph of BERTopic topic volume over time — how the boundaries of the expressible shift across the observed window."
+    long: >
+      The topic evolution view stacks per-topic article volume over the selected time window,
+      one stream per topic. Where the topic distribution view answers "what is being talked
+      about right now?", evolution answers the Episteme question directly: how do the discourse
+      topic boundaries shift over the observed period? A topic that disappears, splits, or
+      merges across the window is the visible shadow of a change in what the corpus could
+      register at all. The active metric (sentiment_score_sentiws) is the lane's analytical framing — the
+      stream graph itself does not consume the metric, but reading the streams alongside the
+      metric's time series in the same lane composes the two layers. Topic colour follows a
+      Viridis ramp and carries no valence; the outlier class ("uncategorised") is rendered
+      grey. When prefers-reduced-motion is set, the stream silhouette degrades to a static
+      stacked bar chart so animated wiggle does not fire.
+  methodological:
+    short: "Composite of multiple GET /api/v1/topics/distribution sub-window calls (Phase 120 endpoint). BERTopic Tier 2 — pinned multilingual-e5-large embeddings, seeded UMAP/HDBSCAN. Per-language partitioning preserved (WP-004 §3.4)."
+    long: >
+      The cell issues one BFF query per temporal sub-window across the active range (typically
+      8 to 14 buckets), then composes the per-bucket per-topic article counts into a stacked
+      area / stream graph. Top-K topics are selected by total article volume across the full
+      window so the stack stays stable; lower-volume topics fold into a single "other" stream
+      so the visual does not explode. The outlier class (topic_id = -1) is preserved as a
+      separate grey stream — it is an observation, not noise. Topics are fit per language
+      partition by BERTopic; cross-language topic alignment is explicitly out of scope under
+      WP-004 §3.4 and is refused at the rendering layer (multi-language scopes render one
+      stream stack per language). Reproducibility follows WP-002 §8.1 Option C: pinned model
+      version, seeded clustering, model_hash recorded per row.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-06"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"
+  - "WP-001 §3"

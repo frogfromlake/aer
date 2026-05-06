@@ -1,0 +1,41 @@
+entityId: topic_evolution_word_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Themenentwicklung. Stream-Graph des BERTopic-Themenvolumens über die Zeit — wie sich die Grenzen des Sagbaren über das beobachtete Fenster verschieben."
+    long: >
+      Die Themenentwicklungsansicht stapelt das Artikelvolumen pro Thema über das ausgewählte
+      Zeitfenster, einen Stream pro Thema. Während die Themenverteilungsansicht "worüber wird
+      gerade gesprochen?" beantwortet, beantwortet die Entwicklung die Episteme-Frage direkt:
+      wie verschieben sich die Diskurs-Themengrenzen über den beobachteten Zeitraum? Ein Thema,
+      das im Fenster verschwindet, sich aufspaltet oder mit einem anderen verschmilzt, ist der
+      sichtbare Schatten einer Veränderung dessen, was der Korpus überhaupt erfassen konnte.
+      Die aktive Metrik (word_count) ist der analytische Rahmen der Lane — der Stream-Graph
+      selbst konsumiert die Metrik nicht, aber das Lesen der Streams neben der Zeitreihe der
+      Metrik in derselben Lane verbindet beide Ebenen. Die Themenfarbe folgt einer
+      Viridis-Rampe und trägt keine Valenz; die Ausreißerklasse ("unkategorisiert") wird grau
+      dargestellt. Bei prefers-reduced-motion fällt die Stream-Silhouette auf ein statisches
+      gestapeltes Balkendiagramm zurück, damit keine animierte Wellenbewegung entsteht.
+  methodological:
+    short: "Komposition mehrerer GET /api/v1/topics/distribution-Aufrufe pro Sub-Fenster (Phase-120-Endpunkt). BERTopic Tier 2 — gepinnte multilingual-e5-large-Embeddings, geseedete UMAP/HDBSCAN. Per-Sprach-Partitionierung erhalten (WP-004 §3.4)."
+    long: >
+      Die Zelle stellt eine BFF-Anfrage pro zeitlichem Sub-Fenster über den aktiven Bereich
+      (typischerweise 8 bis 14 Buckets) und komponiert die Per-Bucket-Per-Topic-Artikelzahlen
+      zu einem gestapelten Flächen- bzw. Stream-Graphen. Top-K-Themen werden nach
+      Gesamtartikelvolumen über das Vollfenster ausgewählt, damit der Stapel stabil bleibt;
+      Themen mit geringerem Volumen werden zu einem einzelnen "andere"-Stream zusammengefasst,
+      damit das Bild nicht explodiert. Die Ausreißerklasse (topic_id = -1) bleibt als separater
+      grauer Stream erhalten — sie ist Beobachtung, kein Rauschen. Themen werden pro
+      Sprachpartition von BERTopic gefittet; sprachübergreifende Themen-Alignment ist gemäß
+      WP-004 §3.4 explizit ausgeschlossen und wird auf der Rendering-Ebene verweigert
+      (Mehrsprach-Geltungsbereiche rendern einen Stream-Stapel pro Sprache). Reproduzierbarkeit
+      folgt WP-002 §8.1 Option C: gepinnte Modellversion, geseedete Clusterung, model_hash pro
+      Zeile aufgezeichnet.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-06"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"
+  - "WP-001 §3"

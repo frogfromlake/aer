@@ -1,0 +1,40 @@
+entityId: topic_distribution_publication_weekday
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Themenverteilung. Zeigt die von BERTopic im Geltungsbereich isolierten Diskursthemen, sortiert nach Artikelvolumen — worüber gesprochen wird, nicht wie es gerahmt wird."
+    long: >
+      Die Themenverteilungsansicht stellt pro BERTopic-Cluster im Geltungsbereich eine Reihe
+      dar, sortiert nach Artikelvolumen absteigend. Die aktive Metrik (publication_weekday) gibt der Lane
+      einen analytischen Rahmen — Sentiment, Länge, Entitätsdichte —, aber die Themen selbst
+      werden aus dem bereinigten Text berechnet, unabhängig von der Metrik. Mit dieser Ansicht
+      lässt sich die Episteme-Frage zuerst stellen: welche thematischen Regionen deckt der
+      Korpus überhaupt ab? Leere Regionen sind selbst Beobachtungen (Brief §7.7 / Negativraum).
+      Die Ausreißerklasse wird als ausgegraute "unkategorisiert"-Reihe dargestellt — das sind
+      Artikel, die BERTopic keinem kohärenten Cluster zuordnen konnte, kein zu verbergendes
+      Rauschen. Wenn der Geltungsbereich mehrere Sprachpartitionen umfasst, rendert die Zelle
+      pro Sprache einen eigenen Reihen-Stapel; topic_ids sind nur innerhalb einer Partition
+      eindeutig (WP-004 §3.4) und werden nie sprachübergreifend zusammengeführt.
+  methodological:
+    short: "BERTopic über aer_gold.topic_assignments (Phase 120). Embeddings: intfloat/multilingual-e5-large (gepinnt). UMAP/HDBSCAN mit festem Seed. Tier 2 — reproduzierbar bei gepinnten Modellversionen, nicht bit-für-bit deterministisch über Plattformen (WP-002 §8.1 Option C)."
+    long: >
+      Themen werden von BERTopic über ein gleitendes 30-Tage-Fenster bereinigten Texts erzeugt,
+      getrennt pro erkannter Sprachpartition. Das Sentence-Transformer-Embedding-Modell
+      (intfloat/multilingual-e5-large) ist über die HuggingFace-Revision im Language Capability
+      Manifest des Workers gepinnt; UMAP und HDBSCAN laufen mit festen Zufalls-Seeds. Der
+      `model_hash` pro Zeile setzt sich aus BERTopic-Version, Embedding-Modell-ID + Revision,
+      beiden Seeds und der Sprachpartition zusammen — jede Rotation dieser Eingaben bumpt den
+      Hash und erscheint hier als "Modell rotiert"-Hinweis. Das ist der WP-002 §8.1
+      Option-C-Vertrag: reproduzierbar bei identischen Eingaben und gepinnten Versionen, nicht
+      bit-für-bit deterministisch über Hardware. Die vier Diskursfunktionen aus WP-001 sind die
+      *erwartete* hochstufige Struktur, an die Themen sich annähern sollten; eine starke
+      Abweichung davon ist methodisch interessant und sollte vor inhaltlichen Schlüssen
+      diskutiert werden.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-06"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"
+  - "WP-001 §3"

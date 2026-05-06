@@ -30,7 +30,8 @@ export type AnalyticalDiscipline =
   | 'eda'
   | 'network_science'
   | 'metadata_mining'
-  | 'clustering';
+  | 'clustering'
+  | 'episteme';
 
 /** One presentation-form axis entry. The matrix-cell id is composed at
  *  call-sites as `<id>_<metricName>` to match content-catalog yaml keys. */
@@ -106,6 +107,31 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     layout: 'per-scope',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CoOccurrenceNetworkCell.svelte')).default
+  },
+  // Phase 121 — Episteme-pillar topic view modes.
+  // Both cells are metric-agnostic in terms of the active `metric` URL
+  // parameter (BERTopic operates on the cleaned text, not on a Gold
+  // metric). The lane shell still composes a content-catalog id of the
+  // form `<presentation>_<metricName>` so each (cell × metric) pair has
+  // its own Dual-Register entry; we ship one entry per first-class
+  // metric (sentiment_score_sentiws, word_count, …) per language.
+  {
+    id: 'topic_distribution',
+    label: 'Topic distribution',
+    discipline: 'episteme',
+    description: 'Per-language BERTopic ridgeline — what is being talked about, by volume.',
+    layout: 'per-scope',
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/TopicDistributionCell.svelte')).default
+  },
+  {
+    id: 'topic_evolution',
+    label: 'Topic evolution',
+    discipline: 'episteme',
+    description: 'Stream graph of topic volume over time — how the expressible shifts.',
+    layout: 'per-scope',
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/TopicEvolutionCell.svelte')).default
   }
 ];
 

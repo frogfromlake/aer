@@ -32,6 +32,8 @@ export type DistributionResponseDto = components['schemas']['DistributionRespons
 export type CoOccurrenceGraphDto = components['schemas']['CoOccurrenceGraph'];
 export type AvailableMetricDto = components['schemas']['AvailableMetric'];
 export type SilverAggregationResponseDto = components['schemas']['SilverAggregationResponse'];
+export type TopicDistributionResponseDto = components['schemas']['TopicDistributionResponse'];
+export type TopicDistributionEntryDto = TopicDistributionResponseDto['topics'][number];
 export type SilverAggregationType =
   | 'cleaned_text_length'
   | 'word_count'
@@ -480,6 +482,60 @@ export function entityCoOccurrenceQuery(
       fetchJson<CoOccurrenceGraphDto>(
         ctx,
         `/entities/cooccurrence?${qs.toString()}`,
+        'validation_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// -------------------------------------------------------------------------
+// Phase 121 — Topic distribution query.
+//
+// Backs the Episteme-pillar `topic_distribution` and `topic_evolution`
+// view-mode cells. The endpoint aggregates BERTopic assignments per
+// (language, topic_id) across the resolved scope; `topic_evolution`
+// drives time progression by issuing one query per temporal bucket
+// (the BFF endpoint itself is windowed, not bucketed — Phase 120 ships
+// a single aggregated view; multiple sub-windows = multiple queries).
+// -------------------------------------------------------------------------
+
+export interface TopicDistributionParams {
+  // Single scope target (probe id or single source name). At least one of
+  // `scopeId`, `probeIds`, or `sourceIds` must be present.
+  scopeId?: string | undefined;
+  scope?: ViewModeScope | undefined;
+  probeIds?: readonly string[] | undefined;
+  sourceIds?: readonly string[] | undefined;
+  // RFC 3339 window. Both optional — BFF defaults to the latest sweep
+  // window when omitted.
+  start?: string | undefined;
+  end?: string | undefined;
+  language?: string | undefined;
+  minConfidence?: number | undefined;
+  includeOutlier?: boolean | undefined;
+}
+
+export function topicDistributionQuery(
+  ctx: FetchContext,
+  params: TopicDistributionParams
+): QueryOptions<TopicDistributionResponseDto> {
+  const qs = new URLSearchParams();
+  if (params.scope) qs.set('scope', params.scope);
+  if (params.scopeId) qs.set('scopeId', params.scopeId);
+  if (params.probeIds && params.probeIds.length > 0) qs.set('probeIds', params.probeIds.join(','));
+  if (params.sourceIds && params.sourceIds.length > 0)
+    qs.set('sourceIds', params.sourceIds.join(','));
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  if (params.language) qs.set('language', params.language);
+  if (params.minConfidence !== undefined) qs.set('minConfidence', String(params.minConfidence));
+  if (params.includeOutlier) qs.set('includeOutlier', 'true');
+  return {
+    queryKey: ['aer', 'topic-distribution', params] as const,
+    queryFn: () =>
+      fetchJson<TopicDistributionResponseDto>(
+        ctx,
+        `/topics/distribution?${qs.toString()}`,
         'validation_missing'
       ),
     staleTime: FIVE_MINUTES

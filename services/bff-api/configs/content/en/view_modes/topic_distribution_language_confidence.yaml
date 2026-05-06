@@ -1,0 +1,38 @@
+entityId: topic_distribution_language_confidence
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Topic distribution. Surfaces the discourse topics that BERTopic isolated from this scope, ranked by article volume — what is being talked about, not how it's being framed."
+    long: >
+      The topic distribution view renders one ridge per BERTopic cluster in the resolved scope,
+      sorted by article volume descending. The active metric (language_confidence) sets the lane's
+      analytical framing — sentiment, length, entity density — but the topics themselves are
+      computed from cleaned text, independent of the metric. Use this view to ask the Episteme
+      question first: what topical regions does the corpus cover at all? Empty regions are
+      themselves observations (Brief §7.7 / negative space). The outlier class is rendered as a
+      greyed "uncategorised" ridge — those are articles BERTopic could not assign to a coherent
+      cluster, not noise to be hidden. When the scope spans multiple language partitions, the
+      cell renders one ridge stack per language; topic ids are unique only within a partition
+      (WP-004 §3.4) and are never merged across languages.
+  methodological:
+    short: "BERTopic over aer_gold.topic_assignments (Phase 120). Embeddings: intfloat/multilingual-e5-large (pinned). UMAP/HDBSCAN seeded. Tier 2 — reproducible with pinned model versions, not bit-for-bit deterministic across platforms (WP-002 §8.1 Option C)."
+    long: >
+      Topics are produced by BERTopic over a 30-day rolling window of cleaned text, fit per
+      detected language partition. The sentence-transformer embedding model
+      (intfloat/multilingual-e5-large) is pinned by HuggingFace revision in the worker's
+      Language Capability Manifest; UMAP and HDBSCAN run with fixed random seeds. Each per-row
+      `model_hash` composes the BERTopic version, the embedding model id and revision, both
+      seeds, and the language partition — any rotation of those inputs bumps the hash and
+      surfaces here as a "model rotated" warning. This is the WP-002 §8.1 Option C contract:
+      reproducible given identical inputs and pinned versions, not bit-for-bit deterministic
+      across hardware. The four discourse functions of WP-001 are the *expected* high-level
+      structure topics should approximate; large divergence from that structure is interesting
+      methodologically and should be discussed before drawing substantive conclusions.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-06"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"
+  - "WP-001 §3"

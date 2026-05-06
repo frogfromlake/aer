@@ -172,6 +172,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/topics/distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-scope topic distribution (Episteme x ridgeline / stream-graph)
+         * @description Returns the per-language topic distribution over the window for the resolved scope. Backs the Phase 121 `topic_distribution` and `topic_evolution` view-mode cells. Topics come from BERTopic (`aer_gold.topic_assignments`, Phase 120) — fit per language partition, so cross-language `topic_id` comparisons are explicitly meaningless and must not be performed at the rendering layer.
+         *     Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`; at least one must be present. The `language` parameter further restricts the response to one language partition. Outliers (`topic_id == -1`) are excluded by default — set `includeOutlier=true` to surface them as an `uncategorised` ridge per the Phase 121 design.
+         *     Topic cap: 50 topics by `articleCount` descending.
+         */
+        get: operations["getTopicDistribution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/languages": {
         parameters: {
             query?: never;
@@ -837,11 +859,11 @@ export interface components {
         /** @description Methodological refusal payload returned when the BFF declines to serve a resource because a methodological gate (k-anonymity, equivalence, Silver-eligibility) is not satisfied. The shape is intentionally separate from the generic Error schema so the frontend can render the refusal as a Surface III-linked methodological surface rather than a bare error toast (Brief §3.3). */
         RefusalPayload: {
             /**
-             * @description Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`.
+             * @description Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`. The `invalid_language` value (Phase 118a / ADR-024) is returned when a `?language=` query parameter is not declared in the Language Capability Manifest; `alternatives` then carries the manifest's sorted language codes.
              * @example k_anonymity
              * @enum {string}
              */
-            gate: "k_anonymity" | "silver_eligibility" | "equivalence" | "metric_equivalence";
+            gate: "k_anonymity" | "silver_eligibility" | "equivalence" | "metric_equivalence" | "invalid_language";
             /** @description Concrete user-actionable alternatives the dashboard can offer when the gate refuses (Phase 115). Each entry is a short imperative describing what the user can do to obtain a comparable view — e.g. "drop normalization to Level 1 (temporal patterns only)", "constrain scope to one cultural frame", "use deviation labelling instead of an absolute claim". */
             alternatives?: string[] | null;
             /** @description Human-readable summary of the refusal. */
@@ -1180,6 +1202,41 @@ export interface components {
                  */
                 sampleCount: number;
             };
+        };
+        /** @description Per-language topic distribution payload backing the Episteme-pillar `topic_distribution` and `topic_evolution` view modes. Topics are fit per language by BERTopic (Phase 120 / WP-004 §3.4); the `language` field on each entry is mandatory and `topic_id` is unique only within one language partition. Cross-language topic comparisons are meaningless and must not be performed at the rendering layer. */
+        TopicDistributionResponse: {
+            scope?: string;
+            scopeId?: string;
+            /** Format: date-time */
+            windowStart: string;
+            /** Format: date-time */
+            windowEnd: string;
+            /** @description The language filter actually applied. Empty when no `language` parameter was supplied — in that case the `topics` array contains one entry per (language, topic_id) pair, sorted by `articleCount` across all languages. */
+            language?: string;
+            /** @description Topic entries sorted by `articleCount` descending. Capped at 50. The outlier topic (`topicId == -1`) is omitted unless the request sets `includeOutlier=true`; when present, its `label` is "uncategorised" per the Phase 121 frontend convention. */
+            topics: {
+                /**
+                 * Format: int32
+                 * @description BERTopic numeric identifier; `-1` is the outlier class.
+                 */
+                topicId: number;
+                /** @description BERTopic c-TF-IDF / KeyBERT representation, or "uncategorised" for outliers. */
+                label: string;
+                /**
+                 * Format: int64
+                 * @description Distinct articles assigned to this topic in the window.
+                 */
+                articleCount: number;
+                /**
+                 * Format: float
+                 * @description Mean `topic_confidence` over the included rows.
+                 */
+                avgConfidence: number;
+                /** @description ISO-639-1 language code of the language partition. */
+                language: string;
+                /** @description BERTopic model-provenance hash (Phase 120). When the topic was assigned by more than one model in the window, the most-recent hash is reported — clients should treat a non-unique value as a signal that topic identity has rotated within the window. */
+                modelHash?: string;
+            }[];
         };
     };
     responses: never;
@@ -1809,6 +1866,99 @@ export interface operations {
                 };
             };
             /** @description Invalid scope or window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getTopicDistribution: {
+        parameters: {
+            query?: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — defaults to the latest available BERTopic sweep window when omitted. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — defaults to now. */
+                end?: string;
+                /** @description Filter by ISO 639-1 language code (e.g., "de", "en"). */
+                language?: string;
+                /** @description Minimum `topic_confidence` for a row to be included in the aggregation. Defaults to 0.0 (include all assignments). */
+                minConfidence?: number;
+                /** @description When `true`, the outlier topic (`topic_id == -1`) is included in the response as an `uncategorised` entry. Defaults to false. */
+                includeOutlier?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topic distribution payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicDistributionResponse"];
+                };
+            };
+            /** @description Invalid scope, unknown probe / source, or malformed window. */
             400: {
                 headers: {
                     [name: string]: unknown;

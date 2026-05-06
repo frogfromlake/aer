@@ -15,7 +15,12 @@ export type ViewLayer = 'atmosphere' | 'analysis';
 // reframing-note §3.2). MVP cells in Phase 107: time_series,
 // distribution, cooccurrence_network. The catalog is extensible —
 // new presentations are added here and registered in $lib/viewmodes/.
-export type ViewMode = 'time_series' | 'distribution' | 'cooccurrence_network';
+export type ViewMode =
+  | 'time_series'
+  | 'distribution'
+  | 'cooccurrence_network'
+  | 'topic_distribution'
+  | 'topic_evolution';
 // Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
@@ -93,7 +98,13 @@ export const EMPTY_URL_STATE: UrlState = {
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
 const VIEW_LAYERS: readonly ViewLayer[] = ['atmosphere', 'analysis'];
-const VIEW_MODES: readonly ViewMode[] = ['time_series', 'distribution', 'cooccurrence_network'];
+const VIEW_MODES: readonly ViewMode[] = [
+  'time_series',
+  'distribution',
+  'cooccurrence_network',
+  'topic_distribution',
+  'topic_evolution'
+];
 const DATA_LAYERS: readonly DataLayer[] = ['gold', 'silver'];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
