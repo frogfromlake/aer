@@ -40,7 +40,7 @@ PROD_OUT="${WIKIDATA_PROD_OUT:-/home/nelix/wikidata-build/wikidata_aliases.db}"
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUCKETS="$REPO/services/analysis-worker/data/wikidata_type_buckets.yaml"
-SCRIPT="$REPO/scripts/build_wikidata_index.py"
+SCRIPT="$REPO/scripts/build/build_wikidata_index.py"
 PYTHON="$VENV/bin/python"
 
 LAYER1_SAMPLE="$WORKDIR/test_canonical.nt.bz2"

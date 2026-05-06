@@ -35,7 +35,10 @@
 15. [Volume Management](#volume-management)
 16. [Network Architecture](#network-architecture)
 17. [Scientific Touchpoints Index](#scientific-touchpoints-index)
-18. [Quick Reference Card](#quick-reference-card)
+18. [Routine Operations (`make` targets)](#routine-operations-make-targets)
+19. [One-shot Operations](#one-shot-operations)
+20. [Deleted scripts — for the historical record](#deleted-scripts-for-the-historical-record)
+21. [Quick Reference Card](#quick-reference-card)
 
 Sections marked *touchpoint* are points at which scientific judgment enters the pipeline. Each touchpoint links to the corresponding workflow in the [Scientific Operations Guide](scientific_operations_guide.md), and that guide links back here for the exact commands. The mapping is consolidated in the [Scientific Touchpoints Index](#scientific-touchpoints-index) below.
 
@@ -100,7 +103,7 @@ make test-e2e            # Run Docker Compose end-to-end smoke test
 > on `https://localhost`. The browser never sees `BFF_API_KEY`: Traefik
 > attaches it as `X-API-Key` to every `/api/*` request server-side (see the
 > `bff-api-key` middleware in `compose.yaml`). Non-browser callers (crawlers,
-> `scripts/e2e_smoke_test.sh`) keep sending `X-API-Key` directly to the BFF
+> `scripts/build/e2e_smoke_test.sh`) keep sending `X-API-Key` directly to the BFF
 > on `:8080`.
 
 ---
@@ -258,45 +261,7 @@ AĒR runs two retention horizons by design. PostgreSQL holds *operational* metad
 
 ADR-022 makes the BFF read article resolution and per-source dossier counts from the analytical layer (`aer_silver.documents`), so the 90/365 split is structurally fine: the dossier and L5 Evidence stay coherent even when the Postgres row for an article has been retention-deleted. Postgres `documents` becomes an *operational soft cache* — load-bearing during ingestion (idempotency keys, lifecycle status), not load-bearing for read-path resolution.
 
-**When to run reconciliation.** ADR-022 makes recurring reconciliation unnecessary. Run `scripts/reconcile_documents.py` only in these one-shot scenarios:
-
-* Closing the historical drift that pre-dates ADR-022 — Postgres rows already pruned before this ADR landed.
-* Recovering after an operational outage that lost Postgres rows while Silver/Gold remained intact (e.g. an accidental volume wipe of Postgres alone).
-
-**Procedure:**
-
-```bash
-# 1. Inspect the divergence first.
-psql -h localhost -p 5432 -U $POSTGRES_USER -d $POSTGRES_DB -c "
-  SELECT s.name,
-         COALESCE(c.cnt, 0) AS pg_documents,
-         (SELECT count(DISTINCT article_id)
-            FROM aer_silver.documents
-           WHERE source = s.name) AS ch_silver_docs
-    FROM sources s
-    LEFT JOIN (
-      SELECT j.source_id, count(*) AS cnt
-        FROM documents d JOIN ingestion_jobs j ON j.id = d.job_id
-        WHERE d.status = 'processed'
-       GROUP BY j.source_id
-    ) c ON c.source_id = s.id
-   ORDER BY s.name;
-"
-# (the ch_silver_docs subquery only works via Postgres if you have a CH FDW;
-#  otherwise run the count separately against ClickHouse and compare by eye)
-
-# 2. Dry-run the reconciliation to see what would change.
-python scripts/reconcile_documents.py --dry-run
-
-# 3. Execute. Idempotent — safe to interrupt and re-run.
-python scripts/reconcile_documents.py
-
-# 4. Confirm divergence has closed.
-#    Repeat step 1 — pg_documents should now meet or exceed ch_silver_docs
-#    for every source whose Silver envelopes are still present in MinIO.
-```
-
-The script never deletes; it only inserts missing rows under `ON CONFLICT (bronze_object_key) DO NOTHING`. Synthetic ingestion-jobs created during reconciliation are tagged `status = 'reconciled'` and pinned to 00:00 UTC of the document's day, so they never collide with real ingestion jobs.
+**Recovering after operational divergence.** ADR-022 makes recurring reconciliation unnecessary. Phase 120c retired the standalone `reconcile_documents.py` workaround: the canonical recovery path is now the supervised wipe-and-recrawl in [Full system reset (one-shot)](#full-system-reset-one-shot). If Postgres has lost rows that Silver/Gold still hold, run `make reset` followed by `make crawl` — the init containers re-create Postgres schema and the crawler repopulates `documents` / `ingestion_jobs` cleanly. The Bronze/Silver/Gold layers are wiped along the way; build-time artefacts (Wikidata index, BERT models baked into the worker image) survive.
 
 ---
 
@@ -424,7 +389,7 @@ SELECT * FROM aer_gold.metric_baselines FINAL ORDER BY metric_name, source;
 SELECT * FROM aer_gold.metric_equivalence FINAL ORDER BY etic_construct, metric_name;
 ```
 
-**Computing baselines.** `scripts/compute_baselines.py` runs offline against the ClickHouse instance and writes one row per `(metric_name, source, language)` it finds.
+**Computing baselines.** `scripts/operations/compute_baselines.py` runs offline against the ClickHouse instance and writes one row per `(metric_name, source, language)` it finds.
 
 ```bash
 # Required env (read from .env if present):
@@ -435,14 +400,14 @@ SELECT * FROM aer_gold.metric_equivalence FINAL ORDER BY etic_construct, metric_
 #   --dry-run           compute and print, do not insert
 
 cd services/analysis-worker
-python scripts/compute_baselines.py --metric word_count --window 90 --dry-run
-python scripts/compute_baselines.py --metric word_count --window 90
+python ../../scripts/operations/compute_baselines.py --metric word_count --window 90 --dry-run
+python ../../scripts/operations/compute_baselines.py --metric word_count --window 90
 ```
 
 **Probe 0 example** (compute the `word_count` baseline for tagesschau.de):
 
 ```bash
-python scripts/compute_baselines.py --metric word_count --window 90
+python scripts/operations/compute_baselines.py --metric word_count --window 90
 # Expected output (one line per (metric, source, language)):
 #   word_count | tagesschau | de | mean=312.4 | std=158.7 | n=4500
 #   word_count | bundesregierung | de | mean=487.2 | std=203.1 | n=450
@@ -540,7 +505,7 @@ co-occurrence sweep:
 | `BASELINE_EXTRACTION_WINDOW_SECONDS`          | `7776000` | Rolling 90-day window.                            |
 | `BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS`   | `300`   | Grace period after worker startup before the first sweep. |
 
-The standalone `scripts/compute_baselines.py` is **retained** for ad-hoc
+The standalone `scripts/operations/compute_baselines.py` is **retained** for ad-hoc
 operations (first-run on a new probe, manual recompute after a schema
 change, Operations-Playbook walkthroughs). Both call paths share the
 canonical computation in
@@ -1100,7 +1065,7 @@ Browser ── /api/* ──► Vite (5173) ──► Traefik (https://localhost
                                        bff-api
 ```
 
-For container Loop A, drop the Vite hop — the browser hits Traefik directly via the `dashboard` router. Non-browser callers (RSS crawler, `scripts/e2e_smoke_test.sh`) keep sending `X-API-Key` themselves, directly to BFF on `:8080`. See `compose.yaml` (`bff-api-key` middleware label) and ADR-018.
+For container Loop A, drop the Vite hop — the browser hits Traefik directly via the `dashboard` router. Non-browser callers (RSS crawler, `scripts/build/e2e_smoke_test.sh`) keep sending `X-API-Key` themselves, directly to BFF on `:8080`. See `compose.yaml` (`bff-api-key` middleware label) and ADR-018.
 
 ### Authoring flow (typical change)
 
@@ -1125,7 +1090,7 @@ make codegen         # Regenerate OpenAPI stubs, then check for drift
 
 **Testcontainers:** Go and Python tests spin up real database containers using image tags parsed from `compose.yaml` (SSoT enforcement). No hardcoded tags in test files.
 
-**E2E smoke test** (`scripts/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
+**E2E smoke test** (`scripts/build/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
 
 ---
 
@@ -1152,7 +1117,7 @@ Security signals from CI should take precedence over the monthly cadence — if 
 make deps-refresh
 ```
 
-The target delegates to `scripts/deps_refresh.sh`, which runs four steps, each of which fails loudly and leaves the working tree in an inspectable state:
+The target delegates to `scripts/build/deps_refresh.sh`, which runs four steps, each of which fails loudly and leaves the working tree in an inspectable state:
 
 1. **Base image digest refresh.** Every `FROM image:tag@sha256:…` line across all three service Dockerfiles is deduplicated by image reference. Each unique `image:tag` is `docker pull`ed once, the new digest is resolved via `docker image inspect`, and the old digest is rewritten in place. Shared base images (alpine, python, golang) stay in lockstep across Dockerfiles by construction.
 2. **`requirements.lock.txt` regeneration.** `pip-compile --generate-hashes --allow-unsafe` runs inside the *exact* Python image the worker builds from (read back out of the freshly-updated worker Dockerfile), guaranteeing the hash set is byte-compatible with `pip install --require-hashes` at build time. `pip-tools` is pinned via `PIP_TOOLS_VERSION` in `.tool-versions`.
@@ -1169,7 +1134,7 @@ After a successful run, review `git diff` (especially to confirm only digests/ha
 make deps-refresh ARGS="--dry-run"     # report intent, no writes, no rebuild
 make deps-refresh ARGS="--skip-e2e"    # rebuild but skip the 90s+ e2e suite
 make deps-refresh ARGS="--skip-build"  # just rewrite files; no rebuild, no e2e
-./scripts/deps_refresh.sh --help       # full help from the script directly
+./scripts/build/deps_refresh.sh --help       # full help from the script directly
 ```
 
 Use `--dry-run` the first time you run the target on an unfamiliar machine, or when you want to see the upstream digest drift without committing to a rebuild cycle. Use `--skip-e2e` only when CI is the smoke test (e.g. refreshing inside a branch that will open a PR immediately).
@@ -1249,7 +1214,7 @@ The runbook is the canonical local procedure and the GitHub Actions workflow's r
 
 * **Dump source:** `https://dumps.wikimedia.org/wikidatawiki/entities/latest-truthy.nt.bz2` (or the `your.org` mirror). Wikidata publishes a fresh truthy dump every Wednesday.
 * **Snapshot-date semantics:** the dump file's mtime, recorded verbatim in the SQLite `build_metadata` table. Determines image tag and audit trail.
-* **Determinism contract:** two builds over the same `(dump file, languages, bucket YAML, script version)` produce byte-identical SQLite — see `scripts/build_wikidata_index.py` docstring.
+* **Determinism contract:** two builds over the same `(dump file, languages, bucket YAML, script version)` produce byte-identical SQLite — see `scripts/build/build_wikidata_index.py` docstring.
 * **Hash verification:** the worker hashes the mounted file at startup and refuses to boot on mismatch with `WIKIDATA_INDEX_SHA256`. Leave empty only in dev.
 * **Refresh cadence:** quarterly by default (workflow `schedule:` block). Manual `workflow_dispatch` for new-language additions and bucket-YAML changes.
 
@@ -1325,10 +1290,10 @@ Under the hood `make reset` runs three Make targets in order: `make reset-state`
 
 | Volume | Why preserved |
 | :--- | :--- |
-| `aer_wikidata_data` | Wikidata alias index built by `scripts/build_wikidata_index.py` from `latest-truthy.nt.bz2`. ~30-min rebuild. |
+| `aer_wikidata_data` | Wikidata alias index built by `scripts/build/build_wikidata_index.py` from `latest-truthy.nt.bz2`. ~30-min rebuild. |
 | `aer_tempo_data` | Distributed trace history. Re-creating destroys debugging context for prior incidents. |
 
-`scripts/clean_infra.sh` asserts the preserved set survives the wipe and aborts loudly if any of those volumes is missing afterward — so an accidental `docker volume prune` between two `make reset` invocations cannot silently lose the Wikidata index or trace history.
+`scripts/operations/clean_infra.sh` asserts the preserved set survives the wipe and aborts loudly if any of those volumes is missing afterward — so an accidental `docker volume prune` between two `make reset` invocations cannot silently lose the Wikidata index or trace history.
 
 > **BERT models are NOT in a volume.** The Phase 119 BERT sentiment models and Phase 120 BERTopic embedding model are baked into the worker image at `/hf-cache` and the worker runs with `TRANSFORMERS_OFFLINE=1` — the image is the canonical store. `make reset` does not touch model state because it does not need to: the running container points at the image's `/hf-cache`. Models change only when the worker image is rebuilt (manifest revision rotation → `docker compose build analysis-worker`). Phase-120b removed the previously-documented `aer_hf_cache` volume from the preserved set because it was never actually mounted on the worker — a documentation/wiring drift surfaced during this phase.
 
@@ -1363,7 +1328,7 @@ make reset
 make crawl
 ```
 
-Validator output ([`scripts/reset_validate.sh`](../../scripts/reset_validate.sh)) prints `✔` / `·` / `✗` per layer:
+Validator output ([`scripts/operations/reset_validate.sh`](../../scripts/operations/reset_validate.sh)) prints `✔` / `·` / `✗` per layer:
 
 | Symbol | Meaning |
 | :--- | :--- |
@@ -1436,6 +1401,77 @@ The following table indexes every point where scientific judgment enters the AĒ
 | Probe Dossier (`docs/probes/`) | Filesystem | [Probe Dossier](#probe-dossier) | [Workflow 1 (Step 5)](scientific_operations_guide.md#workflow-1-classifying-a-new-probe) / [Workflow 5](scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) |
 | `BiasContext` (in adapter code) | Python | [Analysis Worker](#analysis-worker-python) | [Workflow 5: Assessing Bias](scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) |
 | Cultural Calendar (`configs/cultural_calendars/`) | Filesystem | [Cultural Calendar Files](#cultural-calendar-files) | [Workflow 6: Updating the Cultural Calendar](scientific_operations_guide.md#workflow-6-updating-the-cultural-calendar) |
+
+---
+
+## Routine Operations (`make` targets)
+
+The contract introduced by Phase 120c: every operation a developer is expected to perform routinely has a `Makefile` target. Anything not on this list is either a build-time concern (codegen, lint, test) or a one-shot recorded in [One-shot Operations](#one-shot-operations) below. Running a raw `python scripts/...` invocation in steady state is a deliberate, documented exception, not the default workflow.
+
+| Target | Purpose |
+| :--- | :--- |
+| `make up` / `make down` / `make restart` | Bring the full stack (infra + services + dashboard) up, down, or rebounce it. |
+| `make backend-up` / `make backend-down` / `make backend-rebuild` | Backend without the dashboard container — pair with `make fe-dev`. |
+| `make infra-up` / `make infra-down` | Start or stop only the infrastructure layer (DBs, NATS, MinIO, observability). |
+| `make services-up` / `make services-down` / `make services-restart` | Manage all application services together. |
+| `make services-clean` | Stop services and wipe their workspace state (`scripts/operations/clean.sh`). |
+| `make ingestion-up\|down\|restart`, `make worker-up\|down\|restart`, `make bff-up\|down\|restart` | Per-service control. |
+| `make debug-up` / `make debug-down` | Expose internal infra ports to localhost for tooling (psql, mc, curl). |
+| `make logs` | Tail the live container logs across the stack. |
+| `make crawl` | Run the RSS crawler as a one-shot container on `aer-backend`. |
+| `make crawl-reset` | Wipe the crawler dedup state volume so the next `make crawl` re-ingests every feed item. |
+| `make reset` / `make reset-state` / `make reset-validate` | Phase-120b supervised reset: wipe runtime state volumes, re-up via init containers, validate. The canonical recovery path. |
+| `make infra-clean[-postgres\|-minio\|-clickhouse]` | One-layer wipe (interactive confirmation). Prefer `make reset` for full resets. |
+| `make build-services` | Compile Go binaries into `./bin/`. |
+| `make codegen` | Regenerate Go types/stubs from the OpenAPI contracts. |
+| `make codegen-ts` / `make fe-codegen` | Regenerate the dashboard's TypeScript API types from the BFF spec. |
+| `make openapi-bundle` / `make openapi-lint` | Bundle modular OpenAPI specs / enforce ADR-021 `$ref` style. |
+| `make scaffold-metric-validity` / `make scaffold-metric-validity-check` | Regenerate the per-language `metric_validity` seed scaffold from the Capability Manifest. |
+| `make tidy` | `go mod tidy` across all Go modules. |
+| `make lint` / `make lint-go-pkg` | Run all linters (golangci-lint, ruff). |
+| `make audit` / `make audit-go` / `make audit-python` | Run vulnerability scans. |
+| `make test` / `make test-go` / `make test-go-pkg` / `make test-go-crawlers` / `make test-python` / `make test-e2e` | Run the test suites. |
+| `make fe-install` / `make fe-dev` / `make fe-build` / `make fe-test` / `make fe-test-e2e` / `make fe-check` | Frontend developer loop and gates. |
+| `make fe-image-build` / `make fe-image-size` | Build and budget-check the dashboard container image. |
+| `make deps-refresh` | Maintainer-only: rotate the entire pinned supply-chain baseline (base image digests, `requirements.lock.txt`, `SENTIWS_SHA256`). |
+| `make swagger-up` / `make swagger-down` | Bundle OpenAPI specs and start Swagger UI on `:8089`. |
+| `make setup` | Install the developer tooling pinned in `.tool-versions`. |
+| `make help` | Print a self-documenting menu of the above. |
+
+A fresh contributor should be able to onboard with this section plus `make help` alone.
+
+---
+
+## One-shot Operations
+
+Scripts under `scripts/operations/` are operator-invokable one-shots. They have an explicit "when to run / when not to run" contract — running one in steady state is incorrect, not just unnecessary.
+
+### `scripts/operations/compute_baselines.py`
+
+**When to run:** once after a fresh `make reset && make crawl` if you do not want to wait 24 h for the in-worker `MetricBaselineExtractor` daily loop (Phase 115) to populate `aer_gold.metric_baselines`. Also: as the canonical example in [Workflow 4 of the Scientific Operations Guide](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines), and as the explicit first-baseline-run step on a new probe (Phase 123 worked example).
+
+**When NOT to run:** in steady state. The `MetricBaselineExtractor` corpus loop inside the analysis worker is the canonical source. Running the standalone script while the loop is also active is harmless (`ReplacingMergeTree(compute_date)` collapses duplicate keys), but it is a sign that the loop is not actually doing what it is supposed to be doing — investigate that first.
+
+Both call paths share the canonical computation in `internal.extractors.metric_baseline.compute_baseline_rows`, so byte-for-byte identical baselines are produced for the same input window. See [Metric Baselines & Equivalence](#metric-baselines-equivalence-wp-004) above for the full procedure.
+
+### `scripts/operations/clean.sh`, `scripts/operations/clean_infra.sh`, `scripts/operations/reset_validate.sh`
+
+These are not invoked directly by operators in steady state — they are wrapped by `make services-clean`, `make infra-clean[-postgres|-minio|-clickhouse]`, `make reset`, and `make reset-validate` respectively. They are listed here for greppability: a `scripts/operations/` path under a Makefile target's command body is the sanctioned shape; a raw `./scripts/operations/<x>.sh` invocation in a runbook is a smell.
+
+---
+
+## Deleted scripts — for the historical record
+
+Phase 120c retired six scripts that targeted data scenarios the supervised wipe-and-recrawl path (`make reset`, Phase 120b) now supersedes. Listed here so a future contributor can find them in `git log` without re-deriving why they are gone.
+
+| Script | Removed | Rationale |
+| :--- | :--- | :--- |
+| `scripts/backfill_article_id.py` | Phase 120c | Patched pre-Phase-43 documents lacking an `article_id` — those rows no longer exist after the Phase 120b reset. |
+| `scripts/backfill_silver_projection.py` | Phase 120c | Backfilled `aer_silver.documents` from historical Silver objects — superseded by the canonical Bronze→Silver pipeline running over a freshly recrawled corpus. |
+| `scripts/backfill_entity_links.py` | Phase 120c | Quarterly post-rebuild Wikidata link backfill against historical `aer_gold.entities` — pre-Phase-118 entity rows no longer exist; the current pipeline links at write time. |
+| `scripts/backfill_bert_sentiment.py` | Phase 120c | Generated Phase-119 BERT sentiment metrics on Silver envelopes that pre-dated the Phase-119 worker image — every Silver envelope now post-dates that image. |
+| `scripts/reconcile_documents.py` | Phase 120c | One-shot `aer_silver.documents.bronze_object_key` repair from historical Bronze data (Phase 113b). The wipe-and-recrawl pattern is the canonical recovery route under ADR-022. |
+| `scripts/replay_bronze.py` | Phase 120c | Mid-iteration NATS replay over Bronze to rebuild Silver/Gold without re-crawling. `make reset` followed by `make crawl` is now the canonical replacement and is faster end-to-end on the working dataset. |
 
 ---
 

@@ -89,7 +89,7 @@ Consumers:
 
 - `NamedEntityExtractor` reads `languages.<code>.ner.model` for routing.
 - `SentimentExtractor` reads `languages.<code>.sentiment_tier1` for the lexicon, feature flags, and negation cues.
-- `scripts/generate_metric_validity_scaffold.py` (run via `make scaffold-metric-validity`) emits one block per `(language, metric_name, tier)` triple into `infra/clickhouse/seed/metric_validity_scaffold_generated.sql`. Drift is a CI failure.
+- `scripts/build/generate_metric_validity_scaffold.py` (run via `make scaffold-metric-validity`) emits one block per `(language, metric_name, tier)` triple into `infra/clickhouse/seed/metric_validity_scaffold_generated.sql`. Drift is a CI failure.
 - The BFF reads the same YAML at startup and gates every endpoint that accepts `?language=` against the manifest's keys; unknown values produce a structured `gate=invalid_language` refusal payload.
 
 The matrix above remains hand-maintained for now. Auto-generation of the matrix from the manifest is slated for Phase 122a.

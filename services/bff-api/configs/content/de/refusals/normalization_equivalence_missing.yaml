@@ -25,7 +25,7 @@ registers:
       implizite wissenschaftliche Behauptungen: Ein z-Score-Vergleich über Kontexte setzt voraus,
       dass die Metrik dasselbe etic Konstrukt in jedem Kontext misst — eine empirische Behauptung,
       die durch eine Validierungsstudie, nicht durch Annahme, belegt werden muss. Der Lösungsweg:
-      (1) Baselines via scripts/compute_baselines.py für jeden relevanten Kontext berechnen;
+      (1) Baselines via scripts/operations/compute_baselines.py für jeden relevanten Kontext berechnen;
       (2) Äquivalenzstudie nach WP-004 §5 durchführen; (3) Eintrag in aer_gold.metric_equivalence
       mit equivalence_level = 'deviation' oder 'absolute' einfügen. Der Scientific Operations
       Guide (Workflow 4) dokumentiert diesen Prozess. Die Rohdaten-Zeitreihe bleibt ohne

@@ -74,13 +74,13 @@ Keep this strict — leftover Pass-B-cache from an earlier YAML or `--languages`
 ### 1.2 Launch the build
 
 ```bash
-/home/nelix/projects/aer/scripts/wikidata_validate.sh prod
+/home/nelix/projects/aer/scripts/build/wikidata_validate.sh prod
 ```
 
 This wraps `build_wikidata_index.py` with the canonical CLI args (default dump path, default buckets file, default output path). For one-off runs against a non-default location, invoke the build script directly:
 
 ```bash
-/tmp/wd_venv/bin/python /home/nelix/projects/aer/scripts/build_wikidata_index.py \
+/tmp/wd_venv/bin/python /home/nelix/projects/aer/scripts/build/build_wikidata_index.py \
   --dump-path /home/nelix/wikidata-build/latest-truthy.nt.bz2 \
   --buckets-file /home/nelix/projects/aer/services/analysis-worker/data/wikidata_type_buckets.yaml \
   --output-path /home/nelix/wikidata-build/wikidata_aliases.db
@@ -129,14 +129,14 @@ The build's exit-zero is necessary but not sufficient — it confirms the code r
 
 ### 2.1 Layered validation pipeline
 
-`scripts/wikidata_validate.sh` provides three validation stages of increasing scope. The Layer-1 and Layer-2 stages are smoke tests against subset samples; only the Production-build output (`/home/nelix/wikidata-build/wikidata_aliases.db`) goes to deployment.
+`scripts/build/wikidata_validate.sh` provides three validation stages of increasing scope. The Layer-1 and Layer-2 stages are smoke tests against subset samples; only the Production-build output (`/home/nelix/wikidata-build/wikidata_aliases.db`) goes to deployment.
 
 ```bash
 # Optional — re-run before each release as a regression gate against the YAML.
 # Each is independent; layer-1 + layer-2 take ~25 min total and gate the
 # pipeline before the multi-hour prod build.
-scripts/wikidata_validate.sh layer1   # ~5 min — canonical-7 + negatives + determinism
-scripts/wikidata_validate.sh layer2   # ~20 min — 2 GB sample, sanity ceilings
+scripts/build/wikidata_validate.sh layer1   # ~5 min — canonical-7 + negatives + determinism
+scripts/build/wikidata_validate.sh layer2   # ~20 min — 2 GB sample, sanity ceilings
 ```
 
 These are recommended before YAML changes ship. After a Production build, the next subsection's spot-check is the operational gate.
@@ -266,7 +266,7 @@ HASH1=$(sha256sum /tmp/wd_first.db | cut -d' ' -f1)
 
 # Force cache reload (Pass B is the slow part; Pass C is ~30 min)
 rm /home/nelix/wikidata-build/wikidata_aliases.db
-scripts/wikidata_validate.sh prod  # ~30-40 min (Pass B from cache)
+scripts/build/wikidata_validate.sh prod  # ~30-40 min (Pass B from cache)
 
 HASH2=$(sha256sum /home/nelix/wikidata-build/wikidata_aliases.db | cut -d' ' -f1)
 [ "$HASH1" = "$HASH2" ] && echo "determinism OK" || echo "DETERMINISM BROKEN"
@@ -337,7 +337,7 @@ Die `.env`-Änderung wird erst in **Schritt 6** wirksam (Stack-Restart). Bis dah
 Build-Caches werden retained bis explizit validiert. Nach erfolgreicher Validation in Part 2: cleanup.
 
 ```bash
-/tmp/wd_venv/bin/python /home/nelix/projects/aer/scripts/build_wikidata_index.py \
+/tmp/wd_venv/bin/python /home/nelix/projects/aer/scripts/build/build_wikidata_index.py \
   --validated --output-path /home/nelix/wikidata-build/wikidata_aliases.db
 ```
 
@@ -608,8 +608,8 @@ This is the standard init-container pattern (mirrors `nats-init` / `minio-init` 
 - **ADR-027** — Wikidata Entity Linking is Disambiguation, not Discovery (architectural framing)
 - **`docs/operations/operations_playbook.md`** — Stack-level operations reference (smoke tests, observability, volume management)
 - **`docs/operations/scheduled_work.md`** — Category C reference for `wikidata_index_rebuild.yml`
-- **`scripts/build_wikidata_index.py`** — build script (canonical implementation)
-- **`scripts/wikidata_validate.sh`** — validation pipeline (Layer-1, Layer-2, prod stages)
+- **`scripts/build/build_wikidata_index.py`** — build script (canonical implementation)
+- **`scripts/build/wikidata_validate.sh`** — validation pipeline (Layer-1, Layer-2, prod stages)
 - **`services/analysis-worker/data/wikidata_type_buckets.yaml`** — bucket DSL (the index scope SoT)
 - **`infra/wikidata-index/Dockerfile`** — image definition
 - **`compose.yaml`** §3.1b — `wikidata-index-init` service

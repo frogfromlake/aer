@@ -4,7 +4,7 @@
 -- Backs the wikidataQid / linkConfidence fields surfaced via LEFT JOIN by
 -- GET /api/v1/entities and GET /api/v1/entities/cooccurrence. Rows are emitted
 -- by NamedEntityExtractor after a deterministic alias-index lookup against the
--- Wikidata SQLite index built by scripts/build_wikidata_index.py.
+-- Wikidata SQLite index built by scripts/build/build_wikidata_index.py.
 --
 -- Linked-only storage policy: only spans that resolve to a QID with
 -- confidence >= 0.7 are written here. Spans that produce no match are absent

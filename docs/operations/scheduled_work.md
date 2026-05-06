@@ -29,17 +29,17 @@ Scripts that run on developer machines or in CI to keep the repository in a cons
 
 **Examples:** OpenAPI bundling, lint gates, scaffold generators, Git hooks.
 
-**Where they live:** `scripts/`, invoked via `make` targets and CI workflow steps.
+**Where they live:** `scripts/build/`, invoked via `make` targets and CI workflow steps.
 
 **Failure mode if neglected:** generated artefacts drift from their sources, lint passes but contract is broken, CI catches it on next push.
 
 ### Category B — One-shot / Ad-hoc operations
 
-Scripts that an operator runs manually for specific events — first-run on a new probe, historical backfill, debugging investigation, schema-migration recompute.
+Scripts that an operator runs manually for specific events — first-run on a new probe, smoke test before a release, post-reset invariant check.
 
-**Examples:** Smoke test, baseline first-run on new probe, one-time historical reconciliation.
+**Examples:** Smoke test, baseline first-run on new probe, post-reset validation.
 
-**Where they live:** `scripts/`, invoked from a documented procedure in `operations_playbook.md` or `scientific_operations_guide.md`.
+**Where they live:** `scripts/operations/` (operator-invokable) or `scripts/build/` (developer-facing build/test); both are invoked from a documented procedure in `operations_playbook.md` or `scientific_operations_guide.md`. Phase 120c retired the historical `scripts/backfill_*.py` / `scripts/reconcile_documents.py` / `scripts/replay_bronze.py` workarounds — see [Deleted scripts — for the historical record](operations_playbook.md#deleted-scripts-for-the-historical-record).
 
 **Failure mode if neglected:** the operator forgets to run them at the right moment; downstream data has gaps. Mitigated by phase exit-criteria checklists.
 
@@ -49,7 +49,7 @@ Standalone scripts that must run on a regular calendar — typically because the
 
 **Examples:** Quarterly Wikidata alias-index rebuild.
 
-**Where they live:** `scripts/`, scheduled via GitHub Actions workflows in `.github/workflows/`.
+**Where they live:** `scripts/build/`, scheduled via GitHub Actions workflows in `.github/workflows/`.
 
 **Failure mode if neglected:** the schedule trigger fails silently and downstream artefacts go stale. Mitigated by GitHub Actions failure notifications and the artefact hash verification at consumer startup (e.g., the analysis-worker fails fast if the Wikidata index hash does not match its expected hash).
 
@@ -86,28 +86,28 @@ The default is the **in-worker NATS-cron** pattern wherever possible. Standalone
 
 | Script | Purpose | Trigger | Cadence | Phase |
 | :--- | :--- | :--- | :--- | :--- |
-| `scripts/openapi_bundle.py` | Bundle modular OpenAPI specs to single-file artefact for Swagger UI and TS codegen | `make openapi-bundle`, CI | On every spec edit | 96 |
-| `scripts/openapi_ref_style_check.sh` | Enforce ADR-021 two-style `$ref` convention | `make openapi-lint`, CI | Every commit | 96 |
-| `scripts/clean.sh` | Remove `.pids` and `__pycache__` directories | `make services-clean`, manual | On-demand | early |
-| `scripts/clean_infra.sh` | Wipe MinIO / Postgres / ClickHouse persistent volumes (with confirmation) | `make infra-clean[-postgres\|-minio\|-clickhouse]`, manual | On-demand | early |
-| `scripts/deps_refresh.sh` | Update pinned external assets (SentiWS lexicon hash, etc.) and rebuild | Manual | On-demand (when an upstream lexicon updates) | 119? |
+| `scripts/build/openapi_bundle.py` | Bundle modular OpenAPI specs to single-file artefact for Swagger UI and TS codegen | `make openapi-bundle`, CI | On every spec edit | 96 |
+| `scripts/build/openapi_ref_style_check.sh` | Enforce ADR-021 two-style `$ref` convention | `make openapi-lint`, CI | Every commit | 96 |
+| `scripts/operations/clean.sh` | Remove `.pids` and `__pycache__` directories | `make services-clean`, manual | On-demand | early |
+| `scripts/operations/clean_infra.sh` | Wipe MinIO / Postgres / ClickHouse persistent volumes (with confirmation) | `make infra-clean[-postgres\|-minio\|-clickhouse]`, manual | On-demand | early |
+| `scripts/build/deps_refresh.sh` | Update pinned external assets (SentiWS lexicon hash, etc.) and rebuild | Manual | On-demand (when an upstream lexicon updates) | 119? |
 | `scripts/hooks/pre-commit` | Run `make lint` before commit | Git hook | Every commit | 50 |
 | `scripts/hooks/pre-push` | Run `make lint && make audit && make test` before push | Git hook | Every push | 50 |
-| `scripts/generate_metric_validity_scaffold.py` *(planned)* | Auto-generate `aer_gold.metric_validity` scaffold from Capability Manifest | `make scaffold-metric-validity`, CI drift gate | On every manifest edit | 118a |
+| `scripts/build/generate_metric_validity_scaffold.py` | Auto-generate `aer_gold.metric_validity` scaffold from Capability Manifest | `make scaffold-metric-validity`, CI drift gate | On every manifest edit | 118a |
 
 ### Category B — One-shot / Ad-hoc operations
 
 | Script | Purpose | Trigger | Cadence | Phase |
 | :--- | :--- | :--- | :--- | :--- |
-| `scripts/e2e_smoke_test.sh` | Full Bronze→Silver→Gold pipeline smoke test | `make test-e2e`, CI on `main` push | Every main push | early |
-| `scripts/compute_baselines.py` | Compute per-source z-score baselines on demand (ad-hoc counterpart to the in-worker `MetricBaselineExtractor`) | Manual, called from operations procedures | On-demand: new probe first-run, schema migration recompute, Workflow 4 walkthroughs | 115 |
-| `scripts/reconcile_documents.py` | One-shot backfill of `aer_silver.documents.bronze_object_key` from historical Bronze data | Manual, executed once | One-shot (already executed during Phase 113b) | 113b |
+| `scripts/build/e2e_smoke_test.sh` | Full Bronze→Silver→Gold pipeline smoke test | `make test-e2e`, CI on `main` push | Every main push | early |
+| `scripts/operations/compute_baselines.py` | Compute per-source z-score baselines on demand (ad-hoc counterpart to the in-worker `MetricBaselineExtractor`) | Manual, called from operations procedures | On-demand: new probe first-run, schema migration recompute, Workflow 4 walkthroughs | 115 |
+| `scripts/operations/reset_validate.sh` | Verify the post-`make reset` invariant set across volumes, MinIO, Postgres, ClickHouse, NATS, and service readiness | `make reset-validate`, manual | After every `make reset` | 120b |
 
 ### Category C — Periodic scheduled operations
 
 | Script | Purpose | Trigger | Cadence | Phase |
 | :--- | :--- | :--- | :--- | :--- |
-| `scripts/build_wikidata_index.py` | Build Wikidata alias SQLite index from a streaming N-Triples parse over `latest-truthy.nt.bz2` (Phase 118b dump-stream pipeline; superseded the Phase 118 SPARQL path), package into `aer-wikidata-index` Docker image | `.github/workflows/wikidata_index_rebuild.yml` (manual dispatch through the Phase 118b validation cycle; quarterly schedule activated in a separate post-merge commit) | Quarterly (1st of Jan/Apr/Jul/Oct, 02:00 UTC) plus on-demand for new-language additions. Wikidata publishes a fresh truthy dump every Wednesday; quarterly cadence balances freshness against build cost. Refresh procedure: `docs/operations/operations_playbook.md#building-and-refreshing-the-wikidata-alias-index`. | 118 / 118b |
+| `scripts/build/build_wikidata_index.py` | Build Wikidata alias SQLite index from a streaming N-Triples parse over `latest-truthy.nt.bz2` (Phase 118b dump-stream pipeline; superseded the Phase 118 SPARQL path), package into `aer-wikidata-index` Docker image | `.github/workflows/wikidata_index_rebuild.yml` (manual dispatch through the Phase 118b validation cycle; quarterly schedule activated in a separate post-merge commit) | Quarterly (1st of Jan/Apr/Jul/Oct, 02:00 UTC) plus on-demand for new-language additions. Wikidata publishes a fresh truthy dump every Wednesday; quarterly cadence balances freshness against build cost. Refresh procedure: `docs/operations/operations_playbook.md#building-and-refreshing-the-wikidata-alias-index`. | 118 / 118b |
 
 ### In-worker scheduled extractors (NATS-cron pattern)
 

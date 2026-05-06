@@ -17,7 +17,7 @@ Public re-exports (``BASELINE_QUERY``, ``compute_mean_std``,
 test imports continue to work.
 
 Usage:
-    python scripts/compute_baselines.py \
+    python scripts/operations/compute_baselines.py \
         --start 2026-01-01 --end 2026-04-01 \
         --clickhouse-host localhost --clickhouse-port 8123
 """
@@ -30,7 +30,9 @@ from pathlib import Path
 # The shared computation lives inside the analysis-worker package.
 # Insert the worker root onto sys.path so this standalone script can
 # import it without packaging gymnastics.
-_WORKER_ROOT = Path(__file__).resolve().parents[1] / "services" / "analysis-worker"
+# Phase 120c moved this script under `scripts/operations/`, so the repo root
+# is two parents up (`scripts/operations/X.py → scripts → repo`).
+_WORKER_ROOT = Path(__file__).resolve().parents[2] / "services" / "analysis-worker"
 if str(_WORKER_ROOT) not in sys.path:
     sys.path.insert(0, str(_WORKER_ROOT))
 

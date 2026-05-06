@@ -1,7 +1,7 @@
 """
 MetricBaselineExtractor — corpus-level baseline computation (Phase 115).
 
-Promotes ``scripts/compute_baselines.py`` (Phase 71) into a NATS-triggered
+Promotes ``scripts/operations/compute_baselines.py`` (Phase 71) into a NATS-triggered
 automated extractor on the same cadence as ``EntityCoOccurrenceExtractor``
 (Phase 102). The standalone script is retained for ad-hoc operations
 (first-run on a new probe, manual recompute, Operations-Playbook

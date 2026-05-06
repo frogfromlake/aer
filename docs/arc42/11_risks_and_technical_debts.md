@@ -178,7 +178,7 @@ WP-003 section 8.2 proposes authenticity extractors (bot detection, coordination
 | **Affected Component** | ClickHouse (`metric_validity`, `metric_equivalence`, `metric_baselines`), PostgreSQL (`source_classifications`), `bff-api` |
 | **Status** | Accepted (Phases 62–65) |
 
-Phases 62–65 added four scientific infrastructure tables — `source_classifications` (Postgres, WP-001), `aer_gold.metric_validity` (WP-002 / ADR-016), `aer_gold.metric_baselines` and `aer_gold.metric_equivalence` (WP-004) — plus the `metric_provenance.yaml` config (WP-006 / ADR-017). The schemas, query paths, and validation gates are all implemented and exercised by tests. **The tables themselves are either empty or populated only with provisional engineering defaults.** Probe 0 source classifications carry `review_status = 'provisional_engineering'` with `function_weights = NULL`. `metric_validity` and `metric_equivalence` are entirely empty. `metric_baselines` is populated only if `scripts/compute_baselines.py` has been run against a non-trivial corpus.
+Phases 62–65 added four scientific infrastructure tables — `source_classifications` (Postgres, WP-001), `aer_gold.metric_validity` (WP-002 / ADR-016), `aer_gold.metric_baselines` and `aer_gold.metric_equivalence` (WP-004) — plus the `metric_provenance.yaml` config (WP-006 / ADR-017). The schemas, query paths, and validation gates are all implemented and exercised by tests. **The tables themselves are either empty or populated only with provisional engineering defaults.** Probe 0 source classifications carry `review_status = 'provisional_engineering'` with `function_weights = NULL`. `metric_validity` and `metric_equivalence` are entirely empty. `metric_baselines` is populated only if `scripts/operations/compute_baselines.py` has been run against a non-trivial corpus.
 
 The architectural risk: from a consumer's perspective the BFF API looks *validation-ready* — `validationStatus`, `eticConstruct`, `equivalenceLevel`, `minMeaningfulResolution`, and `/provenance` endpoints all exist and return well-formed JSON. A naive consumer could interpret the presence of this surface as evidence that the metrics have been validated, when in fact every current metric reports `unvalidated` and every equivalence check fails closed. The Hybrid Tier Architecture (ADR-016) and the Reflexive Architecture principles (ADR-017) are designed to make this visible rather than hide it, but they only work if consumers actually read the surfaced metadata.
 
@@ -269,7 +269,7 @@ Database schemas were initialized via `init.sql` scripts mounted into the `docke
 | Property | Value |
 | :--- | :--- |
 | **Severity** | Low |
-| **Affected Component** | `scripts/e2e_smoke_test.sh`, CI pipeline |
+| **Affected Component** | `scripts/build/e2e_smoke_test.sh`, CI pipeline |
 | **Status** | Resolved (Phase 27) |
 
 A dedicated `e2e-smoke` CI job has been added to `ci.yml`. It runs on pushes to `main` (not on PRs to avoid long CI times) using `docker compose up --build --wait` and executes the full smoke test script.

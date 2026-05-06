@@ -1,7 +1,7 @@
 # Wikidata type-bucket configuration for the alias-index build (Phase 118).
 #
 # This file is the system-of-record for the index scope. The build script
-# (scripts/build_wikidata_index.py) iterates buckets in the order declared
+# (scripts/build/build_wikidata_index.py) iterates buckets in the order declared
 # here; iteration order is part of the determinism guarantee — re-ordering
 # this file changes the build hash even if the resulting alias set is
 # unchanged. Sort additions to the end of the list to preserve byte-stable

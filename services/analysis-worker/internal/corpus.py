@@ -379,7 +379,7 @@ async def baseline_extraction_loop(
     ReplacingMergeTree(``compute_date``); a re-run within the same second
     produces an identical row that the ReplacingMergeTree collapses on merge.
 
-    The standalone ``scripts/compute_baselines.py`` retained for ad-hoc
+    The standalone ``scripts/operations/compute_baselines.py`` retained for ad-hoc
     operations shares the same computation function — see
     ``internal.extractors.metric_baseline.compute_baseline_rows`` and
     Phase-115 byte-identical regression test.

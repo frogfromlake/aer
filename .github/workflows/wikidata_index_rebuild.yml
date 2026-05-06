@@ -7,12 +7,12 @@
 # baking the SQLite DB, pushed to GitHub Container Registry.
 #
 # Phase 118b: build mechanism is a streaming N-Triples parser over the
-# Wikidata `latest-truthy.nt.bz2` dump (`scripts/build_wikidata_index.py`).
+# Wikidata `latest-truthy.nt.bz2` dump (`scripts/build/build_wikidata_index.py`).
 # The earlier SPARQL-based path was superseded after empirical evidence
 # of repeated endpoint timeouts on bucket-discovery queries.
 #
 # Architecture rationale: see docs/operations/scheduled_work.md
-# Build script: scripts/build_wikidata_index.py
+# Build script: scripts/build/build_wikidata_index.py
 # =============================================================================
 
 name: Wikidata Alias Index Rebuild
@@ -118,7 +118,7 @@ jobs:
 
       - name: Build Wikidata alias index
         run: |
-          python scripts/build_wikidata_index.py \
+          python scripts/build/build_wikidata_index.py \
             --dump-path "${DUMP_PATH}" \
             --snapshot-date "${{ steps.snapshot.outputs.date }}" \
             --languages "${{ inputs.languages || 'de,en,fr' }}" \

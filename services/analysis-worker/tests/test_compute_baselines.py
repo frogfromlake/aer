@@ -1,6 +1,6 @@
 """Phase 65 test coverage — compute_baselines script logic.
 
-Tests the pure Python helpers extracted from ``scripts/compute_baselines.py``:
+Tests the pure Python helpers extracted from ``scripts/operations/compute_baselines.py``:
 ``compute_mean_std`` (reference implementation of ClickHouse ``avg`` /
 ``stddevPop``) and ``build_baseline_rows`` (shaping pre-aggregated rows
 into insert tuples for ``aer_gold.metric_baselines``).
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "operations"))
 
 import compute_baselines  # noqa: E402  — path insertion is intentional
 

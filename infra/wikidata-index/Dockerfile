@@ -2,7 +2,7 @@
 # AĒR — Wikidata Alias Index Distribution Image (Phase 118)
 # =============================================================================
 # Single-purpose image: bakes the SQLite alias DB built by
-# scripts/build_wikidata_index.py and ships it on /index/. The image is NOT a
+# scripts/build/build_wikidata_index.py and ships it on /index/. The image is NOT a
 # service — the wikidata-index-init compose container copies the file into
 # the persistent `wikidata_data` volume that the analysis-worker mounts
 # read-only. This pattern mirrors nats-init / minio-init / clickhouse-init

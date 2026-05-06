@@ -396,7 +396,7 @@ jobs:
           sed -i "s|^GF_SECURITY_ADMIN_PASSWORD=.*|GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}|" .env
 
       - name: Run E2E Smoke Test
-        run: bash scripts/e2e_smoke_test.sh
+        run: bash scripts/build/e2e_smoke_test.sh
 
       - name: Upload e2e failure logs
         if: failure()

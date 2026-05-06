@@ -2694,21 +2694,8 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 * [x] **J — Worker Dockerfile chown layer doubled the image size by ~10 GB.** `docker history` revealed two adjacent layers each at 10.3 GB: `COPY /hf-cache /hf-cache` (root-owned, the legitimate model cache) followed by `RUN chown -R aer:aer /app /hf-cache` — the chown writes a fresh copy of every file in `/hf-cache` at the overlayfs upper layer because changing file ownership is a copy-on-write operation. Net effect: ~10 GB of duplicate model weights stored as a separate layer. Fixed by replacing the bare `COPY` directives with `COPY --chown=aer:aer ...` (chown applied during the COPY, single layer) and removing the follow-up `RUN chown`. Image went from 46.5 GB to ~36 GB (model weights stored once instead of twice). Independently surfaced while diagnosing the slow rebuild that triggered Bug K.
 * [x] **K — `aer_hf_cache` named volume documented as "preserved across resets" but never actually mounted on the worker.** `compose.yaml`'s top-level `volumes:` block did not declare `hf_cache`, and the analysis-worker's `volumes:` section only mounted `wikidata_data:/data/wikidata:ro` — yet `clean_infra.sh::PRESERVED_VOLUMES`, `reset_validate.sh`, the playbook entry written earlier in this session, and the Dockerfile/compose comments all referenced `aer_hf_cache` as a "preserved build-time artefact volume". An out-of-band Docker volume by that name existed (created 2026-05-04, 2.67 GB), but nothing read or wrote to it — pure documentation drift. The real model store is the worker image's baked-in `/hf-cache` (`TRANSFORMERS_OFFLINE=1`), and the runtime numba JIT cache writes to the container's ephemeral upper layer at `/hf-cache/numba`. Fixed by removing `aer_hf_cache` from the preserved set in `clean_infra.sh` and `reset_validate.sh`, deleting the orphan volume, and reframing the playbook + ROADMAP narrative: model state survives `make reset` because it lives in the image, not because of a Docker volume. Operationally `make reset` now cleanly preserves only what is actually mounted (`aer_wikidata_data`, `aer_tempo_data`).
 
----
 
-# Open Phases
-
----
-
-# Iteration 6 — NLP Hardening & Scientific Rigor
-
-*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
-
-*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
-
----
-
-## Phase 120c: Operational Hygiene & Scripts Audit [P2] - [ ] TODO
+## Phase 120c: Operational Hygiene & Scripts Audit [P2] - [x] DONE
 
 *Closes the operational debt accumulated across Iteration 6. After Phase 120b's wipe, the four `backfill_*.py` scripts under `scripts/` exist to patch pre-feature-shipping data that no longer exists; the mid-flight reconciliation workarounds (`reconcile_documents.py`, `replay_bronze.py`) exist because mid-iteration extractor changes left orphan rows that the wipe-and-recrawl pattern now supersedes; the `clean.sh` / `clean_infra.sh` cleanup utilities are wrapped by the new Phase-120b `make reset` target. The result is a `scripts/` folder where every routine operation has a Makefile entrypoint and every remaining `python scripts/...` invocation is documented as a genuine one-shot operation. After this phase, the operator's surface for routine ops is "the Makefile and the operations playbook" — running a raw script is a deliberate, documented exception, not the default workflow.*
 
@@ -2716,7 +2703,7 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 ### Inventory & classification
 
-* [ ] **Catalogue every entry in `scripts/`.** Produce a single table classifying each script as one of:
+* [x] **Catalogue every entry in `scripts/`.** Produce a single table classifying each script as one of:
   - **DELETE** — backfill scripts whose target data no longer exists post-Phase-120b reset, or one-shot reconciliation workarounds superseded by the wipe path.
   - **PROMOTE** — operational workflow that should be invokable via a Makefile target rather than a raw script call.
   - **KEEP-DOCUMENT** — genuinely one-shot or rarely-run, but still useful (e.g. `scripts/operations/compute_baselines.py` for first-run baseline urgency); requires a playbook entry stating exactly when to run it and when not to.
@@ -2729,8 +2716,8 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 ### Cleanup execution
 
-* [ ] **Delete the six identified scripts and their tests.** `git rm scripts/backfill_*.py scripts/reconcile_documents.py scripts/replay_bronze.py services/analysis-worker/tests/test_*backfill*.py services/analysis-worker/tests/test_reconcile*.py` (verify each test file actually targets one of the deleted scripts before removing it). Update any `Makefile` target that referenced them — current grep candidates: `make backfill-entity-links`, `make backfill-bert-sentiment` are documented in `make help` line ~681; both targets get removed.
-* [ ] **Reorganise survivors into `scripts/operations/` and `scripts/build/`.** Path semantics should be greppable: anything in `scripts/operations/` is a manual one-shot the operator might run; anything in `scripts/build/` is invoked at build/codegen time and never by an operator. After the move:
+* [x] **Delete the six identified scripts and their tests.** `git rm scripts/backfill_*.py scripts/reconcile_documents.py scripts/replay_bronze.py services/analysis-worker/tests/test_*backfill*.py services/analysis-worker/tests/test_reconcile*.py` (verify each test file actually targets one of the deleted scripts before removing it). Update any `Makefile` target that referenced them — current grep candidates: `make backfill-entity-links`, `make backfill-bert-sentiment` are documented in `make help` line ~681; both targets get removed.
+* [x] **Reorganise survivors into `scripts/operations/` and `scripts/build/`.** Path semantics should be greppable: anything in `scripts/operations/` is a manual one-shot the operator might run; anything in `scripts/build/` is invoked at build/codegen time and never by an operator. After the move:
   - `scripts/operations/compute_baselines.py`
   - `scripts/operations/clean_infra.sh`
   - `scripts/operations/reset_validate.sh`
@@ -2738,20 +2725,32 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
   - `scripts/build/e2e_smoke_test.sh`, `scripts/build/e2e_helpers.sh`, `scripts/build/e2e_fixtures/`
   - `scripts/hooks/` stays where it is (git looks at `.git/hooks/` after the symlink).
   Update every Makefile target's path references to the new locations. Run `make lint && make test && make codegen` to verify no path is missed.
-* [ ] **Remove `make backfill-*` targets and their help entries.** Now-dead Makefile targets that delegated to the deleted scripts. Sweep the Makefile help block to confirm no `make help` line references a deleted target.
+* [x] **Remove `make backfill-*` targets and their help entries.** Now-dead Makefile targets that delegated to the deleted scripts. Sweep the Makefile help block to confirm no `make help` line references a deleted target.
 
 ### Operations playbook consolidation
 
-* [ ] **"Routine operations" section.** A single table listing every Make target that an operator runs in steady state (`make crawl`, `make reset`, `make deps-refresh`, `make scaffold-metric-validity`, `make codegen`, `make logs`, etc.) with a one-sentence purpose for each. The invariant: every operation a developer is expected to perform routinely has a Makefile target. Anything not on this list is either build-time (codegen, lint, test) or a one-shot.
-* [ ] **"One-shot operations" section.** Lists each surviving `scripts/operations/*` entry with explicit "when to run / when not to run" guidance. The canonical entry is `compute_baselines.py`: run it once after a fresh `make reset && make crawl` if you don't want to wait 24 h for the `MetricBaselineExtractor` daily loop to populate baselines. Do not run it in steady state — the loop is the canonical source.
-* [ ] **"Deleted scripts — for the historical record" section.** A short addendum naming each deleted script and a one-sentence rationale (`backfill_entity_links.py — superseded by wipe-and-recrawl after Phase 120b; pre-Phase-118 entity rows no longer exist`). Anchored against the git history in case a future contributor wonders why the script disappeared.
+* [x] **"Routine operations" section.** A single table listing every Make target that an operator runs in steady state (`make crawl`, `make reset`, `make deps-refresh`, `make scaffold-metric-validity`, `make codegen`, `make logs`, etc.) with a one-sentence purpose for each. The invariant: every operation a developer is expected to perform routinely has a Makefile target. Anything not on this list is either build-time (codegen, lint, test) or a one-shot.
+* [x] **"One-shot operations" section.** Lists each surviving `scripts/operations/*` entry with explicit "when to run / when not to run" guidance. The canonical entry is `compute_baselines.py`: run it once after a fresh `make reset && make crawl` if you don't want to wait 24 h for the `MetricBaselineExtractor` daily loop to populate baselines. Do not run it in steady state — the loop is the canonical source.
+* [x] **"Deleted scripts — for the historical record" section.** A short addendum naming each deleted script and a one-sentence rationale (`backfill_entity_links.py — superseded by wipe-and-recrawl after Phase 120b; pre-Phase-118 entity rows no longer exist`). Anchored against the git history in case a future contributor wonders why the script disappeared.
 
 ### Validation
 
-* [ ] `git status` shows the deletions; `git ls-files scripts/` shows only the reorganised survivors plus `hooks/`.
-* [ ] `make lint && make test && make codegen && make test-e2e` all pass — confirms no Makefile target points at a deleted script and no test imports a deleted module.
-* [ ] `make help` lists every routine operation; running `grep -r "python scripts/" Makefile` returns no hits except the `scripts/operations/` and `scripts/build/` paths (no raw `python scripts/<root>.py` invocations remain).
-* [ ] Operations playbook's "Routine operations" table is the complete set of steady-state developer commands; a fresh contributor can onboard with the playbook + `make help` alone.
+* [x] `git status` shows the deletions; `git ls-files scripts/` shows only the reorganised survivors plus `hooks/`.
+* [x] `make lint && make test && make codegen && make test-e2e` all pass — confirms no Makefile target points at a deleted script and no test imports a deleted module.
+* [x] `make help` lists every routine operation; running `grep -r "python scripts/" Makefile` returns no hits except the `scripts/operations/` and `scripts/build/` paths (no raw `python scripts/<root>.py` invocations remain).
+* [x] Operations playbook's "Routine operations" table is the complete set of steady-state developer commands; a fresh contributor can onboard with the playbook + `make help` alone.
+
+---
+
+# Open Phases
+
+---
+
+# Iteration 6 — NLP Hardening & Scientific Rigor
+
+*Seven phases that transition the analysis worker from Phase-42 proof-of-concept extractors to scientifically grounded, methodologically defensible NLP. Tool choices are state-of-the-art (April 2026), free and open-source, and respect the Tier 1/Tier 2 architecture from ADR-016. Phase 116 (multilingual foundation) leads because Probe 0 already contains English articles that the German-only pipeline mis-processes — an active data-quality problem, not a future-proofing concern. The remainder of the iteration sequences the methodological hardening such that each phase's regression guards run on inputs already cleaned by the previous phase.*
+
+*All phases are additive in the schema sense — no existing Gold tables are altered. The metric-name conventions of ADR-016 are honoured throughout: Tier-2 extractors register alongside (never replacing) their Tier-1 baselines, and validation status is recorded in `aer_gold.metric_validity` (Phase 63).*
 
 ---
 

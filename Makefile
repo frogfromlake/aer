@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset backfill-entity-links backfill-bert-sentiment setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -138,16 +138,16 @@ debug-down:
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Debug ports closed. Backend services still running internally.$(RESET)"
 
 infra-clean:
-	@./scripts/clean_infra.sh all
+	@./scripts/operations/clean_infra.sh all
 
 infra-clean-postgres:
-	@./scripts/clean_infra.sh postgres
+	@./scripts/operations/clean_infra.sh postgres
 
 infra-clean-minio:
-	@./scripts/clean_infra.sh minio
+	@./scripts/operations/clean_infra.sh minio
 
 infra-clean-clickhouse:
-	@./scripts/clean_infra.sh clickhouse
+	@./scripts/operations/clean_infra.sh clickhouse
 
 # ------------------------------------------------------------------
 # Phase-120b supervised reset — single canonical wipe path.
@@ -160,7 +160,7 @@ infra-clean-clickhouse:
 #                        containers re-create schema, buckets, the
 #                        AER_LAKE stream, and seed-migration tables.
 #
-# `make reset-validate`  runs scripts/reset_validate.sh — checks every
+# `make reset-validate`  runs scripts/operations/reset_validate.sh — checks every
 #                        layer (volumes, MinIO, Postgres, ClickHouse,
 #                        NATS, service readiness) is in the canonical
 #                        post-reset shape. Non-zero exit on any drift.
@@ -173,14 +173,14 @@ infra-clean-clickhouse:
 
 reset-state:
 	@echo -e "$(BOLD)$(GRAY)--- PHASE 120B: SUPERVISED STATE RESET ---$(RESET)"
-	@./scripts/clean_infra.sh all
+	@./scripts/operations/clean_infra.sh all
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Bringing the stack back up (init containers re-provision schema)...$(RESET)"
 	@$(MAKE) up
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Reset complete. Run '$(BOLD)make reset-validate$(RESET)$(GREEN)' to confirm clean state.$(RESET)"
 
 reset-validate:
 	@echo -e "$(BOLD)$(GRAY)--- POST-RESET INVARIANT CHECK ---$(RESET)"
-	@./scripts/reset_validate.sh
+	@./scripts/operations/reset_validate.sh
 
 reset: reset-state reset-validate
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)System is in canonical post-reset state. Run '$(BOLD)make crawl$(RESET)$(GREEN)' to repopulate.$(RESET)"
@@ -242,7 +242,7 @@ services-down: bff-down worker-down ingestion-down
 services-restart: services-down services-up
 
 services-clean: services-down
-	@./scripts/clean.sh
+	@./scripts/operations/clean.sh
 
 # ==========================================
 # 4. UTILITIES
@@ -259,17 +259,17 @@ tidy:
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
 
 openapi-bundle:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling modular OpenAPI specs (scripts/openapi_bundle.py)...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling modular OpenAPI specs (scripts/build/openapi_bundle.py)...$(RESET)"
 	@for svc in services/bff-api services/ingestion-api; do \
 		if [ -f $$svc/api/openapi.yaml ]; then \
 			echo -e "$(SYMBOL_INFO) $(GRAY)→ $$svc/api/openapi.yaml$(RESET)"; \
-			python3 scripts/openapi_bundle.py $$svc/api/openapi.yaml $$svc/api/openapi.bundle.yaml; \
+			python3 scripts/build/openapi_bundle.py $$svc/api/openapi.yaml $$svc/api/openapi.bundle.yaml; \
 		fi; \
 	done
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)OpenAPI bundles produced.$(RESET)"
 
 openapi-lint:
-	@./scripts/openapi_ref_style_check.sh
+	@./scripts/build/openapi_ref_style_check.sh
 
 swagger-up:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling OpenAPI specs for Swagger UI...$(RESET)"
@@ -297,17 +297,17 @@ codegen: scaffold-metric-validity
 scaffold-metric-validity:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Generating metric_validity scaffold from language manifest...$(RESET)"
 	@if [ -f services/analysis-worker/.venv/bin/python ]; then \
-		services/analysis-worker/.venv/bin/python scripts/generate_metric_validity_scaffold.py; \
+		services/analysis-worker/.venv/bin/python scripts/build/generate_metric_validity_scaffold.py; \
 	else \
-		python scripts/generate_metric_validity_scaffold.py; \
+		python scripts/build/generate_metric_validity_scaffold.py; \
 	fi
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Scaffold generated.$(RESET)"
 
 scaffold-metric-validity-check:
 	@if [ -f services/analysis-worker/.venv/bin/python ]; then \
-		services/analysis-worker/.venv/bin/python scripts/generate_metric_validity_scaffold.py --check; \
+		services/analysis-worker/.venv/bin/python scripts/build/generate_metric_validity_scaffold.py --check; \
 	else \
-		python scripts/generate_metric_validity_scaffold.py --check; \
+		python scripts/build/generate_metric_validity_scaffold.py --check; \
 	fi
 
 build-services:
@@ -335,31 +335,6 @@ crawl-reset:
 	@docker volume rm aer_rss_crawler_state 2>/dev/null || true
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)State cleared. Next `make crawl` will re-ingest every feed item.$(RESET)"
 
-# Backfill aer_gold.entity_links from existing aer_gold.entities. Runs the
-# Phase-118 alias-index lookup over historical entity spans without
-# touching NER, Bronze, or Silver. Idempotent via ReplacingMergeTree —
-# safe to re-run after each quarterly Wikidata-index rebuild to catch
-# entities the new index now resolves. See
-# docs/operations/wikidata_index_runbook.md §"Quarterly backfill".
-backfill-entity-links:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Wikidata entity-link backfill against aer_gold.entities...$(RESET)"
-	@docker cp scripts/backfill_entity_links.py aer_analysis_worker:/tmp/backfill_entity_links.py
-	@docker compose exec -T analysis-worker python /tmp/backfill_entity_links.py $(BACKFILL_ARGS)
-	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Backfill complete.$(RESET)"
-
-# Phase 119: retroactively populate the Tier-2 BERT sentiment metrics
-# (sentiment_score_bert_multilingual, sentiment_score_bert_de_news) on
-# Silver envelopes that pre-date the Phase-119 worker image. Reads the
-# canonical Silver JSON from MinIO, runs the new extractors, writes
-# rows directly to aer_gold.metrics. The PostgreSQL idempotency table
-# is not touched. Pass extra args via BACKFILL_ARGS, e.g.:
-#   make backfill-bert-sentiment BACKFILL_ARGS="--dry-run --limit 50"
-backfill-bert-sentiment:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Phase-119 BERT sentiment backfill against silver/ envelopes...$(RESET)"
-	@docker cp scripts/backfill_bert_sentiment.py aer_analysis_worker:/tmp/backfill_bert_sentiment.py
-	@docker compose exec -T analysis-worker python /tmp/backfill_bert_sentiment.py $(BACKFILL_ARGS)
-	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Backfill complete.$(RESET)"
-
 # ==========================================
 # 5. TESTING & LINTING
 # ==========================================
@@ -369,7 +344,7 @@ test: test-go test-go-pkg test-go-crawlers test-python fe-test
 
 test-e2e:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running End-to-End Smoke Test (full Docker Compose stack)...$(RESET)"
-	@./scripts/e2e_smoke_test.sh
+	@./scripts/build/e2e_smoke_test.sh
 
 test-go:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Integration Tests (Testcontainers)...$(RESET)"
@@ -459,7 +434,7 @@ audit-python:
 # One-shot maintainer entrypoint that advances every externally-pinned
 # dependency the stack ships: base image digests across all three service
 # Dockerfiles, the analysis-worker pip lockfile, and the SentiWS lexicon
-# hash. Delegates to scripts/deps_refresh.sh — see that script's header
+# hash. Delegates to scripts/build/deps_refresh.sh — see that script's header
 # and docs/operations_playbook.md "Dependency refresh" for the runbook.
 #
 # Flags are forwarded verbatim, e.g.:
@@ -468,7 +443,7 @@ audit-python:
 #   make deps-refresh ARGS="--skip-build"
 deps-refresh:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running dependency refresh (see docs/operations_playbook.md)...$(RESET)"
-	@./scripts/deps_refresh.sh $(ARGS)
+	@./scripts/build/deps_refresh.sh $(ARGS)
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)deps-refresh done — review 'git diff' before committing.$(RESET)"
 
 # ==========================================
@@ -674,15 +649,13 @@ help:
 	@echo -e "  $(GOLD)services-down$(RESET)       $(GRAY)Stop all application services$(RESET)"
 	@echo -e "  $(CYAN)services-restart$(RESET)    $(GRAY)Restart all application services$(RESET)"
 	@echo -e "  $(CYAN)<svc>-up/down/restart$(RESET) $(GRAY)Manage individual services: ingestion, worker, bff$(RESET)"
-	@echo -e "  $(GOLD)services-clean$(RESET)      $(GRAY)Stop services and wipe their state (./scripts/clean.sh)$(RESET)"
+	@echo -e "  $(GOLD)services-clean$(RESET)      $(GRAY)Stop services and wipe their state (./scripts/operations/clean.sh)$(RESET)"
 	@echo -e "  $(CYAN)bff-image-build$(RESET)     $(GRAY)Build the bff-api container image$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
 	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Run the RSS crawler as a one-shot container on aer-backend$(RESET)"
 	@echo -e "  $(GOLD)crawl-reset$(RESET)         $(GRAY)Wipe crawler dedup state volume so next crawl re-ingests everything$(RESET)"
-	@echo -e "  $(GREEN)backfill-entity-links$(RESET) $(GRAY)Run Wikidata linking on existing aer_gold.entities (quarterly post-rebuild)$(RESET)"
-	@echo -e "  $(GREEN)backfill-bert-sentiment$(RESET) $(GRAY)Generate Phase-119 BERT sentiment metrics on existing Silver envelopes$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"

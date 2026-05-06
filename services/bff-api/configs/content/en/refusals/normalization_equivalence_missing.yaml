@@ -25,7 +25,7 @@ registers:
       scientific claims: a z-score comparison across contexts implicitly asserts that the
       metric is measuring the same etic construct in each context — an empirical claim that
       must be established through a validation study, not assumed. The resolution path is:
-      (1) establish baselines via scripts/compute_baselines.py for each relevant context;
+      (1) establish baselines via scripts/operations/compute_baselines.py for each relevant context;
       (2) run a cross-cultural equivalence study documented in WP-004 §5; (3) insert a row
       into aer_gold.metric_equivalence with equivalence_level = 'deviation' or 'absolute'.
       The Scientific Operations Guide (Workflow 4) documents this process step by step.

@@ -113,7 +113,7 @@ The `NamedEntityExtractor` (Phase 42) uses spaCy's `de_core_news_lg` model (v3.8
 
 ### 4.2 The Entity Linking Problem
 
-> **Implementation status — RESOLVED at the Tier-1.5 level (Phase 118, 2026-05).** The fragmentation problem described below is addressed by a deterministic, type-driven Wikidata alias index (`scripts/build_wikidata_index.py` → `aer_gold.entity_links`). Heuristic confidence weights (1.0 / 0.85 / 0.7 for label / altLabel / accent-fold matches) are engineering defaults, not validated measurements — see footnote¹ for the open evaluation work that distinguishes Tier-1.5 from validated entity linking.
+> **Implementation status — RESOLVED at the Tier-1.5 level (Phase 118, 2026-05).** The fragmentation problem described below is addressed by a deterministic, type-driven Wikidata alias index (`scripts/build/build_wikidata_index.py` → `aer_gold.entity_links`). Heuristic confidence weights (1.0 / 0.85 / 0.7 for label / altLabel / accent-fold matches) are engineering defaults, not validated measurements — see footnote¹ for the open evaluation work that distinguishes Tier-1.5 from validated entity linking.
 
 Raw entity extraction without **entity linking** (also called entity disambiguation or entity resolution) produces data that is difficult to aggregate meaningfully. The string *"Merkel"* in one document and *"Angela Merkel"* in another are stored as separate entities. *"CDU,"* *"die Union,"* and *"Christdemokraten"* refer to the same political entity but are not linked. This fragmentation becomes catastrophic at scale: a dashboard showing "top entities" would list the same real-world entity multiple times under different surface forms.
 

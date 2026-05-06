@@ -1,6 +1,6 @@
 """Unit tests for MetricBaselineExtractor (Phase 115).
 
-Promotes the manual ``scripts/compute_baselines.py`` to a NATS-triggered
+Promotes the manual ``scripts/operations/compute_baselines.py`` to a NATS-triggered
 ``CorpusExtractor``. Both call paths share
 :func:`internal.extractors.metric_baseline.compute_baseline_rows`; the
 regression test below checks that the auto-extractor and the script
@@ -27,7 +27,7 @@ from internal.extractors import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "operations"))
 
 import compute_baselines as cli  # noqa: E402  — path insertion is intentional
 

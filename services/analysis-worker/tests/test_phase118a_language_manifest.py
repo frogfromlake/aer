@@ -340,7 +340,7 @@ def test_sentiment_compound_split_feature_flag_toggles_decomposer(tmp_path):
 
 
 def _run_generator(*args: str) -> subprocess.CompletedProcess:
-    script = _REPO_ROOT / "scripts" / "generate_metric_validity_scaffold.py"
+    script = _REPO_ROOT / "scripts" / "build" / "generate_metric_validity_scaffold.py"
     return subprocess.run(
         [sys.executable, str(script), *args],
         check=False,

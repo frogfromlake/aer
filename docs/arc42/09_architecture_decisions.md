@@ -932,7 +932,7 @@ Operationalises WP-004 §5–§6 as a tightly-scoped extension of the Phase-65 s
 
 3. *Structured `equivalenceStatus` on `/metrics/available`.* The bare-string `equivalenceLevel` field is superseded by a structured `equivalenceStatus` object (`level`, `validatedBy`, `validationDate`, `notes`). The deprecated alias is retained for one release cycle so existing dashboard URL state and tests do not break in the same commit. New clients consume `equivalenceStatus`; the alias is removed in a future cleanup phase.
 
-4. *Dual-path baseline computation.* The `MetricBaselineExtractor` (Phase 115) is the second `CorpusExtractor` in the analysis worker, running on the same NATS-cron pattern as `EntityCoOccurrenceExtractor` (Phase 102). Default cadence is daily, default window is 90 days. The standalone `scripts/compute_baselines.py` is retained for first-run on a new probe (Phase 123 uses it explicitly), manual recompute after a schema change, and Operations-Playbook walkthroughs. Both paths share the canonical computation function `internal.extractors.metric_baseline.compute_baseline_rows` so they produce byte-identical baselines for the same input window — the regression guard documented by the Phase-115 unit test in `services/analysis-worker/tests/test_metric_baseline_extractor.py`.
+4. *Dual-path baseline computation.* The `MetricBaselineExtractor` (Phase 115) is the second `CorpusExtractor` in the analysis worker, running on the same NATS-cron pattern as `EntityCoOccurrenceExtractor` (Phase 102). Default cadence is daily, default window is 90 days. The standalone `scripts/operations/compute_baselines.py` is retained for first-run on a new probe (Phase 123 uses it explicitly), manual recompute after a schema change, and Operations-Playbook walkthroughs. Both paths share the canonical computation function `internal.extractors.metric_baseline.compute_baseline_rows` so they produce byte-identical baselines for the same input window — the regression guard documented by the Phase-115 unit test in `services/analysis-worker/tests/test_metric_baseline_extractor.py`.
 
 5. *Refusal-surface reuse.* The cross-cultural refusal renders through the same `RefusalSurface` component that handles the Phase-103 Silver-eligibility gate. The frontend recognises the structured `gate=metric_equivalence` field on a 400 body and sharpens the refusal kind to `cross_frame_equivalence_missing`, which keys into the new `cross_frame_equivalence_missing.yaml` Content Catalog entries (en + de) — same Dual-Register shape as the existing refusal entries.
 
@@ -983,11 +983,11 @@ Every AĒR HTTP service ships a contract-first OpenAPI 3.0 specification under `
 1. **Path-level refs to top-level components** (`api/paths/*.yaml`, pointing at `components/schemas/X`) MAY use `#/components/schemas/X`. This is the only form under which `kin-openapi` (oapi-codegen's loader) emits a **named** Go type — it inlines the path-item into the root document before resolving the ref. Switching such a ref to `../schemas/X.yaml` collapses the schema to an anonymous inline type, materially changing the generated API surface.
 2. **All other refs** — refs inside schemas, parameters, responses, or any external file — MUST use external-file refs (`../schemas/X.yaml`). JSON Reference's `#` means "current document", so `#/components/...` inside an external file does not resolve against the root; strict bundlers (`redocly bundle`, `swagger-cli bundle`) correctly reject it.
 
-Rule 2 is enforced by `scripts/openapi_ref_style_check.sh` (run via `make openapi-lint`). Rule 1 is enforced implicitly by `make codegen && git diff --exit-code`: any regression from a named type to an inline type shows up as a drift diff.
+Rule 2 is enforced by `scripts/build/openapi_ref_style_check.sh` (run via `make openapi-lint`). Rule 1 is enforced implicitly by `make codegen && git diff --exit-code`: any regression from a named type to an inline type shows up as a drift diff.
 
 **Tooling.**
 
-* `scripts/openapi_bundle.py` produces `services/<service>/api/openapi.bundle.yaml` by emulating `kin-openapi`'s path-item flattening, then resolving external-file refs. Off-the-shelf bundlers were evaluated and rejected because both (`redocly`, `swagger-cli`) reject the Rule-1 form this repo relies on for named Go types.
+* `scripts/build/openapi_bundle.py` produces `services/<service>/api/openapi.bundle.yaml` by emulating `kin-openapi`'s path-item flattening, then resolving external-file refs. Off-the-shelf bundlers were evaluated and rejected because both (`redocly`, `swagger-cli`) reject the Rule-1 form this repo relies on for named Go types.
 * A `swagger-ui` container is gated behind the `dev` compose profile, bound to `127.0.0.1:8089`, and mounts both bundle files with a multi-spec dropdown.
 * `make codegen` regenerates both services from the modular source directly — the bundle is for human and frontend consumption only.
 
@@ -1005,14 +1005,14 @@ The ingestion API initially shipped a types-only codegen target (`internal/apico
 **Consequences.**
 
 * New contributors must be aware of the two-style convention. §8.19 and the lint gate are the enforcement points; a violation of Rule 2 fails `make lint`.
-* `scripts/openapi_bundle.py` is now a small first-party tool that must be maintained. Its surface is intentionally small (~100 lines) and has no external dependency beyond PyYAML (already present via the analysis worker).
+* `scripts/build/openapi_bundle.py` is now a small first-party tool that must be maintained. Its surface is intentionally small (~100 lines) and has no external dependency beyond PyYAML (already present via the analysis worker).
 * Both HTTP services (ingestion-api and bff-api) now use `strict-server`. Contract drift between the OpenAPI spec and handler behavior is structurally prevented by the `StrictServerInterface` compile-time check and the `make codegen && git diff --exit-code` CI gate covering both generated files.
 * Swagger UI is available but gated behind a compose profile so it never accidentally ships to production.
 
 **References.**
 
 * `services/bff-api/api/openapi.yaml`, `services/ingestion-api/api/openapi.yaml`
-* `scripts/openapi_bundle.py`, `scripts/openapi_ref_style_check.sh`
+* `scripts/build/openapi_bundle.py`, `scripts/build/openapi_ref_style_check.sh`
 * Arc42 §8.19 — API Contract Layout & Tooling.
 * Roadmap Phase 96 — OpenAPI Contract Consolidation.
 
@@ -1046,8 +1046,8 @@ PostgreSQL `documents` and `ingestion_jobs` retain their current 90-day retentio
 
 * The dossier-count divergence becomes definitionally impossible: counts are read from the same store that owns the analytical horizon. The 90/365 split can persist, or move independently in either direction, without re-introducing the bug.
 * `View article` succeeds for any article whose SilverEnvelope still exists in MinIO, regardless of Postgres state. This is the correct semantics — Silver is the canonical record.
-* The historical drift (Postgres rows deleted before this ADR landed) is a one-shot data backfill, not a permanent obligation. `scripts/reconcile_documents.py` walks MinIO Bronze and re-creates the missing operational rows once; after this ADR, recurring reconciliation is unnecessary.
-* `aer_silver.documents.bronze_object_key` is a new column on an existing ReplacingMergeTree table. Existing rows backfill to the empty string; the worker repopulates on the next reprocess of any redelivered event. The reconciliation script also writes it for historical articles whose Silver envelope is recoverable from MinIO.
+* The historical drift (Postgres rows deleted before this ADR landed) was closed by a one-shot reconciliation pass at the time and is not a permanent obligation. The standalone `scripts/reconcile_documents.py` workaround was retired in Phase 120c — the canonical recovery path under this ADR is now the supervised wipe-and-recrawl in `make reset` (Phase 120b) followed by `make crawl`.
+* `aer_silver.documents.bronze_object_key` is a new column on an existing ReplacingMergeTree table. Existing rows backfill to the empty string; the worker repopulates on the next reprocess of any redelivered event.
 * The k-anonymity gate and provenance lookup are unchanged — they already key on `(source, article_id, timestamp)` against ClickHouse Gold.
 * The BFF read-only Postgres role keeps its current grants; nothing new was needed.
 
@@ -1063,7 +1063,6 @@ PostgreSQL `documents` and `ingestion_jobs` retain their current 90-day retentio
 * Roadmap Phase 113b — PostgreSQL ↔ ClickHouse Retention Divergence.
 * `infra/clickhouse/migrations/000013_add_bronze_object_key_to_silver_documents.sql` — schema migration.
 * `infra/postgres/migrations/000004_add_retention_indexes.up.sql` — Postgres retention policy (unchanged by this ADR).
-* `scripts/reconcile_documents.py` — one-shot historical backfill.
 * `services/bff-api/internal/storage/dossier_store.go` — `ResolveArticle`, `FetchSources` rewritten.
 * `docs/operations_playbook.md` §Retention.
 
@@ -1346,7 +1345,7 @@ shared:
 
 1. **NER and Sentiment language routing.** The hard-coded language maps in `NamedEntityExtractor` and `SentimentExtractor` are removed; both extractors read the manifest at startup.
 
-2. **Auto-generated `aer_gold.metric_validity` scaffold.** A new build-time script `scripts/generate_metric_validity_scaffold.py` reads the manifest and emits the scaffold SQL. Every `(metric_name, language)` combination gets a row with `validation_status='unvalidated'`, `tier=<tier>`, `error_taxonomy='{"reason":"engineering default; awaiting WP-002 annotation study"}'`. Manual edits to the scaffold are forbidden — the manifest is the source of truth.
+2. **Auto-generated `aer_gold.metric_validity` scaffold.** A new build-time script `scripts/build/generate_metric_validity_scaffold.py` reads the manifest and emits the scaffold SQL. Every `(metric_name, language)` combination gets a row with `validation_status='unvalidated'`, `tier=<tier>`, `error_taxonomy='{"reason":"engineering default; awaiting WP-002 annotation study"}'`. Manual edits to the scaffold are forbidden — the manifest is the source of truth.
 
 3. **Probe Coverage Map data source.** When implemented (separate ROADMAP phase), the BFF endpoint `GET /api/v1/coverage/map` reads the manifest plus `source_classifications` to produce per-probe coverage information.
 
@@ -1374,7 +1373,7 @@ This ADR is ratified before implementation; the implementation ships as a single
 1. Pydantic schema for the manifest (`LanguageCapability`, `SharedCapability`).
 2. Manifest YAML with `de` filled in to match Probe 0's current state.
 3. Refactor `NamedEntityExtractor` and `SentimentExtractor` to read the manifest. Existing tests must continue to pass — this is a refactor, not a behaviour change.
-4. `scripts/generate_metric_validity_scaffold.py` and `make scaffold-metric-validity` Makefile target. The generated SQL is committed (not gitignored) so reviewers see drift.
+4. `scripts/build/generate_metric_validity_scaffold.py` and `make scaffold-metric-validity` Makefile target. The generated SQL is committed (not gitignored) so reviewers see drift.
 5. `metric_validity` scaffold migrated from hand-maintained to generated; CI gates the drift.
 6. `language` parameter validator in the BFF.
 7. The auto-generation of `add-a-language.md` is **deferred** to the Probe Coverage Map phase; for now the doc remains hand-maintained but checked against the manifest by a `scripts/check_language_doc_drift.py` script in CI.

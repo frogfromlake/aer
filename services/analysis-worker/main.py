@@ -391,7 +391,7 @@ async def main(config: WorkerConfig | None = None):
     )
 
     # Phase 115: periodic baseline-maintenance loop. Promotes the
-    # standalone scripts/compute_baselines.py into a NATS-cron-style
+    # standalone scripts/operations/compute_baselines.py into a NATS-cron-style
     # automated extractor; manual script retained for ad-hoc operations.
     baseline_config = BaselineConfig()
     baseline_task = asyncio.create_task(

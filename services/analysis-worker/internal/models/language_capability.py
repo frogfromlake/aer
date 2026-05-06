@@ -6,7 +6,7 @@ It is loaded once at worker startup from
 
   * ``NamedEntityExtractor``       — model selection per detected language.
   * ``SentimentExtractor``         — Tier-1 lexicon + negation config per language.
-  * ``scripts/generate_metric_validity_scaffold.py`` — auto-emits the per-language
+  * ``scripts/build/generate_metric_validity_scaffold.py`` — auto-emits the per-language
     rows of ``infra/clickhouse/seed/metric_validity_scaffold_generated.sql``.
   * The BFF ``?language=`` validator (Go reader of the same YAML).
 
@@ -130,6 +130,44 @@ class CulturalCalendarRef(BaseModel):
     file: str
 
 
+class StopwordsConfig(BaseModel):
+    """Per-language BERTopic stopword source.
+
+    Two source forms are accepted, mirroring the contract documented in
+    ``TopicModelingExtractor._resolve_stopwords``:
+
+      * ``source: spacy`` — load ``spacy.lang.<iso>.stop_words.STOP_WORDS``
+        at fit time.
+      * ``source: [word1, word2, ...]`` — explicit inline list (primarily
+        used by unit tests).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str | list[str]
+
+    @field_validator("source")
+    @classmethod
+    def _validate_source(cls, v: str | list[str]) -> str | list[str]:
+        if isinstance(v, str) and v != "spacy":
+            raise ValueError(
+                f"unknown stopwords.source string {v!r}; expected 'spacy' or a list"
+            )
+        return v
+
+
+class LanguageTopicModelingCapability(BaseModel):
+    """Per-language BERTopic configuration (Phase 120 consumer).
+
+    Stopwords govern label generation only — they do not enter
+    ``model_hash``, so changes here do not rotate topic identity.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    stopwords: StopwordsConfig | None = None
+
+
 class LanguageCapability(BaseModel):
     """Per-language capability block."""
 
@@ -141,6 +179,7 @@ class LanguageCapability(BaseModel):
     sentiment_tier1: SentimentTier1Capability | None = None
     sentiment_tier2_default: SentimentTier2DefaultCapability | None = None
     sentiment_tier2_refinement: SentimentTier2RefinementCapability | None = None
+    topic_modeling: LanguageTopicModelingCapability | None = None
     cultural_calendar: CulturalCalendarRef | None = None
     notes: list[str] = Field(default_factory=list)
 
@@ -274,6 +313,7 @@ __all__ = [
     "ConfigurationError",
     "CulturalCalendarRef",
     "LanguageCapability",
+    "LanguageTopicModelingCapability",
     "MultilingualBertCapability",
     "NegationConfig",
     "NerCapability",
@@ -281,6 +321,7 @@ __all__ = [
     "SentimentTier2DefaultCapability",
     "SentimentTier2RefinementCapability",
     "SharedCapability",
+    "StopwordsConfig",
     "TopicModelingCapability",
     "load_manifest",
 ]

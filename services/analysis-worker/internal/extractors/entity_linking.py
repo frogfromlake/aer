@@ -1,7 +1,7 @@
 """Wikidata alias-index lookup for Phase 118 entity linking.
 
 The index is a read-only SQLite database produced by
-`scripts/build_wikidata_index.py` and shipped to the worker via the
+`scripts/build/build_wikidata_index.py` and shipped to the worker via the
 `wikidata-index-init` compose service. At runtime, `WikidataAliasIndex`
 opens it `mode=ro` and exposes a single `lookup(alias, language)` entry
 point used by `NamedEntityExtractor`.

@@ -114,7 +114,7 @@ This starts infrastructure (databases, NATS, observability, documentation server
 
 ```bash
 # Run the end-to-end smoke test
-bash scripts/e2e_smoke_test.sh
+make test-e2e
 ```
 
 The smoke test ingests a test document, waits for pipeline processing, and queries the BFF API to verify end-to-end data flow.

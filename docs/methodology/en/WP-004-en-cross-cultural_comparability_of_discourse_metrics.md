@@ -224,7 +224,7 @@ Based on the equivalence framework, AĒR can support three levels of cross-cultu
 > on `aer_gold.metric_equivalence` and the corresponding Postgres
 > `equivalence_reviews` workflow table, automates baseline maintenance
 > via the in-process `MetricBaselineExtractor` (the standalone
-> `scripts/compute_baselines.py` is retained for first-run / ad-hoc
+> `scripts/operations/compute_baselines.py` is retained for first-run / ad-hoc
 > operations and shares the canonical computation function), and
 > implements the §6.3 dashboard treatment — the LensBar normalization
 > control, the deviation byline on Level-2 views, the Probe Dossier

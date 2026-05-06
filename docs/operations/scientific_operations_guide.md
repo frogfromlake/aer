@@ -226,7 +226,7 @@ Any of the following:
 
 ### How Baselines Are Computed
 
-`scripts/compute_baselines.py` queries `aer_gold.metrics` for the configured `--window` (default 90 days), groups by `(metric_name, source, language)`, computes mean and standard deviation, and inserts one row per group into `aer_gold.metric_baselines`. Single-value groups produce `std = 0` and are inserted unchanged — downstream consumers must handle the divide-by-zero case.
+`scripts/operations/compute_baselines.py` queries `aer_gold.metrics` for the configured `--window` (default 90 days), groups by `(metric_name, source, language)`, computes mean and standard deviation, and inserts one row per group into `aer_gold.metric_baselines`. Single-value groups produce `std = 0` and are inserted unchanged — downstream consumers must handle the divide-by-zero case.
 
 Baseline staleness affects z-score reliability: as the corpus drifts, the baseline becomes a less accurate within-culture reference. There is no automated alarm — operators are expected to recompute on the triggers above.
 
@@ -240,10 +240,10 @@ Baseline staleness affects z-score reliability: as the corpus drifts, the baseli
 Probe 0 baselines **can be computed today** against the live data — this is the workflow with the lowest blocking dependency for Probe 0. Concrete invocation:
 
 ```bash
-cd services/analysis-worker
-python scripts/compute_baselines.py --metric word_count --window 90 --dry-run
+# From the repo root; the analysis-worker venv is the easiest interpreter to use.
+services/analysis-worker/.venv/bin/python scripts/operations/compute_baselines.py --metric word_count --window 90 --dry-run
 # Inspect the printed rows, then run without --dry-run to insert.
-python scripts/compute_baselines.py --metric word_count --window 90
+services/analysis-worker/.venv/bin/python scripts/operations/compute_baselines.py --metric word_count --window 90
 ```
 
 Expected output shape (one line per `(metric, source, language)`; actual numbers depend on the corpus at runtime):
@@ -382,7 +382,7 @@ This section reads the six workflows back-to-back as a chronological narrative f
 | 1 | **Workflow 1 — Classification** | **partially done** (`provisional_engineering`; Steps 3 + 4 + 5 complete; Steps 1–2 outstanding) | Engage two independent area experts on German institutional discourse. Quantify `function_weights`. INSERT a new `source_classifications` row with `review_status = 'reviewed'`. |
 | 2 | **Workflow 5 — Bias Assessment** | **done** | `BiasContext` is set in `RssAdapter`; the prose narrative is in `bias_assessment.md`. |
 | 3 | **Workflow 6 — Cultural Calendar** | **done** | `configs/cultural_calendars/de.yaml` is populated with the recurring entries. New entries should be appended as events are scheduled. |
-| 4 | **Workflow 4 — Baseline Computation** | **can do now** | Run `python scripts/compute_baselines.py --metric word_count --window 90` against the live ClickHouse instance — the only Probe 0 workflow that requires no human collaborators and can be executed by Engineering today. |
+| 4 | **Workflow 4 — Baseline Computation** | **can do now** | Run `python scripts/operations/compute_baselines.py --metric word_count --window 90` against the live ClickHouse instance — the only Probe 0 workflow that requires no human collaborators and can be executed by Engineering today. |
 | 5 | **Workflow 2 — Metric Validation** | **outstanding (requires collaborators)** | Recruit ≥ 3 annotators, design the annotation study per WP-002 §6.2, run it, INSERT into `aer_gold.metric_validity`. The hypothetical INSERT in Workflow 2 above is the target shape. |
 | 6 | **Workflow 3 — Equivalence** | **not applicable** | A single probe cannot establish cross-cultural equivalence. This workflow becomes relevant only when AĒR ingests its second probe from a different cultural context. |
 

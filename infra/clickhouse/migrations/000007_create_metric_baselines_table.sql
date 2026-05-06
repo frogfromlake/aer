@@ -2,7 +2,7 @@
 -- Phase 65: Cross-Cultural Comparability Infrastructure (WP-004).
 --
 -- Stores per-(metric, source, language) baseline statistics for z-score
--- normalization. Populated offline by scripts/compute_baselines.py.
+-- normalization. Populated offline by scripts/operations/compute_baselines.py.
 -- Uses ReplacingMergeTree to keep only the latest computation per key.
 
 CREATE TABLE IF NOT EXISTS aer_gold.metric_baselines
