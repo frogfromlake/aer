@@ -1,6 +1,6 @@
 module github.com/frogfromlake/aer/pkg
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/go-chi/cors v1.2.2
