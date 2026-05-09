@@ -81,6 +81,12 @@ readability-lxml==0.8.4
 # extraction module. It is also a transitive dep of trafilatura, but
 # pinning explicitly keeps Phase 122's contract self-documenting.
 w3lib==2.3.1
+# NOTE — lxml 5.4.0 carries CVE-2026-41066 (escaper bypass → XSS in
+# `lxml.html.clean`). Fix is in lxml 6.1.0, but `htmldate==1.9.3`
+# constrains `lxml<6` and no 2.x htmldate is on PyPI yet. The CVE is
+# suppressed in `make audit-python` via `PIP_AUDIT_IGNORE_VULNS` (see
+# Makefile) with a justification block. Remove the suppression and
+# re-pin `lxml[html-clean]>=6.1.0` here once `htmldate >= 2.0` ships.
 
 # --- Phase 120: Topic Modeling (BERTopic) ---
 # E5-large (~2.2 GB) is baked into the worker image at build time per the

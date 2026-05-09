@@ -243,12 +243,34 @@ else
     # "Unknown compiler(s)". The toolchain is install-time only — the produced
     # lockfile + hashes are consumed by the runtime image, which never sees
     # gcc.
+    #
+    # Persistent caches — without these, every invocation re-downloads
+    # ~500 MB of apt build toolchain AND every wheel pip-compile inspects
+    # for hash generation (multi-GB across the worker's deps including
+    # torch/transformers/scipy/hdbscan/lxml). The volumes are scoped to
+    # this script; they do not affect the produced lockfile (--require-hashes
+    # in the worker Dockerfile validates byte-exact integrity downstream).
+    #   - aer-deps-refresh-pip   : pip wheel cache (/root/.cache/pip)
+    #   - aer-deps-refresh-apt   : apt package cache (/var/cache/apt)
+    #   - aer-deps-refresh-aptlib: apt index lists  (/var/lib/apt)
+    # First run still pays the full cost; subsequent runs skip downloads
+    # for unchanged packages.
+    docker volume create aer-deps-refresh-pip    >/dev/null
+    docker volume create aer-deps-refresh-apt    >/dev/null
+    docker volume create aer-deps-refresh-aptlib >/dev/null
+
     docker run --rm \
         -v "${REPO_ROOT}/services/analysis-worker:/work" \
+        -v "aer-deps-refresh-pip:/root/.cache/pip" \
+        -v "aer-deps-refresh-apt:/var/cache/apt" \
+        -v "aer-deps-refresh-aptlib:/var/lib/apt" \
         -w /work \
         "$PYTHON_REF" \
         bash -c "
             set -euo pipefail
+            # docker-clean drops apt archives after every install; remove
+            # it so the apt cache mount actually retains the .deb files.
+            rm -f /etc/apt/apt.conf.d/docker-clean
             apt-get update -qq
             apt-get install -y --no-install-recommends \
                 gcc g++ gfortran make \

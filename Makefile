@@ -430,7 +430,24 @@ audit-go:
 #     transformers solely via pre-validated pinned model revisions
 #     baked into the image with `TRANSFORMERS_OFFLINE=1`, so the
 #     advisory's network-borne attack surface is not exercised.
-PIP_AUDIT_IGNORE_VULNS := --ignore-vuln CVE-2026-1839
+#
+#   * CVE-2026-41066 — lxml 5.4.0: escaper bypass leading to XSS in
+#     `lxml.html.clean`. Upstream fix is lxml 6.1.0, but `htmldate
+#     1.9.3` (the latest released version) constrains `lxml<6` and no
+#     `htmldate >= 2.0` exists on PyPI yet. Suppression is bounded by
+#     three properties of the deployment: (a) the worker is internal-
+#     only on `aer-backend` (Zero-Trust posture per Hard Rule "Network
+#     Posture") — there is no untrusted internet ingress to the
+#     worker; (b) the HTML processed by lxml comes from the polite,
+#     robots-respecting web-crawler restricted to a vetted source list
+#     in `crawlers/web-crawler/probes/<probe-id>/sources.yaml`, not
+#     from arbitrary user-supplied URLs; (c) the worker container runs
+#     as non-root `aer:10001` with no shell tooling beyond Python, so
+#     a successful `lxml.html.clean` exploit has limited blast radius.
+#     Remove the suppression and re-pin `lxml[html-clean]>=6.1.0` in
+#     `services/analysis-worker/requirements.txt` once `htmldate >=
+#     2.0` ships on PyPI. Tracker: https://github.com/adbar/htmldate
+PIP_AUDIT_IGNORE_VULNS := --ignore-vuln CVE-2026-1839 --ignore-vuln CVE-2026-41066
 
 audit-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running pip-audit (Python vulnerability scanner)...$(RESET)"
