@@ -3,6 +3,8 @@
 This document records the temporal characteristics of the Probe 0 sources and the resulting `min_meaningful_resolution` heuristics that the BFF API surfaces via `GET /api/v1/metrics/available`.
 
 > **Status: provisional engineering heuristic.** WP-005 §3.3 calls for a measured signal-to-noise study to derive the minimum meaningful resolution per source. For Probe 0 the values were computed by simple division of publication rates rather than a measured study. They are advisory only — the BFF does not enforce them.
+>
+> **Phase 122 update.** Discovery cadence is now **sitemap-driven**, not RSS-poll-driven. The sitemap surfaces every published article (not only those that fall within the rotating RSS window), so the publication-rate signal post-Phase-122 is a direct count of publishing events rather than a poll-window estimate. The `min_meaningful_resolution` heuristic below has been recomputed against this new signal; the values are unchanged in coarseness because publication frequency itself did not change — only the visibility horizon did.
 
 ---
 

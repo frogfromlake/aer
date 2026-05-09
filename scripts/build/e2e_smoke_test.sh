@@ -81,49 +81,110 @@ docker run -d \
 sleep 2
 log_ok "Fixture server running at http://${FIXTURE_CONTAINER}:8888/"
 
-# ── Step 3: Run RSS crawler against the fixture ─────────────────────────
-log_step "Step 3: Running RSS crawler against test fixture"
+# ── Step 3: Synthetic ingest against the fixture (Phase 122 retirement) ──
+# The legacy Go RSS crawler was archived in Phase 122 (web-crawl migration).
+# The new Python web-crawler is a Scrapy-based binary that fetches live
+# HTML — driving it from inside this smoke test would require a fully-
+# featured fake HTTP server (sitemap.xml + per-article HTML). To keep
+# the smoke test focused on the pipeline (Bronze → Silver → Gold → BFF)
+# and not on the crawler internals, we synthesise Bronze ``rss``-shaped
+# documents directly from the fixture feed and POST them to the
+# ingestion API. RssAdapter remains registered in the analysis worker,
+# so the documents flow through the same harmonisation + extraction
+# path RSS data has used since Phase 39.
+log_step "Step 3: Synthetic ingest from RSS fixture (post-Phase-122)"
 
-# Build the RSS crawler
-(cd crawlers/rss-crawler && CGO_ENABLED=0 GOOS=linux go build -o ../../bin/rss-crawler . 2>&1) || {
-    log_fail "Failed to build RSS crawler"
-    exit 1
-}
+INGESTION_HOST_URL="http://localhost:8081/api/v1/ingest"
+SOURCES_HOST_URL="http://localhost:8081/api/v1/sources"
 
-# The crawler runs on the host but submits to ingestion-api inside Docker.
-# We use docker compose exec to POST via the ingestion-api container (wget).
-# Instead, we run the crawler binary and point it at the fixture server
-# accessible via the Docker network. The ingestion API is on localhost:8081
-# only in debug mode. So we exec the crawler inside a container.
-
-# Copy the crawler binary and config into a temporary container on the network
+# debug-ports forwards 8081 to ingestion-api in debug mode; the smoke
+# test runs `docker compose up` without the debug profile, so route the
+# ingest through a transient container on aer-backend.
+INGEST_RUNNER="e2e-ingest-runner"
 docker run -d \
-    --name e2e-crawler-runner \
+    --name "$INGEST_RUNNER" \
     --network aer-backend \
-    -v "$FIXTURE_DIR/feeds.yaml":/feeds.yaml:ro \
-    -v "$(pwd)/bin/rss-crawler":/rss-crawler:ro \
-    alpine:3.23.3 \
-    sleep 300
+    -v "$FIXTURE_DIR/test_feed.xml":/feed.xml:ro \
+    python:3.14-slim \
+    sleep 300 >/dev/null
 
-# Run the crawler inside the Docker network
-CRAWLER_OUTPUT=$(docker exec e2e-crawler-runner \
-    /rss-crawler \
-    --config /feeds.yaml \
-    --api-url "http://ingestion-api:8081/api/v1/ingest" \
-    --sources-url "http://ingestion-api:8081/api/v1/sources" \
-    --api-key "${INGESTION_API_KEY}" \
-    --state /tmp/e2e-state.json \
-    --delay 0 2>&1) && CRAWLER_OK=true || CRAWLER_OK=false
+INGEST_OUTPUT=$(docker exec \
+    -e INGESTION_API_KEY="${INGESTION_API_KEY}" \
+    "$INGEST_RUNNER" \
+    python -c "$(cat <<'PYEOF'
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
 
-# Clean up crawler runner
-docker rm -f e2e-crawler-runner 2>/dev/null || true
+API_KEY = os.environ['INGESTION_API_KEY']
+INGEST = 'http://ingestion-api:8081/api/v1/ingest'
+SOURCES = 'http://ingestion-api:8081/api/v1/sources'
 
-if $CRAWLER_OK; then
-    log_ok "RSS crawler completed successfully."
-    log_info "Crawler output: $CRAWLER_OUTPUT"
+def resolve(name: str) -> int:
+    req = urllib.request.Request(
+        f'{SOURCES}?name={urllib.parse.quote(name)}',
+        headers={'X-API-Key': API_KEY},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return int(json.load(resp)['id'])
+
+source_id = resolve('bundesregierung')
+
+tree = ET.parse('/feed.xml')
+items = list(tree.iter('item'))
+
+documents = []
+for item in items:
+    title = (item.findtext('title') or '').strip()
+    link = (item.findtext('link') or '').strip()
+    description = (item.findtext('description') or '').strip()
+    pub_date = (item.findtext('pubDate') or '').strip()
+    documents.append({
+        'key': f'rss/bundesregierung/{abs(hash(link))%(10**16):016d}.json',
+        'data': {
+            'source': 'bundesregierung',
+            'source_type': 'rss',
+            'title': title,
+            'raw_text': description,
+            'url': link,
+            'timestamp': pub_date,
+            'feed_url': 'http://e2e-fixture-server:8888/test_feed.xml',
+            'feed_title': 'E2E Test Feed',
+            'categories': [c.text for c in item.findall('category') if c.text],
+            'author': (item.findtext('author') or '').strip(),
+        },
+    })
+
+body = json.dumps({'source_id': source_id, 'documents': documents}).encode()
+req = urllib.request.Request(
+    INGEST,
+    data=body,
+    headers={
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+    },
+    method='POST',
+)
+try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        print(f'status={resp.status} body={resp.read().decode()[:500]!r}')
+except urllib.error.HTTPError as exc:
+    print(f'status={exc.code} body={exc.read().decode()[:500]!r}')
+    raise
+PYEOF
+)" 2>&1) && INGEST_OK=true || INGEST_OK=false
+
+docker rm -f "$INGEST_RUNNER" 2>/dev/null >/dev/null || true
+
+if $INGEST_OK; then
+    log_ok "Synthetic ingest completed."
+    log_info "Output: $INGEST_OUTPUT"
 else
-    log_fail "RSS crawler failed."
-    log_info "Crawler output: ${CRAWLER_OUTPUT:-<empty>}"
+    log_fail "Synthetic ingest failed."
+    log_info "Output: ${INGEST_OUTPUT:-<empty>}"
 fi
 
 # ── Step 4: Wait for pipeline processing ─────────────────────────────────

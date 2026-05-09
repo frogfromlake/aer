@@ -24,4 +24,4 @@ properties:
       WP-003 bias assessment, WP-005 temporal profile, and WP-006
       observer-effect assessment for the probe to which this source
       belongs. Null when no dossier has been written.
-    example: docs/probes/probe-0-de-institutional-rss/
+    example: docs/probes/probe-0-de-institutional-web/

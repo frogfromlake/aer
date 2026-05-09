@@ -6,6 +6,7 @@ from datetime import datetime
 from urllib.parse import unquote, urlparse
 from minio import Minio
 from psycopg2.pool import ThreadedConnectionPool
+from internal.adapters.web import ExtractionFailedError
 from internal.models import ValidationError
 from internal.adapters.registry import AdapterRegistry
 from internal.extractors.base import MetricExtractor, ProvenanceExtractor, GoldMetric, GoldEntity, GoldEntityLink, GoldLanguageDetection, ExtractionResult
@@ -143,6 +144,10 @@ class DataProcessor:
         # --- 4. Harmonization (Bronze → Silver, via adapter) ---
         try:
             core, meta = adapter.harmonize(raw_content, event_time, obj_key)
+        except ExtractionFailedError as e:
+            logger.warning("Web extraction failed. Moving to DLQ.", object=obj_key, error=str(e))
+            self._quarantine(obj_key, raw_content, "extraction_failed", span)
+            return
         except (ValidationError, ValueError) as e:
             logger.warning("Harmonization failed. Moving to DLQ.", object=obj_key, error=str(e))
             self._quarantine(obj_key, raw_content, "harmonization_failed", span)

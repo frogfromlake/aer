@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-go-crawlers test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-reset setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -183,7 +183,7 @@ reset-validate:
 	@./scripts/operations/reset_validate.sh
 
 reset: reset-state reset-validate
-	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)System is in canonical post-reset state. Run '$(BOLD)make crawl$(RESET)$(GREEN)' to repopulate.$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)System is in canonical post-reset state. Run '$(BOLD)make crawl-probe0$(RESET)$(GREEN)' to repopulate.$(RESET)"
 
 # ==========================================
 # 2. APPLICATION SERVICES (INDIVIDUAL)
@@ -255,7 +255,6 @@ logs:
 tidy:
 	@cd services/ingestion-api && go mod tidy
 	@cd services/bff-api && go mod tidy
-	@cd crawlers/rss-crawler && go mod tidy
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)Go modules tidied up.$(RESET)"
 
 openapi-bundle:
@@ -315,31 +314,40 @@ build-services:
 	@mkdir -p bin
 	@go build -o bin/ingestion-api ./services/ingestion-api/cmd/api
 	@go build -o bin/bff-api ./services/bff-api/cmd/server
-	@go build -o bin/rss-crawler ./crawlers/rss-crawler
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Build complete. Binaries in ./bin/$(RESET)"
 
-crawl:
+# ------------------------------------------------------------------
+# Phase 122 web-crawler entrypoints. The single-binary `web-crawler`
+# image is parameterised per probe via `--probe <id>`. Pattern is
+# `make crawl-<probe-id>` for any probe; new probes (Phase 125 onwards)
+# add a target here that mirrors crawl-probe0.
+#
+# Dedup state lives in Postgres (`crawler_state` table, migration 017)
+# rather than a local volume — `make reset` wipes it as part of the
+# canonical state wipe, so a dedicated `crawl-reset` target is no
+# longer needed.
+# ------------------------------------------------------------------
+
+crawl-probe0:
 	@if [ ! -f .env ]; then \
-		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env file not found. Copy .env.example to .env and set INGESTION_API_KEY before running make crawl."; \
+		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env file not found. Copy .env.example to .env and set INGESTION_API_KEY before running make crawl-probe0."; \
 		exit 1; \
 	fi
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running RSS crawler (containerized, on aer-backend network)...$(RESET)"
-	@docker compose --profile crawlers run --rm --build rss-crawler
-	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Crawl complete.$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running web-crawler for probe0 (containerized, on aer-backend network)...$(RESET)"
+	@docker compose --profile crawlers run --rm --build web-crawler --probe probe0
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Probe 0 crawl complete.$(RESET)"
 
-# Clears the crawler's dedup state volume so the next `make crawl` re-
-# processes every feed item. Useful after a volume wipe has emptied
-# bronze/gold but the host-side state still thinks everything's seen.
-crawl-reset:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Removing rss-crawler dedup state volume...$(RESET)"
-	@docker volume rm aer_rss_crawler_state 2>/dev/null || true
-	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)State cleared. Next `make crawl` will re-ingest every feed item.$(RESET)"
+# Deprecated alias — retained for one release cycle then retired in
+# Phase 131. Forwards to the new probe-scoped target so existing muscle
+# memory keeps working.
+crawl: crawl-probe0
+	@echo -e "$(GRAY)NOTE: 'make crawl' is deprecated; use 'make crawl-probe0' (or 'make crawl-<probe-id>' for other probes).$(RESET)"
 
 # ==========================================
 # 5. TESTING & LINTING
 # ==========================================
 
-test: test-go test-go-pkg test-go-crawlers test-python fe-test
+test: test-go test-go-pkg test-python fe-test
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All test suites passed successfully!$(RESET)"
 
 test-e2e:
@@ -356,32 +364,39 @@ test-go-pkg:
 	@cd pkg && go test -v ./...
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) tests passed!$(RESET)"
 
-test-go-crawlers:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Go Crawler Tests...$(RESET)"
-	@cd crawlers/rss-crawler && go test -v ./...
-	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (crawlers) tests passed!$(RESET)"
-
 test-python:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests (analysis-worker)...$(RESET)"
 	@cd services/analysis-worker && \
 		if [ -f ./.venv/bin/python ]; then \
 			./.venv/bin/python -m pytest tests/ -v; \
 		else \
 			python -m pytest tests/ -v; \
 		fi
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Python Unit Tests (web-crawler)...$(RESET)"
+	@cd crawlers/web-crawler && \
+		if [ -f ../../services/analysis-worker/.venv/bin/python ]; then \
+			PYTHONPATH=. ../../services/analysis-worker/.venv/bin/python -m pytest tests/ -v; \
+		else \
+			PYTHONPATH=. python -m pytest tests/ -v; \
+		fi
 
 lint:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"
 	@cd services/analysis-worker && \
 		if [ -f ./.venv/bin/python ]; then \
-			./.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"; \
+			./.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint (analysis-worker) passed!$(RESET)"; \
 		else \
-			python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint passed!$(RESET)"; \
+			python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint (analysis-worker) passed!$(RESET)"; \
+		fi
+	@cd crawlers/web-crawler && \
+		if [ -f ../../services/analysis-worker/.venv/bin/python ]; then \
+			../../services/analysis-worker/.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint (web-crawler) passed!$(RESET)"; \
+		else \
+			python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint (web-crawler) passed!$(RESET)"; \
 		fi
 	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
-	@cd crawlers/rss-crawler && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (RSS Crawler) lint passed!$(RESET)"
 	@$(MAKE) --no-print-directory openapi-lint
 	@$(MAKE) --no-print-directory fe-lint
 
@@ -401,7 +416,6 @@ audit-go:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running govulncheck (Go vulnerability scanner)...$(RESET)"
 	@cd services/ingestion-api && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (Ingestion API) passed!$(RESET)"
 	@cd services/bff-api && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (BFF API) passed!$(RESET)"
-	@cd crawlers/rss-crawler && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (RSS Crawler) passed!$(RESET)"
 	@cd pkg && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (pkg/) passed!$(RESET)"
 
 # pip-audit advisory suppressions — only when no stable fix is available
@@ -654,8 +668,8 @@ help:
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
-	@echo -e "  $(GREEN)crawl$(RESET)               $(GRAY)Run the RSS crawler as a one-shot container on aer-backend$(RESET)"
-	@echo -e "  $(GOLD)crawl-reset$(RESET)         $(GRAY)Wipe crawler dedup state volume so next crawl re-ingests everything$(RESET)"
+	@echo -e "  $(GREEN)crawl-probe0$(RESET)        $(GRAY)Run the web-crawler for Probe 0 as a one-shot container on aer-backend$(RESET)"
+	@echo -e "  $(GRAY)crawl$(RESET)               $(GRAY)Deprecated alias for crawl-probe0 (retired in Phase 131)$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"
@@ -665,11 +679,10 @@ help:
 	@echo -e "  $(CYAN)tidy$(RESET)                $(GRAY)Run 'go mod tidy' across all modules$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Testing & Linting:$(RESET)"
-	@echo -e "  $(GREEN)test$(RESET)                $(GRAY)Full suite: Go integration + pkg + crawlers + Python unit$(RESET)"
+	@echo -e "  $(GREEN)test$(RESET)                $(GRAY)Full suite: Go integration + pkg + Python unit + frontend$(RESET)"
 	@echo -e "  $(GREEN)test-go$(RESET)             $(GRAY)Go integration tests — ingestion-api + bff-api (Testcontainers)$(RESET)"
 	@echo -e "  $(GREEN)test-go-pkg$(RESET)         $(GRAY)Go tests for shared pkg/ module$(RESET)"
-	@echo -e "  $(GREEN)test-go-crawlers$(RESET)    $(GRAY)Go tests for rss-crawler$(RESET)"
-	@echo -e "  $(GREEN)test-python$(RESET)         $(GRAY)Python unit tests (pytest, analysis-worker)$(RESET)"
+	@echo -e "  $(GREEN)test-python$(RESET)         $(GRAY)Python unit tests (pytest, analysis-worker + web-crawler)$(RESET)"
 	@echo -e "  $(GREEN)test-e2e$(RESET)            $(GRAY)Docker Compose end-to-end smoke test$(RESET)"
 	@echo -e "  $(CYAN)lint$(RESET)                $(GRAY)All linters: ruff (Python) + golangci-lint (all Go modules) + openapi-lint$(RESET)"
 	@echo -e "  $(CYAN)lint-go-pkg$(RESET)         $(GRAY)golangci-lint for shared pkg/ only$(RESET)"

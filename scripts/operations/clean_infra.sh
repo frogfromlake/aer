@@ -9,9 +9,9 @@
 #
 # Volumes the `all` target WIPES (runtime / mixed-vintage data):
 #   aer_postgres_data         — documents idempotency table + seed-migration state
+#                                 + crawler_state (Phase 122 web-crawler dedup, Postgres-backed)
 #   aer_minio_data            — Bronze, Silver, Quarantine buckets
 #   aer_clickhouse_data       — Gold + Silver-projection rows
-#   aer_rss_crawler_state     — RSS dedup state (must travel with Bronze + documents)
 #
 # Volumes the `all` target PRESERVES (build-time artefacts; wasteful to refetch):
 #   aer_wikidata_data         — Phase 118 Wikidata alias index (~190 MB)
@@ -49,7 +49,6 @@ RUNTIME_STATE_VOLUMES=(
     "${PROJECT_NAME}_postgres_data"
     "${PROJECT_NAME}_minio_data"
     "${PROJECT_NAME}_clickhouse_data"
-    "${PROJECT_NAME}_rss_crawler_state"
 )
 
 # Volumes deliberately preserved across resets. Listed here for visibility
@@ -104,7 +103,7 @@ assert_preserved() {
 
 case "$TARGET" in
     all)
-        confirm_deletion "ALL runtime state (Postgres, MinIO, ClickHouse, RSS crawler dedup)"
+        confirm_deletion "ALL runtime state (Postgres incl. crawler_state, MinIO, ClickHouse)"
         echo -e "${CYAN}ℹ Stopping stack...${RESET}"
         docker compose down --remove-orphans >/dev/null
         echo -e "${CYAN}ℹ Wiping runtime state volumes...${RESET}"
@@ -116,13 +115,13 @@ case "$TARGET" in
         ;;
 
     postgres)
-        confirm_deletion "PostgreSQL"
+        # Phase 122: crawler dedup state lives in the Postgres
+        # `crawler_state` table, so wiping postgres_data also wipes
+        # the dedup state — no separate volume to clear.
+        confirm_deletion "PostgreSQL (incl. crawler_state)"
         docker compose stop postgres >/dev/null
         docker compose rm -f postgres >/dev/null
         remove_volume "${PROJECT_NAME}_postgres_data"
-        # Crawler dedup state is logically tied to Postgres documents;
-        # an orphaned state here makes the next crawl skip everything.
-        remove_volume "${PROJECT_NAME}_rss_crawler_state"
         ;;
 
     minio)
@@ -130,8 +129,6 @@ case "$TARGET" in
         docker compose stop minio minio-init >/dev/null
         docker compose rm -f minio minio-init >/dev/null
         remove_volume "${PROJECT_NAME}_minio_data"
-        # Same coupling as the Postgres path — Bronze and dedup state move together.
-        remove_volume "${PROJECT_NAME}_rss_crawler_state"
         ;;
 
     clickhouse)

@@ -8,13 +8,12 @@ The mechanism is the **Source Adapter** pattern (ADR-015). It is the architectur
 
 ## When you actually need a new source type
 
-Before adding a source type, confirm it is genuinely necessary. The existing `rss` source type handles surprisingly much:
+Before adding a source type, confirm it is genuinely necessary. As of Phase 122 the existing source types cover surprisingly much:
 
-- Atom feeds (gofeed parses both transparently)
-- Pseudo-RSS feeds with non-standard extensions (the `RssMeta` envelope is extensible)
-- Press-release feeds, government bulletins, broadcaster news feeds — all RSS
+- The `web` source type (Phase 122 / ADR-028) covers ~85–90% of the world's news sources that serve server-rendered HTML. Adding a new news website is a YAML entry plus a Postgres seed migration — see [add-a-source.md](add-a-source.md). **No code changes.**
+- The `rss` source type is retained for backward compatibility while the 90-day Bronze TTL window ages out residual `rss/...` keys. New probes do not use it.
 
-You need a new source type when **the wire format is structurally different from RSS** (no item-list shape, no per-document URL, requires authentication, or carries platform-specific metadata that does not fit `RssMeta`). Examples:
+You need a new source type when **the wire format is structurally different from server-rendered HTML and existing platforms** — no item-list shape, no per-document URL, requires authentication, JS-rendered content, or carries platform-specific metadata that does not fit existing SilverMeta envelopes. Examples:
 
 - A forum archive with thread / reply structure (parent-child relationships, not a flat item list).
 - A social media platform with engagement signals (likes, shares, replies).
@@ -29,15 +28,32 @@ If the new source produces flat item-lists with title/description/url/date, **us
 
 | Component | Change | Why | Effort |
 | :--- | :--- | :--- | :--- |
-| `crawlers/<source-type>-crawler/` | New standalone Go binary | Per ADR-015, each source type has its own crawler with its own `go.mod`. The Phase 40 RSS crawler is the reference. | 4–8 h |
-| `internal/adapters/<source_type>_adapter.py` | New adapter implementing the `SourceAdapter` protocol | Maps platform-specific Bronze data to `SilverCore` + optional `SilverMeta` subclass | 2–4 h |
-| `internal/adapters/registry.py` | Registration entry | Adapter lookup by `source_type` string | 5 min |
-| `internal/models/silver.py` (optional) | New `SilverMeta` subclass | Only if platform metadata genuinely doesn't fit `RssMeta` | 1–2 h |
-| `internal/extractors/` | Possibly new extractors | Only if the new source type enables metrics that don't apply to RSS (e.g. engagement-based metrics for social media) | varies |
+| `crawlers/<platform>-crawler/` | New standalone crawler binary (Python preferred — see Phase 122 / ADR-028 rationale on language consistency with the worker) | Each platform class gets its own crawler. The Phase 122 `crawlers/web-crawler/` is the canonical example. | 4–8 h |
+| `internal/adapters/<source_type>.py` | New adapter implementing the `SourceAdapter` protocol | Maps platform-specific Bronze data to `SilverCore` + optional `SilverMeta` subclass | 2–4 h |
+| `internal/adapters/registry.py` and `main.py` | Registration entry | Adapter lookup by `source_type` string; mirrors `WebAdapter` registration | 5 min |
+| `internal/adapters/<source_type>_meta.py` (optional) | New `SilverMeta` subclass | Only if platform metadata genuinely doesn't fit existing envelopes. The Phase-122 `WebMeta` is the worked example of a tiered subclass. | 1–2 h |
+| `internal/extractors/` | Possibly new extractors | Only if the new source type enables metrics that don't apply to existing types (e.g. engagement-based metrics for social media) | varies |
 | Tests | Adapter unit + integration | Pytest fixtures + Testcontainers MinIO | 2–4 h |
+| Compose service stanza + Makefile target + GHCR build workflow | New entry under `crawlers` profile, `make crawl-<probe-id>` target, `.github/workflows/<crawler>-build.yml` | Mirrors Phase-122 wiring for `web-crawler` | 1–2 h |
 | Documentation | ADR or §13 entry, source-type description in CLAUDE.md | If the new source type carries methodological implications | 1–2 h |
 
 **Realistic minimum: 1 day. Realistic average: 2–3 days.**
+
+### Platform-class crawler checklist (mirrors Phase-122)
+
+When writing a new platform-class crawler (Twitter / Reddit / Mastodon / Telegram / YouTube / Bluesky / web-crawler-js), the artefact list is the same shape as Phase 122's web-crawler:
+
+- [ ] **Standalone binary** under `crawlers/<platform>-crawler/` with its own `pyproject.toml` (or `go.mod`) and `Dockerfile`.
+- [ ] **Per-probe configuration** in `crawlers/<platform>-crawler/probes/<probe-id>/sources.yaml` (the YAML schema is platform-specific; keep it minimal).
+- [ ] **Discovery layer** appropriate to the platform — sitemap parsing for web, REST-API pagination for Twitter/Reddit, ActivityPub timeline polling for Mastodon, channel ID enumeration for Telegram, etc.
+- [ ] **Fetch layer** with platform-aware politeness defaults and (where applicable) authentication. Honour the platform's published rate limits as a hard cap, not just as a suggestion.
+- [ ] **Bronze ingestion contract** that stores raw platform payload + a fetch envelope verbatim. **No extraction in the crawler.** The worker's adapter is the medallion-correct boundary for derived metadata (Phase 122 / ADR-028 boundary).
+- [ ] **Dedup state** — Postgres-backed via a per-platform table mirroring `crawler_state` (Phase 122) so dedup survives container restarts and `make reset` wipes it cleanly.
+- [ ] **`SourceAdapter` implementation** that produces `SilverCore` + a platform-specific `SilverMeta` subclass. Tier the metadata schema per Phase 122's WebMeta example (Tier-A mandatory, Tier-D verbatim raw payload as the insurance policy).
+- [ ] **Compose service entry** under the `crawlers` profile with a `depends_on: ingestion-api` (and `postgres` if dedup is Postgres-backed).
+- [ ] **GHCR image workflow** at `.github/workflows/<crawler>-build.yml` mirroring `web-crawler-build.yml`.
+- [ ] **Makefile target** `make crawl-<probe-id>` that wraps `docker compose run --rm <crawler> --probe <id>`.
+- [ ] **ADR** documenting the platform-specific rate-limit / auth / privacy decisions, the Bronze key pattern, and the SilverMeta tier structure.
 
 ---
 

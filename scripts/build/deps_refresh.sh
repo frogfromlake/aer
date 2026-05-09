@@ -84,7 +84,7 @@ done
 # ---------------------------------------------------------------------------
 # Pre-flight — fail fast with actionable messages.
 # ---------------------------------------------------------------------------
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 if [[ ! -f compose.yaml ]] || [[ ! -f .tool-versions ]]; then
@@ -253,6 +253,7 @@ else
             apt-get install -y --no-install-recommends \
                 gcc g++ gfortran make \
                 python3-dev libopenblas-dev liblapack-dev \
+                libxml2-dev libxslt1-dev \
                 pkg-config ninja-build > /dev/null
             pip install --quiet --disable-pip-version-check 'pip-tools==${PIP_TOOLS_VERSION}'
             pip-compile \

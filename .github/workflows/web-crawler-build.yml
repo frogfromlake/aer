@@ -1,0 +1,61 @@
+name: Build & Push Web-Crawler Image (Phase 122)
+
+# Builds the single configurable Python web-crawler image used by every
+# news-website probe (Probe 0+) and pushes it to GHCR. Mirrors the
+# pattern of wikidata_index_rebuild.yml. The image tag is the commit
+# SHA; ``latest`` points at the most recent main-branch build for dev
+# convenience.
+#
+# This workflow is independent of ci.yml (which builds a transient
+# ``aer/web-crawler:ci`` image for Trivy scanning only). The published
+# GHCR image is what production overlays consume.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crawlers/web-crawler/**"
+      - ".github/workflows/web-crawler-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build & Push aer-web-crawler
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/aer-web-crawler
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=long
+
+      - name: Build & push web-crawler image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: crawlers/web-crawler/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=web-crawler-publish
+          cache-to: type=gha,mode=max,scope=web-crawler-publish

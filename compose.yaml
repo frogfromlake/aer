@@ -464,43 +464,50 @@ services:
           cpus: "2.00"
 
   # ----------------------------------------------------
-  # 3.1d RSS CRAWLER (ONE-SHOT JOB)
+  # 3.1d WEB CRAWLER (ONE-SHOT JOB) — Phase 122
   # ----------------------------------------------------
-  # Standalone Go binary that fetches configured RSS feeds and submits
-  # documents to the Ingestion API. Runs on the internal `aer-backend`
-  # network so it reaches `ingestion-api:8081` directly — no host port
-  # exposure required, identical in dev and prod.
+  # Single configurable Python binary that fetches full-article HTML for
+  # every news-website probe (Probe 0+). Per-probe configuration lives
+  # in `crawlers/web-crawler/probes/<probe-id>/sources.yaml`; the image
+  # is identical across probes (ADR-028).
+  #
+  # Runs on the internal `aer-backend` network so it reaches
+  # `ingestion-api:8081` directly. Dedup state lives in Postgres
+  # (`crawler_state` table, migration 017) — `make reset` wipes it.
   #
   # `profiles: ["crawlers"]` keeps it out of `make up`. Invoke via
-  # `make crawl` (wraps `docker compose run --rm rss-crawler`) or from
-  # a host cron / systemd timer in production.
-  rss-crawler:
+  # `make crawl-probe0` (wraps `docker compose run --rm web-crawler
+  # --probe probe0`) or from a host cron / systemd timer in production.
+  web-crawler:
     build:
       context: .
-      dockerfile: crawlers/rss-crawler/Dockerfile
-    image: aer-rss-crawler:local
-    container_name: aer_rss_crawler
+      dockerfile: crawlers/web-crawler/Dockerfile
+    image: aer-web-crawler:local
+    container_name: aer_web_crawler
     profiles: ["crawlers"]
     restart: "no"
     environment:
       - INGESTION_URL=http://ingestion-api:8081/api/v1/ingest
       - SOURCES_URL=http://ingestion-api:8081/api/v1/sources
       - INGESTION_API_KEY=${INGESTION_API_KEY}
-    volumes:
-      # Dedup state survives across runs so re-running `make crawl`
-      # doesn't re-ingest items. Clear with `docker volume rm
-      # aer_rss_crawler_state` when you want a full re-crawl.
-      - rss_crawler_state:/state
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - WEB_CRAWLER_USER_AGENT=${WEB_CRAWLER_USER_AGENT:-AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)}
     networks:
       - aer-backend
     depends_on:
       ingestion-api:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: "0.25"
+          memory: 512M
+          cpus: "0.50"
 
   # ----------------------------------------------------
   # 3.2 BFF API (PUBLIC-FACING, BEHIND TRAEFIK)
@@ -775,7 +782,6 @@ volumes:
   postgres_data:
   clickhouse_data:
   tempo_data:
-  rss_crawler_state:
   wikidata_data:
 
 networks:

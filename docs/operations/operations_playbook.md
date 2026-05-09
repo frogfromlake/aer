@@ -821,56 +821,102 @@ Workflow to add an entry:
 
 The custom file is checked into git so the lexicon evolution is auditable. Do not hand-edit the SentiWS files in `data/sentiws/` for neologisms — those are the versioned baseline.
 
-### RSS Crawler
+### Web Crawl Operations (Phase 122)
 
-The RSS crawler is a standalone Go binary under `crawlers/rss-crawler/` with its own `go.mod` (no `pkg/` dependency). It fetches German institutional RSS feeds and submits documents to the Ingestion API. **Module ownership** is independent of the service modules — but **at runtime** it executes as a one-shot container on the internal `aer-backend` Docker network under Compose profile `crawlers`, reaching `ingestion-api:8081` directly. No host port exposure is required; dev and prod invocations are identical.
+The Phase-122 web crawler is a single configurable Python binary under `crawlers/web-crawler/` (Scrapy 2.x + ultimate-sitemap-parser + courlan + feedparser + psycopg2 + structlog). It fetches full-article HTML for every news-website probe and submits documents to the Ingestion API verbatim — Bronze is raw HTML, the analysis worker's `WebAdapter` (Phase 122 / ADR-028) runs trafilatura + extruct + htmldate + readability at the Silver boundary. The crawler binary is identical across probes; per-probe configuration lives in `crawlers/web-crawler/probes/<probe-id>/sources.yaml`. It executes as a one-shot container on the internal `aer-backend` Docker network under Compose profile `crawlers`, reaching `ingestion-api:8081` and `postgres:5432` directly. No host port exposure is required.
 
 ```bash
-# Standard path: builds the image if needed, runs once, removes the container.
-make crawl
+# Probe 0 — German institutional sources.
+make crawl-probe0
 
 # Equivalent raw form:
-docker compose --profile crawlers run --rm --build rss-crawler
+docker compose --profile crawlers run --rm --build web-crawler --probe probe0
 
-# Wipe dedup state (re-ingests every feed item on the next run):
-make crawl-reset
+# Deprecated alias (retired in Phase 131):
+make crawl     # forwards to make crawl-probe0
 ```
 
-`make crawl` reads `INGESTION_API_KEY` from `.env` via Compose interpolation — if `.env` is missing, the target exits with an error before invoking Compose. Profile-gated, so `make up` never starts the crawler automatically.
+`make crawl-probe0` reads `INGESTION_API_KEY` and the Postgres connection variables from `.env` via Compose interpolation; if `.env` is missing, the target exits with an error before invoking Compose. Profile-gated, so `make up` never starts the crawler automatically. New probes follow the `make crawl-<probe-id>` pattern — see [add-a-source.md](../extending/add-a-source.md) for the per-source mechanics.
 
-**Production scheduling.** The same command runs under any host-side scheduler — cron, systemd timer, Kubernetes `CronJob` wrapping `docker compose run --rm rss-crawler`, or a long-running scheduler sidecar (e.g. Ofelia) on the Compose project. No scheduler is bundled today; pick one per deployment target.
+**Production scheduling.** The same command runs under any host-side scheduler — cron, systemd timer, Kubernetes `CronJob` wrapping `docker compose run --rm web-crawler --probe <id>`, or a long-running scheduler sidecar on the Compose project. No scheduler is bundled today; pick one per deployment target.
 
-**Feed configuration** (`crawlers/rss-crawler/feeds.yaml`, baked into the image at build time):
+**Per-probe configuration** (`crawlers/web-crawler/probes/<probe-id>/sources.yaml`, baked into the image at build time):
 
 ```yaml
-feeds:
-  - name: bundesregierung   # Must match a source registered in PostgreSQL
-    url: https://www.bundesregierung.de/breg-de/feed
-  - name: tagesschau
-    url: https://www.tagesschau.de/index~rss2.xml
+sources:
+  - name: tagesschau               # Must match a source registered in PostgreSQL
+    sitemap_urls:
+      - https://www.tagesschau.de/sitemap.xml
+    rss_hint_url: https://www.tagesschau.de/index~rss2.xml   # discovery hint only
+    politeness:
+      delay_seconds: 1.0
+      autothrottle: true
+      max_concurrent_per_domain: 2
+    url_filter:                    # technical filtering only — no section gating
+      exclude_extensions: [jpg, png, gif, svg, webp, mp4, mp3, css, js, pdf, ico, woff, woff2]
+      exclude_path_prefixes: [/api/, /search/, /suche/, /impressum, /datenschutz, /agb]
+      require_html_content_type: true
+    content_filter:
+      min_word_count: 50
+      require_extraction_success: true
+    custom_extractors: {}          # Tier-E scaffolded — empty until a specific analysis demands it
 ```
 
-Changing `feeds.yaml` requires rebuilding the image (`make crawl` passes `--build` so the next invocation picks it up automatically; CI pipelines should rebuild explicitly).
+Changing `sources.yaml` requires rebuilding the image (`make crawl-probe0` passes `--build`, so the next invocation picks it up automatically; CI pipelines should rebuild explicitly via `.github/workflows/web-crawler-build.yml`).
 
-Adding a new RSS feed requires:
-1. A new entry in `feeds.yaml`.
-2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
-3. A Probe Dossier and Probe Classification workflow (see [Scientific Operations Guide → Workflow 1](scientific_operations_guide.md#workflow-1-classifying-a-new-probe)).
+**Sitemap-driven discovery semantics.** The primary discovery channel is `sitemap.xml` (recursive, including nested `<sitemap>` indexes) parsed by `ultimate-sitemap-parser`. Every URL surfaced by the sitemap is a candidate. The optional `rss_hint_url` is a *discovery hint only* — articles freshly published before the sitemap's next refresh; the article body always comes from the HTML fetch. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
 
-**Deduplication.** The crawler maintains a JSON state file at `/state/rss-crawler-state.json` inside the container, persisted in the named volume `rss_crawler_state`. State is written immediately after each feed's batch is successfully submitted — not once at the end — so a crash or interruption mid-run does not cause re-ingestion of already-processed feeds. `make infra-clean`, `make infra-clean-postgres`, and `make infra-clean-minio` wipe this volume automatically, because they invalidate bronze or the `documents` / `sources` tables that dedup state is logically tied to. `make infra-clean-clickhouse` does *not* touch it (gold is downstream, bronze stays authoritative). If you wipe backend volumes by any other means — raw `docker compose down -v`, `docker volume rm`, manual prune — run `make crawl-reset` afterwards so the crawler doesn't skip every item as "already seen" against state that no longer matches what's in bronze.
+**Robots.txt verification.** Before adding a new source, verify that the polite default `User-Agent` is permitted:
 
-**Environment variables** (injected by the `rss-crawler` Compose service):
+```bash
+curl -A "${WEB_CRAWLER_USER_AGENT}" https://<source>/robots.txt | grep -i 'allow\|sitemap'
+```
+
+If the `User-Agent` is `Disallow`-ed for the relevant paths, document the case in the probe dossier and either change the source or arrange a polite contact with the operator. Override the `User-Agent` per environment via `WEB_CRAWLER_USER_AGENT` in `.env`; the contact-address requirement is WP-006 §5.1.
+
+**Polite-crawl defaults.** The Scrapy spider runs with `ROBOTSTXT_OBEY = True`, `AUTOTHROTTLE_ENABLED = True`, `DOWNLOAD_DELAY = 1.0`, `CONCURRENT_REQUESTS_PER_DOMAIN = 2`, `RETRY_ENABLED = True`, `RETRY_TIMES = 3`, `DOWNLOAD_TIMEOUT = 30`, `COOKIES_ENABLED = False`. Per-source overrides are permitted in `politeness:` but discouraged; any override is documented in the source's Probe Dossier with methodological justification.
+
+**Dedup-state inspection.** Dedup state lives in the Postgres `crawler_state` table (Phase 122; replaces the legacy JSON file). Inspect with:
+
+```sql
+SELECT source_id, count(*) AS rows, max(last_fetched) AS most_recent
+FROM crawler_state GROUP BY source_id;
+
+SELECT canonical_url, last_fetched, etag, http_last_modified, sitemap_lastmod
+FROM crawler_state WHERE source_id = 1
+ORDER BY last_fetched DESC LIMIT 20;
+```
+
+A `make reset` (Phase 120b) wipes `postgres_data` and therefore the `crawler_state` rows — the next `make crawl-<probe-id>` re-ingests every URL surfaced by the sitemap. There is no longer a separate `make crawl-reset` target; the dedup state is logically Postgres-tied and travels with `make reset`.
+
+**Re-extraction without re-crawl** *(operational realisation of the medallion-architecture decoupling, ADR-028).* Trafilatura version upgrades and bug fixes in the Silver-side extraction pipeline trigger Silver/Gold rebuilds without re-crawling. The mechanism is `scripts/operations/reextract_silver.py` — replays archived Bronze HTML through the worker's `WebAdapter`, rewriting Silver and Gold rows. No politeness budget is spent; no risk that an upstream source has changed or is down between runs:
+
+```bash
+python scripts/operations/reextract_silver.py --probe probe0
+# Inspect the resulting Silver projection counts:
+docker compose exec clickhouse clickhouse-client \
+    --query="SELECT count() FROM aer_silver.documents WHERE source_type = 'web'"
+```
+
+This is the routine cadence for upgrading the extraction stack — never edit Bronze, always replay it.
+
+**Environment variables** (injected by the `web-crawler` Compose service):
 
 | Variable | Purpose | Default |
 | :--- | :--- | :--- |
 | `INGESTION_URL` | Ingest endpoint | `http://ingestion-api:8081/api/v1/ingest` |
 | `SOURCES_URL` | Sources lookup endpoint | `http://ingestion-api:8081/api/v1/sources` |
 | `INGESTION_API_KEY` | `X-API-Key` header value | from `.env` |
-| `STATE_FILE` | Path inside `rss_crawler_state` volume | `/state/rss-crawler-state.json` (set via CMD) |
+| `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `crawler_state` connection | `postgres:5432` / from `.env` |
+| `WEB_CRAWLER_USER_AGENT` | Polite UA per WP-006 §5.1 (must include contact address) | from `.env` (default in `.env.example`) |
 
-**HTTP timeouts:** All outbound HTTP clients enforce strict timeouts — 10 s for source ID lookup, 30 s for ingestion API posts, and 30 s for RSS feed fetches — to prevent the crawler from hanging indefinitely on unresponsive upstreams.
+**HTTP timeouts.** Scrapy's `DOWNLOAD_TIMEOUT = 30` caps each fetch; the synchronous ingestion-API client uses a 30 s timeout for both `GET /sources` and `POST /ingest`.
 
-**Graceful shutdown:** The crawler respects `SIGINT`/`SIGTERM` via `signal.NotifyContext`. Cancelling mid-run will abort in-flight HTTP requests cleanly; any feeds processed before the signal will have their state already persisted.
+**Graceful shutdown.** Scrapy's `CrawlerProcess` traps `SIGINT` / `SIGTERM` and drains in-flight requests cleanly; any documents already submitted are persisted in `crawler_state` so a re-run after interruption resumes from the last successful URL.
+
+### Archived: RSS Crawler (Pre-Phase-122)
+
+The legacy Go RSS crawler at `crawlers/_archived/rss-crawler/` is retained for git-history traceability for one release cycle and removed entirely in Phase 131. Do not modify it. Operational guidance for the legacy crawler is preserved in the directory's `MIGRATED.md`; the Phase-122 `WebAdapter` covers the same probe scope with full article bodies.
 
 ---
 
@@ -1185,6 +1231,48 @@ git stash                 # save it for later inspection
 ```
 
 `--skip-build` is the fastest way to iterate on a failure in steps 1–3 without paying the rebuild cost on each run.
+
+### Iterating on a service — what's cached, what isn't
+
+The four service Dockerfiles (`worker`, `web-crawler`, `ingestion-api`, `bff-api`) use BuildKit cache mounts so iterative rebuilds don't re-download or re-compile heavy artefacts. **Compose v2 has BuildKit on by default** — no extra flag needed.
+
+Cache layout (each `id=` is a persistent on-host cache, survives `docker system prune`; clear with `docker builder prune --all`):
+
+| Cache id | Holds |
+|---|---|
+| `aer-analysis-worker-pip` | Python wheels for the worker (incl. the 567 MB spaCy model wheel, scipy/numpy sdists) |
+| `aer-analysis-worker-hf-models` | HuggingFace model snapshots (BERT × 2 + BERTopic embedder, ~10 GB) |
+| `aer-hf-prefetch-pip` | huggingface_hub + PyYAML for the prefetch stage |
+| `aer-web-crawler-pip` | Scrapy / Twisted / lxml wheels |
+| `aer-go-modcache` | `$GOMODCACHE` shared across both Go services |
+| `aer-go-buildcache` | `$GOCACHE` shared across both Go services |
+
+The worker Dockerfile additionally splits HF model prefetch into its own `hf-prefetch` stage so model weights are **decoupled from `requirements.lock.txt`** — a Python dep bump no longer re-copies the 10 GB cache into the runtime image.
+
+What rebuilds when (warm caches assumed):
+
+| Change | Stages that rebuild | Real cost |
+|---|---|---|
+| Worker `*.py` source | runtime `COPY services/analysis-worker/` only | seconds |
+| Worker `requirements.lock.txt` | builder pip (only the changed wheel re-pulled) | ~minute |
+| `language_capabilities.yaml` model revision | `hf-prefetch` (only the changed model downloads) | minutes for one model |
+| `prefetch_bert_models.py` | `hf-prefetch` (no downloads — cache holds all weights) + 10 GB local layer copy | ~1 minute |
+| Crawler `pyproject.toml` deps | crawler builder pip (cached wheels) | seconds |
+| Crawler source | runtime `COPY` only | seconds |
+| Go source (`*.go`) | builder `go build` only (warm `$GOCACHE`) | seconds |
+| Go deps (`go.mod`/`go.sum`) | `go mod download` + build, both warm | ~seconds |
+| Base image digest bump (`make deps-refresh` step 1) | full rebuild, but caches still warm | ~minute |
+| `docker compose build --no-cache` | everything, **caches ignored on purpose** | ~all of the above + downloads |
+
+Everyday flow: `make worker-restart`, `make bff-restart`, `make ingestion-restart`, or `make crawl-probe0` rebuilds the corresponding image with caches warm. Use `--no-cache` only for the supply-chain refresh path (`make deps-refresh` step 4 already does this).
+
+### Bumping a model revision
+
+1. Edit the `model_revision:` field for the relevant entry under `services/analysis-worker/configs/language_capabilities.yaml` (Phase 119/120 — the manifest is the single source of truth for HuggingFace pins).
+2. `make worker-restart`. Only the new revision downloads; everything else comes from the `aer-analysis-worker-hf-models` cache. The runtime stage's `COPY --from=hf-prefetch /hf-cache /hf-cache` re-copies the 10 GB tree locally, but no network traffic for the unchanged models.
+3. Commit the manifest change.
+
+No `make deps-refresh` is needed — model revisions are pinned in the manifest, not in `requirements.lock.txt`.
 
 ---
 

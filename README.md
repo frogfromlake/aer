@@ -351,7 +351,7 @@ Crawlers for new data sources should include a `source_type` field in the `data`
 
 **4. Probe Dossier and Classification**
 
-Adding a new data source is not just an engineering task — every new probe requires a Probe Dossier under `docs/probes/<probe-id>/` (Arc42 §8.15) and a row in `source_classifications` produced by the WP-001 §4.4 Probe Classification Process. The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe. See [`docs/scientific_operations_guide.md`](docs/scientific_operations_guide.md) (Workflow 1) for the end-to-end workflow and [`docs/operations_playbook.md`](docs/operations_playbook.md) (PostgreSQL → Source Classifications) for the SQL templates. For the existing reference probe, see [`docs/probes/probe-0-de-institutional-rss/`](docs/probes/probe-0-de-institutional-rss/).
+Adding a new data source is not just an engineering task — every new probe requires a Probe Dossier under `docs/probes/<probe-id>/` (Arc42 §8.15) and a row in `source_classifications` produced by the WP-001 §4.4 Probe Classification Process. The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe. See [`docs/scientific_operations_guide.md`](docs/scientific_operations_guide.md) (Workflow 1) for the end-to-end workflow and [`docs/operations_playbook.md`](docs/operations_playbook.md) (PostgreSQL → Source Classifications) for the SQL templates. For the existing reference probe, see [`docs/probes/probe-0-de-institutional-web/`](docs/probes/probe-0-de-institutional-web/) (renamed from `…-rss/` in Phase 122).
 
 **5. Authentication**
 

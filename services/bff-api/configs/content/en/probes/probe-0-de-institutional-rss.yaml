@@ -29,7 +29,7 @@ registers:
       values are heuristics derived from publication-rate division (WP-005 §3.3), not from a
       measured signal-to-noise study. Probe 0 graduates from provisional_engineering only when
       WP-001 §4.4 Steps 1–2 are completed and function_weights are populated. Full dossier:
-      docs/probes/probe-0-de-institutional-rss/. Arc42 §13.10.
+      docs/probes/probe-0-de-institutional-web/. Arc42 §13.10.
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-04-19"

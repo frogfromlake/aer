@@ -4,36 +4,40 @@ This document records the known structural biases of Probe 0 data sources follow
 
 WP-003 mandates a "document, don't filter" approach — non-human actors and platform biases are recorded as metadata (`BiasContext`), not used as exclusion criteria.
 
-> **Cross-reference.** The structured `BiasContext` values below are emitted into every Silver record by `RssAdapter` (`services/analysis-worker/internal/adapters/rss.py`). [Scientific Operations Guide → **Workflow 5: Assessing Bias for a Data Source**](../../operations/scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) describes how these values are produced for new sources.
+> **Cross-reference.** As of Phase 122 (ADR-028), the structured `BiasContext` values below are emitted into every Silver record by `WebAdapter` (`services/analysis-worker/internal/adapters/web.py`). The pre-Phase-122 `RssAdapter` (`services/analysis-worker/internal/adapters/rss.py`) emitted an `rss`-flavoured `BiasContext` and remains registered for backward compatibility while the 90-day Bronze TTL window ages out residual `rss/...` keys. [Scientific Operations Guide → **Workflow 5: Assessing Bias for a Data Source**](../../operations/scientific_operations_guide.md#workflow-5-assessing-bias-for-a-data-source) describes how these values are produced for new sources.
 
 ---
 
-## Platform: RSS (Public Feeds)
+## Platform: Public Web (Phase 122)
 
-All Probe 0 sources are accessed via public RSS feeds. The RSS protocol imposes a uniform bias profile across all sources in this probe.
+Probe 0 sources are accessed via full-article web crawling against their public sitemaps. The collection method imposes a uniform bias profile across all sources in this probe.
 
-### BiasContext Values
+### BiasContext Values (post-Phase-122)
 
 | Field | Value | Rationale |
 |-------|-------|-----------|
-| `platform_type` | `rss` | Content delivered via RSS/Atom syndication protocol |
-| `access_method` | `public_rss` | No authentication, no paywall, no rate limiting |
-| `visibility_mechanism` | `chronological` | Items ordered by publication time; no algorithmic ranking |
+| `platform_type` | `web` | Content fetched as raw HTML from public web pages (Phase 122 / ADR-028) |
+| `access_method` | `public_web` | No authentication, no paywall on the indexed surface, polite-defaults crawl honouring robots.txt |
+| `visibility_mechanism` | `editorial_homepage_and_sitemap` | Articles surface via editor-curated homepage routing AND via the sitemap index — both are editorial decisions; sitemap inclusion is not algorithmic ranking |
 | `moderation_context` | `editorial` | Content is editorially curated before publication |
-| `engagement_data_available` | `false` | RSS provides no likes, shares, comments, or view counts |
-| `account_metadata_available` | `false` | RSS provides no author account age, follower count, or verification status |
+| `engagement_data_available` | `false` | The web HTML carries no likes, shares, or view counts that the crawler ingests |
+| `account_metadata_available` | `false` | The web HTML carries no author-account follower count or verification status |
 
 ### Structural Biases
 
-1. **No Engagement Signal.** RSS feeds carry no engagement metrics. Unlike social media platforms, there is no way to measure audience reception, amplification, or virality. Metrics derived from RSS sources reflect only publication behavior, not consumption or response patterns.
+1. **No Engagement Signal.** The crawled HTML carries no engagement metrics that AĒR ingests. Unlike social media platforms, there is no way to measure audience reception, amplification, or virality. Metrics derived from these sources reflect only publication behavior, not consumption or response patterns.
 
-2. **No Algorithmic Amplification.** RSS items appear in chronological order. There is no recommendation algorithm, trending mechanism, or personalization that could selectively amplify certain content. This eliminates one major source of platform-induced bias but also means that publication frequency directly determines content volume without any engagement-based filtering.
+2. **No Algorithmic Amplification.** Discovery is sitemap-driven and chronological — every article surfaced by the sitemap is ingested unless a technical filter (asset extension, search/legal-page prefix) excludes it. There is no recommendation algorithm, trending mechanism, or personalization that selectively amplifies certain content. Publication frequency directly determines content volume.
 
-3. **Editorial Curation Bias.** All content in Probe 0 feeds has passed through an editorial process. This means the corpus excludes unedited user-generated content, spontaneous discourse, and real-time reactions. The editorial filter systematically selects for institutional perspectives and formal register.
+3. **Editorial Curation Bias.** All content in Probe 0 has passed through an editorial process. The corpus excludes unedited user-generated content, spontaneous discourse, and real-time reactions. The editorial filter systematically selects for institutional perspectives and formal register. **(Removed by Phase 122):** the structural bias of "RSS-only summary visibility" — analysis is no longer constrained to RSS title-plus-description snippets.
 
-4. **Publication Frequency Bias.** Sources with higher publication rates (e.g., tagesschau.de at approximately 50 articles/day) dominate the corpus volume compared to lower-frequency sources (e.g., bundesregierung.de at approximately 5 articles/day). Aggregate metrics that do not normalize by source will disproportionately reflect high-frequency publishers.
+4. **Depth-of-Article-Body Access.** **(New, Phase 122 / WP-003 §3.2.)** Article-body access depends on paywall handling. Probe 0's two sources are currently free, but as the system extends to commercial publishers (a future probe), the same crawl semantics will encounter paywalls — yielding either a Tier-A-only DLQ rejection or a partial-body Silver record depending on how the source serves anonymous traffic. This is a structural bias dimension that did not exist on the RSS-summary collection method (RSS exposes the description regardless of paywall).
 
-5. **Absence of Deletion Signal.** RSS feeds do not indicate when articles are retracted, corrected, or removed. Once ingested, a document remains in the Bronze layer regardless of its current publication status.
+5. **Metadata-Richness Asymmetry Between Sources.** **(New, Phase 122.)** Sources differ in how completely they emit Schema.org / OpenGraph metadata. tagesschau.de typically populates JSON-LD `NewsArticle` blocks fully; bundesregierung.de often relies on OpenGraph + heuristics. The `WebMeta.extraction_methods` provenance markers expose this asymmetry per field; the Coverage Map (Phase 125a) will surface it system-wide. Cross-source aggregations on Tier-C fields must be filtered by `extraction_method` to avoid conflating "field absent because the source does not emit it" with "field absent because the article omitted it".
+
+6. **Publication Frequency Bias.** Sources with higher publication rates (e.g., tagesschau.de at approximately 50 articles/day) dominate the corpus volume compared to lower-frequency sources (e.g., bundesregierung.de at approximately 5 articles/day). Aggregate metrics that do not normalize by source will disproportionately reflect high-frequency publishers.
+
+7. **Absence of Deletion Signal.** The crawl does not indicate when articles are retracted, corrected, or removed at the source. Once ingested, a document remains in the Bronze layer regardless of its current publication status. The Tier-C `correction_notice` field, when populated, surfaces source-side correction signals; absence of the field is not evidence of absence of correction.
 
 ---
 
@@ -41,7 +45,7 @@ All Probe 0 sources are accessed via public RSS feeds. The RSS protocol imposes 
 
 **Operator:** ARD (Arbeitsgemeinschaft der offentlich-rechtlichen Rundfunkanstalten der Bundesrepublik Deutschland)
 **Funding:** Public broadcasting fee (Rundfunkbeitrag)
-**Feed URL:** `https://www.tagesschau.de/index~rss2.xml`
+**Discovery URL:** `https://www.tagesschau.de/sitemap.xml` (primary, Phase 122); `https://www.tagesschau.de/index~rss2.xml` (RSS hint only — body fetched from HTML)
 
 ### Known Biases
 
@@ -61,7 +65,7 @@ All Probe 0 sources are accessed via public RSS feeds. The RSS protocol imposes 
 
 **Operator:** Presse- und Informationsamt der Bundesregierung (Federal Press Office)
 **Funding:** Federal government budget
-**Feed URL:** `https://www.bundesregierung.de/breg-de/feed`
+**Discovery URL:** `https://www.bundesregierung.de/sitemap.xml` (primary, Phase 122); `https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml` (RSS hint only)
 
 ### Known Biases
 

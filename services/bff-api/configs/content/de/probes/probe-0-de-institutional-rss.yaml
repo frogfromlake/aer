@@ -28,7 +28,7 @@ registers:
       wurden Validierungsstudien durchgeführt — jede Metrik meldet validation_status =
       unvalidated. Die min_meaningful_resolution-Werte sind Heuristiken aus der Division
       der Publikationsrate (WP-005 §3.3), keine gemessenen Signal-Rausch-Studien. Vollständiges
-      Dossier: docs/probes/probe-0-de-institutional-rss/. Arc42 §13.10.
+      Dossier: docs/probes/probe-0-de-institutional-web/. Arc42 §13.10.
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-04-19"

@@ -51,6 +51,8 @@ The intersection of these three dimensions creates a **bias topology**: the disc
 
 ## 3. The Global Platform Landscape: Beyond the Western Stack
 
+> **Footnote (Phase 122 update, 2026-05-08).** Probe 0 transitioned from RSS-summary ingestion to full-article web crawling in Phase 122 (ADR-028). The editorial-curation bias and publication-frequency bias documented throughout §3 and §4 remain the dominant structural biases of the probe — the collection-method change replaces RSS-snippet visibility with full-article-body access but does not alter the editorial filter that produced the article in the first place. The post-migration `BiasContext` carries `platform_type='web'`, `access_method='public_web'`, `visibility_mechanism='editorial_homepage_and_sitemap'` (Phase 122 §Bias), but the structural bias profile of the probe is unchanged at the methodological level.
+
 ### 3.1 Platform Hegemony and Digital Geopolitics
 
 The default mental model of "the internet" in Western research is a landscape dominated by a handful of American platforms: Google, Meta (Facebook/Instagram/WhatsApp), X/Twitter, Reddit, YouTube, TikTok (Chinese-owned but globally distributed). This model is not merely incomplete — it is actively misleading for a project that aspires to observe global discourse.

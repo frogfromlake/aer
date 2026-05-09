@@ -24,7 +24,7 @@ Each step links to the canonical procedure. **Do not duplicate** content from th
 
 1. **Pick the cultural frame.** Document the choice in your scope note. WP-001 §5.1 MVPS criteria are the test: at least two of four discourse functions covered by the candidate sources, public RSS feeds with no ToS restriction, documentable emic context.
 2. **Pick the sources.** For an engineering POC, the sources should mirror Probe 0's discourse-function coverage (Epistemic Authority + Power Legitimation) so cross-probe parallel-stream rendering has overlapping lanes. CI / SF coverage is legitimate scope for a later probe with a real ethical-review partner.
-3. **Pick the probe ID.** Kebab-case slug, format `probe-N-<iso-region>-<descriptor>`. Example: `probe-1-fr-institutional-rss`.
+3. **Pick the probe ID.** Kebab-case slug, format `probe-N-<iso-region>-<descriptor>`. Post-Phase-122 the descriptor reflects the collection method when relevant — e.g. `probe-1-fr-institutional-web` for a French institutional web-crawl probe (mirroring Probe 0's renamed `probe-0-de-institutional-web/` dossier directory). The probe-id string is allowed to lag the dossier rename: Probe 0's dossier is `probe-0-de-institutional-web/` while its probe-id remains `probe-0-de-institutional-rss` for backward compatibility with cached dashboard URLs and BFF content keys.
 
 ### Step B — Fill the registration template (Workflow 1, partial)
 
@@ -48,7 +48,7 @@ Each step links to the canonical procedure. **Do not duplicate** content from th
 Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../operations/operations_playbook.md#probe-dossier) verbatim:
 
 1. `mkdir docs/probes/<probe-id>/`
-2. Copy the five files from `docs/probes/../probes/probe-0-de-institutional-rss/` and replace the content. Keep the headings stable.
+2. Copy the five files from `docs/probes/probe-0-de-institutional-web/` and replace the content. Keep the headings stable.
 3. The `README.md` Exit Criteria section names the same four conditions as Probe 0's: Steps 1–2 of WP-001 §4.4, function-weight quantification, at least one validation study in the new context-keys, completed external ethical review.
 4. Add the dossier to `mkdocs.yml` under the `Probes` nav entry.
 
@@ -57,12 +57,13 @@ Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../ope
 The ROADMAP Phase 125 entry is the canonical engineering checklist. The solo developer executes the full list — there are no items that require a second person:
 
 - [ ] PostgreSQL seed migration (sources + source_classifications, both `provisional_engineering`).
-- [ ] New crawler binary in `crawlers/<probe-id>-rss/`, own `go.mod`, registered in `go.work` and Makefile.
-- [ ] Source Adapter in `services/analysis-worker/internal/adapters/`, registered in `adapters/registry.py`.
+- [ ] **No new crawler binary.** Phase 122 (ADR-028) generalised the web-crawler — adding a new news-website probe is a YAML edit under `crawlers/web-crawler/probes/<probe-id>/sources.yaml` plus a Postgres seed migration. The crawler image is identical across probes; only the probe-config directory is new. See [add-a-source.md](add-a-source.md) for the per-source mechanics.
+- [ ] Source Adapter — the existing `WebAdapter` (`services/analysis-worker/internal/adapters/web.py`) handles every web probe. Only write a new adapter if the new probe's primary source is on a *non-web* platform class (Twitter / Reddit / Mastodon / …) — see [add-a-source-type.md](add-a-source-type.md).
 - [ ] Probe Dossier content directory in `services/bff-api/configs/content/<probe-id>/`.
 - [ ] spaCy model in `requirements.txt` (Phase 116 router picks it up automatically — no extractor change).
 - [ ] Sentiment coverage: Tier 1 lexicon if available (Phase 117 pattern), Tier 2 BERT if available (Phase 119 pattern). Document gaps in `aer_gold.metric_validity` rather than skipping silently.
-- [ ] PostgreSQL update of `sources.documentation_url` to point at the new dossier directory (mirrors Probe 0 migration `000008`).
+- [ ] PostgreSQL update of `sources.documentation_url` to point at the new dossier directory (mirrors Probe 0 migrations `000008` and `000016`).
+- [ ] Makefile target `make crawl-<probe-id>` mirroring `make crawl-probe0`.
 
 ### Step F — Validation
 
@@ -102,7 +103,7 @@ These items are deliberately out of scope for the solo developer. They are unblo
 - [Scientific Operations Guide → Workflow 1](../operations/scientific_operations_guide.md#workflow-1-classifying-a-new-probe) — the canonical end-to-end probe classification process.
 - [Operations Playbook → Source Classifications (WP-001)](../operations/operations_playbook.md#source-classifications-wp-001) — the SQL templates.
 - [Operations Playbook → Probe Dossier](../operations/operations_playbook.md#probe-dossier) — the dossier-creation procedure.
-- [Probe 0 reference dossier](../probes/probe-0-de-institutional-rss/README.md) — the reference implementation. Copy this structure.
+- [Probe 0 reference dossier](../probes/probe-0-de-institutional-web/README.md) — the reference implementation. Copy this structure.
 - [Arc42 §8.15 Probe Dossier Pattern](../arc42/08_concepts.md) — the cross-cutting concept that this guide operationalises for the solo case.
 - [Arc42 §13.10 Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification, the precedent for solo-developer probe addition.
 - [ROADMAP Phase 125](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.

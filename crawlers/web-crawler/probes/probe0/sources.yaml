@@ -1,0 +1,52 @@
+# AĒR Web-Crawler Probe Configuration — Probe 0 (German Institutional)
+#
+# Each `name` must match a source registered in PostgreSQL (see
+# infra/postgres/migrations/000003_seed_rss_sources and the Phase-122
+# transition migration 000015_probe0_web_source_type). Adding a new
+# source = one entry here + one PG seed migration. **No code changes.**
+#
+# Filtering is exclusively technical (asset URLs, search/index pages,
+# legal boilerplate). Section-level editorial filtering (e.g. excluding
+# `/sport/`) is rejected as researcher selection bias per WP-006 §3.
+# Per-article discourse-function imprecision is addressed in Phase 126b.
+
+sources:
+  - name: tagesschau
+    sitemap_urls:
+      - https://www.tagesschau.de/sitemap.xml
+    rss_hint_url: https://www.tagesschau.de/index~rss2.xml
+    politeness:
+      delay_seconds: 1.0
+      autothrottle: true
+      max_concurrent_per_domain: 2
+    url_filter:
+      exclude_extensions:
+        [jpg, png, gif, svg, webp, mp4, mp3, css, js, pdf, ico, woff, woff2]
+      exclude_path_prefixes:
+        [/api/, /search/, /suche/, /impressum, /datenschutz, /agb]
+      require_html_content_type: true
+    content_filter:
+      min_word_count: 50
+      require_extraction_success: true
+    # Tier-E scaffolded; populated only when an analysis demands a
+    # specific bespoke field. Empty by design in Phase 122.
+    custom_extractors: {}
+
+  - name: bundesregierung
+    sitemap_urls:
+      - https://www.bundesregierung.de/sitemap.xml
+    rss_hint_url: https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml
+    politeness:
+      delay_seconds: 1.0
+      autothrottle: true
+      max_concurrent_per_domain: 2
+    url_filter:
+      exclude_extensions:
+        [jpg, png, gif, svg, webp, mp4, mp3, css, js, pdf, ico, woff, woff2]
+      exclude_path_prefixes:
+        [/api/, /search/, /suche/, /impressum, /datenschutz, /agb]
+      require_html_content_type: true
+    content_filter:
+      min_word_count: 50
+      require_extraction_success: true
+    custom_extractors: {}

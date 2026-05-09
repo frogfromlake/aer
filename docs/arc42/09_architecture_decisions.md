@@ -1598,3 +1598,218 @@ Coverage of the alias index is therefore **scoped, not exhaustive**. WP-002 §4.
 - **Status:** Accepted. The codebase already implements Disambiguation consistently across worker, BFF, and frontend; this ADR codifies the existing implementation rather than directing a change.
 
 ---
+
+## ADR-028: Web Crawling Architecture (Phase 122)
+
+**Date:** 2026-05-08
+**Status:** Accepted
+**Related ADRs:** ADR-002 (Source Adapter Pattern), ADR-015 (Silver Schema), ADR-019 (NATS Provisioning), ADR-024 (Language Capability Manifest)
+**Related Phases:** 122 (Probe 0 Migration — Full-Article Web Crawling), 125 (Probe 1 — French Institutional Sources), 126b (Per-Article Discourse Function Classification)
+
+### Context
+
+Probe 0 ran on RSS feeds between Phase 39 and Phase 121. RSS delivers
+title plus a short description (typically 100–300 characters); every
+downstream extractor — SentiWS, the Tier-2 / Tier-2.5 BERT sentiment
+heads, spaCy NER, BERTopic — has been operating on truncated text since
+Phase 40. Compounds whose disambiguating context is missing scored
+neutrally; entities that appear only in article bodies were never
+extracted; topic clusters latched onto headline keywords rather than
+discourse content. A latent RSS-adapter timestamp bug (`SilverCore.timestamp
+= event_time` instead of the article's published date) collapsed every
+crawl invocation into a single timeline cluster on the dashboard.
+
+Phase 122 replaces RSS with a polite, robots-respecting full-article web
+crawler and lays the source-agnostic Layer-3 foundation that every
+future news-website probe (Probe 1+ in Phase 125 onward) inherits without
+code changes.
+
+### Decisions
+
+#### 1. Tooling stack
+
+The pipeline is a tiered toolchain with explicit provenance markers —
+trafilatura alone is insufficient for the user-stated requirement of
+"professional data-science-grade metadata aggregation":
+
+* **`trafilatura`** (Apache 2.0) — state-of-the-art article body
+  extractor since 2022; outperforms readability, goose3, newspaper3k,
+  boilerpipe on CleanEval / GoldenStandard benchmarks.
+* **`extruct`** (BSD) — full structured-data extraction (JSON-LD,
+  RDFa, Microdata, OpenGraph, Microformats). Trafilatura uses some of
+  this internally but does not expose the deep Schema.org NewsArticle
+  fields (`editor`, `correction`, `genre`, `contentLocation`,
+  `isAccessibleForFree`, `interactionStatistic`, …). `extruct` is
+  what unlocks Tier-C/D metadata richness.
+* **`htmldate`** (Apache 2.0) — robust publication-date extraction
+  with confidence scoring across 30+ source signals.
+* **`courlan`** (Apache 2.0) — URL canonicalisation; used by both
+  the worker (canonical_url for Bronze keys + Silver) and the crawler
+  (dedup state).
+* **`readability-lxml`** (Apache 2.0) — fallback content extractor
+  for the small fraction of sites where trafilatura returns empty
+  bodies. Lower precision but high recall.
+* **`Scrapy 2.x`** (BSD-3) — mature asynchronous crawler framework.
+  Robots.txt, rate limiting, conditional GETs (`If-Modified-Since` /
+  `ETag`), retry logic, politeness defaults.
+* **`ultimate-sitemap-parser`** (MIT) — recursive `sitemap.xml`
+  parsing with last-modified timestamps. Primary URL-discovery path;
+  RSS feeds become a discovery hint only.
+
+#### 2. Python (worker + crawler), not Go (crawler)
+
+The legacy RSS crawler was a standalone Go binary. The Phase-122
+crawler is Python because (a) the entire above tooling stack is
+Python-native, (b) the Bronze→Silver extraction lives in the existing
+Python analysis worker, and (c) splitting the language stack across
+the collection and harmonisation boundaries would force the
+five-tier metadata schema to round-trip through Go DTOs. Single
+language reduces drift and keeps the two halves of the pipeline
+testable against the same fixtures.
+
+#### 3. Bronze stores raw HTML; the worker runs extraction
+
+Per medallion-architecture best practice, Bronze is verbatim
+source-of-truth: the crawler stores **raw HTML + a fetch envelope**
+(canonical_url, original_url, fetch_at, http_status, response headers
+minus tracking cookies, etag, http_last_modified, sitemap_lastmod,
+sitemap_section) and **nothing derived**. The analysis worker's new
+`WebAdapter` (`services/analysis-worker/internal/adapters/web.py`)
+runs trafilatura + extruct + htmldate at harmonisation time and
+produces `SilverCore` + `WebMeta`.
+
+This corrects the medallion-boundary inconsistency in the original
+Phase 122 specification, where trafilatura ran in the crawler. The
+correction has direct operational value: trafilatura version upgrades
+trigger Silver/Gold rebuilds via the
+`scripts/operations/reextract_silver.py` script — no re-crawl, no
+politeness budget spent, no risk that an upstream source has changed
+or is down. Re-extraction cost is single-digit ms/article on a CPU.
+
+#### 4. Five-tier WebMeta schema with provenance markers
+
+Heterogeneous news sources worldwide differ in metadata availability.
+A tiered schema captures both the universal lowest-common-denominator
+(Tier-A: works on every probe in every language) and the site-specific
+maximum (Tier-E: bespoke per-source extraction). The tiers are:
+
+* **Tier-A (universal mandatory; missing → DLQ):** `canonical_url`,
+  `original_url`, `fetch_at`, `http_status`, `html_lang`, `title`.
+* **Tier-B (standard news metadata; almost-always present):**
+  `published_date`, `modified_date`, `author`, `description`,
+  `categories`, `tags`, `section`, `image_url`, `article_type`,
+  `word_count`.
+* **Tier-C (rich metadata; captured when present):** `comment_count`,
+  `editor`, `reading_time_minutes`, `dateline_location`,
+  `paywall_status`, `correction_notice`, `editorial_labels`,
+  `external_citations`, `images`, `social_share_counts`,
+  `revision_date`.
+* **Tier-D (verbatim ``extruct`` dump):** `structured_data` — the
+  insurance policy. Fields we don't think to use today are available
+  the moment we want them, without re-crawling.
+* **Tier-E (per-source bespoke extras):** `source_extras` populated
+  by per-source XPath/CSS rules declared in
+  `probes/<id>/sources.yaml > custom_extractors:`. Empty in Phase 122;
+  the slot is reserved.
+
+Every Tier-B/C field carries a sibling entry in
+`extraction_methods[<field>] ∈ {'json_ld', 'open_graph', 'microdata',
+'rdfa', 'html_meta', 'heuristic_htmldate', 'derived', None}`. Storing
+methods in a parallel dict keeps the WebMeta surface readable while
+preserving full per-field provenance. Analysis can opt into a clean
+structured-data-only subset
+(`extraction_method ∈ {'json_ld', 'microdata'}`), or include
+heuristics for full coverage.
+
+ADR-015 explicitly marks `SilverMeta` subclasses as unstable; no ADR
+amendment is required for adding new keys to Tier-D / Tier-E.
+
+#### 5. Single configurable binary, not per-probe
+
+The crawler is `crawlers/web-crawler/` (singular, generalised from
+day one), not `crawlers/probe0-de-web/`. Per-probe and per-source
+configuration lives in YAML; the binary is identical across probes.
+Adding a new news-website source is a YAML entry plus a Postgres seed
+migration — zero code changes. This is the architectural payoff of
+the Source Adapter pattern (ADR-002 / Phase 39) for Layer-3
+collection methods: write once per platform class, configure per
+source. The `web-crawler` covers ~85–90% of the world's news sources
+that serve server-rendered HTML; JS-rendered SPAs are deferred to a
+sister `web-crawler-js` (Playwright) when a future probe demands it.
+
+#### 6. Technical-only URL filtering
+
+Filtering is exclusively technical (asset URLs, search/index pages,
+legal boilerplate, extraction-failure cases). **Section-level
+editorial filtering is rejected as researcher selection bias per
+WP-006 §3** — the source is what the source publishes. Per-article
+discourse-function imprecision is addressed in Phase 126b via a
+hybrid annotation pipeline; Phase 122 makes the imprecision visible
+rather than hiding it via a researcher-curated URL filter.
+
+#### 7. Timestamp resolution rule
+
+The new `WebAdapter` sets `SilverCore.timestamp` from a
+priority-ordered list:
+
+1. JSON-LD `datePublished` → `timestamp_source = json_ld_published`
+2. OpenGraph `article:published_time` → `timestamp_source = open_graph_published`
+3. HTML `<meta>` (via htmldate heuristics) → `timestamp_source = html_meta_published`
+4. Sitemap `<lastmod>` → `timestamp_source = sitemap_lastmod`
+5. HTTP `Last-Modified` → `timestamp_source = http_last_modified`
+6. Crawler `fetch_at` → `timestamp_source = fetch_at_fallback`
+
+Anything resolving to `fetch_at_fallback` is flagged as a
+Negative-Space population (Brief §7.7) so analysis can filter it
+out. The legacy RSS-adapter `timestamp = event_time` bug is **not**
+back-fixed in this phase per the deferred-bugfix decision; RSS data
+is wiped at cutover and the bug is moot post-migration.
+
+#### 8. Cutover procedure — wipe-and-recrawl, forward-only
+
+Cutover runs `make reset` (Phase 120b's canonical wipe) followed by
+`make crawl-probe0`. The crawl yields only sitemap entries with
+`last_modified ≥ today` — no historical backfill. Bronze, Silver,
+Gold are repopulated forward-only. Bronze build-time artefacts
+(Wikidata index, BERT models in worker image) survive per the
+established procedure.
+
+#### 9. Headless-browser execution explicitly deferred
+
+Probe 0's two sources serve server-rendered HTML; Probe 1 (FR
+institutional, Phase 125) is expected to serve the same. JS-rendered
+SPAs are out of scope for Phase 122. When the first probe needs a
+headless browser, a sister `web-crawler-js` binary (Playwright,
+Chromium pinned via `mcr.microsoft.com/playwright`) will be written
+under the same Source Adapter pattern. The split keeps the
+85–90%-of-news-sources crawler lean (Scrapy + Twisted) and isolates
+the heavyweight headless-browser dependency to the probes that
+demand it.
+
+### Consequences
+
+* **Positive:** dramatically higher-quality inputs to every downstream
+  extractor — full article bodies, rich Schema.org metadata, accurate
+  publication dates. Tier-D `structured_data` is the insurance policy
+  for unforeseen analytical needs. Re-extraction without re-crawl is
+  the operational realisation of medallion architecture's
+  collection-vs-derivation decoupling.
+* **Positive:** new probes are YAML-only. Probe 1 in Phase 125 inherits
+  the entire Phase-122 toolchain without a single line of new crawler
+  code; the only new code is the per-source SilverMeta extras (if any)
+  and the Postgres seed migration.
+* **Negative:** the worker image grows (~5 MB for trafilatura + extruct
+  + htmldate + courlan + readability-lxml + lxml-bound deps). This is
+  marginal next to the Phase-119 BERT models (~10 GB) and accepted.
+* **Negative:** the crawler image carries Scrapy + Twisted + lxml,
+  pushing ~150 MB. Not a concern for a one-shot job.
+* **Negative:** trafilatura version upgrades require Silver/Gold rebuilds
+  to keep the cleaned_text surface internally consistent. The
+  `scripts/operations/reextract_silver.py` runbook makes this routine.
+
+### Decision Record
+
+- **Drafted:** 2026-05-08 by Fabian Quist with AĒR for Phase 122.
+- **Status:** Accepted.
+
+---

@@ -228,12 +228,12 @@ nav:
   # Probes
   # ---------------------------------------------------------------------------
   - "Probes":
-      - "Probe 0 — DE Institutional RSS":
-          - "Overview": probes/probe-0-de-institutional-rss/README.md
-          - "Classification (WP-001)": probes/probe-0-de-institutional-rss/classification.md
-          - "Bias Assessment (WP-003)": probes/probe-0-de-institutional-rss/bias_assessment.md
-          - "Temporal Profile (WP-005)": probes/probe-0-de-institutional-rss/temporal_profile.md
-          - "Observer Effect (WP-006)": probes/probe-0-de-institutional-rss/observer_effect.md
+      - "Probe 0 — DE Institutional Web":
+          - "Overview": probes/probe-0-de-institutional-web/README.md
+          - "Classification (WP-001)": probes/probe-0-de-institutional-web/classification.md
+          - "Bias Assessment (WP-003)": probes/probe-0-de-institutional-web/bias_assessment.md
+          - "Temporal Profile (WP-005)": probes/probe-0-de-institutional-web/temporal_profile.md
+          - "Observer Effect (WP-006)": probes/probe-0-de-institutional-web/observer_effect.md
 
   # ---------------------------------------------------------------------------
   # Extending — NEU EINFÜGEN
