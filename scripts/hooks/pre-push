@@ -2,7 +2,11 @@
 
 # ==============================================================================
 # AĒR PRE-PUSH HOOK
-# Ensures code quality and supply chain security before pushing to the remote.
+# Local last-line-of-defence against issues that cannot be fixed cheaply
+# post-push: code-style drift (lint) and known CVEs in the dependency graph
+# (audit). The full test suite runs in CI as the authoritative gatekeeper —
+# duplicating it locally adds minutes to every push, drives operators toward
+# `--no-verify`, and provides no signal CI does not already provide.
 # ==============================================================================
 
 echo "🛑 [Pre-Push Hook] Running Linters..."
@@ -27,16 +31,5 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ [Pre-Push Hook] Dependency audit passed."
-echo "🛑 [Pre-Push Hook] Running Tests..."
-
-# 3. Run Tests
-make test
-
-if [ $? -ne 0 ]; then
-  echo "❌ [Pre-Push Hook] Tests failed! Please fix the failing tests before pushing."
-  exit 1
-fi
-
-echo "✅ [Pre-Push Hook] Linting, Audit, and Tests passed. Proceeding with push..."
+echo "✅ [Pre-Push Hook] Lint and Audit passed. Tests run in CI. Proceeding with push..."
 exit 0
