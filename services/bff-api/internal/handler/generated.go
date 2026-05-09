@@ -714,7 +714,7 @@ type AvailableMetric struct {
 // AvailableMetricEquivalenceLevel The level of cross-cultural equivalence established for this metric. "temporal" means only temporal patterns are comparable, "deviation" means deviation from baseline is comparable, "absolute" means raw values are directly comparable across contexts.
 type AvailableMetricEquivalenceLevel string
 
-// AvailableMetricMinMeaningfulResolution Temporal aggregation resolution. "5min" is the finest grain stored in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month at query time.
+// AvailableMetricMinMeaningfulResolution Temporal aggregation resolution. "5min" is computed at query time from `aer_gold.metrics` (raw, 365-day TTL); "hourly" / "daily" / "monthly" resolve to pre-aggregated AggregatingMergeTree materialized views (`metrics_hourly` 365 d TTL / `metrics_daily` 1825 d TTL / `metrics_monthly` no TTL) activated in Phase 122c per WP-005 §5.4. "weekly" rebins the daily MV via `toStartOfWeek` at query time. The enum and request shape are unchanged from Phase 66; the routing is invisible to the client.
 type AvailableMetricMinMeaningfulResolution string
 
 // AvailableMetricValidationStatus Validation status derived from the metric_validity table. "unvalidated" if no entry exists, "validated" if a current entry exists with valid_until in the future, "expired" if the most recent entry has valid_until in the past.

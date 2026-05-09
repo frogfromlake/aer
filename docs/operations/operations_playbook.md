@@ -514,6 +514,55 @@ extractor and the script produce byte-identical baselines for the same
 input window. Cross-link: [Scientific Operations Guide → Workflow 4:
 Computing and Updating Baselines](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines).
 
+### Multi-Resolution Query Routing (Phase 122c)
+
+`GET /api/v1/metrics?resolution=…` no longer reads exclusively from `aer_gold.metrics`. As of Phase 122c (migration `000019_activate_metrics_resolution_views.sql`), the BFF query layer routes per resolution to the right physical table. The dashboard side is unchanged — `services/dashboard/src/lib/components/L2Controls.svelte:16` already exposed the five-resolution selector via Phase 66.
+
+| `?resolution=` | Physical table | TTL anchor |
+| :--- | :--- | :--- |
+| `5min` | `aer_gold.metrics` (raw) | 365 d on `timestamp` |
+| `hourly` | `aer_gold.metrics_hourly` (MV) | 365 d on `bucket` |
+| `daily` | `aer_gold.metrics_daily` (MV) | 1825 d on `bucket` |
+| `weekly` | `aer_gold.metrics_daily` (rebucket via `toStartOfWeek`) | inherits 1825 d |
+| `monthly` | `aer_gold.metrics_monthly` (MV) | indefinite (no TTL) |
+
+The MVs are `AggregatingMergeTree` with two state columns: `value_avg_state AggregateFunction(avg, Float64)` and `sample_count_state AggregateFunction(count)`. Queries through the BFF combine them at read time via `avgMerge(value_avg_state)` and `countMerge(sample_count_state)`. The routing logic is in `Resolution.queryShape` (`services/bff-api/internal/storage/metrics_query.go`).
+
+**Inspecting MV freshness:**
+
+```sql
+-- Per-MV row totals and part counts:
+SELECT
+    table,
+    sum(rows)        AS total_rows,
+    count()          AS parts,
+    sum(bytes)       AS bytes
+FROM system.parts
+WHERE database = 'aer_gold'
+  AND table LIKE 'metrics_%'
+  AND active
+GROUP BY table
+ORDER BY table;
+
+-- Most recent bucket per MV (sanity check that the MV trigger is firing):
+SELECT 'hourly'  AS mv, max(bucket) AS latest_bucket FROM aer_gold.metrics_hourly
+UNION ALL SELECT 'daily',   max(bucket) FROM aer_gold.metrics_daily
+UNION ALL SELECT 'monthly', max(bucket) FROM aer_gold.metrics_monthly
+ORDER BY mv;
+```
+
+**Forced merge** (rarely needed — MVs catch up automatically as parts merge in the background):
+
+```sql
+OPTIMIZE TABLE aer_gold.metrics_hourly FINAL;
+OPTIMIZE TABLE aer_gold.metrics_daily FINAL;
+OPTIMIZE TABLE aer_gold.metrics_monthly FINAL;
+```
+
+**MV semantics caveat.** `aer_gold.metrics` is `ReplacingMergeTree(ingestion_version)`. The MVs trigger on every INSERT (pre-merge), so a re-ingestion of the same row at a higher `ingestion_version` accumulates `countMerge()` inflation in the MVs. `avgMerge()` over identical values is unaffected because adding the same value twice does not shift the mean. Re-ingestion is exceptional in AĒR's worker (used for rare reprocessing, not routine updates); the bounded count inflation is documented at the call site in migration 000019 and in Arc42 §8.8.1. If silent reprocessing patterns ever change, the contract here changes too — revisit the per-MV count semantics first.
+
+The Phase-66 deferred-state record (`infra/clickhouse/migrations/000009_metrics_resolution_views.sql`) is preserved verbatim as the audit-trail of the deferred-design pattern that made activation a single migration. Do not edit 000009 in place — it documents what was deliberately not done at Phase 66.
+
 ---
 
 ## MinIO (Data Lake — Object Storage)

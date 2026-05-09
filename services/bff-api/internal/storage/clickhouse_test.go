@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -60,6 +61,36 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 	`)
 	if err != nil {
 		t.Fatalf("failed to create metrics table: %v", err)
+	}
+
+	// Phase 122c — multi-resolution MV backing tables. Production schema
+	// uses three AggregatingMergeTree-backed materialized views populated
+	// by triggers on aer_gold.metrics (see migration 000019). For tests
+	// we keep the same engine + state-column shape but populate the
+	// tables via direct INSERT INTO ... SELECT in TestGetMetrics_Phase122c
+	// rather than relying on MV trigger machinery — that keeps the test
+	// fast and isolated from MV-trigger edge cases. The query layer
+	// being verified (Resolution.queryShape + GetMetrics routing) is
+	// unaffected by the population mechanism.
+	for table, ttl := range map[string]string{
+		"aer_gold.metrics_hourly":  "TTL bucket + INTERVAL 365 DAY",
+		"aer_gold.metrics_daily":   "TTL bucket + INTERVAL 1825 DAY",
+		"aer_gold.metrics_monthly": "",
+	} {
+		ddl := fmt.Sprintf(`
+			CREATE TABLE IF NOT EXISTS %s (
+				bucket DateTime,
+				source String,
+				metric_name String,
+				value_avg_state AggregateFunction(avg, Float64),
+				sample_count_state AggregateFunction(count)
+			) ENGINE = AggregatingMergeTree
+			ORDER BY (bucket, source, metric_name)
+			%s
+		`, table, ttl)
+		if err := store.conn.Exec(ctx, ddl); err != nil {
+			t.Fatalf("failed to create %s: %v", table, err)
+		}
 	}
 
 	err = store.conn.Exec(ctx, `

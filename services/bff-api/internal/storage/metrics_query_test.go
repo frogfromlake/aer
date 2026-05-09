@@ -741,6 +741,231 @@ func TestResolutionBucketExpr(t *testing.T) {
 	}
 }
 
+// TestResolutionQueryShape pins the Phase 122c routing matrix: each
+// resolution maps to the right physical table + aggregate-merge
+// expressions. This is the unit-level guard against routing regressions.
+func TestResolutionQueryShape(t *testing.T) {
+	cases := []struct {
+		name string
+		res  Resolution
+		want metricsQueryShape
+	}{
+		{
+			name: "5min — raw aer_gold.metrics, full precision",
+			res:  ResolutionFiveMinute,
+			want: metricsQueryShape{
+				Table:           "aer_gold.metrics",
+				TimestampColumn: "timestamp",
+				BucketExpr:      "toStartOfFiveMinute(timestamp)",
+				ValueExpr:       "avg(value)",
+				CountExpr:       "count()",
+			},
+		},
+		{
+			name: "hourly — metrics_hourly MV, avgMerge/countMerge",
+			res:  ResolutionHourly,
+			want: metricsQueryShape{
+				Table:           "aer_gold.metrics_hourly",
+				TimestampColumn: "bucket",
+				BucketExpr:      "bucket",
+				ValueExpr:       "avgMerge(value_avg_state)",
+				CountExpr:       "countMerge(sample_count_state)",
+			},
+		},
+		{
+			name: "daily — metrics_daily MV, passthrough bucket",
+			res:  ResolutionDaily,
+			want: metricsQueryShape{
+				Table:           "aer_gold.metrics_daily",
+				TimestampColumn: "bucket",
+				BucketExpr:      "bucket",
+				ValueExpr:       "avgMerge(value_avg_state)",
+				CountExpr:       "countMerge(sample_count_state)",
+			},
+		},
+		{
+			name: "weekly — metrics_daily MV with toStartOfWeek rebucket",
+			res:  ResolutionWeekly,
+			want: metricsQueryShape{
+				Table:           "aer_gold.metrics_daily",
+				TimestampColumn: "bucket",
+				BucketExpr:      "toStartOfWeek(bucket)",
+				ValueExpr:       "avgMerge(value_avg_state)",
+				CountExpr:       "countMerge(sample_count_state)",
+			},
+		},
+		{
+			name: "monthly — metrics_monthly MV, no TTL upstream",
+			res:  ResolutionMonthly,
+			want: metricsQueryShape{
+				Table:           "aer_gold.metrics_monthly",
+				TimestampColumn: "bucket",
+				BucketExpr:      "bucket",
+				ValueExpr:       "avgMerge(value_avg_state)",
+				CountExpr:       "countMerge(sample_count_state)",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.res.queryShape()
+			if got != tc.want {
+				t.Errorf("queryShape mismatch:\n  want: %+v\n  got:  %+v", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestGetMetrics_Phase122cRouting verifies that GetMetrics actually
+// reads from the right physical table per resolution and combines the
+// AggregatingMergeTree state columns correctly. The fixture inserts a
+// known set of pre-aggregated rows directly into each MV-backing table
+// (state-column form via -State combinators), then queries through
+// GetMetrics and asserts the values round-trip via avgMerge / countMerge.
+//
+// 5-minute resolution is verified separately via TestGetMetrics
+// (existing): it reads raw aer_gold.metrics and is unchanged by 122c.
+func TestGetMetrics_Phase122cRouting(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	// One bucket per MV table. Use distinct (source, metric) tuples so
+	// the test can assert which physical table fielded each query.
+	now := time.Now().UTC().Truncate(time.Hour)
+	hourlyBucket := now.Truncate(time.Hour)
+	dailyBucket := now.Truncate(24 * time.Hour)
+	monthlyBucket := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	// Populate metrics_hourly with avgState(10.0), countState() over a
+	// single underlying row. avgState/countState are exposed via the
+	// `-State` combinator suffix on the ClickHouse aggregate function.
+	if err := store.conn.Exec(ctx, `
+		INSERT INTO aer_gold.metrics_hourly
+		SELECT
+			? AS bucket,
+			'src_hourly' AS source,
+			'metric_h' AS metric_name,
+			avgState(value) AS value_avg_state,
+			countState() AS sample_count_state
+		FROM (SELECT 10.0 AS value UNION ALL SELECT 20.0 AS value)
+	`, hourlyBucket); err != nil {
+		t.Fatalf("seed metrics_hourly: %v", err)
+	}
+
+	if err := store.conn.Exec(ctx, `
+		INSERT INTO aer_gold.metrics_daily
+		SELECT
+			? AS bucket,
+			'src_daily' AS source,
+			'metric_d' AS metric_name,
+			avgState(value) AS value_avg_state,
+			countState() AS sample_count_state
+		FROM (SELECT 5.0 AS value UNION ALL SELECT 7.0 AS value UNION ALL SELECT 9.0 AS value)
+	`, dailyBucket); err != nil {
+		t.Fatalf("seed metrics_daily: %v", err)
+	}
+
+	if err := store.conn.Exec(ctx, `
+		INSERT INTO aer_gold.metrics_monthly
+		SELECT
+			? AS bucket,
+			'src_monthly' AS source,
+			'metric_m' AS metric_name,
+			avgState(value) AS value_avg_state,
+			countState() AS sample_count_state
+		FROM (SELECT 100.0 AS value UNION ALL SELECT 200.0 AS value)
+	`, monthlyBucket); err != nil {
+		t.Fatalf("seed metrics_monthly: %v", err)
+	}
+
+	cases := []struct {
+		name        string
+		resolution  Resolution
+		bucket      time.Time
+		source      string
+		metric      string
+		wantValue   float64
+		wantCount   uint64
+	}{
+		{"hourly routes to metrics_hourly", ResolutionHourly, hourlyBucket, "src_hourly", "metric_h", 15.0, 2},
+		{"daily routes to metrics_daily", ResolutionDaily, dailyBucket, "src_daily", "metric_d", 7.0, 3},
+		{"monthly routes to metrics_monthly", ResolutionMonthly, monthlyBucket, "src_monthly", "metric_m", 150.0, 2},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			start := tc.bucket.Add(-time.Hour)
+			end := tc.bucket.Add(31 * 24 * time.Hour) // wide enough to cover monthly bucket
+			metricName := tc.metric
+			rows, err := store.GetMetrics(ctx, start, end, []string{tc.source}, &metricName, tc.resolution)
+			if err != nil {
+				t.Fatalf("GetMetrics(%s): %v", tc.name, err)
+			}
+			if len(rows) != 1 {
+				t.Fatalf("expected exactly 1 row from %s, got %d: %+v", tc.name, len(rows), rows)
+			}
+			got := rows[0]
+			if got.Source != tc.source {
+				t.Errorf("source mismatch: want %q, got %q", tc.source, got.Source)
+			}
+			if got.MetricName != tc.metric {
+				t.Errorf("metric mismatch: want %q, got %q", tc.metric, got.MetricName)
+			}
+			if got.Value != tc.wantValue {
+				t.Errorf("value mismatch: want %v, got %v", tc.wantValue, got.Value)
+			}
+			if got.Count != tc.wantCount {
+				t.Errorf("count mismatch: want %d, got %d", tc.wantCount, got.Count)
+			}
+		})
+	}
+}
+
+// TestGetMetrics_Phase122cWeeklyRebucket verifies that weekly resolution
+// reads from metrics_daily and rebuckets via toStartOfWeek at query time.
+// The fixture inserts two daily buckets in the same week; the weekly
+// query should fold them into a single week bucket whose value is the
+// average of the daily averages and whose count is the sum.
+func TestGetMetrics_Phase122cWeeklyRebucket(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	// Two adjacent days in the same ISO week.
+	day1 := time.Date(2026, 5, 4, 0, 0, 0, 0, time.UTC) // Monday
+	day2 := time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC) // Tuesday
+
+	for _, day := range []time.Time{day1, day2} {
+		if err := store.conn.Exec(ctx, `
+			INSERT INTO aer_gold.metrics_daily
+			SELECT
+				? AS bucket,
+				'src_w' AS source,
+				'metric_w' AS metric_name,
+				avgState(value) AS value_avg_state,
+				countState() AS sample_count_state
+			FROM (SELECT 4.0 AS value UNION ALL SELECT 6.0 AS value)
+		`, day); err != nil {
+			t.Fatalf("seed metrics_daily for %v: %v", day, err)
+		}
+	}
+
+	metric := "metric_w"
+	start := day1.Add(-24 * time.Hour)
+	end := day2.Add(48 * time.Hour)
+	rows, err := store.GetMetrics(ctx, start, end, []string{"src_w"}, &metric, ResolutionWeekly)
+	if err != nil {
+		t.Fatalf("GetMetrics(weekly): %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 weekly bucket, got %d: %+v", len(rows), rows)
+	}
+	if rows[0].Value != 5.0 {
+		t.Errorf("weekly avg: want 5.0 (avg of {4,6,4,6}), got %v", rows[0].Value)
+	}
+	if rows[0].Count != 4 {
+		t.Errorf("weekly count: want 4 (2 rows × 2 days), got %d", rows[0].Count)
+	}
+}
+
 // TestGetAvailableMetrics_ConcurrentAccess verifies thread safety under concurrent reads.
 func TestGetAvailableMetrics_ConcurrentAccess(t *testing.T) {
 	store, ctx := setupTestStore(t)

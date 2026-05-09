@@ -316,18 +316,20 @@ All retention policies are defined in IaC scripts — no application code manage
 
 **Silver TTL rationale (Phase 32 / R-3):** A 365-day TTL was adopted as a conservative default before long-term Silver growth data was available. The Gold layer (ClickHouse `aer_gold.metrics`) retains all derived metrics independently under its own 365-day TTL, making Silver objects safe to expire after one year. The Silver bucket acts as a re-evaluation baseline: any re-analysis of data older than 365 days would require a fresh crawl from the source, which is acceptable under the project's data availability guarantees. This value should be revisited once at least one full quarter of production crawl data is available and measured Silver growth significantly exceeds Bronze volume.
 
-### 8.8.1 Tiered Retention (Planned)
+### 8.8.1 Tiered Retention
 
-WP-005 §5.4 proposes a tiered retention strategy in which raw 5-minute samples are kept for a short window and progressively coarser aggregates retain progressively longer history. The target tiers are:
+WP-005 §5.4 prescribes a tiered retention strategy in which raw 5-minute samples are kept for a recent window and progressively coarser aggregates retain progressively longer history. **Active as of Phase 122c** (migration `infra/clickhouse/migrations/000019_activate_metrics_resolution_views.sql`):
 
 | Tier | Source table | Retention | Rationale |
 | :--- | :--- | :--- | :--- |
-| 0–30 days | `aer_gold.metrics` (full 5-minute resolution) | 30 days | Event-scale forensic analysis, debugging |
-| 30–365 days | `aer_gold.metrics_hourly` | 1 year | Daily-cycle and weekly-pattern analysis |
-| 1–5 years | `aer_gold.metrics_daily` | 5 years | Seasonal and annual trend analysis |
-| 5+ years | `aer_gold.metrics_monthly` | indefinite | Multi-year discourse drift |
+| 0–365 days | `aer_gold.metrics` (full 5-minute resolution) | 365 days | Event-scale forensic analysis, debugging. Note: this is more generous than the WP-005 30-day prescription — kept at 365 d so the recent year retains full per-document precision. |
+| 0–365 days | `aer_gold.metrics_hourly` (AggregatingMergeTree MV) | 365 days | Daily-cycle and weekly-pattern analysis |
+| 0–1825 days | `aer_gold.metrics_daily` (AggregatingMergeTree MV) | 5 years | Seasonal and annual trend analysis; also backs `?resolution=weekly` via `toStartOfWeek` rebucket at query time |
+| indefinite | `aer_gold.metrics_monthly` (AggregatingMergeTree MV) | no TTL | Multi-decade Episteme cultural drift (WP-005 Scale-5) |
 
-**Status: planned — not yet active.** The current production retention is the flat 365-day TTL on `aer_gold.metrics` documented in §8.8 above. Activation depends on the materialized views described in §8.13 going live first. Until then, the §8.8 table is authoritative for what the system actually does today.
+**Status: active as of Phase 122c.** The Phase-66 deferred-state record in `infra/clickhouse/migrations/000009_metrics_resolution_views.sql` is preserved verbatim as the audit trail for the deferred-design pattern. The activation criteria recorded there (p95 GetMetrics latency > 1.5 s SLO, row-cap multiplier truncating result sets, raw scans > 10⁸ rows per typical request) were met by Phase 122's 5-year crawl horizon (Phase 122b's `time_window_days = 1825`). The BFF query layer (`services/bff-api/internal/storage/metrics_query.go`, `Resolution.queryShape`) routes per-resolution to the right physical table; the dashboard client (`services/dashboard/src/lib/components/L2Controls.svelte`) was already wired for the five-resolution selector by Phase 66, so activation is invisible at the client boundary.
+
+**MV semantics under ReplacingMergeTree.** `aer_gold.metrics` is `ReplacingMergeTree(ingestion_version)`. The materialized views trigger on every INSERT (pre-merge), so a re-ingestion of the same row at a higher `ingestion_version` accumulates `countMerge()` inflation in the MVs. `avgMerge()` over identical values is unaffected because adding the same value twice does not shift the mean. Re-ingestion is exceptional in AĒR (the worker uses `ingestion_version` for rare reprocessing, not routine updates); the bounded count inflation is accepted as the cost of MV simplicity and is documented at the call site in migration 000019.
 
 ## 8.9 Developer Tooling
 
@@ -429,7 +431,11 @@ WP-005 distinguishes five temporal scales at which discourse phenomena unfold �
 
 **Minimum meaningful window:** `GET /api/v1/metrics/available` returns a `minMeaningfulResolution` hint per metric, sourced from a static config map in the BFF (`internal/config/min_resolution.go`). Values are seeded from Probe 0 publication-rate heuristics (WP-005 §3.3): tagesschau.de ≈ 50 articles/day → `hourly`; bundesregierung.de ≈ 5 articles/day → `daily`. Metrics without a recorded heuristic return `null`. The hint is advisory only — the BFF does not enforce it; clients are expected to use it when constructing default dashboard views.
 
-**Deferred materialized views:** `infra/clickhouse/migrations/000009_metrics_resolution_views.sql` records the SQL definitions for `aer_gold.metrics_hourly`, `aer_gold.metrics_daily`, and `aer_gold.metrics_monthly` as commented-out `AggregatingMergeTree` views. They are NOT activated — query-time aggregation is sufficient at current ingestion volumes. The migration documents the activation criteria (p95 GetMetrics latency ≥ 1.5 s, row-cap truncation, or scans ≥ 10⁸ rows) and the activation procedure (new migration, backfill, switch the BFF query layer).
+**Active materialized views (Phase 122c).** The three `AggregatingMergeTree` views — `aer_gold.metrics_hourly` (365 d TTL), `aer_gold.metrics_daily` (1825 d TTL), `aer_gold.metrics_monthly` (no TTL) — are live as of migration `000019_activate_metrics_resolution_views.sql`. The Phase-66 deferred-state record in `000009_metrics_resolution_views.sql` is preserved verbatim as the audit trail; activation followed the procedure that file's header documented (new migration, idempotent backfill via `INSERT INTO ... SELECT`, switch the BFF query layer). The activation criteria (p95 GetMetrics latency ≥ 1.5 s, row-cap truncation, or scans ≥ 10⁸ rows) are recorded as historical context — Phase 122's 5-year crawl horizon (Phase 122b's `time_window_days = 1825`) materialised all three. The BFF query-layer routing lives in `Resolution.queryShape` (`services/bff-api/internal/storage/metrics_query.go`): per-resolution it returns the source table, the WHERE/SELECT bucket-column choice, and the aggregate-merge expressions (`avgMerge` / `countMerge`) needed to combine the AggregatingMergeTree state columns.
+
+**Inspecting MV freshness.** ClickHouse system tables show per-table part counts and row totals. The runbook for spot-checking MV health lives in the operations playbook under "Multi-Resolution Query Routing"; the diagnostic query is `SELECT name, total_rows, ... FROM system.parts WHERE database='aer_gold' AND table LIKE 'metrics_%'`.
+
+**MV semantics under ReplacingMergeTree.** See §8.8.1 for the documented bound on `countMerge()` inflation under re-ingestion (the `avgMerge()` mean is unaffected; re-ingestion is exceptional in AĒR's worker).
 
 ## 8.14 Reflexive Architecture (Phase 67)
 

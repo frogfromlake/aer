@@ -35,6 +35,13 @@ const (
 
 // bucketExpr returns the ClickHouse expression that buckets the supplied
 // timestamp column for this resolution.
+//
+// Used by callers that aggregate against `aer_gold.metrics` directly
+// (normalized + percentile metrics) — those queries cannot route to the
+// pre-aggregated MVs because they JOIN per-row against
+// language_detections / metric_baselines, which the MVs do not carry.
+// Plain GetMetrics uses [Resolution.queryShape] instead, which selects
+// the correct physical table per resolution (Phase 122c).
 func (r Resolution) bucketExpr(column string) string {
 	switch r {
 	case ResolutionHourly:
@@ -69,25 +76,111 @@ func (r Resolution) rowLimitMultiplier() int {
 	}
 }
 
+// metricsQueryShape captures the physical-table choice and the
+// SQL-fragment shape for a given Resolution against the metrics layer.
+// Phase 122c activated three pre-aggregated materialized views
+// (metrics_hourly / metrics_daily / metrics_monthly) backed by
+// AggregatingMergeTree state columns; queries against them must use
+// avgMerge / countMerge to combine the partial states. The raw
+// aer_gold.metrics table continues to back 5-minute resolution where
+// per-document precision is required.
+type metricsQueryShape struct {
+	// Table is the FROM target — `aer_gold.metrics` for raw or one of
+	// the pre-aggregated MVs.
+	Table string
+	// TimestampColumn is the column the WHERE clause filters on.
+	// `timestamp` for raw; `bucket` for the MVs (which pre-bucket at
+	// write time).
+	TimestampColumn string
+	// BucketExpr is the SELECT-side expression that yields the time
+	// bucket. For raw 5-minute it is `toStartOfFiveMinute(timestamp)`;
+	// for the MVs it is just `bucket` (passthrough — the MV already
+	// bucketed at write time). The weekly resolution rebuckets the
+	// daily MV via `toStartOfWeek(bucket)`, avoiding a fourth MV.
+	BucketExpr string
+	// ValueExpr aggregates `value` (raw) or merges the AggregatingMergeTree
+	// `avgState` partial state (MV).
+	ValueExpr string
+	// CountExpr counts rows (raw) or merges the AggregatingMergeTree
+	// `countState` partial state (MV).
+	CountExpr string
+}
+
+// queryShape returns the physical-table routing for this resolution
+// against the metrics layer (Phase 122c). The shape contract is
+// byte-equivalence: a query built from the returned shape produces the
+// same `[]MetricRow` as the pre-activation handler at any single
+// resolution, regardless of which physical table backed the query.
+func (r Resolution) queryShape() metricsQueryShape {
+	switch r {
+	case ResolutionHourly:
+		return metricsQueryShape{
+			Table:           "aer_gold.metrics_hourly",
+			TimestampColumn: "bucket",
+			BucketExpr:      "bucket",
+			ValueExpr:       "avgMerge(value_avg_state)",
+			CountExpr:       "countMerge(sample_count_state)",
+		}
+	case ResolutionDaily:
+		return metricsQueryShape{
+			Table:           "aer_gold.metrics_daily",
+			TimestampColumn: "bucket",
+			BucketExpr:      "bucket",
+			ValueExpr:       "avgMerge(value_avg_state)",
+			CountExpr:       "countMerge(sample_count_state)",
+		}
+	case ResolutionWeekly:
+		// Weekly bins the daily MV via toStartOfWeek at query time —
+		// no fourth MV. The daily MV's 1825-day TTL still bounds the
+		// queryable window for weekly.
+		return metricsQueryShape{
+			Table:           "aer_gold.metrics_daily",
+			TimestampColumn: "bucket",
+			BucketExpr:      "toStartOfWeek(bucket)",
+			ValueExpr:       "avgMerge(value_avg_state)",
+			CountExpr:       "countMerge(sample_count_state)",
+		}
+	case ResolutionMonthly:
+		return metricsQueryShape{
+			Table:           "aer_gold.metrics_monthly",
+			TimestampColumn: "bucket",
+			BucketExpr:      "bucket",
+			ValueExpr:       "avgMerge(value_avg_state)",
+			CountExpr:       "countMerge(sample_count_state)",
+		}
+	default: // ResolutionFiveMinute — raw, full-precision.
+		return metricsQueryShape{
+			Table:           "aer_gold.metrics",
+			TimestampColumn: "timestamp",
+			BucketExpr:      "toStartOfFiveMinute(timestamp)",
+			ValueExpr:       "avg(value)",
+			CountExpr:       "count()",
+		}
+	}
+}
+
 // GetMetrics retrieves aggregated time-series data from the gold layer.
-// It downsamples the data to the requested resolution (default 5-minute)
-// to prevent OOM errors on large time ranges. Optional source and metricName
+// Phase 122c routes the query to the physical table backing the
+// requested resolution (raw `aer_gold.metrics` for 5-minute; the
+// pre-aggregated `metrics_hourly` / `metrics_daily` / `metrics_monthly`
+// MVs otherwise — see [Resolution.queryShape]). A hard LIMIT scaled by
+// the resolution keeps memory bounded. Optional source and metricName
 // filters narrow results to specific dimensions.
 func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, error) {
 	var results []MetricRow
 
-	// Bucket on the DB side via resolution.bucketExpr; aggregate with avg().
-	// A hard LIMIT — scaled by the resolution — keeps memory bounded.
+	shape := resolution.queryShape()
 	query := fmt.Sprintf(`
 		SELECT
 			%s as TS,
-			avg(value) as Value,
+			%s as Value,
 			source as Source,
 			metric_name as MetricName,
-			count() as Count
-		FROM aer_gold.metrics
-		WHERE timestamp >= $1 AND timestamp <= $2
-	`, resolution.bucketExpr("timestamp"))
+			%s as Count
+		FROM %s
+		WHERE %s >= $1 AND %s <= $2
+	`, shape.BucketExpr, shape.ValueExpr, shape.CountExpr,
+		shape.Table, shape.TimestampColumn, shape.TimestampColumn)
 	args := []any{start, end}
 	argIdx := 3
 
