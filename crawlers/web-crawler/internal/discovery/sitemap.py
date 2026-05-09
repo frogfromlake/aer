@@ -29,7 +29,10 @@ class DiscoveredUrl:
 logger = logging.getLogger(__name__)
 
 
-def discover(sitemap_urls: list[str]) -> Iterator[DiscoveredUrl]:
+def discover(
+    sitemap_urls: list[str],
+    since: Optional[datetime] = None,
+) -> Iterator[DiscoveredUrl]:
     """Yield every leaf URL surfaced by the supplied sitemap roots.
 
     Imports ``usp.tree`` lazily so the discovery module remains importable
@@ -38,6 +41,13 @@ def discover(sitemap_urls: list[str]) -> Iterator[DiscoveredUrl]:
     monkey-patched). Each leaf URL produces exactly one
     :class:`DiscoveredUrl`; entries with the same URL across multiple
     sitemap roots collapse on the consumer side.
+
+    Phase 122b — temporal symmetry. When ``since`` is supplied, entries
+    with ``sitemap_lastmod < since`` are dropped at discovery time and
+    never queued for fetch. Entries whose ``last_modified`` is ``None``
+    fall through (the worker's ``timestamp_source = "fetch_at_fallback"``
+    already classifies them as Negative Space per Brief §7.7 — we do not
+    silently drop coverage on publishers with sparse sitemaps).
     """
     try:
         from usp.tree import sitemap_tree_for_homepage  # type: ignore
@@ -56,8 +66,10 @@ def discover(sitemap_urls: list[str]) -> Iterator[DiscoveredUrl]:
             url = getattr(page, "url", None)
             if not url or url in seen_urls:
                 continue
-            seen_urls.add(url)
             lastmod = getattr(page, "last_modified", None)
+            if since is not None and lastmod is not None and lastmod < since:
+                continue
+            seen_urls.add(url)
             section = _section_from_url(url)
             yield DiscoveredUrl(url=url, sitemap_lastmod=lastmod, sitemap_section=section)
 

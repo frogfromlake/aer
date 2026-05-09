@@ -864,7 +864,21 @@ sources:
 
 Changing `sources.yaml` requires rebuilding the image (`make crawl-probe0` passes `--build`, so the next invocation picks it up automatically; CI pipelines should rebuild explicitly via `.github/workflows/web-crawler-build.yml`).
 
-**Sitemap-driven discovery semantics.** The primary discovery channel is `sitemap.xml` (recursive, including nested `<sitemap>` indexes) parsed by `ultimate-sitemap-parser`. Every URL surfaced by the sitemap is a candidate. The optional `rss_hint_url` is a *discovery hint only* — articles freshly published before the sitemap's next refresh; the article body always comes from the HTML fetch. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
+**Probe-scoped temporal cutoff (Phase 122b).** Every `sources.yaml` carries a top-level `probe:` block declaring the uniform discovery horizon for every source on the probe. Cross-source comparability requires a uniform temporal cutoff — without it, a source whose sitemap surfaces 30 years of archive appears louder in cross-source aggregates than a source whose sitemap only goes back 10 years (the **archive-depth bias** failure mode).
+
+```yaml
+probe:
+  time_window_days: 1825   # 5 years — aligned with Phase 122c daily-MV TTL
+sources:
+  - name: tagesschau
+    ...
+```
+
+The cutoff is **probe-level by design** — per-source overrides are explicitly rejected. If a future source needs a different horizon, that source belongs in a different probe. At startup the crawler logs a single `crawl_window_configured` structlog line (probe, `time_window_days`, computed `since` ISO timestamp) — that line is the spot-check anchor when verifying a run honoured the configured cutoff. Sitemap and RSS-hint discovery both filter on `lastmod ≥ since`; entries with no parsable lastmod fall through (the worker classifies those as Negative-Space via `timestamp_source = "fetch_at_fallback"` per Brief §7.7). When `probe.time_window_days` is absent the crawler emits a structured warning and falls back to 365 days — see [add-a-probe.md](../extending/add-a-probe.md) for the new-probe checklist.
+
+**Newest-first iteration.** Within the cutoff window, `_discover_for_source` sorts the merged URL list by `sitemap_lastmod` descending, with `None` lastmods sinking to the end. A partial crawl (Ctrl+C, overnight stop, bandwidth pause) therefore yields the most-recent slice of the cutoff window first. Subsequent runs honour the same ordering — combined with `crawler_state` dedup, a multi-session crawl monotonically advances backward through the cutoff window without revisiting URLs.
+
+**Sitemap-driven discovery semantics.** The primary discovery channel is `sitemap.xml` (recursive, including nested `<sitemap>` indexes) parsed by `ultimate-sitemap-parser`. Every URL surfaced by the sitemap that passes the probe-level temporal cutoff is a candidate. The optional `rss_hint_url` is a *discovery hint only* — articles freshly published before the sitemap's next refresh; the article body always comes from the HTML fetch. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
 
 **Robots.txt verification.** Before adding a new source, verify that the polite default `User-Agent` is permitted:
 

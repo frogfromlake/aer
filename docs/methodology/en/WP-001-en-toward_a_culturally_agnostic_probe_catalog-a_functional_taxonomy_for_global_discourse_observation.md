@@ -265,6 +265,8 @@ AĒR should maintain a **Probe Coverage Map** — a visualization that shows, fo
 
 The Coverage Map directly addresses WP-006's call for "negative space visualization" (§7.3, Q6) and the Manifesto's Digital Divide acknowledgment (§II).
 
+The Coverage Map operates **within a uniform per-probe temporal horizon** (Phase 122b). Every source on a probe is observed across the same `time_window_days` cutoff so cross-source aggregates within a probe — and cross-probe aggregates within a region — are not contaminated by archive-depth asymmetries between sources. The horizon itself is part of the probe's metadata and surfaces on the Coverage Map as the temporal scope of the observation, distinct from the data lifecycle (Bronze 90d, Silver/Gold 365d, daily MVs 1825d after Phase 122c).
+
 ---
 
 ## 6. Probe 0 Revisited: Classification Under the Taxonomy

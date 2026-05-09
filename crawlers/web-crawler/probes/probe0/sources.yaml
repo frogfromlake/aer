@@ -10,6 +10,23 @@
 # `/sport/`) is rejected as researcher selection bias per WP-006 §3.
 # Per-article discourse-function imprecision is addressed in Phase 126b.
 
+# Probe-level configuration (Phase 122b). Applies uniformly to every
+# source below — never per-source, by design. Cross-source comparability
+# requires a uniform temporal horizon, enforced at probe scope so an
+# operator cannot accidentally skew one source's archive depth against
+# another (the "archive-depth bias" failure mode).
+probe:
+  # Temporal cutoff for sitemap discovery: any URL with
+  # `sitemap_lastmod < (now - time_window_days)` is dropped at discovery
+  # time, never queued for fetch. Sitemap entries with no `lastmod` fall
+  # through (the worker classifies them as Negative-Space via
+  # `timestamp_source = "fetch_at_fallback"` per Brief §7.7).
+  #
+  # 1825 = 5 years. Aligned with the daily-MV TTL activated in Phase 122c
+  # (WP-005 §5.4 Scale-5 cultural-drift horizon). Lowering this value
+  # narrows the corpus; raising it requires Gold TTL coordination first.
+  time_window_days: 1825
+
 sources:
   - name: tagesschau
     sitemap_urls:

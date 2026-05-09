@@ -16,8 +16,9 @@ import argparse
 import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 import structlog
 import yaml
@@ -31,6 +32,12 @@ from internal.state.dedup import CrawlerState
 DEFAULT_USER_AGENT = (
     "AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)"
 )
+
+# Phase 122b — fallback for `probe.time_window_days` when the probe YAML
+# omits the `probe:` block. Emits a structured warning at startup so the
+# default is visible without breaking existing probe configs that
+# pre-date the cutoff field.
+DEFAULT_TIME_WINDOW_DAYS = 365
 
 
 def _configure_logging() -> None:
@@ -59,7 +66,17 @@ def _build_pg_dsn() -> str:
     return f"postgresql://{user}:{password}@{host}:{port}/{db}"
 
 
-def _load_sources(probe: str, config_dir: Path) -> list[dict[str, Any]]:
+def _load_probe_config(probe: str, config_dir: Path) -> dict[str, Any]:
+    """Read ``probes/<probe>/sources.yaml`` and return a normalised
+    config: ``{"sources": [...], "time_window_days": int}``.
+
+    Phase 122b — the YAML's optional top-level ``probe:`` block carries
+    probe-scoped settings that apply uniformly across every source. The
+    only setting today is ``time_window_days`` (the temporal cutoff for
+    sitemap discovery); falls back to :data:`DEFAULT_TIME_WINDOW_DAYS`
+    with a structured warning when absent.
+    """
+    log = structlog.get_logger()
     path = config_dir / probe / "sources.yaml"
     if not path.exists():
         raise FileNotFoundError(f"probe configuration not found: {path}")
@@ -68,26 +85,71 @@ def _load_sources(probe: str, config_dir: Path) -> list[dict[str, Any]]:
     sources = config.get("sources") or []
     if not sources:
         raise ValueError(f"probe {probe!r} has no sources configured at {path}")
-    return sources
+
+    probe_block = config.get("probe") or {}
+    raw_window = probe_block.get("time_window_days")
+    if raw_window is None:
+        log.warning(
+            "probe.time_window_days unset — defaulting to "
+            f"{DEFAULT_TIME_WINDOW_DAYS}; cross-source baselines may be biased",
+            probe=probe,
+            default=DEFAULT_TIME_WINDOW_DAYS,
+        )
+        time_window_days = DEFAULT_TIME_WINDOW_DAYS
+    else:
+        try:
+            time_window_days = int(raw_window)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"probe.time_window_days must be an integer (got {raw_window!r})"
+            ) from exc
+        if time_window_days <= 0:
+            raise ValueError(
+                f"probe.time_window_days must be positive (got {time_window_days})"
+            )
+
+    return {"sources": sources, "time_window_days": time_window_days}
 
 
-def _discover_for_source(source: dict[str, Any]) -> list[DiscoveredUrl]:
-    """Surface every URL for one source: sitemap entries first, then any
-    RSS-only newcomers as DiscoveredUrl with empty sitemap context.
+def _discover_for_source(
+    source: dict[str, Any],
+    since: Optional[datetime] = None,
+) -> list[DiscoveredUrl]:
+    """Surface every URL for one source, newest-first.
+
+    Sitemap entries are the primary channel; RSS-feed entries only
+    contribute URLs not already in the sitemap. Both channels honour
+    ``since`` if supplied (Phase 122b temporal symmetry).
+
+    Returned list is sorted by ``sitemap_lastmod`` descending so partial
+    crawls (Ctrl+C, overnight stop) yield the most-recent slice of the
+    cutoff window first. Entries with no ``sitemap_lastmod`` (RSS-only
+    discoveries, or sitemaps with no ``lastmod`` field) sink to the end
+    — they would otherwise dominate the head ordering arbitrarily.
     """
     seen: dict[str, DiscoveredUrl] = {}
     sitemap_urls: Iterable[str] = source.get("sitemap_urls") or []
-    for entry in discover_sitemap(list(sitemap_urls)):
+    for entry in discover_sitemap(list(sitemap_urls), since=since):
         if entry.url not in seen:
             seen[entry.url] = entry
     rss_url: str = source.get("rss_hint_url") or ""
     if rss_url:
-        for url in discover_rss(rss_url):
+        for url in discover_rss(rss_url, since=since):
             if url and url not in seen:
                 seen[url] = DiscoveredUrl(
                     url=url, sitemap_lastmod=None, sitemap_section=None
                 )
-    return list(seen.values())
+
+    def _sort_key(entry: DiscoveredUrl) -> tuple[int, float]:
+        # Tuple ordering: (lastmod-is-None → 1, then negative timestamp).
+        # `False` < `True`, so entries with a real lastmod sort before
+        # None entries; within the real-lastmod group, larger timestamps
+        # sort first (newest-first).
+        if entry.sitemap_lastmod is None:
+            return (1, 0.0)
+        return (0, -entry.sitemap_lastmod.timestamp())
+
+    return sorted(seen.values(), key=_sort_key)
 
 
 def cli(argv: list[str] | None = None) -> int:
@@ -132,10 +194,20 @@ def cli(argv: list[str] | None = None) -> int:
 
     config_dir = Path(args.config_dir).resolve()
     try:
-        sources = _load_sources(args.probe, config_dir)
+        probe_config = _load_probe_config(args.probe, config_dir)
     except (FileNotFoundError, ValueError) as exc:
         log.error("probe configuration invalid", error=str(exc))
         return 2
+
+    sources = probe_config["sources"]
+    time_window_days = probe_config["time_window_days"]
+    since = datetime.now(tz=timezone.utc) - timedelta(days=time_window_days)
+    log.info(
+        "crawl_window_configured",
+        probe=args.probe,
+        time_window_days=time_window_days,
+        since=since.isoformat(),
+    )
 
     ingestion = IngestionClient(
         ingest_url=args.api_url,
@@ -157,13 +229,14 @@ def cli(argv: list[str] | None = None) -> int:
                 log.error("source id resolution failed", source=name, error=str(exc))
                 continue
 
-            urls = _discover_for_source(source)
+            urls = _discover_for_source(source, since=since)
             log.info(
                 "discovery complete",
                 source=name,
                 discovered=len(urls),
                 sitemap_count=len(source.get("sitemap_urls") or []),
                 rss_hint=bool(source.get("rss_hint_url")),
+                since=since.isoformat(),
             )
             if not urls:
                 continue
