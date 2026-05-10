@@ -22,6 +22,7 @@
   } from '$lib/api/queries';
   import SourceCard from './SourceCard.svelte';
   import ValidComparisonsPanel from './ValidComparisonsPanel.svelte';
+  import MetadataCoveragePanel from './MetadataCoveragePanel.svelte';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { goto } from '$app/navigation';
 
@@ -278,6 +279,15 @@
               {/if}
             </div>
           {/if}
+        </section>
+
+        <!-- Phase 122f: per-source-per-field metadata-coverage matrix.
+             Operationalises WP-003 §3.2 (metadata-richness asymmetry as
+             a structural bias) at runtime; the field-level Negative-Space
+             rendering (Brief §7.7) flips structurally-absent cells into
+             methodological-register prose when the overlay is on. -->
+        <section class="dossier-section" aria-labelledby="metadata-coverage-heading">
+          <MetadataCoveragePanel probeId={dossier.probeId} {ctx} />
         </section>
 
         <!-- Phase 115: per-metric Level-1/2/3 availability matrix —

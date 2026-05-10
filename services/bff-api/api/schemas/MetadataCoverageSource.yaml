@@ -1,0 +1,19 @@
+type: object
+description: >
+  Per-source metadata coverage record carrying the per-field matrix for
+  one source. Sources with no observed articles in the metadata-coverage
+  horizon return an empty `fields` array — same shape, semantically
+  "no observations yet".
+required:
+  - name
+  - fields
+properties:
+  name:
+    type: string
+    description: Canonical source name (matches `Source.name`).
+    example: bundesregierung
+  fields:
+    type: array
+    description: One entry per Tier-B / Tier-C field observed for this source.
+    items:
+      $ref: './MetadataCoverageField.yaml'

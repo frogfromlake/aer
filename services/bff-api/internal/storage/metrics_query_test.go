@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -528,8 +529,46 @@ func TestGetMetrics_ResolutionBucketing(t *testing.T) {
 		}
 	}
 
-	start := now.Add(-4 * time.Hour)
-	end := now
+	// Phase 122c MV-shape: in production, AggregatingMergeTree MVs
+	// (`metrics_hourly` / `metrics_daily` / `metrics_monthly`) are populated
+	// by triggers on every INSERT into `aer_gold.metrics`. The test setup
+	// (clickhouse_test.go:75) deliberately uses plain AggregatingMergeTree
+	// TABLES rather than MVs to keep tests fast and isolated from
+	// MV-trigger edge cases — see the comment there. The price is that
+	// tests reading non-5min resolutions must mirror the trigger's
+	// INSERT-INTO-SELECT explicitly, exactly as migration 019 declares.
+	for table, bucketExpr := range map[string]string{
+		"aer_gold.metrics_hourly":  "toStartOfHour(timestamp)",
+		"aer_gold.metrics_daily":   "toStartOfDay(timestamp)",
+		"aer_gold.metrics_monthly": "toStartOfMonth(timestamp)",
+	} {
+		ddl := fmt.Sprintf(`
+			INSERT INTO %s
+			SELECT
+				%s AS bucket,
+				source,
+				metric_name,
+				avgState(value),
+				countState()
+			FROM aer_gold.metrics
+			GROUP BY bucket, source, metric_name
+		`, table, bucketExpr)
+		if err := store.conn.Exec(ctx, ddl); err != nil {
+			t.Fatalf("seed %s: %v", table, err)
+		}
+	}
+
+	// Window must encompass every resolution's bucket. Phase 122c routes
+	// non-5-min queries to the AggregatingMergeTree MVs whose WHERE
+	// filter is on `bucket` (the start-of-period), not on the underlying
+	// row's `timestamp`. A monthly bucket equals the first of the month;
+	// a 4-hour window around `now` would silently exclude it. Stretch
+	// the window back to the start of the prior month and forward 1 h
+	// past `now` so every bucket — 5-min, hourly, daily, weekly, monthly —
+	// lies inside [start, end] regardless of which day in the month the
+	// test runs on.
+	start := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, time.UTC)
+	end := now.Add(time.Hour)
 
 	fiveMin, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
 	if err != nil {

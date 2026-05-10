@@ -28,6 +28,7 @@ from internal.storage.postgres_client import (
 from internal import quarantine as _quarantine_module
 from internal import silver as _silver_module
 from internal import silver_projection as _silver_projection_module
+from internal import metadata_coverage as _metadata_coverage_module
 from internal.models.probe_scope import ProbeLanguageScope
 
 logger = structlog.get_logger()
@@ -363,6 +364,15 @@ class DataProcessor:
         # carrying the adapter's "und" placeholder.
         _silver_projection_module.upload_silver_projection(
             self.ch, working_core, ingestion_version, obj_key, timestamp_source
+        )
+
+        # Phase 122f: append per-field provenance into the metadata-coverage
+        # raw table. WP-003 §3.2 metadata-richness asymmetry is now a
+        # runtime signal feeding the BFF coverage endpoints and the
+        # dashboard's field-level Negative-Space rendering (Brief §7.7).
+        # No-op for non-web meta — only WebMeta carries `extraction_methods`.
+        _metadata_coverage_module.upload_metadata_coverage(
+            self.ch, working_core, meta, ingestion_version, event_time
         )
 
         # Phase 91: wrap Gold inserts so a partial ClickHouse failure does not

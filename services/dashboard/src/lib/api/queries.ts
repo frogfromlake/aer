@@ -33,6 +33,9 @@ export type CoOccurrenceGraphDto = components['schemas']['CoOccurrenceGraph'];
 export type AvailableMetricDto = components['schemas']['AvailableMetric'];
 export type SilverAggregationResponseDto = components['schemas']['SilverAggregationResponse'];
 export type TopicDistributionResponseDto = components['schemas']['TopicDistributionResponse'];
+export type MetadataCoverageResponseDto = components['schemas']['MetadataCoverageResponse'];
+export type MetadataCoverageSourceDto = components['schemas']['MetadataCoverageSource'];
+export type MetadataCoverageFieldDto = components['schemas']['MetadataCoverageField'];
 export type TopicDistributionEntryDto = TopicDistributionResponseDto['topics'][number];
 export type SilverAggregationType =
   | 'cleaned_text_length'
@@ -350,6 +353,44 @@ export function probeDossierQuery(
       fetchJson<ProbeDossierDto>(
         ctx,
         `/probes/${encodeURIComponent(probeId)}/dossier${query ? `?${query}` : ''}`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 122f — per-source-per-field metadata coverage feeding the Probe
+// Dossier panel and the dashboard's field-level Negative-Space rendering
+// (Brief §7.7, WP-003 §3.2).
+export function probeMetadataCoverageQuery(
+  ctx: FetchContext,
+  probeId: string
+): QueryOptions<MetadataCoverageResponseDto> {
+  return {
+    queryKey: ['aer', 'probe-metadata-coverage', probeId] as const,
+    queryFn: () =>
+      fetchJson<MetadataCoverageResponseDto>(
+        ctx,
+        `/probes/${encodeURIComponent(probeId)}/metadata-coverage`,
+        'unspecified'
+      ),
+    // Coverage is a structural property of the source's emission posture —
+    // it changes only as the publisher's website does, on a much slower
+    // cadence than the time-series metrics. 5 min keeps it fresh enough.
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export function sourceMetadataCoverageQuery(
+  ctx: FetchContext,
+  sourceId: string
+): QueryOptions<MetadataCoverageResponseDto> {
+  return {
+    queryKey: ['aer', 'source-metadata-coverage', sourceId] as const,
+    queryFn: () =>
+      fetchJson<MetadataCoverageResponseDto>(
+        ctx,
+        `/sources/${encodeURIComponent(sourceId)}/metadata-coverage`,
         'unspecified'
       ),
     staleTime: FIVE_MINUTES

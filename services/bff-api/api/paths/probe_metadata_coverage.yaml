@@ -1,0 +1,35 @@
+get:
+  tags: [Reference]
+  summary: Per-source-per-field metadata coverage for a probe
+  description: >
+    Returns the per-source metadata-coverage matrix for every source bound
+    to the probe. Backs the Probe Dossier metadata-coverage panel and the
+    field-level Negative-Space rendering (Design Brief §7.7,
+    WP-003 §3.2). Each field carries a per-extraction-method count, a
+    population rate, and a `structurallyAbsent` flag that fires when
+    ≥ 50 articles observed in the last 30 days yielded 0 % population —
+    the threshold that distinguishes "publisher chose not to emit" from
+    "sampling variance".
+  operationId: getProbeMetadataCoverage
+  parameters:
+    - name: probeId
+      in: path
+      required: true
+      description: Canonical probe identifier.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: The probe's metadata-coverage payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MetadataCoverageResponse'
+    '404':
+      description: Probe not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

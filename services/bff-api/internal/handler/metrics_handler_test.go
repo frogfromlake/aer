@@ -69,6 +69,9 @@ type mockStore struct {
 	silverCorrelationErr  error
 	capturedSilverField   string
 	capturedSilverKind    storage.SilverAggregationKind
+	// Phase 122f metadata-coverage mocks.
+	metadataCoverage    []storage.MetadataCoverageCell
+	metadataCoverageErr error
 	// captured args
 	capturedStart      time.Time
 	capturedEnd        time.Time
@@ -239,6 +242,11 @@ func (m *mockStore) GetSilverCorrelation(_ context.Context, source string, start
 	m.capturedStart = start
 	m.capturedEnd = end
 	return m.silverCorrelation, m.silverCorrelationErr
+}
+
+func (m *mockStore) GetMetadataCoverage(_ context.Context, sources []string) ([]storage.MetadataCoverageCell, error) {
+	m.capturedSources = sources
+	return m.metadataCoverage, m.metadataCoverageErr
 }
 
 // newTestRouter builds the full chi router for HTTP-level tests.

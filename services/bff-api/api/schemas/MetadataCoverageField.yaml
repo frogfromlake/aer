@@ -1,0 +1,60 @@
+type: object
+description: >
+  Per-field metadata coverage for a single source. Backs Phase 122f's
+  field-level Negative-Space rendering (Design Brief §7.7) and the
+  Probe Dossier metadata-coverage panel. WP-003 §3.2 frames why
+  structural absence must be surfaced as the publisher's emission posture
+  rather than as missing data.
+required:
+  - field
+  - totalArticles
+  - byMethod
+  - populationRate
+  - structurallyAbsent
+properties:
+  field:
+    type: string
+    description: >
+      Tier-B / Tier-C field name as recorded by the WebAdapter's
+      `extraction_methods` provenance dict (e.g. `published_date`,
+      `author`, `articleSection`).
+    example: author
+  totalArticles:
+    type: integer
+    minimum: 0
+    description: >
+      Distinct article count observed for this (source, field) over the
+      30-day metadata-coverage horizon (TTL on the raw fact table).
+    example: 120
+  byMethod:
+    type: object
+    description: >
+      Per-extraction-method article counts. Keys are the method values
+      from `web_meta.ALLOWED_EXTRACTION_METHODS` plus the literal string
+      `"null"` for unfilled fields. The literal-string `"null"` is the
+      Negative-Space sentinel — structural absence as a queryable value,
+      not a SQL NULL.
+    additionalProperties:
+      type: integer
+      minimum: 0
+    example:
+      json_ld: 49
+      heuristic_htmldate: 8
+      'null': 63
+  populationRate:
+    type: number
+    format: double
+    minimum: 0
+    maximum: 1
+    description: >
+      Fraction of articles where this field was populated by any
+      non-null method. `1 - byMethod["null"] / totalArticles`.
+    example: 0.475
+  structurallyAbsent:
+    type: boolean
+    description: >
+      True when 0 % of ≥ 50 observed articles populated this field over
+      the last 30 days. Encodes "the absence is the publisher's choice,
+      not sampling variance" — drives the dashboard's field-level
+      Negative-Space rendering (Brief §7.7).
+    example: true

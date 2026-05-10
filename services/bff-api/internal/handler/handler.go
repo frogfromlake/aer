@@ -101,6 +101,8 @@ type Store interface {
 	GetSilverDistribution(ctx context.Context, field string, source string, start, end time.Time, bins int) (storage.DistributionResult, error)
 	GetSilverHeatmap(ctx context.Context, kind storage.SilverAggregationKind, source string, start, end time.Time) ([]storage.HeatmapCell, string, string, error)
 	GetSilverCorrelation(ctx context.Context, source string, start, end time.Time) (storage.SilverCorrelationResult, error)
+	// Phase 122f: metadata-coverage matrix over aer_gold.metadata_coverage.
+	GetMetadataCoverage(ctx context.Context, sources []string) ([]storage.MetadataCoverageCell, error)
 }
 
 // SourceLister abstracts the source-metadata read path so the handler

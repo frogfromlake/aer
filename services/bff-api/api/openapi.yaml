@@ -59,8 +59,12 @@ paths:
     $ref: './paths/probe_dossier.yaml'
   /probes/{probeId}/equivalence:
     $ref: './paths/probe_equivalence.yaml'
+  /probes/{probeId}/metadata-coverage:
+    $ref: './paths/probe_metadata_coverage.yaml'
   /sources/{id}/articles:
     $ref: './paths/source_articles.yaml'
+  /sources/{sourceId}/metadata-coverage:
+    $ref: './paths/source_metadata_coverage.yaml'
   /articles/{id}:
     $ref: './paths/article_detail.yaml'
   /healthz:
@@ -143,3 +147,9 @@ components:
       $ref: './schemas/SilverAggregationResponse.yaml'
     TopicDistributionResponse:
       $ref: './schemas/TopicDistributionResponse.yaml'
+    MetadataCoverageField:
+      $ref: './schemas/MetadataCoverageField.yaml'
+    MetadataCoverageSource:
+      $ref: './schemas/MetadataCoverageSource.yaml'
+    MetadataCoverageResponse:
+      $ref: './schemas/MetadataCoverageResponse.yaml'

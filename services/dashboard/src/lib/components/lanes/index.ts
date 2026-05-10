@@ -8,3 +8,4 @@ export { default as MetricSwitcher } from './MetricSwitcher.svelte';
 export { default as LensBar } from './LensBar.svelte';
 export { default as SilverLayerToggle } from './SilverLayerToggle.svelte';
 export { default as SilverIneligiblePanel } from './SilverIneligiblePanel.svelte';
+export { default as MetadataCoveragePanel } from './MetadataCoveragePanel.svelte';

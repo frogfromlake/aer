@@ -386,6 +386,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/probes/{probeId}/metadata-coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-source-per-field metadata coverage for a probe
+         * @description Returns the per-source metadata-coverage matrix for every source bound to the probe. Backs the Probe Dossier metadata-coverage panel and the field-level Negative-Space rendering (Design Brief §7.7, WP-003 §3.2). Each field carries a per-extraction-method count, a population rate, and a `structurallyAbsent` flag that fires when ≥ 50 articles observed in the last 30 days yielded 0 % population — the threshold that distinguishes "publisher chose not to emit" from "sampling variance".
+         */
+        get: operations["getProbeMetadataCoverage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sources/{id}/articles": {
         parameters: {
             query?: never;
@@ -398,6 +418,26 @@ export interface paths {
          * @description Returns a paginated list of processed documents for a source, optionally filtered by time window, language, sentiment band, and entity match. Powers the article browser inside the Probe Dossier (Design Brief §4.2.1). Cleaned text and full provenance are not included — fetch `/articles/{id}` for L5 Evidence.
          */
         get: operations["getSourceArticles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sources/{sourceId}/metadata-coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-field metadata coverage for a single source
+         * @description Returns the metadata-coverage matrix for one source — the single-source equivalent of `/probes/{probeId}/metadata-coverage`. Backs the per-source dossier surface and any future single-source deep-dive that needs the publisher's emission posture. See WP-003 §3.2 and Design Brief §7.7 for the methodological frame.
+         */
+        get: operations["getSourceMetadataCoverage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -497,7 +537,7 @@ export interface components {
          */
         ValidationStatus: "unvalidated" | "validated" | "expired";
         /**
-         * @description Temporal aggregation resolution. "5min" is the finest grain stored in the gold layer; coarser values bucket via toStartOfHour/Day/Week/Month at query time.
+         * @description Temporal aggregation resolution. "5min" is computed at query time from `aer_gold.metrics` (raw, 365-day TTL); "hourly" / "daily" / "monthly" resolve to pre-aggregated AggregatingMergeTree materialized views (`metrics_hourly` 365 d TTL / `metrics_daily` 1825 d TTL / `metrics_monthly` no TTL) activated in Phase 122c per WP-005 §5.4. "weekly" rebins the daily MV via `toStartOfWeek` at query time. The enum and request shape are unchanged from Phase 66; the routing is invisible to the client.
          * @example hourly
          * @enum {string}
          */
@@ -605,7 +645,7 @@ export interface components {
             url?: string | null;
             /**
              * @description Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
-             * @example docs/probes/probe-0-de-institutional-rss/
+             * @example docs/probes/probe-0-de-institutional-web/
              */
             documentationUrl?: string | null;
         };
@@ -1237,6 +1277,64 @@ export interface components {
                 /** @description BERTopic model-provenance hash (Phase 120). When the topic was assigned by more than one model in the window, the most-recent hash is reported — clients should treat a non-unique value as a signal that topic identity has rotated within the window. */
                 modelHash?: string;
             }[];
+        };
+        /** @description Per-field metadata coverage for a single source. Backs Phase 122f's field-level Negative-Space rendering (Design Brief §7.7) and the Probe Dossier metadata-coverage panel. WP-003 §3.2 frames why structural absence must be surfaced as the publisher's emission posture rather than as missing data. */
+        MetadataCoverageField: {
+            /**
+             * @description Tier-B / Tier-C field name as recorded by the WebAdapter's `extraction_methods` provenance dict (e.g. `published_date`, `author`, `articleSection`).
+             * @example author
+             */
+            field: string;
+            /**
+             * @description Distinct article count observed for this (source, field) over the 30-day metadata-coverage horizon (TTL on the raw fact table).
+             * @example 120
+             */
+            totalArticles: number;
+            /**
+             * @description Per-extraction-method article counts. Keys are the method values from `web_meta.ALLOWED_EXTRACTION_METHODS` plus the literal string `"null"` for unfilled fields. The literal-string `"null"` is the Negative-Space sentinel — structural absence as a queryable value, not a SQL NULL.
+             * @example {
+             *       "json_ld": 49,
+             *       "heuristic_htmldate": 8,
+             *       "null": 63
+             *     }
+             */
+            byMethod: {
+                [key: string]: number;
+            };
+            /**
+             * Format: double
+             * @description Fraction of articles where this field was populated by any non-null method. `1 - byMethod["null"] / totalArticles`.
+             * @example 0.475
+             */
+            populationRate: number;
+            /**
+             * @description True when 0 % of ≥ 50 observed articles populated this field over the last 30 days. Encodes "the absence is the publisher's choice, not sampling variance" — drives the dashboard's field-level Negative-Space rendering (Brief §7.7).
+             * @example true
+             */
+            structurallyAbsent: boolean;
+        };
+        /** @description Per-source metadata coverage record carrying the per-field matrix for one source. Sources with no observed articles in the metadata-coverage horizon return an empty `fields` array — same shape, semantically "no observations yet". */
+        MetadataCoverageSource: {
+            /**
+             * @description Canonical source name (matches `Source.name`).
+             * @example bundesregierung
+             */
+            name: string;
+            /** @description One entry per Tier-B / Tier-C field observed for this source. */
+            fields: components["schemas"]["MetadataCoverageField"][];
+        };
+        /**
+         * @description Composite payload for the Phase 122f metadata-coverage endpoints. Returned by both `GET /probes/{probeId}/metadata-coverage` (multi-source view backing the Probe Dossier panel) and `GET /sources/{sourceId}/metadata-coverage` (single-source view backing the per-source dossier surface). The shape is the same — only the scope of the `sources` array differs.
+         *     WP-003 §3.2 documents the metadata-richness asymmetry as a structural bias; this endpoint operationalises it. AĒR analysis layers MUST consume the signal for any cross-source aggregation — absent fields are absent by design, not by sampling variance.
+         */
+        MetadataCoverageResponse: {
+            /**
+             * @description Either the probeId (when called via `/probes/{probeId}/metadata-coverage`) or the sourceId (when called via `/sources/{sourceId}/metadata-coverage`).
+             * @example probe-0-de-institutional-rss
+             */
+            scope: string;
+            /** @description One entry per source in the requested scope, ordered by source name. Empty when the scope resolves to no sources. */
+            sources: components["schemas"]["MetadataCoverageSource"][];
         };
     };
     responses: never;
@@ -2634,6 +2732,65 @@ export interface operations {
             };
         };
     };
+    getProbeMetadataCoverage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Canonical probe identifier. */
+                probeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The probe's metadata-coverage payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataCoverageResponse"];
+                };
+            };
+            /** @description Probe not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
     getSourceArticles: {
         parameters: {
             query?: {
@@ -2683,6 +2840,65 @@ export interface operations {
                         /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
                         alternatives?: string[] | null;
                     };
+                };
+            };
+            /** @description Source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getSourceMetadataCoverage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source identifier — either the canonical name (e.g. `tagesschau`) or the integer source id. */
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The source's metadata-coverage payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataCoverageResponse"];
                 };
             };
             /** @description Source not found. */

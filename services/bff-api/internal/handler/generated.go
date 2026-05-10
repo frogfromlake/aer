@@ -771,6 +771,37 @@ type ContentResponseEntityType string
 // ContentResponseLocale Language of the returned content.
 type ContentResponseLocale string
 
+// MetadataCoverageResponse Composite payload for the Phase 122f metadata-coverage endpoints. Returned by both `GET /probes/{probeId}/metadata-coverage` (multi-source view backing the Probe Dossier panel) and `GET /sources/{sourceId}/metadata-coverage` (single-source view backing the per-source dossier surface). The shape is the same — only the scope of the `sources` array differs.
+// WP-003 §3.2 documents the metadata-richness asymmetry as a structural bias; this endpoint operationalises it. AĒR analysis layers MUST consume the signal for any cross-source aggregation — absent fields are absent by design, not by sampling variance.
+type MetadataCoverageResponse struct {
+	// Scope Either the probeId (when called via `/probes/{probeId}/metadata-coverage`) or the sourceId (when called via `/sources/{sourceId}/metadata-coverage`).
+	Scope string `json:"scope"`
+
+	// Sources One entry per source in the requested scope, ordered by source name. Empty when the scope resolves to no sources.
+	Sources []struct {
+		// Fields One entry per Tier-B / Tier-C field observed for this source.
+		Fields []struct {
+			// ByMethod Per-extraction-method article counts. Keys are the method values from `web_meta.ALLOWED_EXTRACTION_METHODS` plus the literal string `"null"` for unfilled fields. The literal-string `"null"` is the Negative-Space sentinel — structural absence as a queryable value, not a SQL NULL.
+			ByMethod map[string]int `json:"byMethod"`
+
+			// Field Tier-B / Tier-C field name as recorded by the WebAdapter's `extraction_methods` provenance dict (e.g. `published_date`, `author`, `articleSection`).
+			Field string `json:"field"`
+
+			// PopulationRate Fraction of articles where this field was populated by any non-null method. `1 - byMethod["null"] / totalArticles`.
+			PopulationRate float64 `json:"populationRate"`
+
+			// StructurallyAbsent True when 0 % of ≥ 50 observed articles populated this field over the last 30 days. Encodes "the absence is the publisher's choice, not sampling variance" — drives the dashboard's field-level Negative-Space rendering (Brief §7.7).
+			StructurallyAbsent bool `json:"structurallyAbsent"`
+
+			// TotalArticles Distinct article count observed for this (source, field) over the 30-day metadata-coverage horizon (TTL on the raw fact table).
+			TotalArticles int `json:"totalArticles"`
+		} `json:"fields"`
+
+		// Name Canonical source name (matches `Source.name`).
+		Name string `json:"name"`
+	} `json:"sources"`
+}
+
 // MetricProvenance defines model for MetricProvenance.
 type MetricProvenance struct {
 	// AlgorithmDescription Plain-language description of the algorithm or lexicon that produces this metric.
@@ -1326,6 +1357,9 @@ type ServerInterface interface {
 	// Per-probe equivalence summary
 	// (GET /probes/{probeId}/equivalence)
 	GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string)
+	// Per-source-per-field metadata coverage for a probe
+	// (GET /probes/{probeId}/metadata-coverage)
+	GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
@@ -1347,6 +1381,9 @@ type ServerInterface interface {
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams)
+	// Per-field metadata coverage for a single source
+	// (GET /sources/{sourceId}/metadata-coverage)
+	GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string)
 	// Per-scope topic distribution (Episteme x ridgeline / stream-graph)
 	// (GET /topics/distribution)
 	GetTopicDistribution(w http.ResponseWriter, r *http.Request, params GetTopicDistributionParams)
@@ -1446,6 +1483,12 @@ func (_ Unimplemented) GetProbeEquivalence(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Per-source-per-field metadata coverage for a probe
+// (GET /probes/{probeId}/metadata-coverage)
+func (_ Unimplemented) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Readiness probe
 // (GET /readyz)
 func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
@@ -1485,6 +1528,12 @@ func (_ Unimplemented) GetSourceById(w http.ResponseWriter, r *http.Request, id 
 // Paginated article listing for a source
 // (GET /sources/{id}/articles)
 func (_ Unimplemented) GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-field metadata coverage for a single source
+// (GET /sources/{sourceId}/metadata-coverage)
+func (_ Unimplemented) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2509,6 +2558,37 @@ func (siw *ServerInterfaceWrapper) GetProbeEquivalence(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetProbeMetadataCoverage operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "probeId" -------------
+	var probeId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeMetadataCoverage(w, r, probeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetReadyz operation middleware
 func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
 
@@ -2867,6 +2947,37 @@ func (siw *ServerInterfaceWrapper) GetSourceArticles(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetSourceMetadataCoverage operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", chi.URLParam(r, "sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSourceMetadataCoverage(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetTopicDistribution operation middleware
 func (siw *ServerInterfaceWrapper) GetTopicDistribution(w http.ResponseWriter, r *http.Request) {
 
@@ -3123,6 +3234,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/probes/{probeId}/equivalence", wrapper.GetProbeEquivalence)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/probes/{probeId}/metadata-coverage", wrapper.GetProbeMetadataCoverage)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
 	})
 	r.Group(func(r chi.Router) {
@@ -3142,6 +3256,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources/{id}/articles", wrapper.GetSourceArticles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sources/{sourceId}/metadata-coverage", wrapper.GetSourceMetadataCoverage)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/topics/distribution", wrapper.GetTopicDistribution)
@@ -4352,6 +4469,65 @@ func (response GetProbeEquivalence500JSONResponse) VisitGetProbeEquivalenceRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetProbeMetadataCoverageRequestObject struct {
+	ProbeId string `json:"probeId"`
+}
+
+type GetProbeMetadataCoverageResponseObject interface {
+	VisitGetProbeMetadataCoverageResponse(w http.ResponseWriter) error
+}
+
+type GetProbeMetadataCoverage200JSONResponse MetadataCoverageResponse
+
+func (response GetProbeMetadataCoverage200JSONResponse) VisitGetProbeMetadataCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeMetadataCoverage404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeMetadataCoverage404JSONResponse) VisitGetProbeMetadataCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeMetadataCoverage500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeMetadataCoverage500JSONResponse) VisitGetProbeMetadataCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetReadyzRequestObject struct {
 }
 
@@ -4904,6 +5080,65 @@ func (response GetSourceArticles500JSONResponse) VisitGetSourceArticlesResponse(
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetSourceMetadataCoverageRequestObject struct {
+	SourceId string `json:"sourceId"`
+}
+
+type GetSourceMetadataCoverageResponseObject interface {
+	VisitGetSourceMetadataCoverageResponse(w http.ResponseWriter) error
+}
+
+type GetSourceMetadataCoverage200JSONResponse MetadataCoverageResponse
+
+func (response GetSourceMetadataCoverage200JSONResponse) VisitGetSourceMetadataCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceMetadataCoverage404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetSourceMetadataCoverage404JSONResponse) VisitGetSourceMetadataCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceMetadataCoverage500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetSourceMetadataCoverage500JSONResponse) VisitGetSourceMetadataCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetTopicDistributionRequestObject struct {
 	Params GetTopicDistributionParams
 }
@@ -5059,6 +5294,9 @@ type StrictServerInterface interface {
 	// Per-probe equivalence summary
 	// (GET /probes/{probeId}/equivalence)
 	GetProbeEquivalence(ctx context.Context, request GetProbeEquivalenceRequestObject) (GetProbeEquivalenceResponseObject, error)
+	// Per-source-per-field metadata coverage for a probe
+	// (GET /probes/{probeId}/metadata-coverage)
+	GetProbeMetadataCoverage(ctx context.Context, request GetProbeMetadataCoverageRequestObject) (GetProbeMetadataCoverageResponseObject, error)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
@@ -5080,6 +5318,9 @@ type StrictServerInterface interface {
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(ctx context.Context, request GetSourceArticlesRequestObject) (GetSourceArticlesResponseObject, error)
+	// Per-field metadata coverage for a single source
+	// (GET /sources/{sourceId}/metadata-coverage)
+	GetSourceMetadataCoverage(ctx context.Context, request GetSourceMetadataCoverageRequestObject) (GetSourceMetadataCoverageResponseObject, error)
 	// Per-scope topic distribution (Episteme x ridgeline / stream-graph)
 	// (GET /topics/distribution)
 	GetTopicDistribution(ctx context.Context, request GetTopicDistributionRequestObject) (GetTopicDistributionResponseObject, error)
@@ -5506,6 +5747,32 @@ func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// GetProbeMetadataCoverage operation middleware
+func (sh *strictHandler) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string) {
+	var request GetProbeMetadataCoverageRequestObject
+
+	request.ProbeId = probeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeMetadataCoverage(ctx, request.(GetProbeMetadataCoverageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeMetadataCoverage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeMetadataCoverageResponseObject); ok {
+		if err := validResponse.VisitGetProbeMetadataCoverageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetReadyz operation middleware
 func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	var request GetReadyzRequestObject
@@ -5681,6 +5948,32 @@ func (sh *strictHandler) GetSourceArticles(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSourceArticlesResponseObject); ok {
 		if err := validResponse.VisitGetSourceArticlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSourceMetadataCoverage operation middleware
+func (sh *strictHandler) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string) {
+	var request GetSourceMetadataCoverageRequestObject
+
+	request.SourceId = sourceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSourceMetadataCoverage(ctx, request.(GetSourceMetadataCoverageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSourceMetadataCoverage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSourceMetadataCoverageResponseObject); ok {
+		if err := validResponse.VisitGetSourceMetadataCoverageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

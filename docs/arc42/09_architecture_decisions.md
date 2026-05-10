@@ -1813,3 +1813,167 @@ demand it.
 - **Status:** Accepted.
 
 ---
+
+## ADR-029: Metadata Coverage as a First-Class Runtime Signal
+
+**Date:** 2026-05-10
+**Status:** Accepted
+**Related ADRs:** ADR-015 (Source Adapter Pattern — `BiasContext`), ADR-022 (Article Resolution Source-of-Truth Lives in the Analytical Layer), ADR-028 (Web Crawling Architecture)
+**Related Phases:** 122 (Probe 0 RSS → Web-Crawl Migration), 122e A13 (Tier-B Field-Population Forensic Matrix), 122f (Metadata Coverage Surface)
+**Related Working Papers:** WP-003 §3.2 (Metadata-richness asymmetry as a first-class runtime signal), WP-004 §5.3 (Cross-cultural comparability levels), Design Brief §7.7 (Negative Space — what is not observed is a first-class rendering)
+
+### Context
+
+Phase 122's WebAdapter records per-field provenance markers
+(`extraction_methods`) on every Tier-B / Tier-C field of every
+`WebMeta` envelope: `json_ld`, `open_graph`, `microdata`, `rdfa`,
+`html_meta`, `heuristic_htmldate`, `derived`, or `None`. Phase 122e
+A13's forensic deep-dive surfaced what the methodology had already
+named: *publishers systematically differ in which structured-metadata
+fields they emit*. tagesschau emits `author`, `articleSection`, and
+`dateModified` on virtually every article; bundesregierung emits none
+of these on the majority of theirs. The asymmetry is not a sampling
+artefact — it is an editorial choice that survives every crawl.
+
+Until Phase 122f the asymmetry was visible only in static analytical
+artefacts (the Probe 0 dossier's `bias_assessment.md`, the iter-3 / 5
+forensic matrices). The BFF returned absent fields as `null`; the
+dashboard rendered them as "empty"; downstream analysis layers had
+no signal to refuse cross-source aggregations on fields whose absence
+is the publisher's choice rather than sampling variance.
+
+The architectural question was therefore: *where does the per-field
+provenance live so it becomes a runtime signal the dashboard and any
+future cross-source aggregation can consume?*
+
+### Decision
+
+**Per-field `extraction_methods` provenance, already populated on every
+Silver envelope, feeds a per-source aggregation in Gold, exposed as a
+typed BFF endpoint, and surfaced as a field-level Negative-Space
+rendering on the Probe Dossier.** The pieces:
+
+1. **Substrate (existing).** `WebMeta.extraction_methods: dict[str,
+   Optional[str]]` carries the per-field provenance verbatim on every
+   Silver write. Allowed methods are whitelisted in
+   `web_meta.ALLOWED_EXTRACTION_METHODS`. Phase 122f does **not**
+   change this surface — it operationalises what was already there.
+
+2. **Aggregation (Phase 122f, ClickHouse migration 022).**
+
+   * `aer_gold.metadata_coverage_raw` — `ReplacingMergeTree
+     (ingestion_version)` ordered by `(source, article_id, field)`,
+     30-day TTL on `ingestion_at`. One row per (article, field) on
+     every Silver write; the worker writes a literal-string `"null"`
+     method for unfilled fields so structural absence is a queryable
+     value, not a SQL NULL.
+   * `aer_gold.metadata_coverage` — `AggregatingMergeTree`
+     materialised view ordered by `(source, field, method)`, no TTL.
+     `uniqExactState(article_id)` and `maxState(ingestion_at)` are the
+     state columns. The MV-over-RMT pattern combined with insert-block
+     deduplication (migration 021) avoids the AggregatingMergeTree-
+     over-ReplacingMergeTree double-count footgun.
+
+3. **Read path (BFF).** Two endpoints, identical payload shape, scoped
+   differently:
+   * `GET /api/v1/probes/{probeId}/metadata-coverage` — multi-source view.
+   * `GET /api/v1/sources/{sourceId}/metadata-coverage` — single-source view.
+   Each `MetadataCoverageField` carries `totalArticles`, per-method
+   counts, the derived `populationRate`, and a `structurallyAbsent`
+   boolean. The `structurallyAbsent` rule — 0 % population over ≥ 50
+   articles in the trailing 30 days — is computed in Go on the read
+   path (storage `AssembleCoverage`) so a single migration carries the
+   threshold and the dashboard does not duplicate the rule.
+
+4. **Render path (Dashboard, Probe Dossier panel).** The
+   `MetadataCoveragePanel` Svelte component renders the matrix as a
+   per-source card with a Tier-B-then-Tier-C-ordered field list,
+   per-method stacked-bar inline glyphs, and a `populationRate` chip.
+   When `negativeSpaceActive()` is on, structurally-absent cells
+   replace the dim placeholder with WP-003 §3.2 register prose
+   ("bundesregierung does not emit `author` — this is a publisher
+   choice, not a missing observation"). The visual treatment of
+   non-absent cells is unchanged — the overlay foregrounds *absence*,
+   not observation.
+
+5. **Write path (worker).** A new `internal/metadata_coverage.py`
+   module appends one row per Tier-B/C field per article into
+   `metadata_coverage_raw` immediately after `silver_projection`'s
+   ClickHouse insert. Failure is logged-and-swallowed (mirrors
+   `silver_projection`); the canonical Silver record stays in MinIO,
+   so a missing coverage row only affects the panel, never the
+   pipeline. The module is a no-op for non-`WebMeta` envelopes — only
+   the WebAdapter populates `extraction_methods` today, and Phase 122f
+   is web-only by methodological design.
+
+### Alternatives considered
+
+**Compute coverage on demand from `aer_silver.documents`.** Rejected:
+the Silver projection table does not carry per-field provenance, and
+walking the MinIO Silver envelopes per request would put a
+publisher-asymmetry surface on the request hot path of the Probe
+Dossier — exactly the latency profile that Phase 103b's Silver
+projection was created to avoid.
+
+**Store the matrix in Postgres alongside the source classification.**
+Rejected: per-field counts grow with every crawl; the operational
+Postgres schema is not the right substrate for an aggregate that
+already has an analytical-layer home. ClickHouse's
+AggregatingMergeTree gives us merge-correct aggregation for free.
+
+**Use SQL `NULL` as the no-method sentinel.** Rejected: structural
+absence is the *signal* this surface foregrounds. Hiding it in NULL
+semantics (where `count(method)` skips it, `groupArray(method)` drops
+it, etc.) would push the absence sentinel into the ergonomics of
+every read query that touches the table. Storing the literal-string
+`"null"` keeps absence first-class and makes the read SQL identical
+for absent and present cells.
+
+**Compute `structurallyAbsent` in ClickHouse via a derived column.**
+Rejected for now: the threshold (≥ 50 articles, 0 % population, last
+30 days) is a methodological calibration knob; expressing it in Go on
+the read path lets us tune it without a migration. If the threshold
+stabilises, it can be promoted into the MV later without a
+schema-breaking change.
+
+### Consequences
+
+* **Positive:** WP-003 §3.2's metadata-richness-asymmetry framing now
+  has a runtime data substrate. The Probe Dossier shows the asymmetry
+  before the user encounters a metric refusal in a function lane,
+  mirroring Phase 115's "Valid comparisons" pattern: methodological
+  boundaries are made legible up front, not surfaced only when an
+  aggregation fails.
+* **Positive:** the Negative-Space overlay (Brief §7.7) gains a
+  field-level realisation. A user toggling `Shift+N` on the Dossier
+  sees, in the publisher-side voice, what the source has chosen not
+  to emit — register-aware framing replaces the data-side "we have no
+  data" framing without any change to the visual treatment of
+  observed fields.
+* **Positive:** future cross-source aggregations that touch a Tier-B/C
+  field have a typed signal to consume. Phase 123's stylometric
+  authenticity work (which will touch `author`) can refuse a
+  cross-source composition that includes a structurally-absent field
+  with the same gating pattern Phase 115 uses for `metric_equivalence`.
+  This wiring is **deferred to the consuming phase** — Phase 122f does
+  not invent a metric to gate, since speculative refusal infrastructure
+  with no consumer is exactly the over-engineering CLAUDE.md's
+  "no overengineering" rule warns against.
+* **Negative:** the worker pays a per-article ClickHouse insert of
+  ~22 rows on every Silver write. Bounded by article volume; trivially
+  amortised by the existing ClickHouse insert path; insert-block
+  deduplication (migration 021) absorbs NATS redelivery without a
+  double-count.
+* **Negative:** the methodology-register prose for each field is
+  bound statically in `MetadataCoveragePanel.svelte` rather than
+  routed through the Content Catalog. Acceptable for Phase 122f
+  (the field set is enumerated in `metadata_coverage.COVERAGE_FIELDS`
+  and changes only when the WebAdapter does); will be promoted to
+  the Catalog if a multilingual variant of the panel ever lands.
+
+### Decision Record
+
+- **Drafted:** 2026-05-10 by Fabian Quist with AĒR for Phase 122f.
+- **Status:** Accepted.
+
+---

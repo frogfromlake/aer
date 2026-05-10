@@ -1,0 +1,34 @@
+get:
+  tags: [Reference]
+  summary: Per-field metadata coverage for a single source
+  description: >
+    Returns the metadata-coverage matrix for one source — the
+    single-source equivalent of `/probes/{probeId}/metadata-coverage`.
+    Backs the per-source dossier surface and any future single-source
+    deep-dive that needs the publisher's emission posture.
+    See WP-003 §3.2 and Design Brief §7.7 for the methodological frame.
+  operationId: getSourceMetadataCoverage
+  parameters:
+    - name: sourceId
+      in: path
+      required: true
+      description: >
+        Source identifier — either the canonical name (e.g. `tagesschau`)
+        or the integer source id.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: The source's metadata-coverage payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MetadataCoverageResponse'
+    '404':
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

@@ -1,0 +1,30 @@
+type: object
+description: >
+  Composite payload for the Phase 122f metadata-coverage endpoints.
+  Returned by both `GET /probes/{probeId}/metadata-coverage` (multi-source
+  view backing the Probe Dossier panel) and
+  `GET /sources/{sourceId}/metadata-coverage` (single-source view backing
+  the per-source dossier surface). The shape is the same — only the
+  scope of the `sources` array differs.
+
+  WP-003 §3.2 documents the metadata-richness asymmetry as a structural
+  bias; this endpoint operationalises it. AĒR analysis layers MUST
+  consume the signal for any cross-source aggregation — absent fields
+  are absent by design, not by sampling variance.
+required:
+  - scope
+  - sources
+properties:
+  scope:
+    type: string
+    description: >
+      Either the probeId (when called via `/probes/{probeId}/metadata-coverage`)
+      or the sourceId (when called via `/sources/{sourceId}/metadata-coverage`).
+    example: probe-0-de-institutional-rss
+  sources:
+    type: array
+    description: >
+      One entry per source in the requested scope, ordered by source name.
+      Empty when the scope resolves to no sources.
+    items:
+      $ref: './MetadataCoverageSource.yaml'
