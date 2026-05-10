@@ -56,10 +56,42 @@ class ClickHousePool:
             except queue.Empty:
                 break
 
-    def insert(self, table: str, rows: list, column_names: list[str]) -> None:
+    def insert(self, table: str, rows: list, column_names: list[str], deduplication_token: str | None = None) -> None:
+        """Insert rows into a ClickHouse table.
+
+        When `deduplication_token` is provided, it is forwarded as the
+        ClickHouse `insert_deduplication_token` setting. Combined with
+        `non_replicated_deduplication_window` on the target table
+        (set via migration 000021), ClickHouse refuses any subsequent
+        INSERT block carrying the same token — silently no-oping
+        retries from at-least-once message delivery before the
+        source-table dedup check fires. See Phase 122e A19 / F-A19.
+
+        Phase 122e A27 / F-A27 — note on MV dedup. The ClickHouse setting
+        ``deduplicate_blocks_in_dependent_materialized_views=1`` would
+        propagate source-side dedup to dependent MVs, BUT it only takes
+        effect when the source table is a ``Replicated*MergeTree``. Our
+        schema uses non-Replicated ``ReplacingMergeTree``, so MV dedup
+        cannot be enforced at this layer. The race condition that
+        produces raw-vs-MV drift (NATS redelivery + non-atomic worker
+        idempotency check) is therefore eliminated upstream — see the
+        atomic-claim implementation in
+        ``internal/storage/postgres_client.try_claim_document``. Once a
+        single worker holds the claim per ``bronze_object_key``, no
+        duplicate insert ever reaches ClickHouse, and the MV stays
+        aligned by construction.
+        """
         client = self.getconn()
         try:
-            client.insert(table, rows, column_names=column_names)
+            if deduplication_token is not None:
+                client.insert(
+                    table,
+                    rows,
+                    column_names=column_names,
+                    settings={"insert_deduplication_token": deduplication_token},
+                )
+            else:
+                client.insert(table, rows, column_names=column_names)
         finally:
             self.putconn(client)
 

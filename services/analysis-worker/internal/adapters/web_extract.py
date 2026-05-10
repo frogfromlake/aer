@@ -74,6 +74,128 @@ except Exception as _extract_import_error:  # pragma: no cover - tested via DLQ 
 
 _HTML_LANG_RE = re.compile(r"<html[^>]*\blang\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
 
+# Phase 122e — F-A3 / F-A4. The `<time datetime="...">` element is the
+# canonical HTML5 way to mark a publication date when JSON-LD doesn't
+# carry a NewsArticle. Probe 0's bundesregierung.de news pages emit only
+# this — no NewsArticle JSON-LD, no `article:published_time` OG tag.
+# Without reading it the WebAdapter falls all the way through to
+# htmldate's heuristic, which produces `YYYY-01-01 00:00:00` from year-
+# only strings in page footers — a fake-precise stamp that collapses
+# every article to a single instant in time and breaks every downstream
+# temporal analysis. The first match below is the article-level date.
+_TIME_DATETIME_RE = re.compile(
+    r"<time[^>]*\bdatetime\s*=\s*['\"]([^'\"]+)['\"][^>]*>",
+    re.IGNORECASE,
+)
+# Also catch `<meta property="article:published_time">` and the variants
+# `name="published_time"`, `itemprop="datePublished"` — three more
+# publisher-emitted signals that pre-empt htmldate's heuristic.
+_META_PUBLISHED_RE = re.compile(
+    r"<meta[^>]+(?:property|name|itemprop)\s*=\s*['\"]"
+    r"(?:article:published_time|published_time|date|pubdate|publishdate|datePublished)"
+    r"['\"][^>]+content\s*=\s*['\"]([^'\"]+)['\"][^>]*>"
+    r"|"
+    r"<meta[^>]+content\s*=\s*['\"]([^'\"]+)['\"][^>]+(?:property|name|itemprop)\s*=\s*['\"]"
+    r"(?:article:published_time|published_time|date|pubdate|publishdate|datePublished)"
+    r"['\"][^>]*>",
+    re.IGNORECASE,
+)
+
+
+def _extract_html_meta_published(html: str) -> Optional[datetime]:
+    """Pull the article's publication date from publisher-emitted HTML5
+    elements (`<time datetime="...">`) and `<meta>` tags
+    (`article:published_time`, `pubdate`, `datePublished`, ...). This
+    runs after JSON-LD / OG resolution but before falling through to
+    htmldate's heuristic. Returns the first parsable timestamp.
+    """
+    # `<time datetime="...">` first — it's the most semantically explicit
+    # publisher signal in HTML5.
+    for match in _TIME_DATETIME_RE.finditer(html):
+        candidate = _parse_iso_or_none(match.group(1))
+        if candidate is not None:
+            return candidate
+    # `<meta>` variants second.
+    for match in _META_PUBLISHED_RE.finditer(html):
+        # The regex has two alternative groups depending on attribute order.
+        value = match.group(1) or match.group(2)
+        candidate = _parse_iso_or_none(value)
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _is_year_floor_sentinel(candidate: datetime, html: str) -> bool:
+    """Phase 122e — F-A4. htmldate's heuristic sometimes returns
+    ``YYYY-01-01 00:00:00`` (start-of-year) when no real publication
+    date is present in the HTML — typically picked up from a year string
+    in a footer copyright notice. Treating that as an authoritative
+    publication date collapses every article on the same site to a
+    single instant in time (Probe 0's bundesregierung sample produced
+    `2026-01-01 00:00:00` for ALL 201 articles).
+
+    Detect the year-floor pattern: midnight on January 1st with no
+    corroborating `<time datetime="YYYY-01-01...">` or `<meta>` tag
+    bearing exactly the same date. A real Jan 1 publication will have a
+    matching authoritative element; a sentinel-only stamp will not.
+    """
+    if candidate.month != 1 or candidate.day != 1:
+        return False
+    if candidate.hour != 0 or candidate.minute != 0 or candidate.second != 0:
+        return False
+    target_prefix = candidate.strftime("%Y-01-01")
+    # Look for any element that explicitly says this exact date.
+    for match in _TIME_DATETIME_RE.finditer(html):
+        if target_prefix in (match.group(1) or ""):
+            return False
+    for match in _META_PUBLISHED_RE.finditer(html):
+        value = match.group(1) or match.group(2) or ""
+        if target_prefix in value:
+            return False
+    return True
+
+
+def _log_midnight_htmldate_observation(
+    candidate: datetime, html: str, canonical_url: str
+) -> None:
+    """Phase 122e A14 — defensive monitoring for htmldate's midnight
+    stamps that pass the year-floor sentinel check.
+
+    When htmldate resolves a publication date whose time component is
+    exactly ``00:00:00`` AND no ``<time datetime="...">`` element
+    exists in the source HTML, the date is most likely derived from a
+    date STRING in the headline / footer (e.g. ``"7. Mai 2026"``)
+    rather than a structured publisher signal. The date may be
+    accurate (speeches and press releases are often dated to "the
+    day" without a time component), but the precision is undocumented
+    and could mask a finer-grained signal that downstream temporal
+    analyses might want to weight.
+
+    This is **monitoring only**: the date is still recorded, the
+    extraction_method already records ``heuristic_htmldate`` honestly,
+    and analyses that need precision can filter on
+    ``extraction_method != "heuristic_htmldate"`` already. The log
+    line lets us measure how often this case fires across the corpus
+    and lets us escalate to a real bug if downstream analyses prove
+    sensitive to midnight imprecision (Phase 122e A14 → escalation
+    threshold lives in the operations playbook).
+
+    Cross-reference: F-A4 (year-floor sentinel) is a HARDER rejection
+    that fires only on ``YYYY-01-01 00:00:00`` with no corroboration.
+    A14 is a SOFTER observation that fires on any midnight stamp from
+    htmldate without a `<time>` element — it captures real-but-
+    imprecise dates the year-floor check correctly accepts.
+    """
+    if candidate.hour != 0 or candidate.minute != 0 or candidate.second != 0:
+        return
+    if _TIME_DATETIME_RE.search(html):
+        return
+    logger.info(
+        "htmldate_midnight_observation: published_date=%s url=%s",
+        candidate.isoformat(),
+        canonical_url or "<unknown>",
+    )
+
 
 def canonical_url_or(original_url: str) -> str:
     """Return courlan-canonicalised URL, or the input verbatim if courlan
@@ -275,11 +397,28 @@ def _resolve_published_date(
     html: str,
     canonical_url: str,
 ) -> None:
-    """Populate ``published_date`` and the timestamp_source provenance via
-    the canonical priority chain. Uses ``htmldate`` only as a final
-    heuristic fallback — JSON-LD / OG / microdata / html-meta are
-    deterministic and preferred.
+    """Populate ``published_date`` and the timestamp_source provenance
+    via the canonical priority chain (JSON-LD → OG → microdata →
+    HTML5 ``<time datetime>`` / ``<meta>`` → htmldate heuristic).
+
+    Phase 122e enforces three correctness invariants over the
+    pre-existing chain:
+
+    * ``<time datetime="...">`` and `<meta>` tags are read **before**
+      falling through to htmldate's heuristic (Probe 0's
+      bundesregierung.de news pages emit only these — no NewsArticle
+      JSON-LD, no ``article:published_time`` OG tag).
+    * ``extraction_methods.published_date`` and ``timestamp_source``
+      are written as a consistent pair on every code path. Previously
+      ``microdata`` left ``timestamp_source = "open_graph_published"``
+      (folded buckets) — corrected to ``html_meta_published``.
+    * htmldate's "year-floor sentinel" output (``YYYY-01-01 00:00:00``
+      with no corroborating element in the HTML) is rewritten to
+      ``published_date = None`` so the article is correctly classified
+      as Negative-Space (per Brief §7.7) instead of polluting timeline
+      analyses with a fake-precise stamp.
     """
+    # Tier-1: JSON-LD NewsArticle.
     if jsonld is not None:
         candidate = _parse_iso_or_none(jsonld.get("datePublished"))
         if candidate is not None:
@@ -288,6 +427,7 @@ def _resolve_published_date(
             meta.timestamp_source = "json_ld_published"
             return
 
+    # Tier-2: OpenGraph article:published_time.
     og_published = og.get("article:published_time") or og.get("og:published_time")
     candidate = _parse_iso_or_none(og_published)
     if candidate is not None:
@@ -296,28 +436,48 @@ def _resolve_published_date(
         meta.timestamp_source = "open_graph_published"
         return
 
+    # Tier-3: Schema.org microdata datePublished.
     if microdata is not None:
         candidate = _parse_iso_or_none(microdata.get("datePublished"))
         if candidate is not None:
             meta.published_date = candidate
             _record(meta, "published_date", "microdata")
-            meta.timestamp_source = "open_graph_published"  # No distinct sentinel; fold into OG bucket.
-            meta.extraction_methods["published_date"] = "microdata"
+            meta.timestamp_source = "html_meta_published"
             return
 
-    # Final heuristic: htmldate scans the document with multiple signals.
+    # Tier-4 (Phase 122e — F-A3): HTML5 `<time datetime="...">` and
+    # `<meta>` publishedTime variants. These are publisher-emitted
+    # explicit dates that pre-empt htmldate's whole-document heuristic.
+    candidate = _extract_html_meta_published(html)
+    if candidate is not None:
+        meta.published_date = candidate
+        _record(meta, "published_date", "html_meta")
+        meta.timestamp_source = "html_meta_published"
+        return
+
+    # Tier-5: htmldate's whole-document heuristic. Last resort. Phase
+    # 122e — F-A4: detect the year-floor sentinel and refuse to record
+    # it as a publication date. Phase 122e A14: emit a defensive
+    # monitoring log line for the softer "midnight stamp without a
+    # `<time>` element" case — date is still accepted, but the
+    # operator can audit how often it fires.
     if htmldate is not None:
         try:
             heuristic = htmldate.find_date(html, original_date=True, url=canonical_url or None)
         except Exception:
             heuristic = None
         candidate = _parse_iso_or_none(heuristic) if heuristic else None
-        if candidate is not None:
+        if candidate is not None and not _is_year_floor_sentinel(candidate, html):
             meta.published_date = candidate
             _record(meta, "published_date", "heuristic_htmldate")
             meta.timestamp_source = "html_meta_published"
+            _log_midnight_htmldate_observation(candidate, html, canonical_url)
             return
 
+    # No authoritative date available. Caller is expected to cascade to
+    # sitemap_lastmod / http_last_modified / fetch_at and update
+    # `meta.timestamp_source` accordingly. Leave both null/empty here so
+    # the cascade is observable in the WebAdapter.
     _record(meta, "published_date", None)
 
 
@@ -391,6 +551,20 @@ def _resolve_section(
     jsonld: Optional[dict[str, Any]],
     og: dict[str, Any],
 ) -> None:
+    """Populate ``section`` and its provenance via the canonical chain
+    JSON-LD ``articleSection`` → OpenGraph ``article:section`` → JSON-LD
+    ``about[0].name`` → JSON-LD ``keywords[0]``.
+
+    Phase 122e A12 adds the two JSON-LD fallback steps. tagesschau's
+    ``NewsArticle`` JSON-LD does NOT carry ``articleSection``; instead
+    it carries ``about: [{"@type":"Thing","name":"Wetter","sameAs":...}]``
+    and ``keywords: ["Wetter"]``. Falling back to ``about[0].name``
+    captures the most-semantically-explicit topical anchor (Schema.org
+    ``Thing`` references with `sameAs` URLs), and ``keywords[0]`` is the
+    final fallback when ``about`` is absent. The provenance marker
+    stays ``"json_ld"`` because the source IS JSON-LD; the path within
+    JSON-LD differs and is captured by the field-level write.
+    """
     if jsonld is not None:
         candidate = _stringify(jsonld.get("articleSection"))
         if candidate:
@@ -402,7 +576,73 @@ def _resolve_section(
         meta.section = candidate
         _record(meta, "section", "open_graph")
         return
+    if jsonld is not None:
+        # `about` is a list of Schema.org Thing references; first one
+        # is conventionally the article's primary topic.
+        about_value = jsonld.get("about")
+        if isinstance(about_value, list) and about_value:
+            first = about_value[0]
+            if isinstance(first, dict):
+                name = _stringify(first.get("name"))
+                if name:
+                    meta.section = name
+                    _record(meta, "section", "json_ld")
+                    return
+        elif isinstance(about_value, dict):
+            name = _stringify(about_value.get("name"))
+            if name:
+                meta.section = name
+                _record(meta, "section", "json_ld")
+                return
+        # Final JSON-LD fallback: first keyword.
+        keywords_value = jsonld.get("keywords")
+        first_keyword = ""
+        if isinstance(keywords_value, list) and keywords_value:
+            first_keyword = _stringify(keywords_value[0])
+        elif isinstance(keywords_value, str):
+            first_keyword = keywords_value.split(",")[0].strip() if keywords_value else ""
+        if first_keyword:
+            meta.section = first_keyword
+            _record(meta, "section", "json_ld")
+            return
     _record(meta, "section", None)
+
+
+def _extract_image_url(value: Any) -> str:
+    """Return a single URL string from a JSON-LD ``image`` value.
+
+    Phase 122e A25 / F-A25 — JSON-LD ``image`` may be:
+      * a bare URL string: ``"https://example.com/foo.jpg"``;
+      * a single ``ImageObject`` dict:
+        ``{"@type": "ImageObject", "url": "https://..."}`` — the URL
+        sits under ``url`` (preferred), ``@id``, or ``contentUrl``;
+      * an array of any of the above (the most common pattern when an
+        article carries multiple promotional images).
+
+    The previous implementation called ``_stringify(image)`` which
+    fell through to ``str(value)`` for a list of ImageObjects,
+    producing a stringified Python list-of-dict like
+    ``"[{'@type': 'ImageObject', 'url': '...'}]"`` instead of the URL.
+    The schema (``WebMeta.image_url: str``) requires a URL string.
+
+    Returns the first URL it finds, or ``""`` if none.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("url", "@id", "contentUrl"):
+            inner = value.get(key)
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()
+        return ""
+    if isinstance(value, list):
+        for item in value:
+            url = _extract_image_url(item)
+            if url:
+                return url
+    return ""
 
 
 def _resolve_image(
@@ -411,8 +651,7 @@ def _resolve_image(
     og: dict[str, Any],
 ) -> None:
     if jsonld is not None:
-        image = jsonld.get("image")
-        url = _stringify(image)
+        url = _extract_image_url(jsonld.get("image"))
         if url:
             meta.image_url = url
             _record(meta, "image_url", "json_ld")
@@ -430,6 +669,13 @@ def _resolve_categories_and_tags(
     jsonld: Optional[dict[str, Any]],
     og: dict[str, Any],
 ) -> None:
+    """Populate ``tags`` and ``categories`` from JSON-LD / OpenGraph.
+
+    Phase 122e A12 / A7 refinement: also accept ``about[*].name`` as a
+    fallback for ``categories`` when ``articleSection`` is absent.
+    tagesschau emits ``about: [{"@type":"Thing","name":"Wetter",...}, ...]``
+    on its ``NewsArticle`` blocks instead of ``articleSection``.
+    """
     if jsonld is not None:
         keywords = _list_of_strings(jsonld.get("keywords"))
         if keywords:
@@ -439,6 +685,25 @@ def _resolve_categories_and_tags(
         if section:
             meta.categories = section
             _record(meta, "categories", "json_ld")
+        else:
+            # A12 fallback: derive categories from `about[*].name` —
+            # the canonical Schema.org topical anchor when the
+            # publisher does not emit `articleSection` directly.
+            about_value = jsonld.get("about")
+            about_names: list[str] = []
+            if isinstance(about_value, list):
+                for entry in about_value:
+                    if isinstance(entry, dict):
+                        name = _stringify(entry.get("name"))
+                        if name:
+                            about_names.append(name)
+            elif isinstance(about_value, dict):
+                name = _stringify(about_value.get("name"))
+                if name:
+                    about_names.append(name)
+            if about_names:
+                meta.categories = about_names
+                _record(meta, "categories", "json_ld")
         if meta.tags or meta.categories:
             return
 

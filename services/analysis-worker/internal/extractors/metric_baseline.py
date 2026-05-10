@@ -178,10 +178,26 @@ class MetricBaselineExtractor:
             )
             return BaselineSweepResult(rows_written=0, n_groups=0)
 
+        # Phase 122e A24 / F-A24 — `ch_client` here is the raw
+        # `clickhouse_connect.driver.Client`, not the worker's
+        # `ClickHousePool` wrapper that A19 extended. The raw client's
+        # `insert()` API does not accept `deduplication_token` as a
+        # kwarg; passing it raises `TypeError`. The native idempotency
+        # mechanism is the `insert_deduplication_token` setting, which
+        # CH consumes verbatim and routes through the same block-level
+        # dedup window the wrapper uses.
+        # Phase 122e A24 — `ch_client` here is the raw clickhouse_connect
+        # Client (not the worker pool wrapper); use `settings={...}` directly.
         ch_client.insert(
             "aer_gold.metric_baselines",
             rows,
             column_names=BASELINE_COLUMNS,
+            settings={
+                "insert_deduplication_token": (
+                    f"aer_gold.metric_baselines:"
+                    f"{window.start.isoformat()}:{window.end.isoformat()}:{compute_date.isoformat()}"
+                ),
+            },
         )
         logger.info(
             "baseline.sweep.complete",

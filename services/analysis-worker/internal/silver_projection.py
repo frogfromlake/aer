@@ -35,7 +35,7 @@ def raw_entity_count(cleaned_text: str) -> int:
     return len(_CAPITALIZED_TOKEN.findall(cleaned_text))
 
 
-def upload_silver_projection(ch_client, core, ingestion_version: int, bronze_object_key: str = "") -> None:
+def upload_silver_projection(ch_client, core, ingestion_version: int, bronze_object_key: str = "", timestamp_source: str = "") -> None:
     """
     Insert a single projection row into aer_silver.documents.
 
@@ -47,6 +47,12 @@ def upload_silver_projection(ch_client, core, ingestion_version: int, bronze_obj
     forward into the analytical layer so the BFF can resolve
     (article_id) → (bronze_object_key, source) without consulting the
     operational PostgreSQL store.
+
+    timestamp_source (Phase 122e A18 / F-A18) carries the provenance of
+    `core.timestamp` so downstream temporal aggregations can filter out
+    `fetch_at_fallback` rows whose timestamp is the write-time, not a real
+    publication date. Empty string for non-web sources where the
+    SilverMeta predates this provenance dimension.
     """
     try:
         row = [
@@ -59,6 +65,7 @@ def upload_silver_projection(ch_client, core, ingestion_version: int, bronze_obj
             raw_entity_count(core.cleaned_text or ""),
             ingestion_version,
             bronze_object_key,
+            timestamp_source or "",
         ]
         ch_client.insert(
             SILVER_DOCS_TABLE,
@@ -73,7 +80,9 @@ def upload_silver_projection(ch_client, core, ingestion_version: int, bronze_obj
                 "raw_entity_count",
                 "ingestion_version",
                 "bronze_object_key",
+                "timestamp_source",
             ],
+            deduplication_token=f"{SILVER_DOCS_TABLE}:{core.document_id}:{ingestion_version}",
         )
         logger.info(
             "Silver projection updated",

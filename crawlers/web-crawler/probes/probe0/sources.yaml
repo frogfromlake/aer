@@ -16,21 +16,97 @@
 # operator cannot accidentally skew one source's archive depth against
 # another (the "archive-depth bias" failure mode).
 probe:
-  # Temporal cutoff for sitemap discovery: any URL with
-  # `sitemap_lastmod < (now - time_window_days)` is dropped at discovery
-  # time, never queued for fetch. Sitemap entries with no `lastmod` fall
-  # through (the worker classifies them as Negative-Space via
-  # `timestamp_source = "fetch_at_fallback"` per Brief §7.7).
+  # Temporal cutoff for discovery: any URL with
+  # `sitemap_lastmod < (now - time_window_days)` (or RSS pubDate, or
+  # archive-page date) is dropped at discovery time, never queued for
+  # fetch.
   #
-  # 1825 = 5 years. Aligned with the daily-MV TTL activated in Phase 122c
-  # (WP-005 §5.4 Scale-5 cultural-drift horizon). Lowering this value
-  # narrows the corpus; raising it requires Gold TTL coordination first.
-  time_window_days: 1825
+  # **Phase 122e — set to 7 (rolling 7-day watermark).** AĒR is operated
+  # as a continuous monitoring system: each `make crawl-probe0` run
+  # captures the last seven days of articles for every source, Postgres
+  # `crawler_state` dedups already-seen URLs, and only the day's *new*
+  # articles incur a fetch. Cron-driven repeated execution accumulates
+  # the corpus organically — after 1 month the corpus is 1 month deep,
+  # after 1 year 1 year deep.
+  #
+  # **Why 7 not 1**: 7 days is the data-science best-practice
+  # "lateness allowance" for news / editorial pipelines (the same
+  # pattern Apache Beam / Flink / Kafka Streams use under the name
+  # "rolling window with watermark"). Rationale:
+  #   * **Cron resilience.** A single missed firing under a 1-day
+  #     window loses that day permanently; under a 7-day window the
+  #     next firing recovers it. Postgres dedup makes the overlap
+  #     storage- and compute-free.
+  #   * **Editorial holds / backdating.** News publishers routinely
+  #     emit an article today with `pubDate = yesterday` (or up to
+  #     ~ 3 days back) after editorial review. A 1-day window silently
+  #     misses these.
+  #   * **Time-series gap sensitivity.** Any downstream temporal
+  #     aggregation (sentiment over time, topic trends, frequency
+  #     analysis) is corrupted by gap days — they manifest as
+  #     artificial dips that are invisible to the consumer.
+  #   * **Replayability.** A worker hiccup or NATS redelivery edge
+  #     case loses an article forever under a tight window; under
+  #     a 7-day window the next tick re-discovers it.
+  #
+  # **Why this is NOT backfill**. Backfill = "ingest content from
+  # before we started monitoring." A 7-day rolling watermark only ever
+  # reaches into the last week and is a one-time cost on the very
+  # first run; from day 7 onward the watermark is stable and the
+  # behaviour is identical to "today's articles only." WP-006 §3
+  # prohibits *editorial* gating (don't pick sections); it does NOT
+  # prohibit *temporal* lateness allowances, which are universal
+  # across every source — same rule for tagesschau and bundesregierung,
+  # no editorial picking. The Manifesto's "unaltered mirror" principle
+  # actually argues *for* the wider window: a strict 1-day cutoff that
+  # occasionally drops articles because of a cron hiccup is a
+  # less-faithful mirror than a 7-day window that catches everything.
+  #
+  # The Gold TTLs (5-year / 1825-day / indefinite for the three MVs)
+  # are independent of this knob — the corpus accumulates and is
+  # retained per the MV TTLs regardless of how each crawl-tick
+  # discovers content.
+  time_window_days: 7
+
+  # Phase 122e A21 / F-A21 — strict-lastmod sitemap filtering.
+  # When `true` (default), sitemap entries with no `<lastmod>` field are
+  # *dropped* in temporal-filter mode (i.e., when `time_window_days` is
+  # set). When `false`, undated sitemap entries fall through and are
+  # ingested as Negative Space (the Phase-122b backfill behaviour).
+  #
+  # Iter-4 forensics confirmed that Probe 0's bundesregierung.de sitemap
+  # has 100 % undated entries (638 of 638 in the leaf I sampled), so
+  # the previous "fall through" rule meant 100 % of bundesregierung's
+  # 5-year archive bypassed the temporal filter — articles dating back
+  # to 2011 made it into Bronze and Silver before being TTL-evicted on
+  # the Gold side. Strict mode is the only correct setting for
+  # continuous-monitoring; flip to `false` only for an explicit
+  # backfill run.
+  sitemap_strict_lastmod: true
 
 sources:
   - name: tagesschau
-    sitemap_urls:
-      - https://www.tagesschau.de/sitemap.xml
+    # Phase 122e — tagesschau does NOT publish an XML sitemap:
+    # `https://www.tagesschau.de/sitemap.xml` returns HTML 404, and
+    # `tagesschau.de/robots.txt` carries no `Sitemap:` directive.
+    # The RSS feed at `index~rss2.xml` is the sole discovery channel;
+    # it surfaces the publisher's most-recent ≈ 70 items (≈ 14 days of
+    # tagesschau output at typical publishing rates). The probe-level
+    # `time_window_days = 1` filter drops RSS entries older than 1 day
+    # at discovery, so each cron run only fetches today's articles and
+    # Postgres `crawler_state` dedup ensures each article is fetched
+    # exactly once across runs.
+    #
+    # Note: a date-indexed HTML archive at `/archiv?datum=YYYY-MM-DD`
+    # (monthly granularity, ≈ 140 articles per month, 4+ years deep) is
+    # *implemented* as a discovery channel (see
+    # `internal/discovery/archive_index.py`) but **not configured here**:
+    # AĒR runs in continuous-monitoring mode (each cron tick = today's
+    # articles, accumulate forward), and the archive walker is a
+    # backfill capability that contradicts that mode. Available for
+    # future explicit-backfill use cases via the `archive_index:` block —
+    # see `docs/extending/add-a-source.md` for the schema.
+    sitemap_urls: []
     rss_hint_url: https://www.tagesschau.de/index~rss2.xml
     politeness:
       delay_seconds: 1.0
@@ -50,8 +126,23 @@ sources:
     custom_extractors: {}
 
   - name: bundesregierung
+    # Phase 122e — `https://www.bundesregierung.de/sitemap.xml` returns
+    # HTML 404; the publisher's actual sitemaps are three hash-suffixed
+    # `sitemap_index.xml` files declared in robots.txt. All three are
+    # **service-sitemaps** (archive / forms / CMS-noise URLs only) — no
+    # `/breg-de/aktuelles/` news content. The RSS hint feed is the only
+    # channel that surfaces actual news articles; with the Phase-122e
+    # sort fix (RSS pubDate populates DiscoveredUrl.sitemap_lastmod)
+    # the news URLs now compete fairly with sitemap URLs in newest-
+    # first ordering. The sitemap_urls list is kept for completeness
+    # (operators inspecting the config see what the publisher actually
+    # publishes), but the URL-filter below excludes the known noise
+    # paths so the sitemap output is constrained to the small fraction
+    # of URLs that aren't archive/form/listing pages.
     sitemap_urls:
-      - https://www.bundesregierung.de/sitemap.xml
+      - https://www.bundesregierung.de/service-sitemap-4d4e784d6cdbde1a37901f96601df03f-sitemap_index.xml
+      - https://www.bundesregierung.de/service-sitemap-9dca52ff98e0ed01b98a219a2b0bb383-sitemap_index.xml
+      - https://www.bundesregierung.de/service-sitemap-eac0bb2dddac4321ff3b164c4ce8d951-sitemap_index.xml
     rss_hint_url: https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml
     politeness:
       delay_seconds: 1.0
@@ -60,8 +151,77 @@ sources:
     url_filter:
       exclude_extensions:
         [jpg, png, gif, svg, webp, mp4, mp3, css, js, pdf, ico, woff, woff2]
+      # Technical filters only (per WP-006 §3 — no editorial gating).
+      # Three categories of exclusion below, all technical:
+      #
+      # (1) Stack-wide noise paths (legal pages, asset/search endpoints).
+      #
+      # (2) Phase 122e A3: archive-section index pages and event-listing
+      #     pages that bundesregierung's sitemap surfaces but which
+      #     contain no article body. Iter-1 forensics: 78 archive + 28
+      #     schwerpunkte quarantines confirmed every entry under these
+      #     prefixes is non-article content.
+      #
+      # (3) Phase 122e A16 (supersedes A10): bundesregierung partitions
+      #     content by **locale prefix**, not by topic — the actual URL
+      #     structure is `/breg-de/...` (German), `/breg-en/...` (English),
+      #     `/breg-fr/...` (French). Iter-3 forensics confirmed A10's
+      #     topic-prefix exclusions (`/le-gouvernement-fédéral/`,
+      #     `/federal-government/`, `/issues/`) silently failed because
+      #     a startswith match on `/issues/` cannot match
+      #     `/breg-en/issues/...`. The fix is to exclude the locale
+      #     prefixes outright — Probe 0 is German-institutional per
+      #     the dossier, so the foreign mirrors are by definition
+      #     out-of-scope. Technical filtering on locale, same spirit
+      #     as `exclude_extensions`; not editorial gating.
+      #
+      # (4) Phase 122e A11: long tail of CMS-generated non-article
+      #     paths the iter-2 forensics surfaced. Cabinet-member
+      #     CV/Lebenslauf pages, press-office org-info pages,
+      #     newsletter subscription forms, accessible-language mirrors
+      #     (sign-language, "easy language"), search-result
+      #     placeholders, and broken-link pages — all consume worker
+      #     resources without producing articles. Technical filtering
+      #     on CMS-emitted non-article content; not editorial gating.
       exclude_path_prefixes:
-        [/api/, /search/, /suche/, /impressum, /datenschutz, /agb]
+        # (1) Stack-wide noise.
+        - /api/
+        - /search/
+        - /suche/
+        - /impressum
+        - /datenschutz
+        - /agb
+        - /resource/
+        # (2) Phase 122e A3 — archive + event-listing.
+        - /breg-de/service/archiv-bundesregierung/
+        - /breg-de/schwerpunkte/
+        # (3) Phase 122e A16 (supersedes A10) — non-German locale mirrors.
+        - /breg-en/
+        - /breg-fr/
+        # (4) Phase 122e A11 — CMS-generated non-article paths.
+        - /breg-de/bundesregierung/bundeskabinett/
+        - /breg-de/bundesregierung/bundespresseamt/
+        - /breg-de/bundesregierung/bundeskanzleramt/
+        - /breg-de/bundesregierung/bundesministerien/
+        - /breg-de/service/newsletter-und-abos/
+        - /breg-de/service/kontakt/
+        - /breg-de/gebaerdensprache/
+        - /breg-de/leichte-sprache/
+        - /breg-de/suche/
+        - /breg-de/mediathek/
+        # (5) Phase 122e A22 — single-segment CMS info / placeholder
+        # pages surfaced by iter-4 forensics. These are not articles;
+        # trafilatura fails to extract content from them. Most slip
+        # through F-A11 because they don't share a common nested
+        # prefix. After F-A21 (strict-lastmod) most of these get
+        # dropped at discovery anyway, but listing them here is
+        # defense-in-depth in case the publisher ever starts dating
+        # them.
+        - /breg-de/richtige-wahl-aus-330-berufen-
+        - /breg-de/fakten-zur-regierungspolitik-
+        - /breg-de/bundesregierung/link-kopieren-
+        - /breg-de/neueste-nachrichten-der-bundesregierung-ueber-rss-feedreader-
+        - /breg-de/barrierefreiheit/
       require_html_content_type: true
     content_filter:
       min_word_count: 50

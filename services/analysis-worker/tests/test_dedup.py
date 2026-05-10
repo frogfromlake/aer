@@ -88,11 +88,12 @@ def ch_pool(ch_dedup_container, monkeypatch):
                 metric_name String DEFAULT '',
                 article_id Nullable(String),
                 discourse_function String DEFAULT '',
-                ingestion_version UInt64 DEFAULT 0
+                ingestion_version UInt64 DEFAULT 0,
+                timestamp_source String DEFAULT ''
             )
             ENGINE = ReplacingMergeTree(ingestion_version)
             ORDER BY (article_id, metric_name)
-            SETTINGS allow_nullable_key = 1
+            SETTINGS allow_nullable_key = 1, non_replicated_deduplication_window = 1000
             """
         )
         client.command(
@@ -110,7 +111,7 @@ def ch_pool(ch_dedup_container, monkeypatch):
             )
             ENGINE = ReplacingMergeTree(ingestion_version)
             ORDER BY (article_id, entity_label, start_char, end_char)
-            SETTINGS allow_nullable_key = 1
+            SETTINGS allow_nullable_key = 1, non_replicated_deduplication_window = 1000
             """
         )
         client.command(
@@ -122,11 +123,12 @@ def ch_pool(ch_dedup_container, monkeypatch):
                 detected_language String,
                 confidence Float64,
                 rank UInt8,
-                ingestion_version UInt64 DEFAULT 0
+                ingestion_version UInt64 DEFAULT 0,
+                language_variety String DEFAULT ''
             )
             ENGINE = ReplacingMergeTree(ingestion_version)
             ORDER BY (article_id, rank)
-            SETTINGS allow_nullable_key = 1
+            SETTINGS allow_nullable_key = 1, non_replicated_deduplication_window = 1000
             """
         )
     finally:

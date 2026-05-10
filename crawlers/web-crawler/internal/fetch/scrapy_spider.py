@@ -36,6 +36,24 @@ logger = logging.getLogger(__name__)
 def _passes_url_filter(url: str, url_filter: dict[str, Any]) -> bool:
     """Apply technical-only URL filters. Section-level editorial filtering
     is rejected per WP-006 §3 and is therefore intentionally absent.
+
+    Phase 122e A22 / F-A22 — `exclude_path_prefixes` matching has two
+    semantics depending on the trailing character of the configured
+    prefix:
+
+    * **Trailing slash → segment-prefix match (trailing-slash-tolerant).**
+      ``/breg-de/suche/`` filters ``/breg-de/suche``, ``/breg-de/suche/``,
+      and ``/breg-de/suche/anything`` but NOT ``/breg-de/suchergebnis/``.
+      This is the right semantics when excluding a path-section.
+    * **No trailing slash → raw startswith match.** ``/breg-de/link-kopieren-``
+      filters every URL whose path starts with that string, including
+      slug suffixes like ``/breg-de/link-kopieren-2205244``. This is
+      the right semantics for excluding a CMS-slug pattern.
+
+    Operator picks the semantics by adding (or omitting) a trailing
+    slash on the prefix. Iter-4 noise patterns (CMS slug patterns)
+    use the no-trailing-slash form; section excludes use the
+    trailing-slash form.
     """
     if not url_filter:
         return True
@@ -45,9 +63,21 @@ def _passes_url_filter(url: str, url_filter: dict[str, Any]) -> bool:
     for ext in url_filter.get("exclude_extensions", []) or []:
         if path.endswith(f".{ext.lower()}"):
             return False
-    for prefix in url_filter.get("exclude_path_prefixes", []) or []:
-        if path.startswith(prefix.lower()):
-            return False
+    for prefix in (url_filter.get("exclude_path_prefixes", []) or []):
+        p = prefix.lower()
+        if not p:
+            continue
+        if p.endswith("/"):
+            # Segment-prefix match (trailing-slash tolerant).
+            norm = p.rstrip("/")
+            if not norm:
+                continue
+            if path == norm or path.startswith(norm + "/"):
+                return False
+        else:
+            # Raw string prefix — for slug-pattern excludes.
+            if path.startswith(p):
+                return False
     return True
 
 
@@ -233,22 +263,21 @@ def _parse_http_date(value: Optional[str]) -> Optional[datetime]:
     return parsed
 
 
-def run_crawl_for_source(
-    *,
-    source_id: int,
-    source_name: str,
-    urls: list[DiscoveredUrl],
-    politeness: dict[str, Any],
-    url_filter: dict[str, Any],
-    content_filter: dict[str, Any],
-    custom_extractors: Optional[dict[str, Any]],
-    state: CrawlerState,
-    ingestion_client: IngestionClient,
-    user_agent: str,
-) -> None:
-    """Synchronously crawl ``urls`` for one source. Blocks until the Twisted
-    reactor has finished. Multiple sources are crawled by sequential calls
-    (the reactor is single-shot per process by Scrapy convention).
+def build_crawler_process(
+    politeness: dict[str, Any], user_agent: str
+) -> CrawlerProcess:
+    """Create a single Twisted-backed :class:`CrawlerProcess`.
+
+    Use **one** process per Python invocation — Twisted's reactor is a
+    process-wide singleton and cannot be restarted, so multiple
+    ``process.start()`` calls in the same process raise
+    ``ReactorNotRestartable`` (the failure mode that aborted the very
+    first Phase 122 smoke crawl). Multiple sources are queued via
+    :func:`queue_source_crawl` and run in a single ``process.start()``
+    call after all sources are queued; Scrapy's per-domain throttle
+    (``CONCURRENT_REQUESTS_PER_DOMAIN``, per-domain ``DOWNLOAD_DELAY``)
+    naturally scopes politeness to each source's host even though all
+    spiders share the reactor.
     """
     settings = {
         "ROBOTSTXT_OBEY": True,
@@ -268,8 +297,26 @@ def run_crawl_for_source(
         "TELNETCONSOLE_ENABLED": False,
         "HTTPCACHE_ENABLED": False,
     }
+    return CrawlerProcess(settings=settings)
 
-    process = CrawlerProcess(settings=settings)
+
+def queue_source_crawl(
+    process: CrawlerProcess,
+    *,
+    source_id: int,
+    source_name: str,
+    urls: list[DiscoveredUrl],
+    url_filter: dict[str, Any],
+    content_filter: dict[str, Any],
+    custom_extractors: Optional[dict[str, Any]],
+    state: CrawlerState,
+    ingestion_client: IngestionClient,
+) -> None:
+    """Queue one source's :class:`WebSpider` on the shared
+    :class:`CrawlerProcess`. The spider does not start fetching until
+    :meth:`CrawlerProcess.start` is called by the caller after every
+    source has been queued.
+    """
     process.crawl(
         WebSpider,
         source_id=source_id,
@@ -281,4 +328,3 @@ def run_crawl_for_source(
         state=state,
         ingestion_client=ingestion_client,
     )
-    process.start()

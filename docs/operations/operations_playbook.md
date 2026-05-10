@@ -952,6 +952,14 @@ ORDER BY last_fetched DESC LIMIT 20;
 
 A `make reset` (Phase 120b) wipes `postgres_data` and therefore the `crawler_state` rows — the next `make crawl-<probe-id>` re-ingests every URL surfaced by the sitemap. There is no longer a separate `make crawl-reset` target; the dedup state is logically Postgres-tied and travels with `make reset`.
 
+**Resumable iteration (Phase 122e A9).** `make crawl-probe0` is **resumable across sessions**. `Ctrl+C` during a long run, close the laptop, come back the next day — the crawler picks up where it left off because every successfully-fetched URL is recorded in `crawler_state` *as it happens* (not at the end of the run). The next invocation:
+
+1. Re-discovers the full sitemap + RSS feed surface (cheap — minutes for any realistic probe).
+2. Skips every URL already in `crawler_state` whose `sitemap_lastmod` hasn't moved (`has_seen()` returns true).
+3. Fetches only the unseen URLs, in newest-first order.
+
+Multi-session crawls monotonically advance backward through the cutoff window without revisiting any URL. **Operators iterating on Phase 122e fixes do NOT need `make reset` between iterations** — only when they want a fresh baseline corpus (e.g., a new methodological invariant requires a clean re-run, or a `web_extract.py` fix needs to replay archived Bronze via `scripts/operations/reextract_silver.py` rather than re-fetching). Defaulting to `make reset` between iterations is wasteful: it discards the politeness-budget-spent Bronze and forces every URL through the network again.
+
 **Re-extraction without re-crawl** *(operational realisation of the medallion-architecture decoupling, ADR-028).* Trafilatura version upgrades and bug fixes in the Silver-side extraction pipeline trigger Silver/Gold rebuilds without re-crawling. The mechanism is `scripts/operations/reextract_silver.py` — replays archived Bronze HTML through the worker's `WebAdapter`, rewriting Silver and Gold rows. No politeness budget is spent; no risk that an upstream source has changed or is down between runs:
 
 ```bash

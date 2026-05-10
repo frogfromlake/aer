@@ -134,7 +134,7 @@ def test_discover_for_source_sorts_newest_first(monkeypatch) -> None:
     def fake_sitemap_discover(_urls, since=None) -> Iterator[DiscoveredUrl]:
         yield from fake_urls
 
-    def fake_rss_discover(_url, since=None) -> Iterator[str]:
+    def fake_rss_discover(_url, since=None):
         return iter([])
 
     monkeypatch.setattr("main.discover_sitemap", fake_sitemap_discover)
@@ -163,7 +163,7 @@ def test_discover_for_source_threads_since_to_both_channels(monkeypatch) -> None
         received["sitemap"] = since
         return iter([])
 
-    def capture_rss(_url, since=None) -> Iterator[str]:
+    def capture_rss(_url, since=None):
         received["rss"] = since
         return iter([])
 
@@ -182,10 +182,55 @@ def test_discover_for_source_threads_since_to_both_channels(monkeypatch) -> None
     assert received["rss"] == cutoff
 
 
+def test_discover_for_source_rss_pubdate_promotes_url_to_head(monkeypatch) -> None:
+    """Phase 122e — RSS-discovered URLs with a parsed pubDate sort by
+    that pubDate alongside sitemap URLs, so a fresh RSS news article
+    (no sitemap entry) wins over an older sitemap-discovered service
+    page. Without this, RSS news URLs sink to the end of the queue
+    behind every sitemap-discovered URL with a real lastmod, and a
+    bounded-time crawl never reaches them.
+    """
+    from main import _discover_for_source
+
+    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
+    sitemap_entry = DiscoveredUrl(
+        url="https://x/sitemap-old",
+        sitemap_lastmod=now - timedelta(days=30),
+        sitemap_section="archive",
+    )
+    rss_recent = ("https://x/rss-fresh", now - timedelta(hours=2))
+    rss_undated = ("https://x/rss-undated", None)
+
+    monkeypatch.setattr(
+        "main.discover_sitemap", lambda urls, since=None: iter([sitemap_entry])
+    )
+    monkeypatch.setattr(
+        "main.discover_rss", lambda url, since=None: iter([rss_recent, rss_undated])
+    )
+
+    source = {
+        "name": "x",
+        "sitemap_urls": ["https://x"],
+        "rss_hint_url": "https://x/feed.xml",
+    }
+    result = _discover_for_source(source, since=None)
+
+    ordered_urls = [entry.url for entry in result]
+    assert ordered_urls == [
+        "https://x/rss-fresh",     # RSS pubDate 2h ago — newest
+        "https://x/sitemap-old",   # sitemap lastmod 30d ago — middle
+        "https://x/rss-undated",   # RSS without pubDate — sinks to end
+    ]
+    fresh = next(e for e in result if e.url == "https://x/rss-fresh")
+    assert fresh.sitemap_lastmod is not None
+    assert fresh.sitemap_section is None  # RSS-only discovery has no section
+
+
 def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
     """When the same URL appears in both sitemap and RSS, the sitemap
-    entry (with `sitemap_lastmod`) wins over the RSS entry (no
-    lastmod)."""
+    entry (with `sitemap_lastmod` AND `sitemap_section`) wins over the
+    RSS entry. Phase 122e adds the RSS pubDate to the lost candidate
+    but the sitemap-side winner already carried a canonical lastmod."""
     from main import _discover_for_source
 
     sitemap_entry = DiscoveredUrl(
@@ -198,7 +243,8 @@ def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
         "main.discover_sitemap", lambda urls, since=None: iter([sitemap_entry])
     )
     monkeypatch.setattr(
-        "main.discover_rss", lambda url, since=None: iter(["https://x/dup"])
+        "main.discover_rss",
+        lambda url, since=None: iter([("https://x/dup", datetime(2026, 5, 8, tzinfo=timezone.utc))]),
     )
 
     source = {
@@ -211,3 +257,125 @@ def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
     assert len(result) == 1
     assert result[0].sitemap_lastmod is not None
     assert result[0].sitemap_section == "news"
+
+
+# --- Phase 122e A1: regression test for ReactorNotRestartable ---------------
+
+
+def test_cli_calls_start_exactly_once_for_multi_source(monkeypatch, tmp_path) -> None:
+    """Phase 122e A1 — regression test for the original Phase-122
+    ``twisted.internet.error.ReactorNotRestartable`` failure mode.
+
+    The first Phase-122 implementation called ``CrawlerProcess.start()``
+    once per source inside the ``cli()`` loop; Twisted's reactor is a
+    process-wide singleton and crashed on the second source. The fix
+    queues every source's spider on a SHARED CrawlerProcess and calls
+    ``start()`` exactly once after the loop. This test pins that
+    invariant: for a probe with N sources, ``build_crawler_process`` is
+    called at most once and ``process.start`` is called exactly once.
+
+    Mocks are set against `main.build_crawler_process` and
+    `main.queue_source_crawl` (the two helpers exposed by
+    `internal.fetch.scrapy_spider`). The test does not invoke any real
+    Scrapy / Twisted machinery — it asserts on the call shape only.
+    """
+    from unittest.mock import MagicMock
+    import main as crawler_main
+
+    # Probe config with two sources — both will yield URLs.
+    probe_yaml = tmp_path / "probe-test"
+    probe_yaml.mkdir()
+    (probe_yaml / "sources.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "probe": {"time_window_days": 30},
+                "sources": [
+                    {
+                        "name": "src_a",
+                        "sitemap_urls": ["https://a/sitemap.xml"],
+                        "rss_hint_url": "https://a/feed.xml",
+                    },
+                    {
+                        "name": "src_b",
+                        "sitemap_urls": ["https://b/sitemap.xml"],
+                        "rss_hint_url": "https://b/feed.xml",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Discovery returns one URL per source.
+    monkeypatch.setattr(
+        "main.discover_sitemap",
+        lambda urls, since=None: iter(
+            [
+                DiscoveredUrl(
+                    url=f"https://{urls[0].split('/')[2]}/article-1",
+                    sitemap_lastmod=datetime(2026, 5, 1, tzinfo=timezone.utc),
+                    sitemap_section=None,
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "main.discover_rss",
+        lambda url, since=None: iter([]),
+    )
+
+    # The single shared CrawlerProcess instance — its `crawl` and `start`
+    # are observed by the test.
+    fake_process = MagicMock(name="CrawlerProcess")
+    build_calls: list[tuple] = []
+
+    def fake_build(politeness, user_agent):
+        build_calls.append((politeness, user_agent))
+        return fake_process
+
+    queue_calls: list[str] = []
+
+    def fake_queue(process, **kwargs):
+        # Assert the SAME process instance is reused for every source —
+        # if the implementation regresses to "new process per source"
+        # this assertion fires.
+        assert process is fake_process, (
+            f"queue_source_crawl received a different process instance "
+            f"for source {kwargs.get('source_name')!r} — Phase 122e A1 "
+            f"regression: ReactorNotRestartable will recur"
+        )
+        queue_calls.append(kwargs["source_name"])
+
+    monkeypatch.setattr("main.build_crawler_process", fake_build)
+    monkeypatch.setattr("main.queue_source_crawl", fake_queue)
+
+    # Stub IngestionClient + CrawlerState so cli() doesn't try real I/O.
+    fake_ingestion = MagicMock()
+    fake_ingestion.resolve_source_id.side_effect = lambda name: {"src_a": 1, "src_b": 2}[name]
+    monkeypatch.setattr("main.IngestionClient", lambda **kw: fake_ingestion)
+    monkeypatch.setattr("main.CrawlerState", lambda dsn: MagicMock())
+
+    # Run the CLI with both sources queued.
+    rc = crawler_main.cli(
+        [
+            "--probe", "probe-test",
+            "--config-dir", str(tmp_path),
+            "--api-key", "test-key",
+        ]
+    )
+
+    assert rc == 0, "cli should exit cleanly when both sources have URLs"
+    # The load-bearing assertion: ONE process, TWO queues, ONE start.
+    assert len(build_calls) == 1, (
+        f"build_crawler_process called {len(build_calls)} times — must be "
+        f"exactly 1 for multi-source crawls (Twisted reactor is a "
+        f"process-wide singleton)"
+    )
+    assert queue_calls == ["src_a", "src_b"], (
+        f"queue_source_crawl called for {queue_calls!r} — must queue both "
+        f"sources in declaration order"
+    )
+    assert fake_process.start.call_count == 1, (
+        f"process.start() called {fake_process.start.call_count} times — "
+        f"must be exactly 1 to avoid ReactorNotRestartable"
+    )

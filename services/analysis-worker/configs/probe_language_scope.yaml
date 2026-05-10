@@ -1,0 +1,27 @@
+# Probe Language Scope (Phase 122e A17 / F-A17).
+#
+# Single source-of-record for the languages a given crawler-side source is
+# allowed to emit. Documents whose detected language (rank=1 from
+# `LanguageDetectionExtractor`) falls outside the allow-list are quarantined
+# with reason `language_scope_violation` BEFORE the Silver write.
+#
+# Why this lives on the worker side, not on the crawler side:
+#   * the crawler's URL-prefix filter is best-effort (URL-encoded characters,
+#     CMS-renamed paths, locale-prefix mismatches all break it);
+#   * the worker has the *authoritative* language signal — actual document
+#     content fed through the language-detection consensus;
+#   * defense-in-depth: even if the crawler URL filter regresses, the worker
+#     refuses to admit out-of-scope content into Silver / Gold.
+#
+# Editing rules:
+#   * keys are source names exactly as they appear in `crawlers/<x>/probes/<y>/sources.yaml`
+#     and in the `sources` table seed migrations;
+#   * a missing entry means "no scope filter" — the worker accepts any
+#     language. Add an entry only when probe scope is bounded;
+#   * the empty list `[]` is reserved (= scope filter active, but no language
+#     is allowed — useful only for tests). For production, list the
+#     ISO-639-1 two-letter codes the source is allowed to publish.
+
+sources:
+  tagesschau: [de]
+  bundesregierung: [de]

@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 def discover(
     sitemap_urls: list[str],
     since: Optional[datetime] = None,
+    strict_lastmod: bool = True,
 ) -> Iterator[DiscoveredUrl]:
     """Yield every leaf URL surfaced by the supplied sitemap roots.
 
@@ -44,10 +45,25 @@ def discover(
 
     Phase 122b — temporal symmetry. When ``since`` is supplied, entries
     with ``sitemap_lastmod < since`` are dropped at discovery time and
-    never queued for fetch. Entries whose ``last_modified`` is ``None``
-    fall through (the worker's ``timestamp_source = "fetch_at_fallback"``
-    already classifies them as Negative Space per Brief §7.7 — we do not
-    silently drop coverage on publishers with sparse sitemaps).
+    never queued for fetch.
+
+    Phase 122e A21 / F-A21 — `strict_lastmod` controls how entries
+    *without* a ``<lastmod>`` are treated when ``since`` is supplied:
+
+    * ``strict_lastmod=True`` (default, continuous-monitoring mode) —
+      entries with no lastmod are *dropped*. This is the only safe
+      behaviour when the publisher's sitemap is fully undated, as in
+      Probe 0's bundesregierung.de (638-of-638 entries lack lastmod in
+      one leaf). Without strict mode, every undated entry bypasses
+      `time_window_days` and the temporal filter is a no-op.
+    * ``strict_lastmod=False`` (backfill mode) — entries with no lastmod
+      *fall through*. The worker's ``timestamp_source = "fetch_at_fallback"``
+      classifies them as Negative Space (Brief §7.7) — methodologically
+      defensible only when the operator has explicitly opted into
+      ingesting unbounded historical content.
+
+    When ``since`` is ``None`` (no temporal cutoff), ``strict_lastmod``
+    has no effect — all entries are yielded regardless of lastmod.
     """
     try:
         from usp.tree import sitemap_tree_for_homepage  # type: ignore
@@ -67,8 +83,13 @@ def discover(
             if not url or url in seen_urls:
                 continue
             lastmod = getattr(page, "last_modified", None)
-            if since is not None and lastmod is not None and lastmod < since:
-                continue
+            if since is not None:
+                if lastmod is None:
+                    if strict_lastmod:
+                        continue  # F-A21: drop undated entries in continuous mode
+                    # else: fall through (backfill mode)
+                elif lastmod < since:
+                    continue
             seen_urls.add(url)
             section = _section_from_url(url)
             yield DiscoveredUrl(url=url, sitemap_lastmod=lastmod, sitemap_section=section)

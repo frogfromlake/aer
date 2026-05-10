@@ -10,6 +10,24 @@ events_quarantined_total = Counter(
     "Total number of events moved to the dead letter queue (quarantine).",
 )
 
+# Phase 122e A26 / F-A26 — articles preserved in the archive layer
+# (Silver MinIO envelope) but excluded from the analytics layer because
+# their extracted `published_date` falls outside `WORKER_ANALYTICAL_WINDOW_DAYS`.
+# Surfaces the archive-vs-analytics scope difference as a queryable signal
+# (Phase 122f will read this alongside per-field metadata coverage).
+analysis_worker_archived_only_total = Counter(
+    "analysis_worker_archived_only_total",
+    (
+        "Articles preserved in the Silver MinIO archive but excluded from "
+        "ClickHouse analytics inserts because their published_date is older "
+        "than WORKER_ANALYTICAL_WINDOW_DAYS. "
+        "These articles WERE observed and harmonized successfully — they "
+        "are recorded in MinIO Silver as an audit-trail entry — but the "
+        "analytics layer treats them as out of scope."
+    ),
+    ["source"],
+)
+
 event_processing_duration_seconds = Histogram(
     "event_processing_duration_seconds",
     "End-to-end processing duration per event in seconds.",

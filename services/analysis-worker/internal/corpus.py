@@ -205,10 +205,17 @@ def insert_cooccurrence_rows(
         ]
         for r in rows
     ]
+    # Phase 122e A19: stable token per (source, window, ingestion_version)
+    # so a redelivered sweep no-ops at insert-time. Co-occurrence rows are
+    # produced corpus-wide rather than per-article, so the source+window
+    # pair is the natural granularity.
+    window_key = rows[0].window_start.isoformat() if rows else "empty"
+    source_key = rows[0].source if rows else "unknown"
     ch_pool.insert(
         "aer_gold.entity_cooccurrences",
         payload,
         column_names=COOCCURRENCE_COLUMNS,
+        deduplication_token=f"aer_gold.entity_cooccurrences:{source_key}:{window_key}:{ingestion_version}",
     )
 
 
@@ -541,10 +548,14 @@ def insert_topic_assignment_rows(
         ]
         for r in rows
     ]
+    # Phase 122e A19: token granularity = (window, ingestion_version) since
+    # a topic sweep is corpus-wide, not per-source.
+    window_key = rows[0].window_start.isoformat() if rows else "empty"
     ch_pool.insert(
         "aer_gold.topic_assignments",
         payload,
         column_names=TOPIC_ASSIGNMENT_COLUMNS,
+        deduplication_token=f"aer_gold.topic_assignments:{window_key}:{ingestion_version}",
     )
 
 

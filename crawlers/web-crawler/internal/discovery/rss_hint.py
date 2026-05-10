@@ -1,9 +1,17 @@
-"""RSS feed parsing as a *discovery hint only* (Phase 122).
+"""RSS feed parsing as a *discovery channel* (Phase 122 / Phase 122e).
 
 The crawler never uses the RSS body. The feed's ``<link>`` URLs surface
-freshly-published articles before the next sitemap refresh; the article
-body itself is always fetched from the HTML source. Items already
-visible in the sitemap are deduplicated by the caller.
+freshly-published articles, and for some publishers (Probe 0's
+bundesregierung.de in particular) the RSS feed is the **only** channel
+that exposes actual news content — the public sitemap exposes only
+service/archive pages. Phase 122e elevates RSS from "hint only" to a
+peer-equal discovery channel by returning each entry's ``published_parsed``
+timestamp alongside its URL, so the caller can populate the
+``DiscoveredUrl.sitemap_lastmod`` field and let RSS-discovered URLs
+compete fairly in the newest-first sort. Items already visible in the
+sitemap are deduplicated by the caller; if the same URL is in both
+channels, the sitemap entry wins (it carries the canonical lastmod and
+the sitemap_section context).
 
 Phase 122b — temporal symmetry. When ``since`` is supplied, entries
 older than the cutoff are dropped via the feed entry's
@@ -18,14 +26,22 @@ from __future__ import annotations
 import calendar
 import logging
 from datetime import datetime, timezone
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Tuple
 
 
 logger = logging.getLogger(__name__)
 
 
-def discover(rss_url: str, since: Optional[datetime] = None) -> Iterator[str]:
-    """Yield article URLs surfaced by the RSS feed.
+def discover(
+    rss_url: str, since: Optional[datetime] = None
+) -> Iterator[Tuple[str, Optional[datetime]]]:
+    """Yield ``(url, published_at)`` pairs surfaced by the RSS feed.
+
+    ``published_at`` is the UTC datetime parsed from the entry's
+    ``published_parsed`` (or ``updated_parsed`` fallback) when feedparser
+    could resolve it; ``None`` otherwise. The caller uses this to
+    populate ``DiscoveredUrl.sitemap_lastmod`` so RSS-discovered URLs
+    sort by freshness alongside sitemap-discovered URLs (Phase 122e).
 
     ``feedparser`` is imported lazily so the module loads in the test
     suite without the dependency present.
@@ -48,11 +64,10 @@ def discover(rss_url: str, since: Optional[datetime] = None) -> Iterator[str]:
         url = entry.get("link") or ""
         if not url:
             continue
-        if since is not None:
-            entry_dt = _entry_datetime(entry)
-            if entry_dt is not None and entry_dt < since:
-                continue
-        yield url
+        entry_dt = _entry_datetime(entry)
+        if since is not None and entry_dt is not None and entry_dt < since:
+            continue
+        yield url, entry_dt
 
 
 def _entry_datetime(entry: object) -> Optional[datetime]:

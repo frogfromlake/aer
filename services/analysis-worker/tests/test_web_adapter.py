@@ -36,6 +36,81 @@ pytest.importorskip("readability", reason="web_extract optional deps not install
 
 
 # ---------------------------------------------------------------------------
+# Phase 122e A25 / F-A25 — _extract_image_url normalises JSON-LD `image`
+# ---------------------------------------------------------------------------
+
+
+def test_extract_image_url_handles_bare_string():
+    from internal.adapters.web_extract import _extract_image_url
+    assert _extract_image_url("https://example.com/foo.jpg") == "https://example.com/foo.jpg"
+
+
+def test_extract_image_url_handles_single_imageobject_dict():
+    from internal.adapters.web_extract import _extract_image_url
+    assert _extract_image_url(
+        {"@type": "ImageObject", "url": "https://example.com/foo.jpg"}
+    ) == "https://example.com/foo.jpg"
+
+
+def test_extract_image_url_handles_imageobject_using_at_id():
+    """Some JSON-LD producers use `@id` instead of `url` for the image URL."""
+    from internal.adapters.web_extract import _extract_image_url
+    assert _extract_image_url(
+        {"@type": "ImageObject", "@id": "https://example.com/foo.jpg"}
+    ) == "https://example.com/foo.jpg"
+
+
+def test_extract_image_url_handles_imageobject_using_contentUrl():
+    from internal.adapters.web_extract import _extract_image_url
+    assert _extract_image_url(
+        {"@type": "ImageObject", "contentUrl": "https://example.com/foo.jpg"}
+    ) == "https://example.com/foo.jpg"
+
+
+def test_extract_image_url_handles_array_of_imageobjects():
+    """The iter-4 tagesschau bug: array of dicts must yield the URL of
+    the first dict, NOT the stringified Python list-of-dict repr.
+    """
+    from internal.adapters.web_extract import _extract_image_url
+    value = [
+        {"@type": "ImageObject", "url": "https://images.tagesschau.de/first.jpg"},
+        {"@type": "ImageObject", "url": "https://images.tagesschau.de/second.jpg"},
+    ]
+    result = _extract_image_url(value)
+    assert result == "https://images.tagesschau.de/first.jpg"
+    assert "{" not in result and "[" not in result  # no Python repr
+
+
+def test_extract_image_url_handles_array_of_bare_strings():
+    from internal.adapters.web_extract import _extract_image_url
+    assert _extract_image_url([
+        "https://example.com/a.jpg",
+        "https://example.com/b.jpg",
+    ]) == "https://example.com/a.jpg"
+
+
+def test_extract_image_url_handles_array_with_invalid_first_item():
+    """Array first-item is a dict with no usable URL key; second item
+    has one → fall through to the second."""
+    from internal.adapters.web_extract import _extract_image_url
+    value = [
+        {"@type": "ImageObject", "name": "no-url-here"},
+        {"@type": "ImageObject", "url": "https://example.com/found.jpg"},
+    ]
+    assert _extract_image_url(value) == "https://example.com/found.jpg"
+
+
+def test_extract_image_url_returns_empty_for_unrecognized_shapes():
+    from internal.adapters.web_extract import _extract_image_url
+    assert _extract_image_url(None) == ""
+    assert _extract_image_url({}) == ""
+    assert _extract_image_url({"@type": "ImageObject"}) == ""  # no URL key
+    assert _extract_image_url([]) == ""
+    assert _extract_image_url([{"@type": "ImageObject"}]) == ""
+    assert _extract_image_url(42) == ""  # invalid type
+
+
+# ---------------------------------------------------------------------------
 # Fixture HTML
 # ---------------------------------------------------------------------------
 

@@ -33,11 +33,46 @@ Probe 0 sources are accessed via full-article web crawling against their public 
 
 4. **Depth-of-Article-Body Access.** **(New, Phase 122 / WP-003 §3.2.)** Article-body access depends on paywall handling. Probe 0's two sources are currently free, but as the system extends to commercial publishers (a future probe), the same crawl semantics will encounter paywalls — yielding either a Tier-A-only DLQ rejection or a partial-body Silver record depending on how the source serves anonymous traffic. This is a structural bias dimension that did not exist on the RSS-summary collection method (RSS exposes the description regardless of paywall).
 
-5. **Metadata-Richness Asymmetry Between Sources.** **(New, Phase 122.)** Sources differ in how completely they emit Schema.org / OpenGraph metadata. tagesschau.de typically populates JSON-LD `NewsArticle` blocks fully; bundesregierung.de often relies on OpenGraph + heuristics. The `WebMeta.extraction_methods` provenance markers expose this asymmetry per field; the Coverage Map (Phase 125a) will surface it system-wide. Cross-source aggregations on Tier-C fields must be filtered by `extraction_method` to avoid conflating "field absent because the source does not emit it" with "field absent because the article omitted it".
+5. **Metadata-Richness Asymmetry Between Sources.** **(New, Phase 122; refined Phase 122e A13 with iter-2 forensics.)** Sources differ dramatically in how completely they emit Schema.org / OpenGraph metadata. The Phase 122e second iteration's per-source forensic measurements:
+
+   | Tier-B field | tagesschau population | bundesregierung population | Source's emission strategy |
+   | :--- | :--- | :--- | :--- |
+   | `published_date` | 100 % (81 % json_ld, 19 % html_meta) | 47.5 % (49 from `<time datetime>`, 8 from heuristic; **52.5 % no signal at all**) | tagesschau emits `NewsArticle.datePublished`; bundesregierung emits only `<time datetime>` on `/aktuelles/` pages and nothing on CV / press-office / form pages |
+   | `modified_date` | 81 % from json_ld | **0 %** | bundesregierung does not emit `dateModified` anywhere |
+   | `author` | 81 % from json_ld | **0 %** | bundesregierung does not emit `article:author` or JSON-LD `author` |
+   | `description` | 100 % from json_ld | 47.5 % from open_graph | bundesregierung's `og:description` is sparse |
+   | `section` | 0 % via `articleSection` (Phase 122e A12 adds `about[0].name` fallback → expected ≥ 60 % post-A12) | **0 %** | bundesregierung emits no section / category / topical metadata |
+   | `article_type` | 81 % from json_ld | **0 %** | bundesregierung emits no `@type` on JSON-LD article schema |
+   | `image_url` | 96 % from json_ld | 100 % from open_graph | both emit `og:image` on every article |
+   | `tags` | 81 % via `keywords` | **0 %** | bundesregierung emits no `article:tag` or JSON-LD `keywords` |
+   | Tier-D `structured_data` non-empty | 100 % (rich JSON-LD: NewsArticle + BreadcrumbList + Audio/Video) | 100 % (top-level keys present, but JSON-LD content is **only** a `BreadcrumbList` — no NewsArticle) | bundesregierung's CMS does not emit Schema.org NewsArticle structured data on news pages |
+
+   The bundesregierung CMS (CoreMedia, per the page generator meta tag) appears to be configured to emit only the absolute minimum: `og:type`, `og:title`, `og:url`, `og:image`, plus a single `<time datetime>` HTML5 element on pages where the publication date is rendered. It does **not** emit a `NewsArticle` JSON-LD block — even on `/aktuelles/` news pages — so every Tier-B field that is conventionally read from `NewsArticle` (author, articleSection, dateModified, articleBody, etc.) is structurally absent.
+
+   The `WebMeta.extraction_methods` provenance markers expose this asymmetry per field; the Coverage Map (Phase 125a) will surface it system-wide; **the planned Phase 122f runtime signal** (see ROADMAP "Phase 122f: Metadata Coverage Surface") will turn it into a queryable BFF endpoint and a per-field Negative-Space rendering mode on the dashboard. Cross-source aggregations on any Tier-B/C field MUST filter by `extraction_method` to distinguish "field absent because the source does not emit it" (publisher-side limitation, not data-quality issue) from "field absent because this particular article omitted it" (sparse data, may indicate quality variance).
+
+   **Methodological consequence**: cross-source comparisons of author-concentration, section-mix, modification-rate, and any `keywords`-derived metric will systematically under-represent bundesregierung. This is **not a bug** in AĒR; it is a faithful observation of the publisher's chosen metadata posture, and per the Manifesto's "unaltered mirror" principle the system records the asymmetry rather than imputing missing values. The Negative-Space rendering pattern (Brief §7.7) is the canonical user-facing remedy.
 
 6. **Publication Frequency Bias.** Sources with higher publication rates (e.g., tagesschau.de at approximately 50 articles/day) dominate the corpus volume compared to lower-frequency sources (e.g., bundesregierung.de at approximately 5 articles/day). Aggregate metrics that do not normalize by source will disproportionately reflect high-frequency publishers.
 
 7. **Absence of Deletion Signal.** The crawl does not indicate when articles are retracted, corrected, or removed at the source. Once ingested, a document remains in the Bronze layer regardless of its current publication status. The Tier-C `correction_notice` field, when populated, surfaces source-side correction signals; absence of the field is not evidence of absence of correction.
+
+8. **Discovery-Surface Asymmetry Between Sources (historical depth only — closed by today-only continuous-mode operation).** **(New, Phase 122e A15 / F-A15; refined Phase 122e A20.)** Each publisher chooses which discovery surfaces (sitemap, RSS feeds, robots.txt directives) to expose to crawlers. AĒR ingests what the publisher exposes — by design, per the Manifesto's "unaltered mirror" principle and WP-006 §3's prohibition on researcher-side editorial gating.
+
+   **Operational note (Phase 122e).** AĒR runs in continuous-monitoring mode: each cron tick captures today's articles for every source, the corpus accumulates day-by-day through cron, no historical backfill is performed. Under this mode the asymmetry **does not affect ongoing comparability**: both sources surface today's articles via their respective discovery channels (RSS for tagesschau, sitemap for bundesregierung), Postgres `crawler_state` dedup prevents duplicate fetches, and the Gold corpus accumulates at each source's natural publication rate. The asymmetry below is therefore relevant **only for historical depth** (how far back the corpus reaches at any given moment) — not for cross-source comparability of newly-ingested content.
+
+   The two Probe 0 sources illustrate this dimension at opposite extremes:
+
+   | Source | Discovery surface (Phase 122e) | Approx. discoverable URLs |
+   | :--- | :--- | :--- |
+   | tagesschau | `index~rss2.xml` only (the publisher's canonical "top stories" feed); `sitemap.xml` returns HTML 404 and robots.txt carries no `Sitemap:` directive | ≈ 70 most-recent articles at scrape time, refreshed continuously |
+   | bundesregierung | three `sitemap_index.xml` files declared in robots.txt; full URL universe surfaced but dominated by CMS-noise paths until F-A11 / F-A16 filters drop them | ≈ 250 articles per crawl post-filtering (5-year window) |
+
+   The corpus-volume-per-source ratio therefore reflects **crawler access**, NOT **publication frequency**. Tagesschau publishes far more than bundesregierung in absolute terms (≈ 150–300 articles/day vs ≈ 5–15 articles/day); the discoverable corpus inverts this. Cross-source corpus-volume aggregations measure the publisher's chosen discovery posture, not their editorial output rate.
+
+   **Methodological consequence**: any cross-source aggregate that compares raw article counts (volume per source, share-of-corpus, share-of-voice) MUST normalise by per-source discoverable-surface size, or be presented with a discovery-surface annotation. Phase 122f's metadata-coverage endpoint operationalises this signal — discovery-rate-per-source sits alongside per-field metadata coverage as a queryable per-source attribute. The dashboard surfaces it via Negative-Space rendering (Brief §7.7) so a "tagesschau is under-represented in this chart" caption reads as the truth, not as a footnote.
+
+   **Why expansion is rejected as a fix**: the temptation to curate additional tagesschau feeds (politik / wirtschaft / kultur / sport / ...) and configure them in `sources.yaml` was considered and rejected. Hand-picking which sections of a publisher's output belong in AĒR's corpus is researcher selection bias by another name — it substitutes our editorial judgment for the publisher's. The publisher's `index~rss2.xml` is the publisher's canonical "what's news right now" surface; configuring more feeds means *we* decide which domains matter. If a future Probe ever requires expansion, the methodologically clean path is homepage `<link rel="alternate" type="application/rss+xml">` auto-discovery — we ingest the set the publisher chose to advertise, verbatim, with no editorial filter, and audio / video feeds remain out of scope by construction (AĒR analyses cleaned text). Until then, the asymmetry stands as a recorded structural bias, not as a problem to engineer around.
 
 ---
 

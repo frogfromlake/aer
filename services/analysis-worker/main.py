@@ -43,6 +43,7 @@ from internal.corpus import (
     corpus_extraction_loop,
     topic_extraction_loop,
 )
+from internal.models.probe_scope import ProbeLanguageScope
 
 load_dotenv()
 
@@ -311,7 +312,14 @@ async def main(config: WorkerConfig | None = None):
     )
     alias_index = _load_wikidata_index()
     extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES, alias_index=alias_index)
-    data_processor = DataProcessor(minio_client, ch_client, pg_pool, adapter_registry, extractors)
+    # Phase 122e A17: per-source language scope. Documents whose detected
+    # language falls outside the source's allow-list quarantine before the
+    # Silver write. See `configs/probe_language_scope.yaml`.
+    language_scope = ProbeLanguageScope.load()
+    data_processor = DataProcessor(
+        minio_client, ch_client, pg_pool, adapter_registry, extractors,
+        language_scope=language_scope,
+    )
     nc = NATS()
     # Phase 83: bounded queue enforces backpressure. `put` blocks when
     # workers fall behind, which propagates back to JetStream via the

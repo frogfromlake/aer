@@ -33,19 +33,51 @@ If your source is on a platform that has *no* AĒR crawler yet (Twitter, Reddit,
 
 ---
 
+## Discovery surfaces — how to pick one (or several)
+
+A web crawler can only find articles through what the publisher **exposes** for machine consumption. Three discovery surfaces are universally usable, in this order of preference:
+
+| Surface | When the publisher exposes it | What we configure | Coverage |
+| :--- | :--- | :--- | :--- |
+| **(A) XML sitemap** | `Sitemap:` directive in `robots.txt` (preferred), OR a `/sitemap.xml` / `/sitemap_index.xml` that returns `200 OK` | `sitemap_urls: [...]` (one or more roots) | Full archive — typically every URL the publisher considers canonical |
+| **(B) RSS / Atom feed** | A feed URL the publisher advertises, usually at `/rss` or as a `<link rel="alternate" type="application/rss+xml">` on the homepage | `rss_hint_url: ...` (single URL) | Sliding window of the most recent ≈ 50–200 items. **Not** an archive |
+| **(C) Date-indexed HTML archive** | A page parameterised by date — e.g. `/archiv?datum=YYYY-MM-DD` — that the publisher uses for navigation | `archive_index: { url_template, date_format, article_url_pattern }` | Per-day list going back as far as the publisher chooses to expose. Used **only when** A is absent (no sitemap and no `Sitemap:` directive) |
+
+Methodologically — every one of these is *publisher curation*, not researcher curation: the publisher built the surface, the publisher decides what's on it, we ingest the listed URLs verbatim. **Do not** hand-pick a subset of feeds (e.g. only `politik` + `wirtschaft`) — that is researcher selection bias per WP-006 §3 / ADR-028 and inverts the Manifesto's "unaltered mirror" principle. If the publisher advertises N RSS feeds, configure all N (or none); never pick "the relevant ones."
+
+A source can use multiple surfaces — configurations are additive. URL collisions deduplicate on the consumer side, with sitemap entries winning over RSS/archive entries (the sitemap entry carries the canonical `lastmod` and `sitemap_section` context).
+
+**Rule of thumb**: prefer A > B > C. Use B as a freshness-sort cue alongside A. Use C when the publisher exposes neither A nor a comprehensive RSS — Probe 0's `tagesschau.de` is the canonical example: no XML sitemap, only a 2-feed RSS catalogue (top stories in two formats), and a deep date-indexed archive at `/archiv?datum=`.
+
 ## Worked example — adding `bbc.co.uk` to a hypothetical English probe
 
 This is illustrative; no English probe exists at the time of writing.
 
-### 1. Verify robots.txt and sitemap availability
+### 1. Verify which discovery surfaces the publisher exposes
 
 ```bash
+# Surface A — XML sitemap.
 curl -A 'AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)' \
-     https://www.bbc.co.uk/robots.txt | grep -i 'allow\|sitemap'
+     https://www.bbc.co.uk/robots.txt | grep -iE 'allow|disallow|sitemap'
 curl -I https://www.bbc.co.uk/sitemaps/news.xml
+
+# Surface B — RSS / Atom catalogue. Look for an RSS index page or
+# `<link rel="alternate" type="application/rss+xml">` on the homepage.
+curl -sL https://www.bbc.co.uk/ \
+  | grep -oE 'href="[^"]+(rss|atom)[^"]*"' | sort -u
+
+# Surface C — date-indexed archive. Try common patterns:
+#   /archive, /archiv, /archive?date=, /sitemap?date=, /YYYY/MM/DD/
+# If the publisher exposes one, sample two distant dates and confirm
+# they return distinct article lists.
 ```
 
-Confirm the `User-Agent` of the crawler is not `Disallow`-ed for the relevant paths and that the sitemap returns `200 OK`. Document the verification in the probe's dossier (`docs/probes/<probe-id>/temporal_profile.md` under "Discovery surface").
+Confirm:
+- our `User-Agent` is not in any `Disallow` block;
+- at least one surface returns `200 OK` and exposes article URLs;
+- if Surface C is in play, sample-fetch two dates one year apart and verify both return populated article lists (i.e. it is an archive, not a homepage snapshot).
+
+Document the verification — including which surface(s) we settled on, and *why* — in the probe's dossier (`docs/probes/<probe-id>/temporal_profile.md` under "Discovery surface"). The asymmetry between sources' discovery surfaces is a recorded structural bias (see Probe 0's `bias_assessment.md` Structural Bias #8).
 
 ### 2. Add a YAML entry under the probe's source list
 
@@ -56,9 +88,21 @@ sources:
   # … existing sources …
 
   - name: bbc-news
+    # Surface A — XML sitemap (preferred).
     sitemap_urls:
       - https://www.bbc.co.uk/sitemaps/news.xml
-    rss_hint_url: https://feeds.bbci.co.uk/news/rss.xml  # optional discovery hint only
+    # Surface B — RSS feed (freshness-sort hint).
+    rss_hint_url: https://feeds.bbci.co.uk/news/rss.xml
+    # Surface C — date-indexed HTML archive. Configure ONLY if Surface A
+    # is absent. Do NOT configure all three "to be safe" — the surfaces
+    # already overlap and Surface C costs ~ 1 HTTP fetch per day in the
+    # window. Example shape (BBC has no archive of this form, so this
+    # block stays absent for bbc-news in production):
+    #
+    # archive_index:
+    #   url_template: 'https://www.example.com/archive?date={date}'
+    #   date_format: '%Y-%m-%d'
+    #   article_url_pattern: '^https://www\.example\.com/.+\.html$'
     politeness:
       delay_seconds: 1.0
       autothrottle: true
@@ -76,6 +120,8 @@ sources:
 ```
 
 The default `url_filter` and `content_filter` values are universal — copy them verbatim. **Do not add section-level editorial filters** (no `/sport/` exclusions, no `/opinion/` exclusions) per WP-006 §3 / ADR-028. Per-article discourse-function imprecision is addressed in Phase 126b, not at the crawler.
+
+**Discovery cost ladder.** Surface A (XML sitemap) is the cheapest — one or a few HTTP fetches yield the full URL universe. Surface B (RSS) is similarly cheap. Surface C (date-indexed archive) is the expensive one: one HTTP fetch per day in the window. At a 1 s polite delay and a 5-year window, Surface C alone is ≈ 30 minutes of discovery before the article-fetch stage even begins. Only configure Surface C when Surfaces A/B do not expose the historical depth the probe requires; never as redundancy.
 
 ### 3. Add a Postgres seed migration
 

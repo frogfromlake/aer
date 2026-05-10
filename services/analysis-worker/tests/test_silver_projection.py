@@ -38,6 +38,7 @@ def test_upload_silver_projection_inserts_one_row_with_expected_columns():
         core,
         ingestion_version=1234567890,
         bronze_object_key="tagesschau/2026/04/24/doc-1.json",
+        timestamp_source="json_ld_published",
     )
 
     ch.insert.assert_called_once()
@@ -57,7 +58,11 @@ def test_upload_silver_projection_inserts_one_row_with_expected_columns():
         "raw_entity_count",
         "ingestion_version",
         "bronze_object_key",
+        "timestamp_source",
     ]
+    # Phase 122e A19: insert deduplication token must be stable per
+    # (article_id, ingestion_version) so a NATS retry no-ops at insert-time.
+    assert kwargs["deduplication_token"] == f"{SILVER_DOCS_TABLE}:doc-1:1234567890"
     # Spot-check derived fields.
     by_name = dict(zip(column_names, row))
     assert by_name["source"] == "tagesschau"
@@ -68,6 +73,7 @@ def test_upload_silver_projection_inserts_one_row_with_expected_columns():
     assert by_name["raw_entity_count"] >= 2
     assert by_name["ingestion_version"] == 1234567890
     assert by_name["bronze_object_key"] == "tagesschau/2026/04/24/doc-1.json"
+    assert by_name["timestamp_source"] == "json_ld_published"
 
 
 def test_upload_silver_projection_swallows_clickhouse_errors():

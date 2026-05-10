@@ -23,9 +23,10 @@ from typing import Any, Iterable, Optional
 import structlog
 import yaml
 
+from internal.discovery.archive_index import discover as discover_archive_index
 from internal.discovery.rss_hint import discover as discover_rss
 from internal.discovery.sitemap import DiscoveredUrl, discover as discover_sitemap
-from internal.fetch.scrapy_spider import run_crawl_for_source
+from internal.fetch.scrapy_spider import build_crawler_process, queue_source_crawl
 from internal.ingestion.client import IngestionClient
 from internal.state.dedup import CrawlerState
 
@@ -108,12 +109,32 @@ def _load_probe_config(probe: str, config_dir: Path) -> dict[str, Any]:
                 f"probe.time_window_days must be positive (got {time_window_days})"
             )
 
-    return {"sources": sources, "time_window_days": time_window_days}
+    # Phase 122e A21 / F-A21 — `sitemap_strict_lastmod` controls whether
+    # sitemap entries lacking a `<lastmod>` field bypass the
+    # `time_window_days` cutoff. Default `true` for continuous-monitoring
+    # safety; explicit `false` re-enables the Phase-122b "fall through to
+    # preserve coverage on sparse sitemaps" behaviour for backfill mode.
+    raw_strict = probe_block.get("sitemap_strict_lastmod")
+    if raw_strict is None:
+        sitemap_strict_lastmod = True
+    elif isinstance(raw_strict, bool):
+        sitemap_strict_lastmod = raw_strict
+    else:
+        raise ValueError(
+            f"probe.sitemap_strict_lastmod must be a boolean (got {raw_strict!r})"
+        )
+
+    return {
+        "sources": sources,
+        "time_window_days": time_window_days,
+        "sitemap_strict_lastmod": sitemap_strict_lastmod,
+    }
 
 
 def _discover_for_source(
     source: dict[str, Any],
     since: Optional[datetime] = None,
+    sitemap_strict_lastmod: bool = True,
 ) -> list[DiscoveredUrl]:
     """Surface every URL for one source, newest-first.
 
@@ -129,15 +150,42 @@ def _discover_for_source(
     """
     seen: dict[str, DiscoveredUrl] = {}
     sitemap_urls: Iterable[str] = source.get("sitemap_urls") or []
-    for entry in discover_sitemap(list(sitemap_urls), since=since):
+    for entry in discover_sitemap(
+        list(sitemap_urls), since=since, strict_lastmod=sitemap_strict_lastmod
+    ):
         if entry.url not in seen:
             seen[entry.url] = entry
+    # Phase 122e — promote the RSS feed from "hint only" to a peer-equal
+    # discovery channel: populate `sitemap_lastmod` from the RSS entry's
+    # published_parsed so RSS URLs compete fairly in the newest-first
+    # sort. For Probe 0's bundesregierung.de the RSS feed is the ONLY
+    # channel that surfaces actual /aktuelles/ news content (the public
+    # sitemap exposes only service/archive pages), so without this fix
+    # bounded-time crawls never reach real news. The sitemap entry wins
+    # on URL collision (carries the canonical lastmod and the
+    # sitemap_section context).
     rss_url: str = source.get("rss_hint_url") or ""
     if rss_url:
-        for url in discover_rss(rss_url, since=since):
+        for url, entry_dt in discover_rss(rss_url, since=since):
             if url and url not in seen:
                 seen[url] = DiscoveredUrl(
-                    url=url, sitemap_lastmod=None, sitemap_section=None
+                    url=url, sitemap_lastmod=entry_dt, sitemap_section=None
+                )
+
+    # Phase 122e A20 — date-indexed HTML archive page. Used by sources
+    # whose RSS exposes only a sliding 70-item top-stories window and
+    # whose XML sitemap is absent (e.g. tagesschau.de's
+    # `/archiv?datum=YYYY-MM-DD` exposes ≈ 140 articles/day going back
+    # ≥ 4 years). Methodologically equivalent to sitemap discovery —
+    # the publisher built and parameterised the page; we ingest every
+    # article-shaped link verbatim. Sitemap / RSS entries win on URL
+    # collision (canonical lastmod + sitemap_section context).
+    archive_index_cfg = source.get("archive_index") or {}
+    if archive_index_cfg:
+        for url, entry_dt in discover_archive_index(archive_index_cfg, since=since):
+            if url and url not in seen:
+                seen[url] = DiscoveredUrl(
+                    url=url, sitemap_lastmod=entry_dt, sitemap_section=None
                 )
 
     def _sort_key(entry: DiscoveredUrl) -> tuple[int, float]:
@@ -201,6 +249,7 @@ def cli(argv: list[str] | None = None) -> int:
 
     sources = probe_config["sources"]
     time_window_days = probe_config["time_window_days"]
+    sitemap_strict_lastmod = probe_config["sitemap_strict_lastmod"]
     since = datetime.now(tz=timezone.utc) - timedelta(days=time_window_days)
     log.info(
         "crawl_window_configured",
@@ -216,6 +265,19 @@ def cli(argv: list[str] | None = None) -> int:
     )
     state = CrawlerState(_build_pg_dsn())
 
+    # Single CrawlerProcess for the entire run — Twisted's reactor is a
+    # process-wide singleton (cannot be restarted via `process.start()`),
+    # so all sources are queued onto one process and the reactor is
+    # started exactly once after every source has been queued. The
+    # politeness settings come from the FIRST source's `politeness:`
+    # block; per-source overrides are not honoured today (Probe 0's two
+    # sources share identical politeness, so this is moot in practice).
+    # Per-domain throttling (Scrapy's `CONCURRENT_REQUESTS_PER_DOMAIN`
+    # and per-domain `DOWNLOAD_DELAY`) keeps each source's host on its
+    # own budget regardless.
+    crawler_process = None
+    sources_queued = 0
+
     try:
         for source in sources:
             name = source.get("name", "")
@@ -229,7 +291,11 @@ def cli(argv: list[str] | None = None) -> int:
                 log.error("source id resolution failed", source=name, error=str(exc))
                 continue
 
-            urls = _discover_for_source(source, since=since)
+            urls = _discover_for_source(
+                source,
+                since=since,
+                sitemap_strict_lastmod=sitemap_strict_lastmod,
+            )
             log.info(
                 "discovery complete",
                 source=name,
@@ -241,17 +307,34 @@ def cli(argv: list[str] | None = None) -> int:
             if not urls:
                 continue
 
-            run_crawl_for_source(
+            if crawler_process is None:
+                crawler_process = build_crawler_process(
+                    politeness=source.get("politeness", {}) or {},
+                    user_agent=args.user_agent,
+                )
+
+            queue_source_crawl(
+                crawler_process,
                 source_id=source_id,
                 source_name=name,
                 urls=urls,
-                politeness=source.get("politeness", {}) or {},
                 url_filter=source.get("url_filter", {}) or {},
                 content_filter=source.get("content_filter", {}) or {},
                 custom_extractors=source.get("custom_extractors", {}) or {},
                 state=state,
                 ingestion_client=ingestion,
-                user_agent=args.user_agent,
+            )
+            sources_queued += 1
+
+        # Start the Twisted reactor exactly once. Blocks until every
+        # queued spider has finished or a SIGINT is received.
+        if crawler_process is not None and sources_queued > 0:
+            log.info("starting crawler reactor", sources_queued=sources_queued)
+            crawler_process.start()
+        else:
+            log.warning(
+                "no sources had crawlable URLs — nothing to start",
+                probe=args.probe,
             )
     finally:
         state.close()

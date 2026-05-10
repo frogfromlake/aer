@@ -87,6 +87,104 @@ def update_document_status(pg_pool: ThreadedConnectionPool, obj_key: str, status
         pg_pool.putconn(conn)
 
 
+def release_document_claim(pg_pool: ThreadedConnectionPool, obj_key: str) -> bool:
+    """Release a `processing` claim back to `uploaded` — A27 recovery.
+
+    Called from the worker's exception handler when processing aborts
+    mid-flight (anywhere between `try_claim_document` and the terminal
+    `update_document_status` call). Without this, a worker exception
+    would leave the document stuck in `processing` forever, and
+    subsequent NATS redeliveries would see `status='processing'`,
+    treat it as already-claimed, and skip — silently dropping the
+    article.
+
+    Compare-and-swap: only releases if status is currently `processing`
+    (matching the claim we issued). If a terminal state was already
+    set in the same transaction (e.g., quarantine called before the
+    exception), the release is a no-op.
+
+    Returns True iff a row was released.
+    """
+    conn = pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE documents
+                SET status = 'uploaded'
+                WHERE bronze_object_key = %s
+                  AND status = 'processing'
+                RETURNING id
+                """,
+                (obj_key,),
+            )
+            released = cur.fetchone() is not None
+        conn.commit()
+        return released
+    finally:
+        pg_pool.putconn(conn)
+
+
+def try_claim_document(pg_pool: ThreadedConnectionPool, obj_key: str) -> bool:
+    """Atomic compare-and-swap claim — Phase 122e A27 / F-A27.
+
+    Returns True iff this caller atomically transitioned the document
+    from a non-terminal state (`pending`, `uploaded`, or `NULL`) to
+    `processing`. Returns False if the document is already
+    `processed` / `quarantined` / `processing` (another worker
+    succeeded, was DLQed, or is currently working it).
+
+    Replaces the previous SELECT-status-then-process pattern that
+    permitted a race window: two concurrent NATS deliveries of the
+    same MinIO event could both observe `status='uploaded'` (or NULL)
+    and both proceed to insert into ClickHouse. Source-table
+    deduplication caught the raw duplicate, but ClickHouse's
+    AggregatingMergeTree MV trigger fires before the source-side
+    dedup check on non-Replicated engines, so the MV state silently
+    diverged from raw (each race produced one stale MV sample).
+
+    Postgres' MVCC + ``UPDATE ... RETURNING`` semantics make this
+    claim atomic: only one transaction sees the matching row, the
+    losers see zero rows. The status-machine is therefore:
+
+        pending / uploaded / NULL
+              │
+              │  try_claim_document  → True
+              ▼
+        processing
+              │
+              │  process succeeds         │  process fails
+              ▼                           ▼
+        processed                    quarantined
+
+    A document already in `processing` returns False — the caller
+    treats this identically to "already processed" and skips. (If
+    that worker dies, the message will be redelivered after
+    `ack_wait`; the new claimant is whichever worker wins the race
+    on the next attempt. Stuck-in-`processing` recovery is out of
+    scope here — Phase 83's max_deliver poison-pill path catches
+    permanently-failing messages.)
+    """
+    conn = pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE documents
+                SET status = 'processing'
+                WHERE bronze_object_key = %s
+                  AND (status IS NULL OR status IN ('pending', 'uploaded'))
+                RETURNING id
+                """,
+                (obj_key,),
+            )
+            won = cur.fetchone() is not None
+        conn.commit()
+        return won
+    finally:
+        pg_pool.putconn(conn)
+
+
 def update_document_article_id(pg_pool: ThreadedConnectionPool, obj_key: str, article_id: str) -> None:
     """
     Persists the deterministic SHA-256 article_id alongside the documents row.

@@ -203,8 +203,18 @@ ingestion-up:
 ingestion-down:
 	@docker compose stop ingestion-api 2>/dev/null || true
 
+# Two-step rebuild+restart pattern. Splitting `build` from `up` avoids the
+# Compose v2 race where `up -d --build --force-recreate --wait` queries
+# the recreated container by an ID Docker has already GC'd, returning
+# `Error response from daemon: No such container: <hash>` despite the
+# container being healthy. Without `--force-recreate`, Compose detects
+# the image-hash change after `build` and recreates cleanly via its own
+# stop→rm→create→start sequence. `--no-deps` keeps the recreation
+# scoped to the named service so a healthy dependent (postgres / nats /
+# minio) is not also touched and racing.
 ingestion-restart:
-	@docker compose up -d --build --force-recreate --wait ingestion-api
+	@docker compose build ingestion-api
+	@docker compose up -d --no-deps --wait ingestion-api
 
 worker-up:
 	@docker compose up -d --wait analysis-worker
@@ -213,7 +223,8 @@ worker-down:
 	@docker compose stop analysis-worker 2>/dev/null || true
 
 worker-restart:
-	@docker compose up -d --build --force-recreate --wait analysis-worker
+	@docker compose build analysis-worker
+	@docker compose up -d --no-deps --wait analysis-worker
 
 bff-up:
 	@docker compose up -d --wait bff-api
@@ -225,7 +236,8 @@ bff-down:
 	@docker compose stop bff-api 2>/dev/null || true
 
 bff-restart:
-	@docker compose up -d --build --force-recreate --wait bff-api
+	@docker compose build bff-api
+	@docker compose up -d --no-deps --wait bff-api
 
 # ==========================================
 # 3. APPLICATION SERVICES (ALL TOGETHER)

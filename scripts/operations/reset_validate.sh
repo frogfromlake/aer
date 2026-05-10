@@ -17,13 +17,42 @@
 set -euo pipefail
 
 # Load .env so POSTGRES_USER / POSTGRES_DB / MINIO_ROOT_* are available to
-# the per-layer probes below. The repo root is one level up from this script.
-ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
+# the per-layer probes below. This script lives at
+# `scripts/operations/reset_validate.sh`, so the repo root is **two**
+# directory levels up — not one. The previous `dirname/..` form silently
+# resolved to `scripts/.env` (which doesn't exist), the source step was
+# a no-op, and downstream probes ran with empty MINIO_ROOT_* / etc.,
+# producing misleading `AccessDenied` failures from `mc du`.
+#
+# `.env` is consumed by Docker Compose with FLAT-FILE semantics: each
+# line is a literal `KEY=VALUE`, the value runs verbatim to end-of-line,
+# and shell metacharacters (parens, quotes, semicolons) are NOT
+# interpreted. AĒR's `WEB_CRAWLER_USER_AGENT` value carries unescaped
+# parens and a semicolon to satisfy the WP-006 §5.1 contact-address
+# convention. `source .env` would invoke shell parsing on those values
+# and crash with a syntax error. Use a per-line read loop that exports
+# only well-formed identifiers and treats the rest of the line as
+# verbatim payload — same semantics Compose applies.
+ENV_FILE="$(cd "$(dirname "$0")/../.." && pwd)/.env"
 if [[ -f "$ENV_FILE" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set +a
+    # Read whole lines (no IFS split). Splitting on `=` with `read -r KEY
+    # VALUE` strips a *trailing* `=` from the value because POSIX `read`
+    # trims trailing IFS characters from the last field — and AĒR's
+    # secrets (MINIO_ROOT_PASSWORD, BFF_API_KEY, INGESTION_API_KEY) are
+    # base64-encoded and end in `=`. The truncation produced wrong-but-
+    # plausible credentials and caused mc's "request signature does not
+    # match" error in step 2 of this validator. Capture the whole line
+    # and split on the first `=` via regex — `(.*)` preserves every
+    # trailing character including additional `=`.
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        # Skip blank lines and comments.
+        [[ -z "${_line// }" ]] && continue
+        [[ "$_line" =~ ^[[:space:]]*# ]] && continue
+        if [[ "$_line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+        fi
+    done < "$ENV_FILE"
+    unset _line
 fi
 
 GREEN='\033[38;5;76m'
@@ -62,27 +91,54 @@ step "2. MinIO — buckets exist and are empty"
 if docker compose ps minio --format '{{.State}}' 2>/dev/null | grep -q running; then
     # The `minio` container has the `mc` binary but no client alias is
     # configured by default — that lives in the `minio-init` container.
-    # Configure the alias inline using root credentials from .env, then
-    # query each bucket. `mc ls` returns non-zero for missing buckets and
-    # zero with empty stdout for empty buckets.
-    alias_setup=$(docker compose exec -T -e MINIO_ROOT_USER="${MINIO_ROOT_USER:-}" \
-        -e MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}" minio \
-        sh -c 'mc alias set m http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" 2>&1' || true)
-    if ! echo "$alias_setup" | grep -qiE 'success|added'; then
-        fail "MinIO alias setup failed: $alias_setup"
+    # Important detail learned from the Phase-122e first-crawl session:
+    # **the mc alias is set per-exec-session and does NOT persist across
+    # separate `docker compose exec` calls.** A previous implementation
+    # ran `mc alias set m ...` in one exec and `mc ls m/<bucket>` in
+    # subsequent execs, which produced a silent `AccessDenied` error
+    # (alias `m` was unset in the new session and mc fell through to an
+    # anonymous query) — and the legacy line-counting empty-check
+    # mis-classified the access-denied error message as a single bucket
+    # entry, producing the misleading `bucket non-empty: <name> (1 entries)`
+    # output. Fix: do the alias setup AND all bucket queries in one
+    # `docker compose exec` call so they share the same mc-config state.
+    #
+    # Empty-check uses `mc du --json` — the only mc command that
+    # definitively counts objects (not virtual prefixes, ILM-policy
+    # artefacts, or other non-data surface entries). Returns
+    # `"objects":0` for empty buckets regardless of attached lifecycle
+    # policies. Plain-text grep avoids a `jq` dependency.
+    out=$(docker compose exec -T -e MINIO_ROOT_USER="${MINIO_ROOT_USER:-}" \
+        -e MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}" minio sh -c '
+            mc alias set m http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" 2>&1 | tail -1
+            for b in bronze silver bronze-quarantine; do
+                printf "::bucket::%s::" "$b"
+                mc du --json "m/$b" 2>&1
+                printf "\n"
+            done
+        ' 2>&1 || true)
+    if ! echo "$out" | grep -qiE 'success|added'; then
+        fail "MinIO alias setup failed: $out"
     else
         for bucket in bronze silver bronze-quarantine; do
-            out=$(docker compose exec -T minio mc ls "m/${bucket}" 2>&1 || true)
-            if echo "$out" | grep -qiE 'does not exist|not found|specified bucket'; then
+            line=$(echo "$out" | grep -F "::bucket::${bucket}::" | head -1)
+            if [[ -z "$line" ]]; then
+                fail "bucket query produced no output: $bucket"
+                continue
+            fi
+            payload="${line#*::bucket::${bucket}::}"
+            if echo "$payload" | grep -qiE 'does not exist|not found|specified bucket'; then
                 fail "bucket missing: $bucket"
+            elif echo "$payload" | grep -qiE 'access denied|signature|unauthorised|unauthorized'; then
+                fail "bucket query auth failed: $bucket — $payload"
             else
-                # Each object in a non-empty bucket prints one line; empty
-                # buckets print nothing. Strip blanks before counting.
-                count=$(echo "$out" | grep -cE '\S' || true)
-                if [[ "$count" == "0" ]]; then
+                objects=$(echo "$payload" | grep -oE '"objects":[0-9]+' | head -1 | cut -d: -f2)
+                if [[ -z "$objects" ]]; then
+                    fail "bucket query produced no object count: $bucket — $payload"
+                elif [[ "$objects" == "0" ]]; then
                     ok "bucket empty: $bucket"
                 else
-                    fail "bucket non-empty: $bucket ($count entries)"
+                    fail "bucket non-empty: $bucket ($objects objects)"
                 fi
             fi
         done
