@@ -40,6 +40,7 @@ logs/
 .pids
 
 # Misc
+.claude/
 CLAUDE.md
 repomix-output.xml
 services/analysis-worker/data/sentiws/SentiWS_v2.0_Negative.txt

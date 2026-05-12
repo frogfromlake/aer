@@ -162,6 +162,20 @@ The proposed approach:
 
 4. **Document the arms race.** The detection models will degrade over time as synthetic content improves. AĒR must version-pin detection models and document their known limitations, just as WP-002 requires for sentiment and NER models.
 
+#### 5.3.1 Implementation Status (as of 2026-05)
+
+The §5.3 design above is operationalised partially, with a deliberate scope-discipline boundary that the engineering ROADMAP records as a deferral under WP-006 §3 (researcher-selection transparency):
+
+**Shipped — news-source authenticity-adjacent signal.** Phase 122d (Wayback CDX Sidecar) operationalises the silent-edit-cascade detection vector of §5.2 on every full-article web source. Per-article `wayback_revisions[]` and `wayback_lookup_status` carry the publisher's revision history to the dashboard; coordinated cross-source rephrasings and silent post-hoc edits — which §5 identifies as one of the strongest signals of platform-mediated discourse manipulation — become observable against authoritative ground truth (the IA archive). This vector does not participate in the AI-text-detection arms race and is methodologically sustainable for a solo-developer engineering effort.
+
+**Deferred — full §5 non-human-actor detection machinery.** The §5.2 account-level, network-level, and AI-text detection vectors are *deferred to the iteration that lands the first social-media probe*. The deferral is recorded in `ROADMAP.md` as a placeholder under Iteration 7. Rationale (short form; full form in the ROADMAP placeholder):
+
+- **AI-text detection on institutional news sources is methodologically wrong-shaped for a solo developer.** News writing has narrow stylistic conventions; Tier-1 stylometric features confuse "professional editing" with "AI generation" at high false-positive rates. Making the surface useful for investigative-journalism use cases (Tagesschau-AI-detection and analogues) requires interdisciplinary specialist validation, calibrated thresholds per source class and per language, and periodic recalibration as LLMs evolve — out-of-scope for solo-developer engineering.
+- **The §5.2 arms race is genuine and unwinnable solo.** This paper's own acknowledgment that *"detection methods that work against GPT-3 may fail against GPT-5 or Claude. This is an arms race with no stable equilibrium"* implies a continuous quarter-time researcher commitment to keep pace. A solo developer cannot sustain that alongside the rest of the system.
+- **Social-media authenticity is tractable.** Account-level signals (§5.2 — age, posting cadence, follower-following ratios, profile completeness) are *deterministic metadata*, not model inferences. Network-level coordination detection (§5.2 — temporal clustering, cascade analysis) is statistical pattern analysis on existing Gold data with 15+ years of established literature. When the first social-media probe lands, the full §5 detection machinery — `account_features/`, `network_features/`, the `CorpusExtractor` protocol (§8.2 R-9), the `aer_gold.coordination_clusters` table (§8.3), and AI-text detection if and only if calibrated for the source class — becomes a research-execution task on top of tractable, source-class-appropriate signals.
+
+**Status of §7.2 open questions.** Q3 (text-only bot detection methods), Q4 (sustainable AI-text detection strategy), and Q5 (corpus-level CIB detection) remain open research questions. They are re-opened when the first social-media probe is roadmapped; the deferred-placeholder in `ROADMAP.md` is the engineering side of the same decision.
+
 ---
 
 ## 6. Demographic Skew and the Digital Divide

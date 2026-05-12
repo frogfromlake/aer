@@ -90,12 +90,20 @@ sources:
     # `https://www.tagesschau.de/sitemap.xml` returns HTML 404, and
     # `tagesschau.de/robots.txt` carries no `Sitemap:` directive.
     # The RSS feed at `index~rss2.xml` is the sole discovery channel;
-    # it surfaces the publisher's most-recent ≈ 70 items (≈ 14 days of
-    # tagesschau output at typical publishing rates). The probe-level
-    # `time_window_days = 1` filter drops RSS entries older than 1 day
-    # at discovery, so each cron run only fetches today's articles and
-    # Postgres `crawler_state` dedup ensures each article is fetched
-    # exactly once across runs.
+    # it surfaces the publisher's most-recent ≈ 70 items (≈ 14 hours of
+    # tagesschau output at typical publishing rates, since tagesschau
+    # publishes ~ 150–300 articles/day). The probe-level
+    # `time_window_days = 7` filter drops RSS entries older than 7 days
+    # at discovery; given that the RSS window itself is shorter than 7
+    # days for high-volume publishers like tagesschau, the effective
+    # discoverable surface per run is whatever the publisher currently
+    # exposes in the feed. Postgres `crawler_state` dedup ensures each
+    # article is fetched exactly once across runs (only delta items
+    # incur a network fetch). NOTE: this is a known discovery-surface
+    # asymmetry vs bundesregierung's sitemap-backed full 7-day surface;
+    # tracked as Probe-0 Structural Bias #8 in the dossier and queued
+    # for resolution via auto-discovered alternate RSS feeds in a
+    # future phase.
     #
     # Note: a date-indexed HTML archive at `/archiv?datum=YYYY-MM-DD`
     # (monthly granularity, ≈ 140 articles per month, 4+ years deep) is

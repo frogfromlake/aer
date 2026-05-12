@@ -22,8 +22,8 @@ The full rationale, including the explicit acknowledgment that source selection 
 
 | Source | Operator | Funding | Discovery surface | Volume |
 | :--- | :--- | :--- | :--- | :--- |
-| `tagesschau.de` | ARD (public broadcasting) | Rundfunkbeitrag | `https://www.tagesschau.de/sitemap.xml` (primary); `https://www.tagesschau.de/index~rss2.xml` (RSS hint only — body fetched from HTML) | ≈ 50 articles/day |
-| `bundesregierung.de` | Federal Press Office | Federal budget | `https://www.bundesregierung.de/sitemap.xml` (primary); `https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml` (RSS hint only) | ≈ 5 articles/day |
+| `tagesschau.de` | ARD (public broadcasting) | Rundfunkbeitrag | `https://www.tagesschau.de/index~rss2.xml` (sole channel — `sitemap.xml` returns HTML 404; body fetched from HTML, RSS body never consumed) | ≈ 150–300 articles/day published; ≈ 70-item RSS window |
+| `bundesregierung.de` | Federal Press Office | Federal budget | Three `service-sitemap-*-sitemap_index.xml` files declared in robots.txt + `https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml` (peer-equal channels since Phase 122e F-A1; sitemap is service-only — actual `/aktuelles/` news content surfaces via RSS) | ≈ 5–15 articles/day |
 
 ## Engineering Calibration Status
 

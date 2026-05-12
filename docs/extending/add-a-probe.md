@@ -52,13 +52,13 @@ Follow the procedure in [`docs/operations_playbook.md` → Probe Dossier](../ope
 3. The `README.md` Exit Criteria section names the same four conditions as Probe 0's: Steps 1–2 of WP-001 §4.4, function-weight quantification, at least one validation study in the new context-keys, completed external ethical review.
 4. Add the dossier to `mkdocs.yml` under the `Probes` nav entry.
 
-### Step E — Engineering work (ROADMAP Phase 125 checklist)
+### Step E — Engineering work (ROADMAP Phase 123 checklist)
 
-The ROADMAP Phase 125 entry is the canonical engineering checklist. The solo developer executes the full list — there are no items that require a second person:
+The ROADMAP Phase 123 entry is the canonical engineering checklist. The solo developer executes the full list — there are no items that require a second person:
 
 - [ ] PostgreSQL seed migration (sources + source_classifications, both `provisional_engineering`).
 - [ ] **No new crawler binary.** Phase 122 (ADR-028) generalised the web-crawler — adding a new news-website probe is a YAML edit under `crawlers/web-crawler/probes/<probe-id>/sources.yaml` plus a Postgres seed migration. The crawler image is identical across probes; only the probe-config directory is new. See [add-a-source.md](add-a-source.md) for the per-source mechanics.
-- [ ] **Probe-level temporal cutoff (Phase 122b).** The new `sources.yaml` MUST declare a top-level `probe.time_window_days` value (integer, days). This is the uniform discovery horizon applied across every source on this probe — cross-source comparability requires it (without it, a sitemap surfacing 30 years of archive looks "louder" than one going back only 10 years, the **archive-depth bias** failure mode). Default is the same `time_window_days` Probe 0 uses today (5 years / 1825) unless the probe's research question demands a different horizon — and if it does, that is a methodological decision documented in the dossier, not a per-source override. Per-source overrides of the cutoff are explicitly rejected by the loader; if you need different horizons, you need different probes.
+- [ ] **Probe-level temporal cutoff (Phase 122b, current default per Phase 122e A20).** The new `sources.yaml` MUST declare a top-level `probe.time_window_days` value (integer, days). This is the uniform discovery horizon applied across every source on this probe — cross-source comparability requires it (without it, a sitemap surfacing 30 years of archive looks "louder" than one going back only 10 years, the **archive-depth bias** failure mode). The current Probe 0 default is **7 days** — a rolling watermark for continuous-monitoring cadence; the corpus accumulates organically across cron runs and the Gold-side MV TTLs (Phase 122c — hourly 365 d / daily 1825 d / monthly indefinite) retain longer history independent of this knob. New probes inherit the same 7-day default unless the probe's research question demands a different horizon — and if it does, that is a methodological decision documented in the dossier, not a per-source override. Also declare `probe.sitemap_strict_lastmod: true` (Phase 122e A21 default) so sitemap entries without a `<lastmod>` are dropped at discovery in continuous-monitoring mode — flip to `false` only for an explicit backfill run. Per-source overrides of either knob are explicitly rejected by the loader; if you need different horizons, you need different probes.
 - [ ] Source Adapter — the existing `WebAdapter` (`services/analysis-worker/internal/adapters/web.py`) handles every web probe. Only write a new adapter if the new probe's primary source is on a *non-web* platform class (Twitter / Reddit / Mastodon / …) — see [add-a-source-type.md](add-a-source-type.md).
 - [ ] Probe Dossier content directory in `services/bff-api/configs/content/<probe-id>/`.
 - [ ] spaCy model in `requirements.txt` (Phase 116 router picks it up automatically — no extractor change).
@@ -68,12 +68,12 @@ The ROADMAP Phase 125 entry is the canonical engineering checklist. The solo dev
 
 ### Step F — Validation
 
-The Phase 125 validation block plus the cross-cutting checks from the Operations Playbook:
+The Phase 123 validation block plus the cross-cutting checks from the Operations Playbook:
 
 - [ ] `make lint && make test && make fe-check` green.
 - [ ] `make crawl-<probe-id>` fetches articles and they reach `aer_gold.metrics`.
 - [ ] Manual: probe appears as a second luminous point on the Surface I globe; Phase 114 scope bar composes Probe 0 + new probe and produces parallel streams in lanes.
-- [ ] `GET /api/v1/probes/<probe-id>/equivalence` (Phase 115 endpoint) returns Level-1-only — empty equivalence registry until Phase 126 grants the temporal level.
+- [ ] `GET /api/v1/probes/<probe-id>/equivalence` (Phase 115 endpoint) returns Level-1-only — empty equivalence registry until Phase 124 grants the temporal level.
 - [ ] All metrics from the new probe report `validation_status = unvalidated` in `GET /api/v1/metrics/available`. This is correct.
 
 ### Step G — Honesty pass
@@ -82,7 +82,7 @@ After everything is green:
 
 - [ ] **Provenance Inventory update.** Append rows to the table in [`docs/scientific_operations_guide.md` → Provenance Inventory](../operations/scientific_operations_guide.md#provenance-inventory) for every manually-set value: per-source `BiasContext` fields, `min_meaningful_resolution` heuristics, the Cultural Calendar entries (if you added one).
 - [ ] **Cross-link from Probe 0's `README.md`** to the new probe (so a reader landing on Probe 0's dossier discovers the second probe).
-- [ ] **ROADMAP update.** Mark Phase 125 as `[x] DONE` with the date, and note in the dossier README that Probe 1 is now operational. Do *not* mark Phase 126 — that is a separate phase that sequences the cross-probe operations.
+- [ ] **ROADMAP update.** Mark Phase 123 as `[x] DONE` with the date, and note in the dossier README that Probe 1 is now operational. Do *not* mark Phase 124 — that is a separate phase that sequences the cross-probe operations.
 
 ---
 
@@ -94,7 +94,7 @@ These items are deliberately out of scope for the solo developer. They are unblo
 | :--- | :--- | :--- |
 | WP-001 §4.4 Steps 1–2 (Area Expert + Peer Review) | Requires two independent domain specialists. Engineering judgement is *not* the same epistemic act. | When external experts are engaged. Apply the Workflow 1 update procedure (insert a *new* `source_classifications` row, do not UPDATE). |
 | WP-002 validation studies | Requires ≥ 3 independent annotators and Krippendorff's alpha ≥ 0.667. | When an annotation team is funded or volunteered. |
-| WP-004 Level 2/3 equivalence grants | Requires interdisciplinary methodological review. | Phase 126 grants Level 1 (temporal — always valid) for the first probe pair; Levels 2/3 are out-of-band scientific decisions. |
+| WP-004 Level 2/3 equivalence grants | Requires interdisciplinary methodological review. | Phase 124 grants Level 1 (temporal — always valid) for the first probe pair; Levels 2/3 are out-of-band scientific decisions. |
 | Ethical review for non-institutional sources | Requires a credible second reviewer per WP-006 §5.2. | When an ethical-review partner is engaged. |
 
 ---
@@ -107,4 +107,4 @@ These items are deliberately out of scope for the solo developer. They are unblo
 - [Probe 0 reference dossier](../probes/probe-0-de-institutional-web/README.md) — the reference implementation. Copy this structure.
 - [Arc42 §8.15 Probe Dossier Pattern](../arc42/08_concepts.md) — the cross-cutting concept that this guide operationalises for the solo case.
 - [Arc42 §13.10 Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification, the precedent for solo-developer probe addition.
-- [ROADMAP Phase 125](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.
+- [ROADMAP Phase 123](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.

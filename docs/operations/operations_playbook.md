@@ -489,7 +489,7 @@ mirrors the WP-006 §5.2 Silver-eligibility review pattern (Phase 103).
 dashboard methodology tray. It is not authoritative; the Postgres
 `equivalence_reviews` row holds the full review prose. An empty
 string is valid (e.g. the temporal-Level grant for Probe 0 × Probe 1
-in Phase 126, whose rationale is fully captured in WP-004 Appendix B
+in Phase 124, whose rationale is fully captured in WP-004 Appendix B
 and needs no additional paraphrase).
 
 #### Automated baseline maintenance (Phase 115)
@@ -881,7 +881,7 @@ make crawl-probe0
 # Equivalent raw form:
 docker compose --profile crawlers run --rm --build web-crawler --probe probe0
 
-# Deprecated alias (retired in Phase 131):
+# Deprecated alias (retired in Phase 129):
 make crawl     # forwards to make crawl-probe0
 ```
 
@@ -896,7 +896,7 @@ sources:
   - name: tagesschau               # Must match a source registered in PostgreSQL
     sitemap_urls:
       - https://www.tagesschau.de/sitemap.xml
-    rss_hint_url: https://www.tagesschau.de/index~rss2.xml   # discovery hint only
+    rss_hint_url: https://www.tagesschau.de/index~rss2.xml   # peer-equal discovery channel since Phase 122e (F-A1); sole channel for sources without a public XML sitemap
     politeness:
       delay_seconds: 1.0
       autothrottle: true
@@ -917,17 +917,18 @@ Changing `sources.yaml` requires rebuilding the image (`make crawl-probe0` passe
 
 ```yaml
 probe:
-  time_window_days: 1825   # 5 years — aligned with Phase 122c daily-MV TTL
+  time_window_days: 7              # rolling 7-day watermark for continuous-monitoring cadence (Phase 122e A20 walked this back from the original 1825-day backfill horizon). The corpus accumulates organically across cron runs; the Gold-side MV TTLs (Phase 122c — hourly 365 d / daily 1825 d / monthly indefinite) retain longer history independent of this knob.
+  sitemap_strict_lastmod: true     # default-true (Phase 122e A21 / F-A21). When the temporal filter is active, sitemap entries with no <lastmod> are dropped at discovery. Flip to false only for an explicit backfill run.
 sources:
   - name: tagesschau
     ...
 ```
 
-The cutoff is **probe-level by design** — per-source overrides are explicitly rejected. If a future source needs a different horizon, that source belongs in a different probe. At startup the crawler logs a single `crawl_window_configured` structlog line (probe, `time_window_days`, computed `since` ISO timestamp) — that line is the spot-check anchor when verifying a run honoured the configured cutoff. Sitemap and RSS-hint discovery both filter on `lastmod ≥ since`; entries with no parsable lastmod fall through (the worker classifies those as Negative-Space via `timestamp_source = "fetch_at_fallback"` per Brief §7.7). When `probe.time_window_days` is absent the crawler emits a structured warning and falls back to 365 days — see [add-a-probe.md](../extending/add-a-probe.md) for the new-probe checklist.
+The cutoff is **probe-level by design** — per-source overrides are explicitly rejected. If a future source needs a different horizon, that source belongs in a different probe. At startup the crawler logs a single `crawl_window_configured` structlog line (probe, `time_window_days`, computed `since` ISO timestamp) — that line is the spot-check anchor when verifying a run honoured the configured cutoff. Sitemap and RSS discovery both filter on `lastmod ≥ since`. **Sitemap entries with no parsable `<lastmod>` are dropped at discovery** (Phase 122e A21 / F-A21 — `sitemap_strict_lastmod: true` is the default for continuous-monitoring mode; iter-4 forensics found 638-of-638 of bundesregierung's leaf-sitemap entries are undated, so the original fall-through rule silently bypassed the temporal filter for that source's entire 5-year archive). An explicit backfill run can set `sitemap_strict_lastmod: false` — undated entries then fall through and the worker classifies them as Negative-Space via `timestamp_source = "fetch_at_fallback"` per Brief §7.7. RSS entries without a parsable date fall through unconditionally (RSS items are nearly always recent — the filter is defensive). When `probe.time_window_days` is absent the crawler emits a structured warning and falls back to 365 days — see [add-a-probe.md](../extending/add-a-probe.md) for the new-probe checklist.
 
 **Newest-first iteration.** Within the cutoff window, `_discover_for_source` sorts the merged URL list by `sitemap_lastmod` descending, with `None` lastmods sinking to the end. A partial crawl (Ctrl+C, overnight stop, bandwidth pause) therefore yields the most-recent slice of the cutoff window first. Subsequent runs honour the same ordering — combined with `crawler_state` dedup, a multi-session crawl monotonically advances backward through the cutoff window without revisiting URLs.
 
-**Sitemap-driven discovery semantics.** The primary discovery channel is `sitemap.xml` (recursive, including nested `<sitemap>` indexes) parsed by `ultimate-sitemap-parser`. Every URL surfaced by the sitemap that passes the probe-level temporal cutoff is a candidate. The optional `rss_hint_url` is a *discovery hint only* — articles freshly published before the sitemap's next refresh; the article body always comes from the HTML fetch. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
+**Discovery semantics (two peer-equal channels).** Discovery runs across two peer-equal channels as of Phase 122e (F-A1): `sitemap.xml` (recursive, including nested `<sitemap>` indexes, parsed by `ultimate-sitemap-parser`) and the configured `rss_hint_url` (parsed by `feedparser`). Each entry's lastmod / `published_parsed` populates `DiscoveredUrl.sitemap_lastmod` and competes fairly in the newest-first sort; the URL union de-duplicates on the consumer side (sitemap wins on collision because it carries the `sitemap_section` context). For sources without a public XML sitemap — Probe 0's tagesschau, whose `sitemap.xml` returns HTML 404 — `sitemap_urls: []` is the explicit configuration and RSS is the sole channel. **Known discovery-surface asymmetry**: a sitemap-backed source surfaces (up to) the full `time_window_days` window per run; an RSS-only source surfaces whatever the publisher currently exposes in the feed, typically 50–100 items. For high-volume publishers like tagesschau (~ 150–300 articles/day) the RSS window is shorter than the configured 7-day cutoff — cross-source corpus-volume aggregations reflect **crawler access**, not **publication frequency**. This is tracked as Probe-0 Structural Bias #8 in `docs/probes/probe-0-de-institutional-web/bias_assessment.md`. The article body always comes from the HTML fetch — RSS bodies are never consumed. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
 
 **Robots.txt verification.** Before adding a new source, verify that the polite default `User-Agent` is permitted:
 
@@ -987,7 +988,7 @@ This is the routine cadence for upgrading the extraction stack — never edit Br
 
 ### Archived: RSS Crawler (Pre-Phase-122)
 
-The legacy Go RSS crawler at `crawlers/_archived/rss-crawler/` is retained for git-history traceability for one release cycle and removed entirely in Phase 131. Do not modify it. Operational guidance for the legacy crawler is preserved in the directory's `MIGRATED.md`; the Phase-122 `WebAdapter` covers the same probe scope with full article bodies.
+The legacy Go RSS crawler at `crawlers/_archived/rss-crawler/` is retained for git-history traceability for one release cycle and removed entirely in Phase 129. Do not modify it. Operational guidance for the legacy crawler is preserved in the directory's `MIGRATED.md`; the Phase-122 `WebAdapter` covers the same probe scope with full article bodies.
 
 ---
 
@@ -1607,7 +1608,7 @@ Scripts under `scripts/operations/` are operator-invokable one-shots. They have 
 
 ### `scripts/operations/compute_baselines.py`
 
-**When to run:** once after a fresh `make reset && make crawl` if you do not want to wait 24 h for the in-worker `MetricBaselineExtractor` daily loop (Phase 115) to populate `aer_gold.metric_baselines`. Also: as the canonical example in [Workflow 4 of the Scientific Operations Guide](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines), and as the explicit first-baseline-run step on a new probe (Phase 126 worked example).
+**When to run:** once after a fresh `make reset && make crawl` if you do not want to wait 24 h for the in-worker `MetricBaselineExtractor` daily loop (Phase 115) to populate `aer_gold.metric_baselines`. Also: as the canonical example in [Workflow 4 of the Scientific Operations Guide](scientific_operations_guide.md#workflow-4-computing-and-updating-baselines), and as the explicit first-baseline-run step on a new probe (Phase 124 worked example).
 
 **When NOT to run:** in steady state. The `MetricBaselineExtractor` corpus loop inside the analysis worker is the canonical source. Running the standalone script while the loop is also active is harmless (`ReplacingMergeTree(compute_date)` collapses duplicate keys), but it is a sign that the loop is not actually doing what it is supposed to be doing — investigate that first.
 

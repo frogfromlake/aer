@@ -627,7 +627,9 @@ frontend-down:
 	@docker compose $(COMPOSE_DASHBOARD_PROFILE) rm --force dashboard 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Dashboard stopped.$(RESET)"
 
-frontend-restart: frontend-down frontend-up
+frontend-restart:
+	@docker compose $(COMPOSE_DASHBOARD_PROFILE) build dashboard
+	@docker compose $(COMPOSE_DASHBOARD_PROFILE) up -d --no-deps --wait dashboard
 
 # ==========================================
 # 8. DEVELOPER SETUP

@@ -11,7 +11,7 @@ This guide is the Layer-4 complement to [add-a-source-type.md](add-a-source-type
 You are adding **a new source on an existing platform class**. Concretely, post-Phase-122 examples are:
 
 - A new German news website on the existing `web-crawler` (Spiegel, FAZ, Süddeutsche, …) on Probe 0 or a successor probe.
-- A new French institutional source on the same `web-crawler` for Probe 1 (Phase 125).
+- A new French institutional source on the same `web-crawler` for Probe 1 (Phase 123).
 - A new English-language news website for a hypothetical English probe.
 
 In all three cases **the binary is the same** — `crawlers/web-crawler/` (Phase 122 / ADR-028). The only per-source artefacts are configuration and a database row.
@@ -119,7 +119,7 @@ sources:
     custom_extractors: {}  # Tier-E: empty unless a specific analysis demands a bespoke field.
 ```
 
-The default `url_filter` and `content_filter` values are universal — copy them verbatim. **Do not add section-level editorial filters** (no `/sport/` exclusions, no `/opinion/` exclusions) per WP-006 §3 / ADR-028. Per-article discourse-function imprecision is addressed in Phase 126b, not at the crawler.
+The default `url_filter` and `content_filter` values are universal — copy them verbatim. **Do not add section-level editorial filters** (no `/sport/` exclusions, no `/opinion/` exclusions) per WP-006 §3 / ADR-028. Per-article discourse-function imprecision is addressed in Phase 122a, not at the crawler.
 
 **Discovery cost ladder.** Surface A (XML sitemap) is the cheapest — one or a few HTTP fetches yield the full URL universe. Surface B (RSS) is similarly cheap. Surface C (date-indexed archive) is the expensive one: one HTTP fetch per day in the window. At a 1 s polite delay and a 5-year window, Surface C alone is ≈ 30 minutes of discovery before the article-fetch stage even begins. Only configure Surface C when Surfaces A/B do not expose the historical depth the probe requires; never as redundancy.
 

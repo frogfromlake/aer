@@ -932,7 +932,7 @@ Operationalises WP-004 §5–§6 as a tightly-scoped extension of the Phase-65 s
 
 3. *Structured `equivalenceStatus` on `/metrics/available`.* The bare-string `equivalenceLevel` field is superseded by a structured `equivalenceStatus` object (`level`, `validatedBy`, `validationDate`, `notes`). The deprecated alias is retained for one release cycle so existing dashboard URL state and tests do not break in the same commit. New clients consume `equivalenceStatus`; the alias is removed in a future cleanup phase.
 
-4. *Dual-path baseline computation.* The `MetricBaselineExtractor` (Phase 115) is the second `CorpusExtractor` in the analysis worker, running on the same NATS-cron pattern as `EntityCoOccurrenceExtractor` (Phase 102). Default cadence is daily, default window is 90 days. The standalone `scripts/operations/compute_baselines.py` is retained for first-run on a new probe (Phase 126 uses it explicitly), manual recompute after a schema change, and Operations-Playbook walkthroughs. Both paths share the canonical computation function `internal.extractors.metric_baseline.compute_baseline_rows` so they produce byte-identical baselines for the same input window — the regression guard documented by the Phase-115 unit test in `services/analysis-worker/tests/test_metric_baseline_extractor.py`.
+4. *Dual-path baseline computation.* The `MetricBaselineExtractor` (Phase 115) is the second `CorpusExtractor` in the analysis worker, running on the same NATS-cron pattern as `EntityCoOccurrenceExtractor` (Phase 102). Default cadence is daily, default window is 90 days. The standalone `scripts/operations/compute_baselines.py` is retained for first-run on a new probe (Phase 124 uses it explicitly), manual recompute after a schema change, and Operations-Playbook walkthroughs. Both paths share the canonical computation function `internal.extractors.metric_baseline.compute_baseline_rows` so they produce byte-identical baselines for the same input window — the regression guard documented by the Phase-115 unit test in `services/analysis-worker/tests/test_metric_baseline_extractor.py`.
 
 5. *Refusal-surface reuse.* The cross-cultural refusal renders through the same `RefusalSurface` component that handles the Phase-103 Silver-eligibility gate. The frontend recognises the structured `gate=metric_equivalence` field on a 400 body and sharpens the refusal kind to `cross_frame_equivalence_missing`, which keys into the new `cross_frame_equivalence_missing.yaml` Content Catalog entries (en + de) — same Dual-Register shape as the existing refusal entries.
 
@@ -1078,13 +1078,13 @@ PostgreSQL `documents` and `ingestion_jobs` retain their current 90-day retentio
 | :--- | :--- |
 | **Date** | 2026-05-02 |
 | **Status** | Accepted |
-| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 125 |
+| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 123 |
 
 ### Context
 
 Phase 119 specifies `mdraw/german-news-sentiment-bert` as the primary German Tier 2 sentiment extractor, with `oliverguhr/german-sentiment-bert` as a domain-mismatch baseline. The pattern is German-specific by construction: a pinned model revision, a per-model determinism CI gate, a per-model Docker image footprint contribution.
 
-Phase 125 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
+Phase 123 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
 
 The naïve alternative — a single multilingual sentiment model covering all languages — has its own cost: WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models. A model trained on 100-language Twitter data is structurally less calibrated to e.g. German institutional editorial RSS than a German-news-fine-tuned model on the same texts.
 
@@ -1112,7 +1112,7 @@ Concretely:
 - Sentiment coverage scales with O(1) extractors per language addition: a new probe in a language the multilingual model supports gets sentiment for free.
 - Per-language quality is preserved where a strong native model exists.
 - The methodological caution of WP-002 §3.2 (domain transfer is a real failure mode) is honoured by surfacing both metrics, not by hiding the multilingual model's weaknesses.
-- The Phase 125 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
+- The Phase 123 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
 
 **Negative.**
 - The dashboard surfaces more metrics for sentiment-rich probes. The Epistemic Weight system (Brief §7.8) is responsible for keeping the cognitive load manageable.
@@ -1128,7 +1128,7 @@ Phase 119 ships:
 - `metric_validity` scaffold rows for both at each Probe-0 context-key.
 - `metric_provenance.yaml` entries for both.
 
-Phase 125 (French) adds:
+Phase 123 (French) adds:
 - Optional `FrenchNewsBertSentimentExtractor` (Tier 2.5 refinement for French) following the same pattern as the German Tier 2.5 extractor.
 - The multilingual default automatically covers French via the language guard — no extractor work.
 
@@ -1141,7 +1141,7 @@ Future probes:
 - WP-002 §3.2 (domain transfer as primary failure mode)
 - ADR-016 (Hybrid Tier Architecture, dual-metric pattern)
 - Brief §7.8 (Epistemic Weight)
-- Phase 119, Phase 125
+- Phase 119, Phase 123
 - `docs/extending/add-a-language.md`
 - `docs/extending/scalability-roadmap.md`
 
@@ -1159,13 +1159,13 @@ Future probes:
 | :--- | :--- |
 | **Date** | 2026-05-02 |
 | **Status** | Accepted |
-| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 125 |
+| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 123 |
 
 ### Context
 
 Phase 119 specifies `mdraw/german-news-sentiment-bert` as the primary German Tier 2 sentiment extractor, with `oliverguhr/german-sentiment-bert` as a domain-mismatch baseline. The pattern is German-specific by construction: a pinned model revision, a per-model determinism CI gate, a per-model Docker image footprint contribution.
 
-Phase 125 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
+Phase 123 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
 
 The naïve alternative — a single multilingual sentiment model covering all languages — has its own cost: WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models. A model trained on 100-language Twitter data is structurally less calibrated to e.g. German institutional editorial RSS than a German-news-fine-tuned model on the same texts.
 
@@ -1193,7 +1193,7 @@ Concretely:
 - Sentiment coverage scales with O(1) extractors per language addition: a new probe in a language the multilingual model supports gets sentiment for free.
 - Per-language quality is preserved where a strong native model exists.
 - The methodological caution of WP-002 §3.2 (domain transfer is a real failure mode) is honoured by surfacing both metrics, not by hiding the multilingual model's weaknesses.
-- The Phase 125 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
+- The Phase 123 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
 
 **Negative.**
 - The dashboard surfaces more metrics for sentiment-rich probes. The Epistemic Weight system (Brief §7.8) is responsible for keeping the cognitive load manageable.
@@ -1209,7 +1209,7 @@ Phase 119 ships:
 - `metric_validity` scaffold rows for both at each Probe-0 context-key.
 - `metric_provenance.yaml` entries for both.
 
-Phase 125 (French) adds:
+Phase 123 (French) adds:
 - Optional `FrenchNewsBertSentimentExtractor` (Tier 2.5 refinement for French) following the same pattern as the German Tier 2.5 extractor.
 - The multilingual default automatically covers French via the language guard — no extractor work.
 
@@ -1222,7 +1222,7 @@ Future probes:
 - WP-002 §3.2 (domain transfer as primary failure mode)
 - ADR-016 (Hybrid Tier Architecture, dual-metric pattern)
 - Brief §7.8 (Epistemic Weight)
-- Phase 119, Phase 125
+- Phase 119, Phase 123
 - `docs/extending/add-a-language.md`
 - `docs/extending/scalability-roadmap.md`
 
@@ -1240,7 +1240,7 @@ Future probes:
 | :--- | :--- |
 | **Date** | 2026-05-02 |
 | **Status** | Accepted — implemented in Phase 118a |
-| **Relates to** | Phase 116, Phase 118a, Phase 125, ADR-023, WP-001 §5.3 |
+| **Relates to** | Phase 116, Phase 118a, Phase 123, ADR-023, WP-001 §5.3 |
 
 ### Context
 
@@ -1378,13 +1378,13 @@ This ADR is ratified before implementation; the implementation ships as a single
 6. `language` parameter validator in the BFF.
 7. The auto-generation of `add-a-language.md` is **deferred** to the Probe Coverage Map phase; for now the doc remains hand-maintained but checked against the manifest by a `scripts/check_language_doc_drift.py` script in CI.
 
-Estimated effort: 1 working day for the refactor + scaffold-generator. The fr-language manifest entry is added by Phase 125 as part of its existing scope.
+Estimated effort: 1 working day for the refactor + scaffold-generator. The fr-language manifest entry is added by Phase 123 as part of its existing scope.
 
 ### References
 
 - WP-001 §5.3 (Probe Coverage Map mandate)
 - ADR-023 (Multilingual Sentiment Strategy)
-- Phase 125 (consumer of the manifest)
+- Phase 123 (consumer of the manifest)
 - `docs/extending/add-a-language.md`
 - `docs/extending/scalability-roadmap.md`
 
@@ -1413,7 +1413,7 @@ If a probe-specific dialect requirement appears in a future iteration (Probe 1 o
 | :--- | :--- |
 | **Date** | 2026-05-02 (deferred sketch) |
 | **Status** | **Deferred** — ratification when probe count reaches N=10 or duplication friction is felt |
-| **Relates to** | WP-004 §6.3, WP-005 §4.3, Phase 126 |
+| **Relates to** | WP-004 §6.3, WP-005 §4.3, Phase 124 |
 
 ### Context
 
@@ -1454,7 +1454,7 @@ Multiple `extends:` entries are allowed for layered cultural traditions (e.g. a 
 
 ### Why deferred
 
-Premature implementation is forbidden by Occam's Razor. The mechanism is not currently needed (N=2 at the close of Phase 125). Implementing it now adds a YAML inheritance engine to maintain *before* it pays off.
+Premature implementation is forbidden by Occam's Razor. The mechanism is not currently needed (N=2 at the close of Phase 123). Implementing it now adds a YAML inheritance engine to maintain *before* it pays off.
 
 The ADR exists in this sketched form so the path is documented and consensual; ratification and implementation happen at the trigger condition.
 
@@ -1476,7 +1476,7 @@ Any of:
 ### References
 
 - WP-005 §4.3 (cultural calendar foundation)
-- Phase 126 (current single-file pattern)
+- Phase 124 (current single-file pattern)
 - `docs/extending/scalability-roadmap.md` § Cultural Calendar Composition
 
 ### Decision Record
@@ -1514,7 +1514,7 @@ But: a probe without NER has no entity co-occurrence network, no Wikidata QID li
 
 ### Why deferred
 
-Two reasons. **First, trigger condition not met.** N=2 at end of Phase 125; both languages have spaCy NER. Implementing now is premature.
+Two reasons. **First, trigger condition not met.** N=2 at end of Phase 123; both languages have spaCy NER. Implementing now is premature.
 
 **Second, the multilingual NER landscape is unstable.** The named candidate models (WikiNeural, distilBERT-multilingual-NER) are 2022-vintage; better alternatives almost certainly exist by the time the trigger fires. Ratifying a specific model choice in 2026 for a 2028 implementation would be locking in a stale decision.
 
@@ -1621,7 +1621,7 @@ crawl invocation into a single timeline cluster on the dashboard.
 
 Phase 122 replaces RSS with a polite, robots-respecting full-article web
 crawler and lays the source-agnostic Layer-3 foundation that every
-future news-website probe (Probe 1+ in Phase 125 onward) inherits without
+future news-website probe (Probe 1+ in Phase 123 onward) inherits without
 code changes.
 
 ### Decisions
@@ -1653,8 +1653,12 @@ trafilatura alone is insufficient for the user-stated requirement of
   Robots.txt, rate limiting, conditional GETs (`If-Modified-Since` /
   `ETag`), retry logic, politeness defaults.
 * **`ultimate-sitemap-parser`** (MIT) — recursive `sitemap.xml`
-  parsing with last-modified timestamps. Primary URL-discovery path;
-  RSS feeds become a discovery hint only.
+  parsing with last-modified timestamps. URL-discovery path alongside
+  RSS feeds. *(Original Phase 122 framing — "primary path; RSS hint
+  only" — was superseded in Phase 122e F-A1: sitemap and RSS are now
+  peer-equal discovery channels. Each entry's lastmod / `published_parsed`
+  competes fairly in the newest-first sort; for sources without a
+  public XML sitemap — Probe 0's tagesschau — RSS is the sole channel.)*
 
 #### 2. Python (worker + crawler), not Go (crawler)
 
@@ -1743,7 +1747,7 @@ Filtering is exclusively technical (asset URLs, search/index pages,
 legal boilerplate, extraction-failure cases). **Section-level
 editorial filtering is rejected as researcher selection bias per
 WP-006 §3** — the source is what the source publishes. Per-article
-discourse-function imprecision is addressed in Phase 126b via a
+discourse-function imprecision is addressed in Phase 122a via a
 hybrid annotation pipeline; Phase 122 makes the imprecision visible
 rather than hiding it via a researcher-curated URL filter.
 
@@ -1768,16 +1772,24 @@ is wiped at cutover and the bug is moot post-migration.
 #### 8. Cutover procedure — wipe-and-recrawl, forward-only
 
 Cutover runs `make reset` (Phase 120b's canonical wipe) followed by
-`make crawl-probe0`. The crawl yields only sitemap entries with
-`last_modified ≥ today` — no historical backfill. Bronze, Silver,
-Gold are repopulated forward-only. Bronze build-time artefacts
-(Wikidata index, BERT models in worker image) survive per the
-established procedure.
+`make crawl-probe0`. The crawl yields only entries (sitemap or RSS)
+within the rolling `probe.time_window_days` window. *(Original Phase 122
+framing said "`last_modified ≥ today`, no historical backfill".
+Superseded by Phase 122b — which introduced the `time_window_days` knob
+and shipped with an 1825-day backfill horizon — and then by Phase 122e
+A20 / A21, which walked the value back to **7 days** for
+continuous-monitoring cadence and added `sitemap_strict_lastmod: true`
+to drop undated sitemap entries in that mode. See
+`crawlers/web-crawler/probes/probe0/sources.yaml` for the live values.)*
+Bronze, Silver, Gold are repopulated forward-only on cutover; cron-driven
+repeated execution accumulates the corpus organically across runs.
+Bronze build-time artefacts (Wikidata index, BERT models in worker
+image) survive per the established procedure.
 
 #### 9. Headless-browser execution explicitly deferred
 
 Probe 0's two sources serve server-rendered HTML; Probe 1 (FR
-institutional, Phase 125) is expected to serve the same. JS-rendered
+institutional, Phase 123) is expected to serve the same. JS-rendered
 SPAs are out of scope for Phase 122. When the first probe needs a
 headless browser, a sister `web-crawler-js` binary (Playwright,
 Chromium pinned via `mcr.microsoft.com/playwright`) will be written
@@ -1794,7 +1806,7 @@ demand it.
   for unforeseen analytical needs. Re-extraction without re-crawl is
   the operational realisation of medallion architecture's
   collection-vs-derivation decoupling.
-* **Positive:** new probes are YAML-only. Probe 1 in Phase 125 inherits
+* **Positive:** new probes are YAML-only. Probe 1 in Phase 123 inherits
   the entire Phase-122 toolchain without a single line of new crawler
   code; the only new code is the per-source SilverMeta extras (if any)
   and the Postgres seed migration.

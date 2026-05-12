@@ -49,7 +49,7 @@ Probe 0 sources are accessed via full-article web crawling against their public 
 
    The bundesregierung CMS (CoreMedia, per the page generator meta tag) appears to be configured to emit only the absolute minimum: `og:type`, `og:title`, `og:url`, `og:image`, plus a single `<time datetime>` HTML5 element on pages where the publication date is rendered. It does **not** emit a `NewsArticle` JSON-LD block — even on `/aktuelles/` news pages — so every Tier-B field that is conventionally read from `NewsArticle` (author, articleSection, dateModified, articleBody, etc.) is structurally absent.
 
-   The `WebMeta.extraction_methods` provenance markers expose this asymmetry per field; the Coverage Map (Phase 125a) will surface it system-wide; **Phase 122f shipped the runtime signal** that turns this matrix into a queryable BFF endpoint and a per-field Negative-Space rendering mode on the dashboard. Concretely:
+   The `WebMeta.extraction_methods` provenance markers expose this asymmetry per field; the Coverage Map (Phase 123a) will surface it system-wide; **Phase 122f shipped the runtime signal** that turns this matrix into a queryable BFF endpoint and a per-field Negative-Space rendering mode on the dashboard. Concretely:
 
    * **Endpoint (multi-source, probe scope):** `GET /api/v1/probes/probe-0-de-institutional-web/metadata-coverage` — returns the per-source-per-field-per-method matrix above as a typed JSON payload. Each field carries `totalArticles`, per-method counts, the derived `populationRate`, and a `structurallyAbsent` boolean (true when ≥ 50 articles in the trailing 30 days yielded 0 % population — the threshold that distinguishes "publisher chose not to emit" from "sampling variance").
    * **Endpoint (single source):** `GET /api/v1/sources/{tagesschau|bundesregierung}/metadata-coverage` — same payload shape, single-source view.
@@ -87,7 +87,7 @@ Probe 0 sources are accessed via full-article web crawling against their public 
 
 **Operator:** ARD (Arbeitsgemeinschaft der offentlich-rechtlichen Rundfunkanstalten der Bundesrepublik Deutschland)
 **Funding:** Public broadcasting fee (Rundfunkbeitrag)
-**Discovery URL:** `https://www.tagesschau.de/sitemap.xml` (primary, Phase 122); `https://www.tagesschau.de/index~rss2.xml` (RSS hint only — body fetched from HTML)
+**Discovery URL:** `https://www.tagesschau.de/index~rss2.xml` (sole discovery channel — `sitemap.xml` returns HTML 404 and `robots.txt` carries no `Sitemap:` directive, confirmed Phase 122e A15 / F-A15; body fetched from HTML, RSS body never consumed). See Structural Bias #8 for the discovery-surface asymmetry vs bundesregierung.
 
 ### Known Biases
 
@@ -97,7 +97,7 @@ Probe 0 sources are accessed via full-article web crawling against their public 
 
 3. **German-Language Monolingualism.** The feed is exclusively German-language. International events are reported through a German editorial lens, including translation choices, framing, and source selection.
 
-4. **High Publication Frequency.** Approximately 50 articles per day across all topic areas. This makes tagesschau.de the dominant volume contributor in Probe 0, which must be accounted for in any cross-source comparison.
+4. **High Publication Frequency.** Approximately 150–300 articles per day published across all topic areas. The RSS feed only exposes the ≈ 70 most-recent items at any moment, so the discoverable surface per crawl run is far smaller than the publication rate — see Structural Bias #8 (Discovery-Surface Asymmetry). tagesschau.de is nevertheless the dominant volume contributor in Probe 0, which must be accounted for in any cross-source comparison.
 
 5. **News Focus.** The feed covers current affairs, politics, economy, sports, science, and culture. It does not cover opinion pieces, reader letters, or user-submitted content. The discourse function is primarily `epistemic_authority` (WP-001 classification).
 
@@ -107,7 +107,7 @@ Probe 0 sources are accessed via full-article web crawling against their public 
 
 **Operator:** Presse- und Informationsamt der Bundesregierung (Federal Press Office)
 **Funding:** Federal government budget
-**Discovery URL:** `https://www.bundesregierung.de/sitemap.xml` (primary, Phase 122); `https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml` (RSS hint only)
+**Discovery URL:** Three `service-sitemap-*-sitemap_index.xml` files declared in `robots.txt` (`bundesregierung.de/sitemap.xml` itself returns HTML 404); `https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml` (peer-equal channel since Phase 122e F-A1 — in practice the sitemap is service-only / CMS noise and the RSS feed is what surfaces actual `/breg-de/aktuelles/` news content).
 
 ### Known Biases
 

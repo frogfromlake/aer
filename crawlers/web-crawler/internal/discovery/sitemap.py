@@ -1,11 +1,14 @@
 """Sitemap discovery via ultimate-sitemap-parser.
 
-Yields the URL discovery surface for a single source. The crawler treats
-sitemaps as the *primary* discovery channel; RSS feeds are a hint only
-(see :mod:`internal.discovery.rss_hint`). The ``last_modified`` value is
-preserved from the sitemap entry so the WebAdapter can use it as the
-``timestamp_source = "sitemap_lastmod"`` fallback when a JSON-LD
-``datePublished`` is unavailable.
+Yields the URL discovery surface for a single source. As of Phase 122e
+(F-A1) sitemaps and RSS feeds are peer-equal discovery channels — see
+:mod:`internal.discovery.rss_hint`. For sources without a public XML
+sitemap (Probe 0's tagesschau, whose ``sitemap.xml`` returns HTML 404),
+RSS is the sole channel; the empty ``sitemap_urls: []`` in
+``sources.yaml`` is the explicit configuration of that fact. The
+``last_modified`` value is preserved from the sitemap entry so the
+WebAdapter can use it as the ``timestamp_source = "sitemap_lastmod"``
+fallback when a JSON-LD ``datePublished`` is unavailable.
 
 The function is robust to nested sitemap indexes — ultimate-sitemap-parser
 recursively expands ``<sitemap>`` entries into the leaf URL set.
