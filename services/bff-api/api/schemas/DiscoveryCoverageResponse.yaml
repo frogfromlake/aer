@@ -1,0 +1,71 @@
+type: object
+description: >
+  Per-source discovery telemetry payload for the Phase 122g
+  `GET /sources/{sourceId}/discovery-coverage` endpoint. Sibling
+  to `GET /sources/{sourceId}/metadata-coverage` (Phase 122f) —
+  both surface the publisher's emission posture as a queryable
+  runtime signal, supporting the WP-006 §6 reflexive-architecture
+  status-disclosure principle.
+
+  Recorded in ADR-031 (DiscoveryProtocol Contract for Multi-Channel
+  Source Discovery). The schema is platform-agnostic so future
+  Twitter / Reddit / Mastodon / YouTube crawlers feed the same
+  endpoint without schema work.
+required:
+  - sourceId
+  - windowDays
+  - perChannel
+  - totalUrlsDiscoveredLastRun
+  - uniqueUrlsAfterDedupLastRun
+  - underflowAlertActive
+properties:
+  sourceId:
+    type: string
+    description: Canonical source identifier (e.g. `tagesschau`).
+    example: tagesschau
+  windowDays:
+    type: integer
+    minimum: 1
+    description: >
+      Trailing window over which `averageUrlsDiscoveredPerRun` and
+      the underflow detection are computed. Defaults to the probe's
+      `time_window_days` (Phase 122b / 122e A20 — currently 7 for
+      Probe 0).
+    example: 30
+  expectedFloorPerRun:
+    type: integer
+    nullable: true
+    description: >
+      Source-declared minimum URL count per discovery run (Phase 122g).
+      `null` when the operator hasn't yet set a floor for this source —
+      no underflow alerting in that case.
+    example: 200
+  perChannel:
+    type: array
+    description: >
+      One entry per declared channel. Includes channels that yielded
+      zero URLs in the last run (the zero is itself a signal).
+    items:
+      $ref: './DiscoveryCoveragePerChannel.yaml'
+  totalUrlsDiscoveredLastRun:
+    type: integer
+    minimum: 0
+    description: >
+      Sum of `urls_discovered` across every channel for the most recent
+      discovery pass (pre-dedup).
+    example: 1114
+  uniqueUrlsAfterDedupLastRun:
+    type: integer
+    minimum: 0
+    description: >
+      Sum of `urls_after_dedup` across every channel — the unique URL
+      set the crawler will fetch. Compared against `expectedFloorPerRun`
+      for the underflow gate.
+    example: 1006
+  underflowAlertActive:
+    type: boolean
+    description: >
+      True iff the per-source two-consecutive-runs underflow gate has
+      fired. Same field as on each channel's record but at source
+      level — surfaces the alert state directly to the dashboard panel.
+    example: false

@@ -131,10 +131,10 @@ def test_discover_for_source_sorts_newest_first(monkeypatch) -> None:
         ),
     ]
 
-    def fake_sitemap_discover(_urls, since=None) -> Iterator[DiscoveredUrl]:
+    def fake_sitemap_discover(_urls, since=None, **_kw) -> Iterator[DiscoveredUrl]:
         yield from fake_urls
 
-    def fake_rss_discover(_url, since=None):
+    def fake_rss_discover(_url, since=None, **_kw):
         return iter([])
 
     monkeypatch.setattr("main.discover_sitemap", fake_sitemap_discover)
@@ -159,11 +159,11 @@ def test_discover_for_source_threads_since_to_both_channels(monkeypatch) -> None
 
     received: dict[str, datetime | None] = {}
 
-    def capture_sitemap(_urls, since=None) -> Iterator[DiscoveredUrl]:
+    def capture_sitemap(_urls, since=None, **_kw) -> Iterator[DiscoveredUrl]:
         received["sitemap"] = since
         return iter([])
 
-    def capture_rss(_url, since=None):
+    def capture_rss(_url, since=None, **_kw):
         received["rss"] = since
         return iter([])
 
@@ -202,10 +202,11 @@ def test_discover_for_source_rss_pubdate_promotes_url_to_head(monkeypatch) -> No
     rss_undated = ("https://x/rss-undated", None)
 
     monkeypatch.setattr(
-        "main.discover_sitemap", lambda urls, since=None: iter([sitemap_entry])
+        "main.discover_sitemap", lambda urls, since=None, **_kw: iter([sitemap_entry])
     )
     monkeypatch.setattr(
-        "main.discover_rss", lambda url, since=None: iter([rss_recent, rss_undated])
+        "main.discover_rss",
+        lambda url, since=None, **_kw: iter([rss_recent, rss_undated]),
     )
 
     source = {
@@ -240,11 +241,13 @@ def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
     )
 
     monkeypatch.setattr(
-        "main.discover_sitemap", lambda urls, since=None: iter([sitemap_entry])
+        "main.discover_sitemap", lambda urls, since=None, **_kw: iter([sitemap_entry])
     )
     monkeypatch.setattr(
         "main.discover_rss",
-        lambda url, since=None: iter([("https://x/dup", datetime(2026, 5, 8, tzinfo=timezone.utc))]),
+        lambda url, since=None, **_kw: iter(
+            [("https://x/dup", datetime(2026, 5, 8, tzinfo=timezone.utc))]
+        ),
     )
 
     source = {
@@ -257,6 +260,278 @@ def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
     assert len(result) == 1
     assert result[0].sitemap_lastmod is not None
     assert result[0].sitemap_section == "news"
+
+
+# --- Phase 122g: discovery: block + flat-key aliasing -----------------------
+
+
+def test_normalise_source_discovery_accepts_new_block() -> None:
+    """Phase 122g — the new `discovery:` block shape is the source of
+    truth for per-source channels. The normaliser returns each channel
+    list intact and surfaces `expected_floor_per_run`."""
+    from main import _normalise_source_discovery
+
+    source = {
+        "name": "x",
+        "discovery": {
+            "sitemap_urls": ["https://x/sitemap.xml"],
+            "rss_hint_urls": [
+                "https://x/feed-a.xml",
+                "https://x/feed-b.xml",
+            ],
+            "html_sitemap_urls": [
+                {"url": "https://x/sitemap.html", "link_selector": "a"}
+            ],
+            "archive_index": {
+                "url_pattern": "https://x/archiv?datum={YYYY-MM-DD}",
+                "granularity": "daily",
+            },
+            "expected_floor_per_run": 42,
+        },
+    }
+    out = _normalise_source_discovery(source)
+    assert out["sitemap_urls"] == ["https://x/sitemap.xml"]
+    assert out["rss_hint_urls"] == ["https://x/feed-a.xml", "https://x/feed-b.xml"]
+    assert len(out["html_sitemap_urls"]) == 1
+    assert out["html_sitemap_urls"][0]["url"] == "https://x/sitemap.html"
+    assert out["archive_index"]["granularity"] == "daily"
+    assert out["expected_floor_per_run"] == 42
+
+
+def test_normalise_source_discovery_aliases_legacy_flat_keys() -> None:
+    """Phase 122g — the legacy flat keys (`sitemap_urls`,
+    `rss_hint_url` singular, `archive_index`) at source root are
+    forwarded into the normalised discovery dict with a structured
+    warning. Pre-122g sources.yaml continues to parse during the
+    migration window (retired in Phase 127).
+    """
+    from main import _normalise_source_discovery
+
+    source = {
+        "name": "legacy",
+        "sitemap_urls": ["https://x/sitemap.xml"],
+        "rss_hint_url": "https://x/feed.xml",
+        "archive_index": {"url_pattern": "https://x/archiv?datum={YYYY-MM-DD}"},
+    }
+    out = _normalise_source_discovery(source)
+    assert out["sitemap_urls"] == ["https://x/sitemap.xml"]
+    # Singular legacy key promoted to a single-element list.
+    assert out["rss_hint_urls"] == ["https://x/feed.xml"]
+    assert out["html_sitemap_urls"] == []
+    assert out["archive_index"]["url_pattern"] == "https://x/archiv?datum={YYYY-MM-DD}"
+    # No floor declared in legacy shape — None is the explicit signal
+    # that the telemetry layer should not emit an underflow alert for
+    # this source until the operator sets one.
+    assert out["expected_floor_per_run"] is None
+
+
+def test_normalise_source_discovery_defaults_for_empty_source() -> None:
+    """A source with neither a `discovery:` block nor any legacy flat
+    keys produces an empty channel set — the crawler will skip it
+    (no URLs to fetch) but does not crash."""
+    from main import _normalise_source_discovery
+
+    out = _normalise_source_discovery({"name": "empty"})
+    assert out == {
+        "sitemap_urls": [],
+        "rss_hint_urls": [],
+        "html_sitemap_urls": [],
+        "archive_index": None,
+        "expected_floor_per_run": None,
+    }
+
+
+def test_discover_for_source_uses_plural_rss_feeds(monkeypatch) -> None:
+    """Phase 122g — multiple RSS feeds under `discovery.rss_hint_urls`
+    are all consulted; the per-feed yields are URL-unioned. This is the
+    load-bearing change for bundesregierung's four-feed catalogue.
+    """
+    from main import _discover_for_source
+
+    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
+    rss_calls: list[str] = []
+
+    def fake_rss(url, since=None):
+        rss_calls.append(url)
+        # Each feed yields a distinct URL so the union is observable.
+        if "feed-a" in url:
+            return iter([("https://x/article-from-a", now - timedelta(hours=1))])
+        if "feed-b" in url:
+            return iter([("https://x/article-from-b", now - timedelta(hours=2))])
+        return iter([])
+
+    monkeypatch.setattr("main.discover_sitemap", lambda urls, since=None, strict_lastmod=True: iter([]))
+    monkeypatch.setattr("main.discover_rss", fake_rss)
+
+    source = {
+        "name": "multi",
+        "discovery": {
+            "rss_hint_urls": [
+                "https://x/feed-a.xml",
+                "https://x/feed-b.xml",
+            ],
+        },
+    }
+    result = _discover_for_source(source, since=None)
+
+    # Both feeds were consulted.
+    assert sorted(rss_calls) == [
+        "https://x/feed-a.xml",
+        "https://x/feed-b.xml",
+    ]
+    # Union of yields, in newest-first order (a's pubDate is newer).
+    assert [e.url for e in result] == [
+        "https://x/article-from-a",
+        "https://x/article-from-b",
+    ]
+
+
+def test_discover_for_source_unions_all_four_channels(monkeypatch) -> None:
+    """Phase 122g — sitemap + RSS + html_sitemap + archive_index all
+    contribute URLs in a single discovery pass. URL collision resolves
+    in channel order (sitemap wins, then RSS, then html_sitemap, then
+    archive_index). The four-channel union is the load-bearing
+    architectural property: tagesschau (no sitemap, plural channels)
+    and bundesregierung (sitemap-noise + plural RSS) both produce a
+    single deduped URL list.
+    """
+    from main import _discover_for_source
+
+    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
+
+    sitemap_entry = DiscoveredUrl(
+        url="https://x/sitemap-article",
+        sitemap_lastmod=now - timedelta(days=2),
+        sitemap_section="news",
+    )
+    monkeypatch.setattr(
+        "main.discover_sitemap",
+        lambda urls, since=None, **_kw: iter([sitemap_entry]),
+    )
+    monkeypatch.setattr(
+        "main.discover_rss",
+        lambda url, since=None, **_kw: iter(
+            [("https://x/rss-article", now - timedelta(hours=3))]
+        ),
+    )
+    monkeypatch.setattr(
+        "main.discover_html_sitemap",
+        lambda cfg, since=None, **_kw: iter([("https://x/html-sitemap-article", None)]),
+    )
+    monkeypatch.setattr(
+        "main.discover_archive_index",
+        lambda cfg, since=None, **_kw: iter(
+            [("https://x/archive-article", now - timedelta(days=5))]
+        ),
+    )
+
+    source = {
+        "name": "x",
+        "discovery": {
+            "sitemap_urls": ["https://x/sitemap.xml"],
+            "rss_hint_urls": ["https://x/feed.xml"],
+            "html_sitemap_urls": [
+                {"url": "https://x/sitemap.html", "article_url_pattern": ".*"}
+            ],
+            "archive_index": {
+                "url_template": "https://x/archiv?datum={date}",
+                "article_url_pattern": ".*",
+            },
+        },
+    }
+    result = _discover_for_source(source, since=None)
+
+    urls = [e.url for e in result]
+    # All four channels contributed exactly one URL each; the union
+    # contains all four entries with sitemap-first newest-first sort
+    # (RSS pubDate is newest → first; sitemap lastmod → second; archive
+    # lastmod older → third; html sitemap None → sinks to end).
+    assert set(urls) == {
+        "https://x/rss-article",
+        "https://x/sitemap-article",
+        "https://x/archive-article",
+        "https://x/html-sitemap-article",
+    }
+    assert urls[0] == "https://x/rss-article"          # newest pubDate (3h ago)
+    assert urls[1] == "https://x/sitemap-article"      # next-newest (2d ago)
+    assert urls[2] == "https://x/archive-article"      # oldest dated (5d ago)
+    assert urls[3] == "https://x/html-sitemap-article" # None lastmod sinks last
+
+
+def test_discover_for_source_html_sitemap_loses_collision_to_sitemap(monkeypatch) -> None:
+    """When the same URL is surfaced by BOTH the XML sitemap and the
+    HTML sitemap, the XML-sitemap entry wins (it carries the canonical
+    lastmod and the sitemap_section context). Pinned to prevent silent
+    coverage regression if the channel-order changes."""
+    from main import _discover_for_source
+
+    sitemap_entry = DiscoveredUrl(
+        url="https://x/article-100.html",
+        sitemap_lastmod=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        sitemap_section="news",
+    )
+    monkeypatch.setattr(
+        "main.discover_sitemap",
+        lambda urls, since=None, **_kw: iter([sitemap_entry]),
+    )
+    monkeypatch.setattr(
+        "main.discover_rss",
+        lambda url, since=None, **_kw: iter([]),
+    )
+    monkeypatch.setattr(
+        "main.discover_html_sitemap",
+        lambda cfg, since=None, **_kw: iter([("https://x/article-100.html", None)]),
+    )
+    monkeypatch.setattr(
+        "main.discover_archive_index",
+        lambda cfg, since=None, **_kw: iter([]),
+    )
+
+    source = {
+        "name": "x",
+        "discovery": {
+            "sitemap_urls": ["https://x/sitemap.xml"],
+            "html_sitemap_urls": [
+                {"url": "https://x/sitemap.html", "article_url_pattern": ".*"}
+            ],
+        },
+    }
+    result = _discover_for_source(source, since=None)
+
+    assert len(result) == 1
+    # Sitemap-entry context (lastmod + section) preserved through the
+    # collision.
+    assert result[0].sitemap_lastmod is not None
+    assert result[0].sitemap_section == "news"
+
+
+def test_discover_for_source_aliases_legacy_rss_hint_url(monkeypatch) -> None:
+    """Phase 122g — a source declared with the pre-122g singular
+    `rss_hint_url` at root still discovers via that one feed (the
+    alias path inside `_normalise_source_discovery`). Pinned so the
+    migration window does not regress existing probe configs.
+    """
+    from main import _discover_for_source
+
+    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
+    rss_calls: list[str] = []
+
+    def fake_rss(url, since=None):
+        rss_calls.append(url)
+        return iter([("https://x/article", now - timedelta(hours=1))])
+
+    monkeypatch.setattr("main.discover_sitemap", lambda urls, since=None, strict_lastmod=True: iter([]))
+    monkeypatch.setattr("main.discover_rss", fake_rss)
+
+    source = {
+        "name": "legacy",
+        "sitemap_urls": [],
+        "rss_hint_url": "https://x/feed.xml",
+    }
+    result = _discover_for_source(source, since=None)
+
+    assert rss_calls == ["https://x/feed.xml"]
+    assert [e.url for e in result] == ["https://x/article"]
 
 
 # --- Phase 122e A1: regression test for ReactorNotRestartable ---------------
@@ -309,7 +584,7 @@ def test_cli_calls_start_exactly_once_for_multi_source(monkeypatch, tmp_path) ->
     # Discovery returns one URL per source.
     monkeypatch.setattr(
         "main.discover_sitemap",
-        lambda urls, since=None: iter(
+        lambda urls, since=None, **_kw: iter(
             [
                 DiscoveredUrl(
                     url=f"https://{urls[0].split('/')[2]}/article-1",
@@ -321,7 +596,7 @@ def test_cli_calls_start_exactly_once_for_multi_source(monkeypatch, tmp_path) ->
     )
     monkeypatch.setattr(
         "main.discover_rss",
-        lambda url, since=None: iter([]),
+        lambda url, since=None, **_kw: iter([]),
     )
 
     # The single shared CrawlerProcess instance — its `crawl` and `start`

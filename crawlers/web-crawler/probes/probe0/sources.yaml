@@ -86,36 +86,51 @@ probe:
 
 sources:
   - name: tagesschau
-    # Phase 122e — tagesschau does NOT publish an XML sitemap:
-    # `https://www.tagesschau.de/sitemap.xml` returns HTML 404, and
-    # `tagesschau.de/robots.txt` carries no `Sitemap:` directive.
-    # The RSS feed at `index~rss2.xml` is the sole discovery channel;
-    # it surfaces the publisher's most-recent ≈ 70 items (≈ 14 hours of
-    # tagesschau output at typical publishing rates, since tagesschau
-    # publishes ~ 150–300 articles/day). The probe-level
-    # `time_window_days = 7` filter drops RSS entries older than 7 days
-    # at discovery; given that the RSS window itself is shorter than 7
-    # days for high-volume publishers like tagesschau, the effective
-    # discoverable surface per run is whatever the publisher currently
-    # exposes in the feed. Postgres `crawler_state` dedup ensures each
-    # article is fetched exactly once across runs (only delta items
-    # incur a network fetch). NOTE: this is a known discovery-surface
-    # asymmetry vs bundesregierung's sitemap-backed full 7-day surface;
-    # tracked as Probe-0 Structural Bias #8 in the dossier and queued
-    # for resolution via auto-discovered alternate RSS feeds in a
-    # future phase.
+    # Phase 122e — tagesschau does NOT publish an XML sitemap at the
+    # standard location: `https://www.tagesschau.de/sitemap.xml` returns
+    # HTML 404, and `tagesschau.de/robots.txt` carries no `Sitemap:`
+    # directive. The publisher DOES expose:
+    #   * a main RSS feed at `index~rss2.xml` (≈ 70 most-recent items),
+    #   * a daily-refreshed HTML "sitemap" page at
+    #     `/infoservices/startseite-sitemap-102.html` (≈ 64 article
+    #     links — operator-discoverable, not standardly auto-discoverable),
+    #   * a date-indexed archive walker at `/archiv?datum=YYYY-MM-DD`
+    #     (≈ 140 articles/day, multi-year depth — code shipped in
+    #     Phase 122e, see `internal/discovery/archive_index.py`).
     #
-    # Note: a date-indexed HTML archive at `/archiv?datum=YYYY-MM-DD`
-    # (monthly granularity, ≈ 140 articles per month, 4+ years deep) is
-    # *implemented* as a discovery channel (see
-    # `internal/discovery/archive_index.py`) but **not configured here**:
-    # AĒR runs in continuous-monitoring mode (each cron tick = today's
-    # articles, accumulate forward), and the archive walker is a
-    # backfill capability that contradicts that mode. Available for
-    # future explicit-backfill use cases via the `archive_index:` block —
-    # see `docs/extending/add-a-source.md` for the schema.
-    sitemap_urls: []
-    rss_hint_url: https://www.tagesschau.de/index~rss2.xml
+    # Empirical publication rate (operator-observed, cross-checked
+    # against the HTML sitemap surface): ≈ 60 articles/day. The earlier
+    # 150-300/day estimate in `bias_assessment.md` was incorrect —
+    # corrected in Phase 122g.
+    #
+    # Phase 122g — per-source `discovery:` block declares the channels
+    # this publisher exposes (see ADR-031, DiscoveryProtocol Contract).
+    # Step 1 (this commit) introduces the schema and aliases the legacy
+    # flat keys; step 2 wires the `html_sitemap.py` discovery module and
+    # activates `html_sitemap_urls` + `archive_index` on tagesschau.
+    discovery:
+      sitemap_urls: []
+      rss_hint_urls:
+        - https://www.tagesschau.de/index~rss2.xml
+      # Phase 122g step 2 — HTML sitemap activation. The publisher's
+      # daily-refreshed page surfaces ≈ 60 article links. The
+      # `article_url_pattern` matches tagesschau's `/<section>/.../<slug>-NNN.html`
+      # URL convention; non-article links (navigation, asset URLs, the
+      # page's own self-link) are dropped at discovery time.
+      html_sitemap_urls:
+        - url: https://www.tagesschau.de/infoservices/startseite-sitemap-102.html
+          article_url_pattern: 'https?://(www\.)?tagesschau\.de/[^?#]+-[0-9]+\.html$'
+      # Phase 122g step 2 — date-indexed archive walker activation. Live
+      # check (2026-05-12) confirms daily granularity (≈ 30–40 articles
+      # per day, different URL list per date). Over a 7-day window this
+      # surfaces ≈ 250–300 unique articles per run — closes the
+      # tagesschau side of Structural Bias #8.
+      archive_index:
+        url_template: https://www.tagesschau.de/archiv?datum={date}
+        date_format: "%Y-%m-%d"
+        granularity: daily
+        article_url_pattern: 'https?://(www\.)?tagesschau\.de/[^?#]+-[0-9]+\.html$'
+      expected_floor_per_run: 200   # ≈ 7 days × 30–40 articles after dedup with RSS / HTML sitemap
     politeness:
       delay_seconds: 1.0
       autothrottle: true
@@ -138,20 +153,41 @@ sources:
     # HTML 404; the publisher's actual sitemaps are three hash-suffixed
     # `sitemap_index.xml` files declared in robots.txt. All three are
     # **service-sitemaps** (archive / forms / CMS-noise URLs only) — no
-    # `/breg-de/aktuelles/` news content. The RSS hint feed is the only
-    # channel that surfaces actual news articles; with the Phase-122e
-    # sort fix (RSS pubDate populates DiscoveredUrl.sitemap_lastmod)
-    # the news URLs now compete fairly with sitemap URLs in newest-
-    # first ordering. The sitemap_urls list is kept for completeness
-    # (operators inspecting the config see what the publisher actually
-    # publishes), but the URL-filter below excludes the known noise
-    # paths so the sitemap output is constrained to the small fraction
-    # of URLs that aren't archive/form/listing pages.
-    sitemap_urls:
-      - https://www.bundesregierung.de/service-sitemap-4d4e784d6cdbde1a37901f96601df03f-sitemap_index.xml
-      - https://www.bundesregierung.de/service-sitemap-9dca52ff98e0ed01b98a219a2b0bb383-sitemap_index.xml
-      - https://www.bundesregierung.de/service-sitemap-eac0bb2dddac4321ff3b164c4ce8d951-sitemap_index.xml
-    rss_hint_url: https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml
+    # `/breg-de/aktuelles/` news content. RSS is the only channel that
+    # surfaces actual news articles; with the Phase-122e sort fix (RSS
+    # pubDate populates DiscoveredUrl.sitemap_lastmod) the news URLs
+    # compete fairly with sitemap URLs in newest-first ordering. The
+    # sitemap_urls list is kept for completeness (operators inspecting
+    # the config see what the publisher actually publishes), but the
+    # URL-filter below excludes the known noise paths so the sitemap
+    # output is constrained to the small fraction of URLs that aren't
+    # archive/form/listing pages.
+    #
+    # Phase 122g — the publisher publishes a four-feed RSS catalogue at
+    # `/breg-de/service/newsletter-und-abos/rss-newsfeed`:
+    #   * 1151242 — "Bundesregierung kompakt" (currently configured)
+    #   * 1151244 — "Pressemitteilungen"        (Phase 122g step 2)
+    #   * 1151246 — "Artikel"                    (Phase 122g step 2)
+    #   * 2318648 — "Bulletin" (Kanzler-Reden)   (Phase 122g step 2)
+    # Step 1 (this commit) introduces the discovery: block schema with
+    # the single currently-configured feed (exact pre-122g behaviour);
+    # step 2 expands to all four publisher-curated feeds.
+    discovery:
+      sitemap_urls:
+        - https://www.bundesregierung.de/service-sitemap-4d4e784d6cdbde1a37901f96601df03f-sitemap_index.xml
+        - https://www.bundesregierung.de/service-sitemap-9dca52ff98e0ed01b98a219a2b0bb383-sitemap_index.xml
+        - https://www.bundesregierung.de/service-sitemap-eac0bb2dddac4321ff3b164c4ce8d951-sitemap_index.xml
+      # Phase 122g step 2 — all four publisher-curated feeds from
+      # `/breg-de/service/newsletter-und-abos/rss-newsfeed` (verified live
+      # 2026-05-12). The publisher organised this catalogue; we ingest the
+      # set verbatim per WP-006 §3 (publisher curation, not researcher
+      # curation).
+      rss_hint_urls:
+        - https://www.bundesregierung.de/service/rss/breg-de/1151242/feed.xml   # Bundesregierung kompakt
+        - https://www.bundesregierung.de/service/rss/breg-de/1151244/feed.xml   # Pressemitteilungen
+        - https://www.bundesregierung.de/service/rss/breg-de/1151246/feed.xml   # Artikel
+        - https://www.bundesregierung.de/service/rss/breg-de/2318648/feed.xml   # Bulletin
+      expected_floor_per_run: 30   # 4 feeds × ~ 7 days × few articles/day after dedup
     politeness:
       delay_seconds: 1.0
       autothrottle: true

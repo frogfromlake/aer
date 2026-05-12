@@ -771,6 +771,46 @@ type ContentResponseEntityType string
 // ContentResponseLocale Language of the returned content.
 type ContentResponseLocale string
 
+// DiscoveryCoverageResponse Per-source discovery telemetry payload for the Phase 122g `GET /sources/{sourceId}/discovery-coverage` endpoint. Sibling to `GET /sources/{sourceId}/metadata-coverage` (Phase 122f) — both surface the publisher's emission posture as a queryable runtime signal, supporting the WP-006 §6 reflexive-architecture status-disclosure principle.
+// Recorded in ADR-031 (DiscoveryProtocol Contract for Multi-Channel Source Discovery). The schema is platform-agnostic so future Twitter / Reddit / Mastodon / YouTube crawlers feed the same endpoint without schema work.
+type DiscoveryCoverageResponse struct {
+	// ExpectedFloorPerRun Source-declared minimum URL count per discovery run (Phase 122g). `null` when the operator hasn't yet set a floor for this source — no underflow alerting in that case.
+	ExpectedFloorPerRun *int `json:"expectedFloorPerRun,omitempty"`
+
+	// PerChannel One entry per declared channel. Includes channels that yielded zero URLs in the last run (the zero is itself a signal).
+	PerChannel []struct {
+		// AverageUrlsDiscoveredPerRun Trailing-window average (default last 30 days) of `urls_discovered` for this channel. Lets the dashboard contextualise a single run's number against the source's typical surface size.
+		AverageUrlsDiscoveredPerRun float32 `json:"averageUrlsDiscoveredPerRun"`
+
+		// Channel Discovery channel identifier. Web-crawler channels today: `sitemap`, `rss`, `html_sitemap`, `archive_index`. Future platform crawlers contribute their own channel labels.
+		Channel string `json:"channel"`
+
+		// LastRunUrlsAfterDedup URLs unique to this channel after the URL-union dedup across every declared channel. When sitemap + html_sitemap both yield URL X, sitemap (first) gets +1 here and html_sitemap (second) gets +0; the raw discovered count reflects what the channel actually surfaced.
+		LastRunUrlsAfterDedup int `json:"lastRunUrlsAfterDedup"`
+
+		// LastRunUrlsDiscovered Raw URL count surfaced by this channel in the most recent discovery pass (pre-dedup across channels).
+		LastRunUrlsDiscovered int `json:"lastRunUrlsDiscovered"`
+
+		// UnderflowAlertActive True iff the source's `expected_floor_per_run` has been below threshold for two consecutive runs (Phase 122g two-strike gate). The flag clears the first run back at or above floor.
+		UnderflowAlertActive bool `json:"underflowAlertActive"`
+	} `json:"perChannel"`
+
+	// SourceId Canonical source identifier (e.g. `tagesschau`).
+	SourceId string `json:"sourceId"`
+
+	// TotalUrlsDiscoveredLastRun Sum of `urls_discovered` across every channel for the most recent discovery pass (pre-dedup).
+	TotalUrlsDiscoveredLastRun int `json:"totalUrlsDiscoveredLastRun"`
+
+	// UnderflowAlertActive True iff the per-source two-consecutive-runs underflow gate has fired. Same field as on each channel's record but at source level — surfaces the alert state directly to the dashboard panel.
+	UnderflowAlertActive bool `json:"underflowAlertActive"`
+
+	// UniqueUrlsAfterDedupLastRun Sum of `urls_after_dedup` across every channel — the unique URL set the crawler will fetch. Compared against `expectedFloorPerRun` for the underflow gate.
+	UniqueUrlsAfterDedupLastRun int `json:"uniqueUrlsAfterDedupLastRun"`
+
+	// WindowDays Trailing window over which `averageUrlsDiscoveredPerRun` and the underflow detection are computed. Defaults to the probe's `time_window_days` (Phase 122b / 122e A20 — currently 7 for Probe 0).
+	WindowDays int `json:"windowDays"`
+}
+
 // MetadataCoverageResponse Composite payload for the Phase 122f metadata-coverage endpoints. Returned by both `GET /probes/{probeId}/metadata-coverage` (multi-source view backing the Probe Dossier panel) and `GET /sources/{sourceId}/metadata-coverage` (single-source view backing the per-source dossier surface). The shape is the same — only the scope of the `sources` array differs.
 // WP-003 §3.2 documents the metadata-richness asymmetry as a structural bias; this endpoint operationalises it. AĒR analysis layers MUST consume the signal for any cross-source aggregation — absent fields are absent by design, not by sampling variance.
 type MetadataCoverageResponse struct {
@@ -1277,6 +1317,12 @@ type GetSourceArticlesParams struct {
 // GetSourceArticlesParamsSentimentBand defines parameters for GetSourceArticles.
 type GetSourceArticlesParamsSentimentBand string
 
+// GetSourceDiscoveryCoverageParams defines parameters for GetSourceDiscoveryCoverage.
+type GetSourceDiscoveryCoverageParams struct {
+	// WindowDays Trailing window for the average + underflow computation (defaults to the probe's `time_window_days`; clamped to [1, 365]).
+	WindowDays *int `form:"windowDays,omitempty" json:"windowDays,omitempty"`
+}
+
 // GetTopicDistributionParams defines parameters for GetTopicDistribution.
 type GetTopicDistributionParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
@@ -1381,6 +1427,9 @@ type ServerInterface interface {
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams)
+	// Per-channel discovery telemetry for one source
+	// (GET /sources/{sourceId}/discovery-coverage)
+	GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceId string, params GetSourceDiscoveryCoverageParams)
 	// Per-field metadata coverage for a single source
 	// (GET /sources/{sourceId}/metadata-coverage)
 	GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string)
@@ -1528,6 +1577,12 @@ func (_ Unimplemented) GetSourceById(w http.ResponseWriter, r *http.Request, id 
 // Paginated article listing for a source
 // (GET /sources/{id}/articles)
 func (_ Unimplemented) GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-channel discovery telemetry for one source
+// (GET /sources/{sourceId}/discovery-coverage)
+func (_ Unimplemented) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceId string, params GetSourceDiscoveryCoverageParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2947,6 +3002,48 @@ func (siw *ServerInterfaceWrapper) GetSourceArticles(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetSourceDiscoveryCoverage operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", chi.URLParam(r, "sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSourceDiscoveryCoverageParams
+
+	// ------------- Optional query parameter "windowDays" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "windowDays", r.URL.Query(), &params.WindowDays, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "windowDays", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSourceDiscoveryCoverage(w, r, sourceId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSourceMetadataCoverage operation middleware
 func (siw *ServerInterfaceWrapper) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request) {
 
@@ -3256,6 +3353,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources/{id}/articles", wrapper.GetSourceArticles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sources/{sourceId}/discovery-coverage", wrapper.GetSourceDiscoveryCoverage)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources/{sourceId}/metadata-coverage", wrapper.GetSourceMetadataCoverage)
@@ -5080,6 +5180,66 @@ func (response GetSourceArticles500JSONResponse) VisitGetSourceArticlesResponse(
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetSourceDiscoveryCoverageRequestObject struct {
+	SourceId string `json:"sourceId"`
+	Params   GetSourceDiscoveryCoverageParams
+}
+
+type GetSourceDiscoveryCoverageResponseObject interface {
+	VisitGetSourceDiscoveryCoverageResponse(w http.ResponseWriter) error
+}
+
+type GetSourceDiscoveryCoverage200JSONResponse DiscoveryCoverageResponse
+
+func (response GetSourceDiscoveryCoverage200JSONResponse) VisitGetSourceDiscoveryCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceDiscoveryCoverage404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetSourceDiscoveryCoverage404JSONResponse) VisitGetSourceDiscoveryCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSourceDiscoveryCoverage500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetSourceDiscoveryCoverage500JSONResponse) VisitGetSourceDiscoveryCoverageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSourceMetadataCoverageRequestObject struct {
 	SourceId string `json:"sourceId"`
 }
@@ -5318,6 +5478,9 @@ type StrictServerInterface interface {
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(ctx context.Context, request GetSourceArticlesRequestObject) (GetSourceArticlesResponseObject, error)
+	// Per-channel discovery telemetry for one source
+	// (GET /sources/{sourceId}/discovery-coverage)
+	GetSourceDiscoveryCoverage(ctx context.Context, request GetSourceDiscoveryCoverageRequestObject) (GetSourceDiscoveryCoverageResponseObject, error)
 	// Per-field metadata coverage for a single source
 	// (GET /sources/{sourceId}/metadata-coverage)
 	GetSourceMetadataCoverage(ctx context.Context, request GetSourceMetadataCoverageRequestObject) (GetSourceMetadataCoverageResponseObject, error)
@@ -5948,6 +6111,33 @@ func (sh *strictHandler) GetSourceArticles(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSourceArticlesResponseObject); ok {
 		if err := validResponse.VisitGetSourceArticlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSourceDiscoveryCoverage operation middleware
+func (sh *strictHandler) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceId string, params GetSourceDiscoveryCoverageParams) {
+	var request GetSourceDiscoveryCoverageRequestObject
+
+	request.SourceId = sourceId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSourceDiscoveryCoverage(ctx, request.(GetSourceDiscoveryCoverageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSourceDiscoveryCoverage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSourceDiscoveryCoverageResponseObject); ok {
+		if err := validResponse.VisitGetSourceDiscoveryCoverageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

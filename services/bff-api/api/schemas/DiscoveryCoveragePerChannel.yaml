@@ -1,0 +1,53 @@
+type: object
+description: >
+  Per-channel discovery telemetry for one source (Phase 122g / ADR-031).
+  One entry per declared channel — sitemap, rss, html_sitemap,
+  archive_index, or any future platform-class channel (timeline,
+  subreddit, hashtag_stream, etc.). The shape is platform-agnostic
+  by design so cross-platform comparability of coverage requires no
+  schema work per new crawler binary.
+required:
+  - channel
+  - lastRunUrlsDiscovered
+  - lastRunUrlsAfterDedup
+  - averageUrlsDiscoveredPerRun
+  - underflowAlertActive
+properties:
+  channel:
+    type: string
+    description: >
+      Discovery channel identifier. Web-crawler channels today:
+      `sitemap`, `rss`, `html_sitemap`, `archive_index`. Future
+      platform crawlers contribute their own channel labels.
+    example: archive_index
+  lastRunUrlsDiscovered:
+    type: integer
+    minimum: 0
+    description: >
+      Raw URL count surfaced by this channel in the most recent
+      discovery pass (pre-dedup across channels).
+    example: 247
+  lastRunUrlsAfterDedup:
+    type: integer
+    minimum: 0
+    description: >
+      URLs unique to this channel after the URL-union dedup across
+      every declared channel. When sitemap + html_sitemap both yield
+      URL X, sitemap (first) gets +1 here and html_sitemap (second)
+      gets +0; the raw discovered count reflects what the channel
+      actually surfaced.
+    example: 198
+  averageUrlsDiscoveredPerRun:
+    type: number
+    description: >
+      Trailing-window average (default last 30 days) of `urls_discovered`
+      for this channel. Lets the dashboard contextualise a single run's
+      number against the source's typical surface size.
+    example: 244.7
+  underflowAlertActive:
+    type: boolean
+    description: >
+      True iff the source's `expected_floor_per_run` has been below
+      threshold for two consecutive runs (Phase 122g two-strike gate).
+      The flag clears the first run back at or above floor.
+    example: false

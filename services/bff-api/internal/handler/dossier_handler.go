@@ -25,6 +25,9 @@ type DossierStore interface {
 	// Phase 103: ResolveSourceWithEligibility returns the eligibility tuple
 	// used by both the source-detail endpoint and the Silver-eligibility gate.
 	ResolveSourceWithEligibility(ctx context.Context, identifier string) (*storage.SourceEligibilityRow, error)
+	// Phase 122g / ADR-031: per-source discovery-coverage telemetry over
+	// the trailing window. Backs `GET /sources/{id}/discovery-coverage`.
+	GetDiscoveryCoverage(ctx context.Context, sourceID int64, windowDays int) (*storage.DiscoveryCoverageSummary, error)
 }
 
 // ArticleQuerier abstracts the ClickHouse-side article queries.

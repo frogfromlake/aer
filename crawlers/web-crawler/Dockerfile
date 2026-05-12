@@ -29,6 +29,7 @@ COPY crawlers/web-crawler/pyproject.toml .
 RUN --mount=type=cache,target=/root/.cache/pip,id=aer-web-crawler-pip \
     pip install --prefix=/install \
         "scrapy==2.13.3" \
+        "twisted==25.5.0" \
         "ultimate-sitemap-parser==1.4.0" \
         "feedparser==6.0.11" \
         "psycopg2-binary==2.9.11" \
@@ -36,6 +37,13 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=aer-web-crawler-pip \
         "requests==2.33.0" \
         "structlog==25.5.0" \
         "courlan==1.3.2"
+# Phase 122g supply-chain pin (2026-05-12). Scrapy 2.13.3 imports
+# `_setAcceptableProtocols` from `twisted.internet._sslverify`. Twisted
+# removed that symbol in the 26.x line. Scrapy master has a fix
+# (commit 7347, 2026-05-12) that has not yet shipped to PyPI; until a
+# Scrapy release ≥ that fix lands, pin Twisted to the last 25.x.
+# Mirrored in pyproject.toml for documentation, but THIS file is the
+# source of truth at build time (the install command above is inline).
 
 # Runtime — digest pinned for reproducibility (Phase 84).
 FROM python:3.14.3-slim-bookworm@sha256:f21c0d5a44c56805654c15abccc1b2fd576c8d93aca0a3f74b4aba2dc92510e2

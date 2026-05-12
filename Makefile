@@ -196,6 +196,17 @@ reset: reset-state reset-validate
 #
 # Use these for tightening the loop on one service without bouncing the
 # whole stack. The compose `depends_on` graph still applies.
+#
+# Builder note: builds use Docker Desktop's `default` buildx builder.
+# AĒR's previous dedicated `aer` builder (`docker-container` driver
+# with 80 GB cache retention) was retired in 2026-05-12 — the default
+# builder's GC policy keeps ~ 20 GiB Reserved Space per rule and runs
+# inside the docker daemon, so it (a) sees images already pulled at
+# the host level (no separate cache duplicating R2 traffic) and (b)
+# survives Docker Desktop restarts without stale-mount failures. If
+# the default builder ever starts pruning worker-model layers under
+# disk pressure, see `docs/operations/operations_playbook.md`
+# "Build cache headroom" for the clean escalation path.
 
 ingestion-up:
 	@docker compose up -d --wait ingestion-api

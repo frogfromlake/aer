@@ -106,6 +106,23 @@ make test-e2e            # Run Docker Compose end-to-end smoke test
 > `scripts/build/e2e_smoke_test.sh`) keep sending `X-API-Key` directly to the BFF
 > on `:8080`.
 
+### Build Cache Headroom
+
+All AĒR image builds (`make ingestion-restart`, `make worker-restart`, `make bff-restart`, `make crawl-probe0`, etc.) use Docker Desktop's default buildx builder. A dedicated `aer` builder with raised cache retention was tried and retired in 2026-05-12 — the separate cache duplicated R2 traffic, the bind-mount-backed buildkit container did not survive Docker Desktop restarts, and the gain over the default GC policy was marginal at AĒR's actual scale.
+
+**Default builder GC policy.** Verify with `docker buildx inspect default`. Today's shape is four GC rules with **20 GiB Reserved Space per rule** (≈ 80 GiB total reserved cache that BuildKit will not prune even under disk pressure) plus a 48 h newest-cache shield and a 60-day long-tail shield. On a 1 TB host (WSL backing disk for Docker Desktop) this is effectively unbounded for AĒR's image set.
+
+**Symptoms that warrant escalation.** If `make worker-restart` starts re-downloading HuggingFace models or `spacy download de_core_news_lg` between consecutive runs (when the worker source has not changed), the build cache has been pruned. Verify with `docker buildx du` — Reclaimable should be close to or above the model-layer sizes (~ 10 GiB HF cache layer + ~ 7 GiB Python deps layer for the worker).
+
+**Escalation path.**
+
+1. **First, check disk pressure.** `df -h /var/lib/docker` (or wherever the docker root lives — `docker info | grep "Docker Root"` confirms). Docker Desktop on WSL2 stores the daemon under `/var/lib/docker` inside the WSL distro's filesystem, mounted from the host's NTFS via a virtual disk. If the WSL filesystem is > 80 % full, BuildKit will GC aggressively regardless of the Reserved Space rules.
+2. **If disk is fine, prune dead artefacts before touching GC config.** `docker system df` shows Reclaimable size per resource type. `docker system prune` (without `-a`) removes only stopped containers, unused networks, and dangling images — safe. `docker system prune -a` also removes images not referenced by any container — only run when you are sure no in-progress work depends on them.
+3. **If pruning helped temporarily but the issue recurs, raise Docker Desktop's disk allocation.** Settings → Resources → Disk image size. On WSL2 the disk is sparse-allocated by default so raising the cap costs nothing until used. Reasonable target for AĒR: 200 GB.
+4. **If you genuinely need a different GC policy** (rare — only justified by demonstrated repeated pruning AFTER steps 1-3): create a docker-container driver builder with explicit `--oci-worker-gc-keepstorage <MB>`. Document the rationale in the operations playbook before adding it back. Avoid making it the default buildx — wire it onto specific Make targets that actually need it (typically `worker-restart`).
+
+The previous `aer` builder is documented here as a known failure mode: do not reintroduce it without solving (i) the separate-cache duplication problem and (ii) the bind-mount survival problem first.
+
 ---
 
 ## PostgreSQL (Metadata Index)
@@ -928,7 +945,46 @@ The cutoff is **probe-level by design** — per-source overrides are explicitly 
 
 **Newest-first iteration.** Within the cutoff window, `_discover_for_source` sorts the merged URL list by `sitemap_lastmod` descending, with `None` lastmods sinking to the end. A partial crawl (Ctrl+C, overnight stop, bandwidth pause) therefore yields the most-recent slice of the cutoff window first. Subsequent runs honour the same ordering — combined with `crawler_state` dedup, a multi-session crawl monotonically advances backward through the cutoff window without revisiting URLs.
 
-**Discovery semantics (two peer-equal channels).** Discovery runs across two peer-equal channels as of Phase 122e (F-A1): `sitemap.xml` (recursive, including nested `<sitemap>` indexes, parsed by `ultimate-sitemap-parser`) and the configured `rss_hint_url` (parsed by `feedparser`). Each entry's lastmod / `published_parsed` populates `DiscoveredUrl.sitemap_lastmod` and competes fairly in the newest-first sort; the URL union de-duplicates on the consumer side (sitemap wins on collision because it carries the `sitemap_section` context). For sources without a public XML sitemap — Probe 0's tagesschau, whose `sitemap.xml` returns HTML 404 — `sitemap_urls: []` is the explicit configuration and RSS is the sole channel. **Known discovery-surface asymmetry**: a sitemap-backed source surfaces (up to) the full `time_window_days` window per run; an RSS-only source surfaces whatever the publisher currently exposes in the feed, typically 50–100 items. For high-volume publishers like tagesschau (~ 150–300 articles/day) the RSS window is shorter than the configured 7-day cutoff — cross-source corpus-volume aggregations reflect **crawler access**, not **publication frequency**. This is tracked as Probe-0 Structural Bias #8 in `docs/probes/probe-0-de-institutional-web/bias_assessment.md`. The article body always comes from the HTML fetch — RSS bodies are never consumed. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
+**Discovery semantics (four-channel `DiscoveryProtocol` since Phase 122g).** Discovery runs across the per-source `discovery:` block declared in `sources.yaml` (ADR-031). Four channels are supported today for the web crawler — sitemap, rss (plural since Phase 122g), html_sitemap (Phase 122g), archive_index (Phase 122e code; Phase 122g activates per-source). Each channel's entry-date competes fairly in the newest-first sort; the URL union de-duplicates with channel-order precedence (sitemap > rss > html_sitemap > archive_index — the sitemap entry carries the canonical `lastmod` and `sitemap_section` context). Channel-collision attribution is recorded per channel in the telemetry layer so the dashboard reports each channel's actual contribution. The article body always comes from the HTML fetch — RSS bodies are never consumed. Once a URL is in `crawler_state`, the next run sends conditional GET headers (`If-None-Match` / `If-Modified-Since`) and skips on `304 Not Modified`.
+
+**Per-source onboarding (Phase 122g).** Adding a new source runs `aer-audit-source <homepage_url>` to inventory the publisher's discovery surfaces — wraps `trafilatura.feeds.find_feed_urls` + `trafilatura.sitemaps.sitemap_search` + per-source-class HTML-sitemap / archive-walker URL-pattern probes. Output is YAML-shaped for direct paste into the source's `discovery:` block. Operator derives the publisher-specific `article_url_pattern` regex(es) from a sample of real article URLs. See `docs/extending/add-a-source.md` for the canonical workflow.
+
+**Per-channel coverage telemetry (Phase 122g).** Every discovery pass writes one row per `(source, channel)` to Postgres `crawler_discovery_runs` (`urls_discovered`, `urls_after_dedup`, `run_started_at`, `run_completed_at`). When `urls_after_dedup` < `expected_floor_per_run` for **two consecutive runs**, a row lands in `crawler_discovery_alerts` (alert_type=`underflow`); the first below-floor run lands as `underflow_pending`. Recovery (first run back at or above floor) clears both. Inspect telemetry:
+
+```sql
+-- Per-channel last-7-days summary for one source.
+SELECT channel,
+       max(run_started_at)            AS last_run,
+       sum(urls_discovered)            AS total_discovered,
+       sum(urls_after_dedup)           AS total_after_dedup,
+       round(avg(urls_discovered), 1)  AS avg_discovered_per_run
+  FROM crawler_discovery_runs
+ WHERE source_id = 1
+   AND run_started_at > now() - interval '7 days'
+ GROUP BY channel
+ ORDER BY channel;
+
+-- Active discovery alerts across all sources.
+SELECT s.name, a.alert_type, a.consecutive_runs,
+       a.expected_floor, a.last_urls_observed, a.last_observed_at
+  FROM crawler_discovery_alerts a
+  JOIN sources s ON s.id = a.source_id
+ WHERE a.alert_type = 'underflow'
+ ORDER BY a.last_observed_at DESC;
+```
+
+The same telemetry feeds the BFF endpoint `GET /api/v1/sources/{sourceId}/discovery-coverage` and the dashboard's `DiscoveryCoveragePanel` (sibling to Phase 122f's metadata-coverage panel). Coverage degradation is observable within one crawl run; pre-122g coverage gaps were invisible until ad-hoc operator inspection.
+
+**Underflow response runbook.** When a `discovery_underflow` log line fires (or the dashboard panel flips to alert state):
+
+1. Re-run `aer-audit-source <homepage_url>` against the affected source. If the channel the alert names is missing from the audit output, the publisher's surface has changed.
+2. For an XML-sitemap underflow: visit `/sitemap.xml` and `/robots.txt` manually; the publisher may have moved their sitemap or changed the `Sitemap:` directive.
+3. For an RSS underflow: visit the publisher's RSS catalogue page (`/service/rss`, `/newsletter`, etc.); a feed may have retired or moved.
+4. For an HTML-sitemap underflow: visit the configured URL; the publisher may have redesigned the page or changed the HTML structure (the article-URL regex may no longer match).
+5. For an archive-index underflow: curl two distant dates and verify the endpoint still returns distinct article lists.
+6. Update the source's `discovery:` block in `sources.yaml` to reflect the new surface. Re-deploy. The next run clears the alert.
+
+**Probe-0 Structural Bias #8 — discovery-surface asymmetry — closes for specific instances under Phase 122g.** tagesschau's RSS-only configuration is replaced by RSS + HTML sitemap + archive walker (≈ 250–300 unique articles per 7-day run vs. the prior ≈ 70). bundesregierung's single-RSS-feed configuration is extended to all four publisher-curated feeds. New discovery-surface asymmetries on future sources are caught by the underflow telemetry rather than by post-hoc inspection.
 
 **Robots.txt verification.** Before adding a new source, verify that the polite default `User-Agent` is permitted:
 

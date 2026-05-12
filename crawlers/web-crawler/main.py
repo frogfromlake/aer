@@ -16,19 +16,25 @@ import argparse
 import logging
 import os
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 import structlog
 import yaml
 
 from internal.discovery.archive_index import discover as discover_archive_index
+from internal.discovery.html_sitemap import discover as discover_html_sitemap
 from internal.discovery.rss_hint import discover as discover_rss
 from internal.discovery.sitemap import DiscoveredUrl, discover as discover_sitemap
 from internal.fetch.scrapy_spider import build_crawler_process, queue_source_crawl
 from internal.ingestion.client import IngestionClient
 from internal.state.dedup import CrawlerState
+from internal.state.discovery_runs import (
+    DiscoveryRunRecord,
+    DiscoveryRunsWriter,
+)
 
 DEFAULT_USER_AGENT = (
     "AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)"
@@ -131,62 +137,222 @@ def _load_probe_config(probe: str, config_dir: Path) -> dict[str, Any]:
     }
 
 
+def _normalise_source_discovery(source: dict[str, Any]) -> dict[str, Any]:
+    """Normalise per-source discovery config into the Phase-122g shape.
+
+    Accepts both the new ``discovery:`` block (Phase 122g) and the legacy
+    flat keys at source root (``sitemap_urls``, ``rss_hint_url`` singular,
+    ``archive_index``). Returns a dict with the normalised channel set:
+    ``{sitemap_urls, rss_hint_urls, html_sitemap_urls, archive_index,
+    expected_floor_per_run}``.
+
+    The legacy flat keys are forwarded with a one-shot structured warning
+    so operators see the migration prompt without breaking existing
+    configs. The aliasing is retired in Phase 127.
+    """
+    log = structlog.get_logger()
+    discovery = source.get("discovery")
+    legacy_used: list[str] = []
+
+    if discovery is None:
+        # Pure legacy shape — flat keys at source root.
+        sitemap_urls = list(source.get("sitemap_urls") or [])
+        if "sitemap_urls" in source:
+            legacy_used.append("sitemap_urls")
+        rss_hint_url = source.get("rss_hint_url") or ""
+        rss_hint_urls = [rss_hint_url] if rss_hint_url else []
+        if "rss_hint_url" in source:
+            legacy_used.append("rss_hint_url")
+        archive_index = source.get("archive_index") or None
+        if "archive_index" in source:
+            legacy_used.append("archive_index")
+        html_sitemap_urls: list[Any] = []
+        expected_floor = None
+    else:
+        sitemap_urls = list(discovery.get("sitemap_urls") or [])
+        rss_hint_urls = list(discovery.get("rss_hint_urls") or [])
+        # Forgive a singular `rss_hint_url` inside the discovery block.
+        single = discovery.get("rss_hint_url")
+        if single and single not in rss_hint_urls:
+            rss_hint_urls.append(single)
+        html_sitemap_urls = list(discovery.get("html_sitemap_urls") or [])
+        archive_index = discovery.get("archive_index") or None
+        expected_floor = discovery.get("expected_floor_per_run")
+
+    if legacy_used:
+        log.warning(
+            "legacy_discovery_keys_at_source_root",
+            source=source.get("name"),
+            legacy_keys=legacy_used,
+            migration="wrap into `discovery:` block per Phase 122g — flat keys retire in Phase 127",
+        )
+
+    return {
+        "sitemap_urls": sitemap_urls,
+        "rss_hint_urls": rss_hint_urls,
+        "html_sitemap_urls": html_sitemap_urls,
+        "archive_index": archive_index,
+        "expected_floor_per_run": expected_floor,
+    }
+
+
+@dataclass(frozen=True)
+class ChannelCount:
+    """One channel's per-run telemetry — raw discovered + after-dedup."""
+
+    channel: str
+    urls_discovered: int
+    urls_after_dedup: int
+
+
+@dataclass(frozen=True)
+class DiscoveryResult:
+    """Structured result from :func:`_discover_for_source` (Phase 122g).
+
+    Iterable + indexable + has ``len()`` so existing call sites that
+    treat the result as a ``list[DiscoveredUrl]`` keep working.
+    """
+
+    urls: list[DiscoveredUrl]
+    channel_counts: list[ChannelCount]
+    run_started_at: datetime
+    run_completed_at: datetime
+
+    def __iter__(self) -> Iterator[DiscoveredUrl]:
+        return iter(self.urls)
+
+    def __len__(self) -> int:
+        return len(self.urls)
+
+    def __getitem__(self, idx) -> DiscoveredUrl:
+        return self.urls[idx]
+
+
 def _discover_for_source(
     source: dict[str, Any],
     since: Optional[datetime] = None,
     sitemap_strict_lastmod: bool = True,
-) -> list[DiscoveredUrl]:
+) -> DiscoveryResult:
     """Surface every URL for one source, newest-first.
 
-    Sitemap entries are the primary channel; RSS-feed entries only
-    contribute URLs not already in the sitemap. Both channels honour
-    ``since`` if supplied (Phase 122b temporal symmetry).
+    Phase 122g — discovery runs across the channels declared in the
+    source's ``discovery:`` block (or the legacy flat keys, forwarded
+    via :func:`_normalise_source_discovery`): ``sitemap_urls``,
+    ``rss_hint_urls`` (plural — multi-feed publishers like
+    bundesregierung's four-feed catalogue), ``html_sitemap_urls``
+    (publisher-built HTML navigation pages — e.g. tagesschau's
+    ``/infoservices/startseite-sitemap-*.html``), and ``archive_index``
+    (date-indexed walkers — e.g. tagesschau's ``/archiv?datum=...``).
+    Every channel honours ``since`` (Phase 122b temporal symmetry).
 
     Returned list is sorted by ``sitemap_lastmod`` descending so partial
     crawls (Ctrl+C, overnight stop) yield the most-recent slice of the
-    cutoff window first. Entries with no ``sitemap_lastmod`` (RSS-only
-    discoveries, or sitemaps with no ``lastmod`` field) sink to the end
-    — they would otherwise dominate the head ordering arbitrarily.
-    """
-    seen: dict[str, DiscoveredUrl] = {}
-    sitemap_urls: Iterable[str] = source.get("sitemap_urls") or []
-    for entry in discover_sitemap(
-        list(sitemap_urls), since=since, strict_lastmod=sitemap_strict_lastmod
-    ):
-        if entry.url not in seen:
-            seen[entry.url] = entry
-    # Phase 122e — promote the RSS feed from "hint only" to a peer-equal
-    # discovery channel: populate `sitemap_lastmod` from the RSS entry's
-    # published_parsed so RSS URLs compete fairly in the newest-first
-    # sort. For Probe 0's bundesregierung.de the RSS feed is the ONLY
-    # channel that surfaces actual /aktuelles/ news content (the public
-    # sitemap exposes only service/archive pages), so without this fix
-    # bounded-time crawls never reach real news. The sitemap entry wins
-    # on URL collision (carries the canonical lastmod and the
-    # sitemap_section context).
-    rss_url: str = source.get("rss_hint_url") or ""
-    if rss_url:
-        for url, entry_dt in discover_rss(rss_url, since=since):
-            if url and url not in seen:
-                seen[url] = DiscoveredUrl(
-                    url=url, sitemap_lastmod=entry_dt, sitemap_section=None
-                )
+    cutoff window first. Entries with no ``sitemap_lastmod`` sink to
+    the end — they would otherwise dominate the head ordering
+    arbitrarily.
 
-    # Phase 122e A20 — date-indexed HTML archive page. Used by sources
-    # whose RSS exposes only a sliding 70-item top-stories window and
-    # whose XML sitemap is absent (e.g. tagesschau.de's
-    # `/archiv?datum=YYYY-MM-DD` exposes ≈ 140 articles/day going back
-    # ≥ 4 years). Methodologically equivalent to sitemap discovery —
-    # the publisher built and parameterised the page; we ingest every
-    # article-shaped link verbatim. Sitemap / RSS entries win on URL
-    # collision (canonical lastmod + sitemap_section context).
-    archive_index_cfg = source.get("archive_index") or {}
-    if archive_index_cfg:
-        for url, entry_dt in discover_archive_index(archive_index_cfg, since=since):
-            if url and url not in seen:
+    Channel-collision rule: the first channel to surface a URL wins
+    (the sitemap entry, when present, carries the canonical lastmod
+    and the ``sitemap_section`` context — both load-bearing for the
+    Bronze handoff and the newest-first sort).
+    """
+    discovery = _normalise_source_discovery(source)
+    seen: dict[str, DiscoveredUrl] = {}
+    channel_counts: list[ChannelCount] = []
+    run_started_at = datetime.now(tz=timezone.utc)
+
+    def _add_channel(channel: str, items: Iterable[tuple[str, Optional[datetime]]]) -> None:
+        """Run one channel's discovery, attributing first-seen URLs to it.
+
+        ``urls_discovered`` is the raw count from the channel (pre-
+        dedup); ``urls_after_dedup`` counts only URLs that were unique
+        when this channel surfaced them (i.e. the channel's net
+        contribution to the merged set). This makes per-channel
+        telemetry attributable: when sitemap + html_sitemap both yield
+        URL X, sitemap (first) gets +1 ``after_dedup``, html_sitemap
+        (second) gets +1 ``discovered`` but +0 ``after_dedup``.
+        """
+        discovered = 0
+        after_dedup = 0
+        for url, lastmod in items:
+            if not url:
+                continue
+            discovered += 1
+            if url not in seen:
                 seen[url] = DiscoveredUrl(
-                    url=url, sitemap_lastmod=entry_dt, sitemap_section=None
+                    url=url, sitemap_lastmod=lastmod, sitemap_section=None
                 )
+                after_dedup += 1
+        channel_counts.append(
+            ChannelCount(
+                channel=channel,
+                urls_discovered=discovered,
+                urls_after_dedup=after_dedup,
+            )
+        )
+
+    # Channel 1: XML sitemaps (primary structured channel where the
+    # publisher exposes one). Sitemap entries carry the richest context
+    # so they win on URL collision — they go FIRST in the channel
+    # sequence so the section + lastmod fields are preserved through
+    # subsequent collisions.
+    sitemap_discovered = 0
+    sitemap_after_dedup = 0
+    for entry in discover_sitemap(
+        discovery["sitemap_urls"],
+        since=since,
+        strict_lastmod=sitemap_strict_lastmod,
+    ):
+        sitemap_discovered += 1
+        if entry.url and entry.url not in seen:
+            seen[entry.url] = entry  # preserve the full DiscoveredUrl (incl. section)
+            sitemap_after_dedup += 1
+    channel_counts.append(
+        ChannelCount(
+            channel="sitemap",
+            urls_discovered=sitemap_discovered,
+            urls_after_dedup=sitemap_after_dedup,
+        )
+    )
+
+    # Channel 2: RSS / Atom feeds (peer-equal to sitemap since Phase
+    # 122e F-A1; plural since Phase 122g — a publisher's RSS catalogue
+    # may expose multiple official feeds, e.g. bundesregierung's four).
+    # All configured feeds are flattened into one telemetry row tagged
+    # `rss` so cross-source comparison stays uniform.
+    def _rss_items() -> Iterator[tuple[str, Optional[datetime]]]:
+        for rss_url in discovery["rss_hint_urls"]:
+            if not rss_url:
+                continue
+            yield from discover_rss(rss_url, since=since)
+
+    _add_channel("rss", _rss_items())
+
+    # Channel 3: HTML sitemap pages (Phase 122g — for publishers who
+    # don't ship a sitemap.xml but DO publish a navigation page that
+    # surfaces the current article set, e.g. tagesschau's
+    # `/infoservices/startseite-sitemap-*.html`). Entries carry no
+    # per-article timestamp; they flow in with `sitemap_lastmod=None`
+    # and sink to the end of the newest-first sort.
+    _add_channel(
+        "html_sitemap",
+        discover_html_sitemap(discovery["html_sitemap_urls"], since=since),
+    )
+
+    # Channel 4: date-indexed archive walker (Phase 122e A20 — for
+    # publishers exposing `/<archive-path>?datum=YYYY-MM-DD` or
+    # equivalent). Code already shipped in Phase 122e; Phase 122g
+    # activates per-source configuration on tagesschau.
+    archive_index_cfg = discovery["archive_index"]
+    if archive_index_cfg:
+        _add_channel(
+            "archive_index",
+            discover_archive_index(archive_index_cfg, since=since),
+        )
+    else:
+        channel_counts.append(
+            ChannelCount(channel="archive_index", urls_discovered=0, urls_after_dedup=0)
+        )
 
     def _sort_key(entry: DiscoveredUrl) -> tuple[int, float]:
         # Tuple ordering: (lastmod-is-None → 1, then negative timestamp).
@@ -197,7 +363,14 @@ def _discover_for_source(
             return (1, 0.0)
         return (0, -entry.sitemap_lastmod.timestamp())
 
-    return sorted(seen.values(), key=_sort_key)
+    urls = sorted(seen.values(), key=_sort_key)
+    run_completed_at = datetime.now(tz=timezone.utc)
+    return DiscoveryResult(
+        urls=urls,
+        channel_counts=channel_counts,
+        run_started_at=run_started_at,
+        run_completed_at=run_completed_at,
+    )
 
 
 def cli(argv: list[str] | None = None) -> int:
@@ -264,6 +437,9 @@ def cli(argv: list[str] | None = None) -> int:
         api_key=args.api_key,
     )
     state = CrawlerState(_build_pg_dsn())
+    # Phase 122g — per-channel discovery telemetry uses the same pg
+    # connection pool the dedup state already owns. Sibling tables.
+    discovery_writer = DiscoveryRunsWriter(state._pool)  # noqa: SLF001 — internal-by-design
 
     # Single CrawlerProcess for the entire run — Twisted's reactor is a
     # process-wide singleton (cannot be restarted via `process.start()`),
@@ -291,19 +467,82 @@ def cli(argv: list[str] | None = None) -> int:
                 log.error("source id resolution failed", source=name, error=str(exc))
                 continue
 
-            urls = _discover_for_source(
+            result = _discover_for_source(
                 source,
                 since=since,
                 sitemap_strict_lastmod=sitemap_strict_lastmod,
             )
+            urls = result.urls
+            discovery = _normalise_source_discovery(source)
             log.info(
                 "discovery complete",
                 source=name,
                 discovered=len(urls),
-                sitemap_count=len(source.get("sitemap_urls") or []),
-                rss_hint=bool(source.get("rss_hint_url")),
+                per_channel={
+                    cc.channel: {
+                        "discovered": cc.urls_discovered,
+                        "after_dedup": cc.urls_after_dedup,
+                    }
+                    for cc in result.channel_counts
+                },
+                sitemap_count=len(discovery["sitemap_urls"]),
+                rss_feed_count=len(discovery["rss_hint_urls"]),
+                html_sitemap_count=len(discovery["html_sitemap_urls"]),
+                archive_index_configured=bool(discovery["archive_index"]),
+                expected_floor_per_run=discovery["expected_floor_per_run"],
                 since=since.isoformat(),
             )
+
+            # Phase 122g — record per-channel telemetry + evaluate the
+            # two-consecutive-underflow alert. Failures are non-fatal:
+            # the crawl proceeds even if Postgres is unreachable so a
+            # telemetry outage never silently degrades coverage.
+            try:
+                discovery_writer.record_run_batch(
+                    DiscoveryRunRecord(
+                        source_id=source_id,
+                        channel=cc.channel,
+                        urls_discovered=cc.urls_discovered,
+                        urls_after_dedup=cc.urls_after_dedup,
+                        run_started_at=result.run_started_at,
+                        run_completed_at=result.run_completed_at,
+                    )
+                    for cc in result.channel_counts
+                )
+                alert_event = discovery_writer.evaluate_alerts(
+                    source_id=source_id,
+                    expected_floor=discovery["expected_floor_per_run"],
+                    urls_after_dedup_this_run=len(urls),
+                    run_started_at=result.run_started_at,
+                )
+                if alert_event == "alerted":
+                    log.warning(
+                        "discovery_underflow",
+                        source=name,
+                        expected_floor=discovery["expected_floor_per_run"],
+                        urls_after_dedup=len(urls),
+                        consecutive_runs="≥2",
+                    )
+                elif alert_event == "pending":
+                    log.info(
+                        "discovery_underflow_pending",
+                        source=name,
+                        expected_floor=discovery["expected_floor_per_run"],
+                        urls_after_dedup=len(urls),
+                    )
+                elif alert_event == "recovered":
+                    log.info(
+                        "discovery_underflow_recovered",
+                        source=name,
+                        urls_after_dedup=len(urls),
+                    )
+            except Exception as exc:
+                log.warning(
+                    "discovery_telemetry_write_failed",
+                    source=name,
+                    error=str(exc),
+                )
+
             if not urls:
                 continue
 

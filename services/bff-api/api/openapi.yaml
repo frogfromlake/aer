@@ -65,6 +65,8 @@ paths:
     $ref: './paths/source_articles.yaml'
   /sources/{sourceId}/metadata-coverage:
     $ref: './paths/source_metadata_coverage.yaml'
+  /sources/{sourceId}/discovery-coverage:
+    $ref: './paths/source_discovery_coverage.yaml'
   /articles/{id}:
     $ref: './paths/article_detail.yaml'
   /healthz:
@@ -153,3 +155,7 @@ components:
       $ref: './schemas/MetadataCoverageSource.yaml'
     MetadataCoverageResponse:
       $ref: './schemas/MetadataCoverageResponse.yaml'
+    DiscoveryCoveragePerChannel:
+      $ref: './schemas/DiscoveryCoveragePerChannel.yaml'
+    DiscoveryCoverageResponse:
+      $ref: './schemas/DiscoveryCoverageResponse.yaml'

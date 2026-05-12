@@ -34,6 +34,7 @@ _OPTIONAL_RUNTIME_DEPS = (
     "psycopg2",
     "psycopg2.extras",
     "psycopg2.pool",
+    "requests",
 )
 
 for _module in _OPTIONAL_RUNTIME_DEPS:

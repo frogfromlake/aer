@@ -14,6 +14,14 @@ requires-python = ">=3.14"
 # HTML per ADR-028.
 dependencies = [
     "scrapy==2.13.3",
+    # Phase 122g supply-chain pin (2026-05-12). Scrapy 2.13.3 (and through
+    # 2.15.2 at time of writing) imports `_setAcceptableProtocols` from
+    # `twisted.internet._sslverify`. Twisted removed that symbol in 26.x.
+    # Scrapy master has a fix (#7347, 2026-05-12) that has not yet shipped
+    # to PyPI, so we pin Twisted to the last 25.x release explicitly.
+    # Drop this pin once a Scrapy release ≥ 2.16.0 (or whatever ships
+    # #7347) lands and we bump our scrapy pin.
+    "twisted==25.5.0",
     "ultimate-sitemap-parser==1.4.0",
     "feedparser==6.0.11",
     "psycopg2-binary==2.9.11",
@@ -32,6 +40,11 @@ dev = ["pytest==9.0.3", "ruff==0.15.8"]
 
 [project.scripts]
 aer-web-crawler = "main:cli"
+# Phase 122g — operator-facing CLI that probes a candidate source's
+# discovery surfaces and prints a suggested `discovery:` block for
+# sources.yaml. Trafilatura-driven; degrades gracefully if trafilatura
+# is unavailable (it lives in the worker venv, not the crawler venv).
+aer-audit-source = "audit_source:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]

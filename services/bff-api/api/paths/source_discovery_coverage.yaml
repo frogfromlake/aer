@@ -1,0 +1,56 @@
+get:
+  tags: [Reference]
+  summary: Per-channel discovery telemetry for one source
+  description: >
+    Returns the per-source-per-channel discovery telemetry recorded by
+    the crawler's Phase 122g telemetry layer (`crawler_discovery_runs`).
+    Sibling to `GET /sources/{sourceId}/metadata-coverage` — both
+    surface a publisher's emission posture as a queryable runtime
+    signal.
+
+    The payload reports per-channel URL counts for the most recent
+    discovery pass alongside a trailing-window average and the
+    source-level underflow-alert state (Phase 122g two-strike gate).
+    Consumers (dashboard panel, downstream analysis) read this to
+    contextualise corpus-volume comparisons that would otherwise be
+    contaminated by discovery-surface asymmetries — see WP-003 §3.2
+    and Probe-0 Structural Bias #8.
+
+    Recorded in ADR-031 (DiscoveryProtocol Contract for Multi-Channel
+    Source Discovery).
+  operationId: getSourceDiscoveryCoverage
+  parameters:
+    - name: sourceId
+      in: path
+      required: true
+      description: >
+        Source identifier — either the canonical name (e.g. `tagesschau`)
+        or the integer source id.
+      schema:
+        type: string
+    - name: windowDays
+      in: query
+      required: false
+      description: >
+        Trailing window for the average + underflow computation
+        (defaults to the probe's `time_window_days`; clamped to
+        [1, 365]).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 365
+  responses:
+    '200':
+      description: The source's discovery-coverage payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DiscoveryCoverageResponse'
+    '404':
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

@@ -1989,3 +1989,226 @@ schema-breaking change.
 - **Status:** Accepted.
 
 ---
+
+## ADR-031: DiscoveryProtocol Contract for Multi-Channel Source Discovery (Phase 122g)
+
+**Date:** 2026-05-12
+**Status:** Accepted
+**Related ADRs:** ADR-015 (Source Adapter Pattern — `BiasContext`), ADR-028 (Web Crawling Architecture), ADR-029 (Metadata Coverage as a First-Class Runtime Signal)
+**Related Phases:** 122 (Probe 0 RSS → Web-Crawl Migration), 122b (Crawl Window Hardening — `time_window_days`), 122e A1/A15/A20 (RSS promotion + discovery-surface asymmetry + archive-walker rationale), 122f (Metadata Coverage), 122g (Discovery Surface Hardening — this ADR)
+**Related Working Papers:** WP-003 §3.2 (metadata-richness + discovery-surface asymmetry as a first-class runtime signal), WP-006 §3 (researcher selection bias — *no* editorial gating at discovery), WP-006 §6 (reflexive-architecture status-disclosure principle)
+
+### Context
+
+Phase 122's first-crawl forensics surfaced a structural problem the
+methodology had named in the abstract but never operationalised:
+**different publishers expose their content through fundamentally
+different discovery surfaces, and standard auto-discovery libraries
+fail silently on the publishers that matter most**.
+
+The two Probe 0 sources illustrate the failure modes:
+
+* **tagesschau.de** — no XML sitemap (the standard
+  ``https://www.tagesschau.de/sitemap.xml`` returns HTML 404), no
+  ``Sitemap:`` directive in robots.txt. ``trafilatura.sitemaps.sitemap_search``
+  returns zero URLs. The publisher DOES expose a daily-refreshed HTML
+  sitemap at ``/infoservices/startseite-sitemap-102.html`` and a
+  date-indexed archive walker at ``/archiv?datum=YYYY-MM-DD`` — both
+  operator-discoverable, neither library-discoverable.
+* **bundesregierung.de** — the publisher publishes four official RSS
+  feeds (``Bundesregierung kompakt``, ``Pressemitteilungen``,
+  ``Artikel``, ``Bulletin``) catalogued at
+  ``/breg-de/service/newsletter-und-abos/rss-newsfeed``, but only one
+  feed is advertised via ``<link rel="alternate">`` on the homepage.
+  ``trafilatura.feeds.find_feed_urls`` therefore returns zero feed
+  URLs even though the publisher organised a four-feed catalogue.
+
+The pre-Phase-122g implementation reacted to the failure modes
+operationally: a manual ``sitemap_urls: []`` for tagesschau in
+``sources.yaml`` configured "no sitemap" by hand; the single
+bundesregierung RSS feed URL was the result of an operator finding
+and pasting one of four. The configuration worked but had three
+structural defects:
+
+1. **Silent coverage gaps.** tagesschau crawled with RSS-only against
+   a 7-day window surfaced ~ 1 day of the publisher's actual output;
+   bundesregierung missed three of four feeds entirely. Neither gap
+   was visible at runtime; both were discovered by ad-hoc operator
+   inspection.
+2. **No professional onboarding workflow.** A new probe's sources
+   went through trial-and-error YAML editing, with no tool to
+   inventory what surfaces each publisher exposes.
+3. **No platform-class generalisation.** Twitter / Reddit / Mastodon /
+   YouTube crawlers would each need their own bespoke "what does this
+   source expose" discovery logic, with no shared telemetry layer
+   for cross-platform comparability.
+
+The architectural question for Phase 122g was therefore: *what is the
+write-once, platform-class-agnostic shape that survives the next ten
+years of probe + crawler expansion?*
+
+### Decision
+
+**Discovery is a declared multi-channel matrix per source, with the
+per-channel runtime contract identical across every current and future
+crawler binary. Auto-discovery is a config-authoring helper at source-
+onboarding time, never a runtime fallback. Per-channel coverage
+telemetry is universal-core and platform-agnostic — the same row shape
+serves web, Twitter, Reddit, Mastodon, YouTube, and any future
+crawler.**
+
+The pieces:
+
+1. **Per-source `discovery:` block** (`crawlers/web-crawler/probes/
+   <probe-id>/sources.yaml`). Four channels today for the web crawler;
+   future platform-class crawlers contribute their own channel names
+   to the same block (the YAML shape stays platform-agnostic):
+
+   * ``sitemap_urls: list[str]`` — XML sitemap roots (`sitemap.xml`,
+     `sitemap_index.xml`, sitemaps.org protocol). ``ultimate-sitemap-
+     parser`` parses them recursively, honouring Phase 122e A21's
+     `sitemap_strict_lastmod: true` default.
+   * ``rss_hint_urls: list[str]`` (PLURAL, since Phase 122g) — RSS /
+     Atom feeds. Multiple feeds per source, the publisher's chosen
+     catalogue ingested verbatim — distinct from F-A15's rejected
+     "researcher-curated section feeds" proposal because the publisher
+     organised the set, not us. Singular ``rss_hint_url`` is aliased
+     for one release cycle, retired in Phase 127.
+   * ``html_sitemap_urls: list[dict]`` — publisher-built HTML
+     navigation pages that surface the current article set in HTML
+     (e.g. tagesschau's ``/infoservices/startseite-sitemap-*.html``).
+     Operator declares the URL and an ``article_url_pattern`` regex.
+     Implemented by `internal/discovery/html_sitemap.py` (Phase 122g).
+   * ``archive_index: dict | None`` — date-indexed archive walker
+     (Phase 122e A20 — code shipped, Phase 122g activates per-source).
+     Operator declares ``url_template`` (with ``{date}`` placeholder),
+     ``date_format``, ``granularity`` (daily | monthly), and an
+     ``article_url_pattern`` regex.
+
+   The single ``discovery.expected_floor_per_run: int | None`` knob
+   declares the minimum URL count per discovery run for the underflow
+   gate (4).
+
+2. **Channel-collision rule.** When the same URL is surfaced by two
+   channels the first channel to yield it wins. Channel order is
+   `sitemap` → `rss` → `html_sitemap` → `archive_index`. Sitemap-first
+   preserves the canonical lastmod + sitemap_section context the
+   sitemap entry carries; the per-channel telemetry attributes
+   `urls_after_dedup` to whichever channel got the first-yield credit.
+
+3. **Auto-discovery as onboarding helper, NOT runtime fallback.** The
+   `audit-source-discovery` CLI (`crawlers/web-crawler/audit_source.py`)
+   wraps ``trafilatura.feeds.find_feed_urls`` and
+   ``trafilatura.sitemaps.sitemap_search`` plus a curated list of
+   HTML-sitemap and archive-walker URL-pattern probes. Output is YAML-
+   shaped so the operator copy-pastes it into ``sources.yaml`` with
+   the publisher-specific regex(es) filled in. **Runtime crawls
+   consult only the configured channels.** This is the load-bearing
+   inversion vs. an auto-discovery-at-runtime design: configuration
+   is the source of truth, surveys are operator acts.
+
+   Trafilatura is OPTIONAL for the audit CLI — it lives in the worker
+   venv, not the crawler venv. When unavailable the CLI degrades to
+   the HTML-path + archive-walker probes alone, logging the missing
+   dep.
+
+4. **Per-channel coverage telemetry** (universal-core, write-once).
+
+   * Postgres ``crawler_discovery_runs (run_id, source_id, channel,
+     urls_discovered, urls_after_dedup, run_started_at, run_completed_at)``
+     — one INSERT per `(source, channel)` per discovery pass.
+   * Postgres ``crawler_discovery_alerts (source_id, alert_type,
+     first_observed_at, last_observed_at, consecutive_runs,
+     expected_floor, last_urls_observed)`` — alert state.
+     `alert_type ∈ {'underflow_pending', 'underflow'}`. The two-
+     consecutive-runs gate sits between `_pending` and the fired
+     `underflow` row so a transient publisher hiccup never produces a
+     false alert.
+   * BFF read endpoint
+     `GET /api/v1/sources/{sourceId}/discovery-coverage` returns the
+     per-channel + source-level summary.
+   * Dashboard `DiscoveryCoveragePanel.svelte` renders the matrix on
+     the Probe Dossier as a sibling to the Phase-122f
+     `MetadataCoveragePanel`. Underflow-active channels flip to the
+     methodological-register prose under the Negative-Space overlay.
+
+5. **Cross-platform symmetry.** Future Twitter / Reddit / Mastodon /
+   YouTube crawler binaries declare their own channels (`timeline`,
+   `subreddit`, `hashtag_stream`, `channel_uploads`, …) under the same
+   `discovery:` block shape and write to the same `crawler_discovery_runs`
+   table with their own channel names. Cross-source-cross-platform
+   comparability of coverage requires no schema work per new platform
+   class — the contract is the platform-agnostic surface.
+
+### Consequences
+
+**Positive — operational.**
+
+* Coverage degradation is observable within one crawl run (underflow
+  alert). Pre-122g coverage gaps were invisible until ad-hoc operator
+  inspection or downstream-analysis-driven discovery.
+* New-source onboarding is a 5-minute audit-CLI + paste + Postgres
+  seed migration. New probes inherit the workflow from day one.
+* Cross-platform crawlers reuse the entire telemetry stack
+  (Postgres table, BFF endpoint, dashboard panel) without schema work.
+
+**Positive — methodological.**
+
+* WP-006 §3 (no researcher selection bias) is enforced by construction:
+  every declared channel is publisher-built (the publisher chose to
+  expose the sitemap, the RSS feed, the HTML page, the archive walker).
+  Operator-curated section-feed selection (F-A15 rejected) is not
+  expressible in the schema.
+* WP-006 §6 (reflexive-architecture status disclosure) is operationalised:
+  the dashboard surfaces "what we expected to discover, what we actually
+  discovered, why the gap exists" as a first-class signal, not a
+  silent absence.
+* Probe-0 Structural Bias #8 (discovery-surface asymmetry) closes for
+  the specific instances on Probe 0 (tagesschau via `archive_index` +
+  `html_sitemap_urls` activation; bundesregierung via the four-feed
+  extension). The asymmetry as a methodological category remains a
+  recorded structural-bias dimension — new asymmetries on future
+  sources are caught by the underflow telemetry.
+
+**Negative / acknowledged.**
+
+* Manual per-source configuration is unavoidable. The professional
+  pattern (Mediacloud, GDELT, every serious production news-crawler
+  operator) is a curated source registry — the audit CLI makes the
+  manual step lightweight but does not eliminate it. Auto-discovery
+  alone fails on the publishers that matter most (government sites,
+  public broadcasters, custom-CMS implementations), as the Phase
+  122g empirical findings document.
+* The `article_url_pattern` regex per `html_sitemap_urls` /
+  `archive_index` entry is publisher-specific and requires operator
+  derivation from a sample of real article URLs. The audit CLI emits
+  a placeholder; the operator must replace it.
+
+### Methodological framing
+
+The decision answers a frequent reflexive question: "is manual
+per-source configuration not primitive in 2026?" The honest answer is
+no — it is the state of the art. The references:
+
+* **Mediacloud** (Berkman-Klein Center for Internet & Society, Harvard,
+  open-source) maintains a manually-curated database of ~ 60,000 news
+  sources with per-source feed lists. Public at
+  ``https://search.mediacloud.org``.
+* **GDELT** (Global Database of Events, Language, and Tone) maintains
+  a curated set of thousands of news sources with handpicked feed
+  configurations.
+* **BBC, Reuters, Bloomberg** internal news-crawler systems all
+  maintain handcurated source registries.
+
+The Phase 122g design's contribution is not the curated-registry
+pattern (it is the industry standard); it is the **uniform DiscoveryProtocol
+contract + universal-core telemetry layer + operator-facing audit
+tool** that makes the curated-registry approach sustainable across
+many platform classes for a solo-dev project.
+
+### Decision Record
+
+- **Drafted:** 2026-05-12 by Fabian Quist with AĒR for Phase 122g.
+- **Status:** Accepted.
+
+---

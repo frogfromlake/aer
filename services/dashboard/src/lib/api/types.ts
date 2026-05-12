@@ -446,6 +446,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sources/{sourceId}/discovery-coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-channel discovery telemetry for one source
+         * @description Returns the per-source-per-channel discovery telemetry recorded by the crawler's Phase 122g telemetry layer (`crawler_discovery_runs`). Sibling to `GET /sources/{sourceId}/metadata-coverage` — both surface a publisher's emission posture as a queryable runtime signal.
+         *     The payload reports per-channel URL counts for the most recent discovery pass alongside a trailing-window average and the source-level underflow-alert state (Phase 122g two-strike gate). Consumers (dashboard panel, downstream analysis) read this to contextualise corpus-volume comparisons that would otherwise be contaminated by discovery-surface asymmetries — see WP-003 §3.2 and Probe-0 Structural Bias #8.
+         *     Recorded in ADR-031 (DiscoveryProtocol Contract for Multi-Channel Source Discovery).
+         */
+        get: operations["getSourceDiscoveryCoverage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/articles/{id}": {
         parameters: {
             query?: never;
@@ -1335,6 +1357,72 @@ export interface components {
             scope: string;
             /** @description One entry per source in the requested scope, ordered by source name. Empty when the scope resolves to no sources. */
             sources: components["schemas"]["MetadataCoverageSource"][];
+        };
+        /** @description Per-channel discovery telemetry for one source (Phase 122g / ADR-031). One entry per declared channel — sitemap, rss, html_sitemap, archive_index, or any future platform-class channel (timeline, subreddit, hashtag_stream, etc.). The shape is platform-agnostic by design so cross-platform comparability of coverage requires no schema work per new crawler binary. */
+        DiscoveryCoveragePerChannel: {
+            /**
+             * @description Discovery channel identifier. Web-crawler channels today: `sitemap`, `rss`, `html_sitemap`, `archive_index`. Future platform crawlers contribute their own channel labels.
+             * @example archive_index
+             */
+            channel: string;
+            /**
+             * @description Raw URL count surfaced by this channel in the most recent discovery pass (pre-dedup across channels).
+             * @example 247
+             */
+            lastRunUrlsDiscovered: number;
+            /**
+             * @description URLs unique to this channel after the URL-union dedup across every declared channel. When sitemap + html_sitemap both yield URL X, sitemap (first) gets +1 here and html_sitemap (second) gets +0; the raw discovered count reflects what the channel actually surfaced.
+             * @example 198
+             */
+            lastRunUrlsAfterDedup: number;
+            /**
+             * @description Trailing-window average (default last 30 days) of `urls_discovered` for this channel. Lets the dashboard contextualise a single run's number against the source's typical surface size.
+             * @example 244.7
+             */
+            averageUrlsDiscoveredPerRun: number;
+            /**
+             * @description True iff the source's `expected_floor_per_run` has been below threshold for two consecutive runs (Phase 122g two-strike gate). The flag clears the first run back at or above floor.
+             * @example false
+             */
+            underflowAlertActive: boolean;
+        };
+        /**
+         * @description Per-source discovery telemetry payload for the Phase 122g `GET /sources/{sourceId}/discovery-coverage` endpoint. Sibling to `GET /sources/{sourceId}/metadata-coverage` (Phase 122f) — both surface the publisher's emission posture as a queryable runtime signal, supporting the WP-006 §6 reflexive-architecture status-disclosure principle.
+         *     Recorded in ADR-031 (DiscoveryProtocol Contract for Multi-Channel Source Discovery). The schema is platform-agnostic so future Twitter / Reddit / Mastodon / YouTube crawlers feed the same endpoint without schema work.
+         */
+        DiscoveryCoverageResponse: {
+            /**
+             * @description Canonical source identifier (e.g. `tagesschau`).
+             * @example tagesschau
+             */
+            sourceId: string;
+            /**
+             * @description Trailing window over which `averageUrlsDiscoveredPerRun` and the underflow detection are computed. Defaults to the probe's `time_window_days` (Phase 122b / 122e A20 — currently 7 for Probe 0).
+             * @example 30
+             */
+            windowDays: number;
+            /**
+             * @description Source-declared minimum URL count per discovery run (Phase 122g). `null` when the operator hasn't yet set a floor for this source — no underflow alerting in that case.
+             * @example 200
+             */
+            expectedFloorPerRun?: number | null;
+            /** @description One entry per declared channel. Includes channels that yielded zero URLs in the last run (the zero is itself a signal). */
+            perChannel: components["schemas"]["DiscoveryCoveragePerChannel"][];
+            /**
+             * @description Sum of `urls_discovered` across every channel for the most recent discovery pass (pre-dedup).
+             * @example 1114
+             */
+            totalUrlsDiscoveredLastRun: number;
+            /**
+             * @description Sum of `urls_after_dedup` across every channel — the unique URL set the crawler will fetch. Compared against `expectedFloorPerRun` for the underflow gate.
+             * @example 1006
+             */
+            uniqueUrlsAfterDedupLastRun: number;
+            /**
+             * @description True iff the per-source two-consecutive-runs underflow gate has fired. Same field as on each channel's record but at source level — surfaces the alert state directly to the dashboard panel.
+             * @example false
+             */
+            underflowAlertActive: boolean;
         };
     };
     responses: never;
@@ -2899,6 +2987,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetadataCoverageResponse"];
+                };
+            };
+            /** @description Source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getSourceDiscoveryCoverage: {
+        parameters: {
+            query?: {
+                /** @description Trailing window for the average + underflow computation (defaults to the probe's `time_window_days`; clamped to [1, 365]). */
+                windowDays?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Source identifier — either the canonical name (e.g. `tagesschau`) or the integer source id. */
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The source's discovery-coverage payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryCoverageResponse"];
                 };
             };
             /** @description Source not found. */

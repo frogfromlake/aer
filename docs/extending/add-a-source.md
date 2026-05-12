@@ -35,49 +35,47 @@ If your source is on a platform that has *no* AĒR crawler yet (Twitter, Reddit,
 
 ## Discovery surfaces — how to pick one (or several)
 
-A web crawler can only find articles through what the publisher **exposes** for machine consumption. Three discovery surfaces are universally usable, in this order of preference:
+A web crawler can only find articles through what the publisher **exposes** for machine consumption. Four discovery surfaces are universally usable. The four-channel model is the Phase 122g `DiscoveryProtocol` contract — see ADR-031:
 
-| Surface | When the publisher exposes it | What we configure | Coverage |
+| Channel | When the publisher exposes it | What we configure | Coverage |
 | :--- | :--- | :--- | :--- |
-| **(A) XML sitemap** | `Sitemap:` directive in `robots.txt` (preferred), OR a `/sitemap.xml` / `/sitemap_index.xml` that returns `200 OK` | `sitemap_urls: [...]` (one or more roots) | Full archive — typically every URL the publisher considers canonical |
-| **(B) RSS / Atom feed** | A feed URL the publisher advertises, usually at `/rss` or as a `<link rel="alternate" type="application/rss+xml">` on the homepage | `rss_hint_url: ...` (single URL) | Sliding window of the most recent ≈ 50–200 items. **Not** an archive |
-| **(C) Date-indexed HTML archive** | A page parameterised by date — e.g. `/archiv?datum=YYYY-MM-DD` — that the publisher uses for navigation | `archive_index: { url_template, date_format, article_url_pattern }` | Per-day list going back as far as the publisher chooses to expose. Used **only when** A is absent (no sitemap and no `Sitemap:` directive) |
+| **(A) XML sitemap** | `Sitemap:` directive in `robots.txt`, OR a `/sitemap.xml` / `/sitemap_index.xml` that returns `200 OK` | `discovery.sitemap_urls: [...]` (one or more roots) | Full archive — typically every URL the publisher considers canonical |
+| **(B) RSS / Atom feeds (plural)** | Feed URLs the publisher advertises, often catalogued on a `/service/rss` or `/newsletter` page (Phase 122g — multiple feeds per source supported) | `discovery.rss_hint_urls: [...]` (list of URLs) | Sliding window of the most recent ≈ 50–200 items per feed. **Not** an archive |
+| **(C) HTML sitemap page** | A publisher-built navigation page that surfaces the current article set in HTML at a non-standard URL (e.g. tagesschau's `/infoservices/startseite-sitemap-102.html`). Operator-discoverable, NOT standardly auto-discoverable | `discovery.html_sitemap_urls: [{ url, article_url_pattern }]` | Daily-refreshed snapshot of the publisher's current top stories. ≈ 50–100 article links per page |
+| **(D) Date-indexed HTML archive** | A page parameterised by date — e.g. `/archiv?datum=YYYY-MM-DD` — that the publisher uses for navigation | `discovery.archive_index: { url_template, date_format, granularity, article_url_pattern }` | Per-day list going back as far as the publisher chooses to expose |
 
-Methodologically — every one of these is *publisher curation*, not researcher curation: the publisher built the surface, the publisher decides what's on it, we ingest the listed URLs verbatim. **Do not** hand-pick a subset of feeds (e.g. only `politik` + `wirtschaft`) — that is researcher selection bias per WP-006 §3 / ADR-028 and inverts the Manifesto's "unaltered mirror" principle. If the publisher advertises N RSS feeds, configure all N (or none); never pick "the relevant ones."
+Methodologically — every one of these is *publisher curation*, not researcher curation: the publisher built the surface, the publisher decides what's on it, we ingest the listed URLs verbatim. **Do not** hand-pick a subset of feeds (e.g. only `politik` + `wirtschaft`) — that is researcher selection bias per WP-006 §3 / ADR-028 / ADR-031 and inverts the Manifesto's "unaltered mirror" principle. If the publisher advertises N RSS feeds in a catalogue page, configure all N (or none); never pick "the relevant ones."
 
-A source can use multiple surfaces — configurations are additive. URL collisions deduplicate on the consumer side, with sitemap entries winning over RSS/archive entries (the sitemap entry carries the canonical `lastmod` and `sitemap_section` context).
+Channels are additive. URL collisions deduplicate on the consumer side with channel-order precedence (sitemap > rss > html_sitemap > archive_index — the sitemap entry carries the canonical `lastmod` and `sitemap_section` context). Phase 122g per-channel telemetry attributes `urls_after_dedup` to whichever channel got the first-yield credit, so the dashboard's `DiscoveryCoveragePanel` reports each channel's actual contribution.
 
-**Rule of thumb**: prefer A > B > C. Use B as a freshness-sort cue alongside A. Use C when the publisher exposes neither A nor a comprehensive RSS — Probe 0's `tagesschau.de` is the canonical example: no XML sitemap, only a 2-feed RSS catalogue (top stories in two formats), and a deep date-indexed archive at `/archiv?datum=`.
+**Rule of thumb**: declare every channel the publisher actually exposes. Probe-0's `tagesschau.de` is the canonical multi-channel example: no XML sitemap, one main RSS feed, one daily-refreshed HTML sitemap, one date-indexed archive walker — all four channel slots used (one empty, three populated). Probe-0's `bundesregierung.de` is the canonical multi-RSS-feed example: three service-only sitemap_index URLs plus four publisher-curated RSS feeds (`Bundesregierung kompakt`, `Pressemitteilungen`, `Artikel`, `Bulletin`).
 
 ## Worked example — adding `bbc.co.uk` to a hypothetical English probe
 
 This is illustrative; no English probe exists at the time of writing.
 
-### 1. Verify which discovery surfaces the publisher exposes
+### 0. Run the audit CLI (Phase 122g)
+
+The `audit-source-discovery` CLI probes a candidate source's homepage and reports the discovery channels the publisher exposes — RSS feeds via `trafilatura.feeds.find_feed_urls`, sitemaps via `trafilatura.sitemaps.sitemap_search`, plus per-source-class probes for common HTML-sitemap and date-indexed archive URL patterns. Cross-reference its output against Mediacloud's open registry (https://search.mediacloud.org) — if your candidate already exists there, compare their curated feed list against the audit.
 
 ```bash
-# Surface A — XML sitemap.
-curl -A 'AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)' \
-     https://www.bbc.co.uk/robots.txt | grep -iE 'allow|disallow|sitemap'
-curl -I https://www.bbc.co.uk/sitemaps/news.xml
-
-# Surface B — RSS / Atom catalogue. Look for an RSS index page or
-# `<link rel="alternate" type="application/rss+xml">` on the homepage.
-curl -sL https://www.bbc.co.uk/ \
-  | grep -oE 'href="[^"]+(rss|atom)[^"]*"' | sort -u
-
-# Surface C — date-indexed archive. Try common patterns:
-#   /archive, /archiv, /archive?date=, /sitemap?date=, /YYYY/MM/DD/
-# If the publisher exposes one, sample two distant dates and confirm
-# they return distinct article lists.
+python crawlers/web-crawler/audit_source.py https://www.bbc.co.uk
+# … or via the installed entry point:
+aer-audit-source https://www.bbc.co.uk
 ```
 
-Confirm:
-- our `User-Agent` is not in any `Disallow` block;
-- at least one surface returns `200 OK` and exposes article URLs;
-- if Surface C is in play, sample-fetch two dates one year apart and verify both return populated article lists (i.e. it is an archive, not a homepage snapshot).
+The CLI emits a YAML-shaped `discovery:` block ready for pasting into `sources.yaml`, with `<edit-me>` placeholders for the publisher-specific `article_url_pattern` regex(es) you must derive from sample article URLs.
 
-Document the verification — including which surface(s) we settled on, and *why* — in the probe's dossier (`docs/probes/<probe-id>/temporal_profile.md` under "Discovery surface"). The asymmetry between sources' discovery surfaces is a recorded structural bias (see Probe 0's `bias_assessment.md` Structural Bias #8).
+### 1. Verify the audit findings manually
+
+Cross-check the audit output by curl. In particular:
+
+- our `User-Agent` is not in any `Disallow` block in `robots.txt`;
+- the suggested feeds + sitemaps actually return HTTP 200;
+- if the audit flagged an `archive_index` candidate, sample two distant dates and confirm they return distinct article lists (so the endpoint really is a date-walker, not a homepage snapshot). Note the granularity — daily or monthly. Phase 122e A20's investigation of tagesschau's archive is the worked methodology.
+- if the publisher exposes an RSS *catalogue page* (often at `/service/rss`, `/newsletter`, or similar — bundesregierung's `/breg-de/service/newsletter-und-abos/rss-newsfeed` is the canonical example), visit it manually. Trafilatura returns the feeds advertised via `<link rel="alternate">` only — many publishers organise additional feeds on a separate catalogue page that auto-discovery misses.
+
+Document the verification — including which channels we settled on and *why* — in the probe's dossier (`docs/probes/<probe-id>/temporal_profile.md` under "Discovery surface"). The asymmetry between sources' discovery surfaces is a recorded structural bias dimension (Probe-0 `bias_assessment.md` Structural Bias #8); new asymmetries will be caught at runtime by Phase 122g's per-channel coverage telemetry (`GET /api/v1/sources/{id}/discovery-coverage`).
 
 ### 2. Add a YAML entry under the probe's source list
 
@@ -88,21 +86,36 @@ sources:
   # … existing sources …
 
   - name: bbc-news
-    # Surface A — XML sitemap (preferred).
-    sitemap_urls:
-      - https://www.bbc.co.uk/sitemaps/news.xml
-    # Surface B — RSS feed (freshness-sort hint).
-    rss_hint_url: https://feeds.bbci.co.uk/news/rss.xml
-    # Surface C — date-indexed HTML archive. Configure ONLY if Surface A
-    # is absent. Do NOT configure all three "to be safe" — the surfaces
-    # already overlap and Surface C costs ~ 1 HTTP fetch per day in the
-    # window. Example shape (BBC has no archive of this form, so this
-    # block stays absent for bbc-news in production):
-    #
-    # archive_index:
-    #   url_template: 'https://www.example.com/archive?date={date}'
-    #   date_format: '%Y-%m-%d'
-    #   article_url_pattern: '^https://www\.example\.com/.+\.html$'
+    # Phase 122g — per-source `discovery:` block (ADR-031). Declare
+    # every channel the publisher actually exposes (verify via the
+    # audit CLI above + manual cross-check). The four-channel model
+    # is platform-agnostic — future Twitter / Reddit / Mastodon
+    # crawlers contribute their own channel names under the same block.
+    discovery:
+      # Channel A — XML sitemap (cheapest, highest-coverage when present).
+      sitemap_urls:
+        - https://www.bbc.co.uk/sitemaps/news.xml
+      # Channel B — RSS / Atom feeds. PLURAL since Phase 122g. If the
+      # publisher catalogues multiple feeds, declare all of them; the
+      # publisher curated the set.
+      rss_hint_urls:
+        - https://feeds.bbci.co.uk/news/rss.xml
+        # - https://feeds.bbci.co.uk/news/world/rss.xml  # if exposed
+        # - https://feeds.bbci.co.uk/news/business/rss.xml  # if exposed
+      # Channel C — HTML sitemap page (operator-discoverable; usually
+      # absent on publishers that ship a proper XML sitemap).
+      # html_sitemap_urls: []
+      # Channel D — date-indexed archive walker. Configure when the
+      # publisher exposes `?date=...`-style date-indexed navigation.
+      # archive_index:
+      #   url_template: 'https://www.example.com/archive?date={date}'
+      #   date_format: '%Y-%m-%d'
+      #   granularity: daily   # operator: verify by sampling two distant dates
+      #   article_url_pattern: '^https://www\.example\.com/.+\.html$'
+      # Phase 122g — minimum URLs per discovery run for the underflow
+      # alert (two-consecutive-runs gate). Set conservatively after the
+      # first crawl establishes the empirical baseline.
+      expected_floor_per_run: 50
     politeness:
       delay_seconds: 1.0
       autothrottle: true
