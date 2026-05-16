@@ -1,23 +1,29 @@
 <script lang="ts">
   // Phase 122i / ADR-034 — Multi-Panel Workbench: Window renderer.
   //
-  // A Window holds 1..8 Panels arranged side-by-side. The first ship
-  // renders the active window's panel grid. Multi-window tab UI lands
-  // in a Slice 4 follow-up once Panel editing affordances are wired —
-  // until then, a Pillar holds at most one Window in practice (entry
-  // paths always seed a single Window with a single Panel).
+  // A Window holds 1..8 Panels arranged side-by-side. WindowHost has two
+  // render modes:
   //
-  // Layout: CSS grid with `auto-fit, minmax(28rem, 1fr)`. At default
-  // viewport widths (~1440px and the SideRail consuming ~184px) this
-  // fits 3-4 panels before horizontal scrolling kicks in. The cap is
-  // enforced at the URL-state layer (MAX_PANELS_PER_WINDOW = 8).
+  //   - **Grid mode** (default): all panels in a CSS-grid raster (C1).
+  //     Up to 4 columns, wraps to next row at panel 5. Each panel is
+  //     focusable; the focused panel hosts CellControls.
+  //
+  //   - **Maximize mode** (R4): when `window.maximizedPanelIndex` is set
+  //     (R2 URL-state field), only the maximized panel renders at full
+  //     canvas. A minimised tray sits at the bottom listing the other
+  //     panels as small tiles for quick swap. `Esc` un-maximizes;
+  //     clicking the maximize button on the active panel toggles back.
+  //
+  // Per-window max panels is enforced at the URL-state layer
+  // (MAX_PANELS_PER_WINDOW = 8).
+  import { onMount } from 'svelte';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import {
     MAX_PANELS_PER_WINDOW,
     type PillarState,
     type ViewingMode
   } from '$lib/state/url-internals';
-  import { addPanel } from '$lib/workbench/panel-mutators';
+  import { addPanel, setMaximizedPanel } from '$lib/workbench/panel-mutators';
   import PanelHost from './PanelHost.svelte';
   import WorkbenchDatasetShape from './WorkbenchDatasetShape.svelte';
 
@@ -45,18 +51,122 @@
   const panelCount = $derived(activeWindow?.panels.length ?? 0);
   const canAddPanel = $derived(panelCount < MAX_PANELS_PER_WINDOW);
 
+  // Phase 122i revision (C3). Validate the maximize pointer against the
+  // current panel count (defensive — URL surgery could leave a stale
+  // value). When valid, we render the maximize branch.
+  const maximizedPanelIndex = $derived.by<number | null>(() => {
+    if (!activeWindow) return null;
+    const raw = activeWindow.maximizedPanelIndex;
+    if (raw === undefined || raw === null) return null;
+    if (raw < 0 || raw >= activeWindow.panels.length) return null;
+    return raw;
+  });
+  const isMaximizing = $derived(maximizedPanelIndex !== null);
+
   function onAddPanel() {
     addPanel(pillar);
   }
+
+  function pickTrayPanel(i: number) {
+    // Swap maximize target. Also focuses the panel so CellControls
+    // follows automatically.
+    setMaximizedPanel(pillar, activeWindowIndex, i);
+  }
+
+  function unmaximize() {
+    setMaximizedPanel(pillar, activeWindowIndex, null);
+  }
+
+  // Phase 122i revision (C3). Escape un-maximizes. Window-scoped key
+  // handler — only active while a panel is maximized.
+  onMount(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      // Avoid firing while a popover / modal is open (the ScopeEditor
+      // handles its own Escape internally — its target is the
+      // backdrop, not the document — so events that reach `document`
+      // mean no modal is active).
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLTextAreaElement) return;
+      // Only act if a panel is actually maximized; otherwise do nothing.
+      if (!isMaximizing) return;
+      unmaximize();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 </script>
 
-<section class="window-host" aria-label="Workbench window" data-panel-count={panelCount}>
+<section
+  class="window-host"
+  aria-label="Workbench window"
+  data-panel-count={panelCount}
+  class:maximizing={isMaximizing}
+>
   <!-- Phase 122i revision (A4 generalised). Dataset-shape strip lives
        at WindowHost level so every Pillar (Aleph, Episteme, Rhizome)
        gets the same scope-correct status row, not just Aleph. -->
   <WorkbenchDatasetShape {pillarState} {dossier} />
+
   {#if !activeWindow || panelCount === 0}
     <p class="muted">This window has no panels.</p>
+  {:else if isMaximizing && maximizedPanelIndex !== null}
+    {@const focusedPanel = activeWindow.panels[maximizedPanelIndex]}
+    {#if focusedPanel}
+      <div class="panel-maximized">
+        <PanelHost
+          panel={focusedPanel}
+          {dossier}
+          {ctx}
+          {windowStart}
+          {windowEnd}
+          {pillar}
+          windowIndex={activeWindowIndex}
+          panelIndex={maximizedPanelIndex}
+          focused
+          canRemove={panelCount > 1}
+          isMaximized
+          canMaximize={true}
+        />
+      </div>
+
+      {#if panelCount > 1}
+        <!-- Phase 122i revision (C3). Minimised tray of sibling panels.
+             Each tile is a compact button: clicking swaps the maximize
+             target. Provides quick swap without leaving the canvas. -->
+        <aside class="panel-tray" aria-label="Other panels in this window">
+          <span class="tray-label">Other panels</span>
+          <ul class="tray-list" role="list">
+            {#each activeWindow.panels as p, i (i)}
+              {#if i !== maximizedPanelIndex}
+                <li>
+                  <button
+                    type="button"
+                    class="tray-tile"
+                    onclick={() => pickTrayPanel(i)}
+                    title="Show this panel maximized"
+                  >
+                    <span class="tray-tile-num">#{i + 1}</span>
+                    <span class="tray-tile-meta">
+                      <code>{p.view}</code>
+                      <span class="tray-tile-metric">{p.metric}</span>
+                    </span>
+                  </button>
+                </li>
+              {/if}
+            {/each}
+          </ul>
+          <button
+            type="button"
+            class="tray-action"
+            onclick={unmaximize}
+            title="Restore all panels (Esc)"
+          >
+            ⤡ Restore grid
+          </button>
+        </aside>
+      {/if}
+    {/if}
   {:else}
     <div class="panel-grid" data-cols={Math.min(panelCount, 4)}>
       {#each activeWindow.panels as panel, i (i)}
@@ -71,6 +181,8 @@
           panelIndex={i}
           focused={i === activeWindow.focusedPanelIndex}
           canRemove={panelCount > 1}
+          isMaximized={false}
+          canMaximize={panelCount > 1}
         />
       {/each}
     </div>
@@ -110,6 +222,106 @@
     grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
     gap: var(--space-4);
     align-items: stretch;
+  }
+
+  /* Phase 122i revision (C3). Maximize-mode layout. */
+  .panel-maximized {
+    display: flex;
+    flex-direction: column;
+    min-height: 28rem;
+    flex: 1;
+  }
+
+  .panel-tray {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .tray-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+    font-weight: var(--font-weight-semibold);
+    min-width: 5rem;
+  }
+
+  .tray-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    flex: 1 1 auto;
+  }
+
+  .tray-tile {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+  }
+
+  .tray-tile:hover,
+  .tray-tile:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+    border-color: var(--color-accent);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .tray-tile-num {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-accent);
+  }
+
+  .tray-tile-meta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    color: var(--color-fg);
+  }
+
+  .tray-tile-meta code {
+    color: var(--color-fg-subtle);
+  }
+
+  .tray-tile-metric {
+    color: var(--color-fg-muted);
+  }
+
+  .tray-action {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px var(--space-2);
+    color: var(--color-fg);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+
+  .tray-action:hover,
+  .tray-action:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+    border-color: var(--color-accent);
   }
 
   .window-actions {

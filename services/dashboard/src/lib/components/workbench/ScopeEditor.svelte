@@ -92,6 +92,7 @@
     role="dialog"
     aria-modal="true"
     aria-label="Edit panel scope"
+    tabindex="-1"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}
   >

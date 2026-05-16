@@ -22,7 +22,12 @@
   import type { Panel, ViewingMode } from '$lib/state/url-internals';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import { selectCellRender, type CellRenderUnit } from '$lib/workbench/panel-queries';
-  import { focusPanel, removePanel, removeScopeGroup } from '$lib/workbench/panel-mutators';
+  import {
+    focusPanel,
+    removePanel,
+    removeScopeGroup,
+    toggleMaximizedPanel
+  } from '$lib/workbench/panel-mutators';
   import CellControls from './CellControls.svelte';
   import ScopeEditor from './ScopeEditor.svelte';
 
@@ -40,6 +45,15 @@
     panelIndex?: number;
     focused?: boolean;
     canRemove?: boolean;
+    /** Phase 122i revision (C3) — whether this panel is the maximized
+     *  member of its window. Drives the icon on the maximize button
+     *  (⤢ to maximize, ⤡ to restore). */
+    isMaximized?: boolean;
+    /** Phase 122i revision (C3) — whether a Maximize button should
+     *  appear on this panel. Suppressed when the window has only one
+     *  panel (nothing to compare against, no minimised tray would
+     *  appear). */
+    canMaximize?: boolean;
   }
 
   let {
@@ -52,7 +66,9 @@
     windowIndex,
     panelIndex,
     focused = false,
-    canRemove = false
+    canRemove = false,
+    isMaximized = false,
+    canMaximize = false
   }: Props = $props();
 
   const path = $derived(
@@ -82,6 +98,11 @@
   }
   function onRemoveGroup(groupIndex: number) {
     if (path) removeScopeGroup(path, groupIndex);
+  }
+  function onToggleMaximize(e: MouseEvent) {
+    e.stopPropagation();
+    if (!path) return;
+    toggleMaximizedPanel(path.pillar, path.windowIndex, path.panelIndex);
   }
 
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
@@ -210,6 +231,22 @@
         >
           ＋ Compare
         </button>
+        {#if canMaximize || isMaximized}
+          <!-- Phase 122i revision (C3). Maximize button. Always enabled
+               on locked panels too — maximize is UI state, not scope
+               editing. Disappears when there's nothing else in the
+               window (lone panel + not maximized = nothing to maximize
+               against). -->
+          <button
+            type="button"
+            class="panel-action"
+            onclick={onToggleMaximize}
+            title={isMaximized ? 'Restore (un-maximize) — Esc also works' : 'Maximize this panel'}
+            aria-pressed={isMaximized}
+          >
+            {isMaximized ? '⤡ Restore' : '⤢ Maximize'}
+          </button>
+        {/if}
         {#if canRemove}
           <button
             type="button"
