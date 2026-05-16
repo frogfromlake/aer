@@ -3646,9 +3646,9 @@ Phase 122h sits ahead of Phases 122a, 122d, 123, 123a, 124, 125 in the dashboard
 
 ---
 
-## Phase 122i: Multi-Panel Workbench with Composable Scope Groups [P1] - [ ] TODO
+## Phase 122i: Multi-Panel Workbench with Composable Scope Groups [P1] - [x] DONE (2026-05-17, revision shipped)
 
-> **Revision 2026-05-16.** The initial Phase-122i implementation (commits `2282f92` → `c11b92f` → `0796c82`) shipped the ScopeGroup[]/Panel/Window URL state, the BFF multi-scope POST endpoint, the panel-host rendering tree, and the Dossier two-entry-path UI — but manual testing surfaced (a) several critical bugs, (b) a semantic misunderstanding of locked panels, and (c) an architectural gap: the Dossier must be elevated to a first-class top-level surface, with both a per-probe AND a general (cross-probe) free-compose entry. The revision finishes Phase 122i; nothing is rolled back.
+> **Revision 2026-05-16 → 2026-05-17.** The initial Phase-122i implementation (commits `2282f92` → `c11b92f` → `0796c82`) shipped the ScopeGroup[]/Panel/Window URL state, the BFF multi-scope POST endpoint, the panel-host rendering tree, and the Dossier two-entry-path UI — but manual testing surfaced (a) several critical bugs, (b) a semantic misunderstanding of locked panels, and (c) an architectural gap: the Dossier must be elevated to a first-class top-level surface, with both a per-probe AND a general (cross-probe) free-compose entry. The revision finishes Phase 122i; nothing is rolled back.
 >
 > **Findings landing in this phase:**
 > * **A — Bugs.** A1 Free-Compose `Open Workbench` button disabled when no source selected; A2 Source-selection persists across browser-back; A3 `WorkbenchScopeBar` reflects the focused panel's scope (not legacy flat URL params); A4 `AlephShell.datasetShape` follows the active scope, not the whole probe; A5 **PillarSwitch broken — all tiles link to Aleph, Episteme + Rhizome unreachable**; A6 **CoOccurrence shows ≤ 3 nodes regardless of scope** (root cause TBD, likely a `topN`/`LIMIT` misapplication).

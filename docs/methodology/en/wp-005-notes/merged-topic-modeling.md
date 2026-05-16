@@ -112,6 +112,34 @@ corpus across several windows; it is not a hard statistical floor. Users should 
 - **Tier:** 2 (Phase 120) — reproducible with pinned model, not bit-for-bit deterministic across
   platforms.
 
+## 8b — Aleph soft note, not refusal (Phase 122i revision)
+
+Phase 122i revision (Q4 / C6) adds a related-but-distinct concern: Aleph cells (sentiment,
+distribution, word-count) **do not** refuse cross-language scopes — they are language-agnostic
+enough that a merged-multi-source query technically returns a number. They DO render a soft
+methodology banner over the chart, citing WP-004 §3.4 (cross-frame comparability), so the
+reader is reminded that the aggregate may obscure source-specific framings. The mechanism is
+the same `MethodologyBanner` primitive that surfaces this note; the trigger is `composition =
+'merged' AND sources.length > 1`. Episteme + Rhizome retain their HARD refusal for merged
+cross-language scopes because the underlying models (BERTopic, language-conditioned embeddings,
+entity-cooccurrence networks) are language-specific in a way Aleph metrics are not.
+
+In short:
+
+* **Aleph merged-multi-source** → soft banner, query proceeds.
+* **Episteme merged cross-language** → BFF 422, RefusalSurface, query blocked.
+* **Rhizome merged cross-language CoOccurrence (POST)** → BFF 422, RefusalSurface, query blocked.
+* **Aleph + Episteme + Rhizome split-composition** → no banner needed (each Cell stays
+  per-source and the joint-corpus question does not arise).
+
+The soft-vs-hard split is intentional: methodological transparency is universal, but only
+language-sensitive models warrant blocking the query outright. A future Phase 122j catalogue
+audit may extend the soft Aleph banner with metric-specific copy (the BFF
+`/content/metric/{name}` endpoint already serves dual-register methodology text — Phase 122j
+wires it into the banner).
+
+---
+
 ## 9 — Open work
 
 - **Per-source topic models with cross-source alignment.** A future iteration may add a "named

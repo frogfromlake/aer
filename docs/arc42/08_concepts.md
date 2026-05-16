@@ -1009,7 +1009,7 @@ Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 
 
 **Adding a language.** See `docs/extending/add-a-language.md` for the operator workflow. The matrix in that document is the human-readable view of the manifest; auto-generation of the matrix from the manifest is slated for Phase 123a.
 
-## 8.19 Workbench State Tree (Phase 122i / ADR-034)
+## 8.20 Workbench State Tree (Phase 122i / ADR-034, revised 2026-05-17)
 
 Phase 122h shipped the three-Pillar Workbench (Aleph / Episteme / Rhizome) sharing a single global `(probeIds[], sourceIds[])` scope tuple. Phase 122i restructures the Workbench state into a four-level tree so the user can compose arbitrary granularity × composition × side-by-side configurations within a single URL. ADR-034 is the authoritative decision record; this section is the operational documentation.
 
@@ -1032,14 +1032,17 @@ PillarState
 │       │       │   ├── probeIds[]
 │       │       │   └── sourceIds[]   // empty = all sources of probeIds
 │       │       ├── composition:  'merged' | 'split'
+│       │       ├── splitDirection?: 'horizontal' | 'vertical'  // revision (D2)
 │       │       ├── view:         time_series | distribution | topic_distribution | topic_evolution | cooccurrence_network
 │       │       ├── metric:       string (canonical Gold name)
 │       │       ├── layer:        'gold' | 'silver'
 │       │       ├── resolution?:  Resolution
 │       │       ├── normalization?: Normalization
 │       │       ├── topN?:        number
-│       │       └── locked?:      true when the panel was opened from a DF tile
-│       └── focusedPanelIndex
+│       │       ├── locked?:      true when the panel was opened from a DF tile (scope-only lock per revision B1)
+│       │       └── cellControlsCollapsed?: boolean    // revision (C4)
+│       ├── focusedPanelIndex
+│       └── maximizedPanelIndex?: number | null         // revision (C3) — Maximize-Mode pointer
 └── activeWindowIndex
 ```
 
@@ -1112,4 +1115,46 @@ Pure (testable) variants live in `panel-mutators-pure.ts`; the rune-store wrappe
 
 ### Backward compatibility
 
-Phase-122h URLs continue to load. The reader synthesizes a single-pillar single-window single-panel state from the legacy flat params; if the user makes no panel-level edits, the writer preserves the same flat form on first write-back. The legacy `GET /entities/cooccurrence?scope=&scopeId=` endpoint stays for single-scope queries. The Cell component contract is unchanged.
+Phase-122h URLs continue to load. The reader synthesizes a single-pillar single-window single-panel state from the legacy flat params; if the user makes no panel-level edits, the writer preserves the same flat form on first write-back. The legacy `GET /entities/cooccurrence?scope=&scopeId=` endpoint stays for single-scope queries. The Cell component contract is unchanged (only extended with the optional `composition` prop).
+
+### Revision (2026-05-17 — Phase 122i Revision Slices R1–R6)
+
+The Phase 122i revision finished the original phase. ADR-033 + ADR-034 carry the canonical Amendment blocks; this section summarises the architectural deltas for arc42 readers.
+
+**R1 — Critical bugs.**
+* **A5.** `PillarSwitch` writes both `activePillar` (pillar-state form) and `viewingMode` (legacy form). It also seeds the target pillar from the current pillar's focused panel when empty so a pillar switch never drops the user into an empty Workbench.
+* **A6.** BFF CoOccurrence handlers (GET + POST) emit a structured info log with edge / node / source counts so sparse-corpus complaints can be diagnosed without code-instrumenting. The frontend renders a "small corpus" methodology note when the graph has fewer than 8 nodes.
+* **B1.** `locked` is now strictly **scope-only**. `updatePanelPure` silently discards `scopes` mutations on locked panels but applies every other field. The `+Compare` button is the only control disabled in locked mode; `+Panel`, `×Remove`, Maximize, CellControls (View / Metric / Layer / Composition / SplitDirection / collapse) all remain live.
+* **D1.** `TimeSeriesCell` learned a `composition` prop. Merged-multi-source renders ONE `SourceLaneChart` configured with multi-source query (`?sourceIds=a,b,…`); BFF unions server-side. The Phase-107 per-source fan-out is preserved for `composition='split'` and for legacy callers that don't pass the prop.
+
+**R2 — URL-state additions.**
+* `Panel.splitDirection?: 'horizontal' | 'vertical'` (D2)
+* `Panel.cellControlsCollapsed?: boolean` (C4)
+* `WorkbenchWindow.maximizedPanelIndex?: number | null` (C3)
+
+All three are optional; legacy decoded states default to undefined / null with sensible behaviour. Compact-key map: `sd` (`'h'`/`'v'`), `cc` (`1`), `mp` (`number`). Out-of-bounds `mp` is dropped on encode and rejected on decode.
+
+**R3 — Affordances + UX bug fixes.**
+* `WorkbenchScopeBar` reads from the focused panel's scope (not the legacy flat URL params) so the chip strip reflects what the user actually sees. The Functions row collapses to a single DF chip in locked mode.
+* `AlephShell.datasetShape` follows the focused panel's resolved scope (intersect with `dossier.sources`); probes counter hidden when `locked`. Per the R3-tail hoist, the strip moved into `WorkbenchDatasetShape.svelte`, mounted by `WindowHost` — every pillar (Aleph / Episteme / Rhizome) now surfaces the same status row.
+* Panel grid wraps to next row at the 5th panel (raster), no horizontal scroll.
+* `FreeComposeSection` (probe-internal) reads + writes `url.sourceIds` so the selection persists through `back-nav`.
+* `CellControls` has a header-bar `▴` / `▾` collapse toggle.
+* `CellControls` Composition row carries a `↔ Horizontal` / `↕ Vertical` sub-toggle when `composition='split'`. `PanelHost` switches the body layout via `data-split-direction`.
+* New `ScopeEditor.svelte` popover replaces the seed-only `+Compare` action: probe + source multiselect per ScopeGroup, +/× group management, locked-state read-only banner.
+* New `MethodologyBanner.svelte` primitive (`$lib/components/base/`) carries the shared soft-note shell. Aleph `TimeSeriesCell` + `DistributionCell` render a soft cross-language / merged-multi-source note (WP-004 §3.4); Episteme `TopicDistributionCell` + `TopicEvolutionCell` keep their hard 422 refusal path but now share the same banner primitive for soft Joint-Corpus + Small-Corpus notes.
+
+**R4 — Maximize-Mode.**
+* New mutators `setMaximizedPanelPure` / `toggleMaximizedPanelPure`.
+* `PanelHost` gains a `⤢ Maximize` / `⤡ Restore` button (always enabled, including on locked panels — UI state, not scope edit).
+* `WindowHost` branches: when `maximizedPanelIndex` is set, only that panel renders at full canvas; siblings appear in a minimised-tile tray. Esc un-maximizes. Tray tiles swap maximize-target. A "⤡ Restore grid" tray button + a panel-level `⤡ Restore` button both clear.
+
+**R5 — Dossier elevated to first-class surface (ADR-033 amendment).**
+* `/dossier` is now top-level. The previous `/dossier/{probeId}` route is retired; legacy bookmarks 308-redirect to `/dossier?expand=<probeId>` so the named probe's card auto-expands.
+* Page structure: header → `GeneralFreeComposeSection` (cross-probe composer — AĒR's most powerful entry into the Workbench) → ProbeCard collection (one collapsable card per probe in the catalogue).
+* `ProbeCard.svelte` wraps the existing `ProbeDossier.svelte` body via a thin loader; `ProbeDossier` gained `showIntro` and `startCollapsed` props for embedding.
+* `GeneralFreeComposeSection.svelte` + sub-component `ProbeSourcePicker.svelte` deliver the cross-probe composer.
+* SideRail now carries four anchors: `◉ Atmosphere · 📚 Dossier · ⚙ Workbench · ¶ Reflection`.
+* Atmosphere globe-click target updated to `/dossier?expand=<probeId>`.
+
+**R6 — Tests + Docs + closure.** Tests cover 9 maximize / split-direction / cell-controls-collapse mutator paths and 9 url-panel round-trip cases for the new fields. The TESTING.md walkthrough is rewritten as the manual end-to-end suite. ROADMAP Phase 122i flips to DONE. CLAUDE.md + this section reflect the four-surface architecture. The WP-005 §6.2 working-note gains a §8b Aleph-soft-note section explaining the soft-vs-hard split.

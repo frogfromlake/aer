@@ -58,6 +58,7 @@
     startCollapsed = false
   }: Props = $props();
 
+  // svelte-ignore state_referenced_locally
   let expanded = $state(!startCollapsed);
   let sourcesExpanded = $state(true);
 

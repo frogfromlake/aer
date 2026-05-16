@@ -87,6 +87,7 @@
     if (e.key === 'Escape') onClose();
   }}
 >
+  <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
   <section
     class="scope-editor"
     role="dialog"
