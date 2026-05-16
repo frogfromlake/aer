@@ -32,8 +32,21 @@
   // with a stale URL and keep charts rendered after the user clears scope.
   const probes = $derived(url.probeIds);
 
-  const activePillar = $derived(getPillar(url.viewingMode));
-  const hasScope = $derived(probes.length > 0);
+  // Phase 122i / ADR-034 — Multi-Panel Workbench. When `?activePillar=`
+  // is present in the URL, it overrides the Phase-122h `?viewingMode=`.
+  // Phase-122h bookmarks continue to load unchanged because the legacy
+  // params survive when `pillars` is absent.
+  const activePillar = $derived(getPillar(url.activePillar ?? url.viewingMode));
+  // Scope is considered present when the user has a probe (legacy
+  // probeIds) OR a populated PillarState for the active pillar (new
+  // multi-panel state already encodes probes inside each ScopeGroup).
+  const pillarHasState = $derived(
+    url.pillars
+      ? Boolean(url.pillars[activePillar.id]) &&
+          (url.pillars[activePillar.id]?.windows.length ?? 0) > 0
+      : false
+  );
+  const hasScope = $derived(probes.length > 0 || pillarHasState);
 </script>
 
 <svelte:head>

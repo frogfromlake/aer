@@ -202,3 +202,104 @@ export function coOccurrencePostDescriptorForPanel(
     topN: panel.topN
   };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 122i / ADR-034 — Workbench-URL builders for the two Probe-Dossier
+// entry paths (Slice 5).
+//
+// The Dossier surfaces two equally-prominent entry paths into the
+// Workbench:
+//   1. DF-tile (locked, deterministic) — `buildDfEntryUrl()` produces a
+//      single-pillar single-window single-panel URL with
+//      composition='merged', locked=true, lockedReason='df_entry'. The
+//      Workbench renders this in read-only mode; the user must navigate
+//      back to the Dossier to recombine scope.
+//   2. Free-Compose — `buildFreeComposeUrl()` produces a single-pillar
+//      single-window single-panel URL with composition='merged',
+//      locked=false. All controls editable; +Panel / +Compare adds
+//      richer state from there.
+//
+// Both helpers emit the new `?activePillar=&aleph=…` form because the
+// `locked` flag (for DF-tile) and the explicit Pillar choice (for
+// Free-Compose) require the richer state. Phase-122h legacy URLs are
+// untouched.
+// ---------------------------------------------------------------------------
+
+import {
+  EMPTY_URL_STATE,
+  writeToSearch,
+  type DataLayer,
+  type PillarState,
+  type Panel as PanelType,
+  type ScopeGroup as ScopeGroupType,
+  type ViewMode as ViewModeType,
+  type ViewingMode
+} from '../state/url-internals';
+
+export interface BuildEntryUrlParams {
+  pillar: ViewingMode;
+  probeIds: readonly string[];
+  sourceIds: readonly string[];
+  view?: ViewModeType;
+  metric?: string;
+  layer?: DataLayer;
+}
+
+/**
+ * Build the DF-entry URL: locked single-panel state over the DF-covered
+ * source set. The Workbench treats `locked=true` as read-only.
+ */
+export function buildDfEntryUrl(params: BuildEntryUrlParams & { lockedFunction: string }): string {
+  return buildPillarUrl({
+    ...params,
+    locked: true,
+    lockedReason: 'df_entry',
+    lockedFunction: params.lockedFunction
+  });
+}
+
+/**
+ * Build the Free-Compose-entry URL: an editable single-panel state. The
+ * user can mutate composition, scope, view, metric, etc. from there.
+ */
+export function buildFreeComposeUrl(params: BuildEntryUrlParams): string {
+  return buildPillarUrl(params);
+}
+
+interface BuildPillarUrlOpts extends BuildEntryUrlParams {
+  locked?: boolean;
+  lockedReason?: 'df_entry';
+  lockedFunction?: string;
+}
+
+function buildPillarUrl(opts: BuildPillarUrlOpts): string {
+  const scopeGroup: ScopeGroupType = {
+    probeIds: [...opts.probeIds],
+    sourceIds: [...opts.sourceIds]
+  };
+  const panel: PanelType = {
+    scopes: [scopeGroup],
+    composition: 'merged',
+    view: opts.view ?? 'time_series',
+    metric: opts.metric ?? 'sentiment_score_sentiws',
+    layer: opts.layer ?? 'gold'
+  };
+  if (opts.locked) {
+    panel.locked = true;
+    if (opts.lockedReason) panel.lockedReason = opts.lockedReason;
+    if (opts.lockedFunction) panel.lockedFunction = opts.lockedFunction;
+  }
+  const pillarState: PillarState = {
+    windows: [{ panels: [panel], focusedPanelIndex: 0 }],
+    activeWindowIndex: 0
+  };
+  return writeToSearch({
+    ...EMPTY_URL_STATE,
+    activePillar: opts.pillar,
+    pillars: {
+      aleph: opts.pillar === 'aleph' ? pillarState : null,
+      episteme: opts.pillar === 'episteme' ? pillarState : null,
+      rhizome: opts.pillar === 'rhizome' ? pillarState : null
+    }
+  });
+}

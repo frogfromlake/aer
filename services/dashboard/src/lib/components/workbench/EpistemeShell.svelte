@@ -24,6 +24,7 @@
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import CellControls from './CellControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
+  import WindowHost from './WindowHost.svelte';
 
   interface Props {
     probeIds: string[];
@@ -33,7 +34,12 @@
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
-  const activeProbeId = $derived(probeIds[0] ?? '');
+  // Phase 122i — PillarState-aware fallback for the active probe id.
+  const activeProbeId = $derived.by(() => {
+    if (probeIds[0]) return probeIds[0];
+    const fromPillar = url.pillars?.episteme?.windows[0]?.panels[0]?.scopes[0]?.probeIds[0];
+    return fromPillar ?? '';
+  });
 
   const windowMs = $derived.by(() => {
     const now = Date.now();
@@ -63,6 +69,10 @@
   const dossier = $derived<ProbeDossierDto | null>(
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
+
+  // Phase 122i / ADR-034 — Multi-Panel state path. See AlephShell for
+  // the dual-path rationale.
+  const pillarState = $derived(url.pillars?.episteme ?? null);
 
   const presentation = $derived(resolvePresentation(url.viewMode, 'episteme'));
   const metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
@@ -112,11 +122,20 @@
 </script>
 
 <section class="episteme-shell" aria-label="Episteme — change over time">
-  <CellControls pillar="episteme" />
-
   {#if dossierQ.isPending}
     <p class="muted" aria-busy="true">Loading dataset…</p>
+  {:else if pillarState && dossier}
+    <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
+    <WindowHost
+      {pillarState}
+      {dossier}
+      {ctx}
+      windowStart={windowMs.start}
+      windowEnd={windowMs.end}
+    />
   {:else if dossier}
+    <!-- Phase 122h legacy single-Stratum path. -->
+    <CellControls pillar="episteme" />
     <div class="stratum-stack">
       <article class="stratum" aria-label="Stratum — {presentation.label}">
         <header class="stratum-header">

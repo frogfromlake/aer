@@ -25,8 +25,23 @@
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
+  import { JOINT_CORPUS_MIN_SOURCES } from '$lib/config/topic-thresholds';
 
-  let { ctx, scope, scopeId, windowStart, windowEnd, probeIds = [] }: ViewModeCellProps = $props();
+  let {
+    ctx,
+    scope,
+    scopeId,
+    windowStart,
+    windowEnd,
+    probeIds = [],
+    sources = []
+  }: ViewModeCellProps = $props();
+
+  // Phase 122i / ADR-034 — Joint-corpus methodology note when the
+  // evolution is computed over ≥ JOINT_CORPUS_MIN_SOURCES sources.
+  // Stream graphs over a joint corpus aggregate source-specific
+  // framings into shared streams; the banner cites WP-005 §6.2.
+  const isJointCorpus = $derived(sources.length >= JOINT_CORPUS_MIN_SOURCES);
 
   const OUTLIER_TOPIC_ID = -1;
   const UNCATEGORISED_LABEL = 'uncategorised';
@@ -471,6 +486,21 @@
       the next sweep or pick a wider time range.
     </p>
   {:else}
+    <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Reflection route -->
+    {#if isJointCorpus}
+      <aside
+        class="methodology-note joint-corpus"
+        role="note"
+        aria-label="Joint-corpus methodology note"
+      >
+        <strong>BERTopic stream across {sources.length} sources</strong> — streams aggregate the
+        joint corpus, not per-source framings. Source-specific framings may be aggregated away.
+        <a href="/reflection/wp/wp-005?section=6.2" data-sveltekit-preload-data="hover"
+          >WP-005 §6.2</a
+        >
+      </aside>
+    {/if}
+    <!-- eslint-enable svelte/no-navigation-without-resolve -->
     <div
       class="plot-host"
       bind:this={host}
@@ -653,6 +683,27 @@
 
   .provenance code {
     font-family: var(--font-mono);
+  }
+
+  .methodology-note {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    line-height: 1.4;
+  }
+
+  .methodology-note.joint-corpus {
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+    border-left: 3px solid var(--color-accent);
+  }
+
+  .methodology-note a {
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--color-accent);
+    margin-left: 4px;
   }
 
   .muted {

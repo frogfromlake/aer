@@ -22,6 +22,7 @@
   } from '$lib/api/queries';
   import SourceCard from './SourceCard.svelte';
   import MetadataCoveragePanel from './MetadataCoveragePanel.svelte';
+  import FreeComposeSection from './FreeComposeSection.svelte';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { goto } from '$app/navigation';
   import {
@@ -29,6 +30,7 @@
     FUNCTION_DEFINITIONS,
     type DiscourseFunction
   } from '$lib/discourse-function';
+  import { buildDfEntryUrl } from '$lib/workbench/panel-queries';
 
   interface Props {
     dossier: ProbeDossierDto;
@@ -353,10 +355,15 @@
               {@const covered = coveredFunctions.has(fn)}
               {@const fnSources = sourcesByFunction[fn] ?? []}
               {@const fnSourceNames = sourceNamesByFunction[fn] ?? []}
-              {@const fnSourceParam =
-                fnSourceNames.length > 0
-                  ? `&sourceId=${encodeURIComponent(fnSourceNames.join(','))}`
-                  : ''}
+              {@const fnHref =
+                covered && fnSourceNames.length > 0
+                  ? `/workbench${buildDfEntryUrl({
+                      pillar: 'aleph',
+                      probeIds: [dossier.probeId],
+                      sourceIds: fnSourceNames,
+                      lockedFunction: fn
+                    })}`
+                  : `/workbench?probeId=${encodeURIComponent(dossier.probeId)}&functionKey=${fn}&viewingMode=aleph`}
               <li>
                 <a
                   class="fn-tile"
@@ -365,9 +372,7 @@
                   aria-label="{meta.label}: {covered
                     ? `covered by ${fnSources.join(', ')}`
                     : 'not covered by this probe'} — open Workbench"
-                  href="/workbench?probeId={encodeURIComponent(
-                    dossier.probeId
-                  )}&functionKey={fn}&viewingMode=aleph{fnSourceParam}"
+                  href={fnHref}
                   data-sveltekit-preload-data="hover"
                 >
                   <span class="fn-tile-head">
@@ -395,6 +400,23 @@
             {/each}
           </ul>
           <!-- eslint-enable svelte/no-navigation-without-resolve -->
+        </section>
+
+        <!-- Compose freely — Phase 122i / ADR-034.
+             Parallel entry path to the DF tiles above. Where the DF tiles
+             pre-bind a discourse-function aggregate and lock the Workbench
+             scope, this section lets the user select arbitrary sources
+             from the probe and open an editable Workbench. The two
+             sections are visually equally prominent on purpose: the
+             choice between "see this function in this probe" and
+             "explore this probe freely" is deterministic. -->
+        <section class="compose-freely" aria-labelledby="compose-heading">
+          <h2 id="compose-heading" class="section-title">Compose freely</h2>
+          <p class="section-lede">
+            Pick any subset of sources from this probe and open the Workbench in editable mode —
+            change view, metric, layer, or add a comparison panel.
+          </p>
+          <FreeComposeSection {dossier} />
         </section>
 
         <!-- Sources -->

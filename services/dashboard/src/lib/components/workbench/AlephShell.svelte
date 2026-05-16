@@ -27,6 +27,7 @@
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import CellControls from './CellControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
+  import WindowHost from './WindowHost.svelte';
 
   interface Props {
     probeIds: string[];
@@ -38,8 +39,15 @@
   const url = $derived(urlState());
 
   // Active probe is the first composed probe; cross-probe queries pass
-  // the full `probeIds` array to the BFF as `?probeIds=`.
-  const activeProbeId = $derived(probeIds[0] ?? '');
+  // the full `probeIds` array to the BFF as `?probeIds=`. Phase 122i:
+  // when the URL carries a PillarState, fall back to its first ScopeGroup's
+  // first probe so the Dossier can hydrate without the legacy probeIds
+  // prop being populated.
+  const activeProbeId = $derived.by(() => {
+    if (probeIds[0]) return probeIds[0];
+    const fromPillar = url.pillars?.aleph?.windows[0]?.panels[0]?.scopes[0]?.probeIds[0];
+    return fromPillar ?? '';
+  });
 
   const windowMs = $derived.by(() => {
     const now = Date.now();
@@ -69,6 +77,12 @@
   const dossier = $derived<ProbeDossierDto | null>(
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
+
+  // Phase 122i / ADR-034 — Multi-Panel state path. When the URL carries a
+  // `?aleph=<encoded>` payload, render the Multi-Panel Workbench via the
+  // WindowHost → PanelHost tree. Otherwise fall through to the Phase-122h
+  // legacy single-Cell shell below.
+  const pillarState = $derived(url.pillars?.aleph ?? null);
 
   // Cell selection — restricted to Aleph's presentation set
   // (`time_series` + `distribution`). The Pillar reconciliation in
@@ -169,42 +183,55 @@
       </div>
     </header>
 
-    <CellControls pillar="aleph" />
+    {#if pillarState && dossier}
+      <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
+      <WindowHost
+        {pillarState}
+        {dossier}
+        {ctx}
+        windowStart={windowMs.start}
+        windowEnd={windowMs.end}
+      />
+    {:else}
+      <!-- Phase 122h legacy single-Cell path. Preserved verbatim so
+           existing bookmarks load unchanged. -->
+      <CellControls pillar="aleph" />
 
-    <div class="cell-frame">
-      <header class="cell-header">
-        <span class="cell-eyebrow">Cell</span>
-        <span class="cell-presentation">{presentation.label}</span>
-        <span class="cell-sep" aria-hidden="true">·</span>
-        <code class="cell-metric">{metricName}</code>
-      </header>
+      <div class="cell-frame">
+        <header class="cell-header">
+          <span class="cell-eyebrow">Cell</span>
+          <span class="cell-presentation">{presentation.label}</span>
+          <span class="cell-sep" aria-hidden="true">·</span>
+          <code class="cell-metric">{metricName}</code>
+        </header>
 
-      <div class="cell-body">
-        {#if loadError}
-          <p class="muted">Cell failed to load: {loadError}</p>
-        {:else if !CellComponent}
-          <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
-        {:else if cellSources.length === 0}
-          <p class="muted">No sources in the active scope.</p>
-        {:else if dossier}
-          {@const Cell = CellComponent}
-          <Cell
-            {ctx}
-            scopeProbeId={dossier.probeId}
-            {scope}
-            {scopeId}
-            windowStart={windowMs.start}
-            windowEnd={windowMs.end}
-            {metricName}
-            sources={cellSources}
-            {dataLayer}
-            probeIds={probeIds.length > 1 ? probeIds : []}
-          />
-        {/if}
+        <div class="cell-body">
+          {#if loadError}
+            <p class="muted">Cell failed to load: {loadError}</p>
+          {:else if !CellComponent}
+            <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+          {:else if cellSources.length === 0}
+            <p class="muted">No sources in the active scope.</p>
+          {:else if dossier}
+            {@const Cell = CellComponent}
+            <Cell
+              {ctx}
+              scopeProbeId={dossier.probeId}
+              {scope}
+              {scopeId}
+              windowStart={windowMs.start}
+              windowEnd={windowMs.end}
+              {metricName}
+              sources={cellSources}
+              {dataLayer}
+              probeIds={probeIds.length > 1 ? probeIds : []}
+            />
+          {/if}
+        </div>
       </div>
-    </div>
 
-    <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+      <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+    {/if}
   {:else if dossierQ.isError}
     <p class="muted">Dossier failed to load.</p>
   {/if}

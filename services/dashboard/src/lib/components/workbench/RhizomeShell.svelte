@@ -24,6 +24,7 @@
   import { DEFAULT_METRIC_NAME, getPresentation, type ViewModeCellProps } from '$lib/viewmodes';
   import CellControls from './CellControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
+  import WindowHost from './WindowHost.svelte';
 
   interface Props {
     probeIds: string[];
@@ -33,7 +34,12 @@
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
-  const activeProbeId = $derived(probeIds[0] ?? '');
+  // Phase 122i — PillarState-aware fallback for the active probe id.
+  const activeProbeId = $derived.by(() => {
+    if (probeIds[0]) return probeIds[0];
+    const fromPillar = url.pillars?.rhizome?.windows[0]?.panels[0]?.scopes[0]?.probeIds[0];
+    return fromPillar ?? '';
+  });
 
   const windowMs = $derived.by(() => {
     const now = Date.now();
@@ -122,6 +128,12 @@
   const scope = $derived<'probe' | 'source'>('probe');
   const scopeId = $derived<string>(activeProbeId);
 
+  // Phase 122i / ADR-034 — Multi-Panel state path. See AlephShell for
+  // dual-path rationale. The Rhizome entry-questions remain the
+  // structural primary on this Pillar; pillar-state, when present,
+  // replaces the entry-question single-Cell body.
+  const pillarState = $derived(url.pillars?.rhizome ?? null);
+
   // Cell selection — derived from the entry-question's `cellViewMode`.
   // The entry-question grammar is the Rhizome-native API; we map to the
   // underlying view-mode catalog under the hood. `null` means "feature
@@ -185,6 +197,15 @@
       <p class="muted" aria-busy="true">Loading dataset…</p>
     {:else if !dossier}
       <p class="muted">Dossier failed to load.</p>
+    {:else if pillarState}
+      <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
+      <WindowHost
+        {pillarState}
+        {dossier}
+        {ctx}
+        windowStart={windowMs.start}
+        windowEnd={windowMs.end}
+      />
     {:else if activeQuestion.requires === 'cross-probe' && !hasMultiprobe}
       <div class="refusal" role="status">
         <h2>Concept Migration needs two probes</h2>
