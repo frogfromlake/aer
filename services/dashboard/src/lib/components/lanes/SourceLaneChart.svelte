@@ -14,7 +14,13 @@
   import { urlState } from '$lib/state/url.svelte';
 
   interface Props {
-    sourceName: string;
+    // Phase 122i revision (D1). Either a single source (legacy + split
+    // composition) OR a multi-source merge (composition='merged' with
+    // multiple sources in the panel's scope). When `sourceNames.length
+    // > 1`, the BFF unions them server-side and returns one time series
+    // over the joint corpus — exactly what Merged composition promises.
+    sourceName?: string;
+    sourceNames?: readonly string[];
     emicDesignation: string | null | undefined;
     ctx: FetchContext;
     windowStart: string;
@@ -22,7 +28,19 @@
     metricName: string;
   }
 
-  let { sourceName, emicDesignation, ctx, windowStart, windowEnd, metricName }: Props = $props();
+  let { sourceName, sourceNames, emicDesignation, ctx, windowStart, windowEnd, metricName }: Props =
+    $props();
+
+  // Resolve effective scope: prefer multi-source list when present.
+  const resolvedSources = $derived<readonly string[]>(
+    sourceNames && sourceNames.length > 0 ? sourceNames : sourceName ? [sourceName] : []
+  );
+  const isMergedMulti = $derived(resolvedSources.length > 1);
+  const displayName = $derived(
+    isMergedMulti
+      ? `${resolvedSources.length} sources merged · ${resolvedSources.join(', ')}`
+      : (resolvedSources[0] ?? '')
+  );
 
   // Phase 122h Findings round 2 §F: honour the user-selected resolution
   // from the URL state (the Episteme Resolution selector writes here).
@@ -38,7 +56,13 @@
     const o = metricsQuery(ctx, {
       startDate: windowStart,
       endDate: windowEnd,
-      source: sourceName,
+      // For single-source (split or legacy), pass `source`. For multi-
+      // source merge, pass `sourceIds` so the BFF unions server-side.
+      ...(isMergedMulti
+        ? { sourceIds: resolvedSources.join(',') }
+        : resolvedSources[0]
+          ? { source: resolvedSources[0] }
+          : {}),
       metricName,
       resolution: activeResolution
     });
@@ -60,11 +84,16 @@
   });
 </script>
 
-<div class="source-lane" aria-labelledby="sl-title-{sourceName}">
-  <h3 id="sl-title-{sourceName}" class="source-lane-title">
-    <code>{sourceName}</code>
-    {#if emicDesignation}
-      <span class="emic-note">— {emicDesignation}</span>
+<div class="source-lane" aria-labelledby="sl-title-{displayName}">
+  <h3 id="sl-title-{displayName}" class="source-lane-title">
+    {#if isMergedMulti}
+      <code>{resolvedSources.length} sources merged</code>
+      <span class="emic-note">— {resolvedSources.join(' ∪ ')}</span>
+    {:else}
+      <code>{resolvedSources[0] ?? ''}</code>
+      {#if emicDesignation}
+        <span class="emic-note">— {emicDesignation}</span>
+      {/if}
     {/if}
   </h3>
 
@@ -83,7 +112,7 @@
       x={chartData.x}
       y={chartData.y}
       yLabel={metricName}
-      ariaLabel="{metricName} for {sourceName}"
+      ariaLabel="{metricName} for {displayName}"
       height={180}
     />
   {:else}

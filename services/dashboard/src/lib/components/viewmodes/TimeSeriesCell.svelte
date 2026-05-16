@@ -14,8 +14,18 @@
     windowStart,
     windowEnd,
     metricName,
-    dataLayer = 'gold'
+    dataLayer = 'gold',
+    composition
   }: ViewModeCellProps = $props();
+
+  // Phase 122i revision (D1). Composition gates the fan-out semantic:
+  //   merged → one SourceLaneChart over the unioned source list, BFF
+  //            unions server-side via `?sourceIds=a,b,…`.
+  //   split  → one SourceLaneChart per source (small-multiples) — the
+  //            legacy Phase-106 behaviour.
+  // Composition absent → fan-out per source (legacy callers, e.g. the
+  // Phase-122h shells when the user hits a legacy flat URL).
+  const sourceNames = $derived(sources.map((s) => s.name));
 </script>
 
 <div class="cell-body">
@@ -26,6 +36,15 @@
     </p>
   {:else if sources.length === 0}
     <p class="empty">No sources in the active scope.</p>
+  {:else if composition === 'merged'}
+    <SourceLaneChart
+      sourceNames={[...sourceNames]}
+      emicDesignation={null}
+      {ctx}
+      {windowStart}
+      {windowEnd}
+      {metricName}
+    />
   {:else}
     {#each sources as source (source.name)}
       <SourceLaneChart

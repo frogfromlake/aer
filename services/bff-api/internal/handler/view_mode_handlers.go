@@ -586,6 +586,20 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
 	}
 
+	// Phase 122i revision (A6 observability). Surface how many edges
+	// and nodes the storage layer returned and over which source set,
+	// so a "3 nodes regardless of scope" complaint can be diagnosed by
+	// reading the BFF log instead of guessing.
+	slog.Info(
+		"cooccurrence result",
+		"op", "GetEntityCoOccurrence",
+		"sources", strings.Join(sources, ","),
+		"sourceCount", len(sources),
+		"topN", topN,
+		"edges", len(res.Edges),
+		"nodes", len(res.Nodes),
+	)
+
 	resp := GetEntityCoOccurrence200JSONResponse{
 		TopN:        res.TopN,
 		Scope:       strPtr(string(kind)),
@@ -817,6 +831,18 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
 	}
+
+	// Phase 122i revision (A6 observability) — same shape as the GET handler.
+	slog.Info(
+		"cooccurrence result",
+		"op", "PostEntityCoOccurrenceQuery",
+		"sources", strings.Join(sources, ","),
+		"sourceCount", len(sources),
+		"probeCount", len(probeSeen),
+		"topN", topN,
+		"edges", len(res.Edges),
+		"nodes", len(res.Nodes),
+	)
 
 	resp := PostEntityCoOccurrenceQuery200JSONResponse{
 		TopN:        res.TopN,

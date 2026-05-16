@@ -187,17 +187,23 @@
         🔒 Locked to {panel.lockedFunction}
       </span>
     {/if}
-    {#if isInteractive && !panel.locked}
+    {#if isInteractive}
       <!-- Each action button stops click + keydown propagation in its own
            handler so the surrounding `<article>`'s focus handler does
            not also fire. No wrapping role needed — this is just a
-           visual grouping. -->
+           visual grouping. Phase 122i revision (B1): `locked` is
+           scope-only; `+Compare` (scope mutation) is disabled when
+           locked, `×Remove` and all other panel-level actions remain
+           available. -->
       <div class="panel-actions">
         <button
           type="button"
           class="panel-action"
           onclick={onAddCompare}
-          title="Add a comparison ScopeGroup to this panel"
+          disabled={panel.locked === true}
+          title={panel.locked
+            ? 'Scope locked — return to the Dossier to recombine sources'
+            : 'Add a comparison ScopeGroup to this panel'}
         >
           ＋ Compare
         </button>
@@ -271,6 +277,7 @@
             sources={sourcesForUnit(unit)}
             {dataLayer}
             probeIds={unit.probeIds.length > 1 ? [...unit.probeIds] : []}
+            composition={panel.composition}
           />
         </div>
       {/each}

@@ -258,6 +258,13 @@ export function metricsQuery(
   qs.set('startDate', params.startDate);
   qs.set('endDate', params.endDate);
   if (params.source) qs.set('source', params.source);
+  // Phase 122i revision (D1): the BFF `/metrics` endpoint unions
+  // `source` (singular) and `sourceIds` (CSV). Multi-source merged Cells
+  // pass `sourceIds` so the BFF returns ONE time series over the
+  // unioned scope — what composition='merged' was supposed to render
+  // from the start. Phase-122h code emitted only `source` (singular),
+  // which capped merged-multi-source to "first source only" silently.
+  if (params.sourceIds) qs.set('sourceIds', params.sourceIds);
   if (params.metricName) qs.set('metricName', params.metricName);
   if (params.normalization) qs.set('normalization', params.normalization);
   if (params.resolution) qs.set('resolution', params.resolution);

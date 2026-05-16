@@ -70,12 +70,37 @@ describe('_updatePanelPure', () => {
     expect(next).toBe(before);
   });
 
-  it('refuses to mutate a locked panel', () => {
+  it('allows non-scope mutations on a locked panel (B1: scope-only lock)', () => {
     const lockedState = pillars(
       pillarState([win([panel({ locked: true, lockedFunction: 'epistemic_authority' })])])
     );
-    const next = _updatePanelPure(lockedState, ALEPH_PANEL_0, (p) => ({ ...p, metric: 'changed' }));
-    expect(next).toBe(lockedState);
+    const next = _updatePanelPure(lockedState, ALEPH_PANEL_0, (p) => ({
+      ...p,
+      metric: 'word_count'
+    }));
+    expect(next?.aleph?.windows[0]?.panels[0]?.metric).toBe('word_count');
+    // Lock flag preserved.
+    expect(next?.aleph?.windows[0]?.panels[0]?.locked).toBe(true);
+  });
+
+  it('silently discards scope mutations on a locked panel (B1)', () => {
+    const originalScopes = [group(['probe-0'], ['tagesschau'])];
+    const lockedState = pillars(
+      pillarState([
+        win([
+          panel({ locked: true, lockedFunction: 'epistemic_authority', scopes: originalScopes })
+        ])
+      ])
+    );
+    const next = _updatePanelPure(lockedState, ALEPH_PANEL_0, (p) => ({
+      ...p,
+      // Attempt to swap scope — must be ignored.
+      scopes: [group(['probe-0'], ['bundesregierung'])],
+      // Non-scope mutation in same call — must apply.
+      metric: 'word_count'
+    }));
+    expect(next?.aleph?.windows[0]?.panels[0]?.scopes).toEqual(originalScopes);
+    expect(next?.aleph?.windows[0]?.panels[0]?.metric).toBe('word_count');
   });
 
   it('leaves untouched panels alone', () => {

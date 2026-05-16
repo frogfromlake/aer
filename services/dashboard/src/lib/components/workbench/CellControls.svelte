@@ -189,15 +189,19 @@
 <section class="cell-controls" aria-label="Cell controls" class:locked={isPanelLocked}>
   {#if isPanelLocked && boundPanel}
     <div class="locked-banner" role="status">
-      🔒 Locked to <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong> — return to the
-      Probe Dossier to recombine scope.
+      🔒 Scope locked to <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong>'s
+      sources. View, metric, composition, layer — all editable. Return to the Dossier to recombine
+      sources.
     </div>
   {/if}
 
-  {#if isPanelBound && boundPanel && !isPanelLocked}
-    <!-- Phase 122i — Composition row appears only when CellControls is
-         bound to a Panel. The legacy global-state path has no
-         composition concept. -->
+  {#if isPanelBound && boundPanel}
+    <!-- Phase 122i revision (B1): Composition row appears whenever
+         CellControls is bound to a Panel — including locked panels.
+         `locked` is scope-only; the user can toggle Merged ↔ Split on
+         a DF-entry Workbench freely. The legacy global-state path
+         (boundPanel === null) has no composition concept and the row
+         is hidden. -->
     <div class="ctrl-row" role="radiogroup" aria-label="Composition">
       <span class="ctrl-eyebrow">Composition</span>
       <div class="ctrl-options">

@@ -90,6 +90,13 @@ export interface ViewModeCellProps {
    *  include all probes in BFF queries via the `probeIds` parameter so
    *  the backend unions their sources. Absent = single-probe scope. */
   probeIds?: string[];
+  /** Phase 122i revision (D1). Cells that historically fanned out per
+   *  source (`TimeSeriesCell`) need to know whether the panel intends
+   *  `merged` (one chart over the unioned scope) or `split` (one chart
+   *  per source). Per-scope cells (DistributionCell, Topic*, CoOccurrence*)
+   *  ignore this prop — they always query the unioned scope and render
+   *  one artefact. Absent = legacy fan-out behaviour. */
+  composition?: 'merged' | 'split';
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [

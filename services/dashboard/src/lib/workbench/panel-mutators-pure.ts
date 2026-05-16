@@ -82,8 +82,14 @@ export function updatePanelPure(
   if (!win) return pillars;
   const panel = win.panels[path.panelIndex];
   if (!panel) return pillars;
-  if (panel.locked) return pillars;
-  const nextPanel = update(panel);
+  let nextPanel = update(panel);
+  // Phase 122i revision (B1): `locked` is scope-only. Updates to view /
+  // metric / layer / composition / resolution / normalization / topN /
+  // cellControlsCollapsed all apply; mutations to `scopes` are silently
+  // discarded so a stale call site can never escape the scope-lock.
+  if (panel.locked) {
+    nextPanel = { ...nextPanel, scopes: panel.scopes };
+  }
   const nextWin = setPanel(win, path.panelIndex, nextPanel);
   return setPillar(base, path.pillar, setWindow(pillar, path.windowIndex, nextWin));
 }

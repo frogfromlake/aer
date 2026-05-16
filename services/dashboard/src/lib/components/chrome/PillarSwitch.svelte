@@ -22,7 +22,12 @@
   import type { ViewingMode } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
-  const activeId = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
+  // Phase 122i revision (A5): match the Workbench-page priority order —
+  // pillar-state URLs put the active pillar in `?activePillar=`, legacy
+  // flat URLs in `?viewingMode=`. Reading only `viewingMode` (Phase-122h
+  // behaviour) made the tiles permanently show Aleph as active under
+  // pillar-state URLs.
+  const activeId = $derived<ViewingMode>(url.activePillar ?? url.viewingMode ?? 'aleph');
   const activeDef = $derived(getPillar(activeId));
 
   // Keyboard shortcuts. Only active when no input/textarea has focus —

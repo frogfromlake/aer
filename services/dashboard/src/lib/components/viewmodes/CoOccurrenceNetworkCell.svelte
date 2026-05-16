@@ -310,6 +310,19 @@
   {:else if graphQ.data?.kind === 'success' && graphQ.data.data.edges.length === 0}
     <p class="muted">No entity co-occurrences in this window.</p>
   {:else if nodes.length > 0}
+    {#if nodes.length < 8}
+      <!-- Phase 122i revision (A6). When the graph collapses to a handful
+           of nodes, surface a methodology note so the reader does not
+           mistake corpus sparseness for an analytical conclusion. The
+           BFF logs the same statistic in `op=GetEntityCoOccurrence` /
+           `op=PostEntityCoOccurrenceQuery` for operator-side diagnosis. -->
+      <aside class="methodology-note" role="note" aria-label="Sparse-corpus note">
+        <strong>{nodes.length} nodes · {edges.length} edges</strong> — the entity-co-occurrence graph
+        collapsed to a small set. Possible causes: short scope window, few articles in the active source
+        set, NER pipeline conservative on this corpus, or a few dominant entities crowding out the rest.
+        Widen the window or pick a richer source subset.
+      </aside>
+    {/if}
     <svg
       bind:this={svgEl}
       class="graph"
@@ -538,6 +551,18 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .methodology-note {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    line-height: 1.4;
+    background: color-mix(in srgb, var(--color-status-expired) 10%, var(--color-surface));
+    border-left: 3px solid var(--color-status-expired);
+    margin-bottom: var(--space-2);
   }
 
   .entity-panel {
