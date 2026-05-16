@@ -197,8 +197,10 @@
       return;
     }
     descend(() => {
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Probe-Dossier route
-      void goto(`/dossier/${encodeURIComponent(sel.probeId)}`);
+      // Phase 122i revision (R5). Atmosphere globe-click routes to the
+      // new top-level Dossier with the picked probe pre-expanded.
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
+      void goto(`/dossier?expand=${encodeURIComponent(sel.probeId)}`);
     });
   }
 
@@ -222,8 +224,10 @@
     // the narrowed source immediately on render (without a query param).
     setUrl({ sourceIds: [sel.sourceName] });
     descend(() => {
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Probe-Dossier route
-      void goto(`/dossier/${encodeURIComponent(sel.probeId)}`);
+      // Phase 122i revision (R5). Atmosphere globe-click routes to the
+      // new top-level Dossier with the picked probe pre-expanded.
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
+      void goto(`/dossier?expand=${encodeURIComponent(sel.probeId)}`);
     });
   }
 

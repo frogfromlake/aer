@@ -68,6 +68,16 @@
       disabled: false
     },
     {
+      // Phase 122i revision (R5). Dossier is a first-class top-level
+      // surface (ADR-033 amendment) hosting the probe catalogue + the
+      // General Free-Compose entry path.
+      href: '/dossier',
+      label: 'Dossier',
+      glyph: '📚',
+      hint: 'Probe catalogue · General Free-Compose · per-probe inspection',
+      disabled: false
+    },
+    {
       href: activeProbe ? `/workbench?probeId=${encodeURIComponent(activeProbe)}` : '',
       label: 'Workbench',
       glyph: '⚙',
@@ -97,11 +107,16 @@
   function isActiveSurface(href: string): boolean {
     const p = page.url.pathname;
     if (href === '/') return p === '/';
-    // /lanes/*, /workbench/*, and /dossier/* all map to the Workbench anchor
-    // (Phase 122h — Dossier is an Aleph-form inspection page reached from
-    // the Workbench flow, not its own surface).
+    if (href === '/dossier') {
+      // Phase 122i revision (R5). The Dossier anchor lights up for any
+      // /dossier* path. Legacy `/dossier/{id}` was retired but the
+      // 308-redirect from /lanes/{id}/dossier still passes through this
+      // namespace.
+      return p.startsWith('/dossier');
+    }
     if (href.startsWith('/workbench') || href.startsWith('/lanes')) {
-      return p.startsWith('/lanes') || p.startsWith('/workbench') || p.startsWith('/dossier');
+      // /workbench and /lanes/* (legacy redirected) map to the Workbench anchor.
+      return p.startsWith('/lanes') || p.startsWith('/workbench');
     }
     return p.startsWith(href);
   }

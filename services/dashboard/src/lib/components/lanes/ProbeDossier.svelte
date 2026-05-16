@@ -37,11 +37,28 @@
     ctx: FetchContext;
     windowStart: string;
     windowEnd: string;
+    /** Phase 122i revision (R5). Render the "Probe Dossier" intro
+     *  strip ("Inventory of a probe — its sources, …"). Default true
+     *  for legacy callers. The new `/dossier` route renders ONE intro
+     *  at page level and passes `showIntro={false}` to each ProbeCard
+     *  to avoid repeating the lede for every probe. */
+    showIntro?: boolean;
+    /** Phase 122i revision (R5). When true, the probe section starts
+     *  collapsed. The new `/dossier?expand=<probeId>` deep-link picks
+     *  one probe to expand; others start collapsed. */
+    startCollapsed?: boolean;
   }
 
-  let { dossier, ctx, windowStart, windowEnd }: Props = $props();
+  let {
+    dossier,
+    ctx,
+    windowStart,
+    windowEnd,
+    showIntro = true,
+    startCollapsed = false
+  }: Props = $props();
 
-  let expanded = $state(true);
+  let expanded = $state(!startCollapsed);
   let sourcesExpanded = $state(true);
 
   const url = $derived(urlState());
@@ -149,16 +166,21 @@
 </script>
 
 <article class="dossier" aria-labelledby="dossier-title">
-  <!-- Brief orientation strip (Finding 1) — explains what the user sees
-       before the source-card flood hits them. Renders once per Dossier. -->
-  <header class="dossier-intro" aria-label="What is this page?">
-    <p class="dossier-eyebrow">Probe Dossier</p>
-    <p class="dossier-lede">
-      Inventory of a probe — its sources, the discourse functions they cover, and the metadata AĒR
-      has on each. From here, open the Workbench with a function as scope filter, or narrow to a
-      single source.
-    </p>
-  </header>
+  {#if showIntro}
+    <!-- Brief orientation strip (Finding 1) — explains what the user sees
+         before the source-card flood hits them. Renders once per Dossier.
+         Phase 122i revision (R5): suppressed when ProbeDossier is rendered
+         inside a ProbeCard on the /dossier page — the page-level header
+         owns the orientation copy. -->
+    <header class="dossier-intro" aria-label="What is this page?">
+      <p class="dossier-eyebrow">Probe Dossier</p>
+      <p class="dossier-lede">
+        Inventory of a probe — its sources, the discourse functions they cover, and the metadata AĒR
+        has on each. From here, open the Workbench with a function as scope filter, or narrow to a
+        single source.
+      </p>
+    </header>
+  {/if}
 
   <section class="probe-section" class:collapsed={!expanded}>
     <!-- Probe header — always visible. Click toggles expansion. -->

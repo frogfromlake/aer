@@ -69,8 +69,11 @@
   }
 
   function switchTo(probeId: string) {
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Probe-Dossier route
-    void goto(`/dossier/${encodeURIComponent(probeId)}`);
+    // Phase 122i revision (R5). Probe-deep-link is now `/dossier?expand=<id>`
+    // (top-level Dossier with that card auto-expanded). The legacy
+    // `/dossier/{id}` route was retired.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
+    void goto(`/dossier?expand=${encodeURIComponent(probeId)}`);
   }
 
   function toggleComposition(probeId: string) {
