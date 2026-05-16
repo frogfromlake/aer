@@ -1,0 +1,61 @@
+entityId: cross_language_merge_unsupported
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Eine zusammengeführte mehrsprachige Auswahl ist in dieser Säule nicht analysierbar. Die sprachspezifischen Modelle von Episteme (Themenmodellierung) und Rhizome (Entitätsnetzwerke) liefern über einen gemischtsprachigen Korpus instabile Ergebnisse."
+    long: >
+      Du hast in der Werkbank ein Panel zusammengestellt, dessen zusammengeführter
+      (merged) Geltungsbereich zwei oder mehr Sprachen umfasst. Für die Episteme- und
+      Rhizome-Ansichten — Themenverteilung, Themenentwicklung, Entitätsko-Vorkommen —
+      sind die zugrundeliegenden Modelle sprachgebunden: ein deutscher und ein englischer
+      Artikel werden auch durch ein mehrsprachiges Basismodell nicht in denselben
+      semantischen Raum eingebettet, und die Cluster-Geometrie, die Themen und
+      Entitäts-Nachbarschaften erzeugt, unterscheidet sich zwischen den Sprach-Partitionen.
+      Werden diese Modelle über einen gemischtsprachigen Korpus geführt, entsteht ein
+      Ergebnis, das *analysierbar aussieht*, methodisch aber instabil ist — Cluster
+      fragmentieren, Themen kippen in Richtung der dominierenden Sprache, Entitäts-
+      Nachbarschaften erben die Verzerrung der größeren Partition. AĒR verweigert die
+      Abfrage, statt ein nicht interpretierbares Artefakt zu rendern. Die Aleph-Säule
+      (Sentiment, Verteilungen, Wortzahl) verweigert keine mehrsprachigen merged-Bereiche
+      — sie blendet stattdessen einen weichen Methodik-Hinweis ein, weil ihre Metriken
+      sprachunabhängig genug sind, dass eine Aggregation mit Vorbehalten sinnvoll ist.
+      Auflösung: (1) den Bereich auf eine Sprache verengen; oder (2) die Komposition des
+      Panels auf **split** umschalten — jede Zelle rendert dann eine Sprache pro Mal,
+      nebeneinander, was als parallele Sub-Korpus-Lesart methodisch gültig ist; oder
+      (3) in die Aleph-Säule wechseln, wo der zusammengeführte mehrsprachige Bereich mit
+      einem Methodik-Hinweis erlaubt ist.
+  methodological:
+    short: "HTTP 422 mit RefusalPayload(gate=cross_language_merge_unsupported). Wird ausgelöst, wenn ein Panel mit composition='merged' im Geltungsbereich zwei oder mehr Sprachen vereint und die Säule Episteme oder Rhizome ist. ADR-034 §3 Gate."
+    long: >
+      Dieses Gate wird in der BFF auf jedem Episteme- und Rhizome-View-Mode-Handler
+      durchgesetzt. Auslösebedingung: `panel.composition == 'merged' AND distinct(Sprachen
+      im aufgelösten Geltungsbereich) > 1`. Die 422-Antwort enthält RefusalPayload mit
+      `gate="cross_language_merge_unsupported"`, `anchor="ADR-034#cross-language"` und der
+      betroffenen Sprachmenge, damit das Dashboard die RefusalSurface mit erklärendem Text
+      und Auflösungsoptionen rendern kann.
+      Das Gate existiert, weil der Episteme-Topic-Modeling-Stack
+      (`intfloat/multilingual-e5-large` Embedding → UMAP → HDBSCAN, gemäß WP-005 §6.2)
+      auf eine Sprache pro Abfrage konfiguriert ist: auch mit einem mehrsprachigen
+      Embedding-Modell unterscheidet sich die Ähnlichkeitsgeometrie, die UMAP nutzt,
+      zwischen den Sprach-Partitionen; HDBSCANs `min_cluster_size=10` plus UMAPs
+      `n_neighbors=15` erzeugen instabile Cluster, wenn die Partitionsverteilung über
+      Sprachen verzerrt ist. Dasselbe Argument gilt für die Entitätsko-Vorkommen-Netze
+      von Rhizome, deren Kantengewichte aus sprachspezifischen NER-Ausgaben
+      (spaCy/HanLP gemäß ADR-024) abgeleitet werden.
+      Alephs TimeSeries- und Distribution-Ansichten lösen diese Verweigerung NICHT aus —
+      sie rendern den weichen `MethodologyBanner` (WP-004 §3.4 Cross-Frame-Vergleich-
+      barkeit), sobald `composition == 'merged' AND sources.length > 1`. Die Asymmetrie
+      ist beabsichtigt: methodische Transparenz ist universell, aber nur sprachgebundene
+      Modelle rechtfertigen es, die Abfrage komplett zu blocken. Panels mit
+      Split-Komposition werden unabhängig von der Sprachspanne nie verweigert, da jede
+      Zelle pro Quelle separat bleibt.
+      Siehe WP-005 §6.2 (`docs/methodology/en/wp-005-notes/merged-topic-modeling.md`)
+      §4 *Cross-language is structurally different* und §8b *Aleph soft note*.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-17"
+workingPaperAnchors:
+  - "WP-004 §3.4"
+  - "WP-005 §6.2"
+  - "ADR-034 §3"

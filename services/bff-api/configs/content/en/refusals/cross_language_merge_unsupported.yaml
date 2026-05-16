@@ -1,0 +1,57 @@
+entityId: cross_language_merge_unsupported
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "Merged cross-language scope is not analysable in this Pillar. The language-specific models in Episteme (topic modelling) and Rhizome (entity networks) would produce unstable results across a multi-language corpus."
+    long: >
+      You composed a Workbench Panel whose merged scope spans two or more languages. For
+      Episteme and Rhizome views — topic distributions, topic evolution, entity
+      co-occurrence networks — the underlying models are language-conditioned: a German
+      article and an English article are not embedded in the same semantic space even when
+      a multilingual base model is used, and the clustering geometry that produces topics
+      or entity neighbourhoods differs between language partitions. Running these models
+      over a merged multi-language corpus produces output that *looks* analysable but is
+      methodologically unstable — clusters fragment, topics drift toward whichever
+      language dominates by article count, and entity neighbourhoods inherit the bias of
+      the larger partition. AĒR refuses the query rather than render an artefact that
+      cannot be interpreted. The Aleph Pillar (sentiment, distributions, word counts) does
+      not refuse cross-language merged scopes — it renders a soft methodology banner
+      instead, because its metrics are language-agnostic enough that aggregation is
+      meaningful with caveats.
+      Resolution: (1) narrow the scope to a single language; or (2) switch the Panel's
+      composition to **split** — each Cell then renders one language at a time, side by
+      side, which is a valid parallel-sub-corpus reading; or (3) move to Aleph for
+      cross-language atmospheric metrics, where the merged reading is permitted with a
+      methodology note.
+  methodological:
+    short: "HTTP 422 with RefusalPayload(gate=cross_language_merge_unsupported). Triggered when a merged-composition Panel resolves to two or more languages and the Pillar is Episteme or Rhizome. ADR-034 §3 gate."
+    long: >
+      This gate is enforced at the BFF on every Episteme and Rhizome view-mode handler.
+      Trigger condition: `panel.composition == 'merged' AND distinct(languages in resolved scope) > 1`.
+      The 422 response includes RefusalPayload with `gate="cross_language_merge_unsupported"`,
+      `anchor="ADR-034#cross-language"`, and the offending language set so the dashboard
+      can render the RefusalSurface with explanatory copy and recovery actions.
+      The gate exists because the Episteme topic-modelling stack
+      (`intfloat/multilingual-e5-large` embedding → UMAP → HDBSCAN, per WP-005 §6.2) is
+      configured for one language per request: even with a multilingual embedding model,
+      the similarity geometry that UMAP exploits differs between language partitions, and
+      HDBSCAN's `min_cluster_size=10` plus UMAP's `n_neighbors=15` produce unstable
+      clusters when the partition distribution is skewed across languages. The same
+      argument applies to Rhizome's entity co-occurrence networks, whose edge weights are
+      derived from per-language NER outputs (spaCy/HanLP per ADR-024).
+      Aleph's TimeSeries and Distribution view-modes do NOT trigger this refusal — they
+      render the soft `MethodologyBanner` (WP-004 §3.4 cross-frame comparability) when
+      `composition == 'merged' AND sources.length > 1`. The asymmetry is intentional:
+      methodological transparency is universal, but only language-conditioned models
+      warrant blocking the query outright. Split-composition Panels are never refused
+      regardless of language span, since each Cell stays per-source.
+      See WP-005 §6.2 (`docs/methodology/en/wp-005-notes/merged-topic-modeling.md`)
+      §4 *Cross-language is structurally different* and §8b *Aleph soft note*.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-17"
+workingPaperAnchors:
+  - "WP-004 §3.4"
+  - "WP-005 §6.2"
+  - "ADR-034 §3"
