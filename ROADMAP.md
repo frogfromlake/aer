@@ -3648,6 +3648,20 @@ Phase 122h sits ahead of Phases 122a, 122d, 123, 123a, 124, 125 in the dashboard
 
 ## Phase 122i: Multi-Panel Workbench with Composable Scope Groups [P1] - [ ] TODO
 
+> **Revision 2026-05-16.** The initial Phase-122i implementation (commits `2282f92` → `c11b92f` → `0796c82`) shipped the ScopeGroup[]/Panel/Window URL state, the BFF multi-scope POST endpoint, the panel-host rendering tree, and the Dossier two-entry-path UI — but manual testing surfaced (a) several critical bugs, (b) a semantic misunderstanding of locked panels, and (c) an architectural gap: the Dossier must be elevated to a first-class top-level surface, with both a per-probe AND a general (cross-probe) free-compose entry. The revision finishes Phase 122i; nothing is rolled back.
+>
+> **Findings landing in this phase:**
+> * **A — Bugs.** A1 Free-Compose `Open Workbench` button disabled when no source selected; A2 Source-selection persists across browser-back; A3 `WorkbenchScopeBar` reflects the focused panel's scope (not legacy flat URL params); A4 `AlephShell.datasetShape` follows the active scope, not the whole probe; A5 **PillarSwitch broken — all tiles link to Aleph, Episteme + Rhizome unreachable**; A6 **CoOccurrence shows ≤ 3 nodes regardless of scope** (root cause TBD, likely a `topN`/`LIMIT` misapplication).
+> * **B — Semantic correction.** B1 `locked = scope-only`. CellControls, composition, view, metric, layer, `+Panel`, `+Compare`, `×Remove`, Maximize all remain fully editable on a DF-entry Workbench. Only the ScopeEditor is disabled — the user must return to the Dossier to change which sources are in scope.
+> * **C — UX additions.** C1 Panel grid wraps to next row (no horizontal scroll); C2 `×Remove` works on every panel in a multi-panel window including DF-locked (follows B1); C3 Maximize-Mode per panel with tray of minimised siblings; C4 CellControls collapse/expand per panel; C5 Probe Card datasetShape row (Probes / Sources / Articles-in-window / Language / Function-coverage); C6 Cross-Language **soft methodology note in Aleph** (no refusal; Episteme + Rhizome keep the hard 422 refusal for merged cross-language).
+> * **D — Composition semantics.** D1 `Merged` actually unions: TimeSeriesCell currently ignores `composition` and fans out per source. Fix the Cell-contract — Cell accepts `composition` prop; merged → ONE chart with multi-source query. D2 Split direction sub-modes: `split-horizontal` (cells side-by-side) and `split-vertical` (cells stacked); URL-state field `splitDirection`. D3 `+Compare` opens a real `ScopeEditor` popover with source-multiselect (+ probe-multiselect in general-free-compose mode); today's seed-only action is replaced.
+> * **E — Dossier-Home (Q2).** E1 New route `/dossier` (top-level, no ID); `/dossier/{probeId}` retired entirely; deep-link via `?expand=<probeId>`. E2 `ProbeCard.svelte` — collapsable Probe container refactored from `ProbeDossier.svelte`. E3 `GeneralFreeComposeSection.svelte` — at top of `/dossier`, probe-multiselect × source-multiselect across the whole catalog (AĒR's "most powerful tool"). E4 SideRail gains a `📚 Dossier` anchor → 4 top-level surfaces (Atmosphere · Dossier · Workbench · Reflection). E5 Atmosphere globe-click routes to `/dossier?expand=<probeId>`. **ADR-033 receives an amendment** (Dossier elevated to first-class surface; 3-surface → 4-surface architecture); **ADR-034 receives an amendment** with the composition + locked-scope-only + split-direction clarifications.
+> * **F — Pillar inheritance (Q4).** All A–E items apply to Aleph + Episteme + Rhizome equally. Joint-Corpus and Small-Corpus methodology notes stay Episteme-specific (BERTopic-specific); the Cross-Language note becomes pillar-agnostic at the methodology layer (soft in Aleph, hard refusal in Episteme/Rhizome merged).
+>
+> **Out of scope (Phase 122j).** Methodology-Catalog dual-register coverage of the new composition axes, hardcoded-text audit, and caching/performance review move into Phase 122j (planned after 122i closes).
+>
+> **Slice plan.** R1 critical bugs (A5, A6, B1, D1) → R2 URL-state foundation (splitDirection, cellControlsCollapsed, maximizedPanelIndex) → R3 affordances + remaining bugs (A1, A2, A3, A4, C1, C2, C4, C6, D2, D3) → R4 Maximize-Mode (C3) → R5 Dossier-Home refactor (E1–E5) → R6 tests + docs + closure. Detailed slice file in the working plan.
+
 *Frontend + BFF expansion that turns the post-122h Workbench from a single-scope tool into a fully composable analytical surface. Phase 122h shipped the three Pillar configurations (Aleph / Episteme / Rhizome) sharing a single global `(probeIds[], sourceIds[])` scope tuple. Phase 122i restructures the Workbench state into a four-level tree — Pillar → Window → Panel → ScopeGroup — so the user can ask the three granularity questions ("complete probe" / "subset of sources" / "single source") and the two composition questions ("merged into one Cell" / "split across N Cells") independently, in any combination, side-by-side. The BFF gains a single new endpoint (`POST /entities/cooccurrence/query`) carrying ScopeGroup-array semantics for Rhizome's CoOccurrence; the methodological gate "cross-language merged topic modeling is unsupported" is enforced as a 422 refusal at the BFF and a RefusalSurface variant in the Frontend. Same-language merged topic modeling is permitted with a Joint-Corpus Methodology Note linking to a new WP-005 §6.2 working-note. Cells inside a Panel have no merge-limit (the entire AĒR same-language corpus can land in one Cell); the only quantitative cap is 100 unique source-IDs / 25 unique probe-IDs per CoOccurrence query. Phase 122i implements ADR-034 and resolves the three structural limits the user identified in the 2026-05-16 design-review session. **No new view modes; no new Cell types; no new ClickHouse migrations.** The Cell-component contract is preserved unchanged — Panels translate ScopeGroups into per-Cell query parameters at the Host level.*
 
 *Authority.* ADR-034 (this phase implements it). ADR-033 (preserved — Pillar concept, three-surface architecture, FunctionBadge, MethodologyBlock primitives). ADR-024 (Language Capability Manifest — the cross-language refusal gate is derived from here). WP-001 §3 (Discourse functions — DF-entrypoint from Probe Dossier). WP-005 §6 (Pillar definitions). WP-005 §6.2 (forthcoming Working-Note on merged-corpus topic modeling — Slice 7 deliverable).
@@ -3720,6 +3734,45 @@ Phase 122h sits ahead of Phases 122a, 122d, 123, 123a, 124, 125 in the dashboard
 ### Phase ordering note
 
 Phase 122i directly extends Phase 122h. No new infrastructure dependencies; the BFF expansion is one new endpoint plus two new 422 refusal codes on existing endpoints. Phase 122a (per-article discourse function) interacts cleanly: 122a's article-classification Sub-Stratum becomes a per-Panel control; 122i does not block 122a and vice versa. Phase 123 (Probe 1) inherits the multi-panel composition model from day one. Solo-dev scheduling: Slice 1 (URL state) and Slice 2 (BFF) are the foundation and should land in the same PR; Slices 3–4 (Frontend queries + Shell refactor) are the bulk of the work; Slices 5–6 (Dossier two-entry-path + Methodology surfaces) are smaller; Slice 7 (Tests + docs + Working-Note) is the closing PR. Estimated five to seven days end-to-end.
+
+---
+
+## Phase 122j: Methodology Catalog Coverage + Hardcoded-Text Audit + Performance Hardening [P2] - [ ] TODO
+
+*Three orthogonal but related concerns surface after Phase 122i revision ships. (1) The dual-register YAML content catalogs (`services/bff-api/configs/content/{en,de}/`) predate ADR-034 — every `view_mode`, `metric`, `probe`, `source` entry must be re-audited so its semantic and methodological registers correctly describe what the user sees when composition is Merged / Split-Horizontal / Split-Vertical, and when scope spans multiple sources / languages / probes. A scientific project cannot leave dashboard text misaligned with the underlying methodology — every banner, every cell methodology note, every refusal must be sourced from the catalog (not hardcoded in a `.svelte` component). (2) During Phase 122i revision, banners and labels are added inline in components. Phase 122j sweeps the frontend: every user-visible methodology-bearing string must come from the BFF `/content/{entityType}/{entityId}` endpoint; the audit produces a catalog-content gap-list (strings that exist hardcoded but lack a YAML entry) and fills the gaps. (3) Phase 122i adds N-panel rendering, multi-source merged queries, and the Dossier-Home with all probe cards — combined wire footprint and render cost are unmeasured. Phase 122j profiles, then applies smart caching (TanStack `staleTime` tuning, HTTP `Cache-Control` / `ETag` headers per endpoint, bundle-splitting review post-122i, ServiceWorker if justified). **Hard prerequisite: Phase 122i revision DONE and tested.** Phase 123 (Probe 1) is unblocked by 122j but does not require it — they can ship in parallel.*
+
+### Methodology catalog audit
+
+* [ ] **Inventory every dual-register YAML entry** under `services/bff-api/configs/content/{en,de}/{view_modes,metrics,probes,sources}/`. Produce a coverage matrix: axis × entry.
+* [ ] **Composition section** added to every `view_mode` entry: how Merged interprets the union; how Split (horizontal/vertical) interprets per-source rendering; methodological caveats per axis.
+* [ ] **Cross-Language note** added to every `metric` entry: which language(s) does this metric assume; what happens in a cross-language scope (Aleph soft warning; Episteme + Rhizome refusal).
+* [ ] **Small-Corpus caveat** added where relevant (BERTopic-adjacent metrics + cells).
+* [ ] **Source-set-size methodology** added where relevant (joint-corpus caveats beyond BERTopic — e.g. distributional comparisons across heterogeneous source sizes).
+
+### Hardcoded-text audit
+
+* [ ] **grep-based inventory** of every user-visible methodology-bearing string in `services/dashboard/src/lib/components/**/*.svelte`. Categorise: legitimate chrome (Open, Cancel, etc.) vs methodology-bearing (banners, refusals, methodology notes, alt-text on cells).
+* [ ] **Catalog gap-list**: every methodology-bearing string lacking a YAML entry → produce the entry, wire the component to fetch via `/content/...`.
+* [ ] **Lint rule** that flags new hardcoded methodology strings in `.svelte` files; CI gates the rule.
+
+### Caching + performance
+
+* [ ] **Cold/warm cache TTFB measurement** for `/dossier`, `/workbench?activePillar=…&{pillar}=<base64>` with 1/4/8 panels, Episteme topic distribution with multi-source merge. Baseline recorded in `docs/operations/operations_playbook.md`.
+* [ ] **TanStack `staleTime` tuning** per query type: probes hourly (already done), metrics 5 min, content 24 h, BERTopic 1 h, CoOccurrence 15 min.
+* [ ] **HTTP `Cache-Control` / `ETag` headers** from BFF per endpoint: stable content endpoints get long cache + ETag; metric endpoints get conservative TTL.
+* [ ] **Bundle-splitting review post-122i**: did Dossier-Home + GeneralFreeComposeSection grow the initial bundle? Adjust dynamic-import boundaries.
+* [ ] **Optional: SvelteKit prerender for `/reflection/*`** if the working-paper content is static enough at build time.
+
+### Validation
+
+* [ ] **Catalog coverage**: every banner / refusal / methodology note in the dashboard has a corresponding YAML entry; `grep` for hardcoded methodology strings returns only legitimate chrome cases.
+* [ ] **Performance**: dashboard P95 first-paint ≤ baseline measured at 122j start.
+* [ ] **Bundle gate**: still under 80 kB initial gzipped.
+* [ ] **No regression of Phase 122i revision behaviour**: full manual walkthrough re-run.
+
+### Phase ordering note
+
+Phase 122j is a hardening phase. No new analytical features, no new pillars, no new surfaces. BFF schema changes only if a content-catalog field is genuinely missing (rare). Solo-dev scheduling: catalog audit (~3 days) → hardcoded-text audit + fix (~2 days) → caching measurement + tuning (~2 days). One closing PR with tests + docs.
 
 ---
 

@@ -1008,3 +1008,108 @@ Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 
 **Versioning commitment.** `manifest_version: 1` is the only currently-recognised version. Future schema bumps will arrive with explicit migration guidance per ADR-024; the `manifest_version` field exists precisely so a stale worker reading a future manifest fails fast at startup rather than silently degrading. The same fail-fast contract applies to the BFF.
 
 **Adding a language.** See `docs/extending/add-a-language.md` for the operator workflow. The matrix in that document is the human-readable view of the manifest; auto-generation of the matrix from the manifest is slated for Phase 123a.
+
+## 8.19 Workbench State Tree (Phase 122i / ADR-034)
+
+Phase 122h shipped the three-Pillar Workbench (Aleph / Episteme / Rhizome) sharing a single global `(probeIds[], sourceIds[])` scope tuple. Phase 122i restructures the Workbench state into a four-level tree so the user can compose arbitrary granularity × composition × side-by-side configurations within a single URL. ADR-034 is the authoritative decision record; this section is the operational documentation.
+
+### State shape
+
+```text
+WorkbenchUrlState
+├── activePillar:   'aleph' | 'episteme' | 'rhizome' | null
+└── pillars:
+    ├── aleph:      PillarState | null
+    ├── episteme:   PillarState | null
+    └── rhizome:    PillarState | null
+
+PillarState
+├── windows[]:           1..MAX_WINDOWS_PER_PILLAR (= 4)
+│   └── WorkbenchWindow
+│       ├── panels[]:    1..MAX_PANELS_PER_WINDOW (= 8)
+│       │   └── Panel
+│       │       ├── scopes[]:     1..M ScopeGroup
+│       │       │   ├── probeIds[]
+│       │       │   └── sourceIds[]   // empty = all sources of probeIds
+│       │       ├── composition:  'merged' | 'split'
+│       │       ├── view:         time_series | distribution | topic_distribution | topic_evolution | cooccurrence_network
+│       │       ├── metric:       string (canonical Gold name)
+│       │       ├── layer:        'gold' | 'silver'
+│       │       ├── resolution?:  Resolution
+│       │       ├── normalization?: Normalization
+│       │       ├── topN?:        number
+│       │       └── locked?:      true when the panel was opened from a DF tile
+│       └── focusedPanelIndex
+└── activeWindowIndex
+```
+
+Type definitions: `services/dashboard/src/lib/state/url-internals.ts`. Caps: `MAX_PANELS_PER_WINDOW = 8`, `MAX_WINDOWS_PER_PILLAR = 4`, `WORKBENCH_URL_CAP_BYTES = 8192` (total URL byte cap, surfaces a confirm dialog when exceeded).
+
+### URL grammar
+
+The reader honours two forms. The writer chooses the form based on whether the state can collapse to a single-pillar / single-window / single-panel / single-scope-group / unlocked configuration.
+
+* **Legacy flat (Phase-122h shape, preserved for bookmarks).**
+  ```
+  /workbench?probeId=p-0&sourceId=s-a,s-b&view=time_series&metric=sentiment_score_sentiws&viewingMode=aleph&layer=gold
+  ```
+  Used when the state collapses cleanly. The reader synthesizes a single-pillar single-window single-panel `WorkbenchUrlState` from these flat params on entry.
+
+* **Multi-panel (Phase 122i).**
+  ```
+  /workbench?activePillar=aleph&aleph=<base64url-json>&episteme=<…>&rhizome=<…>
+  ```
+  Each pillar value is base64url-encoded JSON with short keys (`w` for windows, `p` for panels, `s` for scopes, `c` for composition, `v` for view, `m` for metric, `l` for layer, `r` / `n` / `tN` for optional resolution / normalization / topN, `L` / `lr` / `lf` for locked flag + reason + function, `fi` for focusedPanelIndex, `aw` for activeWindowIndex). Validation via hand-rolled type guards in `url-internals.ts`; malformed payloads surface a `RefusalSurface` instead of crashing.
+
+When the reader sees any pillar key, it drops the legacy flat params from interpretation — the URL is in multi-panel mode and is authoritative as a whole.
+
+### Composition semantics
+
+| Mode + Scope shape | Cells rendered | Query path |
+|---|---|---|
+| `merged` + single ScopeGroup | 1 Cell over the group | existing GET (`/metrics/...`, `/topics/distribution`, legacy `GET /entities/cooccurrence?scope=&scopeId=`) |
+| `merged` + N ScopeGroups | 1 Cell over the union | unioned CSV `probeIds=&sourceIds=` (Topics, TimeSeries, Distribution); new `POST /entities/cooccurrence/query` for CoOccurrence |
+| `split` + 1 ScopeGroup with N sources | N Cells, one per source | existing per-source GET |
+| `split` + N ScopeGroups | N Cells, one per group | existing GET per group |
+
+The Panel→render mapping is encoded in `selectCellRender(panel)` in `services/dashboard/src/lib/workbench/panel-queries.ts`. The Cell component contract (`ViewModeCellProps`) is unchanged from Phase 107 — Panels translate ScopeGroups into per-Cell `(scope, scopeId, sources[])` tuples at the host layer.
+
+### Methodology gates (Episteme)
+
+Two methodology gates fire on Episteme merged cells:
+
+* **Cross-language refusal (hard).** When the resolved scope spans more than one Language Capability Manifest language (ADR-024), the BFF returns `422 cross_language_merge_unsupported` and the frontend renders a `RefusalSurface` variant. BERTopic embeddings are language-specific; merging is not methodologically recoverable. User remedy: narrow to a single language or use split-composition.
+* **Joint-corpus note (soft).** When the scope spans `≥ JOINT_CORPUS_MIN_SOURCES` (default 2) sources within one language, the cell renders a methodology banner: *"BERTopic across N sources — topics reflect the joint corpus, not per-source framings."* Links to the working note at `docs/methodology/en/wp-005-notes/merged-topic-modeling.md`.
+* **Small-corpus warning (soft).** When the total article count for the active scope is below `TOPIC_MIN_DOCS` (default 500), the cell renders a small-corpus warning. Both thresholds live in `services/dashboard/src/lib/config/topic-thresholds.ts`.
+
+### CoOccurrence multi-scope POST
+
+`POST /entities/cooccurrence/query` accepts a JSON body `{scopes: ScopeGroup[], windowStart, windowEnd, topN?}`. Validator caps the union at 100 unique source IDs and 25 unique probe IDs per request; over-limit returns `413 scope_limit_exceeded` with `{offendingSourceCount, offendingProbeCount}` on the envelope. Cross-language scope returns `422 cross_language_merge_unsupported`. The legacy `GET /entities/cooccurrence?scope=&scopeId=` remains for single-scope queries and Phase-122h URL compatibility.
+
+### Two entry paths from the Probe Dossier
+
+The Dossier surfaces two equally-prominent entry paths into the Workbench:
+
+1. **DF-tile (locked, deterministic).** Each discourse-function tile emits a single-panel `composition='merged'` Workbench URL with `locked=true`, `lockedReason='df_entry'`, `lockedFunction=<fn>`. The Workbench renders this in read-only mode; CellControls + ScopeEditor are disabled with a `🔒 Locked to {fn}` banner. The user navigates back to the Dossier to recombine.
+2. **Free-Compose section (`FreeComposeSection.svelte`, NEW Phase 122i).** Parallel section to the DF-tile grid with a probe-picker + source-multiselect. Emits a single-panel `composition='merged'`, `locked=false` Workbench URL. All controls editable.
+
+The two paths are visually equivalent in the Dossier; the deterministic split between locked and editable is intentional — every Workbench URL is unambiguous about which entry path opened it.
+
+### Mutators
+
+UI components mutate the state tree via the helpers in `services/dashboard/src/lib/workbench/panel-mutators.ts`:
+
+* `updatePanel(path, fn)` — patch a single Panel.
+* `addPanel(pillar, template?)` — append a Panel to the focused window (clones the focused panel by default).
+* `removePanel(path)` — remove a Panel; drops the window when its last panel is removed; drops the pillar slot when its last window is dropped.
+* `focusPanel(path)` — move focus to a Panel (also crosses windows).
+* `addScopeGroupToFocused(pillar, template?)` — add a ScopeGroup to the focused panel (the `+ Compare` affordance).
+* `removeScopeGroup(path, groupIndex)` — drop a ScopeGroup; refuses to drop the last one in a Panel.
+* `addWindow(pillar, template?)` — reserved for future Window-Tab UI.
+* `ensurePillar(pillar, template)` — initialise an empty Workbench from a template Panel.
+
+Pure (testable) variants live in `panel-mutators-pure.ts`; the rune-store wrappers in `panel-mutators.ts` just thread `urlState()` / `setUrl()` through them.
+
+### Backward compatibility
+
+Phase-122h URLs continue to load. The reader synthesizes a single-pillar single-window single-panel state from the legacy flat params; if the user makes no panel-level edits, the writer preserves the same flat form on first write-back. The legacy `GET /entities/cooccurrence?scope=&scopeId=` endpoint stays for single-scope queries. The Cell component contract is unchanged.
