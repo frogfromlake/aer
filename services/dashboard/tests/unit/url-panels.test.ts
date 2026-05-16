@@ -92,6 +92,95 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded).toEqual(original);
   });
 
+  // Phase 122i revision (R2): splitDirection, cellControlsCollapsed,
+  // maximizedPanelIndex round-trip.
+
+  it('round-trips splitDirection=vertical (D2)', () => {
+    const original = makePillarState([
+      makeWindow([makePanel({ composition: 'split', splitDirection: 'vertical' })])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.splitDirection).toBe('vertical');
+  });
+
+  it('round-trips splitDirection=horizontal (D2)', () => {
+    const original = makePillarState([
+      makeWindow([makePanel({ composition: 'split', splitDirection: 'horizontal' })])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.splitDirection).toBe('horizontal');
+  });
+
+  it('omits splitDirection from encoded form when undefined (default horizontal)', () => {
+    const original = makePillarState([makeWindow([makePanel()])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.splitDirection).toBeUndefined();
+  });
+
+  it('round-trips cellControlsCollapsed=true (C4)', () => {
+    const original = makePillarState([makeWindow([makePanel({ cellControlsCollapsed: true })])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.cellControlsCollapsed).toBe(true);
+  });
+
+  it('omits cellControlsCollapsed when false/undefined (default)', () => {
+    const original = makePillarState([makeWindow([makePanel()])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.cellControlsCollapsed).toBeUndefined();
+  });
+
+  it('round-trips maximizedPanelIndex on a multi-panel window (C3)', () => {
+    const win = makeWindow([makePanel(), makePanel()]);
+    win.maximizedPanelIndex = 1;
+    const original = makePillarState([win]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.maximizedPanelIndex).toBe(1);
+  });
+
+  it('omits maximizedPanelIndex when null/undefined', () => {
+    const win = makeWindow([makePanel(), makePanel()]);
+    // explicit null
+    win.maximizedPanelIndex = null;
+    const original = makePillarState([win]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.maximizedPanelIndex).toBeUndefined();
+  });
+
+  it('drops out-of-bounds maximizedPanelIndex on encode (defensive)', () => {
+    const win = makeWindow([makePanel()]); // only 1 panel
+    win.maximizedPanelIndex = 5;
+    const original = makePillarState([win]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.maximizedPanelIndex).toBeUndefined();
+  });
+
+  it('rejects an out-of-bounds maximizedPanelIndex on decode (malformed URL)', () => {
+    // Hand-craft a payload with mp=5 in a 1-panel window.
+    const compact = {
+      w: [
+        {
+          p: [
+            {
+              s: [{ pi: ['probe-0'], si: [] }],
+              c: 'm',
+              v: 'time_series',
+              m: 'sentiment_score_sentiws',
+              l: 'g'
+            }
+          ],
+          fi: 0,
+          mp: 5
+        }
+      ],
+      aw: 0
+    };
+    const encoded = btoa(JSON.stringify(compact))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(decodePillarState(encoded)).toBeNull();
+  });
+
   it('produces URL-safe base64 (no +, /, or =)', () => {
     const encoded = encodePillarState(makePillarState());
     expect(encoded).not.toMatch(/[+/=]/);

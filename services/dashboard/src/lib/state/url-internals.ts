@@ -51,6 +51,12 @@ export type Normalization = 'raw' | 'zscore' | 'percentile';
 // own state in the URL so a pillar-switch is non-destructive.
 export type Composition = 'merged' | 'split';
 
+// Phase 122i revision (D2). Split direction governs how a Panel arranges
+// its small-multiples when composition='split'. Horizontal = cells
+// side-by-side (default); vertical = stacked. Ignored when composition
+// is 'merged'.
+export type SplitDirection = 'horizontal' | 'vertical';
+
 export interface ScopeGroup {
   // 1..K probe ids. Multi-probe entries are valid even though the
   // production corpus is single-probe today — the Cell-host unions them
@@ -69,17 +75,32 @@ export interface Panel {
   resolution?: Resolution;
   normalization?: Normalization;
   topN?: number;
-  // Set true when the Panel was opened from a discourse-function tile in
-  // the Probe Dossier. Locked panels render CellControls + ScopeEditor
-  // read-only; the user must go back to the Dossier to recombine.
+  // Phase 122i revision (B1). When `locked` is true the Panel's scope is
+  // frozen (the ScopeEditor refuses scope mutations); everything else —
+  // view, metric, layer, composition, splitDirection, cellControlsCollapsed
+  // — remains fully editable. Set when the Panel was opened from a
+  // discourse-function tile in the Probe Dossier.
   locked?: boolean;
   lockedReason?: 'df_entry';
   lockedFunction?: string;
+  // Phase 122i revision (D2). Direction of split-composition small-
+  // multiples within the panel. Absent / undefined = horizontal default.
+  splitDirection?: SplitDirection;
+  // Phase 122i revision (C4). When true, the focused panel renders its
+  // CellControls collapsed (header-only with an expand toggle). Persists
+  // in the URL so a deep-link survives. Per-panel; only meaningful on
+  // the focused panel of the active window.
+  cellControlsCollapsed?: boolean;
 }
 
 export interface WorkbenchWindow {
   panels: Panel[]; // 1..MAX_PANELS_PER_WINDOW
   focusedPanelIndex: number;
+  // Phase 122i revision (C3). When set, the window renders only the
+  // maximised panel at full canvas; the other panels live in a minimised
+  // tray for swap. Out-of-bounds values are treated as "no maximize"
+  // by the WindowHost render path. Absent / null = no maximize.
+  maximizedPanelIndex?: number | null;
 }
 
 export interface PillarState {
@@ -348,11 +369,18 @@ interface CompactPanel {
   L?: 1;
   lr?: 'df_entry';
   lf?: string;
+  // Phase 122i revision short keys.
+  sd?: 'h' | 'v'; // splitDirection (D2)
+  cc?: 1; // cellControlsCollapsed (C4)
 }
 
 interface CompactWindow {
   p: CompactPanel[];
   fi: number;
+  // Phase 122i revision (C3). maximizedPanelIndex — absent / undefined =
+  // no maximize. Encoded as a numeric index when set; out-of-bounds
+  // values are rejected by the type guard.
+  mp?: number;
 }
 
 interface CompactPillarState {
@@ -362,10 +390,24 @@ interface CompactPillarState {
 
 function compactPillarState(s: PillarState): CompactPillarState {
   return {
-    w: s.windows.map((win) => ({
-      p: win.panels.map(compactPanel),
-      fi: win.focusedPanelIndex
-    })),
+    w: s.windows.map((win) => {
+      const cw: CompactWindow = {
+        p: win.panels.map(compactPanel),
+        fi: win.focusedPanelIndex
+      };
+      // Phase 122i revision (C3). Only emit `mp` when it's a valid
+      // in-bounds index; null / undefined / out-of-bounds → omitted.
+      if (
+        win.maximizedPanelIndex !== undefined &&
+        win.maximizedPanelIndex !== null &&
+        Number.isInteger(win.maximizedPanelIndex) &&
+        win.maximizedPanelIndex >= 0 &&
+        win.maximizedPanelIndex < win.panels.length
+      ) {
+        cw.mp = win.maximizedPanelIndex;
+      }
+      return cw;
+    }),
     aw: s.activeWindowIndex
   };
 }
@@ -384,15 +426,25 @@ function compactPanel(p: Panel): CompactPanel {
   if (p.locked === true) c.L = 1;
   if (p.lockedReason !== undefined) c.lr = p.lockedReason;
   if (p.lockedFunction !== undefined) c.lf = p.lockedFunction;
+  // Phase 122i revision short keys. Default values omitted: horizontal
+  // split direction is the default (writer leaves it implicit); the
+  // collapsed flag only matters when true.
+  if (p.splitDirection === 'vertical') c.sd = 'v';
+  else if (p.splitDirection === 'horizontal') c.sd = 'h';
+  if (p.cellControlsCollapsed === true) c.cc = 1;
   return c;
 }
 
 function expandPillarState(c: CompactPillarState): PillarState {
   return {
-    windows: c.w.map((w) => ({
-      panels: w.p.map(expandPanel),
-      focusedPanelIndex: w.fi
-    })),
+    windows: c.w.map((w) => {
+      const win: WorkbenchWindow = {
+        panels: w.p.map(expandPanel),
+        focusedPanelIndex: w.fi
+      };
+      if (w.mp !== undefined) win.maximizedPanelIndex = w.mp;
+      return win;
+    }),
     activeWindowIndex: c.aw
   };
 }
@@ -411,6 +463,9 @@ function expandPanel(c: CompactPanel): Panel {
   if (c.L === 1) p.locked = true;
   if (c.lr !== undefined) p.lockedReason = c.lr;
   if (c.lf !== undefined) p.lockedFunction = c.lf;
+  if (c.sd === 'v') p.splitDirection = 'vertical';
+  else if (c.sd === 'h') p.splitDirection = 'horizontal';
+  if (c.cc === 1) p.cellControlsCollapsed = true;
   return p;
 }
 
@@ -453,6 +508,13 @@ function isCompactWindow(v: unknown): v is CompactWindow {
   if (!Array.isArray(v.p) || v.p.length === 0 || v.p.length > MAX_PANELS_PER_WINDOW) return false;
   if (typeof v.fi !== 'number' || !Number.isInteger(v.fi) || v.fi < 0 || v.fi >= v.p.length)
     return false;
+  // Phase 122i revision (C3). Optional `mp`; when present must be a
+  // valid panel index. Out-of-bounds → reject (the URL is malformed,
+  // not just "no maximize").
+  if (v.mp !== undefined) {
+    if (typeof v.mp !== 'number' || !Number.isInteger(v.mp) || v.mp < 0 || v.mp >= v.p.length)
+      return false;
+  }
   return v.p.every(isCompactPanel);
 }
 
@@ -472,6 +534,9 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   if (v.L !== undefined && v.L !== 1) return false;
   if (v.lr !== undefined && v.lr !== 'df_entry') return false;
   if (v.lf !== undefined && typeof v.lf !== 'string') return false;
+  // Phase 122i revision short keys.
+  if (v.sd !== undefined && v.sd !== 'h' && v.sd !== 'v') return false;
+  if (v.cc !== undefined && v.cc !== 1) return false;
   return true;
 }
 
