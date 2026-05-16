@@ -478,35 +478,27 @@ audit-go:
 	@cd pkg && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (pkg/) passed!$(RESET)"
 
 # pip-audit advisory suppressions — only when no stable fix is available
-# upstream and the worker's usage profile rules out the disclosed exposure.
-# Each entry must list (a) the CVE, (b) the justification, (c) the
-# upstream-fix tracker. Revisit on every `make deps-refresh`.
+# upstream OR the fix carries disproportionate migration cost relative
+# to the deployment's exercised attack surface. Each entry must list
+# (a) the CVE, (b) the justification, (c) the upstream-fix tracker.
+# Revisit on every `make deps-refresh`.
 #
-#   * CVE-2026-1839 — transformers 4.57.6: fix is published only as
-#     5.0.0rc3 (release candidate). The Phase-119 hard rule forbids
-#     pinning RC/alpha versions; we hold on the latest stable 4.x and
-#     suppress until transformers 5.x stable ships. The worker invokes
-#     transformers solely via pre-validated pinned model revisions
-#     baked into the image with `TRANSFORMERS_OFFLINE=1`, so the
-#     advisory's network-borne attack surface is not exercised.
-#
-#   * CVE-2026-41066 — lxml 5.4.0: escaper bypass leading to XSS in
-#     `lxml.html.clean`. Upstream fix is lxml 6.1.0, but `htmldate
-#     1.9.3` (the latest released version) constrains `lxml<6` and no
-#     `htmldate >= 2.0` exists on PyPI yet. Suppression is bounded by
-#     three properties of the deployment: (a) the worker is internal-
-#     only on `aer-backend` (Zero-Trust posture per Hard Rule "Network
-#     Posture") — there is no untrusted internet ingress to the
-#     worker; (b) the HTML processed by lxml comes from the polite,
-#     robots-respecting web-crawler restricted to a vetted source list
-#     in `crawlers/web-crawler/probes/<probe-id>/sources.yaml`, not
-#     from arbitrary user-supplied URLs; (c) the worker container runs
-#     as non-root `aer:10001` with no shell tooling beyond Python, so
-#     a successful `lxml.html.clean` exploit has limited blast radius.
-#     Remove the suppression and re-pin `lxml[html-clean]>=6.1.0` in
-#     `services/analysis-worker/requirements.txt` once `htmldate >=
-#     2.0` ships on PyPI. Tracker: https://github.com/adbar/htmldate
-PIP_AUDIT_IGNORE_VULNS := --ignore-vuln CVE-2026-1839 --ignore-vuln CVE-2026-41066
+#   * CVE-2026-1839 — transformers 4.57.6: stable transformers 5.x is
+#     now available (5.8.1 as of 2026-05). The remaining blocker is a
+#     coordinated major-version migration: sentence-transformers 3.3.1
+#     pins `transformers<5.0.0`, so the fix requires bumping BOTH
+#     transformers (4.x → 5.x) and sentence-transformers (3.x → 5.x).
+#     Both touch the Tier-2 sentiment path (XLM-R via
+#     `AutoModelForSequenceClassification`) and the BERTopic embedding
+#     path; the Phase-119 determinism CI gate must be re-validated
+#     end-to-end after the bump. Deferred to its own phase to keep the
+#     migration auditable in isolation. Meanwhile the disclosed
+#     exposure is not exercised: the worker invokes transformers solely
+#     via pre-validated pinned model revisions baked into the image
+#     with `TRANSFORMERS_OFFLINE=1`, so the advisory's network-borne
+#     attack surface is unreachable.
+#     Tracker: https://github.com/huggingface/sentence-transformers/releases
+PIP_AUDIT_IGNORE_VULNS := --ignore-vuln CVE-2026-1839
 
 audit-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running pip-audit (Python vulnerability scanner)...$(RESET)"
