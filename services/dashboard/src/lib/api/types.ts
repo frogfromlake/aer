@@ -679,7 +679,7 @@ export interface components {
         Probe: {
             /**
              * @description Canonical identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key.
-             * @example probe-0-de-institutional-rss
+             * @example probe-0-de-institutional-web
              */
             probeId: string;
             /**
@@ -784,7 +784,7 @@ export interface components {
         ProbeDossier: {
             /**
              * @description Canonical probe identifier (matches `/probes` and `/content/probe/{probeId}`).
-             * @example probe-0-de-institutional-rss
+             * @example probe-0-de-institutional-web
              */
             probeId: string;
             /**
@@ -1352,7 +1352,7 @@ export interface components {
         MetadataCoverageResponse: {
             /**
              * @description Either the probeId (when called via `/probes/{probeId}/metadata-coverage`) or the sourceId (when called via `/sources/{sourceId}/metadata-coverage`).
-             * @example probe-0-de-institutional-rss
+             * @example probe-0-de-institutional-web
              */
             scope: string;
             /** @description One entry per source in the requested scope, ordered by source name. Empty when the scope resolves to no sources. */
@@ -1602,7 +1602,7 @@ export interface operations {
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
                 scopeId?: string;
-                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
@@ -1748,7 +1748,7 @@ export interface operations {
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
                 scopeId?: string;
-                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
@@ -1842,7 +1842,7 @@ export interface operations {
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
                 scopeId?: string;
-                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
@@ -2025,7 +2025,7 @@ export interface operations {
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
                 scopeId?: string;
-                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
@@ -2114,7 +2114,7 @@ export interface operations {
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
                 scopeId?: string;
-                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
@@ -2766,7 +2766,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Probe identifier — the canonical string registered in the probe registry (e.g. `probe-0-de-institutional-rss`), matching the `probeId` shape used by `/probes` and `/probes/{id}/dossier`. */
+                /** @description Probe identifier — the canonical string registered in the probe registry (e.g. `probe-0-de-institutional-web`), matching the `probeId` shape used by `/probes` and `/probes/{id}/dossier`. */
                 probeId: string;
             };
             cookie?: never;

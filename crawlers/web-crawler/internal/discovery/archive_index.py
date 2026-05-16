@@ -40,6 +40,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from . import assert_pattern_usable
+
 
 logger = logging.getLogger(__name__)
 
@@ -113,13 +115,19 @@ def discover(
         return
 
     pattern = (config or {}).get("article_url_pattern") or ""
-    if not pattern:
-        return
+    # Phase 122g — same safety contract as html_sitemap: refuse to
+    # silently skip the channel. The operator must see a loud error
+    # rather than a zero-ingestion mystery.
+    assert_pattern_usable(pattern, channel="archive_index", where=template)
     try:
         article_re = re.compile(pattern)
     except re.error as exc:
-        logger.warning("archive_index article_url_pattern is not valid regex: %s", exc)
-        return
+        from . import DiscoveryConfigurationError
+        raise DiscoveryConfigurationError(
+            f"archive_index `article_url_pattern` regex is invalid ({exc}). "
+            f"url_template was {template!r}. Fix the regex in sources.yaml "
+            "before re-running the crawler."
+        ) from exc
 
     date_format = (config.get("date_format") or DEFAULT_DATE_FORMAT)
     granularity = (config.get("granularity") or "daily").lower()

@@ -28,7 +28,7 @@ func sourceStrPtr(s string) *string { return &s }
 
 func TestGetSources_ReturnsRowsFromLister(t *testing.T) {
 	lister := &fakeSourceLister{entries: []config.SourceEntry{
-		{Name: "tagesschau", Type: "rss", URL: sourceStrPtr("https://tagesschau.de/rss"), DocumentationURL: sourceStrPtr("docs/probes/probe-0-de-institutional-rss/")},
+		{Name: "tagesschau", Type: "rss", URL: sourceStrPtr("https://tagesschau.de/rss"), DocumentationURL: sourceStrPtr("docs/probes/probe-0-de-institutional-web/")},
 		{Name: "wikipedia", Type: "scraper", URL: sourceStrPtr("https://en.wikipedia.org/")},
 	}}
 	router := newTestRouter(NewServer(&mockStore{}, nil, lister, nil, nil))

@@ -1063,7 +1063,7 @@ type GetEntityCoOccurrenceParams struct {
 	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
 	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
-	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
 
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
@@ -1153,7 +1153,7 @@ type GetMetricCorrelationParams struct {
 	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
 	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
-	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
 
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
@@ -1177,7 +1177,7 @@ type GetMetricDistributionParams struct {
 	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
 	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
-	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
 
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
@@ -1210,7 +1210,7 @@ type GetMetricHeatmapParams struct {
 	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
 	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
-	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
 
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
@@ -1331,7 +1331,7 @@ type GetTopicDistributionParams struct {
 	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
 	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
-	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-rss,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
 
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.

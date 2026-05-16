@@ -502,8 +502,8 @@ assert_content "metric/sentiment_score_sentiws?locale=de" \
     "content/metric/sentiment_score_sentiws?locale=de" /tmp/aer_e2e_content_metric_de.json
 
 # EN probe
-assert_content "probe/probe-0-de-institutional-rss?locale=en" \
-    "content/probe/probe-0-de-institutional-rss?locale=en" /tmp/aer_e2e_content_probe_en.json
+assert_content "probe/probe-0-de-institutional-web?locale=en" \
+    "content/probe/probe-0-de-institutional-web?locale=en" /tmp/aer_e2e_content_probe_en.json
 
 # EN discourse function
 assert_content "discourse_function/epistemic_authority?locale=en" \

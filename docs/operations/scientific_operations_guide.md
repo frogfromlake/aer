@@ -85,8 +85,8 @@ Probe 0 was classified **out of order**: registration (Step 5) preceded expert n
 | :--- | :--- | :--- |
 | 1 — Area Expert Nomination | **outstanding** | No domain specialist has been engaged. The classification (`epistemic_authority` for `tagesschau.de`, `power_legitimation` for `bundesregierung.de`) is an engineering judgement. |
 | 2 — Peer Review | **outstanding** | Therefore `function_weights = NULL` for both sources. |
-| 3 — Technical Feasibility | **complete** | Both feeds are public, low-volume, free of authentication and engagement signals, and the RSS adapter exists. See [`docs/probes/probe-0-de-institutional-rss/README.md`](../probes/probe-0-de-institutional-rss/README.md). |
-| 4 — Ethical Review | **complete** | [`docs/probes/probe-0-de-institutional-rss/observer_effect.md`](../probes/probe-0-de-institutional-rss/observer_effect.md). |
+| 3 — Technical Feasibility | **complete** | Both feeds are public, low-volume, free of authentication and engagement signals, and the RSS adapter exists. See [`docs/probes/probe-0-de-institutional-web/README.md`](../probes/probe-0-de-institutional-web/README.md). |
+| 4 — Ethical Review | **complete** | [`docs/probes/probe-0-de-institutional-web/observer_effect.md`](../probes/probe-0-de-institutional-web/observer_effect.md). |
 | 5 — Registration | **complete (as `provisional_engineering`)** | Migration `infra/postgres/migrations/000006_probe_0_classification.up.sql` inserted both rows; the Probe Dossier exists. |
 
 The two `source_classifications` rows produced by Migration 000006 (one shown — see [Operations Playbook → Source Classifications](operations_playbook.md#source-classifications-wp-001) for the second):
@@ -313,7 +313,7 @@ The six `BiasContext` values for Probe 0 RSS sources (set by `RssAdapter`, ident
 | `engagement_data_available` | `false` |
 | `account_metadata_available` | `false` |
 
-The full prose treatment — including the five structural biases of the RSS protocol and the per-source biases (state-funding bias for `tagesschau.de`, government communication bias for `bundesregierung.de`) — is in [`docs/probes/probe-0-de-institutional-rss/bias_assessment.md`](../probes/probe-0-de-institutional-rss/bias_assessment.md). For Probe 0, no domain-expertise split was needed: RSS is fully described by its protocol properties, and the per-source operator characteristics are publicly known.
+The full prose treatment — including the five structural biases of the RSS protocol and the per-source biases (state-funding bias for `tagesschau.de`, government communication bias for `bundesregierung.de`) — is in [`docs/probes/probe-0-de-institutional-web/bias_assessment.md`](../probes/probe-0-de-institutional-web/bias_assessment.md). For Probe 0, no domain-expertise split was needed: RSS is fully described by its protocol properties, and the per-source operator characteristics are publicly known.
 
 ---
 
@@ -411,7 +411,7 @@ Every value below is **manually set** rather than derived from the data. This is
 | `min_meaningful_resolution` heuristic (tagesschau) | Probe Dossier `temporal_profile.md` | Engineering | Phase 68 | WP-005 §3.3 — heuristic from publication rate, not from a measured signal-to-noise study | provisional |
 | `min_meaningful_resolution` heuristic (bundesregierung) | Probe Dossier `temporal_profile.md` | Engineering | Phase 68 | WP-005 §3.3 | provisional |
 | Cultural Calendar entries (`de.yaml`) | `configs/cultural_calendars/de.yaml` | Engineering | 2026-04-12 | WP-005 §4.3 — public-domain federal calendar | factual |
-| Probe Dossier `observer_effect.md` | `docs/probes/probe-0-de-institutional-rss/observer_effect.md` | Engineering (template completed) | Phase 68 | WP-006 §4 — `observer_effect_assessment.yaml` template | provisional |
+| Probe Dossier `observer_effect.md` | `docs/probes/probe-0-de-institutional-web/observer_effect.md` | Engineering (template completed) | Phase 68 | WP-006 §4 — `observer_effect_assessment.yaml` template | provisional |
 
 **Update protocol.** Whenever a new manually set value enters the system — a new metric in `metric_provenance.yaml`, a new `BiasContext` field in a new adapter, a new Probe Dossier file, a new row in `source_classifications` — append a row to this table in the same commit. The provenance inventory is the answer to the auditor's question *"where did this number come from?"* and only stays accurate if it is updated atomically with the change.
 

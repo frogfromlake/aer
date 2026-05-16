@@ -216,8 +216,8 @@ func TestGetProbeEquivalence_404OnUnknownProbe(t *testing.T) {
 
 func TestGetProbeEquivalence_ReturnsLevel1OnlyForEmptyRegistry(t *testing.T) {
 	registry := config.ProbeRegistry{
-		"probe-0-de-institutional-rss": config.ProbeEntry{
-			ProbeID:  "probe-0-de-institutional-rss",
+		"probe-0-de-institutional-web": config.ProbeEntry{
+			ProbeID:  "probe-0-de-institutional-web",
 			Language: "de",
 			Sources:  []string{"tagesschau", "bundesregierung"},
 		},
@@ -234,7 +234,7 @@ func TestGetProbeEquivalence_ReturnsLevel1OnlyForEmptyRegistry(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(
 		http.MethodGet,
-		"/probes/probe-0-de-institutional-rss/equivalence",
+		"/probes/probe-0-de-institutional-web/equivalence",
 		nil,
 	))
 	if rec.Code != http.StatusOK {
@@ -253,7 +253,7 @@ func TestGetProbeEquivalence_ReturnsLevel1OnlyForEmptyRegistry(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.ProbeId != "probe-0-de-institutional-rss" {
+	if body.ProbeId != "probe-0-de-institutional-web" {
 		t.Errorf("probeId mismatch: %q", body.ProbeId)
 	}
 	if len(body.Sources) != 2 {

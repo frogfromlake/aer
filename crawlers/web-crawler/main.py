@@ -16,7 +16,7 @@ import argparse
 import logging
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
@@ -24,6 +24,7 @@ from typing import Any, Iterable, Iterator, Optional
 import structlog
 import yaml
 
+from internal.discovery import DiscoveryConfigurationError
 from internal.discovery.archive_index import discover as discover_archive_index
 from internal.discovery.html_sitemap import discover as discover_html_sitemap
 from internal.discovery.rss_hint import discover as discover_rss
@@ -45,6 +46,22 @@ DEFAULT_USER_AGENT = (
 # default is visible without breaking existing probe configs that
 # pre-date the cutoff field.
 DEFAULT_TIME_WINDOW_DAYS = 365
+
+
+def _format_red_banner(message: str) -> str:
+    """Render a high-visibility ANSI-red error banner. Used to surface
+    the Phase-122g configuration hard-stop so the operator cannot
+    miss it in scrollback. Falls back to plain text on non-TTY stderr."""
+    RED = "\033[1;31m"
+    RESET = "\033[0m"
+    bar = "═" * 78
+    return (
+        f"\n{RED}{bar}{RESET}\n"
+        f"{RED}  CRAWLER REFUSING TO START — UNRESOLVED `discovery:` CONFIGURATION  {RESET}\n"
+        f"{RED}{bar}{RESET}\n\n"
+        f"{message}\n\n"
+        f"{RED}{bar}{RESET}\n"
+    )
 
 
 def _configure_logging() -> None:
@@ -421,6 +438,51 @@ def cli(argv: list[str] | None = None) -> int:
         return 2
 
     sources = probe_config["sources"]
+
+    # Phase 122g HARD STOP — refuse to start when any source carries an
+    # `article_url_pattern` that is still the audit-CLI placeholder
+    # (`EDIT-ME-...`). Without this check, a forgotten placeholder would
+    # silently match zero article URLs at runtime — the channel would
+    # appear configured but contribute nothing, and the gap would only
+    # show up after the two-consecutive-runs underflow alert. We turn
+    # silent failure into loud startup failure.
+    from internal.discovery import assert_pattern_usable
+    for source in sources:
+        name = source.get("name", "<anonymous>")
+        discovery = _normalise_source_discovery(source)
+        for entry in discovery.get("html_sitemap_urls") or []:
+            page_url = (entry or {}).get("url") or "<missing url>"
+            pattern = (entry or {}).get("article_url_pattern") or ""
+            try:
+                assert_pattern_usable(
+                    pattern, channel="html_sitemap", where=f"{name}: {page_url}"
+                )
+            except DiscoveryConfigurationError as exc:
+                log.error(
+                    "discovery_configuration_invalid",
+                    source=name,
+                    channel="html_sitemap",
+                    message=str(exc),
+                )
+                print(_format_red_banner(str(exc)), file=sys.stderr)
+                return 2
+        archive_cfg = discovery.get("archive_index")
+        if archive_cfg:
+            pattern = (archive_cfg or {}).get("article_url_pattern") or ""
+            template = (archive_cfg or {}).get("url_template") or "<missing template>"
+            try:
+                assert_pattern_usable(
+                    pattern, channel="archive_index", where=f"{name}: {template}"
+                )
+            except DiscoveryConfigurationError as exc:
+                log.error(
+                    "discovery_configuration_invalid",
+                    source=name,
+                    channel="archive_index",
+                    message=str(exc),
+                )
+                print(_format_red_banner(str(exc)), file=sys.stderr)
+                return 2
     time_window_days = probe_config["time_window_days"]
     sitemap_strict_lastmod = probe_config["sitemap_strict_lastmod"]
     since = datetime.now(tz=timezone.utc) - timedelta(days=time_window_days)

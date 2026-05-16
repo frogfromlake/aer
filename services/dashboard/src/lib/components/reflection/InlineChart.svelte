@@ -52,7 +52,7 @@
     const o = metricsQuery(ctx, {
       startDate: start,
       endDate: end,
-      metricName: 'sentiment_score',
+      metricName: 'sentiment_score_sentiws',
       source: PROBE_0
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
@@ -67,7 +67,7 @@
     if (outcome?.kind !== 'success') return;
 
     const points = outcome.data.data
-      .filter((d) => d.metricName === 'sentiment_score')
+      .filter((d) => d.metricName === 'sentiment_score_sentiws')
       .map((d) => ({ time: new Date(d.timestamp), value: d.value }));
 
     if (points.length === 0) {

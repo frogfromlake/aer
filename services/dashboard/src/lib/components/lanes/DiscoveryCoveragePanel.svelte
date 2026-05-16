@@ -57,12 +57,7 @@
   // platform-agnostic channels (sitemap, rss) before web-specific
   // ones (html_sitemap, archive_index). Future Twitter/Reddit/etc.
   // channels are appended at runtime in receive order.
-  const CHANNEL_ORDER: ReadonlyArray<string> = [
-    'sitemap',
-    'rss',
-    'html_sitemap',
-    'archive_index'
-  ];
+  const CHANNEL_ORDER: ReadonlyArray<string> = ['sitemap', 'rss', 'html_sitemap', 'archive_index'];
 
   const CHANNEL_LABELS: Record<string, string> = {
     sitemap: 'XML Sitemap',
@@ -77,13 +72,13 @@
   // multilingual variant lands later.
   const UNDERFLOW_PROSE: Record<string, string> = {
     sitemap:
-      'The publisher\'s XML sitemap surfaced fewer URLs than the configured floor. ' +
+      "The publisher's XML sitemap surfaced fewer URLs than the configured floor. " +
       'Likely cause: the sitemap moved, the publisher started returning 404, or a ' +
       'service-sitemap-only configuration started filtering harder. Run audit-source-discovery to re-verify the surface.',
     rss:
-      'The publisher\'s RSS feed(s) surfaced fewer URLs than expected. ' +
+      "The publisher's RSS feed(s) surfaced fewer URLs than expected. " +
       'Likely cause: a feed retired, the catalogue page restructured, or the publisher reduced their feed catalogue. ' +
-      'Cross-check the publisher\'s /service/newsletter or equivalent feeds page.',
+      "Cross-check the publisher's /service/newsletter or equivalent feeds page.",
     html_sitemap:
       'The HTML sitemap page surfaced fewer article-shaped links than expected. ' +
       'Likely cause: the page moved, the HTML structure changed, or the article-URL regex no longer matches. ' +
@@ -94,19 +89,29 @@
       'Sample two distant dates manually to verify the endpoint still works.'
   };
 
-  function orderedChannels(payload: DiscoveryCoverageResponseDto): DiscoveryCoveragePerChannelDto[] {
-    const byName = new Map(payload.perChannel.map(c => [c.channel, c]));
+  function orderedChannels(
+    payload: DiscoveryCoverageResponseDto
+  ): DiscoveryCoveragePerChannelDto[] {
+    // Plain object keyed by channel name — non-reactive local lookup.
+    // (Avoiding `Map` here keeps `svelte/prefer-svelte-reactivity` happy
+    // without needing SvelteMap; this function is pure render-time.)
+    const byName: Record<string, DiscoveryCoveragePerChannelDto> = {};
+    for (const c of payload.perChannel) byName[c.channel] = c;
+
     const ordered: DiscoveryCoveragePerChannelDto[] = [];
     for (const channel of CHANNEL_ORDER) {
-      const entry = byName.get(channel);
-      if (entry) ordered.push(entry);
-      byName.delete(channel);
+      const entry = byName[channel];
+      if (entry) {
+        ordered.push(entry);
+        delete byName[channel];
+      }
     }
     // Trailing entries — channels we haven't seen before (future
     // platform-class crawlers contribute new names without schema
     // changes).
-    for (const entry of byName.values()) {
-      ordered.push(entry);
+    for (const channel of Object.keys(byName)) {
+      const entry = byName[channel];
+      if (entry) ordered.push(entry);
     }
     return ordered;
   }
@@ -116,17 +121,17 @@
   <header>
     <h3 id="discovery-coverage-heading">Discovery coverage</h3>
     <p class="lede">
-      Per-channel URL counts from the most recent crawler discovery pass. Compare against
-      the trailing-window average to spot publisher-side surface changes early.
+      Per-channel URL counts from the most recent crawler discovery pass. Compare against the
+      trailing-window average to spot publisher-side surface changes early.
     </p>
   </header>
 
-  {#if $query.isPending}
+  {#if query.isPending}
     <p class="loading">Loading discovery telemetry…</p>
-  {:else if $query.isError}
+  {:else if query.isError}
     <p class="error">Discovery coverage temporarily unavailable.</p>
-  {:else if $query.data?.kind === 'data'}
-    {@const payload = $query.data.value}
+  {:else if query.data?.kind === 'success'}
+    {@const payload = query.data.data}
     <dl class="summary">
       <div>
         <dt>Window</dt>
@@ -170,7 +175,8 @@
 
     {#if payload.underflowAlertActive && !negSpace}
       <p class="alert-hint">
-        A channel underflow alert is active for this source. Enable Negative Space to see the methodological cause.
+        A channel underflow alert is active for this source. Enable Negative Space to see the
+        methodological cause.
       </p>
     {/if}
   {:else}
@@ -254,7 +260,9 @@
     font-size: 0.85rem;
     color: var(--alert-color, #c04040);
   }
-  .loading, .error, .empty {
+  .loading,
+  .error,
+  .empty {
     color: var(--text-muted, #888);
     margin: 0;
   }

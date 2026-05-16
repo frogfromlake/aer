@@ -179,33 +179,67 @@ def test_missing_url_template_returns_empty():
     assert results == []
 
 
-def test_missing_article_url_pattern_returns_empty():
-    results = list(
-        discover(
-            {"url_template": "https://example.com/x?d={date}"},  # no pattern
-            since=_NOW - timedelta(days=2),
-            now=_NOW,
-            http_get=MagicMock(),
-            sleep=MagicMock(),
+def test_missing_article_url_pattern_raises():
+    """Phase 122g hard-stop: archive_index without article_url_pattern
+    raises DiscoveryConfigurationError. Silent skip behaviour was
+    dangerous — operator wouldn't notice the channel was inert until
+    the underflow alert fired."""
+    import pytest
+    from internal.discovery import DiscoveryConfigurationError
+
+    with pytest.raises(DiscoveryConfigurationError, match="empty"):
+        list(
+            discover(
+                {"url_template": "https://example.com/x?d={date}"},
+                since=_NOW - timedelta(days=2),
+                now=_NOW,
+                http_get=MagicMock(),
+                sleep=MagicMock(),
+            )
         )
-    )
-    assert results == []
 
 
-def test_invalid_regex_returns_empty():
-    results = list(
-        discover(
-            {
-                "url_template": "https://example.com/x?d={date}",
-                "article_url_pattern": "(unbalanced",
-            },
-            since=_NOW - timedelta(days=2),
-            now=_NOW,
-            http_get=MagicMock(),
-            sleep=MagicMock(),
+def test_edit_me_placeholder_raises():
+    """Phase 122g hard-stop: the audit-CLI placeholder must surface as
+    a startup failure, not silent zero ingestion."""
+    import pytest
+    from internal.discovery import DiscoveryConfigurationError
+
+    with pytest.raises(DiscoveryConfigurationError, match="placeholder"):
+        list(
+            discover(
+                {
+                    "url_template": "https://example.com/x?d={date}",
+                    "article_url_pattern":
+                        "EDIT-ME-REGEX-MATCHING-ARTICLE-URLS",
+                },
+                since=_NOW - timedelta(days=2),
+                now=_NOW,
+                http_get=MagicMock(),
+                sleep=MagicMock(),
+            )
         )
-    )
-    assert results == []
+
+
+def test_invalid_regex_raises():
+    """Phase 122g: invalid regex now raises rather than silently
+    skipping the channel."""
+    import pytest
+    from internal.discovery import DiscoveryConfigurationError
+
+    with pytest.raises(DiscoveryConfigurationError, match="invalid"):
+        list(
+            discover(
+                {
+                    "url_template": "https://example.com/x?d={date}",
+                    "article_url_pattern": "(unbalanced",
+                },
+                since=_NOW - timedelta(days=2),
+                now=_NOW,
+                http_get=MagicMock(),
+                sleep=MagicMock(),
+            )
+        )
 
 
 def test_dedups_same_url_across_multiple_days():

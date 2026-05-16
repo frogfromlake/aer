@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Probe 0 story: renders `probe-0-de-institutional-rss` with its two
+  // Probe 0 story: renders `probe-0-de-institutional-web` with its two
   // emission points (Hamburg — Tagesschau/NDR; Berlin — Bundesregierung/BPA).
   // Activity is fixed to mimic a busy news cycle so the pulse is legible
   // in a static screenshot while still honouring the §1.1 pulse clamp.
@@ -7,7 +7,7 @@
   import type { AtmosphereEngine, ProbeMarker, ProbeSelection } from '@aer/engine-3d';
 
   const PROBE_0: ProbeMarker = {
-    id: 'probe-0-de-institutional-rss',
+    id: 'probe-0-de-institutional-web',
     language: 'de',
     label: 'Probe 0 — DE institutional RSS',
     emissionPoints: [

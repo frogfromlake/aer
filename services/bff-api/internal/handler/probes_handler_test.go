@@ -11,8 +11,8 @@ import (
 
 func testProbeRegistry() config.ProbeRegistry {
 	return config.ProbeRegistry{
-		"probe-0-de-institutional-rss": config.ProbeEntry{
-			ProbeID:  "probe-0-de-institutional-rss",
+		"probe-0-de-institutional-web": config.ProbeEntry{
+			ProbeID:  "probe-0-de-institutional-web",
 			Language: "de",
 			Sources:  []string{"tagesschau", "bundesregierung"},
 			EmissionPoints: []config.EmissionPoint{
@@ -41,7 +41,7 @@ func TestGetProbes_ReturnsRegistryEntries(t *testing.T) {
 		t.Fatalf("expected 1 probe, got %d", len(probes))
 	}
 	p := probes[0]
-	if p.ProbeId != "probe-0-de-institutional-rss" {
+	if p.ProbeId != "probe-0-de-institutional-web" {
 		t.Errorf("probeId mismatch: %s", p.ProbeId)
 	}
 	if p.Language != "de" {

@@ -35,7 +35,7 @@ func TestGetProbeMetadataCoverage_RoundTripWithFlags(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/probes/probe-0-de-institutional-rss/metadata-coverage", nil))
+		"/probes/probe-0-de-institutional-web/metadata-coverage", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -45,7 +45,7 @@ func TestGetProbeMetadataCoverage_RoundTripWithFlags(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Scope != "probe-0-de-institutional-rss" {
+	if got.Scope != "probe-0-de-institutional-web" {
 		t.Errorf("scope mismatch: %s", got.Scope)
 	}
 	if len(got.Sources) != 2 {

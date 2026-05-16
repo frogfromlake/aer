@@ -1,7 +1,21 @@
 # Design Brief — The AĒR Frontend
 
-**Status:** Iteration 5 — open for review.
-**Authority:** Derived from Manifesto (§I–§V), Arc42 §1.1–§1.4, ADR-003, ADR-016, ADR-017, ADR-020, WP-001 through WP-006, `docs/design/visualization_guidelines.md`, and the 2026-04-24 Reframing Note (merged into this iteration).
+> **Phase 122h banner (2026-05-15) — ADR-033 partial supersession.** The
+> surface architecture in this brief (four surfaces with the Composition
+> Workspace as Surface IV, Function-as-route grammar, right-edge
+> MethodologyTray dock, in-rail Pillar mini-toggle) is partially superseded
+> by ADR-033 (`docs/arc42/09_architecture_decisions.md`). The implemented
+> architecture is **three surfaces** — Atmosphäre / Workbench / Reflexion —
+> with three distinct Pillar Configurations (Aleph / Episteme / Rhizome)
+> inside the Workbench; the Composition Workspace is absorbed into Rhizome's
+> *Freie Komposition* entry-question. **Visual tokens, typography, color,
+> Epistemic Weight, Progressive Semantics, and Refusal patterns in this
+> brief remain authoritative and unchanged.** Surface and chrome sections
+> are kept for archival reference; consult ADR-033 for the current surface
+> architecture.
+
+**Status:** Iteration 5 — partially superseded by ADR-033 (Phase 122h, 2026-05-15).
+**Authority:** Derived from Manifesto (§I–§V), Arc42 §1.1–§1.4, ADR-003, ADR-016, ADR-017, ADR-020, ADR-033, WP-001 through WP-006, `docs/design/visualization_guidelines.md`, and the 2026-04-24 Reframing Note (merged into this iteration).
 **Audience:** Sole author (for now); future contributors; interdisciplinary reviewers from WP-006 §8.3.
 **Relationship to existing documents:** This brief sits *above* `visualization_guidelines.md` — the guidelines constrain individual rendering decisions; this brief defines what the dashboard *is*. It sits *alongside* ADR-020 (Frontend Technology Stack), which realizes this brief technically; ADR-020's compliance check audits the brief clause by clause.
 

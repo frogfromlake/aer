@@ -14,7 +14,7 @@ get:
       required: true
       description: >
         Probe identifier — the canonical string registered in the probe
-        registry (e.g. `probe-0-de-institutional-rss`), matching the
+        registry (e.g. `probe-0-de-institutional-web`), matching the
         `probeId` shape used by `/probes` and `/probes/{id}/dossier`.
       schema:
         type: string

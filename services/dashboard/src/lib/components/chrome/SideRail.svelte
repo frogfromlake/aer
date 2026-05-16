@@ -1,228 +1,182 @@
 <script lang="ts">
-  // Left side rail — Design Brief §3.2.
-  // Persistent primary navigation: three surface anchors, return-to-Atmosphere
-  // planet glyph, compact scope indicator, and pillar-mode toggle.
+  // Left side rail — Phase 122h / ADR-033 §3.
   //
-  // Phase 105: Function Lanes (/lanes) navigated to a stub page — live surface followed in Phase 106.
-  // Phase 109: Reflection (/reflection) is the live Surface III (Working Papers, primers, open questions).
+  // Three labelled sections, each with a section eyebrow that names its role:
   //
-  // Keyboard: Tab/Shift+Tab cycles through interactive elements. All targets
-  // are standard <a> or <button> elements, so browser focus handling is native.
-  // Reduced-motion: no CSS transitions when prefers-reduced-motion: reduce.
+  //   1. Where am I?    — Surface anchors (Atmosphere / Workbench / Reflection).
+  //                       Each anchor carries icon + full word. Workbench
+  //                       additionally exposes the active Pillar as a small
+  //                       sub-item (`↳ Aleph` / `↳ Episteme` / `↳ Rhizome`)
+  //                       so the user always sees both the surface AND the
+  //                       analytical stance at a glance.
+  //
+  //   2. Select Probe   — The ProbePicker as a prominent central control —
+  //                       inline expandable list (no popover). The dashboard
+  //                       is useless without a probe; the picker is foregrounded
+  //                       above the bottom toggles, not pushed to the floor.
+  //                       Highlighted state pulses the trigger when the user
+  //                       lands on the Workbench without a probe in scope.
+  //
+  //   3. View           — Persistent global toggles (Negative Space overlay).
+  //
+  // Keyboard: every interactive target is a native <a> or <button> with
+  // browser-default focus handling. `prefers-reduced-motion` suppresses
+  // all transitions.
   import { page } from '$app/state';
-  import { setUrl, urlState } from '$lib/state/url.svelte';
-  import type { ViewingMode } from '$lib/state/url-internals';
+  import { urlState } from '$lib/state/url.svelte';
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
-
-  // ROADMAP §1773: pillar modes are URL-tracked but visually identical
-  // today — Episteme/Aleph differ only in framing once L2/L3 panels read
-  // them, and Rhizome has no data source. Tooltips reflect that reality
-  // so the buttons are not silently misleading.
-  //
-  // Phase 113c / Bug 1: the abbreviated A/E/R buttons left the pillar
-  // grammar opaque. Each button now carries its full pillar name, and
-  // a Pillar info popover surfaces the WP-005 §6 / Brief §3.1 short
-  // gloss in-context — so the three pillars of the project's concept
-  // are explained on the surface itself, not only in tooltips.
-  const PILLARS: readonly {
-    id: ViewingMode;
-    abbr: string;
-    label: string;
-    blurb: string;
-    hint: string;
-    disabled?: boolean;
-  }[] = [
-    {
-      id: 'aleph',
-      abbr: 'A',
-      label: 'Aleph',
-      blurb: 'Synchronic totality — the weather now. Every observed probe, no filter (default).',
-      hint: 'Aleph — totality (default). Every observed probe, no filter.'
-    },
-    {
-      id: 'episteme',
-      abbr: 'E',
-      label: 'Episteme',
-      blurb:
-        'Diachronic knowledge register — the climate record. Long trends across the discursive formation. (Lever wired; dedicated rendering arrives in a later phase.)',
-      hint: 'Episteme — knowledge register. Pillar lever wired, dedicated rendering arrives in a later phase.'
-    },
-    {
-      id: 'rhizome',
-      abbr: 'R',
-      label: 'Rhizome',
-      blurb:
-        'Relational propagation — the currents between contexts. Lead-lag and cross-probe diffusion. (No data source yet; selectable but inert.)',
-      hint: 'Rhizome — relational propagation. No data source yet; selectable but inert.',
-      disabled: true
-    }
-  ];
-
-  let pillarInfoOpen = $state(false);
-  function togglePillarInfo() {
-    pillarInfoOpen = !pillarInfoOpen;
-  }
+  import ProbePicker from './ProbePicker.svelte';
+  import { getPillar } from '$lib/viewmodes';
+  import type { ViewingMode } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
-  let activePillar = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
+  const activePillarId = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
+  const activePillar = $derived(getPillar(activePillarId));
   const negSpace = $derived(negativeSpaceActive());
 
-  // Active probe: prefer path param (dossier/lane pages) over URL query param (Atmosphere).
-  let activeProbe = $derived<string | null>(
-    (page.params as Record<string, string | undefined>).probeId ?? url.probe ?? null
+  // Active probe — either from the route path param (Surface II legacy
+  // routes + the new /dossier/{probeId}) OR from the multi-probe scope
+  // state (when on /workbench with ?probeId=... selected). The Workbench
+  // rail anchor is only meaningful when at least one probe is in scope.
+  const activeProbe = $derived<string | null>(
+    (page.params as Record<string, string | undefined>).probeId ??
+      (url.probeIds.length > 0 ? url.probeIds[0]! : null)
   );
 
-  // Function Lanes link → dossier when a probe is active, otherwise stub.
-  let lanesHref = $derived(activeProbe ? `/lanes/${activeProbe}/dossier` : '/lanes');
+  // When the user is on the Workbench (or its sibling routes) without a
+  // probe selected, the ProbePicker is the obvious next interaction.
+  // Highlight it so it stops "going under" visually (Finding 2.1).
+  const onWorkbench = $derived(page.url.pathname.startsWith('/workbench'));
+  const probePickerHighlighted = $derived(onWorkbench && activeProbe === null);
 
-  const SURFACES = $derived([
+  interface SurfaceEntry {
+    href: string;
+    label: string;
+    glyph: string;
+    hint: string;
+    disabled: boolean;
+    pillarSubItem?: { glyph: string; label: string; color: string };
+  }
+
+  const SURFACES = $derived<SurfaceEntry[]>([
     {
-      href: lanesHref,
-      label: 'Lanes',
-      glyph: '≡',
-      hint: 'Surface II — Function Lanes'
+      href: '/',
+      label: 'Atmosphere',
+      glyph: '◉',
+      hint: '3D globe and probe selection',
+      disabled: false
+    },
+    {
+      href: activeProbe ? `/workbench?probeId=${encodeURIComponent(activeProbe)}` : '',
+      label: 'Workbench',
+      glyph: '⚙',
+      hint: activeProbe
+        ? 'Analysis — three Pillar configurations (Aleph / Episteme / Rhizome)'
+        : 'Workbench (pick a probe on the Atmosphere first)',
+      disabled: !activeProbe,
+      ...(activeProbe
+        ? {
+            pillarSubItem: {
+              glyph: activePillar.glyph,
+              label: activePillar.label,
+              color: activePillar.color
+            }
+          }
+        : {})
     },
     {
       href: '/reflection',
-      label: 'Reflect',
+      label: 'Reflection',
       glyph: '¶',
-      hint: 'Surface III — Reflection (Working Papers, Primers, Open Questions)'
+      hint: 'Working Papers · Primers · Open research questions',
+      disabled: false
     }
   ]);
 
   function isActiveSurface(href: string): boolean {
     const p = page.url.pathname;
     if (href === '/') return p === '/';
-    // /lanes/* matches Function Lanes regardless of probe in path
-    if (href.startsWith('/lanes')) return p.startsWith('/lanes');
+    // /lanes/*, /workbench/*, and /dossier/* all map to the Workbench anchor
+    // (Phase 122h — Dossier is an Aleph-form inspection page reached from
+    // the Workbench flow, not its own surface).
+    if (href.startsWith('/workbench') || href.startsWith('/lanes')) {
+      return p.startsWith('/lanes') || p.startsWith('/workbench') || p.startsWith('/dossier');
+    }
     return p.startsWith(href);
   }
 </script>
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- all rail links are internal surface routes -->
 <nav class="rail" aria-label="Primary navigation">
-  <!-- AĒR branding — top of rail, fills the scope-bar height zone.
-       The wrapping <div> has no role, so aria-label is prohibited
-       (axe `aria-prohibited-attr`). The inner text "AĒR" is the
-       accessible name; no aria-* is needed. -->
   <div class="logo">
     <span class="logo-text">AĒR</span>
   </div>
 
-  <!-- Planet glyph: Surface I — Atmosphere -->
-  <a
-    href="/"
-    class="planet"
-    class:active={page.url.pathname === '/'}
-    aria-label="Atmosphere"
-    aria-current={page.url.pathname === '/' ? 'page' : undefined}
-    title="Surface I — Atmosphere (3D globe + probe overview)"
-    data-sveltekit-preload-data="hover"
-  >
-    <span class="glyph" aria-hidden="true">◉</span>
-    <span class="rail-label">Atmos</span>
-  </a>
-
-  <div class="divider" role="separator" aria-hidden="true"></div>
-
-  <!-- Surface anchors -->
-  <ul class="surfaces" role="list" aria-label="Surfaces">
-    {#each SURFACES as s (s.label)}
-      <li>
-        <a
-          href={s.href}
-          class="surface-link"
-          class:active={isActiveSurface(s.href)}
-          aria-label={s.label}
-          aria-current={isActiveSurface(s.href) ? 'page' : undefined}
-          title={s.hint}
-          data-sveltekit-preload-data="hover"
-        >
-          <span class="glyph" aria-hidden="true">{s.glyph}</span>
-          <span class="rail-label">{s.label}</span>
-        </a>
-      </li>
-    {/each}
-  </ul>
-
-  <div class="divider" role="separator" aria-hidden="true"></div>
-
-  <!-- Pillar-mode toggle — grouped with surfaces above -->
-  <div class="pillar-section">
-    <div class="pillar-eyebrow">
-      <span class="rail-eyebrow" aria-hidden="true">Pillar</span>
-      <button
-        type="button"
-        class="pillar-info-btn"
-        aria-label="About the pillars"
-        aria-expanded={pillarInfoOpen}
-        title="What are Aleph, Episteme, Rhizome?"
-        onclick={togglePillarInfo}
-      >
-        <span aria-hidden="true">ⓘ</span>
-      </button>
-    </div>
-    <div class="pillar-group" role="radiogroup" aria-label="Pillar mode">
-      {#each PILLARS as p (p.id)}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={activePillar === p.id}
-          aria-disabled={p.disabled ? 'true' : undefined}
-          class="pillar-btn"
-          class:active={activePillar === p.id}
-          class:inert={p.disabled}
-          title={p.hint}
-          onclick={() => {
-            if (p.disabled) return;
-            setUrl({ viewingMode: p.id });
-          }}
-        >
-          <span class="glyph" aria-hidden="true">{p.abbr}</span>
-          <span class="rail-label">{p.label}</span>
-        </button>
-      {/each}
-    </div>
-    {#if pillarInfoOpen}
-      <div class="pillar-info-popover" role="dialog" aria-label="Pillar concepts">
-        <p class="pillar-info-intro">
-          The three pillars frame how AĒR observes discourse (Brief §3.1, WP-005 §6):
-        </p>
-        <dl class="pillar-info-list">
-          {#each PILLARS as p (p.id)}
-            <div class="pillar-info-row">
-              <dt><strong>{p.label}</strong> <span class="pillar-info-abbr">({p.abbr})</span></dt>
-              <dd>{p.blurb}</dd>
+  <!-- Section 1: Surface anchors -->
+  <div class="section">
+    <span class="section-eyebrow">Where am I?</span>
+    <ul class="surface-list" role="list">
+      {#each SURFACES as s (s.label)}
+        <li>
+          {#if s.disabled}
+            <span
+              class="surface-link disabled"
+              role="link"
+              aria-disabled="true"
+              aria-label="{s.label} (disabled — pick a probe on the Atmosphere first)"
+              title={s.hint}
+            >
+              <span class="glyph" aria-hidden="true">{s.glyph}</span>
+              <span class="rail-label">{s.label}</span>
+            </span>
+          {:else}
+            <a
+              href={s.href}
+              class="surface-link"
+              class:active={isActiveSurface(s.href)}
+              aria-label={s.label}
+              aria-current={isActiveSurface(s.href) ? 'page' : undefined}
+              title={s.hint}
+              data-sveltekit-preload-data="hover"
+            >
+              <span class="glyph" aria-hidden="true">{s.glyph}</span>
+              <span class="rail-label">{s.label}</span>
+            </a>
+          {/if}
+          {#if s.pillarSubItem}
+            <div
+              class="pillar-sub-item"
+              style:--pillar-color={s.pillarSubItem.color}
+              aria-label="Active Pillar: {s.pillarSubItem.label}"
+              title="Active Pillar — switch via the PillarSwitch tiles at the top of the Workbench"
+            >
+              <span class="pillar-sub-arrow" aria-hidden="true">↳</span>
+              <span class="pillar-sub-glyph" aria-hidden="true">{s.pillarSubItem.glyph}</span>
+              <span class="pillar-sub-label">{s.pillarSubItem.label}</span>
             </div>
-          {/each}
-        </dl>
-        <button type="button" class="pillar-info-close" onclick={togglePillarInfo}>Close</button>
-      </div>
-    {/if}
+          {/if}
+        </li>
+      {/each}
+    </ul>
   </div>
 
-  <!-- Spacer pushes scope indicator + NS to the bottom -->
+  <!-- Section 2: Scope selection status (probes) — central control,
+       sits directly under the surface anchors so it stays visible
+       without scrolling. Inline expansion (no popover). -->
+  <div class="section section-probe">
+    <span class="section-eyebrow">Select Probe</span>
+    <ProbePicker highlighted={probePickerHighlighted} />
+  </div>
+
   <div class="flex-spacer" aria-hidden="true"></div>
 
-  <!-- Scope indicator: active probe (compact) -->
-  <div class="scope-indicator" aria-label="Active scope: {activeProbe ?? 'no probe selected'}">
-    <span
-      class="probe-tag"
-      class:dim={!activeProbe}
-      title={activeProbe ? `Active probe: ${activeProbe}` : 'No probe selected'}
-    >
-      {#if activeProbe}
-        {activeProbe.slice(0, 7)}
-      {/if}
-    </span>
-  </div>
-
-  <div class="divider" role="separator" aria-hidden="true"></div>
-
-  <!-- Negative Space overlay toggle — persistent across all surfaces -->
-  <div class="ns-wrap">
-    <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
+  <!-- Section 3: Persistent view toggles -->
+  <div class="section">
+    <span class="section-eyebrow">View</span>
+    <div class="ns-wrap">
+      <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
+    </div>
   </div>
 </nav>
 
@@ -242,12 +196,10 @@
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 0 0 var(--space-3);
+    padding: 0 0 var(--space-4);
   }
 
-  /* AĒR logo — fills the scope-bar height zone at the top of the rail */
+  /* AĒR brand bar — fills the scope-bar height zone at the top of the rail */
   .logo {
     display: flex;
     align-items: center;
@@ -256,7 +208,6 @@
     min-height: var(--scope-bar-height);
     flex-shrink: 0;
     border-bottom: 1px solid var(--color-border);
-    margin-bottom: var(--space-2);
   }
 
   .logo-text {
@@ -267,68 +218,55 @@
     letter-spacing: 0.18em;
   }
 
-  .planet {
+  /* Sections have generous vertical breathing room per Finding 2.1 —
+     SideRail felt cramped vertically in the first manual test. */
+  .section {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: 58px;
-    padding: 6px 0;
-    border-radius: var(--radius-md);
-    color: var(--color-accent);
-    text-decoration: none;
-    flex-shrink: 0;
-    transition:
-      background var(--motion-duration-fast) var(--motion-ease-standard),
-      color var(--motion-duration-fast) var(--motion-ease-standard);
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
   }
-  .planet .glyph {
-    font-size: 1.35rem;
+
+  .section:last-of-type {
+    border-bottom: none;
+  }
+
+  .section-eyebrow {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-semibold);
+    padding: 0 var(--space-2) var(--space-1);
     line-height: 1;
-  }
-
-  .planet:hover,
-  .planet:focus-visible {
-    background: var(--color-surface-hover);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .planet.active {
-    background: var(--color-surface);
-  }
-
-  .divider {
-    width: 44px;
-    height: 1px;
-    background: var(--color-border);
-    flex-shrink: 0;
-    margin: var(--space-1) 0;
-  }
-
-  .surfaces {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
   }
 
   .flex-spacer {
     flex: 1;
   }
 
-  .surface-link {
+  .surface-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .surface-list li {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .surface-link {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: 58px;
-    padding: 6px 0;
+    gap: var(--space-3);
+    /* slightly taller per Finding 2.1 — easier hit-target + more visual rhythm */
+    padding: var(--space-3) var(--space-3);
     border-radius: var(--radius-md);
     color: var(--color-fg-muted);
     text-decoration: none;
@@ -337,31 +275,18 @@
       color var(--motion-duration-fast) var(--motion-ease-standard);
   }
   .surface-link .glyph {
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     line-height: 1;
+    flex-shrink: 0;
+    color: var(--color-accent);
   }
 
   .rail-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: var(--font-weight-semibold);
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
     font-family: var(--font-ui);
-    line-height: 1;
-  }
-
-  .pillar-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
-  }
-  .rail-eyebrow {
-    font-size: 9.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--color-fg-subtle);
-    line-height: 1;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
   }
 
   .surface-link:hover,
@@ -377,186 +302,75 @@
     background: var(--color-surface);
   }
 
-  .scope-indicator {
-    padding: var(--space-1) 0;
+  .surface-link.disabled {
     display: flex;
-    flex-direction: column;
     align-items: center;
-  }
-
-  .probe-tag {
-    font-size: 9px;
-    font-family: var(--font-mono);
-    color: var(--color-fg-subtle);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    text-align: center;
-    max-width: 58px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: 1.4;
-  }
-
-  .probe-tag.dim {
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-3);
+    border-radius: var(--radius-md);
     opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: auto; /* keep tooltip + focus working */
+    color: var(--color-fg-muted);
   }
-
-  .pillar-group {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
+  .surface-link.disabled .glyph {
+    font-size: 1.3rem;
+    line-height: 1;
+    flex-shrink: 0;
+    color: var(--color-fg-muted);
   }
-
-  .ns-wrap {
-    padding: var(--space-1) var(--space-2) var(--space-2);
-    display: flex;
-    justify-content: center;
-  }
-
-  .pillar-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: 58px;
-    padding: 6px 0;
+  .surface-link.disabled:hover,
+  .surface-link.disabled:focus-visible {
     background: transparent;
     color: var(--color-fg-muted);
-    border: none;
-    border-radius: var(--radius-md);
-    font-family: var(--font-ui);
-    cursor: pointer;
-    transition:
-      background var(--motion-duration-fast) var(--motion-ease-standard),
-      color var(--motion-duration-fast) var(--motion-ease-standard);
+    outline: none;
   }
 
-  /* pillar glyph reuses .glyph sizing defined on surface-link */
-
-  .pillar-eyebrow {
+  /* Active-Pillar sub-item under the Workbench surface anchor.
+     Visually subordinate (smaller, indented, tinted with pillar color)
+     so it does not compete with the surface label for primary attention.
+     It is purely informational here — the actual switching happens on
+     the PillarSwitch tiles inside the Workbench surface. */
+  .pillar-sub-item {
     display: flex;
     align-items: center;
     gap: 4px;
-  }
-
-  .pillar-info-btn {
-    background: transparent;
-    border: none;
-    color: var(--color-accent);
-    font-size: 16px; /* Increased from 11px */
-    line-height: 1;
-    padding: 0;
-    cursor: pointer;
-    transition: filter 0.2s ease;
-  }
-
-  .pillar-info-btn:hover,
-  .pillar-info-btn:focus-visible {
-    color: #5283b8;
-    filter: brightness(1.3); /* Adds a nice hover effect since it's colored now */
-    outline: none;
-  }
-
-  .pillar-info-popover {
-    position: fixed;
-    left: calc(var(--rail-width) + var(--space-2));
-    bottom: var(--space-3);
-    width: 18rem;
-    max-width: calc(100vw - var(--rail-width) - var(--space-4));
-    z-index: 460;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.5));
-    color: var(--color-fg);
-  }
-
-  .pillar-info-intro {
-    margin: 0 0 var(--space-2) 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    line-height: var(--line-height-loose);
-  }
-
-  .pillar-info-list {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .pillar-info-row dt {
-    font-size: var(--font-size-xs);
-    color: var(--color-fg);
-    margin-bottom: 2px;
-  }
-
-  .pillar-info-row dd {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    line-height: var(--line-height-loose);
-  }
-
-  .pillar-info-abbr {
-    color: var(--color-fg-subtle);
+    padding: 2px var(--space-3) 4px calc(var(--space-3) + 1.3rem + var(--space-3));
+    font-size: 11px;
     font-family: var(--font-mono);
+    color: var(--pillar-color);
+    line-height: 1.2;
   }
 
-  .pillar-info-close {
-    margin-top: var(--space-3);
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg-muted);
-    padding: 2px var(--space-3);
-    font-size: var(--font-size-xs);
-    cursor: pointer;
+  .pillar-sub-arrow {
+    color: var(--color-fg-subtle);
   }
 
-  .pillar-info-close:hover,
-  .pillar-info-close:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-    outline: none;
+  .pillar-sub-glyph {
+    font-size: 13px;
+    line-height: 1;
   }
 
-  .pillar-btn:hover,
-  .pillar-btn:focus-visible {
-    background: var(--color-surface-hover);
-    color: var(--color-fg);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+  .pillar-sub-label {
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.02em;
   }
 
-  .pillar-btn.active {
-    color: var(--color-fg);
-    background: var(--color-surface);
+  /* Probe-section gets a touch more horizontal padding so the
+     ProbePicker has full width without bumping the rail edges. */
+  .section-probe {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
   }
 
-  .pillar-btn.inert {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-
-  .pillar-btn.inert:hover {
-    background: transparent;
-    color: var(--color-fg-muted);
-  }
-
-  .pillar-btn:focus-visible {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+  .ns-wrap {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0 var(--space-2);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .planet,
-    .surface-link,
-    .pillar-btn {
+    .surface-link {
       transition: none;
     }
   }

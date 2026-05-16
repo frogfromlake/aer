@@ -6,7 +6,10 @@
   // "Narrow scope" sets URL sourceId so lane views filter by this source.
   import type { ProbeDossierSourceDto, FetchContext } from '$lib/api/queries';
   import ArticlePreviewList from './ArticlePreviewList.svelte';
+  import DiscoveryCoveragePanel from './DiscoveryCoveragePanel.svelte';
   import { setUrl, urlState } from '$lib/state/url.svelte';
+  import { getFunctionDef } from '$lib/discourse-function';
+  import FunctionBadge from '$lib/components/base/FunctionBadge.svelte';
 
   interface Props {
     source: ProbeDossierSourceDto;
@@ -17,14 +20,11 @@
 
   let { source, ctx, windowStart, windowEnd }: Props = $props();
 
-  const FUNCTION_LABELS: Record<string, { label: string; abbr: string }> = {
-    epistemic_authority: { label: 'Epistemic Authority', abbr: 'EA' },
-    power_legitimation: { label: 'Power Legitimation', abbr: 'PL' },
-    cohesion_identity: { label: 'Cohesion & Identity', abbr: 'CI' },
-    subversion_friction: { label: 'Subversion & Friction', abbr: 'SF' }
-  };
+  // Function metadata sourced from $lib/discourse-function
+  // (Phase 122h / ADR-033 §4 — single source of truth).
 
   let articlesExpanded = $state(false);
+  let discoveryExpanded = $state(false);
 
   const url = $derived(urlState());
   let isScopeNarrowed = $derived(url.sourceIds.includes(source.name));
@@ -38,12 +38,8 @@
     }
   }
 
-  let primaryMeta = $derived(
-    source.primaryFunction ? (FUNCTION_LABELS[source.primaryFunction] ?? null) : null
-  );
-  let secondaryMeta = $derived(
-    source.secondaryFunction ? (FUNCTION_LABELS[source.secondaryFunction] ?? null) : null
-  );
+  let primaryMeta = $derived(getFunctionDef(source.primaryFunction));
+  let secondaryMeta = $derived(getFunctionDef(source.secondaryFunction));
 
   let freqDisplay = $derived(
     source.publicationFrequencyPerDay !== null && source.publicationFrequencyPerDay !== undefined
@@ -106,10 +102,10 @@
       {#if primaryMeta}
         <div class="etic-row">
           <span class="label-xs">Primary function</span>
-          <span class="fn-tag" title={primaryMeta.label}>{primaryMeta.abbr}</span>
+          <FunctionBadge function={primaryMeta.key} size="sm" showLabel showInfo />
           {#if secondaryMeta}
-            <span class="fn-tag fn-secondary" title={secondaryMeta.label}>{secondaryMeta.abbr}</span
-            >
+            <span class="label-xs">·</span>
+            <FunctionBadge function={secondaryMeta.key} size="sm" showLabel />
           {/if}
         </div>
       {/if}
@@ -155,6 +151,20 @@
       </span>
     </button>
 
+    <button
+      type="button"
+      class="action-btn"
+      class:active={discoveryExpanded}
+      aria-expanded={discoveryExpanded}
+      aria-controls="discovery-{source.name}"
+      aria-label="{discoveryExpanded
+        ? 'Hide'
+        : 'Show'} per-channel discovery coverage for source: {source.name}"
+      onclick={() => (discoveryExpanded = !discoveryExpanded)}
+    >
+      {discoveryExpanded ? '↑ Hide discovery' : '↓ Discovery coverage'}
+    </button>
+
     {#if source.documentationUrl}
       <a
         href={source.documentationUrl}
@@ -172,6 +182,13 @@
       <ArticlePreviewList sourceId={source.name} {ctx} {windowStart} {windowEnd} />
     </div>
   {/if}
+
+  <!-- Discovery coverage panel (Phase 122g — ADR-031). Lazy, expanded on demand. -->
+  {#if discoveryExpanded}
+    <div id="discovery-{source.name}" class="discovery-slot">
+      <DiscoveryCoveragePanel sourceId={source.name} {ctx} />
+    </div>
+  {/if}
 </article>
 
 <style>
@@ -184,6 +201,7 @@
     flex-direction: column;
     gap: var(--space-3);
     transition: border-color var(--motion-duration-fast) var(--motion-ease-standard);
+    height: 100%;
   }
 
   .source-card.scope-active {
@@ -287,7 +305,7 @@
   }
 
   .etic-row {
-    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
   }
@@ -297,24 +315,6 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--color-fg-subtle);
-  }
-
-  .fn-tag {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
-    padding: 1px 6px;
-    background: rgba(82, 131, 184, 0.15);
-    border: 1px solid #5283b8;
-    border-radius: var(--radius-sm);
-    color: #5283b8;
-    letter-spacing: 0.04em;
-  }
-
-  .fn-tag.fn-secondary {
-    background: rgba(154, 143, 184, 0.15);
-    border-color: #9a8fb8;
-    color: #9a8fb8;
   }
 
   .emic-designation {
@@ -337,6 +337,7 @@
     flex-wrap: wrap;
     padding-top: var(--space-1);
     border-top: 1px solid var(--color-border);
+    margin-top: auto;
   }
 
   .action-btn {
@@ -387,7 +388,8 @@
     color: var(--color-fg-subtle);
   }
 
-  .article-list-slot {
+  .article-list-slot,
+  .discovery-slot {
     border-top: 1px solid var(--color-border);
     padding-top: var(--space-3);
   }

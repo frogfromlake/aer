@@ -26,6 +26,12 @@ dependencies = [
     "feedparser==6.0.11",
     "psycopg2-binary==2.9.11",
     "PyYAML==6.0.2",
+    # Phase 122g — ruamel.yaml is used ONLY by the audit-source CLI for
+    # in-place comment-preserving edits to probes/<probe>/sources.yaml
+    # when an operator accepts a re-audit diff. The crawler runtime
+    # itself reads YAML via PyYAML (faster, comment-blind, which is
+    # exactly what we want at crawl time).
+    "ruamel.yaml==0.18.6",
     "requests==2.33.0",
     "structlog==25.5.0",
     # courlan is needed crawler-side too: dedup state is keyed on the

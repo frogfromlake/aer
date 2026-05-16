@@ -23,7 +23,7 @@
 
 import type { Component } from 'svelte';
 import type { FetchContext } from '$lib/api/queries';
-import type { ViewMode } from '$lib/state/url-internals';
+import type { ViewMode, ViewingMode } from '$lib/state/url-internals';
 
 export type AnalyticalDiscipline =
   | 'nlp'
@@ -53,6 +53,18 @@ export interface PresentationDefinition {
    *  own chunk so heavy libraries (Observable Plot, d3-force) only land
    *  on demand — keeps the shell bundle gate green (Brief §7). */
   loadComponent: () => Promise<Component<ViewModeCellProps>>;
+  /** Does this presentation's cell consume the active `metric` prop?
+   *  BERTopic cells (`topic_*`) operate on cleaned text; `cooccurrence_*`
+   *  on entity pairs. For those, the metric selector is misleading — the
+   *  Cell ignores it. CellControls hides the Metric row when this is
+   *  false. Defaults to `true`. */
+  usesMetric?: boolean;
+  /** Does this presentation's cell consume the active `resolution` prop?
+   *  Only time-series-shaped cells (per-source small-multiples on a time
+   *  axis) honour resolution today. CellControls and EpistemeShell hide
+   *  the Resolution control when no active view honours it. Defaults to
+   *  `false`. */
+  usesResolution?: boolean;
 }
 
 /** Common props passed to every cell. The cell decides which subset
@@ -87,6 +99,8 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     discipline: 'nlp',
     description: 'Per-source time series with uncertainty bands.',
     layout: 'per-source',
+    usesMetric: true,
+    usesResolution: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/TimeSeriesCell.svelte')).default
   },
@@ -96,6 +110,8 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     discipline: 'eda',
     description: 'Histogram + quantile summary across the scope.',
     layout: 'per-scope',
+    usesMetric: true,
+    usesResolution: false,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/DistributionCell.svelte')).default
   },
@@ -105,6 +121,10 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     discipline: 'network_science',
     description: 'Force-directed entity co-occurrence graph.',
     layout: 'per-scope',
+    // Operates on entity pairs from `/entities/cooccurrence` — the active
+    // metric is not consumed.
+    usesMetric: false,
+    usesResolution: false,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CoOccurrenceNetworkCell.svelte')).default
   },
@@ -121,6 +141,8 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     discipline: 'episteme',
     description: 'Per-language BERTopic ridgeline — what is being talked about, by volume.',
     layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/TopicDistributionCell.svelte')).default
   },
@@ -130,6 +152,8 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     discipline: 'episteme',
     description: 'Stream graph of topic volume over time — how the expressible shifts.',
     layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/TopicEvolutionCell.svelte')).default
   }
@@ -159,4 +183,133 @@ export function cellContentId(presentation: ViewMode, metricName: string): strin
  *  but none is otherwise specified. Matches the Phase 106 baseline so
  *  switching presentations on a lane with no explicit metric still
  *  yields a meaningful render. */
-export const DEFAULT_METRIC_NAME = 'sentiment_score';
+// Phase 117 renamed `sentiment_score` → `sentiment_score_sentiws` to make
+// ADR-016's dual-metric pattern lexically explicit. The default the
+// dashboard prepends to the metric picker matches the canonical name so
+// the legacy alias never surfaces in the UI (the BFF's alias filter would
+// drop it from `/metrics/available`, but the dashboard would re-introduce
+// it via this default).
+export const DEFAULT_METRIC_NAME = 'sentiment_score_sentiws';
+
+// -------------------------------------------------------------------------
+// Pillar mapping — Aleph / Episteme / Rhizome × Presentation
+//
+// The three pillars are the project's conceptual frame (Brief §3.1, WP-005
+// §6). Each pillar bundles a curated subset of presentations so the user
+// sees one coherent set of analytical lenses per pillar, rather than the
+// full matrix at once. The Pillar switcher in the SideRail and the per-lane
+// identity strip on Surface II L3 both consume this mapping.
+//
+// Mapping (strict 1-to-1, no overlap):
+//   Aleph    = synchronic totality  → time_series, distribution
+//   Episteme = diachronic register  → topic_distribution, topic_evolution
+//   Rhizome  = relational currents  → cooccurrence_network
+// -------------------------------------------------------------------------
+
+export interface PillarDefinition {
+  id: ViewingMode;
+  label: string;
+  abbr: string;
+  glyph: string;
+  /** One-line headline — shown next to the active pillar identity strip. */
+  blurb: string;
+  /** Two-to-three-sentence description shown when the user lands on a lane
+   *  for the first time, or expands the identity strip. */
+  description: string;
+  /** Accent colour driving the identity strip border + glyph. */
+  color: string;
+  /** Ordered list of presentations available within this pillar. The first
+   *  entry is the default viewMode when the pillar is freshly selected. */
+  presentations: ViewMode[];
+}
+
+export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
+  {
+    id: 'aleph',
+    label: 'Aleph',
+    abbr: 'A',
+    glyph: '◉',
+    blurb: 'Synchronic totality — "the weather now"',
+    description:
+      'Every observed probe in scope, no temporal aggregation beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape.',
+    color: '#5283b8',
+    presentations: ['time_series', 'distribution']
+  },
+  {
+    id: 'episteme',
+    label: 'Episteme',
+    abbr: 'E',
+    glyph: '◐',
+    blurb: 'Diachronic knowledge register — "the climate record"',
+    description:
+      'How the expressible shifts over time. Topic models, drift, the long-term shape of what can be said within the discursive formation.',
+    color: '#c8a85a',
+    presentations: ['topic_distribution', 'topic_evolution']
+  },
+  {
+    id: 'rhizome',
+    label: 'Rhizome',
+    abbr: 'R',
+    glyph: '◇',
+    blurb: 'Relational propagation — "currents between contexts"',
+    description:
+      'How frames move. Entity co-occurrence, lead-lag, cross-probe diffusion — the relational substrate of the discourse.',
+    color: '#9a8fb8',
+    presentations: ['cooccurrence_network']
+  }
+];
+
+const DEFAULT_PILLAR: PillarDefinition = PILLAR_DEFINITIONS[0]!;
+
+/** Lookup pillar definition by id; null/unknown returns the Aleph default. */
+export function getPillar(id: ViewingMode | null): PillarDefinition {
+  return PILLAR_DEFINITIONS.find((p) => p.id === id) ?? DEFAULT_PILLAR;
+}
+
+/** Presentations available for the active pillar, in display order. */
+export function presentationsForPillar(id: ViewingMode | null): PresentationDefinition[] {
+  const pillar = getPillar(id);
+  const out: PresentationDefinition[] = [];
+  for (const presId of pillar.presentations) {
+    const p = PRESENTATIONS.find((x) => x.id === presId);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/** Default viewMode for the given pillar — the first presentation in its set. */
+export function defaultViewModeForPillar(id: ViewingMode | null): ViewMode {
+  const pillar = getPillar(id);
+  return pillar.presentations[0] ?? DEFAULT_PRESENTATION.id;
+}
+
+/** Reverse lookup: which pillar owns the given viewMode? Returns the pillar
+ *  id, or null when the viewMode is not registered under any pillar (which
+ *  should be impossible under the strict 1-1 mapping but keeps callers
+ *  defensive against future presentation additions). */
+export function pillarForViewMode(viewMode: ViewMode): ViewingMode | null {
+  const def = PILLAR_DEFINITIONS.find((p) => p.presentations.includes(viewMode));
+  return def?.id ?? null;
+}
+
+/** Resolve the active presentation given URL state (viewMode, pillar).
+ *
+ * Rules:
+ *   - If the URL viewMode is non-null AND belongs to the active pillar, use it.
+ *   - Otherwise fall back to the pillar's default presentation.
+ *
+ * Without this resolution, a viewMode-less URL on the Episteme pillar would
+ * render `time_series` (the registry-wide default), which is an Aleph cell
+ * — visually breaking the pillar identity. */
+export function resolvePresentation(
+  viewMode: ViewMode | null,
+  pillar: ViewingMode | null
+): PresentationDefinition {
+  const pillarDef = getPillar(pillar);
+  if (viewMode !== null && pillarDef.presentations.includes(viewMode)) {
+    const found = PRESENTATIONS.find((p) => p.id === viewMode);
+    if (found) return found;
+  }
+  const defaultId = pillarDef.presentations[0] ?? DEFAULT_PRESENTATION.id;
+  return PRESENTATIONS.find((p) => p.id === defaultId) ?? DEFAULT_PRESENTATION;
+}

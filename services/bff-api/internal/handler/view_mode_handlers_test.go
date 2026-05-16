@@ -51,7 +51,7 @@ func TestGetMetricDistribution_ResolvesProbeAndReturnsBins(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/sentiment_score/distribution?scope=probe&scopeId=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd+"&bins=2", nil))
+		"/metrics/sentiment_score/distribution?scope=probe&scopeId=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd+"&bins=2", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -85,7 +85,7 @@ func TestGetMetricDistribution_ResolvesProbeAndReturnsBins(t *testing.T) {
 	}
 	// Phase 117 alias: `sentiment_score` is canonicalised to
 	// `sentiment_score_sentiws` before the response is shaped.
-	if resp.MetricName != "sentiment_score_sentiws" || resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-rss" {
+	if resp.MetricName != "sentiment_score_sentiws" || resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-web" {
 		t.Fatalf("response echo mismatch: %+v", resp)
 	}
 	if len(resp.Bins) != 2 || resp.Bins[1].Count != 13 {
@@ -132,7 +132,7 @@ func TestGetMetricDistribution_BadWindowReturns400(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/sentiment_score/distribution?scope=probe&scopeId=probe-0-de-institutional-rss&start="+winEnd+"&end="+winStart, nil))
+		"/metrics/sentiment_score/distribution?scope=probe&scopeId=probe-0-de-institutional-web&start="+winEnd+"&end="+winStart, nil))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -144,7 +144,7 @@ func TestGetMetricDistribution_StorageError500(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/sentiment_score/distribution?scope=probe&scopeId=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/sentiment_score/distribution?scope=probe&scopeId=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rec.Code)
@@ -169,7 +169,7 @@ func TestGetMetricHeatmap_RoundTrip(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/sentiment_score/heatmap?scope=probe&scopeId=probe-0-de-institutional-rss&xDimension=dayOfWeek&yDimension=hour&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/sentiment_score/heatmap?scope=probe&scopeId=probe-0-de-institutional-web&xDimension=dayOfWeek&yDimension=hour&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -203,7 +203,7 @@ func TestGetMetricHeatmap_InvalidDimensionRejectedByRouter(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/sentiment_score/heatmap?scope=probe&scopeId=probe-0-de-institutional-rss&xDimension=banana&yDimension=hour&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/sentiment_score/heatmap?scope=probe&scopeId=probe-0-de-institutional-web&xDimension=banana&yDimension=hour&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
@@ -231,7 +231,7 @@ func TestGetMetricCorrelation_RoundTrip(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/correlation?metrics=sentiment_score,word_count&scope=probe&scopeId=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/correlation?metrics=sentiment_score,word_count&scope=probe&scopeId=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -263,7 +263,7 @@ func TestGetMetricCorrelation_TooFewMetrics400(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/correlation?metrics=sentiment_score&scope=probe&scopeId=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/correlation?metrics=sentiment_score&scope=probe&scopeId=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
@@ -293,7 +293,7 @@ func TestGetEntityCoOccurrence_RoundTripAndClampsTopN(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/entities/cooccurrence?scope=probe&scopeId=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+		"/entities/cooccurrence?scope=probe&scopeId=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -367,7 +367,7 @@ func TestGetMetricDistribution_MultiProbeViaProbeIds(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/word_count/distribution?probeIds=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/word_count/distribution?probeIds=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -440,7 +440,7 @@ func TestGetMetricDistribution_SegmentByProbeBuildsStreams(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/metrics/word_count/distribution?probeIds=probe-0-de-institutional-rss&segmentBy=probe&start="+winStart+"&end="+winEnd, nil))
+		"/metrics/word_count/distribution?probeIds=probe-0-de-institutional-web&segmentBy=probe&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -458,7 +458,7 @@ func TestGetMetricDistribution_SegmentByProbeBuildsStreams(t *testing.T) {
 	if len(resp.Streams) != 1 {
 		t.Fatalf("expected 1 probe stream, got %d", len(resp.Streams))
 	}
-	if resp.Streams[0].Id != "probe-0-de-institutional-rss" || resp.Streams[0].ScopeKind != "probe" {
+	if resp.Streams[0].Id != "probe-0-de-institutional-web" || resp.Streams[0].ScopeKind != "probe" {
 		t.Fatalf("stream mismatch: %+v", resp.Streams[0])
 	}
 }

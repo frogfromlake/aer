@@ -5,12 +5,17 @@
 
 export type Resolution = '5min' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export type ViewingMode = 'aleph' | 'episteme' | 'rhizome';
-// Descent layer on the Atmosphere surface. Only `atmosphere` (L0/L1/L2)
-// and `analysis` (L3 panel open) are URL-addressable; L4 is a transient
-// fly-out inside L3 and intentionally not encoded (closing the browser
-// tab and returning should land at L3, not inside the provenance
-// overlay — the overlay is a disclosure, not a descent).
-export type ViewLayer = 'atmosphere' | 'analysis';
+// Rhizome entry-question (Phase 122h / ADR-033 §2 Rhizome paragraph). The
+// Rhizome Pillar renders one of four opinionated default views; the URL
+// encodes which view is active so deep-links restore the exact entry.
+// Replaces the retired Surface I L3 ViewLayer (`atmosphere`/`analysis`) —
+// the L3 companion panel was retired in Phase 124b; the `view` URL key is
+// repurposed for the Rhizome sub-view.
+export type RhizomeView =
+  | 'actors-topics'
+  | 'source-resonance'
+  | 'concept-migration'
+  | 'free-composition';
 // Presentation-form axis of the View-Mode Matrix (Brief §4.2.3 /
 // reframing-note §3.2). MVP cells in Phase 107: time_series,
 // distribution, cooccurrence_network. The catalog is extensible —
@@ -34,20 +39,15 @@ export type Normalization = 'raw' | 'zscore' | 'percentile';
 export interface UrlState {
   from: string | null;
   to: string | null;
-  probe: string | null;
-  // Zero-based index into the selected probe's emissionPoints array.
-  // A probe like probe-0-de-institutional-rss bundles multiple publishers
-  // at distinct origins (Tagesschau/Hamburg, Bundesregierung/Berlin), so
-  // probeId alone does not deep-link a click — we also encode which point.
-  emissionPoint: number | null;
   resolution: Resolution | null;
   viewingMode: ViewingMode | null;
   // Metric the L3 Analysis view is locked onto. A free-form string so
   // new gold metrics land without a schema bump; the L3 panel falls
   // back to a sensible default when this is null.
   metric: string | null;
-  // Current descent layer. `null` is treated as `atmosphere` by consumers.
-  view: ViewLayer | null;
+  // Rhizome sub-view (Phase 122h). `null` = "render Rhizome's default
+  // (Akteure & Themen) when the Pillar is Rhizome; otherwise ignored".
+  view: RhizomeView | null;
   // Source-scope narrowing: set by the Probe Dossier (Phase 106) when
   // the user clicks source cards. Supports multi-source selection (Phase
   // 113d). Empty array = no scope narrowing. Serialised as comma-separated
@@ -81,8 +81,6 @@ export const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 export const EMPTY_URL_STATE: UrlState = {
   from: null,
   to: null,
-  probe: null,
-  emissionPoint: null,
   resolution: null,
   viewingMode: null,
   metric: null,
@@ -97,7 +95,12 @@ export const EMPTY_URL_STATE: UrlState = {
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
-const VIEW_LAYERS: readonly ViewLayer[] = ['atmosphere', 'analysis'];
+const RHIZOME_VIEWS: readonly RhizomeView[] = [
+  'actors-topics',
+  'source-resonance',
+  'concept-migration',
+  'free-composition'
+];
 const VIEW_MODES: readonly ViewMode[] = [
   'time_series',
   'distribution',
@@ -123,24 +126,15 @@ function parseEnum<T extends string>(v: string | null, allowed: readonly T[]): T
   return (allowed as readonly string[]).includes(v) ? (v as T) : null;
 }
 
-function parseNonNegativeInt(v: string | null): number | null {
-  if (v === null) return null;
-  if (!/^\d+$/.test(v)) return null;
-  const n = Number.parseInt(v, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
 export function readFromSearch(search: string): UrlState {
   const p = new URLSearchParams(search);
   return {
     from: parseIso(p.get('from')),
     to: parseIso(p.get('to')),
-    probe: p.get('probe'),
-    emissionPoint: parseNonNegativeInt(p.get('ep')),
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
     viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES),
     metric: parseMetric(p.get('metric')),
-    view: parseEnum(p.get('view'), VIEW_LAYERS),
+    view: parseEnum(p.get('view'), RHIZOME_VIEWS),
     sourceIds: parseSourceIds(p.get('sourceId')),
     probeIds: parseSourceIds(p.get('probeId')),
     viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
@@ -167,19 +161,13 @@ export function writeToSearch(state: UrlState): string {
   const p = new URLSearchParams();
   if (state.from) p.set('from', state.from);
   if (state.to) p.set('to', state.to);
-  if (state.probe) p.set('probe', state.probe);
-  // `ep` is only meaningful when a probe is selected; drop it otherwise
-  // so reload-after-close does not restore a phantom emission point.
-  if (state.probe && state.emissionPoint !== null && state.emissionPoint >= 0) {
-    p.set('ep', String(state.emissionPoint));
-  }
   if (state.resolution) p.set('resolution', state.resolution);
   if (state.viewingMode) p.set('viewingMode', state.viewingMode);
   // metric, viewMode, layer, and sourceIds are Surface II concepts; they
   // are meaningful on /lanes/* routes regardless of whether a ?probe= param
   // is present (probe is a path param on Surface II, not a query param).
   if (state.metric) p.set('metric', state.metric);
-  if (state.view && state.view !== 'atmosphere') p.set('view', state.view);
+  if (state.view) p.set('view', state.view);
   if (state.sourceIds.length > 0) p.set('sourceId', state.sourceIds.join(','));
   if (state.probeIds.length > 0) p.set('probeId', state.probeIds.join(','));
   if (state.viewMode) p.set('viewMode', state.viewMode);

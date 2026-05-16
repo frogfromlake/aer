@@ -25,7 +25,7 @@ properties:
     description: >
       Canonical identifier, matching the dossier directory under
       `docs/probes/` and the `probe` content-catalog key.
-    example: probe-0-de-institutional-rss
+    example: probe-0-de-institutional-web
   language:
     type: string
     description: >

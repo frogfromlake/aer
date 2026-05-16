@@ -1,6 +1,6 @@
 # Probe 0 — German Institutional Web
 
-**Probe ID:** `probe-0-de-institutional-rss` *(historical; collection method migrated to web in Phase 122 — the probe-id string is preserved for backward compatibility with cached dashboard URLs and BFF content keys; the dossier directory was renamed to `probe-0-de-institutional-web/` for accuracy)*
+**Probe ID:** `probe-0-de-institutional-web` *(historical; collection method migrated to web in Phase 122 — the probe-id string is preserved for backward compatibility with cached dashboard URLs and BFF content keys; the dossier directory was renamed to `probe-0-de-institutional-web/` for accuracy)*
 **Cultural region:** Germany (`DE`), German-language (`de`)
 **Sources:** `tagesschau.de`, `bundesregierung.de`
 **Collection method:** Full-article web crawling (Phase 122 / ADR-028). Migrated from RSS-summary ingestion on 2026-05-08.
@@ -8,7 +8,7 @@
 
 > **Migration note (Phase 122):** Probe 0 transitioned from RSS-feed ingestion to a generalised Python web crawler that fetches full article HTML and stores it verbatim in Bronze. The analysis worker's `WebAdapter` runs the trafilatura + extruct + htmldate extraction pipeline at the Silver boundary, producing a five-tier `WebMeta` envelope. Source identity is unchanged — only the collection method.
 >
-> The rename `probe-0-de-institutional-rss/` → `probe-0-de-institutional-web/` is at the dossier-directory level only. Old links of the form `docs/probes/probe-0-de-institutional-rss/...` redirect to the renamed directory via the mkdocs nav update.
+> The rename `probe-0-de-institutional-web/` → `probe-0-de-institutional-web/` is at the dossier-directory level only. Old links of the form `docs/probes/probe-0-de-institutional-web/...` redirect to the renamed directory via the mkdocs nav update.
 
 ---
 

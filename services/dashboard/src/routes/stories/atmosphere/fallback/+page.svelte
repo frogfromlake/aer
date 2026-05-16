@@ -9,7 +9,7 @@
 
   const probes: ProbeDto[] = [
     {
-      probeId: 'probe-0-de-institutional-rss',
+      probeId: 'probe-0-de-institutional-web',
       language: 'de',
       sources: ['tagesschau', 'zeit'],
       emissionPoints: [
@@ -32,7 +32,7 @@
   ];
 
   const activity: ProbeActivity[] = [
-    { probeId: 'probe-0-de-institutional-rss', documentsPerHour: 12.3 },
+    { probeId: 'probe-0-de-institutional-web', documentsPerHour: 12.3 },
     { probeId: 'probe-fr-synthetic', documentsPerHour: 4.5 },
     { probeId: 'probe-en-synthetic', documentsPerHour: 0 }
   ];

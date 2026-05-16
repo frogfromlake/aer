@@ -1,6 +1,17 @@
 # Dashboard Reframing Note — Iteration 5 Preparation
 
-**Status:** Draft synthesis. Not authoritative.
+> **Phase 122h footnote (2026-05-15).** This note's Path A reframing (globe
+> demotion, navigation primacy, probe-first selection, four-surface plan
+> with Composition Workspace as Surface IV) was implemented in Iteration 5
+> and partially evolved by ADR-033. The post-Iteration-5 architecture
+> retains the navigation primacy and probe-first selection but reduces to
+> **three surfaces** (Atmosphäre / Workbench / Reflexion) with the
+> Composition Workspace absorbed into Rhizome's *Freie Komposition*
+> entry-question. See `docs/arc42/09_architecture_decisions.md` ADR-033
+> for the current architecture. Scheduled for deletion in Phase 129
+> (Documentation Sweep) once the rewritten brief replaces this note.
+
+**Status:** Draft synthesis. Not authoritative. Partially evolved by ADR-033 (Phase 122h).
 **Purpose:** Capture the shift in mental model surfaced by the 2026-04-24 review so that
 `design_brief.md`, `design_system.md`, and ADR-020 can be rewritten (Step 2) against
 a clear target. This file is a working artifact — it is expected to be merged into the

@@ -36,6 +36,9 @@ export type TopicDistributionResponseDto = components['schemas']['TopicDistribut
 export type MetadataCoverageResponseDto = components['schemas']['MetadataCoverageResponse'];
 export type MetadataCoverageSourceDto = components['schemas']['MetadataCoverageSource'];
 export type MetadataCoverageFieldDto = components['schemas']['MetadataCoverageField'];
+// Phase 122g — per-channel discovery telemetry (ADR-031).
+export type DiscoveryCoverageResponseDto = components['schemas']['DiscoveryCoverageResponse'];
+export type DiscoveryCoveragePerChannelDto = components['schemas']['DiscoveryCoveragePerChannel'];
 export type TopicDistributionEntryDto = TopicDistributionResponseDto['topics'][number];
 export type SilverAggregationType =
   | 'cleaned_text_length'
@@ -391,6 +394,27 @@ export function sourceMetadataCoverageQuery(
       fetchJson<MetadataCoverageResponseDto>(
         ctx,
         `/sources/${encodeURIComponent(sourceId)}/metadata-coverage`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 122g — per-source discovery-coverage (ADR-031). Sibling to
+// sourceMetadataCoverageQuery; same fetch pattern, optional windowDays
+// for trailing-window control.
+export function sourceDiscoveryCoverageQuery(
+  ctx: FetchContext,
+  sourceId: string,
+  windowDays?: number
+): QueryOptions<DiscoveryCoverageResponseDto> {
+  const qs = windowDays != null ? `?windowDays=${windowDays}` : '';
+  return {
+    queryKey: ['aer', 'source-discovery-coverage', sourceId, windowDays ?? null] as const,
+    queryFn: () =>
+      fetchJson<DiscoveryCoverageResponseDto>(
+        ctx,
+        `/sources/${encodeURIComponent(sourceId)}/discovery-coverage${qs}`,
         'unspecified'
       ),
     staleTime: FIVE_MINUTES

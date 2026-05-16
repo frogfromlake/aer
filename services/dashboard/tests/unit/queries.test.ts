@@ -177,7 +177,7 @@ describe('view-mode queries (Phase 107)', () => {
 
     const q = entityCoOccurrenceQuery(ctxWith(spy), {
       scope: 'probe',
-      scopeId: 'probe-0-de-institutional-rss',
+      scopeId: 'probe-0-de-institutional-web',
       start: '2026-04-01T00:00:00.000Z',
       end: '2026-04-22T00:00:00.000Z',
       topN: 25

@@ -10,14 +10,18 @@
   // Layer mapping (per Brief §5.2 — canonical):
   //   L0 Immersion   — 3D globe, always rendered
   //   L1 Orientation — hover tooltips (Progressive Semantics)
-  //   L2 Exploration — TimeScrubber + ScopeBar resolution selector
+  //   L2 Exploration — Surface I no longer hosts time controls; the
+  //                    TimeScrubber + resolution selector were dropped
+  //                    because they had no visible effect on the globe.
+  //                    Time-range / resolution will return as view-mode-
+  //                    specific controls inside Surface II L3 cells.
   //   L3 Analysis    — NOT hosted on Surface I. Lives natively on Surface II.
-  //   L4 Provenance  — methodology tray (right-edge, all surfaces)
+  //   L4 Provenance  — inline methodology accordion on Surface II L3.
   //   L5 Evidence    — reader-pane overlay (Surfaces II/III)
   //
   // Keyboard descent grammar:
   //   Tab           cycles through probes (sr-only nav)
-  //   Enter/Space   navigates to /lanes/{probeId}/dossier
+  //   Enter/Space   navigates to /dossier/{probeId} (Phase 122h)
   //   Shift+N       toggles Negative Space overlay (structural only)
   //
   // Shell-chunk rules (enforced by tests/unit/lazy-engine.test.ts):
@@ -36,7 +40,6 @@
   import AtmosphereCanvas from '$lib/components/atmosphere/AtmosphereCanvas.svelte';
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
-  import TimeScrubber from '$lib/components/TimeScrubber.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { negativeSpaceActive } from '$lib/state/tray.svelte';
@@ -92,7 +95,7 @@
 
   // Probe → engine model. Each emission point carries the canonical
   // source name aligned positionally with `probe.sources[i]` (Phase 110:
-  // satellite click routes to /lanes/:probeId/dossier?sourceId=…). When
+  // satellite click routes to /dossier/{probeId} with sourceIds pre-set). When
   // sources and emissionPoints have unequal lengths the trailing entries
   // get no sourceName and the engine renders no satellite for them.
   let probeMarkers = $derived.by<ProbeMarker[]>(() =>
@@ -182,22 +185,6 @@
     }
   }
 
-  // --- URL deeplink -> redirect to Dossier (Phase 113c) ---------------
-  // Old bookmarks (`/?probe=X[&view=analysis…]`) descended into the in-page
-  // L3 panel. The panel is gone; redirect to the canonical descent target.
-  // Strip the descent-related params on the way out so the Dossier URL
-  // stays canonical.
-  $effect(() => {
-    if (typeof window === 'undefined') return;
-    if (!url.probe) return;
-    const probeId = url.probe;
-    setUrl({ probe: null, emissionPoint: null, view: null, metric: null });
-    descend(() => {
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
-      void goto(`/lanes/${encodeURIComponent(probeId)}/dossier`);
-    });
-  });
-
   function onProbeSelected(sel: ProbeSelection) {
     if (shiftHeld) {
       // Shift+click toggles the probe in the composition set; no navigation.
@@ -210,15 +197,16 @@
       return;
     }
     descend(() => {
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
-      void goto(`/lanes/${encodeURIComponent(sel.probeId)}/dossier`);
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Probe-Dossier route
+      void goto(`/dossier/${encodeURIComponent(sel.probeId)}`);
     });
   }
 
   function onProbeHovered(sel: ProbeSelection | null) {
     hoveredProbe = sel;
     // Intent-based preload: once the user hovers a probe, warm the
-    // dossier route so descent feels instantaneous.
+    // dossier route so descent feels instantaneous. (Component path
+    // unchanged — only the route URL moved in Phase 122h.)
     if (sel) {
       void import('$lib/components/lanes/ProbeDossier.svelte').catch(() => void 0);
     }
@@ -234,8 +222,8 @@
     // the narrowed source immediately on render (without a query param).
     setUrl({ sourceIds: [sel.sourceName] });
     descend(() => {
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route
-      void goto(`/lanes/${encodeURIComponent(sel.probeId)}/dossier`);
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Probe-Dossier route
+      void goto(`/dossier/${encodeURIComponent(sel.probeId)}`);
     });
   }
 
@@ -263,15 +251,13 @@
   // so the methodology tray can switch into limitations-first mode
   // without prop-drilling through the (app) layout.
   const negSpace = $derived(negativeSpaceActive());
-
-  let resolution = $derived(url.resolution ?? 'hourly');
 </script>
 
 <svelte:head>
   <title>AĒR — Atmosphere</title>
 </svelte:head>
 
-<!-- Top scope bar: primer link only. Resolution + time window moved into TimeScrubber (Phase 113d). -->
+<!-- Top scope bar: primer link only. -->
 <ScopeBar label="Atmosphere surface controls">
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
   <a class="primer-link" href="/reflection/primer/globe">How to read the globe →</a>
@@ -366,13 +352,15 @@
     {#if url.probeIds.length > 1}
       <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe composition">
         <span class="compose-count">⊗ {url.probeIds.length} probes</span>
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface II route -->
         <button
           type="button"
           class="compose-btn"
           onclick={() =>
-            // eslint-disable-next-line svelte/no-navigation-without-resolve
-            descend(() => void goto(`/lanes/${encodeURIComponent(url.probeIds[0]!)}/dossier`))}
+            descend(() => {
+              const target = `/workbench?viewingMode=aleph&probeId=${url.probeIds.map(encodeURIComponent).join(',')}`;
+              // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route (Phase 122h)
+              void goto(target);
+            })}
         >
           Compose →
         </button>
@@ -399,11 +387,6 @@
     </div>
   {/if}
 {/if}
-
-<!-- Time scrubber: bottom center (Design Brief §4.2, L2 Exploration). Hosts resolution selector. -->
-<div class="l2-slot">
-  <TimeScrubber {resolution} onResolutionChange={(r) => setUrl({ resolution: r })} />
-</div>
 
 <style>
   .stage {
@@ -522,19 +505,6 @@
     max-width: 28rem;
     z-index: 500;
   }
-  .l2-slot {
-    position: fixed;
-    bottom: var(--space-5);
-    left: calc(var(--rail-width) + 50%);
-    transform: translateX(-50%);
-    width: min(90vw, 52rem);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    align-items: stretch;
-    z-index: 400;
-  }
-
   /* Multi-probe Compose CTA — floats at bottom-right of the globe stage. */
   .compose-cta {
     position: absolute;

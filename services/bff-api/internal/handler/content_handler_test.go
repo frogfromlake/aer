@@ -51,7 +51,7 @@ func testCatalog() config.ContentCatalog {
 
 	entities := []struct{ locale, entityType, entityID string }{
 		{"en", "metric", "sentiment_score"},
-		{"en", "probe", "probe-0-de-institutional-rss"},
+		{"en", "probe", "probe-0-de-institutional-web"},
 		{"en", "discourse_function", "epistemic_authority"},
 		{"en", "refusal", "normalization_equivalence_missing"},
 		{"de", "metric", "sentiment_score"},
@@ -109,7 +109,7 @@ func TestGetContent_ProbeReturns200(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeProbe,
-		EntityId:   "probe-0-de-institutional-rss",
+		EntityId:   "probe-0-de-institutional-web",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -179,7 +179,7 @@ func TestGetContent_MissingLocaleReturns404(t *testing.T) {
 	locDE := GetContentParamsLocaleDe
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeProbe,
-		EntityId:   "probe-0-de-institutional-rss",
+		EntityId:   "probe-0-de-institutional-web",
 		Params:     GetContentParams{Locale: &locDE},
 	})
 	if err != nil {

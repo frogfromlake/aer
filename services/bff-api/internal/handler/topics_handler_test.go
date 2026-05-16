@@ -30,7 +30,7 @@ func TestGetTopicDistribution_ResolvesProbeAndReturnsTopics(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/topics/distribution?scope=probe&scopeId=probe-0-de-institutional-rss&start="+winStart+"&end="+winEnd, nil))
+		"/topics/distribution?scope=probe&scopeId=probe-0-de-institutional-web&start="+winStart+"&end="+winEnd, nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
@@ -53,7 +53,7 @@ func TestGetTopicDistribution_ResolvesProbeAndReturnsTopics(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-rss" {
+	if resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-web" {
 		t.Fatalf("scope echo mismatch: %+v", resp)
 	}
 	if len(resp.Topics) != 2 || resp.Topics[0].ArticleCount != 42 {

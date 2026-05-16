@@ -3,8 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   cellContentId,
   DEFAULT_METRIC_NAME,
+  defaultViewModeForPillar,
+  getPillar,
   getPresentation,
-  listPresentations
+  listPresentations,
+  pillarForViewMode,
+  PILLAR_DEFINITIONS,
+  presentationsForPillar,
+  resolvePresentation
 } from '../../src/lib/viewmodes';
 
 describe('view-mode registry', () => {
@@ -44,7 +50,7 @@ describe('view-mode registry', () => {
     expect(cellContentId('time_series', 'sentiment_score')).toBe('time_series_sentiment_score');
     expect(cellContentId('distribution', 'word_count')).toBe('distribution_word_count');
     expect(cellContentId('cooccurrence_network', DEFAULT_METRIC_NAME)).toBe(
-      'cooccurrence_network_sentiment_score'
+      'cooccurrence_network_sentiment_score_sentiws'
     );
   });
 
@@ -63,5 +69,83 @@ describe('view-mode registry', () => {
     const evo = presentations.find((p) => p.id === 'topic_evolution');
     expect(dist?.discipline).toBe('episteme');
     expect(evo?.discipline).toBe('episteme');
+  });
+});
+
+describe('pillar mapping', () => {
+  it('defines all three pillars in display order: Aleph, Episteme, Rhizome', () => {
+    expect(PILLAR_DEFINITIONS.map((p) => p.id)).toEqual(['aleph', 'episteme', 'rhizome']);
+  });
+
+  it('uses strict 1-to-1 presentation mapping with no overlap', () => {
+    const seen = new Set<string>();
+    for (const p of PILLAR_DEFINITIONS) {
+      for (const v of p.presentations) {
+        expect(seen.has(v)).toBe(false);
+        seen.add(v);
+      }
+    }
+    // Aleph: time_series + distribution
+    expect(getPillar('aleph').presentations).toEqual(['time_series', 'distribution']);
+    // Episteme: topic_distribution + topic_evolution
+    expect(getPillar('episteme').presentations).toEqual(['topic_distribution', 'topic_evolution']);
+    // Rhizome: cooccurrence_network
+    expect(getPillar('rhizome').presentations).toEqual(['cooccurrence_network']);
+  });
+
+  it('falls back to Aleph for unknown/null pillar', () => {
+    expect(getPillar(null).id).toBe('aleph');
+  });
+
+  it('returns the right presentations per pillar', () => {
+    const alephIds = presentationsForPillar('aleph').map((p) => p.id);
+    expect(alephIds).toEqual(['time_series', 'distribution']);
+
+    const epistemIds = presentationsForPillar('episteme').map((p) => p.id);
+    expect(epistemIds).toEqual(['topic_distribution', 'topic_evolution']);
+
+    const rhizIds = presentationsForPillar('rhizome').map((p) => p.id);
+    expect(rhizIds).toEqual(['cooccurrence_network']);
+
+    // null → Aleph default
+    expect(presentationsForPillar(null).map((p) => p.id)).toEqual(['time_series', 'distribution']);
+  });
+
+  it('returns the first presentation as the pillar default', () => {
+    expect(defaultViewModeForPillar('aleph')).toBe('time_series');
+    expect(defaultViewModeForPillar('episteme')).toBe('topic_distribution');
+    expect(defaultViewModeForPillar('rhizome')).toBe('cooccurrence_network');
+    expect(defaultViewModeForPillar(null)).toBe('time_series');
+  });
+
+  it('reverse-maps every presentation back to exactly one pillar', () => {
+    expect(pillarForViewMode('time_series')).toBe('aleph');
+    expect(pillarForViewMode('distribution')).toBe('aleph');
+    expect(pillarForViewMode('topic_distribution')).toBe('episteme');
+    expect(pillarForViewMode('topic_evolution')).toBe('episteme');
+    expect(pillarForViewMode('cooccurrence_network')).toBe('rhizome');
+  });
+
+  it('resolvePresentation respects the active pillar', () => {
+    // viewMode belongs to active pillar → return it
+    expect(resolvePresentation('topic_evolution', 'episteme').id).toBe('topic_evolution');
+    // viewMode does NOT belong to active pillar → fall back to pillar default
+    expect(resolvePresentation('time_series', 'episteme').id).toBe('topic_distribution');
+    expect(resolvePresentation('topic_distribution', 'aleph').id).toBe('time_series');
+    expect(resolvePresentation('cooccurrence_network', 'aleph').id).toBe('time_series');
+    // null viewMode → pillar default
+    expect(resolvePresentation(null, 'rhizome').id).toBe('cooccurrence_network');
+    expect(resolvePresentation(null, null).id).toBe('time_series');
+  });
+
+  it('each pillar carries a glyph, label, abbr, blurb, description and color', () => {
+    for (const p of PILLAR_DEFINITIONS) {
+      expect(p.glyph).toBeTruthy();
+      expect(p.label).toBeTruthy();
+      expect(p.abbr).toBeTruthy();
+      expect(p.blurb).toBeTruthy();
+      expect(p.description).toBeTruthy();
+      expect(p.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
   });
 });

@@ -7,7 +7,7 @@ import { expect, test, type Route } from '@playwright/test';
 // Tempo trace verification is out of scope here; it belongs to the
 // integrated stack smoke test (`make test-e2e`).
 
-const PROBE_ID = 'probe-0-de-institutional-rss';
+const PROBE_ID = 'probe-0-de-institutional-web';
 
 const probePayload = [
   {

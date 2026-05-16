@@ -21,10 +21,14 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import SourceCard from './SourceCard.svelte';
-  import ValidComparisonsPanel from './ValidComparisonsPanel.svelte';
   import MetadataCoveragePanel from './MetadataCoveragePanel.svelte';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { goto } from '$app/navigation';
+  import {
+    DISCOURSE_FUNCTIONS,
+    FUNCTION_DEFINITIONS,
+    type DiscourseFunction
+  } from '$lib/discourse-function';
 
   interface Props {
     dossier: ProbeDossierDto;
@@ -55,38 +59,40 @@
     return covered[0] ?? 'epistemic_authority';
   });
 
-  const FUNCTION_META: Record<
-    string,
-    { label: string; abbr: string; color: string; description: string }
-  > = {
-    epistemic_authority: {
-      label: 'Epistemic Authority',
-      abbr: 'EA',
-      color: '#5283b8',
-      description: 'Sources that produce and legitimate knowledge claims (WP-001 §3).'
-    },
-    power_legitimation: {
-      label: 'Power Legitimation',
-      abbr: 'PL',
-      color: '#7ec4a0',
-      description: 'Sources that frame, justify, or contest political power (WP-001 §3).'
-    },
-    cohesion_identity: {
-      label: 'Cohesion & Identity',
-      abbr: 'CI',
-      color: '#c8a85a',
-      description: 'Sources that articulate collective identity and social cohesion (WP-001 §3).'
-    },
-    subversion_friction: {
-      label: 'Subversion & Friction',
-      abbr: 'SF',
-      color: '#9a8fb8',
-      description: 'Sources that challenge dominant frames or introduce friction (WP-001 §3).'
-    }
-  };
-
-  const ALL_FUNCTIONS = Object.keys(FUNCTION_META);
+  // Discourse-function metadata is sourced from $lib/discourse-function
+  // (Phase 122h / ADR-033 §4 — single source of truth across the dashboard).
+  const ALL_FUNCTIONS: readonly DiscourseFunction[] = DISCOURSE_FUNCTIONS;
   let coveredFunctions = $derived(new Set(dossier.functionCoverage.functions as string[]));
+
+  // Source-to-function mapping (Finding 1.5b). For each WP-001 discourse
+  // function, list the sources whose primaryFunction matches it — so the
+  // user can read at a glance which sources will be in scope when they
+  // click the Open-Workbench tile for that function.
+  const sourcesByFunction = $derived.by<Record<string, string[]>>(() => {
+    const m: Record<string, string[]> = {};
+    for (const fn of ALL_FUNCTIONS) m[fn] = [];
+    for (const s of dossier.sources) {
+      if (s.primaryFunction && m[s.primaryFunction]) {
+        m[s.primaryFunction]!.push(s.emicDesignation ?? s.name);
+      }
+    }
+    return m;
+  });
+
+  // Parallel mapping by canonical source name (used as URL `sourceId` param).
+  // `sourcesByFunction` above carries emicDesignation for display; the
+  // Workbench needs the source `name` so its scope state aligns with the
+  // SourceLaneChart query keys and the WorkbenchScopeBar chips.
+  const sourceNamesByFunction = $derived.by<Record<string, string[]>>(() => {
+    const m: Record<string, string[]> = {};
+    for (const fn of ALL_FUNCTIONS) m[fn] = [];
+    for (const s of dossier.sources) {
+      if (s.primaryFunction && m[s.primaryFunction]) {
+        m[s.primaryFunction]!.push(s.name);
+      }
+    }
+    return m;
+  });
 
   let coveragePercent = $derived(
     Math.round((dossier.functionCoverage.covered / dossier.functionCoverage.total) * 100)
@@ -132,9 +138,26 @@
   function clearComposition() {
     setUrl({ probeIds: [] });
   }
+
+  function clearAllScope() {
+    setUrl({ sourceIds: [], probeIds: [] });
+  }
+
+  let hasAnyScope = $derived(hasComposition || hasNarrowedScope);
 </script>
 
 <article class="dossier" aria-labelledby="dossier-title">
+  <!-- Brief orientation strip (Finding 1) — explains what the user sees
+       before the source-card flood hits them. Renders once per Dossier. -->
+  <header class="dossier-intro" aria-label="What is this page?">
+    <p class="dossier-eyebrow">Probe Dossier</p>
+    <p class="dossier-lede">
+      Inventory of a probe — its sources, the discourse functions they cover, and the metadata AĒR
+      has on each. From here, open the Workbench with a function as scope filter, or narrow to a
+      single source.
+    </p>
+  </header>
+
   <section class="probe-section" class:collapsed={!expanded}>
     <!-- Probe header — always visible. Click toggles expansion. -->
     <header class="probe-header">
@@ -175,6 +198,112 @@
 
     {#if expanded}
       <div class="probe-body" id="probe-body-{dossier.probeId}">
+        <!-- Scope summary — appears only when the user has narrowed scope
+             (sources) or built a composition set (probes). Replaces the
+             prior sticky-bottom compose-bar + scope-bar. Single source of
+             truth for "what is the current analysis scope on this probe". -->
+        {#if hasAnyScope}
+          <section
+            class="scope-summary"
+            role="status"
+            aria-live="polite"
+            aria-label="Active analysis scope"
+          >
+            <div class="scope-summary-left">
+              <span class="scope-summary-label">Scope</span>
+              {#if hasComposition}
+                <span class="scope-summary-group">
+                  <span class="scope-glyph" aria-hidden="true">⊗</span>
+                  <span class="scope-count">
+                    {composedProbeIds.length} probe{composedProbeIds.length === 1 ? '' : 's'} composed
+                  </span>
+                  <ul class="scope-chips" role="list">
+                    {#each composedProbeIds as id (id)}
+                      <li>
+                        <button
+                          type="button"
+                          class="scope-chip"
+                          aria-label="Remove {id} from composition"
+                          onclick={() =>
+                            setUrl({ probeIds: composedProbeIds.filter((p) => p !== id) })}
+                        >
+                          {id}
+                          <span aria-hidden="true" class="chip-remove">×</span>
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                </span>
+              {/if}
+              {#if hasNarrowedScope}
+                <span class="scope-summary-group">
+                  <span class="scope-glyph" aria-hidden="true">⊂</span>
+                  <span class="scope-count">
+                    {narrowedSourceIds.length} source{narrowedSourceIds.length === 1 ? '' : 's'} narrowed
+                  </span>
+                  <ul class="scope-chips" role="list">
+                    {#each narrowedSourceIds as id (id)}
+                      <li>
+                        <button
+                          type="button"
+                          class="scope-chip"
+                          aria-label="Deselect {id}"
+                          onclick={() =>
+                            setUrl({ sourceIds: narrowedSourceIds.filter((s) => s !== id) })}
+                        >
+                          {id}
+                          <span aria-hidden="true" class="chip-remove">×</span>
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                </span>
+              {/if}
+            </div>
+            <div class="scope-summary-actions">
+              {#if hasComposition && hasNarrowedScope}
+                <button type="button" class="scope-mini-clear" onclick={clearComposition}>
+                  Clear probes
+                </button>
+                <button type="button" class="scope-mini-clear" onclick={clearScope}>
+                  Clear sources
+                </button>
+              {/if}
+              <button type="button" class="scope-clear-all" onclick={clearAllScope}>
+                Clear all
+              </button>
+              <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Workbench route (Phase 122h) -->
+              <button
+                type="button"
+                class="scope-open-lane"
+                onclick={() => {
+                  // Carry the active narrow-scope into the Workbench. If
+                  // the user has narrowed sources here, those become the
+                  // initial source-scope; otherwise the Workbench falls
+                  // back to its own DF-derived narrowing on landing.
+                  const baseParts = [
+                    `probeId=${encodeURIComponent(dossier.probeId)}`,
+                    `functionKey=${encodeURIComponent(analyzeTarget)}`,
+                    'viewingMode=aleph'
+                  ];
+                  if (narrowedSourceIds.length > 0) {
+                    baseParts.push(`sourceId=${encodeURIComponent(narrowedSourceIds.join(','))}`);
+                  } else {
+                    const fallback = sourceNamesByFunction[analyzeTarget] ?? [];
+                    if (fallback.length > 0) {
+                      baseParts.push(`sourceId=${encodeURIComponent(fallback.join(','))}`);
+                    }
+                  }
+                  void goto(`/workbench?${baseParts.join('&')}`);
+                }}
+              >
+                Open Workbench ›
+              </button>
+              <!-- eslint-enable svelte/no-navigation-without-resolve -->
+            </div>
+          </section>
+        {/if}
+
         <!-- Emic framing paragraph (semantic register) -->
         {#if probeContentQ.data?.kind === 'success'}
           <p class="emic-frame">{probeContentQ.data.data.registers.semantic.long}</p>
@@ -207,29 +336,38 @@
         </dl>
 
         <!-- Function Selector — the central interaction of this layer.
-             Each tile descends to /lanes/{probeId}/{functionKey} (Surface
-             II L3). Equivalent affordance is also present in the
-             ScopeBar's lane tabs, but the tiles are the primary path. -->
+             Each tile opens the Workbench with the function preselected as
+             a scope filter and Aleph as the active Pillar (Phase 122h /
+             ADR-033 §3). Click on a covered function = direct path into
+             the analytical surface. -->
         <section class="function-selector" aria-labelledby="fn-heading">
           <h2 id="fn-heading" class="section-title">Discourse Functions</h2>
           <p class="section-lede">
-            Choose a function to enter Surface II · L3 with charts, view modes, and methodology for
-            this probe.
+            Choose a function to open the Workbench with that function preselected as a scope
+            filter.
           </p>
-          <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface II routes -->
+          <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Workbench routes (Phase 122h) -->
           <ul class="fn-grid" role="list">
             {#each ALL_FUNCTIONS as fn (fn)}
-              {@const meta = FUNCTION_META[fn]!}
+              {@const meta = FUNCTION_DEFINITIONS[fn]}
               {@const covered = coveredFunctions.has(fn)}
+              {@const fnSources = sourcesByFunction[fn] ?? []}
+              {@const fnSourceNames = sourceNamesByFunction[fn] ?? []}
+              {@const fnSourceParam =
+                fnSourceNames.length > 0
+                  ? `&sourceId=${encodeURIComponent(fnSourceNames.join(','))}`
+                  : ''}
               <li>
                 <a
                   class="fn-tile"
                   class:fn-covered={covered}
                   style:--fn-color={meta.color}
                   aria-label="{meta.label}: {covered
-                    ? 'covered by this probe'
-                    : 'not covered by this probe'} — open lane"
-                  href="/lanes/{dossier.probeId}/{fn}"
+                    ? `covered by ${fnSources.join(', ')}`
+                    : 'not covered by this probe'} — open Workbench"
+                  href="/workbench?probeId={encodeURIComponent(
+                    dossier.probeId
+                  )}&functionKey={fn}&viewingMode=aleph{fnSourceParam}"
                   data-sveltekit-preload-data="hover"
                 >
                   <span class="fn-tile-head">
@@ -240,7 +378,18 @@
                   </span>
                   <span class="fn-label">{meta.label}</span>
                   <span class="fn-desc">{meta.description}</span>
-                  <span class="fn-cta" aria-hidden="true">Open lane →</span>
+                  {#if fnSources.length > 0}
+                    <span class="fn-sources" aria-hidden="true">
+                      <span class="fn-sources-eyebrow">Sources</span>
+                      <span class="fn-sources-list">{fnSources.join(' · ')}</span>
+                    </span>
+                  {:else}
+                    <span class="fn-sources fn-sources-empty" aria-hidden="true">
+                      <span class="fn-sources-eyebrow">Sources</span>
+                      <span class="fn-sources-list">none in this probe</span>
+                    </span>
+                  {/if}
+                  <span class="fn-cta" aria-hidden="true">Open Workbench →</span>
                 </a>
               </li>
             {/each}
@@ -289,102 +438,9 @@
         <section class="dossier-section" aria-labelledby="metadata-coverage-heading">
           <MetadataCoveragePanel probeId={dossier.probeId} {ctx} />
         </section>
-
-        <!-- Phase 115: per-metric Level-1/2/3 availability matrix —
-             surfaces the methodological boundary of the probe before
-             the user encounters a refusal in a function lane. -->
-        <section class="dossier-section" aria-labelledby="valid-comparisons-heading">
-          <h2 id="valid-comparisons-heading" class="section-title">Valid comparisons</h2>
-          <ValidComparisonsPanel probeId={dossier.probeId} {ctx} />
-        </section>
       </div>
     {/if}
   </section>
-
-  <!-- Probe composition bar — sticky above the source scope bar.
-       Appears when the user has shift+clicked probes on the globe. Shows
-       the full composition set and a Compose CTA to enter multi-probe
-       analysis in this probe's function lanes. -->
-  {#if hasComposition}
-    <div class="compose-bar" role="status" aria-live="polite" aria-label="Probe composition">
-      <div class="compose-bar-left">
-        <span class="compose-bar-label" aria-hidden="true">⊗</span>
-        <span class="compose-bar-count">
-          {composedProbeIds.length === 1 ? '1 probe' : `${composedProbeIds.length} probes`} in composition
-        </span>
-        <ul class="scope-chips" role="list">
-          {#each composedProbeIds as id (id)}
-            <li>
-              <button
-                type="button"
-                class="scope-chip"
-                aria-label="Remove {id} from composition"
-                onclick={() => setUrl({ probeIds: composedProbeIds.filter((p) => p !== id) })}
-              >
-                {id}
-                <span aria-hidden="true" class="chip-remove">×</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      </div>
-      <div class="scope-bar-actions">
-        <button type="button" class="scope-bar-clear" onclick={clearComposition}>Clear</button>
-        <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface II route -->
-        <button
-          type="button"
-          class="scope-bar-analyze compose-primary"
-          onclick={() =>
-            void goto(`/lanes/${encodeURIComponent(dossier.probeId)}/${analyzeTarget}`)}
-        >
-          Compose ›
-        </button>
-        <!-- eslint-enable svelte/no-navigation-without-resolve -->
-      </div>
-    </div>
-  {/if}
-
-  <!-- Scope action bar — sticky at the bottom of the dossier scroll area.
-       Appears when one or more sources are narrowed. Lets the user build up
-       a multi-source selection before committing to analysis. -->
-  {#if hasNarrowedScope}
-    <div class="scope-bar" role="status" aria-live="polite" aria-label="Scope selection">
-      <div class="scope-bar-left">
-        <span class="scope-bar-label" aria-hidden="true">⊂</span>
-        <span class="scope-bar-count">
-          {narrowedSourceIds.length === 1 ? '1 source' : `${narrowedSourceIds.length} sources`}
-        </span>
-        <ul class="scope-chips" role="list">
-          {#each narrowedSourceIds as id (id)}
-            <li>
-              <button
-                type="button"
-                class="scope-chip"
-                aria-label="Deselect {id}"
-                onclick={() => setUrl({ sourceIds: narrowedSourceIds.filter((s) => s !== id) })}
-              >
-                {id}
-                <span aria-hidden="true" class="chip-remove">×</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      </div>
-      <div class="scope-bar-actions">
-        <button type="button" class="scope-bar-clear" onclick={clearScope}>Clear</button>
-        <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Surface II route -->
-        <button
-          type="button"
-          class="scope-bar-analyze"
-          onclick={() =>
-            void goto(`/lanes/${encodeURIComponent(dossier.probeId)}/${analyzeTarget}`)}
-        >
-          Analyze ›
-        </button>
-        <!-- eslint-enable svelte/no-navigation-without-resolve -->
-      </div>
-    </div>
-  {/if}
 </article>
 
 <style>
@@ -554,8 +610,32 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0 0 var(--space-3) 0;
-    max-width: 60ch;
+    /* Full width (Finding 1.3 / 1.4) — short description does not need to
+       wrap to multiple lines; saves vertical real estate. */
     line-height: var(--line-height-loose);
+  }
+
+  /* Top-of-dossier intro (Finding 1). Single, brief orientation block so
+     users know what they are looking at before being hit by source cards. */
+  .dossier-intro {
+    padding: var(--space-3) var(--space-6) 0;
+  }
+
+  .dossier-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+    margin: 0 0 var(--space-1) 0;
+  }
+
+  .dossier-lede {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+    margin: 0;
+    max-width: 78ch;
   }
 
   .source-count {
@@ -656,8 +736,43 @@
     line-height: var(--line-height-loose);
   }
 
-  .fn-cta {
+  /* Source-to-function mapping (Finding 1.5b) — each tile lists which
+     sources in this probe cover its function, so the user can read at
+     a glance which sources will be in scope when they open Workbench.
+     `margin-top: auto` pushes this row + the CTA below it to the
+     bottom of the tile so all four tiles align regardless of how
+     long the description is. */
+  .fn-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2) 0 0;
+    border-top: 1px dashed color-mix(in srgb, var(--fn-color) 30%, transparent);
     margin-top: auto;
+  }
+
+  .fn-sources-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+  }
+
+  .fn-sources-list {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--fn-color);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .fn-sources-empty .fn-sources-list {
+    color: var(--color-fg-subtle);
+    font-style: italic;
+    font-weight: var(--font-weight-regular);
+  }
+
+  .fn-cta {
     padding-top: var(--space-2);
     font-size: var(--font-size-xs);
     color: var(--color-accent);
@@ -705,76 +820,24 @@
     border-radius: var(--radius-sm);
   }
 
-  /* --- Probe composition bar --- */
-
-  .compose-bar {
-    position: sticky;
-    bottom: 0;
+  /* --- Top scope summary (Probe-Dossier head) ---
+     A single row directly under the probe header that summarises ALL
+     active scope narrowings (probe composition + source narrowing) plus
+     a single navigation action into the lane. Replaces the prior two
+     sticky bottom bars; appears only when scope is actually narrowed. */
+  .scope-summary {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
-    padding: var(--space-3) var(--space-5);
-    background: var(--color-surface);
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 -2px 16px rgba(82, 131, 184, 0.25);
-    flex-wrap: wrap;
-  }
-
-  .compose-bar-left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .compose-bar-label {
-    color: var(--color-accent);
-    font-size: var(--font-size-base);
-    flex-shrink: 0;
-  }
-
-  .compose-bar-count {
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    color: var(--color-fg-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    flex-shrink: 0;
-  }
-
-  .compose-primary {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-bg);
-  }
-
-  .compose-primary:hover,
-  .compose-primary:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 85%, white);
-  }
-
-  /* --- Scope action bar --- */
-
-  .scope-bar {
-    position: sticky;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-5);
-    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--color-surface) 92%, var(--color-accent-muted));
     border: 1px solid var(--color-accent-muted);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.3);
+    border-radius: var(--radius-md);
     flex-wrap: wrap;
   }
 
-  .scope-bar-left {
+  .scope-summary-left {
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -783,19 +846,87 @@
     min-width: 0;
   }
 
-  .scope-bar-label {
+  .scope-summary-label {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: var(--color-accent);
-    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
     flex-shrink: 0;
   }
 
-  .scope-bar-count {
+  .scope-summary-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .scope-glyph {
+    color: var(--color-accent);
+    font-size: var(--font-size-base);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .scope-count {
     font-size: var(--font-size-xs);
     font-family: var(--font-mono);
     color: var(--color-fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     flex-shrink: 0;
+  }
+
+  .scope-summary-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .scope-mini-clear,
+  .scope-clear-all {
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    cursor: pointer;
+    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .scope-mini-clear:hover,
+  .scope-mini-clear:focus-visible,
+  .scope-clear-all:hover,
+  .scope-clear-all:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .scope-open-lane {
+    padding: var(--space-1) var(--space-4);
+    background: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-mono);
+    color: var(--color-bg);
+    cursor: pointer;
+    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .scope-open-lane:hover,
+  .scope-open-lane:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, white);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .scope-chips {
@@ -836,52 +967,6 @@
     line-height: 1;
   }
 
-  .scope-bar-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-shrink: 0;
-  }
-
-  .scope-bar-clear {
-    padding: var(--space-1) var(--space-3);
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    cursor: pointer;
-    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-
-  .scope-bar-clear:hover,
-  .scope-bar-clear:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .scope-bar-analyze {
-    padding: var(--space-1) var(--space-4);
-    background: var(--color-accent);
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
-    font-family: var(--font-mono);
-    color: var(--color-bg);
-    cursor: pointer;
-    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-
-  .scope-bar-analyze:hover,
-  .scope-bar-analyze:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 85%, white);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
   .source-grid {
     list-style: none;
     padding: 0;
@@ -902,8 +987,9 @@
     .sources-toggle .chevron,
     .fn-tile,
     .scope-chip,
-    .scope-bar-clear,
-    .scope-bar-analyze {
+    .scope-mini-clear,
+    .scope-clear-all,
+    .scope-open-lane {
       transition: none;
     }
   }

@@ -1,8 +1,12 @@
 <script lang="ts">
-  // Surface II — Probe Dossier landing (Phase 106).
-  // Default landing when a probe is selected from the globe.
-  // Consumes /api/v1/probes/{id}/dossier and renders source cards,
-  // function-coverage indicator, and per-source article preview lists.
+  // Probe Dossier route — Aleph-form inspection page (ADR-033 §1).
+  // Reached by clicking a probe glyph on the Atmosphere. Lists the
+  // probe's sources, function coverage, metadata coverage, and offers
+  // CTAs into the Workbench with the scope pre-set.
+  //
+  // Phase 122h Slice 3: this route is a new home for the Probe Dossier
+  // content; the existing `/lanes/[probeId]/dossier` route remains live
+  // until Slice 8 redirects it here.
   import { createQuery } from '@tanstack/svelte-query';
   import { page } from '$app/state';
   import { probeDossierQuery, type ProbeDossierDto, type QueryOutcome } from '$lib/api/queries';
@@ -17,14 +21,8 @@
   const url = $derived(urlState());
 
   // Sync ?sourceId=… URL param → urlState.sourceIds for deep-link and
-  // backward-compat (old bookmarks, satellite-click URL from pre-113d).
-  //
-  // The url.sourceIds comparison is wrapped in untrack so this effect only
-  // re-runs on actual SvelteKit navigations (page.url changes), not when
-  // setUrl() mutates internalState via history.replaceState. Without
-  // untrack, clicking "Clear scope" would trigger the effect, which would
-  // read the stale page.url (bypassed by replaceState) and immediately
-  // re-apply the old sourceId, making the button appear broken.
+  // backward-compat. Wrapped in untrack so the effect only re-runs on
+  // actual SvelteKit navigations, not on setUrl() replaceState mutations.
   $effect(() => {
     const fromUrl = page.url.searchParams.get('sourceId');
     if (!fromUrl) return;

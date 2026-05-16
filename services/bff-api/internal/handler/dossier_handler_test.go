@@ -40,6 +40,14 @@ func (f *fakeDossier) ResolveSourceWithEligibility(_ context.Context, _ string) 
 	return f.eligibility, f.eligibilityErr
 }
 
+// Phase 122g — DossierStore interface gained GetDiscoveryCoverage. The
+// fake returns an empty summary; per-test setup can override via a
+// dedicated field if/when handler tests for the discovery-coverage
+// endpoint land.
+func (f *fakeDossier) GetDiscoveryCoverage(_ context.Context, _ int64, _ int) (*storage.DiscoveryCoverageSummary, error) {
+	return &storage.DiscoveryCoverageSummary{}, nil
+}
+
 type fakeArticles struct {
 	rows  []storage.ArticleAggRow
 	count int
@@ -96,7 +104,7 @@ func TestGetProbeDossier_ComposesSourcesAndFunctionCoverage(t *testing.T) {
 	router := newTestRouter(srv)
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/probes/probe-0-de-institutional-rss/dossier", nil))
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/probes/probe-0-de-institutional-web/dossier", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -105,7 +113,7 @@ func TestGetProbeDossier_ComposesSourcesAndFunctionCoverage(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.ProbeId != "probe-0-de-institutional-rss" {
+	if got.ProbeId != "probe-0-de-institutional-web" {
 		t.Errorf("probeId mismatch: %s", got.ProbeId)
 	}
 	if len(got.Sources) != 2 {
@@ -135,7 +143,7 @@ func TestGetProbeDossier_BadWindow_400(t *testing.T) {
 	router := newTestRouter(srv)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/probes/probe-0-de-institutional-rss/dossier?windowStart=2026-04-25T00:00:00Z", nil))
+		"/probes/probe-0-de-institutional-web/dossier?windowStart=2026-04-25T00:00:00Z", nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}

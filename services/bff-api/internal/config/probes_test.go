@@ -16,7 +16,7 @@ func writeProbeYAML(t *testing.T, dir, name, content string) {
 func TestLoadProbeRegistry_LoadsValidProbe(t *testing.T) {
 	dir := t.TempDir()
 	writeProbeYAML(t, dir, "probe-0.yaml", `
-probeId: probe-0-de-institutional-rss
+probeId: probe-0-de-institutional-web
 language: de
 sources: [tagesschau, bundesregierung]
 emissionPoints:
@@ -35,7 +35,7 @@ emissionPoints:
 	if len(registry) != 1 {
 		t.Fatalf("expected 1 probe, got %d", len(registry))
 	}
-	p := registry["probe-0-de-institutional-rss"]
+	p := registry["probe-0-de-institutional-web"]
 	if p.Language != "de" {
 		t.Errorf("language: %s", p.Language)
 	}

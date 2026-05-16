@@ -188,67 +188,75 @@
       {#each query.data.data.sources as src (src.name)}
         {@const ordered = orderFields(src.fields)}
         <li class="mc-source-card">
-          <h3 class="mc-source-name">{src.name}</h3>
-          {#if ordered.length === 0}
-            <p class="muted small">No coverage observations recorded yet for this source.</p>
-          {:else}
-            <ul class="mc-field-list" role="list">
-              {#each ordered as f (f.field)}
-                {@const methods = methodKeys(f.byMethod)}
-                {@const populated = Math.round((f.populationRate ?? 0) * 100)}
-                <li
-                  class="mc-field"
-                  class:absent={f.structurallyAbsent}
-                  class:absent-revealed={f.structurallyAbsent && negSpace}
-                >
-                  <div class="mc-field-head">
-                    <span class="mc-field-name" title={f.field}>{f.field}</span>
-                    {#if f.structurallyAbsent}
-                      <span class="mc-tag" aria-label="structurally absent">∅ absent</span>
-                    {:else if f.totalArticles === 0}
-                      <span class="mc-tag muted" aria-label="no observations">·</span>
-                    {:else}
-                      <span class="mc-rate" aria-label="population rate {populated} percent"
-                        >{populated}%</span
-                      >
-                    {/if}
-                  </div>
-
-                  {#if f.structurallyAbsent && negSpace}
-                    <p class="mc-prose">{fieldProse(f.field, src.name)}</p>
-                  {:else if f.totalArticles > 0}
-                    <div
-                      class="mc-bar"
-                      role="img"
-                      aria-label="extraction-method distribution: {methods
-                        .map((m) => `${m} ${f.byMethod[m] ?? 0}`)
-                        .join(', ')}; null {f.byMethod.null ?? 0}"
-                    >
-                      {#each methods as m (m)}
-                        {@const count = f.byMethod[m] ?? 0}
-                        {@const w = (100 * count) / Math.max(1, f.totalArticles)}
-                        <span
-                          class="mc-bar-seg"
-                          style:width="{w}%"
-                          style:background={METHOD_COLOR[m] ?? '#888'}
-                          title="{m}: {count}"
-                        ></span>
-                      {/each}
-                      {#if (f.byMethod.null ?? 0) > 0}
-                        {@const w = (100 * (f.byMethod.null ?? 0)) / Math.max(1, f.totalArticles)}
-                        <span
-                          class="mc-bar-seg mc-bar-seg-null"
-                          style:width="{w}%"
-                          title="null: {f.byMethod.null ?? 0}"
-                        ></span>
+          <details class="mc-source-details">
+            <summary class="mc-source-summary">
+              <span class="mc-summary-glyph" aria-hidden="true">›</span>
+              <h3 class="mc-source-name">{src.name}</h3>
+              <span class="mc-summary-meta" aria-hidden="true">
+                {ordered.length} field{ordered.length === 1 ? '' : 's'}
+              </span>
+            </summary>
+            {#if ordered.length === 0}
+              <p class="muted small">No coverage observations recorded yet for this source.</p>
+            {:else}
+              <ul class="mc-field-list" role="list">
+                {#each ordered as f (f.field)}
+                  {@const methods = methodKeys(f.byMethod)}
+                  {@const populated = Math.round((f.populationRate ?? 0) * 100)}
+                  <li
+                    class="mc-field"
+                    class:absent={f.structurallyAbsent}
+                    class:absent-revealed={f.structurallyAbsent && negSpace}
+                  >
+                    <div class="mc-field-head">
+                      <span class="mc-field-name" title={f.field}>{f.field}</span>
+                      {#if f.structurallyAbsent}
+                        <span class="mc-tag" aria-label="structurally absent">∅ absent</span>
+                      {:else if f.totalArticles === 0}
+                        <span class="mc-tag muted" aria-label="no observations">·</span>
+                      {:else}
+                        <span class="mc-rate" aria-label="population rate {populated} percent"
+                          >{populated}%</span
+                        >
                       {/if}
                     </div>
-                    <span class="mc-meta">{f.totalArticles} articles</span>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
-          {/if}
+
+                    {#if f.structurallyAbsent && negSpace}
+                      <p class="mc-prose">{fieldProse(f.field, src.name)}</p>
+                    {:else if f.totalArticles > 0}
+                      <div
+                        class="mc-bar"
+                        role="img"
+                        aria-label="extraction-method distribution: {methods
+                          .map((m) => `${m} ${f.byMethod[m] ?? 0}`)
+                          .join(', ')}; null {f.byMethod.null ?? 0}"
+                      >
+                        {#each methods as m (m)}
+                          {@const count = f.byMethod[m] ?? 0}
+                          {@const w = (100 * count) / Math.max(1, f.totalArticles)}
+                          <span
+                            class="mc-bar-seg"
+                            style:width="{w}%"
+                            style:background={METHOD_COLOR[m] ?? '#888'}
+                            title="{m}: {count}"
+                          ></span>
+                        {/each}
+                        {#if (f.byMethod.null ?? 0) > 0}
+                          {@const w = (100 * (f.byMethod.null ?? 0)) / Math.max(1, f.totalArticles)}
+                          <span
+                            class="mc-bar-seg mc-bar-seg-null"
+                            style:width="{w}%"
+                            title="null: {f.byMethod.null ?? 0}"
+                          ></span>
+                        {/if}
+                      </div>
+                      <span class="mc-meta">{f.totalArticles} articles</span>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </details>
         </li>
       {/each}
     </ul>
@@ -288,8 +296,59 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-    max-width: 70ch;
+    /* Full width per Finding 1.3 — short text wraps less, vertical
+       space saved. */
     line-height: var(--line-height-loose);
+  }
+
+  /* Collapsed-by-default per-source cards (Finding 1.3) — too much
+     vertical real estate at first paint, expand on demand. */
+  .mc-source-details {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .mc-source-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mc-source-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mc-source-summary:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-radius: var(--radius-md);
+  }
+
+  .mc-summary-glyph {
+    color: var(--color-fg-subtle);
+    transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+    flex-shrink: 0;
+  }
+
+  details[open] > .mc-source-summary .mc-summary-glyph {
+    transform: rotate(90deg);
+  }
+
+  .mc-summary-meta {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mc-summary-glyph {
+      transition: none;
+    }
   }
 
   .muted {

@@ -30,17 +30,28 @@
 
   // Phase 113c — back-link hint when arrived from a Function Lane.
   // Set by the lane header's "Read the full Working Paper" anchor.
-  const fromLaneProbe = $derived(
-    page.url.searchParams.get('from') === 'lane' ? page.url.searchParams.get('probe') : null
+  // Phase 122h: referrer params come from either the legacy `from=lane`
+  // (kept for old bookmarks) or the new `from=workbench` (CellMethodology
+  // links emit this when a user follows a WP anchor from a Pillar cell).
+  const fromReferrer = $derived(
+    page.url.searchParams.get('from') === 'workbench' ||
+      page.url.searchParams.get('from') === 'lane'
   );
-  const fromLaneFn = $derived(
-    page.url.searchParams.get('from') === 'lane' ? page.url.searchParams.get('fn') : null
-  );
-  const backToLaneHref = $derived(
-    fromLaneProbe && fromLaneFn
-      ? `/lanes/${encodeURIComponent(fromLaneProbe)}/${encodeURIComponent(fromLaneFn)}`
-      : null
-  );
+  const fromProbe = $derived(fromReferrer ? page.url.searchParams.get('probe') : null);
+  const fromFn = $derived(fromReferrer ? page.url.searchParams.get('fn') : null);
+  const fromPillar = $derived(fromReferrer ? page.url.searchParams.get('pillar') : null);
+
+  // Build the Back-to-Workbench href from the referrer params. A probe is
+  // required; the function and pillar are best-effort enrichments.
+  const backToLaneHref = $derived.by<string | null>(() => {
+    if (!fromProbe) return null;
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- ephemeral URL string builder, not shared state
+    const params = new URLSearchParams();
+    params.set('probeId', fromProbe);
+    if (fromFn) params.set('functionKey', fromFn);
+    params.set('viewingMode', fromPillar ?? 'aleph');
+    return `/workbench?${params.toString()}`;
+  });
 
   const negSpace = $derived(negativeSpaceActive());
 
@@ -89,8 +100,8 @@
   {/if}
   {#if backToLaneHref}
     <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-    <a class="back-to-lane" href={backToLaneHref} aria-label="Back to Function Lane">
-      ← Function Lane
+    <a class="back-to-lane" href={backToLaneHref} aria-label="Back to Workbench">
+      ← Back to Workbench
     </a>
   {/if}
 </ScopeBar>

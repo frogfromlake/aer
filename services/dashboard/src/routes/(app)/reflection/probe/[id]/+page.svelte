@@ -183,9 +183,7 @@
 
       <footer class="probe-footer">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/lanes/{probeId}/dossier" class="footer-link">
-          View on Surface II (Function Lanes) →
-        </a>
+        <a href="/dossier/{probeId}" class="footer-link"> Open Probe Dossier → </a>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
         <a href="/reflection" class="footer-link">← Back to Reflection</a>
       </footer>

@@ -56,24 +56,47 @@ This is illustrative; no English probe exists at the time of writing.
 
 ### 0. Run the audit CLI (Phase 122g)
 
-The `audit-source-discovery` CLI probes a candidate source's homepage and reports the discovery channels the publisher exposes — RSS feeds via `trafilatura.feeds.find_feed_urls`, sitemaps via `trafilatura.sitemaps.sitemap_search`, plus per-source-class probes for common HTML-sitemap and date-indexed archive URL patterns. Cross-reference its output against Mediacloud's open registry (https://search.mediacloud.org) — if your candidate already exists there, compare their curated feed list against the audit.
+The `aer-audit-source` CLI probes a candidate source's homepage and reports the discovery channels the publisher exposes. It probes:
+
+* RSS feeds via `trafilatura.feeds.find_feed_urls` (when trafilatura is importable) plus direct probes against ~20 conventional RSS paths (`/feed`, `/rss.xml`, `/atom.xml`, `/index~rss2.xml`, CMS-specific patterns like WordPress's `/?feed=rss2`, …).
+* XML sitemaps via `trafilatura.sitemaps.sitemap_search`.
+* **RSS catalogue pages** at common publisher paths (`/service/newsletter-und-abos`, `/feeds-uebersicht`, `/rss-feeds`, …). When a catalogue page is found, the audit parses its `<link rel="alternate">` and `<a href="*.xml">` set — this is how the bundesregierung four-feed catalogue surfaces.
+* HTML sitemap pages and date-indexed archive URL patterns.
+* CMS detection from the homepage's `<meta name="generator">` tag — surfaces a hint when the publisher runs WordPress / Drupal / Joomla / TYPO3 / CoreMedia.
+
+Cross-reference its output against Mediacloud's open registry (https://search.mediacloud.org) — if your candidate already exists there, compare their curated feed list against the audit.
 
 ```bash
-python crawlers/web-crawler/audit_source.py https://www.bbc.co.uk
-# … or via the installed entry point:
-aer-audit-source https://www.bbc.co.uk
+# Onboarding a brand-new source: prints a suggested YAML `discovery:` block.
+make audit-source HOMEPAGE=https://www.bbc.co.uk
 ```
 
 The CLI emits a YAML-shaped `discovery:` block ready for pasting into `sources.yaml`, with `<edit-me>` placeholders for the publisher-specific `article_url_pattern` regex(es) you must derive from sample article URLs.
 
-### 1. Verify the audit findings manually
+### 1. Verify the audit findings manually (~5 minutes)
 
-Cross-check the audit output by curl. In particular:
+No automated tool finds 100 % of a publisher's discovery surfaces. The audit CLI probes ~ 40 conventional paths, which catches the common cases but misses publisher-specific catalogue pages and non-standard sitemap locations. Spend a few minutes on the four checks below — they catch what the CLI cannot, and judgment calls the CLI deliberately leaves to you.
 
-- our `User-Agent` is not in any `Disallow` block in `robots.txt`;
-- the suggested feeds + sitemaps actually return HTTP 200;
-- if the audit flagged an `archive_index` candidate, sample two distant dates and confirm they return distinct article lists (so the endpoint really is a date-walker, not a homepage snapshot). Note the granularity — daily or monthly. Phase 122e A20's investigation of tagesschau's archive is the worked methodology.
-- if the publisher exposes an RSS *catalogue page* (often at `/service/rss`, `/newsletter`, or similar — bundesregierung's `/breg-de/service/newsletter-und-abos/rss-newsfeed` is the canonical example), visit it manually. Trafilatura returns the feeds advertised via `<link rel="alternate">` only — many publishers organise additional feeds on a separate catalogue page that auto-discovery misses.
+**A. Mediacloud registry (the canonical public source list).**
+Search https://search.mediacloud.org for the publisher. If it's already catalogued, compare their curated feed list against the audit output. Anything they have that the audit missed is a hint worth pasting in.
+
+**B. Publisher footer + RSS / Feed / Newsletter pages.**
+Open the homepage in a browser and scroll to the footer — almost every news site exposes RSS / feed / newsletter / subscription links there. Some publishers host a multi-feed *catalogue page* (bundesregierung's `/breg-de/service/newsletter-und-abos/rss-newsfeed` is the canonical example, exposing four feeds none of which is advertised via `<link rel="alternate">`). The CLI probes ~ 12 catalogue paths automatically but a human eye on the footer spots the rest in seconds.
+
+**C. Inspect `robots.txt` by hand.**
+```bash
+curl -s https://www.example.com/robots.txt | grep -iE 'sitemap|feed|rss'
+```
+The publisher may declare a `Sitemap:` directive pointing to a non-standard location the CLI did not probe. Also verify our `User-Agent` is not in any `Disallow` block.
+
+**D. Distinguish format-variant duplicates from real coverage gains.**
+If the audit found multiple feeds on the same path stem (e.g. `.rss` + `~atom.xml` + `~rdf.xml`), they are usually format variants of the same article set — RSS 0.91 / Atom / RDF serialisations of the identical content. Accepting all of them costs HTTP politeness budget for zero coverage gain. Keep one format, drop the others. The publisher's RSS catalogue page (B) is what usually surfaces feeds with *genuinely different content* (e.g. bundesregierung's four feeds = four different editorial sections, not four formats of the same).
+
+**E. Archive walker — verify granularity.**
+If the audit flagged an `archive_index` candidate, sample two distant dates and confirm they return distinct article lists (so the endpoint really is a date-walker, not a homepage snapshot). Note the granularity — daily or monthly. Phase 122e A20's investigation of tagesschau's archive is the worked methodology.
+
+**F. Final HTTP 200 sanity-check.**
+The suggested feeds + sitemaps actually return HTTP 200 with the expected content type.
 
 Document the verification — including which channels we settled on and *why* — in the probe's dossier (`docs/probes/<probe-id>/temporal_profile.md` under "Discovery surface"). The asymmetry between sources' discovery surfaces is a recorded structural bias dimension (Probe-0 `bias_assessment.md` Structural Bias #8); new asymmetries will be caught at runtime by Phase 122g's per-channel coverage telemetry (`GET /api/v1/sources/{id}/discovery-coverage`).
 
@@ -178,6 +201,33 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 ```
 
 If the source is visible and `silverEligible=false`, run the WP-006 §5.2 review and grant eligibility out-of-band per the canonical procedure.
+
+---
+
+## Periodic re-audit (Phase 122g)
+
+Publishers move things. A sitemap gets renamed, a feed gets retired, a new catalogue feed appears. The re-audit workflow catches the additive side of that drift — the audit CLI is re-run against the publisher and surfaces a diff of *new* surfaces against the configured `discovery:` block. **Removals are intentionally NOT reported** — disappearance is a methodological event handled by the underflow-alert telemetry (`crawler_discovery_alerts`), not a routine YAML-maintenance trigger.
+
+```bash
+# Re-audit every source in probe0 against its publisher.
+make audit-probe                              # PROBE defaults to probe0
+make audit-probe PROBE=probe0 ARGS='--dry-run'    # show diff, never write
+make audit-probe PROBE=probe0 ARGS='--yes'        # apply diffs non-interactively
+```
+
+For each source, the CLI:
+
+1. Reads the source's `homepage_url:` (operator-readable hint added to every source's YAML entry; not consumed by the runtime crawler).
+2. Runs the live audit.
+3. Diffs the audit-discovered URL set against the source's configured `discovery:` block. Only additive deltas are reported.
+4. If any are found, prints a coloured diff and prompts `[y/N]`.
+5. On `y`/`j`, mutates `sources.yaml` in-place via `ruamel.yaml` (preserves comments + formatting) and writes a `.bak` backup next to it.
+
+**Cadence**: there's no enforced schedule — run `make audit-probe` whenever you think a publisher might have changed something, or pin it as a weekly/monthly Cron / GitHub Action. The diff workflow replaces the originally-planned `auto_discovery_audit_cadence_days` knob (recorded for the audit trail in ROADMAP Phase 122g L3423).
+
+**Important caveat**: `html_sitemap_urls` and `archive_index` entries written by the CLI carry a placeholder `article_url_pattern: EDIT-ME-REGEX-MATCHING-ARTICLE-URLS`. This is intentionally a syntactically invalid regex so the crawler refuses to ingest the channel until the operator derives a publisher-specific pattern from sample article URLs. Always review and edit before the next commit.
+
+**Adversarial check**: the audit is one HTTP request per probed path against the publisher (~40 paths per source). Run it from a workstation, not from production. The audit never writes to MinIO / Postgres / NATS / ClickHouse — the only side effects are HTTP GETs to the publisher and (on `y`) a single edit to `sources.yaml`.
 
 ---
 

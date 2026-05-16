@@ -55,6 +55,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from . import assert_pattern_usable
+
 
 logger = logging.getLogger(__name__)
 
@@ -117,20 +119,20 @@ def discover(
         if not page_url:
             continue
         pattern = (entry or {}).get("article_url_pattern") or ""
-        if not pattern:
-            logger.warning(
-                "html_sitemap entry missing article_url_pattern: %s", page_url
-            )
-            continue
+        # Phase 122g — refuse to silently skip a channel with a missing
+        # or placeholder pattern. Either the operator sees a loud error
+        # at crawler startup, or the channel ingests zero articles
+        # invisibly. We pick loud-error.
+        assert_pattern_usable(pattern, channel="html_sitemap", where=page_url)
         try:
             article_re = re.compile(pattern)
         except re.error as exc:
-            logger.warning(
-                "html_sitemap article_url_pattern is not valid regex (%s): %s",
-                page_url,
-                exc,
-            )
-            continue
+            from . import DiscoveryConfigurationError
+            raise DiscoveryConfigurationError(
+                f"html_sitemap entry at {page_url!r} has an invalid "
+                f"`article_url_pattern` regex ({exc}). Fix the regex in "
+                "sources.yaml before re-running the crawler."
+            ) from exc
         base_url = entry.get("base_url") or _derive_base_url(page_url)
 
         try:

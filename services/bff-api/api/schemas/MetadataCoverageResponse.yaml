@@ -20,7 +20,7 @@ properties:
     description: >
       Either the probeId (when called via `/probes/{probeId}/metadata-coverage`)
       or the sourceId (when called via `/sources/{sourceId}/metadata-coverage`).
-    example: probe-0-de-institutional-rss
+    example: probe-0-de-institutional-web
   sources:
     type: array
     description: >

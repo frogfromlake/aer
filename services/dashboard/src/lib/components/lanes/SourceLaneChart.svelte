@@ -11,6 +11,7 @@
   } from '$lib/api/queries';
   import TimeSeriesChart from '$lib/components/TimeSeriesChart.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import { urlState } from '$lib/state/url.svelte';
 
   interface Props {
     sourceName: string;
@@ -23,6 +24,12 @@
 
   let { sourceName, emicDesignation, ctx, windowStart, windowEnd, metricName }: Props = $props();
 
+  // Phase 122h Findings round 2 §F: honour the user-selected resolution
+  // from the URL state (the Episteme Resolution selector writes here).
+  // Hardcoded `hourly` previously meant the selector had no effect.
+  const url = $derived(urlState());
+  const activeResolution = $derived(url.resolution ?? 'hourly');
+
   const metricsQ = createQuery<
     QueryOutcome<MetricsResponseDto>,
     Error,
@@ -33,7 +40,7 @@
       endDate: windowEnd,
       source: sourceName,
       metricName,
-      resolution: 'hourly'
+      resolution: activeResolution
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });

@@ -22,7 +22,6 @@ Tests cover:
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
 
 from internal.discovery.html_sitemap import discover
@@ -151,34 +150,46 @@ def test_html_sitemap_skips_network_failure() -> None:
     assert urls == []
 
 
-def test_html_sitemap_skips_entries_without_pattern() -> None:
-    """An entry that omits ``article_url_pattern`` is skipped (logged
-    warning). Other entries in the same call still process correctly."""
-    http_get = MagicMock(return_value=_fake_get(_TAGESSCHAU_SAMPLE_HTML))
-    cfg = [
-        {"url": "https://www.tagesschau.de/missing-pattern.html"},
-        {
-            "url": "https://www.tagesschau.de/has-pattern.html",
-            "article_url_pattern": _ARTICLE_PATTERN,
-        },
-    ]
-    urls = list(discover(cfg, http_get=http_get))
-    # Pattern-less entry yields nothing; pattern-present entry yields
-    # the article-shaped URLs from the same fixture.
-    assert len(urls) > 0
+def test_html_sitemap_raises_on_missing_pattern() -> None:
+    """Phase 122g hard-stop: an entry without `article_url_pattern`
+    raises DiscoveryConfigurationError. The old silently-skip behavior
+    was dangerous — a forgotten pattern produced zero ingestion that
+    only surfaced after the two-consecutive-runs underflow alert."""
+    import pytest
+    from internal.discovery import DiscoveryConfigurationError
+
+    cfg = [{"url": "https://www.tagesschau.de/missing-pattern.html"}]
+    with pytest.raises(DiscoveryConfigurationError, match="empty"):
+        list(discover(cfg, http_get=MagicMock()))
 
 
-def test_html_sitemap_skips_invalid_regex() -> None:
-    """Invalid regex in `article_url_pattern` is caught — no traceback
-    leaks through to the caller."""
-    cfg = [
-        {
-            "url": "https://x/sitemap.html",
-            "article_url_pattern": "[unclosed-character-class",
-        }
-    ]
-    urls = list(discover(cfg, http_get=MagicMock()))
-    assert urls == []
+def test_html_sitemap_raises_on_edit_me_placeholder() -> None:
+    """Phase 122g hard-stop: an entry with the audit-CLI placeholder
+    raises DiscoveryConfigurationError so the operator sees a loud
+    startup failure instead of silent zero-ingestion."""
+    import pytest
+    from internal.discovery import DiscoveryConfigurationError
+
+    cfg = [{
+        "url": "https://x/sitemap.html",
+        "article_url_pattern": "EDIT-ME-REGEX-MATCHING-ARTICLE-URLS",
+    }]
+    with pytest.raises(DiscoveryConfigurationError, match="placeholder"):
+        list(discover(cfg, http_get=MagicMock()))
+
+
+def test_html_sitemap_raises_on_invalid_regex() -> None:
+    """Phase 122g: invalid regex now raises rather than silently
+    skipping the channel."""
+    import pytest
+    from internal.discovery import DiscoveryConfigurationError
+
+    cfg = [{
+        "url": "https://x/sitemap.html",
+        "article_url_pattern": "[unclosed-character-class",
+    }]
+    with pytest.raises(DiscoveryConfigurationError, match="invalid"):
+        list(discover(cfg, http_get=MagicMock()))
 
 
 def test_html_sitemap_deduplicates_across_pages() -> None:

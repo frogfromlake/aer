@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 audit-source audit-probe setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -360,6 +360,42 @@ crawl-probe0:
 	@docker compose --profile crawlers run --rm --build web-crawler --probe probe0
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Probe 0 crawl complete.$(RESET)"
 
+# ------------------------------------------------------------------
+# Phase 122g audit / re-audit targets. The audit CLI is operator-facing
+# (interactive y/N prompts), so it runs in a host-local venv rather
+# than in the containerised crawler — host-mounted sources.yaml edits
+# would otherwise fight Docker UID permissions. The `.audit-venv/`
+# directory is gitignored; the first invocation seeds it (~10 sec),
+# subsequent invocations reuse it.
+#
+#   make audit-source HOMEPAGE=https://www.example.com     # onboard new source
+#   make audit-probe                                       # re-audit probe0 (default)
+#   make audit-probe PROBE=probe0                          # re-audit explicit probe
+#   make audit-probe PROBE=probe0 ARGS='--dry-run'         # show diff, no write
+#   make audit-probe PROBE=probe0 ARGS='--yes'             # apply diffs non-interactively
+# ------------------------------------------------------------------
+AUDIT_VENV := crawlers/web-crawler/.audit-venv
+
+$(AUDIT_VENV)/.ready:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Seeding audit-source venv at $(AUDIT_VENV) (one-time)...$(RESET)"
+	@python3 -m venv $(AUDIT_VENV)
+	@$(AUDIT_VENV)/bin/pip install --quiet --upgrade pip
+	@$(AUDIT_VENV)/bin/pip install --quiet requests==2.33.0 'ruamel.yaml==0.18.6' PyYAML==6.0.2
+	@touch $(AUDIT_VENV)/.ready
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)audit venv ready.$(RESET)"
+
+.PHONY: audit-source audit-probe
+audit-source: $(AUDIT_VENV)/.ready
+ifndef HOMEPAGE
+	@echo -e "\033[1m\033[38;5;196mERROR:\033[0m HOMEPAGE is required. Usage: make audit-source HOMEPAGE=https://www.example.com"
+	@exit 1
+endif
+	@cd crawlers/web-crawler && ../../$(AUDIT_VENV)/bin/python audit_source.py "$(HOMEPAGE)" $(ARGS)
+
+audit-probe: $(AUDIT_VENV)/.ready
+	@PROBE=$${PROBE:-probe0}; \
+		cd crawlers/web-crawler && ../../$(AUDIT_VENV)/bin/python audit_source.py --probe "probes/$$PROBE/sources.yaml" $(ARGS)
+
 # Deprecated alias — retained for one release cycle then retired in
 # Phase 131. Forwards to the new probe-scoped target so existing muscle
 # memory keeps working.
@@ -712,6 +748,8 @@ help:
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
 	@echo -e "  $(GREEN)crawl-probe0$(RESET)        $(GRAY)Run the web-crawler for Probe 0 as a one-shot container on aer-backend$(RESET)"
 	@echo -e "  $(GRAY)crawl$(RESET)               $(GRAY)Deprecated alias for crawl-probe0 (retired in Phase 131)$(RESET)"
+	@echo -e "  $(CYAN)audit-source$(RESET)        $(GRAY)Phase 122g: audit a candidate publisher's discovery surfaces. Usage: make audit-source HOMEPAGE=https://...$(RESET)"
+	@echo -e "  $(CYAN)audit-probe$(RESET)         $(GRAY)Phase 122g: re-audit every source in a probe, diff vs. sources.yaml, prompt to apply. Args: PROBE=probe0 (default), ARGS='--dry-run|--yes'$(RESET)"
 	@echo -e "  $(CYAN)build-services$(RESET)      $(GRAY)Compile Go API binaries into ./bin/$(RESET)"
 	@echo -e "  $(CYAN)codegen$(RESET)             $(GRAY)Generate Go types/stubs from OpenAPI contracts$(RESET)"
 	@echo -e "  $(CYAN)openapi-bundle$(RESET)      $(GRAY)Bundle modular OpenAPI specs into single-file artifacts$(RESET)"

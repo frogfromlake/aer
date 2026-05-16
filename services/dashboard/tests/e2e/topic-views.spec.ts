@@ -14,7 +14,7 @@ import { expect, test, type Route, type Request } from '@playwright/test';
 // All BFF routes are mocked so the test runs against `pnpm preview`
 // without requiring the live backend stack (mirrors `atmosphere.spec.ts`).
 
-const PROBE_ID = 'probe-0-de-institutional-rss';
+const PROBE_ID = 'probe-0-de-institutional-web';
 const FUNCTION_KEY = 'epistemic_authority';
 
 const probesPayload = [

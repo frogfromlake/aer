@@ -1094,14 +1094,14 @@ The Probe Dossier Pattern groups all per-probe scientific documentation under a 
 **Authoring a new dossier:**
 
 1. `mkdir docs/probes/<probe-id>/` (use a kebab-case slug, e.g. `probe-1-fr-civic-forum`).
-2. Copy the five files from `docs/probes/probe-0-de-institutional-rss/` and replace the content. Keep the headings stable so the structure stays uniform across probes.
+2. Copy the five files from `docs/probes/probe-0-de-institutional-web/` and replace the content. Keep the headings stable so the structure stays uniform across probes.
 3. Add the dossier to `mkdocs.yml` under the `Probes` nav entry.
 4. Create a PostgreSQL migration that updates `sources.documentation_url` to point at the new dossier directory:
    ```sql
    UPDATE sources SET documentation_url = 'docs/probes/<probe-id>/' WHERE name = '<source-name>';
    ```
 
-**Probe 0 example** — `docs/probes/probe-0-de-institutional-rss/` contains the five files above, populated for tagesschau.de and bundesregierung.de. Migration `000008_update_documentation_url.up.sql` points the `sources.documentation_url` column at this directory.
+**Probe 0 example** — `docs/probes/probe-0-de-institutional-web/` contains the five files above, populated for tagesschau.de and bundesregierung.de. Migration `000008_update_documentation_url.up.sql` points the `sources.documentation_url` column at this directory.
 
 ---
 

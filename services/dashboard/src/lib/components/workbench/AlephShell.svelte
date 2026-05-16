@@ -1,0 +1,308 @@
+<script lang="ts">
+  // AlephShell — Phase 122h / ADR-033 §2 (Aleph paragraph).
+  //
+  // The Aleph Pillar renders a synchronic snapshot of the dataset.
+  // Layout:
+  //   - Top strip: Dataset-Shape (probe count, source count, article count,
+  //     language mix). Reads from `/probes/{id}/dossier` for the active
+  //     probe scope.
+  //   - Body: a single focus Cell occupying the full width. Cells are
+  //     restricted to Aleph-allowed presentations (`time_series`,
+  //     `distribution`) per `viewmodes/registry.ts:PILLAR_DEFINITIONS`.
+  //   - Per-Cell controls (Metric, Darstellung, Layer, Vergleich) live as
+  //     a header strip directly above the Cell body.
+  //
+  // Parallel side-by-side Cells are reserved for a follow-up enhancement;
+  // the first ship renders a single focus Cell.
+  import { createQuery } from '@tanstack/svelte-query';
+  import type { Component } from 'svelte';
+  import {
+    probeDossierQuery,
+    type FetchContext,
+    type ProbeDossierDto,
+    type QueryOutcome
+  } from '$lib/api/queries';
+  import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
+  import { urlState } from '$lib/state/url.svelte';
+  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
+  import CellControls from './CellControls.svelte';
+  import CellMethodology from './CellMethodology.svelte';
+
+  interface Props {
+    probeIds: string[];
+  }
+
+  let { probeIds }: Props = $props();
+
+  const ctx: FetchContext = { baseUrl: '/api/v1' };
+  const url = $derived(urlState());
+
+  // Active probe is the first composed probe; cross-probe queries pass
+  // the full `probeIds` array to the BFF as `?probeIds=`.
+  const activeProbeId = $derived(probeIds[0] ?? '');
+
+  const windowMs = $derived.by(() => {
+    const now = Date.now();
+    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
+    const toMs = url.to ? Date.parse(url.to) : now;
+    return {
+      start: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS).toISOString(),
+      end: new Date(Number.isFinite(toMs) ? toMs : now).toISOString()
+    };
+  });
+
+  const dossierQ = createQuery<QueryOutcome<ProbeDossierDto>, Error, QueryOutcome<ProbeDossierDto>>(
+    () => {
+      const o = probeDossierQuery(ctx, activeProbeId, {
+        windowStart: windowMs.start,
+        windowEnd: windowMs.end
+      });
+      return {
+        queryKey: [...o.queryKey],
+        queryFn: o.queryFn,
+        staleTime: o.staleTime,
+        enabled: activeProbeId !== ''
+      };
+    }
+  );
+
+  const dossier = $derived<ProbeDossierDto | null>(
+    dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
+  );
+
+  // Cell selection — restricted to Aleph's presentation set
+  // (`time_series` + `distribution`). The Pillar reconciliation in
+  // `$lib/pillar.pickPillar()` ensures `url.viewMode` always belongs
+  // to the active Pillar, but `resolvePresentation` enforces it again
+  // here as a defensive measure.
+  const presentation = $derived(resolvePresentation(url.viewMode, 'aleph'));
+  const metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
+  const dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
+
+  // Sources visible in the Cell. When the user has narrowed scope via
+  // source-card clicks, only those sources render; otherwise all probe
+  // sources render.
+  const cellSources = $derived(
+    dossier
+      ? url.sourceIds.length > 0
+        ? dossier.sources
+            .filter((s) => url.sourceIds.includes(s.name))
+            .map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
+        : dossier.sources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
+      : []
+  );
+
+  // Scope: probe-scope by default. Single-source narrowing flips to
+  // source-scope, matching the per-source Silver-eligibility check.
+  const scope = $derived<'probe' | 'source'>(
+    probeIds.length === 1 && url.sourceIds.length === 1 ? 'source' : 'probe'
+  );
+  const scopeId = $derived<string>(
+    probeIds.length === 1 && url.sourceIds.length === 1 ? url.sourceIds[0]! : activeProbeId
+  );
+
+  // Dataset-Shape strip values. Cheap aggregations off the dossier;
+  // language mix uses the probe's primary language for the first ship,
+  // pending Phase 122a's per-article language signal landing.
+  const datasetShape = $derived.by(() => {
+    if (!dossier) return null;
+    const sources = dossier.sources;
+    const articleCount = sources.reduce((sum, s) => sum + (s.articlesInWindow ?? 0), 0);
+    return {
+      probes: probeIds.length,
+      sources: sources.length,
+      articlesInWindow: articleCount,
+      language: dossier.language,
+      coverage: dossier.functionCoverage
+    };
+  });
+
+  // Cell component lazy-load — same pattern as the legacy FunctionLaneShell.
+  // Each Cell ships its own chunk so heavy chart libraries land on demand.
+  let CellComponent = $state<Component<ViewModeCellProps> | null>(null);
+  let loadError = $state<string | null>(null);
+  let loadToken = 0;
+
+  $effect(() => {
+    const t = ++loadToken;
+    loadError = null;
+    presentation
+      .loadComponent()
+      .then((Comp) => {
+        if (t !== loadToken) return;
+        CellComponent = Comp;
+      })
+      .catch((err: unknown) => {
+        if (t !== loadToken) return;
+        CellComponent = null;
+        loadError = err instanceof Error ? err.message : 'Cell failed to load';
+      });
+  });
+</script>
+
+<section class="aleph-shell" aria-label="Aleph — synchronic snapshot of the dataset">
+  {#if dossierQ.isPending}
+    <p class="muted" aria-busy="true">Loading dataset…</p>
+  {:else if datasetShape}
+    <header class="dataset-shape" aria-label="What AĒR sees right now">
+      <div class="shape-item">
+        <span class="shape-label">Probes</span>
+        <span class="shape-value">{datasetShape.probes}</span>
+      </div>
+      <div class="shape-item">
+        <span class="shape-label">Sources</span>
+        <span class="shape-value">{datasetShape.sources}</span>
+      </div>
+      <div class="shape-item">
+        <span class="shape-label">Articles in window</span>
+        <span class="shape-value">{datasetShape.articlesInWindow.toLocaleString('en-US')}</span>
+      </div>
+      <div class="shape-item">
+        <span class="shape-label">Language</span>
+        <span class="shape-value">{datasetShape.language.toUpperCase()}</span>
+      </div>
+      <div class="shape-item">
+        <span class="shape-label">Function coverage</span>
+        <span class="shape-value">
+          {datasetShape.coverage.covered}/{datasetShape.coverage.total}
+        </span>
+      </div>
+    </header>
+
+    <CellControls pillar="aleph" />
+
+    <div class="cell-frame">
+      <header class="cell-header">
+        <span class="cell-eyebrow">Cell</span>
+        <span class="cell-presentation">{presentation.label}</span>
+        <span class="cell-sep" aria-hidden="true">·</span>
+        <code class="cell-metric">{metricName}</code>
+      </header>
+
+      <div class="cell-body">
+        {#if loadError}
+          <p class="muted">Cell failed to load: {loadError}</p>
+        {:else if !CellComponent}
+          <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+        {:else if cellSources.length === 0}
+          <p class="muted">No sources in the active scope.</p>
+        {:else if dossier}
+          {@const Cell = CellComponent}
+          <Cell
+            {ctx}
+            scopeProbeId={dossier.probeId}
+            {scope}
+            {scopeId}
+            windowStart={windowMs.start}
+            windowEnd={windowMs.end}
+            {metricName}
+            sources={cellSources}
+            {dataLayer}
+            probeIds={probeIds.length > 1 ? probeIds : []}
+          />
+        {/if}
+      </div>
+    </div>
+
+    <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+  {:else if dossierQ.isError}
+    <p class="muted">Dossier failed to load.</p>
+  {/if}
+</section>
+
+<style>
+  .aleph-shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    flex: 1;
+  }
+
+  .dataset-shape {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, #5283b8 6%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, #5283b8 30%, transparent);
+    border-left: 3px solid #5283b8;
+    border-radius: var(--radius-md);
+  }
+
+  .shape-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 6rem;
+  }
+
+  .shape-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-subtle);
+  }
+
+  .shape-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-md);
+    color: var(--color-fg);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .cell-frame {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 24rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .cell-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+  }
+
+  .cell-eyebrow {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+  }
+
+  .cell-presentation {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .cell-sep {
+    color: var(--color-fg-subtle);
+  }
+
+  .cell-metric {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+  }
+
+  .cell-body {
+    flex: 1;
+    padding: var(--space-4);
+    overflow: auto;
+  }
+
+  .muted {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    margin: 0;
+  }
+</style>

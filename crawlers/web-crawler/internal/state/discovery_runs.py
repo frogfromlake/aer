@@ -23,7 +23,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Iterable, Optional
+from typing import Iterable, Optional
 
 logger = logging.getLogger(__name__)
 

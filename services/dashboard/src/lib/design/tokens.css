@@ -103,18 +103,22 @@
   --focus-ring-offset: 2px;
   --focus-ring-color: var(--color-accent);
 
-  /* --- Navigation Chrome (Phase 105) --- */
-  /* Left side rail width (icon-only, no labels). */
-  --rail-width: 68px;
+  /* --- Navigation Chrome (Phase 122h — ADR-033) --- */
+  /* Left side rail width. Phase 122h widens it so surface anchors carry
+     full-word labels (Atmosphere / Workbench / Reflection) per ADR-033 §3
+     and the inline ProbePicker has room to list probes without a popover. */
+  --rail-width: 184px;
   /* Top scope bar minimum height. Content may cause it to grow. */
   --scope-bar-height: 44px;
-  /* Methodology tray widths. Closed = tab strip only; open = full panel. */
-  --tray-closed-width: 28px;
-  --tray-open-width: 360px;
-  /* Right-edge inset seen by the scope bar. Updated by MethodologyTray via JS
-     when the tray opens (push-mode). CSS-only consumers read this property;
-     the 900 px push→overlay threshold is enforced in MethodologyTray.svelte. */
-  --tray-right-edge: var(--tray-closed-width);
+  /* Methodology tray widths — retained at 0 as a transitional stub.
+     The right-edge MethodologyTray was retired (the L4 Provenance content
+     now lives as an inline accordion on Surface II L3). Consumer rules
+     still reference `var(--tray-right-edge, var(--tray-closed-width))`;
+     redefining all three to 0 keeps the existing right-edge insets at 0
+     without churning every surface stylesheet at once. */
+  --tray-closed-width: 0px;
+  --tray-open-width: 0px;
+  --tray-right-edge: 0px;
 }
 
 /* --- Theme: dark (primary, Design Brief §5.5) --- */

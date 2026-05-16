@@ -57,6 +57,18 @@ if (browser) {
 }
 
 /**
+ * Re-hydrate the URL state from the current `window.location.search`.
+ * Called from the (app) root layout's `afterNavigate` hook so SvelteKit
+ * SPA navigations (Function-tile clicks, ProbePicker switches, redirects)
+ * propagate into the rune store. Without this, components reading
+ * `urlState()` after navigation would see stale pre-navigation values.
+ */
+export function rehydrateUrlState(): void {
+  if (!browser) return;
+  internalState = readFromSearch(window.location.search);
+}
+
+/**
  * Reactive snapshot of the URL-backed state. Reads return the current
  * value; assign through `setUrl`/`patchUrl` to update both state and URL.
  */
