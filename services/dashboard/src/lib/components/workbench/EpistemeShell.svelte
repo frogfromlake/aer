@@ -127,6 +127,7 @@
   {:else if pillarState && dossier}
     <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
     <WindowHost
+      pillar="episteme"
       {pillarState}
       {dossier}
       {ctx}

@@ -200,6 +200,7 @@
     {:else if pillarState}
       <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
       <WindowHost
+        pillar="rhizome"
         {pillarState}
         {dossier}
         {ctx}

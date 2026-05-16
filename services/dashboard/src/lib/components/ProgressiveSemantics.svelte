@@ -40,7 +40,10 @@
   // initialise to `emphasis` so L3 lands on plain language and L4 used
   // to land on methodological — but the reader can always flip at any
   // surface without losing either register (both stay in the DOM for a
-  // screen-reader pass).
+  // screen-reader pass). Capturing the initial `emphasis` prop value
+  // here is intentional: later prop changes should NOT reset the user's
+  // explicit toggle choice.
+  // svelte-ignore state_referenced_locally
   let active: RegisterId = $state(emphasis);
   const fallbackRegionId = `ps-region-${Math.random().toString(36).slice(2, 10)}`;
   let regionId = $derived(id ?? fallbackRegionId);

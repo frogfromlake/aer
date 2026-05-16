@@ -186,6 +186,7 @@
     {#if pillarState && dossier}
       <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
       <WindowHost
+        pillar="aleph"
         {pillarState}
         {dossier}
         {ctx}

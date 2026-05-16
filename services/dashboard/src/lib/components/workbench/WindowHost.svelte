@@ -12,10 +12,16 @@
   // fits 3-4 panels before horizontal scrolling kicks in. The cap is
   // enforced at the URL-state layer (MAX_PANELS_PER_WINDOW = 8).
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
-  import type { PillarState } from '$lib/state/url-internals';
+  import {
+    MAX_PANELS_PER_WINDOW,
+    type PillarState,
+    type ViewingMode
+  } from '$lib/state/url-internals';
+  import { addPanel } from '$lib/workbench/panel-mutators';
   import PanelHost from './PanelHost.svelte';
 
   interface Props {
+    pillar: ViewingMode;
     pillarState: PillarState;
     dossier: ProbeDossierDto;
     ctx: FetchContext;
@@ -23,7 +29,7 @@
     windowEnd: string;
   }
 
-  let { pillarState, dossier, ctx, windowStart, windowEnd }: Props = $props();
+  let { pillar, pillarState, dossier, ctx, windowStart, windowEnd }: Props = $props();
 
   // Resolve the active window from the PillarState. Out-of-range
   // activeWindowIndex (e.g. after URL surgery) falls back to the first
@@ -31,8 +37,16 @@
   const activeWindow = $derived(
     pillarState.windows[pillarState.activeWindowIndex] ?? pillarState.windows[0] ?? null
   );
+  const activeWindowIndex = $derived(
+    pillarState.windows[pillarState.activeWindowIndex] ? pillarState.activeWindowIndex : 0
+  );
 
   const panelCount = $derived(activeWindow?.panels.length ?? 0);
+  const canAddPanel = $derived(panelCount < MAX_PANELS_PER_WINDOW);
+
+  function onAddPanel() {
+    addPanel(pillar);
+  }
 </script>
 
 <section class="window-host" aria-label="Workbench window" data-panel-count={panelCount}>
@@ -41,8 +55,32 @@
   {:else}
     <div class="panel-grid" data-cols={Math.min(panelCount, 4)}>
       {#each activeWindow.panels as panel, i (i)}
-        <PanelHost {panel} {dossier} {ctx} {windowStart} {windowEnd} />
+        <PanelHost
+          {panel}
+          {dossier}
+          {ctx}
+          {windowStart}
+          {windowEnd}
+          {pillar}
+          windowIndex={activeWindowIndex}
+          panelIndex={i}
+          focused={i === activeWindow.focusedPanelIndex}
+          canRemove={panelCount > 1}
+        />
       {/each}
+    </div>
+    <div class="window-actions">
+      <button
+        type="button"
+        class="window-action"
+        onclick={onAddPanel}
+        disabled={!canAddPanel}
+        title={canAddPanel
+          ? 'Duplicate the focused panel for side-by-side comparison'
+          : `Maximum ${MAX_PANELS_PER_WINDOW} panels per window`}
+      >
+        ＋ Panel
+      </button>
     </div>
   {/if}
 </section>
@@ -70,6 +108,36 @@
 
   .panel-grid[data-cols='1'] {
     grid-auto-columns: minmax(28rem, 1fr);
+  }
+
+  .window-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-2);
+  }
+
+  .window-action {
+    appearance: none;
+    background: transparent;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-fg);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+
+  .window-action:hover:not(:disabled),
+  .window-action:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    border-color: var(--color-accent);
+    border-style: solid;
+  }
+
+  .window-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .muted {

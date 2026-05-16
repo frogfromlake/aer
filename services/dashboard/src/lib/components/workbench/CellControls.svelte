@@ -27,6 +27,7 @@
     type ViewMode,
     type ViewingMode
   } from '$lib/state/url-internals';
+  import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
 
   interface Props {
     pillar: ViewingMode;
@@ -34,12 +35,31 @@
      *  the parent can lock the view selection — the View row still
      *  renders, but as an informational badge instead of a selector. */
     lockedView?: ViewMode;
+    /** Phase 122i — when set, the controls bind to the addressed Panel
+     *  in the new Pillar→Window→Panel state instead of the legacy flat
+     *  URL params. The pillar prop must match `panelPath.pillar`. */
+    panelPath?: PanelPath;
   }
 
-  let { pillar, lockedView }: Props = $props();
+  let { pillar, lockedView, panelPath }: Props = $props();
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
+
+  // Phase 122i — resolve the addressed Panel when bound. Returns `null`
+  // when the path is stale (e.g. the user just removed the panel) so the
+  // controls fall back to legacy flat-URL behaviour for one frame
+  // instead of crashing.
+  const boundPanel = $derived.by(() => {
+    if (!panelPath) return null;
+    return (
+      url.pillars?.[panelPath.pillar]?.windows[panelPath.windowIndex]?.panels[
+        panelPath.panelIndex
+      ] ?? null
+    );
+  });
+  const isPanelBound = $derived(boundPanel !== null);
+  const isPanelLocked = $derived(boundPanel?.locked === true);
 
   const dateWindow = $derived.by(() => {
     const now = Date.now();
@@ -62,10 +82,18 @@
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
-  const activeMetric = $derived(url.metric ?? DEFAULT_METRIC_NAME);
-  const activeLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
-  const activeNormalization = $derived<Normalization>(url.normalization ?? 'raw');
-  const activeResolution = $derived<Resolution>(url.resolution ?? 'daily');
+  const activeMetric = $derived(
+    boundPanel ? boundPanel.metric : (url.metric ?? DEFAULT_METRIC_NAME)
+  );
+  const activeLayer = $derived<'gold' | 'silver'>(
+    boundPanel ? boundPanel.layer : url.layer === 'silver' ? 'silver' : 'gold'
+  );
+  const activeNormalization = $derived<Normalization>(
+    boundPanel ? (boundPanel.normalization ?? 'raw') : (url.normalization ?? 'raw')
+  );
+  const activeResolution = $derived<Resolution>(
+    boundPanel ? (boundPanel.resolution ?? 'daily') : (url.resolution ?? 'daily')
+  );
 
   const RESOLUTIONS: ReadonlyArray<{ id: Resolution; label: string }> = [
     { id: 'hourly', label: 'Hourly' },
@@ -78,8 +106,8 @@
   const activePresentation = $derived(
     lockedView
       ? (presentations.find((p) => p.id === lockedView) ??
-          resolvePresentation(url.viewMode, pillar))
-      : resolvePresentation(url.viewMode, pillar)
+          resolvePresentation(boundPanel?.view ?? url.viewMode, pillar))
+      : resolvePresentation(boundPanel?.view ?? url.viewMode, pillar)
   );
 
   // Per-view capability flags (Phase 122h Findings round 3). Cells that
@@ -108,27 +136,97 @@
 
   function pickMetric(name: string) {
     if (name === activeMetric) return;
+    if (panelPath) {
+      updatePanel(panelPath, (p) => ({ ...p, metric: name }));
+      return;
+    }
     setUrl({ metric: name });
   }
   function pickView(id: ViewMode) {
     if (id === activePresentation.id) return;
+    if (panelPath) {
+      updatePanel(panelPath, (p) => ({ ...p, view: id }));
+      return;
+    }
     setUrl({ viewMode: id });
   }
   function pickLayer(next: 'gold' | 'silver') {
     if (next === activeLayer) return;
+    if (panelPath) {
+      updatePanel(panelPath, (p) => ({ ...p, layer: next }));
+      return;
+    }
     setUrl({ layer: next === 'silver' ? 'silver' : null });
   }
   function pickNorm(next: Normalization) {
     if (next === activeNormalization) return;
+    if (panelPath) {
+      updatePanel(panelPath, (p) => {
+        const out = { ...p };
+        if (next === 'raw') delete out.normalization;
+        else out.normalization = next;
+        return out;
+      });
+      return;
+    }
     setUrl({ normalization: next === 'raw' ? null : next });
   }
   function pickResolution(next: Resolution) {
     if (next === activeResolution) return;
+    if (panelPath) {
+      updatePanel(panelPath, (p) => ({ ...p, resolution: next }));
+      return;
+    }
     setUrl({ resolution: next });
+  }
+  function pickComposition(next: 'merged' | 'split') {
+    if (!panelPath || !boundPanel) return;
+    if (boundPanel.composition === next) return;
+    updatePanel(panelPath, (p) => ({ ...p, composition: next }));
   }
 </script>
 
-<section class="cell-controls" aria-label="Cell controls">
+<section class="cell-controls" aria-label="Cell controls" class:locked={isPanelLocked}>
+  {#if isPanelLocked && boundPanel}
+    <div class="locked-banner" role="status">
+      🔒 Locked to <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong> — return to the
+      Probe Dossier to recombine scope.
+    </div>
+  {/if}
+
+  {#if isPanelBound && boundPanel && !isPanelLocked}
+    <!-- Phase 122i — Composition row appears only when CellControls is
+         bound to a Panel. The legacy global-state path has no
+         composition concept. -->
+    <div class="ctrl-row" role="radiogroup" aria-label="Composition">
+      <span class="ctrl-eyebrow">Composition</span>
+      <div class="ctrl-options">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={boundPanel.composition === 'merged'}
+          class="ctrl-btn"
+          class:active={boundPanel.composition === 'merged'}
+          onclick={() => pickComposition('merged')}
+          title="One Cell aggregates all ScopeGroups in this panel"
+        >
+          Merged
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={boundPanel.composition === 'split'}
+          class="ctrl-btn"
+          class:active={boundPanel.composition === 'split'}
+          onclick={() => pickComposition('split')}
+          title="One Cell per source or per ScopeGroup (small-multiples)"
+        >
+          Split
+        </button>
+      </div>
+    </div>
+  {/if}
+
   <!-- View / Darstellung row — always visible. When `lockedView` is set
        (Rhizome entry-questions), renders as an informational badge so the
        user sees WHICH view is active without being able to switch. -->
@@ -284,6 +382,19 @@
     background: linear-gradient(180deg, rgba(82, 131, 184, 0.08), rgba(82, 131, 184, 0.02));
     border: 1px solid var(--color-accent-muted);
     border-radius: var(--radius-md);
+  }
+
+  .cell-controls.locked {
+    background: linear-gradient(180deg, rgba(150, 150, 150, 0.1), rgba(150, 150, 150, 0.04));
+    border-color: var(--color-border);
+  }
+
+  .locked-banner {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
   }
 
   .ctrl-row {
