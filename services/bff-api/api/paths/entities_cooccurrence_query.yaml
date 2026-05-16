@@ -1,0 +1,67 @@
+post:
+  tags: [Analysis]
+  summary: Entity co-occurrence graph with explicit scope-group composition (Phase 122i)
+  description: >
+    Aggregates `aer_gold.entity_cooccurrences` over the window for an
+    explicit list of scope groups, returning the top-N edges plus the
+    union of incident nodes. Backs the Multi-Panel Workbench
+    (ADR-034) where a single Cell may merge several `(probeIds,
+    sourceIds)` groups into one network.
+
+
+    Hard caps per request: 100 unique source identifiers and 25 unique
+    probe identifiers across the unioned scope groups. Over-limit
+    requests return 413 with offending counts on the error envelope.
+
+
+    Cross-language merge gate: when the union of scope groups resolves
+    to more than one Language Capability Manifest language, the
+    handler returns 422 `cross_language_merge_unsupported`. BERTopic-
+    adjacent embedding stacks are language-specific (ADR-024) and
+    merged graphs across languages mix incompatible feature spaces;
+    the dashboard surfaces a refusal pointing the user to split-
+    composition or single-language narrowing.
+
+
+    The legacy GET `/entities/cooccurrence` remains for single-scope
+    queries and is unchanged.
+  operationId: postEntityCoOccurrenceQuery
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/EntityCoOccurrenceQueryRequest.yaml'
+  responses:
+    '200':
+      description: Top-N co-occurrence subgraph for the unioned scope.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/CoOccurrenceGraph.yaml'
+    '400':
+      description: Malformed body or invalid window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '413':
+      description: Scope union exceeds the 100-source / 25-probe cap.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '422':
+      description: Cross-language merge is unsupported for the given scope.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

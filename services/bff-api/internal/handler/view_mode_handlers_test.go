@@ -3,12 +3,15 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
@@ -521,3 +524,251 @@ func TestGetEntityCoOccurrence_NodePresencePopulated(t *testing.T) {
 
 // helpers shared with this file only
 func ptrF(v float64) *float64 { return &v }
+
+// ---------------------------------------------------------------------------
+// Phase 122i / ADR-034 — POST /entities/cooccurrence/query
+// ---------------------------------------------------------------------------
+
+// testProbeRegistryMultiLang returns two probes with distinct languages so
+// the cross-language refusal path can be exercised without touching the
+// single-probe fixture other tests rely on.
+func testProbeRegistryMultiLang() config.ProbeRegistry {
+	base := testProbeRegistry()
+	base["probe-1-en-public-web"] = config.ProbeEntry{
+		ProbeID:  "probe-1-en-public-web",
+		Language: "en",
+		Sources:  []string{"bbc", "guardian"},
+		EmissionPoints: []config.EmissionPoint{
+			{Latitude: 51.5074, Longitude: -0.1278, Label: "London"},
+		},
+	}
+	return base
+}
+
+func TestPostEntityCoOccurrenceQuery_RoundTripsSingleScope(t *testing.T) {
+	store := &mockStore{
+		cooccurrence: storage.CoOccurrenceResult{
+			Edges: []storage.CoOccurrenceEdge{
+				{A: "Berlin", B: "Merkel", ALabel: "LOC", BLabel: "PER", Weight: 9, ArticleCount: 4},
+			},
+			Nodes: []storage.CoOccurrenceNode{
+				{Text: "Berlin", Label: "LOC", Degree: 1, TotalCount: 9},
+				{Text: "Merkel", Label: "PER", Degree: 1, TotalCount: 9},
+			},
+			TopN: 50,
+		},
+	}
+	router := newTestRouter(newViewModeServer(store))
+
+	body := strings.NewReader(`{
+		"scopes": [{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": []}],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := store.capturedSources; len(got) != 2 || got[0] != "tagesschau" || got[1] != "bundesregierung" {
+		t.Fatalf("expected both probe-0 sources to reach storage, got %v", got)
+	}
+	if store.capturedTopN != 50 {
+		t.Fatalf("default topN should be 50, got %d", store.capturedTopN)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_FiltersBySourceIdsInGroup(t *testing.T) {
+	store := &mockStore{
+		cooccurrence: storage.CoOccurrenceResult{TopN: 50},
+	}
+	router := newTestRouter(newViewModeServer(store))
+
+	body := strings.NewReader(`{
+		"scopes": [{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": ["tagesschau"]}],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := store.capturedSources; len(got) != 1 || got[0] != "tagesschau" {
+		t.Fatalf("expected sourceIds filter to narrow to tagesschau, got %v", got)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_UnionsAcrossGroups(t *testing.T) {
+	store := &mockStore{cooccurrence: storage.CoOccurrenceResult{TopN: 50}}
+	router := newTestRouter(newViewModeServer(store))
+
+	body := strings.NewReader(`{
+		"scopes": [
+			{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": ["tagesschau"]},
+			{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": ["bundesregierung"]}
+		],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := store.capturedSources; len(got) != 2 || got[0] != "tagesschau" || got[1] != "bundesregierung" {
+		t.Fatalf("expected union across groups, got %v", got)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_UnknownProbe404(t *testing.T) {
+	router := newTestRouter(newViewModeServer(&mockStore{}))
+
+	body := strings.NewReader(`{
+		"scopes": [{"probeIds": ["probe-does-not-exist"], "sourceIds": []}],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_EmptyScopes400(t *testing.T) {
+	router := newTestRouter(newViewModeServer(&mockStore{}))
+
+	body := strings.NewReader(`{"scopes": [], "windowStart": "` + winStart + `", "windowEnd": "` + winEnd + `"}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_InvalidWindow400(t *testing.T) {
+	router := newTestRouter(newViewModeServer(&mockStore{}))
+
+	body := strings.NewReader(`{
+		"scopes": [{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": []}],
+		"windowStart": "` + winEnd + `",
+		"windowEnd": "` + winStart + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for inverted window, got %d", rec.Code)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_CrossLanguageRefused422(t *testing.T) {
+	router := newTestRouter(
+		NewServer(&mockStore{cooccurrence: storage.CoOccurrenceResult{TopN: 50}}, nil, nil, nil, testProbeRegistryMultiLang()),
+	)
+
+	body := strings.NewReader(`{
+		"scopes": [
+			{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": []},
+			{"probeIds": ["probe-1-en-public-web"], "sourceIds": []}
+		],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for cross-language scope, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Message string  `json:"message"`
+		Gate    *string `json:"gate"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Gate == nil || *resp.Gate != "cross_language_merge_unsupported" {
+		t.Fatalf("expected gate=cross_language_merge_unsupported, got %+v", resp)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_ScopeLimitExceeded413(t *testing.T) {
+	// Build a probe with 101 fake sources so the cap fires from a single group.
+	registry := testProbeRegistry()
+	sources := make([]string, 0, 101)
+	for i := 0; i < 101; i++ {
+		sources = append(sources, fmt.Sprintf("src-%d", i))
+	}
+	entry := registry["probe-0-de-institutional-web"]
+	entry.Sources = sources
+	registry["probe-0-de-institutional-web"] = entry
+
+	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil, registry))
+
+	body := strings.NewReader(`{
+		"scopes": [{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": []}],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `"
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 for source cap, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Gate *string `json:"gate"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Gate == nil || *resp.Gate != "scope_limit_exceeded" {
+		t.Fatalf("expected gate=scope_limit_exceeded, got %+v", resp)
+	}
+}
+
+func TestPostEntityCoOccurrenceQuery_ClampsTopN(t *testing.T) {
+	store := &mockStore{cooccurrence: storage.CoOccurrenceResult{TopN: 500}}
+	router := newTestRouter(newViewModeServer(store))
+
+	body := strings.NewReader(`{
+		"scopes": [{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": []}],
+		"windowStart": "` + winStart + `",
+		"windowEnd": "` + winEnd + `",
+		"topN": 9999
+	}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if store.capturedTopN != 500 {
+		t.Fatalf("topN should clamp to 500, got %d", store.capturedTopN)
+	}
+}

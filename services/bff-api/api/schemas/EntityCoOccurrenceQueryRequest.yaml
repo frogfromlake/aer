@@ -1,0 +1,51 @@
+type: object
+description: >
+  Multi-scope CoOccurrence query body (Phase 122i / ADR-034). Each
+  `ScopeGroup` is a `(probeIds, sourceIds)` slice of the corpus; the
+  handler unions all groups before issuing the underlying ClickHouse
+  query. Empty `sourceIds` on a group means "all sources of the group's
+  probes".
+required:
+  - scopes
+  - windowStart
+  - windowEnd
+properties:
+  scopes:
+    type: array
+    minItems: 1
+    description: >
+      One or more ScopeGroups. The handler unions the resolved sources
+      across groups and asserts the 100-source / 25-probe cap on the
+      union (not on the individual group).
+    items:
+      type: object
+      required: [probeIds, sourceIds]
+      properties:
+        probeIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        sourceIds:
+          type: array
+          description: Empty array = all sources of the group's probes.
+          items:
+            type: string
+            minLength: 1
+  windowStart:
+    type: string
+    format: date-time
+    description: Inclusive start of the query window (RFC 3339).
+  windowEnd:
+    type: string
+    format: date-time
+    description: Exclusive end of the query window (RFC 3339).
+  topN:
+    type: integer
+    minimum: 1
+    maximum: 500
+    default: 50
+    description: >
+      Maximum number of co-occurrence edges to return. Server clamps
+      values outside [1, 500] to the nearest bound.

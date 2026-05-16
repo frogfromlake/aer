@@ -59,6 +59,9 @@ export type RefusalKind =
   | 'k_anonymity_threshold_not_met'
   | 'silver_eligibility'
   | 'invalid_language'
+  // Phase 122i / ADR-034 — Multi-Panel Workbench refusal kinds.
+  | 'cross_language_merge_unsupported'
+  | 'scope_limit_exceeded'
   | 'unspecified';
 
 export interface RefusalOutcome {
@@ -116,8 +119,8 @@ async function fetchJson<T>(
   let response: Response;
   try {
     response = await doFetch(`${base}${path}`, {
-      ...init,
       method: 'GET',
+      ...init,
       headers: {
         Accept: 'application/json',
         ...(init?.headers ?? {})
@@ -129,12 +132,16 @@ async function fetchJson<T>(
     throw { kind: 'network-error', message } satisfies NetworkErrorOutcome;
   }
 
-  if (response.status === 400 || response.status === 403) {
-    // BFF methodological gate → surfaced as a refusal, not an error.
-    // 403 is used by k-anon and silver-eligibility gates (WP-006).
-    // Phase 115: a 400 may carry a structured `gate` field; when it does,
-    // sharpen the refusal kind so the RefusalSurface picks the right
-    // Content Catalog entry and surfaces the structured alternatives.
+  // Methodological gates → surfaced as refusals, not errors.
+  //   - 400/403: existing validation + WP-006 silver/k-anon gates.
+  //   - 413/422 (Phase 122i / ADR-034): scope-limit + cross-language gates
+  //     on the Multi-Panel Workbench POST endpoint.
+  if (
+    response.status === 400 ||
+    response.status === 403 ||
+    response.status === 413 ||
+    response.status === 422
+  ) {
     const refusal = await safeRefusal(response, expectedRefusal);
     return refusal;
   }
@@ -201,6 +208,9 @@ async function safeRefusal(
   // (unknown ?language=). Route to its own Content Catalog entry so the
   // operator-facing methodology tray is used instead of a generic refusal.
   if (gate === 'invalid_language') refusalKind = 'invalid_language';
+  // Phase 122i / ADR-034 — Multi-Panel Workbench gates.
+  if (gate === 'cross_language_merge_unsupported') refusalKind = 'cross_language_merge_unsupported';
+  if (gate === 'scope_limit_exceeded') refusalKind = 'scope_limit_exceeded';
   const out: RefusalOutcome = {
     kind: 'refusal',
     refusalKind,
@@ -554,6 +564,54 @@ export function entityCoOccurrenceQuery(
         `/entities/cooccurrence?${qs.toString()}`,
         'validation_missing'
       ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 122i / ADR-034 — Multi-Panel Workbench CoOccurrence query.
+//
+// Posts an explicit list of ScopeGroups so a single Rhizome Cell can merge
+// several `(probeIds, sourceIds)` slices into one network. The BFF unions
+// the groups and applies two structural gates:
+//   - 413 scope_limit_exceeded (>100 sources or >25 probes after union)
+//   - 422 cross_language_merge_unsupported (scope spans >1 manifest language)
+// Both surface as `RefusalOutcome` with the corresponding `refusalKind`.
+//
+// The legacy single-scope `entityCoOccurrenceQuery` (GET) stays for
+// Phase-122h call-sites and backward compatibility.
+
+export interface CoOccurrenceMultiScopeGroup {
+  probeIds: readonly string[];
+  sourceIds: readonly string[];
+}
+
+export interface CoOccurrenceMultiParams {
+  scopes: readonly CoOccurrenceMultiScopeGroup[];
+  start: string;
+  end: string;
+  topN?: number;
+}
+
+export function entityCoOccurrenceQueryMulti(
+  ctx: FetchContext,
+  params: CoOccurrenceMultiParams
+): QueryOptions<CoOccurrenceGraphDto> {
+  return {
+    queryKey: ['aer', 'entity-cooccurrence-multi', params] as const,
+    queryFn: () =>
+      fetchJson<CoOccurrenceGraphDto>(ctx, '/entities/cooccurrence/query', 'validation_missing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scopes: params.scopes.map((g) => ({
+            probeIds: [...g.probeIds],
+            sourceIds: [...g.sourceIds]
+          })),
+          windowStart: params.start,
+          windowEnd: params.end,
+          ...(params.topN !== undefined ? { topN: params.topN } : {})
+        })
+      }),
     staleTime: FIVE_MINUTES
   };
 }

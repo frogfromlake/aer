@@ -1,0 +1,295 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  EMPTY_URL_STATE,
+  encodePillarState,
+  decodePillarState,
+  readFromSearch,
+  writeToSearch,
+  type Panel,
+  type PillarState,
+  type ScopeGroup,
+  type UrlState,
+  type WorkbenchWindow
+} from '../../src/lib/state/url-internals';
+
+// Phase 122i / ADR-034 — Multi-Panel Workbench URL state tests.
+
+function state(overrides: Partial<UrlState> = {}): UrlState {
+  return { ...EMPTY_URL_STATE, ...overrides };
+}
+
+function makeScopeGroup(p: string[] = ['probe-0'], s: string[] = []): ScopeGroup {
+  return { probeIds: p, sourceIds: s };
+}
+
+function makePanel(overrides: Partial<Panel> = {}): Panel {
+  return {
+    scopes: [makeScopeGroup()],
+    composition: 'merged',
+    view: 'time_series',
+    metric: 'sentiment_score_sentiws',
+    layer: 'gold',
+    ...overrides
+  };
+}
+
+function makeWindow(panels: Panel[] = [makePanel()]): WorkbenchWindow {
+  return { panels, focusedPanelIndex: 0 };
+}
+
+function makePillarState(windows: WorkbenchWindow[] = [makeWindow()]): PillarState {
+  return { windows, activeWindowIndex: 0 };
+}
+
+describe('encodePillarState / decodePillarState', () => {
+  it('round-trips a minimal single-window single-panel single-scope state', () => {
+    const original = makePillarState();
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+  });
+
+  it('preserves optional Panel fields (resolution, normalization, topN, locked)', () => {
+    const original = makePillarState([
+      makeWindow([
+        makePanel({
+          resolution: 'daily',
+          normalization: 'zscore',
+          topN: 25,
+          locked: true,
+          lockedReason: 'df_entry',
+          lockedFunction: 'epistemic_authority'
+        })
+      ])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+  });
+
+  it('round-trips multi-scope split composition across multiple panels', () => {
+    const original = makePillarState([
+      makeWindow([
+        makePanel({
+          composition: 'split',
+          scopes: [makeScopeGroup(['probe-0'], ['src-a']), makeScopeGroup(['probe-0'], ['src-b'])]
+        }),
+        makePanel({
+          composition: 'merged',
+          view: 'distribution',
+          metric: 'word_count',
+          layer: 'silver'
+        })
+      ])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+  });
+
+  it('round-trips multi-window state with non-zero activeWindowIndex', () => {
+    const original = makePillarState([makeWindow(), makeWindow()]);
+    original.activeWindowIndex = 1;
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+  });
+
+  it('produces URL-safe base64 (no +, /, or =)', () => {
+    const encoded = encodePillarState(makePillarState());
+    expect(encoded).not.toMatch(/[+/=]/);
+  });
+
+  it('keeps the encoded payload reasonably short for a typical state (< 512 bytes)', () => {
+    const encoded = encodePillarState(makePillarState());
+    expect(encoded.length).toBeLessThan(512);
+  });
+
+  it('returns null on malformed base64', () => {
+    expect(decodePillarState('!@#$')).toBeNull();
+  });
+
+  it('returns null on non-JSON payload', () => {
+    // Encode plain "hello" — valid base64 but not JSON.
+    const garbage = btoa('hello').replace(/=+$/, '');
+    expect(decodePillarState(garbage)).toBeNull();
+  });
+
+  it('returns null on JSON missing required panel fields', () => {
+    const invalid = btoa(JSON.stringify({ w: [{ p: [{ s: [] }], fi: 0 }], aw: 0 }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(decodePillarState(invalid)).toBeNull();
+  });
+
+  it('returns null when activeWindowIndex is out of bounds', () => {
+    const invalid = btoa(
+      JSON.stringify({
+        w: [
+          {
+            p: [
+              {
+                s: [{ pi: ['probe-0'], si: [] }],
+                c: 'm',
+                v: 'time_series',
+                m: 'sentiment_score_sentiws',
+                l: 'g'
+              }
+            ],
+            fi: 0
+          }
+        ],
+        aw: 5
+      })
+    )
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(decodePillarState(invalid)).toBeNull();
+  });
+
+  it('rejects invalid view enum values', () => {
+    const invalid = btoa(
+      JSON.stringify({
+        w: [
+          {
+            p: [
+              {
+                s: [{ pi: ['probe-0'], si: [] }],
+                c: 'm',
+                v: 'scatter_plot',
+                m: 'sentiment_score_sentiws',
+                l: 'g'
+              }
+            ],
+            fi: 0
+          }
+        ],
+        aw: 0
+      })
+    )
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(decodePillarState(invalid)).toBeNull();
+  });
+});
+
+describe('readFromSearch — pillar form (Phase 122i)', () => {
+  it('parses ?activePillar=aleph&aleph=<encoded> into pillars.aleph', () => {
+    const pillarState = makePillarState();
+    const encoded = encodePillarState(pillarState);
+    const search = `?activePillar=aleph&aleph=${encoded}`;
+    const parsed = readFromSearch(search);
+    expect(parsed.activePillar).toBe('aleph');
+    expect(parsed.pillars?.aleph).toEqual(pillarState);
+    expect(parsed.pillars?.episteme).toBeNull();
+    expect(parsed.pillars?.rhizome).toBeNull();
+  });
+
+  it('preserves all three pillar states when present together', () => {
+    const aleph = makePillarState();
+    const episteme = makePillarState([makeWindow([makePanel({ view: 'topic_distribution' })])]);
+    const rhizome = makePillarState([makeWindow([makePanel({ view: 'cooccurrence_network' })])]);
+    const search =
+      `?activePillar=episteme&aleph=${encodePillarState(aleph)}` +
+      `&episteme=${encodePillarState(episteme)}` +
+      `&rhizome=${encodePillarState(rhizome)}`;
+    const parsed = readFromSearch(search);
+    expect(parsed.activePillar).toBe('episteme');
+    expect(parsed.pillars?.aleph).toEqual(aleph);
+    expect(parsed.pillars?.episteme).toEqual(episteme);
+    expect(parsed.pillars?.rhizome).toEqual(rhizome);
+  });
+
+  it('drops legacy flat params when any pillar key is present', () => {
+    const encoded = encodePillarState(makePillarState());
+    const parsed = readFromSearch(`?aleph=${encoded}&probeId=probe-X&sourceId=src-Y`);
+    expect(parsed.probeIds).toEqual([]);
+    expect(parsed.sourceIds).toEqual([]);
+    expect(parsed.viewingMode).toBeNull();
+    expect(parsed.pillars?.aleph).toBeTruthy();
+  });
+
+  it('ignores invalid pillar payloads (sets the slot to null)', () => {
+    const parsed = readFromSearch('?aleph=invalid-base64-!@#');
+    expect(parsed.pillars?.aleph).toBeNull();
+  });
+});
+
+describe('writeToSearch — pillar form (Phase 122i)', () => {
+  it('emits multi-panel form when pillars is non-null', () => {
+    const aleph = makePillarState();
+    const qs = writeToSearch(
+      state({ activePillar: 'aleph', pillars: { aleph, episteme: null, rhizome: null } })
+    );
+    expect(qs).toContain('activePillar=aleph');
+    expect(qs).toContain('aleph=');
+    expect(qs).not.toContain('episteme=');
+    expect(qs).not.toContain('rhizome=');
+  });
+
+  it('drops legacy flat params when pillars is set', () => {
+    const aleph = makePillarState();
+    const qs = writeToSearch(
+      state({
+        activePillar: 'aleph',
+        pillars: { aleph, episteme: null, rhizome: null },
+        probeIds: ['probe-X'],
+        sourceIds: ['src-Y'],
+        viewingMode: 'aleph',
+        viewMode: 'time_series',
+        metric: 'sentiment_score_sentiws',
+        layer: 'silver'
+      })
+    );
+    // Pillar payload carries everything; flat keys must NOT also appear.
+    expect(qs).not.toContain('probeId=');
+    expect(qs).not.toContain('sourceId=');
+    expect(qs).not.toContain('viewingMode=');
+    expect(qs).not.toContain('viewMode=');
+    expect(qs).not.toContain('metric=');
+    expect(qs).not.toContain('layer=');
+  });
+
+  it('round-trips a multi-pillar state through write → read', () => {
+    const aleph = makePillarState([
+      makeWindow([
+        makePanel({
+          composition: 'split',
+          scopes: [makeScopeGroup(['probe-0'], ['src-a']), makeScopeGroup(['probe-0'], ['src-b'])]
+        })
+      ])
+    ]);
+    const episteme = makePillarState([
+      makeWindow([makePanel({ view: 'topic_distribution', resolution: 'daily', topN: 15 })])
+    ]);
+    const original = state({
+      activePillar: 'aleph',
+      pillars: { aleph, episteme, rhizome: null },
+      from: '2026-05-01T00:00:00.000Z',
+      to: '2026-05-08T00:00:00.000Z',
+      resolution: 'hourly'
+    });
+    const parsed = readFromSearch(writeToSearch(original));
+    expect(parsed.activePillar).toBe('aleph');
+    expect(parsed.pillars?.aleph).toEqual(aleph);
+    expect(parsed.pillars?.episteme).toEqual(episteme);
+    expect(parsed.pillars?.rhizome).toBeNull();
+    expect(parsed.from).toBe(original.from);
+    expect(parsed.to).toBe(original.to);
+    expect(parsed.resolution).toBe('hourly');
+  });
+
+  it('preserves negSpace and normalization alongside pillar state', () => {
+    const aleph = makePillarState();
+    const qs = writeToSearch(
+      state({
+        activePillar: 'aleph',
+        pillars: { aleph, episteme: null, rhizome: null },
+        negSpace: true,
+        normalization: 'zscore'
+      })
+    );
+    expect(qs).toContain('negSpace=1');
+    expect(qs).toContain('normalization=zscore');
+  });
+});

@@ -1,35 +1,33 @@
 import { describe, expect, it } from 'vitest';
 
-import { readFromSearch, writeToSearch } from '../../src/lib/state/url-internals';
+import {
+  EMPTY_URL_STATE,
+  readFromSearch,
+  writeToSearch,
+  type UrlState
+} from '../../src/lib/state/url-internals';
+
+// Test helper: builds a complete UrlState from EMPTY_URL_STATE + overrides.
+// Keeps tests resilient against future UrlState extensions (Phase 122i
+// added activePillar + pillars; future phases may add more).
+function state(overrides: Partial<UrlState> = {}): UrlState {
+  return { ...EMPTY_URL_STATE, ...overrides };
+}
 
 describe('readFromSearch', () => {
   it('returns all-null for an empty search string', () => {
-    expect(readFromSearch('')).toEqual({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
+    expect(readFromSearch('')).toEqual(state());
   });
 
   it('parses ISO dates and normalises them to UTC ISO form', () => {
     const s = '?from=2026-04-01T00:00Z&to=2026-04-22T00:00:00Z';
-    const state = readFromSearch(s);
-    expect(state.from).toBe('2026-04-01T00:00:00.000Z');
-    expect(state.to).toBe('2026-04-22T00:00:00.000Z');
+    const parsed = readFromSearch(s);
+    expect(parsed.from).toBe('2026-04-01T00:00:00.000Z');
+    expect(parsed.to).toBe('2026-04-22T00:00:00.000Z');
   });
 
   it('drops invalid dates rather than surfacing NaN', () => {
-    const state = readFromSearch('?from=not-a-date');
-    expect(state.from).toBeNull();
+    expect(readFromSearch('?from=not-a-date').from).toBeNull();
   });
 
   it('validates resolution and viewingMode against their enums', () => {
@@ -93,39 +91,17 @@ describe('readFromSearch', () => {
 
 describe('writeToSearch', () => {
   it('omits null fields entirely', () => {
-    expect(
-      writeToSearch({
-        from: null,
-        to: null,
-        resolution: null,
-        viewingMode: null,
-        metric: null,
-        view: null,
-        sourceIds: [],
-        probeIds: [],
-        viewMode: null,
-        layer: null,
-        negSpace: null,
-        normalization: null
-      })
-    ).toBe('');
+    expect(writeToSearch(state())).toBe('');
   });
 
   it('emits only populated fields', () => {
-    const qs = writeToSearch({
-      from: '2026-04-01T00:00:00.000Z',
-      to: '2026-04-22T00:00:00.000Z',
-      resolution: 'hourly',
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
+    const qs = writeToSearch(
+      state({
+        from: '2026-04-01T00:00:00.000Z',
+        to: '2026-04-22T00:00:00.000Z',
+        resolution: 'hourly'
+      })
+    );
     expect(qs).toContain('from=2026-04-01');
     expect(qs).toContain('to=2026-04-22');
     expect(qs).toContain('resolution=hourly');
@@ -135,288 +111,73 @@ describe('writeToSearch', () => {
   });
 
   it('round-trips through readFromSearch', () => {
-    const original = {
+    const original = state({
       from: '2026-04-01T00:00:00.000Z',
       to: '2026-04-22T00:00:00.000Z',
-      resolution: 'daily' as const,
-      viewingMode: 'rhizome' as const,
+      resolution: 'daily',
+      viewingMode: 'rhizome',
       metric: 'sentiment_score',
-      view: 'actors-topics' as const,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: 'distribution' as const,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    };
-    const qs = writeToSearch(original);
-    expect(readFromSearch(qs)).toEqual(original);
+      view: 'actors-topics',
+      viewMode: 'distribution'
+    });
+    expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });
 
   it('emits metric when set', () => {
-    const qs = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: 'sentiment_score',
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
-    expect(qs).toContain('metric=sentiment_score');
+    expect(writeToSearch(state({ metric: 'sentiment_score' }))).toContain('metric=sentiment_score');
   });
 
   it('emits view when a Rhizome sub-view is set (Phase 122h)', () => {
-    const qs = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: 'rhizome',
-      metric: null,
-      view: 'source-resonance',
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
-    expect(qs).toContain('view=source-resonance');
+    expect(writeToSearch(state({ viewingMode: 'rhizome', view: 'source-resonance' }))).toContain(
+      'view=source-resonance'
+    );
   });
 
   it('emits viewMode when set', () => {
-    const qs = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: 'distribution',
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
-    expect(qs).toContain('viewMode=distribution');
+    expect(writeToSearch(state({ viewMode: 'distribution' }))).toContain('viewMode=distribution');
   });
 
   it('emits layer=silver when set, omits for gold', () => {
-    const withSilver = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: 'silver',
-      negSpace: null,
-      normalization: null
-    });
-    expect(withSilver).toContain('layer=silver');
-
-    const withGold = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: 'gold',
-      negSpace: null,
-      normalization: null
-    });
-    expect(withGold).not.toContain('layer=');
+    expect(writeToSearch(state({ layer: 'silver' }))).toContain('layer=silver');
+    expect(writeToSearch(state({ layer: 'gold' }))).not.toContain('layer=');
   });
 
   it('round-trips layer=silver through readFromSearch', () => {
-    const original = {
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: ['tagesschau'],
-      probeIds: [],
-      viewMode: null,
-      layer: 'silver' as const,
-      negSpace: null,
-      normalization: null
-    };
-    const qs = writeToSearch(original);
-    expect(readFromSearch(qs)).toEqual(original);
+    const original = state({ sourceIds: ['tagesschau'], layer: 'silver' });
+    expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });
 
   it('emits negSpace=1 when true, omits when null', () => {
-    const withNegSpace = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: true,
-      normalization: null
-    });
-    expect(withNegSpace).toContain('negSpace=1');
-
-    const withoutNegSpace = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
-    expect(withoutNegSpace).not.toContain('negSpace=');
+    expect(writeToSearch(state({ negSpace: true }))).toContain('negSpace=1');
+    expect(writeToSearch(state())).not.toContain('negSpace=');
   });
 
   it('round-trips negSpace=true through readFromSearch', () => {
-    const original = {
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: true as const,
-      normalization: null
-    };
-    const qs = writeToSearch(original);
-    expect(readFromSearch(qs)).toEqual(original);
+    const original = state({ negSpace: true });
+    expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });
 
   it('normalization roundtrips zscore and percentile, omits raw (Phase 115)', () => {
-    const zRound = readFromSearch(
-      writeToSearch({
-        from: null,
-        to: null,
-        resolution: null,
-        viewingMode: null,
-        metric: null,
-        view: null,
-        sourceIds: [],
-        probeIds: [],
-        viewMode: null,
-        layer: null,
-        negSpace: null,
-        normalization: 'zscore'
-      })
+    expect(readFromSearch(writeToSearch(state({ normalization: 'zscore' }))).normalization).toBe(
+      'zscore'
     );
-    expect(zRound.normalization).toBe('zscore');
-
-    const pRound = readFromSearch(
-      writeToSearch({
-        from: null,
-        to: null,
-        resolution: null,
-        viewingMode: null,
-        metric: null,
-        view: null,
-        sourceIds: [],
-        probeIds: [],
-        viewMode: null,
-        layer: null,
-        negSpace: null,
-        normalization: 'percentile'
-      })
-    );
-    expect(pRound.normalization).toBe('percentile');
-
-    const rawRound = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: 'raw'
-    });
-    expect(rawRound).not.toContain('normalization');
+    expect(
+      readFromSearch(writeToSearch(state({ normalization: 'percentile' }))).normalization
+    ).toBe('percentile');
+    expect(writeToSearch(state({ normalization: 'raw' }))).not.toContain('normalization');
   });
 
   it('emits probeId param for multi-probe composition and omits when empty', () => {
-    const withProbes = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: ['probe-0-de-institutional-web', 'probe-1-de-public-rss'],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
-    expect(withProbes).toContain('probeId=probe-0-de-institutional-web%2Cprobe-1-de-public-rss');
-
-    const noProbes = writeToSearch({
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    });
-    expect(noProbes).not.toContain('probeId=');
+    expect(
+      writeToSearch(state({ probeIds: ['probe-0-de-institutional-web', 'probe-1-de-public-rss'] }))
+    ).toContain('probeId=probe-0-de-institutional-web%2Cprobe-1-de-public-rss');
+    expect(writeToSearch(state())).not.toContain('probeId=');
   });
 
   it('round-trips probeIds through readFromSearch', () => {
-    const original = {
-      from: null,
-      to: null,
-      resolution: null,
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: ['probe-0-de-institutional-web', 'probe-1-de-public-rss'],
-      viewMode: null,
-      layer: null,
-      negSpace: null,
-      normalization: null
-    };
-    const qs = writeToSearch(original);
-    expect(readFromSearch(qs)).toEqual(original);
+    const original = state({
+      probeIds: ['probe-0-de-institutional-web', 'probe-1-de-public-rss']
+    });
+    expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });
 });

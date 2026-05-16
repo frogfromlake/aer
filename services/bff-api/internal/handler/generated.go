@@ -1082,6 +1082,26 @@ type GetEntityCoOccurrenceParams struct {
 // GetEntityCoOccurrenceParamsScope defines parameters for GetEntityCoOccurrence.
 type GetEntityCoOccurrenceParamsScope string
 
+// PostEntityCoOccurrenceQueryJSONBody defines parameters for PostEntityCoOccurrenceQuery.
+type PostEntityCoOccurrenceQueryJSONBody struct {
+	// Scopes One or more ScopeGroups. The handler unions the resolved sources across groups and asserts the 100-source / 25-probe cap on the union (not on the individual group).
+	Scopes []struct {
+		ProbeIds []string `json:"probeIds"`
+
+		// SourceIds Empty array = all sources of the group's probes.
+		SourceIds []string `json:"sourceIds"`
+	} `json:"scopes"`
+
+	// TopN Maximum number of co-occurrence edges to return. Server clamps values outside [1, 500] to the nearest bound.
+	TopN *int `json:"topN,omitempty"`
+
+	// WindowEnd Exclusive end of the query window (RFC 3339).
+	WindowEnd time.Time `json:"windowEnd"`
+
+	// WindowStart Inclusive start of the query window (RFC 3339).
+	WindowStart time.Time `json:"windowStart"`
+}
+
 // GetLanguagesParams defines parameters for GetLanguages.
 type GetLanguagesParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601)
@@ -1356,6 +1376,9 @@ type GetTopicDistributionParams struct {
 // GetTopicDistributionParamsScope defines parameters for GetTopicDistribution.
 type GetTopicDistributionParamsScope string
 
+// PostEntityCoOccurrenceQueryJSONRequestBody defines body for PostEntityCoOccurrenceQuery for application/json ContentType.
+type PostEntityCoOccurrenceQueryJSONRequestBody PostEntityCoOccurrenceQueryJSONBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// L5 Evidence — article detail with k-anonymity gate
@@ -1370,6 +1393,9 @@ type ServerInterface interface {
 	// Entity co-occurrence graph (Network Science x force-directed graph)
 	// (GET /entities/cooccurrence)
 	GetEntityCoOccurrence(w http.ResponseWriter, r *http.Request, params GetEntityCoOccurrenceParams)
+	// Entity co-occurrence graph with explicit scope-group composition (Phase 122i)
+	// (POST /entities/cooccurrence/query)
+	PostEntityCoOccurrenceQuery(w http.ResponseWriter, r *http.Request)
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -1463,6 +1489,12 @@ func (_ Unimplemented) GetEntities(w http.ResponseWriter, r *http.Request, param
 // Entity co-occurrence graph (Network Science x force-directed graph)
 // (GET /entities/cooccurrence)
 func (_ Unimplemented) GetEntityCoOccurrence(w http.ResponseWriter, r *http.Request, params GetEntityCoOccurrenceParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Entity co-occurrence graph with explicit scope-group composition (Phase 122i)
+// (POST /entities/cooccurrence/query)
+func (_ Unimplemented) PostEntityCoOccurrenceQuery(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1873,6 +1905,26 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetEntityCoOccurrence(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostEntityCoOccurrenceQuery operation middleware
+func (siw *ServerInterfaceWrapper) PostEntityCoOccurrenceQuery(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostEntityCoOccurrenceQuery(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3298,6 +3350,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/entities/cooccurrence", wrapper.GetEntityCoOccurrence)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/entities/cooccurrence/query", wrapper.PostEntityCoOccurrenceQuery)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
 	r.Group(func(r chi.Router) {
@@ -3705,6 +3760,164 @@ type GetEntityCoOccurrence500JSONResponse struct {
 }
 
 func (response GetEntityCoOccurrence500JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostEntityCoOccurrenceQueryRequestObject struct {
+	Body *PostEntityCoOccurrenceQueryJSONRequestBody
+}
+
+type PostEntityCoOccurrenceQueryResponseObject interface {
+	VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error
+}
+
+type PostEntityCoOccurrenceQuery200JSONResponse struct {
+	Edges []struct {
+		// A Lexicographically smaller entity text in the pair.
+		A      string  `json:"a"`
+		ALabel *string `json:"aLabel,omitempty"`
+
+		// ArticleCount Number of distinct articles contributing to this edge.
+		ArticleCount int64   `json:"articleCount"`
+		B            string  `json:"b"`
+		BLabel       *string `json:"bLabel,omitempty"`
+
+		// Weight Sum of cooccurrence_count over articles in the window.
+		Weight int64 `json:"weight"`
+	} `json:"edges"`
+	Nodes []struct {
+		// Degree Number of distinct neighbours in the returned edge set.
+		Degree int64  `json:"degree"`
+		Label  string `json:"label"`
+
+		// Presence Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114).
+		Presence *[]string `json:"presence,omitempty"`
+		Text     string    `json:"text"`
+
+		// TotalCount Sum of edge weights incident on this node.
+		TotalCount int64 `json:"totalCount"`
+
+		// WikidataQid Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call.
+		WikidataQid *string `json:"wikidataQid,omitempty"`
+	} `json:"nodes"`
+	Scope   *string `json:"scope,omitempty"`
+	ScopeId *string `json:"scopeId,omitempty"`
+
+	// TopN The effective top-N applied (post-clamp).
+	TopN        int64     `json:"topN"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+}
+
+func (response PostEntityCoOccurrenceQuery200JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostEntityCoOccurrenceQuery400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostEntityCoOccurrenceQuery400JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostEntityCoOccurrenceQuery404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostEntityCoOccurrenceQuery404JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostEntityCoOccurrenceQuery413JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostEntityCoOccurrenceQuery413JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostEntityCoOccurrenceQuery422JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostEntityCoOccurrenceQuery422JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostEntityCoOccurrenceQuery500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostEntityCoOccurrenceQuery500JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -5421,6 +5634,9 @@ type StrictServerInterface interface {
 	// Entity co-occurrence graph (Network Science x force-directed graph)
 	// (GET /entities/cooccurrence)
 	GetEntityCoOccurrence(ctx context.Context, request GetEntityCoOccurrenceRequestObject) (GetEntityCoOccurrenceResponseObject, error)
+	// Entity co-occurrence graph with explicit scope-group composition (Phase 122i)
+	// (POST /entities/cooccurrence/query)
+	PostEntityCoOccurrenceQuery(ctx context.Context, request PostEntityCoOccurrenceQueryRequestObject) (PostEntityCoOccurrenceQueryResponseObject, error)
 	// Liveness probe
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
@@ -5618,6 +5834,37 @@ func (sh *strictHandler) GetEntityCoOccurrence(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetEntityCoOccurrenceResponseObject); ok {
 		if err := validResponse.VisitGetEntityCoOccurrenceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostEntityCoOccurrenceQuery operation middleware
+func (sh *strictHandler) PostEntityCoOccurrenceQuery(w http.ResponseWriter, r *http.Request) {
+	var request PostEntityCoOccurrenceQueryRequestObject
+
+	var body PostEntityCoOccurrenceQueryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostEntityCoOccurrenceQuery(ctx, request.(PostEntityCoOccurrenceQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostEntityCoOccurrenceQuery")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostEntityCoOccurrenceQueryResponseObject); ok {
+		if err := validResponse.VisitPostEntityCoOccurrenceQueryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

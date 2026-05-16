@@ -663,3 +663,220 @@ func splitAndTrim(raw string) []string {
 	}
 	return out
 }
+
+// Phase 122i / ADR-034 — Multi-scope CoOccurrence POST endpoint.
+//
+// The Multi-Panel Workbench lets a single Rhizome Cell merge several
+// `(probeIds, sourceIds)` ScopeGroups into one co-occurrence query. The
+// legacy GET endpoint only accepts a single `(scope, scopeId)` target;
+// the POST endpoint adds richer composition with two structural gates:
+//
+//   - **413 scope_limit_exceeded** — caps the union of all groups at
+//     `maxCoOccurrenceUnionSources` unique source IDs and
+//     `maxCoOccurrenceUnionProbes` unique probe IDs so a runaway
+//     dashboard request can never spin up an unbounded ClickHouse scan.
+//   - **422 cross_language_merge_unsupported** — refuses scopes whose
+//     probe union spans more than one Language Capability Manifest
+//     language. Network embeddings are language-specific (ADR-024);
+//     merging them yields incompatible feature spaces and the dashboard
+//     surfaces a refusal pointing the user to split-composition.
+//
+// The handler unions all groups into the existing per-source query
+// path; ClickHouse storage is unchanged.
+
+const (
+	maxCoOccurrenceUnionSources = 100
+	maxCoOccurrenceUnionProbes  = 25
+)
+
+// PostEntityCoOccurrenceQuery is the multi-scope counterpart to
+// GetEntityCoOccurrence. See block comment above.
+func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEntityCoOccurrenceQueryRequestObject) (PostEntityCoOccurrenceQueryResponseObject, error) {
+	if request.Body == nil || len(request.Body.Scopes) == 0 {
+		return PostEntityCoOccurrenceQuery400JSONResponse{Message: "scopes is required and must contain at least one group"}, nil
+	}
+	body := *request.Body
+
+	if msg := validateWindow(body.WindowStart, body.WindowEnd); msg != "" {
+		return PostEntityCoOccurrenceQuery400JSONResponse{Message: msg}, nil
+	}
+
+	// Resolve groups → union of source names + union of probe ids +
+	// union of probe languages. The probe registry (`s.probes`) is the
+	// authoritative source for both `Sources` and `Language` per probe.
+	srcSeen := map[string]bool{}
+	probeSeen := map[string]bool{}
+	langSeen := map[string]bool{}
+	var sources []string
+	var languages []string
+
+	addSource := func(src string) {
+		src = strings.TrimSpace(src)
+		if src == "" || srcSeen[src] {
+			return
+		}
+		srcSeen[src] = true
+		sources = append(sources, src)
+	}
+	addLanguage := func(lang string) {
+		lang = strings.TrimSpace(lang)
+		if lang == "" || langSeen[lang] {
+			return
+		}
+		langSeen[lang] = true
+		languages = append(languages, lang)
+	}
+
+	for i, group := range body.Scopes {
+		if len(group.ProbeIds) == 0 {
+			return PostEntityCoOccurrenceQuery400JSONResponse{Message: fmt.Sprintf("scopes[%d].probeIds must contain at least one probe id", i)}, nil
+		}
+		// Per-group source allowlist: when the group lists explicit
+		// sourceIds, restrict that group's contribution to the
+		// intersection; otherwise contribute all of the probe's
+		// sources. Source ids outside the group's probes are dropped
+		// silently (the dashboard can only pick from the dossier so
+		// this is a belt-and-braces filter).
+		allowed := map[string]bool{}
+		for _, sid := range group.SourceIds {
+			sid = strings.TrimSpace(sid)
+			if sid != "" {
+				allowed[sid] = true
+			}
+		}
+		for _, pid := range group.ProbeIds {
+			pid = strings.TrimSpace(pid)
+			if pid == "" {
+				continue
+			}
+			probe, exists := s.probes[pid]
+			if !exists {
+				return PostEntityCoOccurrenceQuery404JSONResponse{Message: fmt.Sprintf("unknown probe %q", pid)}, nil
+			}
+			if !probeSeen[pid] {
+				probeSeen[pid] = true
+				addLanguage(probe.Language)
+			}
+			if len(allowed) == 0 {
+				for _, src := range probe.Sources {
+					addSource(src)
+				}
+			} else {
+				for _, src := range probe.Sources {
+					if allowed[src] {
+						addSource(src)
+					}
+				}
+			}
+		}
+	}
+
+	if len(sources) == 0 {
+		return PostEntityCoOccurrenceQuery400JSONResponse{Message: "scope union resolved to zero sources"}, nil
+	}
+	if len(sources) > maxCoOccurrenceUnionSources || len(probeSeen) > maxCoOccurrenceUnionProbes {
+		gate := "scope_limit_exceeded"
+		alts := []string{
+			fmt.Sprintf("narrow to <= %d sources and <= %d probes per request", maxCoOccurrenceUnionSources, maxCoOccurrenceUnionProbes),
+			"split composition: render each ScopeGroup as its own Cell",
+		}
+		return PostEntityCoOccurrenceQuery413JSONResponse{
+			Message:      fmt.Sprintf("scope union exceeds caps: %d sources (max %d), %d probes (max %d)", len(sources), maxCoOccurrenceUnionSources, len(probeSeen), maxCoOccurrenceUnionProbes),
+			Gate:         &gate,
+			Alternatives: &alts,
+		}, nil
+	}
+	if len(languages) > 1 {
+		gate := "cross_language_merge_unsupported"
+		anchor := "ADR-034#cross-language"
+		alts := []string{
+			"narrow the scope to a single language",
+			"split composition: each Cell renders one language",
+		}
+		return PostEntityCoOccurrenceQuery422JSONResponse{
+			Message:            fmt.Sprintf("cross-language merge not supported (scope spans %d languages: %s)", len(languages), strings.Join(languages, ", ")),
+			Gate:               &gate,
+			WorkingPaperAnchor: &anchor,
+			Alternatives:       &alts,
+		}, nil
+	}
+
+	topN := 50
+	if body.TopN != nil {
+		topN = *body.TopN
+	}
+	if topN < 1 {
+		topN = 1
+	}
+	if topN > 500 {
+		topN = 500
+	}
+
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, body.WindowStart, body.WindowEnd, topN)
+	if err != nil {
+		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
+		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := PostEntityCoOccurrenceQuery200JSONResponse{
+		TopN:        res.TopN,
+		WindowStart: body.WindowStart,
+		WindowEnd:   body.WindowEnd,
+	}
+	resp.Edges = make([]struct {
+		A            string  `json:"a"`
+		ALabel       *string `json:"aLabel,omitempty"`
+		ArticleCount int64   `json:"articleCount"`
+		B            string  `json:"b"`
+		BLabel       *string `json:"bLabel,omitempty"`
+		Weight       int64   `json:"weight"`
+	}, len(res.Edges))
+	for i, e := range res.Edges {
+		var aLabel, bLabel *string
+		if e.ALabel != "" {
+			a := e.ALabel
+			aLabel = &a
+		}
+		if e.BLabel != "" {
+			b := e.BLabel
+			bLabel = &b
+		}
+		resp.Edges[i] = struct {
+			A            string  `json:"a"`
+			ALabel       *string `json:"aLabel,omitempty"`
+			ArticleCount int64   `json:"articleCount"`
+			B            string  `json:"b"`
+			BLabel       *string `json:"bLabel,omitempty"`
+			Weight       int64   `json:"weight"`
+		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Weight: e.Weight}
+	}
+	resp.Nodes = make([]struct {
+		Degree      int64     `json:"degree"`
+		Label       string    `json:"label"`
+		Presence    *[]string `json:"presence,omitempty"`
+		Text        string    `json:"text"`
+		TotalCount  int64     `json:"totalCount"`
+		WikidataQid *string   `json:"wikidataQid,omitempty"`
+	}, len(res.Nodes))
+	for i, n := range res.Nodes {
+		var presence *[]string
+		if len(n.Presence) > 0 {
+			p := n.Presence
+			presence = &p
+		}
+		var qid *string
+		if n.WikidataQid != "" {
+			q := n.WikidataQid
+			qid = &q
+		}
+		resp.Nodes[i] = struct {
+			Degree      int64     `json:"degree"`
+			Label       string    `json:"label"`
+			Presence    *[]string `json:"presence,omitempty"`
+			Text        string    `json:"text"`
+			TotalCount  int64     `json:"totalCount"`
+			WikidataQid *string   `json:"wikidataQid,omitempty"`
+		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, WikidataQid: qid}
+	}
+	return resp, nil
+}
