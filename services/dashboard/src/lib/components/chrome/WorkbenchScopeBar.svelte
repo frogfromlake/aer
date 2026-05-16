@@ -22,14 +22,64 @@
   // Resolution + Normalization are deliberately *not* in this bar — they
   // live per-Cell or per-Stratum per ADR-033 §6.
   import { setUrl, urlState } from '$lib/state/url.svelte';
-  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
+  import { DEFAULT_LOOKBACK_MS, type ViewingMode } from '$lib/state/url-internals';
   import FunctionBadge from '$lib/components/base/FunctionBadge.svelte';
   import { DISCOURSE_FUNCTIONS, type DiscourseFunction } from '$lib/discourse-function';
+  import { removePanel as removePanelMutator } from '$lib/workbench/panel-mutators';
+  import { updatePanelPure } from '$lib/workbench/panel-mutators-pure';
 
   const url = $derived(urlState());
 
-  const probeIds = $derived(url.probeIds);
-  const sourceIds = $derived(url.sourceIds);
+  // Phase 122i revision (A3). The bar's chip data must reflect the
+  // ACTIVE PANEL's scope when the URL is in pillar-state form. The
+  // Phase-122h implementation read `url.probeIds`/`url.sourceIds` which
+  // are empty in pillar-state URLs (the reader nulls them when any
+  // pillar key is present), so the bar showed the "no probe selected"
+  // empty state inside a populated Workbench.
+  const activePillar = $derived<ViewingMode>(url.activePillar ?? url.viewingMode ?? 'aleph');
+  const activePanelInfo = $derived.by(() => {
+    const pillar = url.pillars?.[activePillar];
+    if (!pillar) return null;
+    const win = pillar.windows[pillar.activeWindowIndex] ?? pillar.windows[0];
+    if (!win) return null;
+    const panel = win.panels[win.focusedPanelIndex] ?? win.panels[0];
+    if (!panel) return null;
+    return {
+      pillar,
+      windowIndex: pillar.activeWindowIndex,
+      win,
+      panelIndex: win.focusedPanelIndex,
+      panel
+    };
+  });
+
+  const probeIds = $derived.by<string[]>(() => {
+    if (activePanelInfo) {
+      const out: string[] = [];
+      for (const g of activePanelInfo.panel.scopes)
+        for (const p of g.probeIds) if (!out.includes(p)) out.push(p);
+      return out;
+    }
+    return url.probeIds;
+  });
+  const sourceIds = $derived.by<string[]>(() => {
+    if (activePanelInfo) {
+      const out: string[] = [];
+      for (const g of activePanelInfo.panel.scopes)
+        for (const s of g.sourceIds) if (!out.includes(s)) out.push(s);
+      return out;
+    }
+    return url.sourceIds;
+  });
+
+  // Locked-DF chip: emitted only when the active panel was opened via
+  // the DF tile and carries `lockedFunction`. Shown as a single highlighted
+  // FunctionBadge alongside the standard function-row chips.
+  const lockedFunction = $derived<DiscourseFunction | null>(
+    activePanelInfo?.panel.locked === true && activePanelInfo.panel.lockedFunction
+      ? (activePanelInfo.panel.lockedFunction as DiscourseFunction)
+      : null
+  );
 
   // Time window — fall back to default lookback when unset so the inputs
   // always show a meaningful value the user can edit.
@@ -48,9 +98,62 @@
   }
 
   function removeProbe(id: string) {
+    if (activePanelInfo) {
+      // Phase 122i revision (A3). When in pillar-state form, removing a
+      // probe chip removes it from EVERY ScopeGroup of the focused
+      // panel. If the panel ends up with no probes, remove the panel
+      // entirely (consistent with the legacy "clear-all" semantic).
+      const info = activePanelInfo;
+      const stillHasProbes = info.panel.scopes.some((g) => g.probeIds.some((p) => p !== id));
+      if (!stillHasProbes) {
+        removePanelMutator({
+          pillar: activePillar,
+          windowIndex: info.windowIndex,
+          panelIndex: info.panelIndex
+        });
+        return;
+      }
+      const nextPillars = updatePanelPure(
+        url.pillars,
+        {
+          pillar: activePillar,
+          windowIndex: info.windowIndex,
+          panelIndex: info.panelIndex
+        },
+        (p) => ({
+          ...p,
+          scopes: p.scopes.map((g) => ({
+            probeIds: g.probeIds.filter((pid) => pid !== id),
+            sourceIds: g.sourceIds
+          }))
+        })
+      );
+      if (nextPillars) setUrl({ pillars: nextPillars });
+      return;
+    }
     setUrl({ probeIds: probeIds.filter((p) => p !== id) });
   }
   function removeSource(id: string) {
+    if (activePanelInfo) {
+      const info = activePanelInfo;
+      const nextPillars = updatePanelPure(
+        url.pillars,
+        {
+          pillar: activePillar,
+          windowIndex: info.windowIndex,
+          panelIndex: info.panelIndex
+        },
+        (p) => ({
+          ...p,
+          scopes: p.scopes.map((g) => ({
+            probeIds: g.probeIds,
+            sourceIds: g.sourceIds.filter((sid) => sid !== id)
+          }))
+        })
+      );
+      if (nextPillars) setUrl({ pillars: nextPillars });
+      return;
+    }
     setUrl({ sourceIds: sourceIds.filter((s) => s !== id) });
   }
   function onFromChange(e: Event) {
@@ -126,13 +229,25 @@
 
   <div class="row" data-facet="functions">
     <span class="row-label">Functions</span>
-    <ul class="chip-list" role="list">
-      {#each FUNCTION_KEYS as fn (fn)}
+    {#if lockedFunction}
+      <!-- Phase 122i revision (A3). When the active panel is locked to
+           a discourse function, surface that ONE function prominently
+           instead of the full four-function strip. -->
+      <ul class="chip-list" role="list">
         <li>
-          <FunctionBadge function={fn} size="sm" showLabel showInfo />
+          <FunctionBadge function={lockedFunction} size="sm" showLabel showInfo selected />
         </li>
-      {/each}
-    </ul>
+        <li class="locked-fn-hint">🔒 scope locked</li>
+      </ul>
+    {:else}
+      <ul class="chip-list" role="list">
+        {#each FUNCTION_KEYS as fn (fn)}
+          <li>
+            <FunctionBadge function={fn} size="sm" showLabel showInfo />
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
   <div class="row" data-facet="window">
@@ -183,6 +298,13 @@
     font-size: var(--font-size-xs);
     color: var(--color-fg-subtle);
     font-style: italic;
+  }
+
+  .locked-fn-hint {
+    font-size: 10px;
+    color: var(--color-fg-subtle);
+    font-style: italic;
+    align-self: center;
   }
 
   .chip-list {

@@ -17,6 +17,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
 
   let {
@@ -26,8 +27,14 @@
     windowStart,
     windowEnd,
     metricName,
-    dataLayer = 'gold'
+    dataLayer = 'gold',
+    sources = [],
+    composition
   }: ViewModeCellProps = $props();
+
+  // Phase 122i revision (C6). Soft methodology note when the
+  // distribution cell aggregates over multiple sources.
+  const showMergedNote = $derived(composition === 'merged' && sources.length > 1);
 
   // Map Gold metric names to the closest Silver aggregation type.
   // Falls back to `word_count` — the universally available Silver field.
@@ -186,6 +193,13 @@
     <p class="muted">No samples for {metricName} in this window.</p>
   {:else if activeDist}
     {@const s = activeDist.summary}
+    {#if showMergedNote}
+      <MethodologyBanner anchorHref="/reflection/wp/wp-004?section=3.4" anchorLabel="WP-004 §3.4">
+        <strong>Distribution across {sources.length} merged sources</strong> — the histogram aggregates
+        the joint corpus, not per-source distributions. Per-source comparability may be affected by source
+        heterogeneity, especially across cultural-linguistic frames.
+      </MethodologyBanner>
+    {/if}
     <div class="plot-host" bind:this={host} role="img" aria-label="Histogram of {metricName}"></div>
     <dl class="summary" aria-label="Quantile summary">
       <div>

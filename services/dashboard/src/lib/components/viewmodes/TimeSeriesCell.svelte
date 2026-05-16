@@ -6,6 +6,7 @@
   // Phase 111: not applicable in Silver layer (Silver documents have no
   // Gold-equivalent time-series; the distribution cell covers Silver).
   import SourceLaneChart from '$lib/components/lanes/SourceLaneChart.svelte';
+  import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
 
   let {
@@ -17,6 +18,12 @@
     dataLayer = 'gold',
     composition
   }: ViewModeCellProps = $props();
+
+  // Phase 122i revision (C6). Soft methodology note when the Aleph
+  // time-series cell aggregates over multiple sources — the chart
+  // reflects the union, not per-source framings. WP-004 §3.4 carries
+  // the cross-frame interpretation guidance.
+  const showMergedNote = $derived(composition === 'merged' && sources.length > 1);
 
   // Phase 122i revision (D1). Composition gates the fan-out semantic:
   //   merged → one SourceLaneChart over the unioned source list, BFF
@@ -37,6 +44,13 @@
   {:else if sources.length === 0}
     <p class="empty">No sources in the active scope.</p>
   {:else if composition === 'merged'}
+    {#if showMergedNote}
+      <MethodologyBanner anchorHref="/reflection/wp/wp-004?section=3.4" anchorLabel="WP-004 §3.4">
+        <strong>Merged across {sources.length} sources</strong> — the time series reflects the joint corpus,
+        not per-source framings. Interpret cross-source comparability cautiously, especially when sources
+        span multiple cultural-linguistic frames.
+      </MethodologyBanner>
+    {/if}
     <SourceLaneChart
       sourceNames={[...sourceNames]}
       emicDesignation={null}

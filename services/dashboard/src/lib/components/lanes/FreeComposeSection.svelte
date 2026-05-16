@@ -10,8 +10,8 @@
   // ship — current production runs a single probe. The `probeIds` array
   // passed to `buildFreeComposeUrl` is a single-element array today.
   import { goto } from '$app/navigation';
-  import { SvelteSet } from 'svelte/reactivity';
   import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
+  import { setUrl, urlState } from '$lib/state/url.svelte';
   import type { ProbeDossierDto } from '$lib/api/queries';
 
   interface Props {
@@ -20,30 +20,41 @@
 
   let { dossier }: Props = $props();
 
-  const selected = new SvelteSet<string>();
+  // Phase 122i revision (A2). Selection state lives in the URL via
+  // `url.sourceIds` so a browser-back from the Workbench restores the
+  // user's choice. The component reads its checkbox state directly
+  // from the rune store; toggles write back via setUrl. The Dossier's
+  // narrowed-scope chips share the same field, so the two affordances
+  // (free-compose picker + narrowed-scope strip) stay in lockstep.
+  const url = $derived(urlState());
+  const selectedNames = $derived(url.sourceIds);
+  const selectedCount = $derived(selectedNames.length);
+  const sourceCount = $derived(dossier.sources.length);
+
+  function isSelected(name: string): boolean {
+    return selectedNames.includes(name);
+  }
 
   function toggle(name: string) {
-    if (selected.has(name)) selected.delete(name);
-    else selected.add(name);
+    const current = url.sourceIds;
+    const next = current.includes(name) ? current.filter((s) => s !== name) : [...current, name];
+    setUrl({ sourceIds: next });
   }
 
   function selectAll() {
-    selected.clear();
-    for (const s of dossier.sources) selected.add(s.name);
+    setUrl({ sourceIds: dossier.sources.map((s) => s.name) });
   }
 
   function clearAll() {
-    selected.clear();
+    setUrl({ sourceIds: [] });
   }
 
-  const selectedCount = $derived(selected.size);
-
   function open() {
-    const sourceIds = [...selected];
+    if (selectedCount === 0) return;
     const qs = buildFreeComposeUrl({
       pillar: 'aleph',
       probeIds: [dossier.probeId],
-      sourceIds
+      sourceIds: [...selectedNames]
     });
     // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
     void goto(`/workbench${qs}`);
@@ -59,7 +70,7 @@
           type="button"
           class="picker-action"
           onclick={selectAll}
-          disabled={selectedCount === dossier.sources.length}
+          disabled={selectedCount === sourceCount}
         >
           All
         </button>
@@ -75,7 +86,7 @@
     </div>
     <ul class="source-list" role="list">
       {#each dossier.sources as source (source.name)}
-        {@const checked = selected.has(source.name)}
+        {@const checked = isSelected(source.name)}
         <li>
           <label class="source-row" class:checked>
             <input
@@ -99,10 +110,20 @@
   <div class="cta-row">
     <span class="cta-count">
       {selectedCount === 0
-        ? 'No sources selected — Workbench will open with the whole probe.'
-        : `${selectedCount} of ${dossier.sources.length} source${selectedCount === 1 ? '' : 's'} selected`}
+        ? 'Pick at least one source to open the Workbench.'
+        : `${selectedCount} of ${sourceCount} source${selectedCount === 1 ? '' : 's'} selected`}
     </span>
-    <button type="button" class="cta" onclick={open}>Open Workbench (free compose) →</button>
+    <button
+      type="button"
+      class="cta"
+      onclick={open}
+      disabled={selectedCount === 0}
+      title={selectedCount === 0
+        ? 'Pick at least one source first'
+        : 'Open the Workbench with the chosen sources, freely editable'}
+    >
+      Open Workbench (free compose) →
+    </button>
   </div>
 </div>
 
@@ -237,10 +258,15 @@
     cursor: pointer;
   }
 
-  .cta:hover,
+  .cta:hover:not(:disabled),
   .cta:focus-visible {
     background: color-mix(in srgb, var(--color-accent) 80%, var(--color-fg));
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
+  }
+
+  .cta:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

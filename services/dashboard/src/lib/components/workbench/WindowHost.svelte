@@ -19,6 +19,7 @@
   } from '$lib/state/url-internals';
   import { addPanel } from '$lib/workbench/panel-mutators';
   import PanelHost from './PanelHost.svelte';
+  import WorkbenchDatasetShape from './WorkbenchDatasetShape.svelte';
 
   interface Props {
     pillar: ViewingMode;
@@ -50,6 +51,10 @@
 </script>
 
 <section class="window-host" aria-label="Workbench window" data-panel-count={panelCount}>
+  <!-- Phase 122i revision (A4 generalised). Dataset-shape strip lives
+       at WindowHost level so every Pillar (Aleph, Episteme, Rhizome)
+       gets the same scope-correct status row, not just Aleph. -->
+  <WorkbenchDatasetShape {pillarState} {dossier} />
   {#if !activeWindow || panelCount === 0}
     <p class="muted">This window has no panels.</p>
   {:else}
@@ -95,19 +100,16 @@
   }
 
   .panel-grid {
+    /* Phase 122i revision (C1). Raster layout: up to 4 panels per row,
+       wrap to next row at panel 5. No horizontal scroll — vertical
+       scroll is the page's natural overflow. `repeat(auto-fit, …)` lets
+       the browser fit as many columns as the viewport allows; for the
+       typical ~1440-px desktop (rail consumes ~184 px → ~1256 px
+       canvas) this yields 4 columns of ~28 rem each, then wraps. */
     display: grid;
-    /* 1..4 panels: equal columns; 5..8 panels: horizontal scroll with
-       fixed per-panel min width. The grid-template-columns rules below
-       branch on data-cols which mirrors the panel count clamped to 4. */
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(28rem, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
     gap: var(--space-4);
-    overflow-x: auto;
     align-items: stretch;
-  }
-
-  .panel-grid[data-cols='1'] {
-    grid-auto-columns: minmax(28rem, 1fr);
   }
 
   .window-actions {

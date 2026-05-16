@@ -22,13 +22,9 @@
   import type { Panel, ViewingMode } from '$lib/state/url-internals';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import { selectCellRender, type CellRenderUnit } from '$lib/workbench/panel-queries';
-  import {
-    addScopeGroupToFocused,
-    focusPanel,
-    removePanel,
-    removeScopeGroup
-  } from '$lib/workbench/panel-mutators';
+  import { focusPanel, removePanel, removeScopeGroup } from '$lib/workbench/panel-mutators';
   import CellControls from './CellControls.svelte';
+  import ScopeEditor from './ScopeEditor.svelte';
 
   interface Props {
     panel: Panel;
@@ -66,6 +62,12 @@
   );
   const isInteractive = $derived(path !== null);
 
+  // Phase 122i revision (D3). `+ Compare` now opens the ScopeEditor
+  // popover where the user picks sources for the new group. Previously
+  // the button silently seeded a default group with all probes and
+  // empty sources — confusing UX since the user wanted to choose.
+  let scopeEditorOpen = $state(false);
+
   function onFocusClick() {
     if (path) focusPanel(path);
   }
@@ -75,7 +77,8 @@
   }
   function onAddCompare(e: MouseEvent) {
     e.stopPropagation();
-    if (path) addScopeGroupToFocused(path.pillar);
+    if (!path) return;
+    scopeEditorOpen = true;
   }
   function onRemoveGroup(groupIndex: number) {
     if (path) removeScopeGroup(path, groupIndex);
@@ -255,7 +258,11 @@
     </ul>
   {/if}
 
-  <div class="panel-body" class:split={cellRender.strategy === 'split'}>
+  <div
+    class="panel-body"
+    class:split={cellRender.strategy === 'split'}
+    data-split-direction={panel.splitDirection ?? 'horizontal'}
+  >
     {#if loadError}
       <p class="muted">Cell failed to load: {loadError}</p>
     {:else if !CellComponent}
@@ -284,6 +291,10 @@
     {/if}
   </div>
 </article>
+
+{#if scopeEditorOpen && path}
+  <ScopeEditor panelPath={path} {panel} {dossier} onClose={() => (scopeEditorOpen = false)} />
+{/if}
 
 <style>
   .panel-host {
@@ -433,9 +444,17 @@
     gap: var(--space-4);
   }
 
-  .panel-body.split {
+  .panel-body.split[data-split-direction='horizontal'] {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  /* Phase 122i revision (D2). Vertical split stacks the cells; flex
+     column already does that, so we only need to drop the grid layout. */
+  .panel-body.split[data-split-direction='vertical'] {
+    display: flex;
+    flex-direction: column;
     gap: var(--space-4);
   }
 

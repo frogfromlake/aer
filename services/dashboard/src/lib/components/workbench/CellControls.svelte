@@ -184,18 +184,56 @@
     if (boundPanel.composition === next) return;
     updatePanel(panelPath, (p) => ({ ...p, composition: next }));
   }
+  function pickSplitDirection(next: 'horizontal' | 'vertical') {
+    if (!panelPath || !boundPanel) return;
+    if ((boundPanel.splitDirection ?? 'horizontal') === next) return;
+    updatePanel(panelPath, (p) => ({ ...p, splitDirection: next }));
+  }
+  function toggleCollapsed() {
+    if (!panelPath || !boundPanel) return;
+    const next = !(boundPanel.cellControlsCollapsed === true);
+    updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: next }));
+  }
+
+  const activeSplitDirection = $derived<'horizontal' | 'vertical'>(
+    boundPanel?.splitDirection ?? 'horizontal'
+  );
+  const isCollapsed = $derived(boundPanel?.cellControlsCollapsed === true);
 </script>
 
-<section class="cell-controls" aria-label="Cell controls" class:locked={isPanelLocked}>
-  {#if isPanelLocked && boundPanel}
-    <div class="locked-banner" role="status">
-      🔒 Scope locked to <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong>'s
-      sources. View, metric, composition, layer — all editable. Return to the Dossier to recombine
-      sources.
-    </div>
+<section
+  class="cell-controls"
+  aria-label="Cell controls"
+  class:locked={isPanelLocked}
+  class:collapsed={isCollapsed}
+>
+  {#if isPanelBound && boundPanel}
+    <!-- Phase 122i revision (C4). Header bar with the collapse toggle is
+         always visible so the user can re-open a collapsed strip. The
+         locked banner sits on the same line for compactness. -->
+    <header class="cell-controls-header">
+      {#if isPanelLocked && boundPanel}
+        <span class="locked-banner" role="status">
+          🔒 Scope locked to
+          <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong>'s sources
+        </span>
+      {:else}
+        <span class="header-eyebrow">Cell controls</span>
+      {/if}
+      <button
+        type="button"
+        class="collapse-toggle"
+        aria-expanded={!isCollapsed}
+        aria-label={isCollapsed ? 'Expand cell controls' : 'Collapse cell controls'}
+        title={isCollapsed ? 'Expand cell controls' : 'Collapse cell controls'}
+        onclick={toggleCollapsed}
+      >
+        {isCollapsed ? '▾' : '▴'}
+      </button>
+    </header>
   {/if}
 
-  {#if isPanelBound && boundPanel}
+  {#if isPanelBound && boundPanel && !isCollapsed}
     <!-- Phase 122i revision (B1): Composition row appears whenever
          CellControls is bound to a Panel — including locked panels.
          `locked` is scope-only; the user can toggle Merged ↔ Split on
@@ -228,153 +266,183 @@
           Split
         </button>
       </div>
+      {#if boundPanel.composition === 'split'}
+        <!-- Phase 122i revision (D2). Split direction sub-toggle. -->
+        <span class="ctrl-eyebrow ctrl-eyebrow-sub">Direction</span>
+        <div class="ctrl-options" role="radiogroup" aria-label="Split direction">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activeSplitDirection === 'horizontal'}
+            class="ctrl-btn"
+            class:active={activeSplitDirection === 'horizontal'}
+            onclick={() => pickSplitDirection('horizontal')}
+            title="Arrange split cells side-by-side"
+          >
+            ↔ Horizontal
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activeSplitDirection === 'vertical'}
+            class="ctrl-btn"
+            class:active={activeSplitDirection === 'vertical'}
+            onclick={() => pickSplitDirection('vertical')}
+            title="Stack split cells vertically"
+          >
+            ↕ Vertical
+          </button>
+        </div>
+      {/if}
     </div>
   {/if}
 
-  <!-- View / Darstellung row — always visible. When `lockedView` is set
+  {#if !isCollapsed}
+    <!-- View / Darstellung row — always visible. When `lockedView` is set
        (Rhizome entry-questions), renders as an informational badge so the
        user sees WHICH view is active without being able to switch. -->
-  <div class="ctrl-row" role="radiogroup" aria-label="View">
-    <span class="ctrl-eyebrow">View</span>
-    {#if lockedView}
-      <span class="ctrl-locked" title={activePresentation.description}>
-        {activePresentation.label}
-        <span class="ctrl-locked-hint">(set by the entry-question)</span>
-      </span>
-    {:else}
-      <div class="ctrl-options">
-        {#each presentations as p (p.id)}
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activePresentation.id === p.id}
-            class="ctrl-btn"
-            class:active={activePresentation.id === p.id}
-            title={p.description}
-            onclick={() => pickView(p.id)}
-          >
-            {p.label}
-          </button>
-        {/each}
-      </div>
-    {/if}
-  </div>
+    <div class="ctrl-row" role="radiogroup" aria-label="View">
+      <span class="ctrl-eyebrow">View</span>
+      {#if lockedView}
+        <span class="ctrl-locked" title={activePresentation.description}>
+          {activePresentation.label}
+          <span class="ctrl-locked-hint">(set by the entry-question)</span>
+        </span>
+      {:else}
+        <div class="ctrl-options">
+          {#each presentations as p (p.id)}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activePresentation.id === p.id}
+              class="ctrl-btn"
+              class:active={activePresentation.id === p.id}
+              title={p.description}
+              onclick={() => pickView(p.id)}
+            >
+              {p.label}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
 
-  <!-- Metric row — only when the active view consumes a metric. BERTopic
+    <!-- Metric row — only when the active view consumes a metric. BERTopic
        and co-occurrence cells ignore metricName, so the row is omitted
        entirely for those views (no misleading no-op selector). -->
-  {#if viewUsesMetric}
-    <div class="ctrl-row" role="radiogroup" aria-label="Metric">
-      <span class="ctrl-eyebrow">Metric</span>
-      <div class="ctrl-options">
-        {#each metrics as m (m)}
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activeMetric === m}
-            class="ctrl-btn metric-btn"
-            class:active={activeMetric === m}
-            onclick={() => pickMetric(m)}
-          >
-            <code>{m}</code>
-          </button>
-        {/each}
+    {#if viewUsesMetric}
+      <div class="ctrl-row" role="radiogroup" aria-label="Metric">
+        <span class="ctrl-eyebrow">Metric</span>
+        <div class="ctrl-options">
+          {#each metrics as m (m)}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeMetric === m}
+              class="ctrl-btn metric-btn"
+              class:active={activeMetric === m}
+              onclick={() => pickMetric(m)}
+            >
+              <code>{m}</code>
+            </button>
+          {/each}
+        </div>
       </div>
-    </div>
-  {/if}
+    {/if}
 
-  <!-- Resolution row — only when the active view bins values along a
+    <!-- Resolution row — only when the active view bins values along a
        time axis. Distribution / topic_* / cooccurrence cells aggregate
        differently and ignore resolution; the row stays hidden there. -->
-  {#if viewUsesResolution}
-    <div class="ctrl-row" role="radiogroup" aria-label="Time resolution">
-      <span class="ctrl-eyebrow">Resolution</span>
-      <div class="ctrl-options">
-        {#each RESOLUTIONS as r (r.id)}
+    {#if viewUsesResolution}
+      <div class="ctrl-row" role="radiogroup" aria-label="Time resolution">
+        <span class="ctrl-eyebrow">Resolution</span>
+        <div class="ctrl-options">
+          {#each RESOLUTIONS as r (r.id)}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeResolution === r.id}
+              class="ctrl-btn"
+              class:active={activeResolution === r.id}
+              onclick={() => pickResolution(r.id)}
+            >
+              {r.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Layer + Vergleich on one row to save vertical space -->
+    <div class="ctrl-row ctrl-row-split">
+      <div class="ctrl-group" role="radiogroup" aria-label="Data layer">
+        <span class="ctrl-eyebrow">Layer</span>
+        <div class="ctrl-options">
           <button
             type="button"
             role="radio"
-            aria-checked={activeResolution === r.id}
-            class="ctrl-btn"
-            class:active={activeResolution === r.id}
-            onclick={() => pickResolution(r.id)}
+            aria-checked={activeLayer === 'gold'}
+            class="ctrl-btn layer-btn"
+            class:active={activeLayer === 'gold'}
+            title="Au Gold — aggregated metrics"
+            onclick={() => pickLayer('gold')}
           >
-            {r.label}
+            Au Gold
           </button>
-        {/each}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activeLayer === 'silver'}
+            class="ctrl-btn layer-btn silver"
+            class:active={activeLayer === 'silver'}
+            title="Ag Silver — document-level data (WP-006 §5.2)"
+            onclick={() => pickLayer('silver')}
+          >
+            Ag Silver
+          </button>
+        </div>
+      </div>
+
+      <div class="ctrl-group" role="radiogroup" aria-label="Normalization">
+        <span class="ctrl-eyebrow">Compare</span>
+        <div class="ctrl-options">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activeNormalization === 'raw'}
+            class="ctrl-btn"
+            class:active={activeNormalization === 'raw'}
+            title="Raw values"
+            onclick={() => pickNorm('raw')}
+          >
+            raw
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activeNormalization === 'zscore'}
+            class="ctrl-btn"
+            class:active={activeNormalization === 'zscore'}
+            title="Z-score deviation (Phase 115 cross-frame gate)"
+            onclick={() => pickNorm('zscore')}
+          >
+            deviation
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activeNormalization === 'percentile'}
+            class="ctrl-btn"
+            class:active={activeNormalization === 'percentile'}
+            title="Percentile rank within scope"
+            onclick={() => pickNorm('percentile')}
+          >
+            percentile
+          </button>
+        </div>
       </div>
     </div>
   {/if}
-
-  <!-- Layer + Vergleich on one row to save vertical space -->
-  <div class="ctrl-row ctrl-row-split">
-    <div class="ctrl-group" role="radiogroup" aria-label="Data layer">
-      <span class="ctrl-eyebrow">Layer</span>
-      <div class="ctrl-options">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={activeLayer === 'gold'}
-          class="ctrl-btn layer-btn"
-          class:active={activeLayer === 'gold'}
-          title="Au Gold — aggregated metrics"
-          onclick={() => pickLayer('gold')}
-        >
-          Au Gold
-        </button>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={activeLayer === 'silver'}
-          class="ctrl-btn layer-btn silver"
-          class:active={activeLayer === 'silver'}
-          title="Ag Silver — document-level data (WP-006 §5.2)"
-          onclick={() => pickLayer('silver')}
-        >
-          Ag Silver
-        </button>
-      </div>
-    </div>
-
-    <div class="ctrl-group" role="radiogroup" aria-label="Normalization">
-      <span class="ctrl-eyebrow">Compare</span>
-      <div class="ctrl-options">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={activeNormalization === 'raw'}
-          class="ctrl-btn"
-          class:active={activeNormalization === 'raw'}
-          title="Raw values"
-          onclick={() => pickNorm('raw')}
-        >
-          raw
-        </button>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={activeNormalization === 'zscore'}
-          class="ctrl-btn"
-          class:active={activeNormalization === 'zscore'}
-          title="Z-score deviation (Phase 115 cross-frame gate)"
-          onclick={() => pickNorm('zscore')}
-        >
-          deviation
-        </button>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={activeNormalization === 'percentile'}
-          class="ctrl-btn"
-          class:active={activeNormalization === 'percentile'}
-          title="Percentile rank within scope"
-          onclick={() => pickNorm('percentile')}
-        >
-          percentile
-        </button>
-      </div>
-    </div>
-  </div>
 </section>
 
 <style>
@@ -399,6 +467,55 @@
     padding: var(--space-1) var(--space-2);
     background: var(--color-surface);
     border-radius: var(--radius-sm);
+  }
+
+  /* Phase 122i revision (C4). Header bar with collapse toggle. */
+  .cell-controls-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .header-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+  }
+
+  .collapse-toggle {
+    margin-left: auto;
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 1px var(--space-2);
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    line-height: 1.2;
+  }
+
+  .collapse-toggle:hover,
+  .collapse-toggle:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    border-color: var(--color-accent);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .cell-controls.collapsed {
+    padding-bottom: var(--space-2);
+  }
+
+  /* Phase 122i revision (D2). Sub-eyebrow for the split-direction
+     sub-toggle inside the Composition row. Slightly muted relative to
+     the parent eyebrow. */
+  .ctrl-eyebrow-sub {
+    color: var(--color-fg-subtle);
+    margin-left: var(--space-3);
   }
 
   .ctrl-row {

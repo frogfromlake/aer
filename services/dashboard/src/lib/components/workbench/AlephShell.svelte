@@ -115,11 +115,46 @@
     probeIds.length === 1 && url.sourceIds.length === 1 ? url.sourceIds[0]! : activeProbeId
   );
 
-  // Dataset-Shape strip values. Cheap aggregations off the dossier;
-  // language mix uses the probe's primary language for the first ship,
-  // pending Phase 122a's per-article language signal landing.
+  // Dataset-Shape strip values. Phase 122i revision (A4): when the URL
+  // carries pillar-state, the strip reflects the FOCUSED PANEL's
+  // resolved scope (intersect dossier.sources with the panel's scope
+  // groups), so the numbers describe the workbench the user is looking
+  // at — not the whole probe. In DF-locked mode the probes counter is
+  // dropped (a single locked DF over a single probe is the implicit
+  // shape). Falls back to whole-probe stats for legacy flat-URL
+  // workbenches.
   const datasetShape = $derived.by(() => {
     if (!dossier) return null;
+    const ps = url.pillars?.aleph;
+    const win = ps?.windows[ps.activeWindowIndex] ?? ps?.windows[0];
+    const focused = win?.panels[win.focusedPanelIndex] ?? win?.panels[0] ?? null;
+    if (focused) {
+      const probeList: string[] = [];
+      const sourceList: string[] = [];
+      let anyEmptySourceList = false;
+      for (const g of focused.scopes) {
+        for (const p of g.probeIds) if (!probeList.includes(p)) probeList.push(p);
+        if (g.sourceIds.length === 0) anyEmptySourceList = true;
+        else for (const s of g.sourceIds) if (!sourceList.includes(s)) sourceList.push(s);
+      }
+      // If any group is "whole probe" (empty sourceIds), the resolved
+      // source set is the union of all probe sources, not the explicit
+      // sourceList. Intersect with dossier.sources to drop unknowns.
+      const resolvedSources = anyEmptySourceList
+        ? dossier.sources
+        : dossier.sources.filter((s) => sourceList.includes(s.name));
+      const articleCount = resolvedSources.reduce((sum, s) => sum + (s.articlesInWindow ?? 0), 0);
+      return {
+        // Drop the probes counter in DF-locked mode: confusing
+        // ("Probes: 0" inside a single-probe locked workbench).
+        probes: focused.locked === true ? null : probeList.length,
+        sources: resolvedSources.length,
+        articlesInWindow: articleCount,
+        language: dossier.language,
+        coverage: dossier.functionCoverage
+      };
+    }
+    // Legacy flat URL form.
     const sources = dossier.sources;
     const articleCount = sources.reduce((sum, s) => sum + (s.articlesInWindow ?? 0), 0);
     return {
@@ -158,33 +193,11 @@
   {#if dossierQ.isPending}
     <p class="muted" aria-busy="true">Loading dataset…</p>
   {:else if datasetShape}
-    <header class="dataset-shape" aria-label="What AĒR sees right now">
-      <div class="shape-item">
-        <span class="shape-label">Probes</span>
-        <span class="shape-value">{datasetShape.probes}</span>
-      </div>
-      <div class="shape-item">
-        <span class="shape-label">Sources</span>
-        <span class="shape-value">{datasetShape.sources}</span>
-      </div>
-      <div class="shape-item">
-        <span class="shape-label">Articles in window</span>
-        <span class="shape-value">{datasetShape.articlesInWindow.toLocaleString('en-US')}</span>
-      </div>
-      <div class="shape-item">
-        <span class="shape-label">Language</span>
-        <span class="shape-value">{datasetShape.language.toUpperCase()}</span>
-      </div>
-      <div class="shape-item">
-        <span class="shape-label">Function coverage</span>
-        <span class="shape-value">
-          {datasetShape.coverage.covered}/{datasetShape.coverage.total}
-        </span>
-      </div>
-    </header>
-
     {#if pillarState && dossier}
-      <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
+      <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. The
+           dataset-shape strip is rendered inside WindowHost so all
+           three pillars (Aleph, Episteme, Rhizome) surface it
+           consistently. -->
       <WindowHost
         pillar="aleph"
         {pillarState}
@@ -195,7 +208,36 @@
       />
     {:else}
       <!-- Phase 122h legacy single-Cell path. Preserved verbatim so
-           existing bookmarks load unchanged. -->
+           existing bookmarks load unchanged. The legacy path keeps the
+           inline dataset-shape strip because WindowHost is not part of
+           the legacy rendering. -->
+      <header class="dataset-shape" aria-label="What AĒR sees right now">
+        {#if datasetShape.probes !== null}
+          <div class="shape-item">
+            <span class="shape-label">Probes</span>
+            <span class="shape-value">{datasetShape.probes}</span>
+          </div>
+        {/if}
+        <div class="shape-item">
+          <span class="shape-label">Sources</span>
+          <span class="shape-value">{datasetShape.sources}</span>
+        </div>
+        <div class="shape-item">
+          <span class="shape-label">Articles in window</span>
+          <span class="shape-value">{datasetShape.articlesInWindow.toLocaleString('en-US')}</span>
+        </div>
+        <div class="shape-item">
+          <span class="shape-label">Language</span>
+          <span class="shape-value">{datasetShape.language.toUpperCase()}</span>
+        </div>
+        <div class="shape-item">
+          <span class="shape-label">Function coverage</span>
+          <span class="shape-value">
+            {datasetShape.coverage.covered}/{datasetShape.coverage.total}
+          </span>
+        </div>
+      </header>
+
       <CellControls pillar="aleph" />
 
       <div class="cell-frame">
