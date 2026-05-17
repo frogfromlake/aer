@@ -15,6 +15,19 @@ registers:
       (Sommerzeit) erzeugt einen vorhersehbaren Ein-Stunden-Schritt in UTC-ausgedrückten
       Zeiten jeden Frühling und Herbst — dies ist ein bekanntes Artefakt, keine redaktionelle
       Änderung.
+
+      Komposition — komponiert das Panel mehr als eine Quelle unter
+      composition='merged', rendert diese Ansicht EINE Grafik über den
+      vereinigten Korpus (BFF-Abfrage ?sourceIds=a,b,...); unter
+      composition='split' fächert dieselbe Quellenmenge in eine Grafik pro
+      Quelle auf, nebeneinander bei split-direction='horizontal' oder
+      gestapelt bei 'vertical'. Die merged-Lesart ist angemessen, wenn die
+      analytische Frage die Vereinigung betrifft (z. B. 'was zeigt die
+      institutionelle Presse insgesamt?'); die split-Lesart ist angemessen,
+      wenn Quellen-spezifische Unterscheidung die Frage ist. Mehrsprachige
+      merged-Bereiche sind in Aleph erlaubt und blenden einen weichen
+      Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
+
   methodological:
     short: "5-Minuten-Downsampling-Mittelwert von publication_hour (UTC, 0–23). Tier 1 — als mittlere UTC-Uhrzeit interpretieren. Saisonale UTC-Versatzsprünge sind erwartete Artefakte, keine redaktionellen Ereignisse."
     long: >
@@ -28,9 +41,25 @@ registers:
       Zeitreihenansicht verwendet der Einfachheit halber einen linearen Mittelwert. Für
       Quellen, die nahe Mitternacht veröffentlichen, empfiehlt sich die Verteilungsansicht,
       die die bimodale Natur von Mitternacht-übergreifenden Verteilungen sichtbar machen kann.
-contentVersion: "v2026-04-a"
+
+      Komposition (Phase 122i / ADR-034) — für composition='merged' führt der
+      Handler einen einzelnen BFF-Aufruf mit den vereinigten sourceIds aus,
+      und die Zelle rendert eine Grafik; für 'split' führt die Zelle eine
+      Abfrage pro Quelle aus und rendert eine Grafik pro Quelle.
+      Split-Direction ist ein reiner Layout-Schalter (horizontale Reihe vs.
+      vertikaler Stapel) und beeinflusst die Abfrageform nicht. Mehrsprachige
+      merged-Bereiche werden in Aleph NICHT verweigert — das
+      MethodologyBanner-Primitive rendert einen weichen
+      Cross-Frame-Vergleichbarkeit-Hinweis (WP-004 §3.4), sobald
+      composition='merged' AND sources.length > 1, weil Aleph-Metriken
+      (lexikon-basierte Polarität, strukturelle Zählungen) sprachunabhängig
+      genug sind, dass eine Aggregation mit Vorbehalten sinnvoll bleibt. Die
+      Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
+      und in WP-005 §6.2 §8b dokumentiert.
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

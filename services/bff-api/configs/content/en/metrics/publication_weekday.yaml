@@ -15,6 +15,17 @@ registers:
       is almost certainly driven by institutional scheduling, not by the news cycle itself.
       The metric does not measure newsworthiness or editorial judgment — it measures the
       structural conditions under which content is produced.
+
+      Composition — when a Workbench Panel pools more than one source under
+      composition='merged', this metric aggregates as mode-aligned weekday
+      distribution over the unioned corpus. Sentiment-class metrics inherit
+      the merged-mean's sensitivity to source-mix imbalance: a single
+      high-volume source can dominate the aggregate. Use the split composition
+      (one Cell per source) when source-level differences are the question.
+      The merged reading is permitted across languages with a soft methodology
+      banner (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode
+      entry for the exact behaviour.
+
   methodological:
     short: "ISO weekday extracted from Silver-layer timestamp. Tier 1 (deterministic). Note: UTC date boundary may shift the apparent weekday by one day for late-night publications."
     long: >
@@ -29,9 +40,23 @@ registers:
       for a full discussion of this caveat. (3) For Probe 0 sources, timestamps are
       machine-generated and reliable. Validation status: unvalidated (no known active
       limitations for Probe 0).
-contentVersion: "v2026-04-a"
+
+      Composition (Phase 122i / ADR-034) — multi-source merged queries
+      aggregate as mode-aligned weekday distribution over the unioned article
+      set; the BFF accepts ?sourceIds=a,b,... and unions server-side.
+      Equivalence gates (WP-004 §3) still apply when the merge spans
+      heterogeneous source classes — the gate evaluates on the resolved scope
+      before aggregation. Split composition is the per-source fanout; the
+      metric definition is unchanged per Cell. Cross-language merged scope is
+      governed at the view-mode handler: Aleph view-modes for this metric
+      render the soft MethodologyBanner; Episteme/Rhizome view-modes (when
+      applicable) refuse with HTTP 422 cross_language_merge_unsupported
+      (ADR-034 §3).
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"
+  - "WP-005 §6.2"

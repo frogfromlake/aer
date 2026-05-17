@@ -18,6 +18,7 @@
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
+  import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
 
   let {
@@ -194,10 +195,9 @@
   {:else if activeDist}
     {@const s = activeDist.summary}
     {#if showMergedNote}
-      <MethodologyBanner anchorHref="/reflection/wp/wp-004?section=3.4" anchorLabel="WP-004 §3.4">
-        <strong>Distribution across {sources.length} merged sources</strong> — the histogram aggregates
-        the joint corpus, not per-source distributions. Per-source comparability may be affected by source
-        heterogeneity, especially across cultural-linguistic frames.
+      {@const note = methodologyNotes.alephMergedDistribution(sources.length)}
+      <MethodologyBanner anchorHref={note.anchorHref} anchorLabel={note.anchorLabel}>
+        <strong>{note.headline}</strong> — {note.body}
       </MethodologyBanner>
     {/if}
     <div class="plot-host" bind:this={host} role="img" aria-label="Histogram of {metricName}"></div>

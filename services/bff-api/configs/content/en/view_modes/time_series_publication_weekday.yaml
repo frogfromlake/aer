@@ -13,6 +13,18 @@ registers:
       values (front-loading the week) are meaningful structural changes. This view is better
       suited for long-range trend analysis than for short windows, where individual weeks
       dominate the average.
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE chart over the unioned
+      corpus (BFF query ?sourceIds=a,b,...); under composition='split' the
+      same source-set fans out into one chart per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. The merged
+      reading is appropriate when the analytical question is about the union
+      (e.g. 'what does the institutional press collectively show?'); the split
+      reading is appropriate when source-level distinction is the question.
+      Cross-language merged scope is permitted in Aleph and surfaces a soft
+      methodology banner (WP-004 §3.4) rather than a refusal.
+
   methodological:
     short: "5-minute downsampled mean of publication_weekday (ISO 1–7). Tier 1. Note: interpreting a mean of a weekly-cycle quantity requires multi-week observation windows to be meaningful."
     long: >
@@ -25,9 +37,23 @@ registers:
       Prefer the distribution view for characterising a source's weekday pattern within a
       fixed window; use this time-series view for detecting shifts in that pattern across
       extended observation periods.
-contentVersion: "v2026-04-a"
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the
+      handler executes a single BFF call with the unioned sourceIds and the
+      Cell renders one chart; for 'split' the Cell fans out one query per
+      source and renders one chart per source. Split-direction is a
+      presentation toggle (horizontal raster vs vertical stack) and does not
+      affect the query shape. Cross-language merged scope is NOT refused in
+      Aleph — the MethodologyBanner primitive renders a soft
+      cross-frame-comparability note (WP-004 §3.4) when composition='merged'
+      AND sources.length > 1, because Aleph metrics (lexicon-based polarity,
+      structural counts) are language-agnostic enough that aggregation is
+      meaningful with caveats. The asymmetry against Episteme/Rhizome (which
+      DO refuse) is intentional and documented in WP-005 §6.2 §8b.
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

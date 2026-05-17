@@ -18,6 +18,17 @@ registers:
       documents in any other language produce no row. As a Tier-2.5 refinement it
       remains provisional — useful but not yet calibrated against an annotation
       study on Probe-0 institutional sources.
+
+      Composition — when a Workbench Panel pools more than one source under
+      composition='merged', this metric aggregates as mean polarity (range
+      −1..+1) over the unioned corpus. Sentiment-class metrics inherit the
+      merged-mean's sensitivity to source-mix imbalance: a single high-volume
+      source can dominate the aggregate. Use the split composition (one Cell
+      per source) when source-level differences are the question. The merged
+      reading is permitted across languages with a soft methodology banner
+      (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode entry for
+      the exact behaviour.
+
   methodological:
     short: "mdraw/german-news-sentiment-bert, pinned HuggingFace revision. Tier-2.5 refinement per ADR-023. P(pos) − P(neg) clipped to [-1, +1]. Strict de-only language guard. WP-002 §3.2."
     long: >
@@ -44,6 +55,18 @@ registers:
       single-language scope by design; (3) model-revision binding — calibration
       moves with the pinned revision; (4) no coreference, sarcasm, or
       long-context rhetorical inversion. Validation status: unvalidated.
+
+      Composition (Phase 122i / ADR-034) — multi-source merged queries
+      aggregate as mean polarity (range −1..+1) over the unioned article set;
+      the BFF accepts ?sourceIds=a,b,... and unions server-side. Equivalence
+      gates (WP-004 §3) still apply when the merge spans heterogeneous source
+      classes — the gate evaluates on the resolved scope before aggregation.
+      Split composition is the per-source fanout; the metric definition is
+      unchanged per Cell. Cross-language merged scope is governed at the
+      view-mode handler: Aleph view-modes for this metric render the soft
+      MethodologyBanner; Episteme/Rhizome view-modes (when applicable) refuse
+      with HTTP 422 cross_language_merge_unsupported (ADR-034 §3).
+
 contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-05-04"
@@ -51,3 +74,4 @@ workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"
   - "ADR-023"
+  - "WP-005 §6.2"

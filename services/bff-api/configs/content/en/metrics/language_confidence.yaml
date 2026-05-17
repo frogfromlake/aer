@@ -14,6 +14,17 @@ registers:
       should be read together. Low confidence is not an error — it is a signal that the language
       annotation may be unreliable, and downstream analyses that depend on it (such as
       language-specific metrics like sentiment score) should be interpreted with caution.
+
+      Composition — when a Workbench Panel pools more than one source under
+      composition='merged', this metric aggregates as mean detection
+      confidence (0..1) over the unioned corpus. Sentiment-class metrics
+      inherit the merged-mean's sensitivity to source-mix imbalance: a single
+      high-volume source can dominate the aggregate. Use the split composition
+      (one Cell per source) when source-level differences are the question.
+      The merged reading is permitted across languages with a soft methodology
+      banner (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode
+      entry for the exact behaviour.
+
   methodological:
     short: "langdetect v1.0.9 top-candidate probability, fixed seed. Tier 1 (deterministic). Degrades on texts under ~200 characters. WP-002 §3."
     long: >
@@ -34,8 +45,22 @@ registers:
       tag derived from the RSS feed-URL TLD (`de-AT` / `de-CH` / `de-DE` for German texts,
       empty otherwise). It is retained for Silver-provenance auditing only and is not surfaced
       on the dashboard — it is not a dialect classifier (WP-002 §3.4).
-contentVersion: "v2026-04-a"
+
+      Composition (Phase 122i / ADR-034) — multi-source merged queries
+      aggregate as mean detection confidence (0..1) over the unioned article
+      set; the BFF accepts ?sourceIds=a,b,... and unions server-side.
+      Equivalence gates (WP-004 §3) still apply when the merge spans
+      heterogeneous source classes — the gate evaluates on the resolved scope
+      before aggregation. Split composition is the per-source fanout; the
+      metric definition is unchanged per Cell. Cross-language merged scope is
+      governed at the view-mode handler: Aleph view-modes for this metric
+      render the soft MethodologyBanner; Episteme/Rhizome view-modes (when
+      applicable) refuse with HTTP 422 cross_language_merge_unsupported
+      (ADR-034 §3).
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-19"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-005 §6.2"

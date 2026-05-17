@@ -14,6 +14,17 @@ registers:
       with tightly linked actor sets. Isolated nodes are entities that appear in single-entity
       articles. This view is the natural complement to entity_count: where entity_count tells
       you how many entities appear, the network tells you how they are organised.
+
+      Composition — composition='merged' computes one entity co-occurrence
+      graph over the joint corpus; nodes inherit salience from the union,
+      edges weight by co-mention frequency across all selected sources.
+      composition='split' renders one graph per source. Cross-language merged
+      scope is refused at the BFF (422 cross_language_merge_unsupported)
+      because the upstream NER models (spaCy/HanLP) are language-conditioned
+      and edge weights would be incommensurable across language partitions;
+      split-composition with one language per Cell is the supported way to
+      inspect cross-language entity networks.
+
   methodological:
     short: "Force-directed graph from aer_gold.entity_cooccurrences. Computed by EntityCoOccurrenceExtractor on a configured time window per source. Node: entity; edge: co-occurrence count. Provisional (Tier 3)."
     long: >
@@ -30,8 +41,22 @@ registers:
       communities into one apparent network; (4) entity name resolution is exact-string matching
       — the same entity referred to by two different strings (e.g., "Scholz" vs. "Bundeskanzler
       Scholz") appears as two nodes.
-contentVersion: "v2026-04-a"
+
+      Composition (Phase 122i / ADR-034) — merged composition runs one entity
+      co-occurrence aggregation (POST /entities/cooccurrence/query) over the
+      unioned scope (with the 100-source / 25-entity cap per ADR-034). Edge
+      weights derive from per-language NER (spaCy de_core_news_lg,
+      en_core_web_lg; HanLP for ZH per ADR-024) and ARE comparable within a
+      language partition. Cross-language merged scope is refused at the BFF
+      (HTTP 422 cross_language_merge_unsupported,
+      anchor=ADR-034#cross-language) because NER tag sets and entity
+      frequencies are not commensurable across language pipelines. Split
+      composition renders one graph per source — appropriate for cross-source
+      structural comparison within a single language.
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §5"
+  - "WP-005 §6.2"

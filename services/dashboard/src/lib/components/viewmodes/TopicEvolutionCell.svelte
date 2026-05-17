@@ -24,6 +24,8 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
+  import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { JOINT_CORPUS_MIN_SOURCES } from '$lib/config/topic-thresholds';
 
@@ -486,21 +488,12 @@
       the next sweep or pick a wider time range.
     </p>
   {:else}
-    <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Reflection route -->
     {#if isJointCorpus}
-      <aside
-        class="methodology-note joint-corpus"
-        role="note"
-        aria-label="Joint-corpus methodology note"
-      >
-        <strong>BERTopic stream across {sources.length} sources</strong> — streams aggregate the
-        joint corpus, not per-source framings. Source-specific framings may be aggregated away.
-        <a href="/reflection/wp/wp-005?section=6.2" data-sveltekit-preload-data="hover"
-          >WP-005 §6.2</a
-        >
-      </aside>
+      {@const note = methodologyNotes.epistemeJointCorpusEvolution(sources.length)}
+      <MethodologyBanner anchorHref={note.anchorHref} anchorLabel={note.anchorLabel}>
+        <strong>{note.headline}</strong> — {note.body}
+      </MethodologyBanner>
     {/if}
-    <!-- eslint-enable svelte/no-navigation-without-resolve -->
     <div
       class="plot-host"
       bind:this={host}
@@ -683,27 +676,6 @@
 
   .provenance code {
     font-family: var(--font-mono);
-  }
-
-  .methodology-note {
-    display: block;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg);
-    line-height: 1.4;
-  }
-
-  .methodology-note.joint-corpus {
-    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
-    border-left: 3px solid var(--color-accent);
-  }
-
-  .methodology-note a {
-    color: var(--color-accent);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--color-accent);
-    margin-left: 4px;
   }
 
   .muted {

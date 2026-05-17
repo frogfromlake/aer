@@ -14,6 +14,18 @@ registers:
       Niedrige Konfidenz ist kein Fehler — sie ist ein Signal, dass die Sprachannotation
       unzuverlässig sein könnte und nachgelagerte Analysen (z. B. sprachspezifische Metriken
       wie Sentiment) entsprechend vorsichtig interpretiert werden sollten.
+
+      Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
+      composition='merged' bündelt, aggregiert diese Metrik als mittlere
+      Erkennungskonfidenz (0..1) über den vereinigten Korpus.
+      Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
+      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
+      Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
+      pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
+      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
+      View-Mode-Eintrag für das genaue Verhalten.
+
   methodological:
     short: "langdetect v1.0.9 Top-Kandidaten-Wahrscheinlichkeit, fixer Seed. Tier 1 (deterministisch). Verschlechtert sich bei Texten unter ~200 Zeichen. WP-002 §3."
     long: >
@@ -34,8 +46,23 @@ registers:
       für deutsche Texte, ansonsten leer). Sie wird ausschließlich für die
       Silver-Provenance-Prüfung aufbewahrt und nicht im Dashboard angezeigt — es handelt
       sich nicht um einen Dialektklassifikator (WP-002 §3.4).
-contentVersion: "v2026-04-a"
+
+      Komposition (Phase 122i / ADR-034) — mehrquellige merged-Abfragen
+      aggregieren als mittlere Erkennungskonfidenz (0..1) über die vereinigte
+      Artikelmenge; die BFF akzeptiert ?sourceIds=a,b,... und vereinigt
+      serverseitig. Äquivalenz-Gates (WP-004 §3) gelten weiterhin, wenn die
+      Merge heterogene Quellklassen umfasst — das Gate bewertet auf dem
+      aufgelösten Geltungsbereich vor der Aggregation. Split-Komposition ist
+      die Pro-Quelle-Auffächerung; die Metrik-Definition bleibt pro Zelle
+      unverändert. Mehrsprachige merged-Bereiche werden auf der
+      View-Mode-Handler-Ebene gesteuert: Aleph-View-Modes für diese Metrik
+      rendern den weichen MethodologyBanner; Episteme-/Rhizome-View-Modes (wo
+      anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
+      (ADR-034 §3).
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-19"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-005 §6.2"

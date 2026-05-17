@@ -190,6 +190,14 @@ func main() {
 		// API Key Auth: protects all routes except /healthz and /readyz
 		r.Use(mw.APIKeyAuth(cfg.APIKey))
 
+		// Phase 122j J3: long browser cache for `/content/*` responses.
+		// The catalog is loaded from versioned YAML at startup and only
+		// changes when an operator restarts the service; the response
+		// body also carries `contentVersion` for clients that want
+		// stronger validation. Applied AFTER the auth middleware so
+		// caller-specific concerns (rate limits, auth) still execute.
+		r.Use(mw.CacheControlForPaths(24*time.Hour, "/api/v1/content/"))
+
 		handler.HandlerFromMuxWithBaseURL(strictHandler, r, "/api/v1")
 	})
 

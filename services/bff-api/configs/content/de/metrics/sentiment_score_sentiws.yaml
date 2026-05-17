@@ -19,6 +19,18 @@ registers:
       funktionsfähig, aber wissenschaftlich nicht validiert. Eine zweite Sentiment-Metrik —
       sentiment_score_bert_multilingual — läuft gemäß ADR-016 parallel; die Differenz
       zwischen beiden ist ein Forschungssignal, kein Widerspruch.
+
+      Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
+      composition='merged' bündelt, aggregiert diese Metrik als mittlere
+      Polarität (Bereich −1..+1) über den vereinigten Korpus.
+      Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
+      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
+      Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
+      pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
+      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
+      View-Mode-Eintrag für das genaue Verhalten.
+
   methodological:
     short: "SentiWS v2.0 Lexikon, polaritätsgewichtete Summe normiert auf gematchte Tokens. Tier 1 (deterministisch). Phase-117-Härtung: dependency-basierter Negationsscope, deutsche Kompositum-Zerlegung, Custom-Lexikon-Hook. ADR-016 Dual-Metric. WP-002 §3."
     long: >
@@ -57,6 +69,20 @@ registers:
       sentiment_score_bert_multilingual läuft gemäß ADR-016 / ADR-023 parallel; die
       Differenz zwischen beiden ist das WP-002 §3.2-Domain-Transfer-Signal. Extraktor:
       sentiws-2.0 (Phase-117-gehärtet). Validierungsstatus: nicht validiert.
+
+      Komposition (Phase 122i / ADR-034) — mehrquellige merged-Abfragen
+      aggregieren als mittlere Polarität (Bereich −1..+1) über die vereinigte
+      Artikelmenge; die BFF akzeptiert ?sourceIds=a,b,... und vereinigt
+      serverseitig. Äquivalenz-Gates (WP-004 §3) gelten weiterhin, wenn die
+      Merge heterogene Quellklassen umfasst — das Gate bewertet auf dem
+      aufgelösten Geltungsbereich vor der Aggregation. Split-Komposition ist
+      die Pro-Quelle-Auffächerung; die Metrik-Definition bleibt pro Zelle
+      unverändert. Mehrsprachige merged-Bereiche werden auf der
+      View-Mode-Handler-Ebene gesteuert: Aleph-View-Modes für diese Metrik
+      rendern den weichen MethodologyBanner; Episteme-/Rhizome-View-Modes (wo
+      anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
+      (ADR-034 §3).
+
 contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-05-06"
@@ -66,3 +92,4 @@ workingPaperAnchors:
   - "ADR-016"
   - "ADR-023"
   - "ADR-024"
+  - "WP-005 §6.2"

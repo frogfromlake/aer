@@ -13,6 +13,17 @@ registers:
       time-series (whether that rhythm shifts over months). Publication timing can be used as
       a stratification variable in other analyses — for example, comparing entity networks
       built from morning vs. evening publications — but this is a filter, not a network metric.
+
+      Composition — composition='merged' computes one entity co-occurrence
+      graph over the joint corpus; nodes inherit salience from the union,
+      edges weight by co-mention frequency across all selected sources.
+      composition='split' renders one graph per source. Cross-language merged
+      scope is refused at the BFF (422 cross_language_merge_unsupported)
+      because the upstream NER models (spaCy/HanLP) are language-conditioned
+      and edge weights would be incommensurable across language partitions;
+      split-composition with one language per Cell is the supported way to
+      inspect cross-language entity networks.
+
   methodological:
     short: "Not applicable: publication_hour is a document timestamp attribute with no relational structure. Recommended alternatives: distribution_publication_hour, time_series_publication_hour."
     long: >
@@ -23,8 +34,22 @@ registers:
       from articles published in specific hour ranges) is available by applying time-range
       filters in the scope parameters of the entity network view, but the metric itself
       cannot drive the network structure.
-contentVersion: "v2026-04-a"
+
+      Composition (Phase 122i / ADR-034) — merged composition runs one entity
+      co-occurrence aggregation (POST /entities/cooccurrence/query) over the
+      unioned scope (with the 100-source / 25-entity cap per ADR-034). Edge
+      weights derive from per-language NER (spaCy de_core_news_lg,
+      en_core_web_lg; HanLP for ZH per ADR-024) and ARE comparable within a
+      language partition. Cross-language merged scope is refused at the BFF
+      (HTTP 422 cross_language_merge_unsupported,
+      anchor=ADR-034#cross-language) because NER tag sets and entity
+      frequencies are not commensurable across language pipelines. Split
+      composition renders one graph per source — appropriate for cross-source
+      structural comparison within a single language.
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-005 §6.2"

@@ -14,6 +14,18 @@ registers:
       probe, comparing weekday distributions across sources reveals whether all sources share
       the same structural calendar or whether some sources operate on a different rhythm —
       a structural finding about their respective institutional contexts.
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE chart over the unioned
+      corpus (BFF query ?sourceIds=a,b,...); under composition='split' the
+      same source-set fans out into one chart per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. The merged
+      reading is appropriate when the analytical question is about the union
+      (e.g. 'what does the institutional press collectively show?'); the split
+      reading is appropriate when source-level distinction is the question.
+      Cross-language merged scope is permitted in Aleph and surfaces a soft
+      methodology banner (WP-004 §3.4) rather than a refusal.
+
   methodological:
     short: "Bar chart over publication_weekday (ISO 1=Mon, 7=Sun). Tier 1. Normalise by corpus size when comparing sources of different activity levels. UTC date boundary applies (see metric entry)."
     long: >
@@ -27,9 +39,23 @@ registers:
       a probe-level peak on Monday reflects aggregate Monday volume, which could mask one
       source publishing heavily on Monday while another peaks on Thursday. Source-scope
       narrowing reveals per-source patterns.
-contentVersion: "v2026-04-a"
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the
+      handler executes a single BFF call with the unioned sourceIds and the
+      Cell renders one chart; for 'split' the Cell fans out one query per
+      source and renders one chart per source. Split-direction is a
+      presentation toggle (horizontal raster vs vertical stack) and does not
+      affect the query shape. Cross-language merged scope is NOT refused in
+      Aleph — the MethodologyBanner primitive renders a soft
+      cross-frame-comparability note (WP-004 §3.4) when composition='merged'
+      AND sources.length > 1, because Aleph metrics (lexicon-based polarity,
+      structural counts) are language-agnostic enough that aggregation is
+      meaningful with caveats. The asymmetry against Episteme/Rhizome (which
+      DO refuse) is intentional and documented in WP-005 §6.2 §8b.
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

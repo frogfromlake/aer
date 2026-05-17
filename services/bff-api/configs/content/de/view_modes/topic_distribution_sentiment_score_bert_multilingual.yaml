@@ -16,6 +16,20 @@ registers:
       Rauschen. Wenn der Geltungsbereich mehrere Sprachpartitionen umfasst, rendert die Zelle
       pro Sprache einen eigenen Reihen-Stapel; topic_ids sind nur innerhalb einer Partition
       eindeutig (WP-004 §3.4) und werden nie sprachübergreifend zusammengeführt.
+
+      Komposition — composition='merged' passt das Themenmodell auf den
+      gemeinsamen Korpus aller ausgewählten Quellen an; die entstehenden
+      Themen sind eine Eigenschaft der Vereinigung, keine Aggregation von
+      Pro-Quelle-Themen. Das Dashboard rendert über der Ansicht einen
+      Joint-Corpus-Methodikhinweis (WP-005 §6.2), damit der Leser nicht still
+      zwischen 'worüber diese Quellen gemeinsam sprechen' und 'worüber jede
+      Quelle spricht' wechselt. composition='split' passt ein Modell pro
+      Quelle an und rendert die jeweiligen Themenmengen nebeneinander —
+      angemessen, wenn Quellen-spezifische Rahmung die Frage ist.
+      Mehrsprachige merged-Bereiche werden in der BFF verweigert (422
+      cross_language_merge_unsupported), da die Einbettungs-geometrie
+      sprachgebunden ist.
+
   methodological:
     short: "BERTopic über aer_gold.topic_assignments (Phase 120). Embeddings: intfloat/multilingual-e5-large (gepinnt). UMAP/HDBSCAN mit festem Seed. Tier 2 — reproduzierbar bei gepinnten Modellversionen, nicht bit-für-bit deterministisch über Plattformen (WP-002 §8.1 Option C)."
     long: >
@@ -31,6 +45,22 @@ registers:
       *erwartete* hochstufige Struktur, an die Themen sich annähern sollten; eine starke
       Abweichung davon ist methodisch interessant und sollte vor inhaltlichen Schlüssen
       diskutiert werden.
+
+      Komposition (Phase 122i / ADR-034) — merged-Komposition passt BERTopic
+      (intfloat/multilingual-e5-large → UMAP → HDBSCAN, min_cluster_size=10,
+      n_neighbors=15) auf die Vereinigung der ausgewählten Quellen im
+      aufgelösten Geltungsbereich an. Das Modell sieht die Vereinigung als
+      einen einzigen Korpus; pro-Quelle-Struktur ist in den Themen-Labels
+      nicht erhalten (wiederherstellbar aus den Pro-Dokument-Zuordnungen).
+      Split-Komposition passt ein Modell pro Quelle an; Themen-IDs sind über
+      Zellen hinweg nicht vergleichbar. Mehrsprachige merged-Bereiche werden
+      in der BFF verweigert (HTTP 422 cross_language_merge_unsupported,
+      anchor=ADR-034#cross-language), da UMAP+HDBSCAN-Clustering über
+      Sprach-Partitionen auch mit mehrsprachigem Embedding-Modell instabil
+      ist. Small-Corpus-Warnung greift unter 500 Dokumenten pro
+      Sprachpartition (Engineering-Schwelle,
+      src/lib/config/topic-thresholds.ts). Siehe WP-005 §6.2.
+
 contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-05-06"

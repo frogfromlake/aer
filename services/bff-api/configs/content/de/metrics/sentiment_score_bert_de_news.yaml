@@ -20,6 +20,18 @@ registers:
       erzeugen keinen Eintrag. Als Tier-2.5-Verfeinerung bleibt sie vorläufig —
       nützlich, aber noch nicht durch eine Annotationsstudie auf
       Probe-0-Institutionsquellen kalibriert.
+
+      Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
+      composition='merged' bündelt, aggregiert diese Metrik als mittlere
+      Polarität (Bereich −1..+1) über den vereinigten Korpus.
+      Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
+      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
+      Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
+      pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
+      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
+      View-Mode-Eintrag für das genaue Verhalten.
+
   methodological:
     short: "mdraw/german-news-sentiment-bert, gepinnte HuggingFace-Revision. Tier-2.5-Verfeinerung gemäß ADR-023. P(pos) − P(neg), geklippt auf [-1, +1]. Strikter de-only-Sprachfilter. WP-002 §3.2."
     long: >
@@ -49,6 +61,20 @@ registers:
       Modellrevision — Kalibrierung verschiebt sich mit der gepinnten
       Revision; (4) keine Koreferenz, kein Sarkasmus, keine
       Langkontext-rhetorische Umkehrung. Validierungsstatus: nicht validiert.
+
+      Komposition (Phase 122i / ADR-034) — mehrquellige merged-Abfragen
+      aggregieren als mittlere Polarität (Bereich −1..+1) über die vereinigte
+      Artikelmenge; die BFF akzeptiert ?sourceIds=a,b,... und vereinigt
+      serverseitig. Äquivalenz-Gates (WP-004 §3) gelten weiterhin, wenn die
+      Merge heterogene Quellklassen umfasst — das Gate bewertet auf dem
+      aufgelösten Geltungsbereich vor der Aggregation. Split-Komposition ist
+      die Pro-Quelle-Auffächerung; die Metrik-Definition bleibt pro Zelle
+      unverändert. Mehrsprachige merged-Bereiche werden auf der
+      View-Mode-Handler-Ebene gesteuert: Aleph-View-Modes für diese Metrik
+      rendern den weichen MethodologyBanner; Episteme-/Rhizome-View-Modes (wo
+      anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
+      (ADR-034 §3).
+
 contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-05-04"
@@ -56,3 +82,4 @@ workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"
   - "ADR-023"
+  - "WP-005 §6.2"

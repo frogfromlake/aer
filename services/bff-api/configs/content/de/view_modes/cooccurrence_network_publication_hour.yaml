@@ -13,6 +13,19 @@ registers:
       Monate verschiebt). Die Veröffentlichungsstunde kann als Stratifizierungsvariable in
       anderen Analysen verwendet werden — z. B. Vergleich von Entitätsnetzwerken aus Morgen-
       vs. Abendveröffentlichungen — aber die Metrik selbst treibt keine Netzwerkstruktur an.
+
+      Komposition — composition='merged' berechnet einen
+      Entitäts-Ko-Vorkommen-Graphen über den gemeinsamen Korpus; Knoten erben
+      Salienz aus der Vereinigung, Kantengewichte ergeben sich aus der
+      gemeinsamen Erwähnungshäufigkeit über alle gewählten Quellen.
+      composition='split' rendert einen Graphen pro Quelle. Mehrsprachige
+      merged-Bereiche werden in der BFF verweigert (422
+      cross_language_merge_unsupported), weil die zugrunde-liegenden
+      NER-Modelle (spaCy/HanLP) sprachgebunden sind und Kantengewichte über
+      Sprach-Partitionen nicht vergleichbar wären; Split-Komposition mit einer
+      Sprache pro Zelle ist der unterstützte Weg, mehrsprachige
+      Entitätsnetzwerke zu inspizieren.
+
   methodological:
     short: "Nicht anwendbar: publication_hour ist ein Dokument-Zeitstempel-Attribut ohne relationale Struktur. Empfohlene Alternativen: distribution_publication_hour, time_series_publication_hour."
     long: >
@@ -23,8 +36,23 @@ registers:
       die nur aus Artikeln in bestimmten Stundenranges aufgebaut werden) ist als
       Filterparameter in der Entitäts-Co-Occurrence-Netzwerkabfrage verfügbar, aber das
       Stundenattribut selbst kann die Netzwerktopologie nicht antreiben.
-contentVersion: "v2026-04-a"
+
+      Komposition (Phase 122i / ADR-034) — merged-Komposition führt eine
+      Entitäts-Ko-Vorkommen-Aggregation (POST /entities/cooccurrence/query)
+      über den vereinigten Geltungsbereich aus (mit den
+      100-Quellen-/25-Entitäten-Caps gemäß ADR-034). Kantengewichte leiten
+      sich aus sprach-spezifischem NER ab (spaCy de_core_news_lg,
+      en_core_web_lg; HanLP für ZH gemäß ADR-024) und SIND innerhalb einer
+      Sprach-Partition vergleichbar. Mehrsprachige merged-Bereiche werden in
+      der BFF verweigert (HTTP 422 cross_language_merge_unsupported,
+      anchor=ADR-034#cross-language), weil NER-Tag-Mengen und
+      Entitäts-Frequenzen über Sprach-Pipelines hinweg nicht kommensurabel
+      sind. Split-Komposition rendert einen Graphen pro Quelle — geeignet für
+      strukturellen Quell-Vergleich innerhalb einer Sprache.
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-005 §6.2"

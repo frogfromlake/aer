@@ -327,7 +327,12 @@ export function contentQuery(
         'unspecified'
       ),
     // Content is versioned server-side; caching aggressively is safe.
-    staleTime: 60 * 60 * 1000
+    // Phase 122j J3: bumped from 1h → 24h. The BFF YAML catalog only
+    // changes on operator deploy; the BFF also sets Cache-Control:
+    // max-age=86400 so the same payload lives in the HTTP cache as
+    // well — TanStack still returns cached data instantly even after a
+    // browser reload, until the operator publishes new content.
+    staleTime: 24 * 60 * 60 * 1000
   };
 }
 

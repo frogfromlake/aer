@@ -27,6 +27,8 @@
     type NormalisedTopic
   } from '$lib/viewmodes/topic-internals';
   import { JOINT_CORPUS_MIN_SOURCES, TOPIC_MIN_DOCS } from '$lib/config/topic-thresholds';
+  import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
+  import { methodologyNotes } from '$lib/methodology-copy';
 
   let {
     ctx,
@@ -230,31 +232,18 @@
       was just enabled, the first sweep may not have completed yet.
     </p>
   {:else}
-    <!-- eslint-disable svelte/no-navigation-without-resolve -- internal Reflection route -->
     {#if isJointCorpus}
-      <aside
-        class="methodology-note joint-corpus"
-        role="note"
-        aria-label="Joint-corpus methodology note"
-      >
-        <strong>BERTopic across {sources.length} sources</strong> — topics reflect the
-        <em>joint corpus</em>, not per-source framings. Source-specific framings may be aggregated
-        away.
-        <a href="/reflection/wp/wp-005?section=6.2" data-sveltekit-preload-data="hover"
-          >WP-005 §6.2</a
-        >
-      </aside>
+      {@const note = methodologyNotes.epistemeJointCorpusDistribution(sources.length)}
+      <MethodologyBanner anchorHref={note.anchorHref} anchorLabel={note.anchorLabel}>
+        <strong>{note.headline}</strong> — {note.body}
+      </MethodologyBanner>
     {/if}
     {#if isSmallCorpus}
-      <aside class="methodology-note small-corpus" role="note" aria-label="Small-corpus warning">
-        <strong>Small corpus ({totalArticles} articles, &lt; {TOPIC_MIN_DOCS})</strong> — BERTopic
-        rarely converges on a coherent topic set below this threshold. Interpret topics cautiously.
-        <a href="/reflection/wp/wp-005?section=6.2" data-sveltekit-preload-data="hover"
-          >WP-005 §6.2</a
-        >
-      </aside>
+      {@const note = methodologyNotes.epistemeSmallCorpus(totalArticles, TOPIC_MIN_DOCS)}
+      <MethodologyBanner variant="warn" anchorHref={note.anchorHref} anchorLabel={note.anchorLabel}>
+        <strong>{note.headline}</strong> — {note.body}
+      </MethodologyBanner>
     {/if}
-    <!-- eslint-enable svelte/no-navigation-without-resolve -->
     <div
       class="plot-host"
       bind:this={host}
@@ -401,32 +390,6 @@
   .provenance .warn {
     color: #e0a050;
     font-family: var(--font-mono);
-  }
-
-  .methodology-note {
-    display: block;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg);
-    line-height: 1.4;
-  }
-
-  .methodology-note.joint-corpus {
-    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
-    border-left: 3px solid var(--color-accent);
-  }
-
-  .methodology-note.small-corpus {
-    background: color-mix(in srgb, var(--color-status-expired) 12%, var(--color-surface));
-    border-left: 3px solid var(--color-status-expired);
-  }
-
-  .methodology-note a {
-    color: var(--color-accent);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--color-accent);
-    margin-left: 4px;
   }
 
   .muted {

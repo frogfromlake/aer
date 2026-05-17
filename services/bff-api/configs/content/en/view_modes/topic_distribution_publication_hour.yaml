@@ -15,6 +15,19 @@ registers:
       cluster, not noise to be hidden. When the scope spans multiple language partitions, the
       cell renders one ridge stack per language; topic ids are unique only within a partition
       (WP-004 §3.4) and are never merged across languages.
+
+      Composition — composition='merged' fits the topic model on the joint
+      corpus of all selected sources; the topics that emerge are a property of
+      the union, not an aggregation of per-source topics. The dashboard
+      renders a Joint-Corpus methodology banner over the view (WP-005 §6.2) so
+      the reader does not silently slide between 'what these sources
+      collectively talk about' and 'what each source talks about'.
+      composition='split' fits one model per source and renders the resulting
+      topic sets side-by-side, which is the appropriate reading when
+      source-level framing is the question. Cross-language merged scope is
+      refused at the BFF (422 cross_language_merge_unsupported) because the
+      embedding geometry is language-conditioned.
+
   methodological:
     short: "BERTopic over aer_gold.topic_assignments (Phase 120). Embeddings: intfloat/multilingual-e5-large (pinned). UMAP/HDBSCAN seeded. Tier 2 — reproducible with pinned model versions, not bit-for-bit deterministic across platforms (WP-002 §8.1 Option C)."
     long: >
@@ -29,6 +42,21 @@ registers:
       across hardware. The four discourse functions of WP-001 are the *expected* high-level
       structure topics should approximate; large divergence from that structure is interesting
       methodologically and should be discussed before drawing substantive conclusions.
+
+      Composition (Phase 122i / ADR-034) — merged composition fits BERTopic
+      (intfloat/multilingual-e5-large → UMAP → HDBSCAN, min_cluster_size=10,
+      n_neighbors=15) on the union of the selected sources within the resolved
+      scope. The model sees the union as a single corpus; per-source structure
+      is not preserved in the topic labels (recoverable from per-document
+      assignments). Split composition fits one model per source; topic IDs are
+      not comparable across Cells. Cross-language merged scope is refused at
+      the BFF (HTTP 422 cross_language_merge_unsupported,
+      anchor=ADR-034#cross-language) because UMAP+HDBSCAN clustering is
+      unstable across language partitions even with a multilingual embedding
+      model. Small-corpus warning triggers below 500 documents per language
+      partition (engineering threshold, src/lib/config/topic-thresholds.ts).
+      See WP-005 §6.2.
+
 contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-05-06"

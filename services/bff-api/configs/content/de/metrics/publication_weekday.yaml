@@ -17,6 +17,18 @@ registers:
       den Nachrichtenzyklus selbst. Die Metrik misst keine Nachrichtenwürdigkeit oder
       redaktionelles Urteil — sie misst die Strukturbedingungen, unter denen Inhalte produziert
       werden.
+
+      Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
+      composition='merged' bündelt, aggregiert diese Metrik als
+      modus-ausgerichtete Wochentagsverteilung über den vereinigten Korpus.
+      Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
+      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
+      Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
+      pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
+      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
+      View-Mode-Eintrag für das genaue Verhalten.
+
   methodological:
     short: "ISO-Wochentag aus Silver-Layer-Zeitstempel extrahiert. Tier 1 (deterministisch). Hinweis: UTC-Datumsgrenze kann den scheinbaren Wochentag bei Spätveröffentlichungen um einen Tag verschieben."
     long: >
@@ -32,9 +44,24 @@ registers:
       publication_hour für eine vollständige Diskussion dieses Vorbehalts. (3) Bei Probe-0-
       Quellen sind Zeitstempel maschinengeneriert und zuverlässig. Validierungsstatus: nicht
       validiert (keine bekannten aktiven Einschränkungen für Probe 0).
-contentVersion: "v2026-04-a"
+
+      Komposition (Phase 122i / ADR-034) — mehrquellige merged-Abfragen
+      aggregieren als modus-ausgerichtete Wochentagsverteilung über die
+      vereinigte Artikelmenge; die BFF akzeptiert ?sourceIds=a,b,... und
+      vereinigt serverseitig. Äquivalenz-Gates (WP-004 §3) gelten weiterhin,
+      wenn die Merge heterogene Quellklassen umfasst — das Gate bewertet auf
+      dem aufgelösten Geltungsbereich vor der Aggregation. Split-Komposition
+      ist die Pro-Quelle-Auffächerung; die Metrik-Definition bleibt pro Zelle
+      unverändert. Mehrsprachige merged-Bereiche werden auf der
+      View-Mode-Handler-Ebene gesteuert: Aleph-View-Modes für diese Metrik
+      rendern den weichen MethodologyBanner; Episteme-/Rhizome-View-Modes (wo
+      anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
+      (ADR-034 §3).
+
+contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-25"
+lastReviewedDate: "2026-05-17"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"
+  - "WP-005 §6.2"

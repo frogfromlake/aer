@@ -16,6 +16,18 @@ registers:
       slightly wider — the model can detect irony or negation that the lexicon misses.
       The shape difference between the two distributions is itself worth inspecting
       under the methodology tray.
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE chart over the unioned
+      corpus (BFF query ?sourceIds=a,b,...); under composition='split' the
+      same source-set fans out into one chart per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. The merged
+      reading is appropriate when the analytical question is about the union
+      (e.g. 'what does the institutional press collectively show?'); the split
+      reading is appropriate when source-level distinction is the question.
+      Cross-language merged scope is permitted in Aleph and surfaces a soft
+      methodology banner (WP-004 §3.4) rather than a refusal.
+
   methodological:
     short: "Histogram / density of cardiffnlp/twitter-xlm-roberta-base-sentiment scalar (range [-1, +1]). Tier-2 default per ADR-023. Tail shape is the meaningful signal; do not compare absolute shapes across languages without a metric_equivalence entry (WP-004 §3)."
     long: >
@@ -34,6 +46,20 @@ registers:
       gated: when the active scope spans more than one detected language, the BFF
       requires a metric_equivalence registry entry (ADR-016) granting a deviation
       level before normalisation across language frames is permitted (WP-004 §3).
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the
+      handler executes a single BFF call with the unioned sourceIds and the
+      Cell renders one chart; for 'split' the Cell fans out one query per
+      source and renders one chart per source. Split-direction is a
+      presentation toggle (horizontal raster vs vertical stack) and does not
+      affect the query shape. Cross-language merged scope is NOT refused in
+      Aleph — the MethodologyBanner primitive renders a soft
+      cross-frame-comparability note (WP-004 §3.4) when composition='merged'
+      AND sources.length > 1, because Aleph metrics (lexicon-based polarity,
+      structural counts) are language-agnostic enough that aggregation is
+      meaningful with caveats. The asymmetry against Episteme/Rhizome (which
+      DO refuse) is intentional and documented in WP-005 §6.2 §8b.
+
 contentVersion: "v2026-05-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-05-04"

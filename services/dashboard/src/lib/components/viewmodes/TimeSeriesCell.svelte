@@ -7,6 +7,7 @@
   // Gold-equivalent time-series; the distribution cell covers Silver).
   import SourceLaneChart from '$lib/components/lanes/SourceLaneChart.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
+  import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
 
   let {
@@ -45,10 +46,9 @@
     <p class="empty">No sources in the active scope.</p>
   {:else if composition === 'merged'}
     {#if showMergedNote}
-      <MethodologyBanner anchorHref="/reflection/wp/wp-004?section=3.4" anchorLabel="WP-004 §3.4">
-        <strong>Merged across {sources.length} sources</strong> — the time series reflects the joint corpus,
-        not per-source framings. Interpret cross-source comparability cautiously, especially when sources
-        span multiple cultural-linguistic frames.
+      {@const note = methodologyNotes.alephMergedTimeSeries(sources.length)}
+      <MethodologyBanner anchorHref={note.anchorHref} anchorLabel={note.anchorLabel}>
+        <strong>{note.headline}</strong> — {note.body}
       </MethodologyBanner>
     {/if}
     <SourceLaneChart

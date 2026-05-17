@@ -3670,66 +3670,66 @@ Phase 122h sits ahead of Phases 122a, 122d, 123, 123a, 124, 125 in the dashboard
 
 ### Architecture
 
-* [ ] **ADR-034 lifecycle.** ADR-034 is recorded as Accepted at the start of this phase (already done in 09_architecture_decisions.md as part of Phase 122i preparation). Cross-reference between ADR-033 (Pillars + surface architecture) and ADR-034 (panel composition).
-* [ ] **Backward-compatibility invariant.** Every Phase-122h URL form continues to load without behavioural change in Phase 122i. The 122h-readable URL `/workbench?probeId=…&sourceId=…&view=…&viewingMode=…` is interpreted as a single-pillar / single-window / single-panel / single-scope-group state and written back in the same form when the state fits. CI test enforces this.
+* [x] **ADR-034 lifecycle.** ADR-034 is recorded as Accepted at the start of this phase (already done in 09_architecture_decisions.md as part of Phase 122i preparation). Cross-reference between ADR-033 (Pillars + surface architecture) and ADR-034 (panel composition).
+* [x] **Backward-compatibility invariant.** Every Phase-122h URL form continues to load without behavioural change in Phase 122i. The 122h-readable URL `/workbench?probeId=…&sourceId=…&view=…&viewingMode=…` is interpreted as a single-pillar / single-window / single-panel / single-scope-group state and written back in the same form when the state fits. CI test enforces this.
 
 ### Frontend — URL state (Slice 1)
 
-* [ ] **`Panel`, `ScopeGroup`, `WorkbenchWindow`, `PillarState`, `WorkbenchState` types** in `services/dashboard/src/lib/state/url-internals.ts`. Per-pillar base64url-gzip-JSON encoding. Reader migrates legacy single-scope URLs into a synthesized `WorkbenchState`. Writer prefers the legacy form when the state fits the special case. Active pillar is encoded as `?activePillar=…`. Hard URL-size cap at 8 KiB; over-cap writes trigger a confirmation dialog asking to discard oldest panels of the offending pillar.
-* [ ] **Unit tests.** Round-trip every realistic state shape (single-pillar single-panel, multi-panel single-window, multi-window per pillar, all three pillars populated). Migration from each Phase-122h URL form. URL-cap edge.
+* [x] **`Panel`, `ScopeGroup`, `WorkbenchWindow`, `PillarState`, `WorkbenchState` types** in `services/dashboard/src/lib/state/url-internals.ts`. Per-pillar base64url-gzip-JSON encoding. Reader migrates legacy single-scope URLs into a synthesized `WorkbenchState`. Writer prefers the legacy form when the state fits the special case. Active pillar is encoded as `?activePillar=…`. Hard URL-size cap at 8 KiB; over-cap writes trigger a confirmation dialog asking to discard oldest panels of the offending pillar.
+* [x] **Unit tests.** Round-trip every realistic state shape (single-pillar single-panel, multi-panel single-window, multi-window per pillar, all three pillars populated). Migration from each Phase-122h URL form. URL-cap edge.
 
 ### BFF — CoOccurrence Multi-Scope (Slice 2)
 
-* [ ] **`POST /entities/cooccurrence/query`.** New endpoint, OpenAPI-first. Request body: `{scopes: Array<{probeIds: string[], sourceIds: string[]}>, start, end, topN?, language?, ...}`. Response shape identical to today's `GET /entities/cooccurrence`. Validator caps at 100 unique source-IDs and 25 unique probe-IDs per request; over-limit returns `413 scope_limit_exceeded` with offending counts on the error envelope. Cross-language union detection on the request: if the resolved scope spans more than one Language Capability Manifest language, return `422 cross_language_merge_unsupported`. Legacy `GET /entities/cooccurrence?scope=…&scopeId=…` remains for backward compatibility and is the path Phase-122h URLs continue to use.
-* [ ] **Topic endpoints cross-language refusal.** `GET /topics/distribution` and `GET /topics/evolution` add the same `422 cross_language_merge_unsupported` when their resolved scope (probeIds + sourceIds union) spans multiple languages. Existing single-language behaviour is unchanged.
-* [ ] **`make codegen`.** OpenAPI changes regenerate `services/bff-api/internal/handler/generated.go`. CI enforces sync.
-* [ ] **Tests.** Unit tests for the validator (limit, cross-language). Integration test via Testcontainers for the POST endpoint round-trip.
+* [x] **`POST /entities/cooccurrence/query`.** New endpoint, OpenAPI-first. Request body: `{scopes: Array<{probeIds: string[], sourceIds: string[]}>, start, end, topN?, language?, ...}`. Response shape identical to today's `GET /entities/cooccurrence`. Validator caps at 100 unique source-IDs and 25 unique probe-IDs per request; over-limit returns `413 scope_limit_exceeded` with offending counts on the error envelope. Cross-language union detection on the request: if the resolved scope spans more than one Language Capability Manifest language, return `422 cross_language_merge_unsupported`. Legacy `GET /entities/cooccurrence?scope=…&scopeId=…` remains for backward compatibility and is the path Phase-122h URLs continue to use.
+* [x] **Topic endpoints cross-language refusal.** `GET /topics/distribution` and `GET /topics/evolution` add the same `422 cross_language_merge_unsupported` when their resolved scope (probeIds + sourceIds union) spans multiple languages. Existing single-language behaviour is unchanged.
+* [x] **`make codegen`.** OpenAPI changes regenerate `services/bff-api/internal/handler/generated.go`. CI enforces sync.
+* [x] **Tests.** Unit tests for the validator (limit, cross-language). Integration test via Testcontainers for the POST endpoint round-trip.
 
 ### Frontend — Query layer (Slice 3)
 
-* [ ] **`entityCoOccurrenceQuery` multi-scope path.** New code path that calls `POST /entities/cooccurrence/query` when the panel composition requires multi-scope semantics. The legacy `GET` path stays for single-scope panels.
-* [ ] **`buildQueryFromPanel(panel: Panel): BffRequest`** helper in `services/dashboard/src/lib/workbench/panel-queries.ts` (new). Centralises the Panel-to-BFF-request mapping for all view modes.
-* [ ] **Cross-language refusal handling.** Topic and CoOccurrence cells render a `RefusalSurface` variant on `422 cross_language_merge_unsupported` with copy: *"Cross-language topic merging not supported — split scope by language or narrow to a single language."*
+* [x] **`entityCoOccurrenceQuery` multi-scope path.** New code path that calls `POST /entities/cooccurrence/query` when the panel composition requires multi-scope semantics. The legacy `GET` path stays for single-scope panels.
+* [x] **`buildQueryFromPanel(panel: Panel): BffRequest`** helper in `services/dashboard/src/lib/workbench/panel-queries.ts` (new). Centralises the Panel-to-BFF-request mapping for all view modes.
+* [x] **Cross-language refusal handling.** Topic and CoOccurrence cells render a `RefusalSurface` variant on `422 cross_language_merge_unsupported` with copy: *"Cross-language topic merging not supported — split scope by language or narrow to a single language."*
 
 ### Frontend — Shells + new components (Slice 4)
 
-* [ ] **`WindowHost.svelte`** (new). Renders the active pillar's Windows as a tab strip in the Workbench header (between `PillarSwitch` and the panel grid). Each tab labels the Window by its first-panel summary; tabs reorderable; `+ Window` button; close-with-undo.
-* [ ] **`PanelHost.svelte`** (new). Per-panel renderer. Given a Panel, decides on Cell count by composition: `merged` → 1 Cell; `split` → 1 Cell per Source (when single ScopeGroup with multiple sources) or 1 Cell per ScopeGroup (when multiple groups). Panel-header shows the active ScopeGroup summary plus `🔒 Locked to {DF}` eyebrow if locked.
-* [ ] **`AlephShell` / `EpistemeShell` / `RhizomeShell`** rebased on `WorkbenchState.pillars[activePillar]`. Shells become thin: they render the `WindowHost` and pass the active Window down. The shell-specific affordances (Aleph Dataset-Shape strip, Episteme Auflösung-rail, Rhizome graph-canvas controls) remain in the shells but apply at the Window level (one Dataset-Shape strip per window).
-* [ ] **`CellControls.svelte` rebound to `focusedPanelIndex`.** Today's global controls become per-focused-panel. New Segmented-Control `Merged · Split` for the composition mode. Read-only mode when `panel.locked === true` with the lock eyebrow.
-* [ ] **`ScopeEditor.svelte`** (new). Per-panel popover for editing ScopeGroups. Probe-picker (reuses `ProbePicker.svelte`); per-group source-multiselect; `+ Group` / `× Group` buttons. "Save" writes to URL state.
-* [ ] **Workbench header `Reset {Pillar}` button.** Drops the pillar's URL key and synthesises a fresh default panel on next access.
+* [x] **`WindowHost.svelte`** (new). Renders the active pillar's Windows as a tab strip in the Workbench header (between `PillarSwitch` and the panel grid). Each tab labels the Window by its first-panel summary; tabs reorderable; `+ Window` button; close-with-undo.
+* [x] **`PanelHost.svelte`** (new). Per-panel renderer. Given a Panel, decides on Cell count by composition: `merged` → 1 Cell; `split` → 1 Cell per Source (when single ScopeGroup with multiple sources) or 1 Cell per ScopeGroup (when multiple groups). Panel-header shows the active ScopeGroup summary plus `🔒 Locked to {DF}` eyebrow if locked.
+* [x] **`AlephShell` / `EpistemeShell` / `RhizomeShell`** rebased on `WorkbenchState.pillars[activePillar]`. Shells become thin: they render the `WindowHost` and pass the active Window down. The shell-specific affordances (Aleph Dataset-Shape strip, Episteme Auflösung-rail, Rhizome graph-canvas controls) remain in the shells but apply at the Window level (one Dataset-Shape strip per window).
+* [x] **`CellControls.svelte` rebound to `focusedPanelIndex`.** Today's global controls become per-focused-panel. New Segmented-Control `Merged · Split` for the composition mode. Read-only mode when `panel.locked === true` with the lock eyebrow.
+* [x] **`ScopeEditor.svelte`** (new). Per-panel popover for editing ScopeGroups. Probe-picker (reuses `ProbePicker.svelte`); per-group source-multiselect; `+ Group` / `× Group` buttons. "Save" writes to URL state.
+* [x] **Workbench header `Reset {Pillar}` button.** Drops the pillar's URL key and synthesises a fresh default panel on next access.
 
 ### Frontend — Dossier two-entry-path (Slice 5)
 
-* [ ] **DF-tile sets `locked=true` and `composition='merged'`.** The DF-entry-path opens a Workbench with one Panel, one ScopeGroup over the DF's covered sources, locked. CellControls + ScopeEditor are read-only; the user must navigate back to the Dossier and use the Free-Compose section to recombine.
-* [ ] **"Compose freely" section in `ProbeDossier.svelte`.** New section at the same visual hierarchy level as the DF-tiles grid. Contains: probe-picker (current probe selectable; multi-probe in future), source-multiselect for the chosen probe(s), "Open Workbench (free compose) →" CTA. Opens a Workbench with one Panel, one ScopeGroup over the chosen scope, `composition='merged'`, `locked=false`. All controls editable.
-* [ ] **Dossier emic-frame + structural-meta + source-cards remain unchanged.** Phase 122i adds the Free-Compose section without touching the rest.
+* [x] **DF-tile sets `locked=true` and `composition='merged'`.** The DF-entry-path opens a Workbench with one Panel, one ScopeGroup over the DF's covered sources, locked. CellControls + ScopeEditor are read-only; the user must navigate back to the Dossier and use the Free-Compose section to recombine.
+* [x] **"Compose freely" section in `ProbeDossier.svelte`.** New section at the same visual hierarchy level as the DF-tiles grid. Contains: probe-picker (current probe selectable; multi-probe in future), source-multiselect for the chosen probe(s), "Open Workbench (free compose) →" CTA. Opens a Workbench with one Panel, one ScopeGroup over the chosen scope, `composition='merged'`, `locked=false`. All controls editable.
+* [x] **Dossier emic-frame + structural-meta + source-cards remain unchanged.** Phase 122i adds the Free-Compose section without touching the rest.
 
 ### Frontend — Methodology surfaces (Slice 6)
 
-* [ ] **Joint-Corpus Methodology Note** rendered prominently in Episteme `merged` cells. Copy: *"BERTopic across N sources — topics reflect the joint corpus, not per-source framings. Source-specific framings may be aggregated away; see WP-005 §6.2."* Links to `docs/methodology/en/wp-005-notes/merged-topic-modeling.md` (Slice 7).
-* [ ] **Small-corpus warning** rendered under each Episteme `split` cell when the group's article count is below the threshold (default 500 documents; configurable in `services/dashboard/src/lib/config/topic-thresholds.ts`, new).
-* [ ] **Cross-language RefusalSurface** variant. Used by Episteme + Rhizome cells when the BFF returns `422 cross_language_merge_unsupported`.
-* [ ] **Locked-panel eyebrow** `🔒 Locked to {DF}` rendered on CellControls and ScopeEditor when `panel.locked === true`.
+* [x] **Joint-Corpus Methodology Note** rendered prominently in Episteme `merged` cells. Copy: *"BERTopic across N sources — topics reflect the joint corpus, not per-source framings. Source-specific framings may be aggregated away; see WP-005 §6.2."* Links to `docs/methodology/en/wp-005-notes/merged-topic-modeling.md` (Slice 7).
+* [x] **Small-corpus warning** rendered under each Episteme `split` cell when the group's article count is below the threshold (default 500 documents; configurable in `services/dashboard/src/lib/config/topic-thresholds.ts`, new).
+* [x] **Cross-language RefusalSurface** variant. Used by Episteme + Rhizome cells when the BFF returns `422 cross_language_merge_unsupported`.
+* [x] **Locked-panel eyebrow** `🔒 Locked to {DF}` rendered on CellControls and ScopeEditor when `panel.locked === true`.
 
 ### Tests + docs (Slice 7)
 
-* [ ] **Frontend unit tests.** URL round-trip for the WorkbenchState tree, per-pillar encoding, URL-cap handler, migration from each Phase-122h URL form.
-* [ ] **BFF tests.** `POST /entities/cooccurrence/query` round-trip; limit-exceeded refusal; cross-language refusal; backward compatibility of the legacy `GET` endpoint. Topic-endpoint cross-language refusal.
-* [ ] **Manual walkthrough.** Granularity matrix: 3 granularities (full probe / source-subset / single source) × 2 compositions (merged / split) × 2 window-modes (single window / multi-window) × 3 Pillars = 36 configurations. Each must render without console errors, produce a coherent Cell, and round-trip its URL.
-* [ ] **WP-005 §6.2 Working-Note.** New file `docs/methodology/en/wp-005-notes/merged-topic-modeling.md`. Discusses the methodological choice (joint-corpus vs per-source-with-alignment), the BERTopic embedding constraint, and the per-cell Methodology Note's interpretation.
-* [ ] **Arc42 §8.x update.** New subsection "Workbench State Tree" documenting the Pillar → Window → Panel → ScopeGroup hierarchy and the URL grammar. Cross-reference ADR-034.
-* [ ] **CLAUDE.md update.** Add `WindowHost`, `PanelHost`, `ScopeEditor` to the dashboard component list. Note the two-entry-path Dossier pattern and the cross-language refusal gate.
-* [ ] **TESTING.md entry.** Granularity-matrix walkthrough recorded as the Phase 122i manual-test fixture.
+* [x] **Frontend unit tests.** URL round-trip for the WorkbenchState tree, per-pillar encoding, URL-cap handler, migration from each Phase-122h URL form.
+* [x] **BFF tests.** `POST /entities/cooccurrence/query` round-trip; limit-exceeded refusal; cross-language refusal; backward compatibility of the legacy `GET` endpoint. Topic-endpoint cross-language refusal.
+* [x] **Manual walkthrough.** Granularity matrix: 3 granularities (full probe / source-subset / single source) × 2 compositions (merged / split) × 2 window-modes (single window / multi-window) × 3 Pillars = 36 configurations. Each must render without console errors, produce a coherent Cell, and round-trip its URL.
+* [x] **WP-005 §6.2 Working-Note.** New file `docs/methodology/en/wp-005-notes/merged-topic-modeling.md`. Discusses the methodological choice (joint-corpus vs per-source-with-alignment), the BERTopic embedding constraint, and the per-cell Methodology Note's interpretation.
+* [x] **Arc42 §8.x update.** New subsection "Workbench State Tree" documenting the Pillar → Window → Panel → ScopeGroup hierarchy and the URL grammar. Cross-reference ADR-034.
+* [x] **CLAUDE.md update.** Add `WindowHost`, `PanelHost`, `ScopeEditor` to the dashboard component list. Note the two-entry-path Dossier pattern and the cross-language refusal gate.
+* [x] **TESTING.md entry.** Granularity-matrix walkthrough recorded as the Phase 122i manual-test fixture.
 
 ### Validation
 
-* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
-* [ ] **CI invariant.** Phase-122h URL bookmarks load without behavioural change. Test fixture covers every Phase-122h reachable URL.
-* [ ] **CoOccurrence backward compatibility.** Legacy `GET /entities/cooccurrence?scope=…&scopeId=…` continues to serve identical responses for single-scope requests.
-* [ ] **Manual walkthrough signed off.** All 36 granularity-matrix configurations verified.
-* [ ] **Working-Note signed off.** WP-005 §6.2 written and linked from the Joint-Corpus Methodology Note.
+* [x] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green.
+* [x] **CI invariant.** Phase-122h URL bookmarks load without behavioural change. Test fixture covers every Phase-122h reachable URL.
+* [x] **CoOccurrence backward compatibility.** Legacy `GET /entities/cooccurrence?scope=…&scopeId=…` continues to serve identical responses for single-scope requests.
+* [x] **Manual walkthrough signed off.** All 36 granularity-matrix configurations verified.
+* [x] **Working-Note signed off.** WP-005 §6.2 written and linked from the Joint-Corpus Methodology Note.
 
 ### Phase ordering note
 
@@ -3737,31 +3737,32 @@ Phase 122i directly extends Phase 122h. No new infrastructure dependencies; the 
 
 ---
 
-## Phase 122j: Methodology Catalog Coverage + Hardcoded-Text Audit + Performance Hardening [P2] - [ ] TODO
+## Phase 122j: Methodology Catalog Coverage + Hardcoded-Text Audit + Performance Hardening [P2] - [/] IN-PROGRESS (J1+J2+J3 landed 2026-05-17; lint rule + TTFB baseline pending)
 
 *Three orthogonal but related concerns surface after Phase 122i revision ships. (1) The dual-register YAML content catalogs (`services/bff-api/configs/content/{en,de}/`) predate ADR-034 — every `view_mode`, `metric`, `probe`, `source` entry must be re-audited so its semantic and methodological registers correctly describe what the user sees when composition is Merged / Split-Horizontal / Split-Vertical, and when scope spans multiple sources / languages / probes. A scientific project cannot leave dashboard text misaligned with the underlying methodology — every banner, every cell methodology note, every refusal must be sourced from the catalog (not hardcoded in a `.svelte` component). (2) During Phase 122i revision, banners and labels are added inline in components. Phase 122j sweeps the frontend: every user-visible methodology-bearing string must come from the BFF `/content/{entityType}/{entityId}` endpoint; the audit produces a catalog-content gap-list (strings that exist hardcoded but lack a YAML entry) and fills the gaps. (3) Phase 122i adds N-panel rendering, multi-source merged queries, and the Dossier-Home with all probe cards — combined wire footprint and render cost are unmeasured. Phase 122j profiles, then applies smart caching (TanStack `staleTime` tuning, HTTP `Cache-Control` / `ETag` headers per endpoint, bundle-splitting review post-122i, ServiceWorker if justified). **Hard prerequisite: Phase 122i revision DONE and tested.** Phase 123 (Probe 1) is unblocked by 122j but does not require it — they can ship in parallel.*
 
-### Methodology catalog audit
+### Methodology catalog audit — J1 (DONE 2026-05-17)
 
-* [ ] **Inventory every dual-register YAML entry** under `services/bff-api/configs/content/{en,de}/{view_modes,metrics,probes,sources}/`. Produce a coverage matrix: axis × entry.
-* [ ] **Composition section** added to every `view_mode` entry: how Merged interprets the union; how Split (horizontal/vertical) interprets per-source rendering; methodological caveats per axis.
-* [ ] **Cross-Language note** added to every `metric` entry: which language(s) does this metric assume; what happens in a cross-language scope (Aleph soft warning; Episteme + Rhizome refusal).
-* [ ] **Small-Corpus caveat** added where relevant (BERTopic-adjacent metrics + cells).
-* [ ] **Source-set-size methodology** added where relevant (joint-corpus caveats beyond BERTopic — e.g. distributional comparisons across heterogeneous source sizes).
+* [x] **Inventory every dual-register YAML entry** under `services/bff-api/configs/content/{en,de}/{view_modes,metrics,probes,sources}/`. Coverage matrix at `docs/methodology/en/wp-005-notes/phase-122j-audit/coverage_matrix.csv`, generator at `scripts/audit/methodology_coverage.sh`. 142 files inventoried (70 per locale × 2 + 2 new refusals).
+* [x] **Composition section** added to every `view_mode` entry (pillar-aware: Aleph soft cross-language note + WP-004 §3.4 anchor; Episteme joint-corpus + WP-005 §6.2; Rhizome per-language NER caveat). 76 view_mode files updated.
+* [x] **Cross-Language note** added to every `metric` entry (16 metric files updated with aggregation-semantics paragraph + reference to view-mode-level refusal vs soft-banner asymmetry).
+* [x] **Small-Corpus caveat** referenced in the Episteme composition paragraph; the rendering threshold lives in `src/lib/config/topic-thresholds.ts` and is now also documented in the methodological register.
+* [x] **Missing refusal entry** `cross_language_merge_unsupported` (en + de) — the BFF emits `gate=cross_language_merge_unsupported` since Phase 122i, but no dual-register YAML existed. Frontend RefusalSurface now has methodologically grounded copy.
+* [/] **Source-set-size methodology** — partially addressed by the composition paragraph; a dedicated section per metric is deferred.
 
-### Hardcoded-text audit
+### Hardcoded-text audit — J2 (DONE 2026-05-17)
 
-* [ ] **grep-based inventory** of every user-visible methodology-bearing string in `services/dashboard/src/lib/components/**/*.svelte`. Categorise: legitimate chrome (Open, Cancel, etc.) vs methodology-bearing (banners, refusals, methodology notes, alt-text on cells).
-* [ ] **Catalog gap-list**: every methodology-bearing string lacking a YAML entry → produce the entry, wire the component to fetch via `/content/...`.
-* [ ] **Lint rule** that flags new hardcoded methodology strings in `.svelte` files; CI gates the rule.
+* [x] **grep-based inventory** of user-visible methodology-bearing strings. Four banner messages identified across TimeSeriesCell, DistributionCell, TopicDistributionCell, TopicEvolutionCell.
+* [x] **Catalog consolidation**: methodology-bearing strings extracted to `services/dashboard/src/lib/methodology-copy.ts` (single source of truth, locale-ready signature, stepping-stone toward BFF `/content/methodology_note/*` migration). All four cells now consume the same primitive `MethodologyBanner` + the central copy module; TopicDistributionCell + TopicEvolutionCell no longer carry their own inline aside CSS.
+* [ ] **Lint rule** that flags new hardcoded methodology strings in `.svelte` files — deferred (audit gap-list is small enough that human review on PR remains acceptable; revisit if it grows).
 
-### Caching + performance
+### Caching + performance — J3 (DONE 2026-05-17)
 
-* [ ] **Cold/warm cache TTFB measurement** for `/dossier`, `/workbench?activePillar=…&{pillar}=<base64>` with 1/4/8 panels, Episteme topic distribution with multi-source merge. Baseline recorded in `docs/operations/operations_playbook.md`.
-* [ ] **TanStack `staleTime` tuning** per query type: probes hourly (already done), metrics 5 min, content 24 h, BERTopic 1 h, CoOccurrence 15 min.
-* [ ] **HTTP `Cache-Control` / `ETag` headers** from BFF per endpoint: stable content endpoints get long cache + ETag; metric endpoints get conservative TTL.
-* [ ] **Bundle-splitting review post-122i**: did Dossier-Home + GeneralFreeComposeSection grow the initial bundle? Adjust dynamic-import boundaries.
-* [ ] **Optional: SvelteKit prerender for `/reflection/*`** if the working-paper content is static enough at build time.
+* [ ] **Cold/warm cache TTFB baseline** — deferred (needs live profiling against the deployed stack).
+* [x] **TanStack `staleTime` tuning**: `contentQuery` bumped 1h → 24h. The BFF catalog is loaded from YAML at startup and only changes on operator deploy; the HTTP Cache-Control middleware reinforces the same TTL at the browser layer.
+* [x] **HTTP `Cache-Control` header** for `/api/v1/content/*` — `public, max-age=86400, must-revalidate` via the new `pkg/middleware/cache_control.go` middleware (path-scoped, 2xx-only — refusals stay un-cacheable). ETag deferred (would need response buffering).
+* [x] **Bundle-splitting review post-122i**: initial app entry = 3.6 KB gzipped, way under the 80 kB budget. Large viz chunks (Observable Plot, d3) remain lazy-loaded per Cell; Dossier-Home + GeneralFreeComposeSection added no measurable weight to the initial bundle.
+* [ ] **SvelteKit prerender for `/reflection/*`** — deferred.
 
 ### Validation
 
