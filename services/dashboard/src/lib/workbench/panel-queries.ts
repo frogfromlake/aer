@@ -19,17 +19,21 @@ import type { Panel, ScopeGroup, ViewMode } from '$lib/state/url-internals';
 // ---------------------------------------------------------------------------
 // Cell-render strategy
 //
-// `merged-single`   = 1 Cell, single ScopeGroup, existing GET endpoints
-//                     (legacy Aleph behaviour as a special case).
-// `merged-multi`    = 1 Cell, union of N ScopeGroups, multi-scope path
-//                     (CoOccurrence → POST /entities/cooccurrence/query,
-//                      Topics → existing GET with unioned probeIds/sourceIds).
+// `merged-single`   = 1 Cell, single ScopeGroup (the most common Aleph
+//                     case). Sources within the group either render as
+//                     a merged chart or as per-source small-multiples
+//                     depending on `composition`.
+// `merged-multi`    = N Cells, one per ScopeGroup, with the panel's
+//                     composition='merged' propagated to each Cell so
+//                     the sources INSIDE a group are unioned. The
+//                     groups themselves remain side-by-side — only the
+//                     within-group source set is merged (Phase 122k).
 // `split`           = N Cells, one per ScopeGroup or per source within a
 //                     single ScopeGroup. Each Cell uses the existing
 //                     per-scope endpoints; no multi-scope payload.
 // ---------------------------------------------------------------------------
 
-export type CellRenderStrategy = 'merged-single' | 'merged-multi' | 'split';
+export type CellRenderStrategy = 'merged-single' | 'merged-multi' | 'overlay' | 'split';
 
 export interface CellRenderUnit {
   // Stable React-key-style identifier so the Panel host can `{#each}` over
@@ -42,6 +46,11 @@ export interface CellRenderUnit {
   scopeId: string;
   probeIds: readonly string[];
   sourceIds: readonly string[];
+  // Phase 122k §11 finding — when the panel splits across multiple
+  // ScopeGroups, each unit carries its ScopeGroup index so the host can
+  // render the per-group visual accent (number badge + tint). Absent for
+  // merged renders and for split-by-source units (single-group case).
+  groupIndex?: number;
 }
 
 export interface CellRender {
@@ -73,23 +82,43 @@ export function selectCellRender(panel: Panel): CellRender {
         units: [scopeGroupToUnit('m1', g)]
       };
     }
-    // Multi-scope merged. The Panel host issues exactly one query that
-    // unions the groups. We still return one CellRenderUnit so the host
-    // can drive a single Cell; the union is encoded in the unit's
-    // probeIds/sourceIds for endpoints that consume CSV lists, and the
-    // CoOccurrence host translates the same data into a POST descriptor.
+    // Phase 122k §11 finding — merged composition with multiple groups
+    // produces ONE Cell PER group. Within each Cell, the group's sources
+    // merge into a single chart (composition='merged' is forwarded to
+    // the Cell). The ScopeGroups themselves remain side-by-side as
+    // group-cells; only sources INSIDE a group are unioned.
     return {
       strategy: 'merged-multi',
-      units: [scopeGroupsToUnionUnit('mN', groups)]
+      units: groups.map((g, i) => ({ ...scopeGroupToUnit(`mg${i}`, g), groupIndex: i }))
+    };
+  }
+
+  // Phase 122k §14c finding 2 — `overlay` composition. The Cell receives
+  // the union of sources but renders them as N separate viridis-coloured
+  // lines on a shared canvas (per-source queries, one plot). Multi-group
+  // overlay produces one Cell per group (like merged-multi), each
+  // overlaying its group's sources.
+  if (panel.composition === 'overlay') {
+    if (groups.length === 1) {
+      const g = groups[0]!;
+      return {
+        strategy: 'overlay',
+        units: [scopeGroupToUnit('o1', g)]
+      };
+    }
+    return {
+      strategy: 'overlay',
+      units: groups.map((g, i) => ({ ...scopeGroupToUnit(`og${i}`, g), groupIndex: i }))
     };
   }
 
   // split composition
   if (groups.length > 1) {
-    // One Cell per ScopeGroup.
+    // One Cell per ScopeGroup. Each unit carries its source group's
+    // index so the PanelHost can visually distinguish the groups.
     return {
       strategy: 'split',
-      units: groups.map((g, i) => scopeGroupToUnit(`g${i}`, g))
+      units: groups.map((g, i) => ({ ...scopeGroupToUnit(`g${i}`, g), groupIndex: i }))
     };
   }
 
@@ -140,34 +169,6 @@ function scopeGroupToUnit(key: string, g: ScopeGroup): CellRenderUnit {
     scopeId: g.probeIds[0] ?? '',
     probeIds: g.probeIds,
     sourceIds: g.sourceIds
-  };
-}
-
-function scopeGroupsToUnionUnit(key: string, groups: readonly ScopeGroup[]): CellRenderUnit {
-  const probeSeen = new Set<string>();
-  const sourceSeen = new Set<string>();
-  const probeIds: string[] = [];
-  const sourceIds: string[] = [];
-  for (const g of groups) {
-    for (const p of g.probeIds) {
-      if (!probeSeen.has(p)) {
-        probeSeen.add(p);
-        probeIds.push(p);
-      }
-    }
-    for (const s of g.sourceIds) {
-      if (!sourceSeen.has(s)) {
-        sourceSeen.add(s);
-        sourceIds.push(s);
-      }
-    }
-  }
-  return {
-    key,
-    scope: 'probe',
-    scopeId: probeIds[0] ?? '',
-    probeIds,
-    sourceIds
   };
 }
 
@@ -264,6 +265,39 @@ export function buildDfEntryUrl(params: BuildEntryUrlParams & { lockedFunction: 
  */
 export function buildFreeComposeUrl(params: BuildEntryUrlParams): string {
   return buildPillarUrl(params);
+}
+
+/**
+ * Phase 122k — Build a default Panel from a list of ScopeGroups. Used by
+ * the ScopeEditor in create-mode (workbench-page F2, +Panel F3) to turn
+ * the editor's draft into a Panel that the addPanel mutator can append.
+ */
+export function buildPanelFromScopes(
+  scopes: readonly ScopeGroupType[],
+  opts: {
+    view?: ViewModeType;
+    metric?: string;
+    layer?: DataLayer;
+    lockedFunction?: string | null | undefined;
+  } = {}
+): PanelType {
+  const panel: PanelType = {
+    scopes: scopes.map((g) => ({ probeIds: [...g.probeIds], sourceIds: [...g.sourceIds] })),
+    // Phase 122k §11 finding — Split is the more informative default
+    // (per-source small-multiples reveal heterogeneity); merge collapses
+    // multi-source scopes into a single aggregate, which makes sense
+    // when the user explicitly asks for the union but not as a default.
+    composition: 'split',
+    view: opts.view ?? 'time_series',
+    metric: opts.metric ?? 'sentiment_score_sentiws',
+    layer: opts.layer ?? 'gold'
+  };
+  if (opts.lockedFunction) {
+    panel.locked = true;
+    panel.lockedReason = 'df_entry';
+    panel.lockedFunction = opts.lockedFunction;
+  }
+  return panel;
 }
 
 interface BuildPillarUrlOpts extends BuildEntryUrlParams {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  // CellControls — Phase 122h Findings round 2 §F1.
+  // PanelControls — Phase 122h Findings round 2 §F1.
   //
   // Per-cell control strip used by every Pillar Shell. Exposes the four
   // levers that define the active cell of the View-Mode Matrix:
@@ -61,15 +61,24 @@
   const isPanelBound = $derived(boundPanel !== null);
   const isPanelLocked = $derived(boundPanel?.locked === true);
 
+  // Phase 122k F5 — per-Panel window. The dateWindow derives from the
+  // bound panel's own windowStart/windowEnd when set; otherwise falls
+  // back to the global url.from/url.to. The Window date inputs below
+  // mutate panel.windowStart/windowEnd via updatePanel.
   const dateWindow = $derived.by(() => {
     const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = url.to ? Date.parse(url.to) : now;
+    const panelStart = boundPanel?.windowStart;
+    const panelEnd = boundPanel?.windowEnd;
+    const fromSrc = panelStart ?? url.from;
+    const toSrc = panelEnd ?? url.to;
+    const fromMs = fromSrc ? Date.parse(fromSrc) : now - DEFAULT_LOOKBACK_MS;
+    const toMs = toSrc ? Date.parse(toSrc) : now;
     return {
       startDate: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS)
         .toISOString()
         .slice(0, 10),
-      endDate: new Date(Number.isFinite(toMs) ? toMs : now).toISOString().slice(0, 10)
+      endDate: new Date(Number.isFinite(toMs) ? toMs : now).toISOString().slice(0, 10),
+      isPanelOverride: panelStart !== undefined || panelEnd !== undefined
     };
   });
 
@@ -82,12 +91,8 @@
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
-  const activeMetric = $derived(
-    boundPanel ? boundPanel.metric : (url.metric ?? DEFAULT_METRIC_NAME)
-  );
-  const activeLayer = $derived<'gold' | 'silver'>(
-    boundPanel ? boundPanel.layer : url.layer === 'silver' ? 'silver' : 'gold'
-  );
+  const activeMetric = $derived(boundPanel ? boundPanel.metric : DEFAULT_METRIC_NAME);
+  const activeLayer = $derived<'gold' | 'silver'>(boundPanel ? boundPanel.layer : 'gold');
   const activeNormalization = $derived<Normalization>(
     boundPanel ? (boundPanel.normalization ?? 'raw') : (url.normalization ?? 'raw')
   );
@@ -106,8 +111,8 @@
   const activePresentation = $derived(
     lockedView
       ? (presentations.find((p) => p.id === lockedView) ??
-          resolvePresentation(boundPanel?.view ?? url.viewMode, pillar))
-      : resolvePresentation(boundPanel?.view ?? url.viewMode, pillar)
+          resolvePresentation(boundPanel?.view ?? null, pillar))
+      : resolvePresentation(boundPanel?.view ?? null, pillar)
   );
 
   // Per-view capability flags (Phase 122h Findings round 3). Cells that
@@ -138,25 +143,22 @@
     if (name === activeMetric) return;
     if (panelPath) {
       updatePanel(panelPath, (p) => ({ ...p, metric: name }));
-      return;
     }
-    setUrl({ metric: name });
+    // Phase 122k: metric/view/layer are panel-state only. No-op when no
+    // panel context (the empty-state path will be wired in K3 to open the
+    // ScopeEditor instead of rendering PanelControls).
   }
   function pickView(id: ViewMode) {
     if (id === activePresentation.id) return;
     if (panelPath) {
       updatePanel(panelPath, (p) => ({ ...p, view: id }));
-      return;
     }
-    setUrl({ viewMode: id });
   }
   function pickLayer(next: 'gold' | 'silver') {
     if (next === activeLayer) return;
     if (panelPath) {
       updatePanel(panelPath, (p) => ({ ...p, layer: next }));
-      return;
     }
-    setUrl({ layer: next === 'silver' ? 'silver' : null });
   }
   function pickNorm(next: Normalization) {
     if (next === activeNormalization) return;
@@ -179,7 +181,7 @@
     }
     setUrl({ resolution: next });
   }
-  function pickComposition(next: 'merged' | 'split') {
+  function pickComposition(next: 'merged' | 'split' | 'overlay') {
     if (!panelPath || !boundPanel) return;
     if (boundPanel.composition === next) return;
     updatePanel(panelPath, (p) => ({ ...p, composition: next }));
@@ -195,6 +197,32 @@
     updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: next }));
   }
 
+  // Phase 122k F5 — Window date handlers. Both write to the bound panel's
+  // own windowStart/windowEnd; when the panel has no override yet the
+  // write installs one. Clearing the override (returning to global
+  // default) is exposed via the "Reset to default window" button.
+  function pickWindowStart(value: string) {
+    if (!panelPath || !value) return;
+    const iso = new Date(value).toISOString();
+    if (Number.isNaN(Date.parse(iso))) return;
+    updatePanel(panelPath, (p) => ({ ...p, windowStart: iso }));
+  }
+  function pickWindowEnd(value: string) {
+    if (!panelPath || !value) return;
+    const iso = new Date(value).toISOString();
+    if (Number.isNaN(Date.parse(iso))) return;
+    updatePanel(panelPath, (p) => ({ ...p, windowEnd: iso }));
+  }
+  function resetWindowToGlobal() {
+    if (!panelPath) return;
+    updatePanel(panelPath, (p) => {
+      const out = { ...p };
+      delete out.windowStart;
+      delete out.windowEnd;
+      return out;
+    });
+  }
+
   const activeSplitDirection = $derived<'horizontal' | 'vertical'>(
     boundPanel?.splitDirection ?? 'horizontal'
   );
@@ -203,95 +231,122 @@
 
 <section
   class="cell-controls"
-  aria-label="Cell controls"
+  aria-label="Panel controls"
   class:locked={isPanelLocked}
   class:collapsed={isCollapsed}
 >
   {#if isPanelBound && boundPanel}
-    <!-- Phase 122i revision (C4). Header bar with the collapse toggle is
-         always visible so the user can re-open a collapsed strip. The
-         locked banner sits on the same line for compactness. -->
-    <header class="cell-controls-header">
+    <!-- Phase 122k §14 — full-header click toggles collapse (not just
+         the mini chevron). Header always rendered so a collapsed strip
+         can be re-opened. -->
+    <button
+      type="button"
+      class="cell-controls-header"
+      aria-expanded={!isCollapsed}
+      aria-label={isCollapsed ? 'Expand panel controls' : 'Collapse panel controls'}
+      onclick={toggleCollapsed}
+    >
       {#if isPanelLocked && boundPanel}
         <span class="locked-banner" role="status">
           🔒 Scope locked to
           <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong>'s sources
         </span>
       {:else}
-        <span class="header-eyebrow">Cell controls</span>
+        <span class="header-eyebrow">Panel controls</span>
       {/if}
-      <button
-        type="button"
+      <span
         class="collapse-toggle"
-        aria-expanded={!isCollapsed}
-        aria-label={isCollapsed ? 'Expand cell controls' : 'Collapse cell controls'}
-        title={isCollapsed ? 'Expand cell controls' : 'Collapse cell controls'}
-        onclick={toggleCollapsed}
+        class:expanded={!isCollapsed}
+        aria-hidden="true"
+        title={isCollapsed ? 'Expand panel controls' : 'Collapse panel controls'}
       >
         {isCollapsed ? '▾' : '▴'}
-      </button>
-    </header>
+      </span>
+    </button>
   {/if}
 
   {#if isPanelBound && boundPanel && !isCollapsed}
     <!-- Phase 122i revision (B1): Composition row appears whenever
-         CellControls is bound to a Panel — including locked panels.
+         PanelControls is bound to a Panel — including locked panels.
          `locked` is scope-only; the user can toggle Merged ↔ Split on
          a DF-entry Workbench freely. The legacy global-state path
          (boundPanel === null) has no composition concept and the row
          is hidden. -->
-    <div class="ctrl-row" role="radiogroup" aria-label="Composition">
-      <span class="ctrl-eyebrow">Composition</span>
-      <div class="ctrl-options">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={boundPanel.composition === 'merged'}
-          class="ctrl-btn"
-          class:active={boundPanel.composition === 'merged'}
-          onclick={() => pickComposition('merged')}
-          title="One Cell aggregates all ScopeGroups in this panel"
-        >
-          Merged
-        </button>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={boundPanel.composition === 'split'}
-          class="ctrl-btn"
-          class:active={boundPanel.composition === 'split'}
-          onclick={() => pickComposition('split')}
-          title="One Cell per source or per ScopeGroup (small-multiples)"
-        >
-          Split
-        </button>
+    <!-- Phase 122k §14c finding 1 — Composition row uses TWO parallel
+         labeled control groups separated by a thin vertical divider.
+         Both labels (Composition / Direction) sit on the same baseline
+         using the standard `ctrl-eyebrow` style. Merged is its own
+         button, never glued to Vertical. -->
+    <div class="ctrl-row composition-row">
+      <div class="comp-group" role="radiogroup" aria-label="Composition">
+        <span class="ctrl-eyebrow">Composition</span>
+        <div class="ctrl-options">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={boundPanel.composition === 'split'}
+            class="ctrl-btn"
+            class:active={boundPanel.composition === 'split'}
+            onclick={() => pickComposition('split')}
+            title="One Cell per source or per ScopeGroup (small-multiples)"
+          >
+            Split
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={boundPanel.composition === 'overlay'}
+            class="ctrl-btn"
+            class:active={boundPanel.composition === 'overlay'}
+            onclick={() => pickComposition('overlay')}
+            title="One Cell — sources rendered as separate viridis-coloured lines on a shared canvas"
+          >
+            Overlay
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={boundPanel.composition === 'merged'}
+            class="ctrl-btn"
+            class:active={boundPanel.composition === 'merged'}
+            onclick={() => pickComposition('merged')}
+            title="One Cell — sources aggregated into a single joint-corpus chart"
+          >
+            Merged
+          </button>
+        </div>
       </div>
+
       {#if boundPanel.composition === 'split'}
-        <!-- Phase 122i revision (D2). Split direction sub-toggle. -->
-        <span class="ctrl-eyebrow ctrl-eyebrow-sub">Direction</span>
-        <div class="ctrl-options" role="radiogroup" aria-label="Split direction">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activeSplitDirection === 'horizontal'}
-            class="ctrl-btn"
-            class:active={activeSplitDirection === 'horizontal'}
-            onclick={() => pickSplitDirection('horizontal')}
-            title="Arrange split cells side-by-side"
-          >
-            ↔ Horizontal
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activeSplitDirection === 'vertical'}
-            class="ctrl-btn"
-            class:active={activeSplitDirection === 'vertical'}
-            onclick={() => pickSplitDirection('vertical')}
-            title="Stack split cells vertically"
-          >
-            ↕ Vertical
-          </button>
+        <div class="comp-divider" aria-hidden="true"></div>
+        <div class="comp-group" role="radiogroup" aria-label="Split direction">
+          <span class="ctrl-eyebrow">Direction</span>
+          <div class="ctrl-options">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeSplitDirection === 'horizontal'}
+              class="ctrl-btn"
+              class:active={activeSplitDirection === 'horizontal'}
+              onclick={() => pickSplitDirection('horizontal')}
+              title="Arrange split cells side-by-side"
+              aria-label="Split direction: horizontal"
+            >
+              ↔ Horizontal
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeSplitDirection === 'vertical'}
+              class="ctrl-btn"
+              class:active={activeSplitDirection === 'vertical'}
+              onclick={() => pickSplitDirection('vertical')}
+              title="Stack split cells vertically"
+              aria-label="Split direction: vertical"
+            >
+              ↕ Vertical
+            </button>
+          </div>
         </div>
       {/if}
     </div>
@@ -373,7 +428,46 @@
       </div>
     {/if}
 
-    <!-- Layer + Vergleich on one row to save vertical space -->
+    <!-- Phase 122k §14 finding 5 — Window is more important than
+         Layer/Compare so it sits above them in the row order. The date
+         inputs have their click events stopped from bubbling so the
+         article-level focus handler doesn't close the native date
+         picker mid-interaction. -->
+    {#if isPanelBound}
+      <div class="ctrl-row" role="group" aria-label="Time window">
+        <span class="ctrl-eyebrow">Window</span>
+        <div class="window-inputs" onclick={(e) => e.stopPropagation()} role="presentation">
+          <input
+            type="date"
+            value={dateWindow.startDate}
+            onchange={(e) => pickWindowStart((e.currentTarget as HTMLInputElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Window start"
+          />
+          <span class="window-sep" aria-hidden="true">→</span>
+          <input
+            type="date"
+            value={dateWindow.endDate}
+            onchange={(e) => pickWindowEnd((e.currentTarget as HTMLInputElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Window end"
+          />
+          {#if dateWindow.isPanelOverride}
+            <button
+              type="button"
+              class="ctrl-btn"
+              onclick={resetWindowToGlobal}
+              title="Drop this panel's window override and inherit the global default"
+            >
+              Reset
+            </button>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Layer + Compare on one row — both are low-frequency controls;
+         grouped to save vertical space. -->
     <div class="ctrl-row ctrl-row-split">
       <div class="ctrl-group" role="radiogroup" aria-label="Data layer">
         <span class="ctrl-eyebrow">Layer</span>
@@ -469,11 +563,31 @@
     border-radius: var(--radius-sm);
   }
 
-  /* Phase 122i revision (C4). Header bar with collapse toggle. */
+  /* Phase 122k §14b finding 4 — clickable header gets a subtle resting
+     background tint plus a stronger hover state so the user reads the
+     full strip as an interactive surface, not just the chevron. */
   .cell-controls-header {
+    appearance: none;
+    background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .cell-controls-header:hover,
+  .cell-controls-header:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-color: var(--color-accent);
+    color: var(--color-fg);
   }
 
   .header-eyebrow {
@@ -486,36 +600,15 @@
 
   .collapse-toggle {
     margin-left: auto;
-    appearance: none;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 1px var(--space-2);
-    color: var(--color-fg);
+    color: var(--color-fg-muted);
     font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    cursor: pointer;
-    line-height: 1.2;
-  }
-
-  .collapse-toggle:hover,
-  .collapse-toggle:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
-    border-color: var(--color-accent);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    padding: 0 var(--space-1);
   }
 
   .cell-controls.collapsed {
     padding-bottom: var(--space-2);
-  }
-
-  /* Phase 122i revision (D2). Sub-eyebrow for the split-direction
-     sub-toggle inside the Composition row. Slightly muted relative to
-     the parent eyebrow. */
-  .ctrl-eyebrow-sub {
-    color: var(--color-fg-subtle);
-    margin-left: var(--space-3);
   }
 
   .ctrl-row {
@@ -523,10 +616,39 @@
     align-items: center;
     gap: var(--space-3);
     flex-wrap: wrap;
+    padding: var(--space-2) 0;
+  }
+  /* Phase 122k §14 finding 5 — subtle vertical separators between rows
+     so the composition / view / metric / window blocks read as discrete
+     control groups. The last row gets no bottom border. */
+  .ctrl-row + .ctrl-row {
+    border-top: 1px dashed color-mix(in srgb, var(--color-border) 50%, transparent);
   }
 
   .ctrl-row-split {
     gap: var(--space-4);
+  }
+
+  /* Phase 122k §14c finding 1 — Composition row layout. Two labeled
+     control groups (Composition / Direction) separated by a thin
+     vertical divider. Direction appears only when Split is active. */
+  .composition-row {
+    align-items: flex-start;
+  }
+  .comp-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .comp-group > .ctrl-options {
+    display: flex;
+    gap: 2px;
+  }
+  .comp-divider {
+    align-self: stretch;
+    width: 1px;
+    background: color-mix(in srgb, var(--color-border) 60%, transparent);
+    margin: 0 var(--space-2);
   }
 
   .ctrl-group {
@@ -611,6 +733,36 @@
     font-size: 10.5px;
     color: var(--color-fg-subtle);
     font-style: italic;
+  }
+
+  .window-inputs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .window-inputs input[type='date'] {
+    appearance: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    padding: 3px var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: text;
+    color-scheme: dark;
+  }
+  .window-inputs input[type='date']:hover,
+  .window-inputs input[type='date']:focus-visible {
+    border-color: var(--color-accent);
+  }
+
+  .window-sep {
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
   }
 
   @media (prefers-reduced-motion: reduce) {

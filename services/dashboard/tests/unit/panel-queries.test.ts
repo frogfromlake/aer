@@ -42,7 +42,10 @@ describe('selectCellRender', () => {
     expect(r.units[0]!.scopeId).toBe('tagesschau');
   });
 
-  it('merged + multiple groups → merged-multi with unioned probes/sources', () => {
+  it('merged + multiple groups → one Cell PER ScopeGroup (Phase 122k §11)', () => {
+    // Phase 122k §11 finding — merged composition with multi-group keeps
+    // each group as its own cell; the merge is INSIDE the group (sources
+    // unioned). The groups themselves render side-by-side.
     const r = selectCellRender(
       panel({
         composition: 'merged',
@@ -50,9 +53,11 @@ describe('selectCellRender', () => {
       })
     );
     expect(r.strategy).toBe('merged-multi');
-    expect(r.units).toHaveLength(1);
-    expect(r.units[0]!.probeIds).toEqual(['probe-0']);
-    expect(r.units[0]!.sourceIds).toEqual(['tagesschau', 'bundesregierung']);
+    expect(r.units).toHaveLength(2);
+    expect(r.units[0]!.groupIndex).toBe(0);
+    expect(r.units[0]!.sourceIds).toEqual(['tagesschau']);
+    expect(r.units[1]!.groupIndex).toBe(1);
+    expect(r.units[1]!.sourceIds).toEqual(['bundesregierung']);
   });
 
   it('split + single group with one source → split with one cell', () => {

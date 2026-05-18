@@ -18,6 +18,7 @@
   // the catalogue accessible.
   import { createQuery } from '@tanstack/svelte-query';
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import {
     probesQuery,
     type FetchContext,
@@ -27,7 +28,6 @@
   import { urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import ProbeCard from '$lib/components/dossier/ProbeCard.svelte';
-  import GeneralFreeComposeSection from '$lib/components/dossier/GeneralFreeComposeSection.svelte';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
@@ -51,15 +51,33 @@
 
   const probeList = $derived<ProbeDto[]>(probesQ.data?.kind === 'success' ? probesQ.data.data : []);
 
-  // Phase 122i revision (R5). If the user landed via `?expand=<id>` the
-  // named probe's card starts expanded; others collapse. If no expand
-  // hint is given AND the catalogue has only one probe, that probe
-  // starts expanded by default (the common single-probe production
-  // case).
+  // Phase 122k K2 — the dossier is now a pure catalogue. When a probe
+  // selection exists (set via Atmos SHIFT-click or the Probe-Filter
+  // Modal), the catalogue auto-filters and auto-expands the selected
+  // probes. Otherwise: a single probe starts expanded (the common
+  // single-probe production case), and a deep-link `?expand=<id>` takes
+  // precedence over both behaviours.
+  function visibleProbeIds(): string[] {
+    if (url.selectedProbes.length > 0) return [...url.selectedProbes];
+    return probeList.map((p) => p.probeId);
+  }
   function startCollapsedFor(probeId: string): boolean {
-    if (expandedProbeId && expandedProbeId !== probeId) return true;
-    if (!expandedProbeId && probeList.length > 1) return true;
-    return false;
+    // Phase 122k — direct Dossier navigation lands with ALL probes
+    // collapsed regardless of catalogue size. Deep-link via `?expand=<id>`
+    // takes precedence; `?selectedProbes=` auto-expands the selected
+    // probes. Plain `/dossier` is read-only catalogue browsing.
+    if (expandedProbeId === probeId) return false;
+    if (expandedProbeId) return true;
+    if (url.selectedProbes.length > 0) return !url.selectedProbes.includes(probeId);
+    return true;
+  }
+  const visibleProbes = $derived<ProbeDto[]>(
+    probeList.filter((p) => visibleProbeIds().includes(p.probeId))
+  );
+
+  function openWorkbench() {
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
+    void goto('/workbench');
   }
 </script>
 
@@ -73,12 +91,29 @@
     <h1 class="dossier-title">Atmospheric record of AĒR's probes</h1>
     <p class="dossier-lede">
       The complete catalogue of probes AĒR observes. Inside each card: sources, function coverage,
-      and probe-internal composition. Above the catalogue: General Free-Compose, the only way to
-      compose across probes.
+      metadata-coverage matrix. To analyse, open the Workbench's ScopeEditor — pre-seeded from your
+      probe selection when present.
     </p>
   </header>
 
-  <GeneralFreeComposeSection {ctx} windowStart={windowMs.start} windowEnd={windowMs.end} />
+  <!-- Phase 122k F1 — Top-banner CTA. Single Workbench entry; selection
+       configuration happens on the Atmosphere (SHIFT-click) or via the
+       Probe-Filter Modal in the SideRail (K3). -->
+  <section class="banner" aria-labelledby="banner-heading">
+    <div class="banner-content">
+      <h2 id="banner-heading">Browse the catalogue · analyse in the Workbench</h2>
+      <p class="lede">
+        {#if url.selectedProbes.length > 0}
+          {url.selectedProbes.length} probe{url.selectedProbes.length === 1 ? '' : 's'} selected. The
+          Workbench will open with the ScopeEditor pre-seeded.
+        {:else}
+          Configure a scope in the Workbench's ScopeEditor. Sources, probes, and discourse-function
+          restrictions are all editable there.
+        {/if}
+      </p>
+    </div>
+    <button type="button" class="cta" onclick={openWorkbench}>Open Workbench →</button>
+  </section>
 
   <section class="probes-section" aria-label="Probe catalogue">
     <header class="probes-section-header">
@@ -91,9 +126,14 @@
       <p class="error">Could not load the probe catalogue. Check network connectivity.</p>
     {:else if probeList.length === 0}
       <p class="muted">No probes in the catalogue yet.</p>
+    {:else if visibleProbes.length === 0}
+      <p class="muted">
+        No probes match the current selection. Adjust your selection on the Atmosphere or in the
+        Probe-Filter modal.
+      </p>
     {:else}
       <div class="probe-cards">
-        {#each probeList as probe (probe.probeId)}
+        {#each visibleProbes as probe (probe.probeId)}
           <ProbeCard
             {probe}
             {ctx}
@@ -169,6 +209,48 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-accent);
+    border-radius: var(--radius-md);
+  }
+  .banner-content {
+    flex: 1 1 auto;
+  }
+  .banner-content h2 {
+    margin: 0 0 var(--space-1) 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-fg);
+  }
+  .lede {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    max-width: 48rem;
+  }
+  .cta {
+    appearance: none;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .cta:hover,
+  .cta:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
   }
 
   .muted {

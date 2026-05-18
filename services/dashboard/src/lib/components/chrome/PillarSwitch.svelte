@@ -27,7 +27,7 @@
   // flat URLs in `?viewingMode=`. Reading only `viewingMode` (Phase-122h
   // behaviour) made the tiles permanently show Aleph as active under
   // pillar-state URLs.
-  const activeId = $derived<ViewingMode>(url.activePillar ?? url.viewingMode ?? 'aleph');
+  const activeId = $derived<ViewingMode>(url.activePillar ?? 'aleph');
   const activeDef = $derived(getPillar(activeId));
 
   // Keyboard shortcuts. Only active when no input/textarea has focus —

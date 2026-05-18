@@ -28,7 +28,8 @@ def _bronze_payload() -> bytes:
 def _wire_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter):
     registry = AdapterRegistry({"legacy": LegacyAdapter(), "rss": adapter})
     processor = DataProcessor(
-        mock_minio, mock_clickhouse, mock_pg_pool, registry, [WordCountExtractor()]
+        mock_minio, mock_clickhouse, mock_pg_pool, registry, [WordCountExtractor()],
+        analytical_window_days=100_000,
     )
     mock_response = MagicMock()
     mock_response.read.return_value = _bronze_payload()

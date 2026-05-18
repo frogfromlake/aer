@@ -6,7 +6,7 @@
   //
   //   - **Grid mode** (default): all panels in a CSS-grid raster (C1).
   //     Up to 4 columns, wraps to next row at panel 5. Each panel is
-  //     focusable; the focused panel hosts CellControls.
+  //     focusable; the focused panel hosts PanelControls.
   //
   //   - **Maximize mode** (R4): when `window.maximizedPanelIndex` is set
   //     (R2 URL-state field), only the maximized panel renders at full
@@ -23,9 +23,14 @@
     type PillarState,
     type ViewingMode
   } from '$lib/state/url-internals';
-  import { addPanel, setMaximizedPanel } from '$lib/workbench/panel-mutators';
+  import { addPanel, setMaximizedPanel, setPanelsPerRow } from '$lib/workbench/panel-mutators';
+  import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
+  import type { ScopeGroup } from '$lib/state/url-internals';
+  import type { DiscourseFunction } from '$lib/discourse-function';
   import PanelHost from './PanelHost.svelte';
-  import WorkbenchDatasetShape from './WorkbenchDatasetShape.svelte';
+  import ScopeEditor from './ScopeEditor.svelte';
+  // Phase 122k §14b finding 2 — WorkbenchDatasetShape retired here; the
+  // per-panel `PanelMetaStrip` surfaces scope info inside each panel.
 
   interface Props {
     pillar: ViewingMode;
@@ -63,12 +68,25 @@
   });
   const isMaximizing = $derived(maximizedPanelIndex !== null);
 
+  // Phase 122k F3 — `+ Panel` opens the ScopeEditor in create mode. On
+  // Apply the editor's draft becomes a fresh Panel which is appended to
+  // the active window via the addPanel mutator (with the template arg).
+  let addPanelEditorOpen = $state(false);
+
   function onAddPanel() {
-    addPanel(pillar);
+    addPanelEditorOpen = true;
+  }
+
+  function applyNewPanel(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) {
+    const template = buildPanelFromScopes(scopes, {
+      lockedFunction: lockedFunction ?? undefined
+    });
+    addPanel(pillar, template);
+    addPanelEditorOpen = false;
   }
 
   function pickTrayPanel(i: number) {
-    // Swap maximize target. Also focuses the panel so CellControls
+    // Swap maximize target. Also focuses the panel so PanelControls
     // follows automatically.
     setMaximizedPanel(pillar, activeWindowIndex, i);
   }
@@ -103,11 +121,6 @@
   data-panel-count={panelCount}
   class:maximizing={isMaximizing}
 >
-  <!-- Phase 122i revision (A4 generalised). Dataset-shape strip lives
-       at WindowHost level so every Pillar (Aleph, Episteme, Rhizome)
-       gets the same scope-correct status row, not just Aleph. -->
-  <WorkbenchDatasetShape {pillarState} {dossier} />
-
   {#if !activeWindow || panelCount === 0}
     <p class="muted">This window has no panels.</p>
   {:else if isMaximizing && maximizedPanelIndex !== null}
@@ -168,7 +181,52 @@
       {/if}
     {/if}
   {:else}
-    <div class="panel-grid" data-cols={Math.min(panelCount, 4)}>
+    {@const ppr = activeWindow.panelsPerRow ?? null}
+    <!-- Phase 122k §14b finding 3 — actions strip ABOVE the panels.
+         `+ Panel` is the most-used affordance after panel configuration;
+         placing it on top keeps it visible without scrolling. -->
+    <div class="window-actions window-actions-top">
+      <button
+        type="button"
+        class="window-action window-action-primary"
+        onclick={onAddPanel}
+        disabled={!canAddPanel}
+        title={canAddPanel
+          ? 'Add a new panel via the ScopeEditor'
+          : `Maximum ${MAX_PANELS_PER_WINDOW} panels per window`}
+      >
+        ＋ Panel
+      </button>
+      <span class="window-action-spacer"></span>
+      <span class="ppr-eyebrow">Panels per row</span>
+      <div class="ppr-row" role="radiogroup" aria-label="Panels per row">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={ppr === null}
+          class="ppr-btn"
+          class:active={ppr === null}
+          onclick={() => setPanelsPerRow(pillar, activeWindowIndex, null)}
+          title="Auto-fit (wraps at the panel-minimum width)"
+        >
+          auto
+        </button>
+        {#each [1, 2, 3, 4] as n (n)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={ppr === n}
+            class="ppr-btn"
+            class:active={ppr === n}
+            onclick={() => setPanelsPerRow(pillar, activeWindowIndex, n)}
+            title="{n} panel{n === 1 ? '' : 's'} per row"
+          >
+            {n}
+          </button>
+        {/each}
+      </div>
+    </div>
+    <div class="panel-grid" class:fixed-cols={ppr !== null} style:--cols={ppr ?? ''}>
       {#each activeWindow.panels as panel, i (i)}
         <PanelHost
           {panel}
@@ -186,21 +244,17 @@
         />
       {/each}
     </div>
-    <div class="window-actions">
-      <button
-        type="button"
-        class="window-action"
-        onclick={onAddPanel}
-        disabled={!canAddPanel}
-        title={canAddPanel
-          ? 'Duplicate the focused panel for side-by-side comparison'
-          : `Maximum ${MAX_PANELS_PER_WINDOW} panels per window`}
-      >
-        ＋ Panel
-      </button>
-    </div>
   {/if}
 </section>
+
+{#if addPanelEditorOpen}
+  <ScopeEditor
+    {dossier}
+    {ctx}
+    onApply={applyNewPanel}
+    onCancel={() => (addPanelEditorOpen = false)}
+  />
+{/if}
 
 <style>
   .window-host {
@@ -222,6 +276,13 @@
     grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
     gap: var(--space-4);
     align-items: stretch;
+  }
+
+  /* Phase 122k §14 finding 6 — fixed columns. The user picks N panels
+     per row via the `Panels per row` toggle; CSS picks up the value via
+     the `--cols` CSS custom property. */
+  .panel-grid.fixed-cols {
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   }
 
   /* Phase 122i revision (C3). Maximize-mode layout. */
@@ -324,16 +385,88 @@
     border-color: var(--color-accent);
   }
 
+  /* Phase 122k §14c finding 3 — Panels-per-row toggle: prominenter so
+     it reads as a peer to the `+ Panel` primary button. */
+  .ppr-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-muted);
+  }
+  .ppr-row {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .ppr-btn {
+    appearance: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+    padding: 6px var(--space-3);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 2.25rem;
+  }
+  .ppr-btn:hover,
+  .ppr-btn:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+  }
+  .ppr-btn.active {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+  .window-action-spacer {
+    flex: 1 1 auto;
+  }
+
   .window-actions {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    gap: var(--space-3);
     margin-top: var(--space-2);
+  }
+
+  /* Phase 122k §14b finding 3 — top action strip above the panel grid. */
+  .window-actions-top {
+    margin-top: 0;
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  /* Phase 122k §14c — `+ Panel` is the user's most common next-step.
+     Subtly highlighted with the AĒR-türkis accent, solid border, slight
+     shadow + font-weight bump so it reads unambiguously as a button. */
+  .window-action-primary {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border: 1px solid var(--color-accent);
+    border-style: solid;
+    font-weight: 700;
+    padding: var(--space-2) var(--space-4);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .window-action-primary:hover:not(:disabled),
+  .window-action-primary:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   }
 
   .window-action {
     appearance: none;
     background: transparent;
-    border: 1px dashed var(--color-border);
+    border: 1px solid var(--color-border-strong);
     border-radius: var(--radius-sm);
     padding: var(--space-2) var(--space-3);
     color: var(--color-fg);

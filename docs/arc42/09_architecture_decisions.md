@@ -2234,486 +2234,256 @@ many platform classes for a solo-dev project.
 
 ---
 
-## ADR-033: Dashboard Architecture Reframing — Three Pillars as Workbench Configurations (Phase 122h)
+## ADR-033: Four-Surface Dashboard Architecture — Atmosphere · Dossier · Workbench · Reflection
 
 **Status:** Accepted
-**Date:** 2026-05-15
-**Supersedes:** parts of ADR-020 (Implementation Outline §Surface II "Function Lanes", §Surface IV "Composition Workspace", §Methodology Tray right-edge dock). ADR-020's technology-stack decisions (SvelteKit, three.js, D3-force, Observable Plot, OpenAPI codegen, OTel wiring, performance budgets) are **preserved unchanged**.
-**Superseded by:** None
-**Related ADRs:** ADR-020 (Frontend Stack — preserved), ADR-024 (Language Capability Manifest), ADR-028 (Web Crawling), ADR-029 (Metadata Coverage), ADR-030 (Per-Article Discourse Function), ADR-031 (DiscoveryProtocol)
-**Related WPs:** WP-001 (Discourse Function Taxonomy), WP-005 §6 (Pillars as Temporal Stances), WP-006 (Reflexive Architecture)
-**Authority:** Working Papers + Manifesto §1.2 are the source of truth for what the pillars *mean*. The Design Brief (`docs/design/design_brief.md`) is preserved for visual tokens, typography, color, Epistemic Weight, Progressive Semantics, and Refusal patterns — its surface-architecture and chrome decisions are partially superseded by this ADR.
-
----
-
-### Context
-
-After Iterations 5–7 (Phases 105 through 122g) the dashboard surface has reached a coherent feature set but exhibits five structural problems that the existing Brief and ADR-020 do not solve:
-
-1. **The three pillars (Aleph, Episteme, Rhizome) feel identical to the user.** They are implemented as a sub-toggle inside Surface II ("Function Lanes"), with all three rendering the same `FunctionLaneShell.svelte` and swapping only the active Cell. WP-005 §6 commits the pillars to three fundamentally different analytical stances — synchronic / diachronic / relational. The current implementation reduces them to a chart-picker.
-
-2. **Discourse function (EA / PL / CI / SF) is encoded as a path segment** (`/lanes/{probeId}/{functionKey}`) and behaves as a separate page per function. Pillar lives as a query parameter. Scope lives as further query parameters. The user cannot read the relationship between a source and its discourse function from the UI directly, and the lane-as-route grammar prevents multi-function composition.
-
-3. **Cognitive overload in the chrome.** The `LensBar` carries five axes (Function / Layer / Metric / View / Normalization) with equal visual weight, plus a separate Pillar-Switch (in both the SideRail and the in-lane "Pillar Identity Strip"), plus a Probe-Picker in the SideRail that overlaps with the Scope-Bar editing surface. Controls are sometimes located far from their effect (Resolution sits in chrome but only some panels honour it).
-
-4. **The committed four-surface plan (Atmosphäre / Function Lanes / Reflexion / Composition Workspace) is a symptom, not a solution.** Phase 125 explicitly hides the Pillar concept inside the Composition Workspace because the relational/free-composition mode does not fit the Function-Lane shell. The Composition Workspace *is* Rhizome by every WP-005 definition (relational substrate, non-linear propagation, Kriesel-style exploratory canvas). Making it a fourth surface duplicates chrome and confuses the analytical model.
-
-5. **Methodology has multiple homes and discoverable presentations.** The right-edge MethodologyTray was retired in Phase 124b; an inline accordion below the Cell currently serves Surface II; Surface III has its own renderers; refusal surfaces carry their own embedded methodology references. The same scientific content is reachable through three structurally different affordances.
-
-The Reframing Note (`docs/design/reframing-note.md`, 2026-04-24) corrected one axis of these problems (demote the globe, navigation primacy, probe-first selection on the Atmosphäre). Iteration 5 implemented its Path A. The underlying *pillar-as-toggle vs surface-as-room* inversion was not resolved at that point and is the subject of this ADR.
-
-User design-review session 2026-05-15 with frontend critique confirmed the diagnosis: *"die drei Pillars sind die Kernphilosophie und müssen sauber präsentiert werden. Das Sidemenu und die drei sich ähnelnden Seiten finde ich nicht gelungen."* The session also established the constraint that ROADMAP is partially outdated for dashboard work — current code + WPs are SoT, ROADMAP is informational.
+**Date:** 2026-05-18 (Phase 122k baseline — supersedes prior 122h/122i amendments)
+**Related ADRs:** ADR-020 (Frontend stack — preserved), ADR-024 (Language Capability Manifest), ADR-029 (Metadata Coverage), ADR-030 (Per-Article Discourse Function), ADR-031 (DiscoveryProtocol), ADR-034 (Multi-Panel Workbench).
+**Related WPs:** WP-001 (Discourse Function Taxonomy), WP-005 §6 (Pillars as Temporal Stances), WP-006 (Reflexive Architecture).
+**Authority:** The Working Papers define what the pillars *mean*; this ADR defines how the dashboard renders them.
 
 ---
 
 ### Decision
 
-**(1) Three surfaces, not four.** The committed four-surface plan is rejected.
+The dashboard exposes **four top-level surfaces** in the SideRail, each with a distinct purpose. No surface duplicates another's affordances.
 
-* **Atmosphäre** (unchanged) — 3D globe; primary probe-discovery and probe-selection surface. Surface I is preserved exactly as Phase 110/113c left it.
-* **Workbench** — the analytical surface, with three Pillar configurations selected by an in-Workbench Pillar-Switch.
-* **Reflexion** (unchanged) — Working Papers, primers, open research questions, per-metric provenance pages.
+#### Atmosphere (`/`)
 
-A **Probe Dossier** is an Aleph-form inspection page that lives between Atmosphäre and Workbench; it is reached by clicking a probe glyph on the globe. The Dossier is not a fourth surface — it is the inventory step of Atmosphäre's Aleph-as-discovery flow.
+3D globe. Primary probe-discovery surface. Three interactions:
 
-The **Composition Workspace (Phase 125) is absorbed into the Rhizome Pillar of the Workbench.** Card palette (Metric / Entity / Topic / Probe / Source), Edge palette (CoOccurrence / LeadLag / TopicScope / Equivalence), the D3-force canvas, the refusal-as-connection pattern, and the URL-encoded layout state all land inside Rhizome's "Freie Komposition" entry-question. The `/compose` route is dropped; the SideRail anchor for it is never created.
+* **Single-click on a probe glyph** → navigate to `/dossier?expand=<probeId>`. Probe-of-interest opens in the Dossier.
+* **SHIFT-click on a probe glyph** → toggle membership in `?selectedProbes=…`. Atmosphere stays on screen; a floating Selection-Bar at the bottom shows "N probes selected · [View in Dossier] [Open Workbench →] [Clear]".
+* **Globe orientation + Negative-Space overlay** — pre-existing affordances; unchanged by Phase 122k.
 
-**(2) Pillars become Workbench configurations with three distinct geometries.** Inside the Workbench, the pillars are not a chart-picker — they are three structurally different layouts that consume the same scope.
+#### Dossier (`/dossier`)
 
-* **Aleph** — *"Was ist jetzt da?"* — single focus-Cell over the full Workbench width with an optional Dataset-Shape strip above (probe count, source count, article count, language mix, coverage indicator). Parallel side-by-side Cells with independent scales for composition without ranking (Brief §1.3). No time-axis dominance. Heimat for `/metrics`, `/metrics/{name}/distribution`, `/metrics/{name}/heatmap`, `/languages`, and the Probe Coverage Map from Phase 123a.
-* **Episteme** — *"Wie hat es sich verschoben?"* — vertically stacked Strata sharing a single bottom-anchored time axis. Each Stratum is a Cell with its own metric, comparison mode, layer, and rendering. The shared time axis means Resolution is global within Episteme (one knob, all strata snap). Vergleichsmodus, Layer, Top-N, Darstellung are per-Stratum. Heimat for `/metrics` time-series, `/metrics/correlation` (when temporal), `/topics/distribution` evolution, Phase 124's cross-probe lead-lag.
-* **Rhizome** — *"Wie hängt es zusammen?"* — full-canvas force-directed graph. Rhizome renders an opinionated default view per entry-question: *Akteure & Themen* (entity co-occurrence — default), *Quellen-Resonanz* (topic-distribution × source), *Begriffs-Wanderung* (cross-probe lead-lag; requires Phase 124 to be productive), *Freie Komposition* (Phase 125 full canvas). The Pillar-Switch tile carries a breadcrumb (`◇ RHIZOME › Akteure & Themen`) for the active sub-view and an explicit "andere Frage wählen" affordance.
+The catalogue of probes AĒR observes. **Pure read surface** (Phase 122k retired all scope-building duties — those now live exclusively in the Workbench's ScopeEditor).
 
-The Pillar-Switch is rendered as three equally-prominent tiles at the top of the Workbench, each carrying the pillar's German question (`Was ist jetzt da?` / `Wie hat es sich verschoben?` / `Wie hängt es zusammen?`) and a one-line plain-language explanation below the active tile. The intellectually-precise Borges / Foucault / Deleuze framing lives behind the ⓘ hover-card and as long-form text in Reflexion. *Most people do not know the original terms; the UI must teach them passively without losing precision (Manifesto §1.2, WP-006 §3 reflexive transparency).*
+* Top-banner: identity copy + `[Open Workbench →]` CTA (the only Workbench invitation from this page). The banner reads `url.selectedProbes` and announces "N probes selected — the Workbench will open with the ScopeEditor pre-seeded" when non-empty.
+* `ProbeCard` per probe — collapsable container. Header carries `[→ Analyse in Workbench]` (single-probe drill flow, bypasses the selection set) + `[Metadata coverage]` (opens `MetadataCoverageModal`).
+* Inside each ProbeCard: emic-frame paragraph, structural meta (sources / publication rate / function coverage), **DF-Cards as expandable containers** — each discourse function (Epistemic Authority / Power Legitimation / Cohesion & Identity / Subversion & Friction) is a collapsable card whose body holds the Source-Cards classified under that primary function.
+* `/dossier?expand=<probeId>` deep-links to a specific Probe Card.
+* `/dossier?selectedProbes=a,b,c` filters the catalogue to those probes and auto-expands them.
+* Metadata Coverage is rendered as a focused modal (the matrix is 22 fields × N sources — dense enough to warrant modal focus).
 
-**(3) Scope is a single truth, edited at three natural homes.**
+#### Workbench (`/workbench`)
 
-Scope spans **Probes × Sources × Functions × Time-Window**. It is one object, shared across all three Pillars.
+AĒR's analytical surface. State tree per ADR-034: `Pillar → Window → Panel → ScopeGroup`. The page auto-opens the **ScopeEditor** in create-mode when no pillar state is present, seeded from `url.selectedProbes` when set. After Apply, the resulting Panel renders normally; Cancel leaves the user on a minimal empty state with a re-open affordance.
 
-* **Probes** are selected on the Atmosphäre (Globe click; Shift+click for multi-probe composition).
-* **Sources** are selected in the Probe Dossier (click on Source-Cards, multi-select).
-* **Functions** are selected in the Workbench Scope-Bar as filter-chips, with the unified Function-Badge (colored dot + abbreviation + full label + ⓘ).
-* **Time-Window** is set in the Workbench Scope-Bar.
+* `PillarSwitch` at the top — Aleph / Episteme / Rhizome tiles.
+* `WorkbenchScopeBar` — reads the focused Panel's resolved scope and surfaces it as chip rows (Probes / Sources / Functions / Window). Per-Panel state, not probe-wide aggregates.
+* Pillar Shell body — `WindowHost` orchestrates the Panel raster; `PanelHost` renders each Panel; the focused Panel binds `PanelControls` (Phase 122k F6 rename of `CellControls`).
+* Per-Panel `[⚙ Edit scope]` button in the Panel header reopens the ScopeEditor for that Panel.
+* `+Panel` opens the ScopeEditor in create-mode; Apply appends a fresh Panel to the active Window.
 
-The Workbench Scope-Bar is the unified editing place — anything can be edited or removed there. The natural-home selection points (Globe for probes, Dossier for sources) are the *primary entry paths*, not the *only places*. The Probe Picker in the SideRail (a duplicate editing affordance) is removed; the rail shows only a status indicator (e.g. `⊙ Probes 2/4`).
+#### Reflection (`/reflection/*`)
 
-**Per-article discourse function (Phase 122a) is exposed as a per-Cell Sub-Stratum toggle**, not as a second Function-axis in the Scope-Bar. Source-level function remains the primary frame; article-level classification adds Sub-Stratum detail when the user wants it. Reasoning: a Tagesschau Bundesliga article *is* an Epistemic-Authority act in the discourse sense (the fact that an authority covers Bundesliga is itself discourse information); the per-article classifier shows the content stratification *within* that frame, not against it. This avoids the "divergence" framing entirely and treats both layers as simultaneously true.
-
-**(4) Function ↔ Source visual link via one unified Badge.**
-
-A single Function-Badge primitive is used wherever a function appears: colored dot + abbreviation (EA / PL / CI / SF) + full label + ⓘ-anchor to WP-001 §3. The Badge is visually identical across:
-
-* Source-Cards in the Probe Dossier (prominently on the card)
-* Workbench Scope-Bar (as Function-Chips with source counts per function)
-* Cell Headers in each Pillar (small filter-strip; suppressed when "all functions" active)
-
-A small **Function-Coverage Strip** sits at the top of the Probe Dossier showing which sources cover which functions, with click-to-highlight binding the abstract function to the concrete sources. Function explanations are sourced from one place (`/content/discourse_function/{key}` + `/reflection/wp/wp-001?section=3`); no duplicated descriptions in the UI.
-
-**(5) Methodology — one form, three anchors.**
-
-The retired right-edge MethodologyTray (Phase 124b) is not reinstated. The Phase 124b inline-accordion pattern is preserved as the **single methodology presentation form**, applied at three anchor points whose location is dictated by each Pillar's geometry:
-
-* **Aleph** — methodology block adjacent to the focused Cell (right-margin column inside the Cell's frame).
-* **Episteme** — methodology block expanded inline within the focused Stratum (one ⓘ per Stratum header).
-* **Rhizome** — methodology rendered as a detail-panel attached to the focused node or edge (opens on click of the focused element).
-
-The content shape is identical across all three anchors: tier badge, validation status, algorithm description, known limitations, dual-register prose (semantic + methodological), working-paper anchor, per-cell-view methodology text. Data sources are `/metrics/{name}/provenance`, `/content/metric/{name}`, `/content/view_mode/{cellId}`. The user learns one pattern; three locations are explained by each Pillar's structure, not by separate methodology models.
-
-**(6) Controls live where they wirken.**
-
-Design constant: a control sits at the place where it has effect. Controls that affect all Cells of a layout sit globally; controls that affect one Cell sit per-Cell.
-
-| Control | Aleph | Episteme | Rhizome |
-|---|---|---|---|
-| Auflösung (resolution) | n/a (time collapsed) | **global** (shared time-axis) | n/a |
-| Vergleich (raw / zscore / percentile) | per-Cell | per-Stratum | n/a |
-| Layer (Gold / Silver) | per-Cell | per-Stratum | per-Cell (where applicable) |
-| Metric / Darstellung / Top-N | per-Cell | per-Stratum | per-card |
-
-This eliminates the current "control sits in ScopeBar but only affects some panels" inconsistency.
-
-**(7) Route migration with deep-link preservation.**
-
-The `/lanes/{probeId}/{functionKey}` route family is retired. Existing deep-links are preserved by redirect (no double-code):
-
-| old | new |
-|---|---|
-| `/lanes/{probeId}/dossier` | `/dossier/{probeId}` |
-| `/lanes/{probeId}/{functionKey}` | `/workbench?probes={probeId}&functions={functionKey}&pillar=aleph` |
-| `?viewMode=cooccurrence_network` | `&pillar=rhizome&view=actors-topics` |
-| `?viewMode=topic_distribution\|topic_evolution` | `&pillar=episteme&cells=…` |
-
-All other URL parameters (`metric`, `layer`, `from`, `to`, `sourceId`, `probeIds`, `normalization`) map 1:1 to their new positions. The redirect map is implemented as a SvelteKit `+page.server.ts` redirect at the old route; the old route file is then deleted in the same commit.
-
-**(8) Per-state behaviour matrix.** Each Pillar has explicit per-state UI for empty-scope, single-probe, multi-probe-composition, and refusal:
-
-| State | Aleph | Episteme | Rhizome |
-|---|---|---|---|
-| Empty scope | Invitation pointing back to Atmosphäre + Atmos-link | Strata render empty axes with per-Stratum hint; controls remain active | Sub-view cards greyed with "Scope wählen, um zu öffnen" |
-| Single probe | Cell renders. "+ zweite Cell"-button | Strata render. "+ Schicht hinzufügen" aktiv | "Akteure & Themen" + "Quellen-Resonanz" aktiv; "Begriffs-Wanderung" greyed with "zwei Probes nötig" |
-| Multi-probe composition | Cell renders parallel streams per probe, independent scales | Per-Stratum: per-probe streams nebeneinander, eigene y-Skalen | All four entry-questions aktiv; Equivalence-Check aktiviert |
-| Refusal (cross-frame, Silver, k-anon, language) | RefusalSurface in Cell-Body | RefusalSurface in betroffener Stratum (other Strata weiter aktiv) | Refusal als Kantenetikett mit Alternativen |
+Working Papers, primers, open research questions, per-metric provenance. Read-only methodology surface; no scope semantics.
 
 ---
 
-### Consequences
+### The Single Configuration Surface: ScopeEditor
 
-**Positive.**
+The Workbench's scope is configured **only** through the `ScopeEditor` modal (`src/lib/components/workbench/ScopeEditor.svelte`). It is the sole entry point for:
 
-* Pillars are structurally distinct (different layouts), not chart-pickers. The cognitive model matches WP-005 §6.
-* Cognitive load drops measurably: one editing place per scope axis, one form for methodology, one badge for functions, one control location per effect.
-* Composition Workspace (Phase 125) is preserved as a feature but absorbed into Rhizome — no fourth surface to maintain, no separate `/compose` route.
-* The Brief's commitment to "composition, not comparison" (§1.3) is structurally guaranteed: no shared y-axis is ever rendered across cultural frames, because parallel streams have independent scales by construction in all three Pillars.
-* No silent drops. The Phase 122h audit (see ROADMAP) verifies every current BFF endpoint has a consumer in the new architecture and every current dashboard element has a new home.
+* Single probe × N sources
+* N probes × N–N sources per probe
+* Probe(s) + discourse-function restriction (1–N sources within that DF)
+* Multi-group composition (parallel ScopeGroups for side-by-side comparison)
 
-**Negative.**
+Apply / Cancel are explicit. The editor does NOT close on backdrop-click or focus-loss. Esc = Cancel. ScopeGroups render as a stack of first-class cards (no hidden `+Compare` popover). Per-group DF-lock dropdown dims non-matching sources visually rather than hiding them — transparency over compactness.
 
-* Three Pillar layouts must be maintained instead of one shared `FunctionLaneShell`. This is a deliberate trade: visual distinctness over code reuse. Cells remain shared building blocks across pillars where compatible (e.g. DistributionCell renders in both Aleph and inside an Episteme Stratum).
-* The `/lanes` route family is retired; bookmarks survive via redirect but break for tooling that scrapes URL paths.
-* ADR-020's Implementation Outline §Surface II, §Surface IV, §Methodology Tray right-edge dock are partially superseded. The technology stack — SvelteKit, three.js + custom shaders, D3-force, Observable Plot, uPlot, OpenAPI codegen, OTel propagation, performance budgets — is preserved unchanged.
+Three entry paths into the ScopeEditor:
 
-**Compatibility with upcoming phases.**
-
-| Phase | Compatibility |
-|---|---|
-| **122a** Per-Article Discourse Function | Article-function exposed as per-Cell Sub-Stratum toggle. No design conflict. |
-| **122d** Wayback CDX Revision Archaeology | `wayback_lookup_status` and revision-history panels render in L5 Evidence (unchanged) and as a Sub-Stratum option in Episteme. No design conflict. |
-| **123** Probe 1 | Multi-probe parallel streams render in all three Pillars with independent scales. No design conflict. |
-| **123a** Probe Coverage Map | Renders as an Aleph Cell (`coverage_map`) and as an Atmosphäre overlay. No design conflict. |
-| **124** Cross-Probe Operations | Temporal-equivalence grant renders in Episteme methodology; cross-probe lead-lag renders in Rhizome ("Begriffs-Wanderung"). No design conflict. |
-| **125** Composition Workspace | Absorbed into Rhizome's "Freie Komposition" entry-question. ROADMAP Phase 125 is rewritten by Phase 122h (Phase 125 keeps its number but its body changes). |
-| **126** Interactive Reflection Papers | Unchanged. Lives in Reflexion (Surface III). |
-| **127** Coherence Audit | Updated to reference three surfaces, not four. Bullet list in §Dashboard Coherence Audit is rewritten by Phase 122h's documentation block. |
+1. SideRail Workbench click + empty pillar state → page auto-opens ScopeEditor seeded from `url.selectedProbes`.
+2. Per-Panel `[⚙ Edit scope]` → opens ScopeEditor for that Panel's current scope.
+3. `+Panel` → opens ScopeEditor in create-mode; Apply appends a fresh Panel.
 
 ---
 
-### Implementation
+### Selection-State
 
-Implementation lands in **Phase 122h: Dashboard Three-Pillar Workbench Reframing** (see `ROADMAP.md`). The phase is sized for a coordinated frontend rebuild over multiple PRs, with the BFF unchanged. No new endpoints, no new schemas, no new ClickHouse migrations.
+`?selectedProbes=` is a cross-surface "shopping cart" populated by:
 
----
+* Atmosphere SHIFT-click
+* `ProbeFilterModal` (opened from the SideRail Probe-Filter affordance; visible on Atmosphere + Dossier only)
 
-### Open questions deferred to Phase 122h implementation
+Consumed by:
 
-* **Pillar-Switch visual form.** Three equally-sized tiles vs. segmented control vs. labelled tabs is a visual-design decision. ADR-033 mandates only the *role* (centrally visible, sets the pillar configuration; question + one-line explanation on the active tile) and the *constant* (three options, equal prominence).
-* **Dataset-Shape strip on Atmosphäre.** Whether the Aleph "Dataset-Shape strip" should also render on the Atmosphäre (so the same factual context is visible across both Aleph forms) is a polish question for the implementation phase.
-* **Sub-view cards in Rhizome.** Whether the four entry-questions render as a 2×2 grid vs. a horizontal strip vs. a command-palette is deferred. ADR-033 mandates only the *role* (opinionated default + alternative entries + Power-User canvas accessible from one of them).
+* Dossier — filters the catalogue + auto-expands selected probes.
+* Workbench — seeds the ScopeEditor's first ScopeGroup on the next open.
 
-### Decision Record
-
-- **Drafted:** 2026-05-15 by Fabian Quist with AĒR for Phase 122h.
-- **Status:** Accepted (2026-05-15). Implementation landed 2026-05-15 in a single coordinated pass across all nine slices; full `make fe-check` green at the close.
-- **User design-review sessions:** 2026-05-15 (single session; sketches v1 → v3; per-state matrix; coverage audit).
-
-### Implementation Outline
-
-Phase 122h ships as a sequence of self-contained slices, each landable as its own PR. The slices are sized so that user-visible behaviour stays coherent at every commit boundary; legacy `/lanes/*` routes remain live until Slice 7 retires them.
-
-* **Slice 1 — Foundation primitives.** `FunctionBadge` component + `$lib/discourse-function.ts` (shared `FUNCTION_DEFINITIONS` const). Three existing inline representations (`FunctionLaneShell`, `LensBar`, `ProbeDossier`) replaced by the shared primitive. Low risk, no route changes, no shell changes. Establishes the unified visual grammar referenced by §4.
-* **Slice 2 — SideRail rewrite.** Labelled sections (`Wo bin ich?` / `Auswahl` / `Ansicht`), three surface anchors with words + icons, active Pillar as sub-item under Workbench, Probe-Picker demoted to status indicator. Routes still point to `/lanes/*` and `/reflection`; "Workbench" label only.
-* **Slice 3 — New routes alongside old.** `/workbench` and `/dossier/{probeId}` routes added. Initially they wrap existing `FunctionLaneShell` / `ProbeDossier` behind the new URL grammar. Redirect tests for the migration map (§7) added but not yet enforced.
-* **Slice 4 — `PillarSwitch` + `ScopeBar` components.** New chrome rendered on `/workbench` only. Existing `LensBar` still rendered inside the body for back-compat; controls split begins (Function → ScopeBar; per-Cell controls stay where they are).
-* **Slice 5 — `AlephShell`.** First Pillar layout. Single focus-Cell with Dataset-Shape strip, parallel side-by-side, methodology marginal block. Aleph becomes the default Pillar on `/workbench`.
-* **Slice 6 — `EpistemeShell`.** Stratum stack with shared time-axis, global Auflösung, per-Stratum Vergleich/Layer/Top-N.
-* **Slice 7 — `RhizomeShell`.** Force canvas with *Akteure & Themen* as default view; *Quellen-Resonanz* and *Begriffs-Wanderung* as alternative entry-questions; *Freie Komposition* shipped as Phase-125 absorbed work in a follow-up slice.
-* **Slice 8 — Route migration + cleanup.** `/lanes/*` redirected to `/workbench?…`, old route files deleted, `FunctionLaneShell.svelte` + `LensBar.svelte` + in-rail Pillar mini-toggle + "Pillar Identity Strip" deleted. Coverage audit signed off in the PR description.
-* **Slice 9 — Documentation + ROADMAP amendments.** Arc42 §8.x rewrite, CLAUDE.md update, Brief banner + reframing-note footnote, ROADMAP amendments to Phases 125 / 127 / 122a / 123a / 124, `TESTING.md` entry.
-
-Slice boundaries are advisory — solo-dev scheduling may merge adjacent slices when they touch the same files. The hard constraint is that every commit must leave the dashboard buildable and the existing `/lanes/*` user journey intact until Slice 8.
+One state, two surfaces, three populate-paths. The user picks probes anywhere and the right surface picks them up.
 
 ---
 
-### Amendment 2026-05-16 — Phase 122i revision: Dossier elevated to first-class surface (4-surface architecture)
+### Methodology Surfacing
 
-ADR-033 committed three top-level surfaces — **Atmosphäre · Workbench · Reflexion** — with the Probe Dossier described as "an Aleph-form inspection page that lives between Atmosphäre and Workbench; it is not a fourth surface — it is the inventory step of Atmosphäre's Aleph-as-discovery flow." Phase 122i manual-testing (2026-05-16) and the subsequent design discussion (Q1–Q4 captured in the working plan) established that the Dossier must be **elevated to a first-class top-level surface**.
+Methodology lives in **two** places:
 
-**What changes.**
+* **Inline accordion** under each Cell (`CellMethodology`) — default-open; carries tier badge, validation status, Dual-Register prose, provenance, working-paper anchors.
+* **MethodologyBanner** (`src/lib/components/base/MethodologyBanner.svelte`) — shared primitive for soft notes (Aleph cross-language note, Episteme joint-corpus / small-corpus). Episteme + Rhizome keep their hard 422 `cross_language_merge_unsupported` refusals; Aleph uses the soft banner. The asymmetry is documented in WP-005 §6.2 §8b.
 
-1. **Route**: the Dossier becomes `/dossier` (top-level, no ID). Deep-link to a specific probe via `?expand=<probeId>`. The previous `/dossier/{probeId}` route is retired — no backward-compat redirect, since the surface change is fundamental enough that legacy bookmarks should land on the new collection view anyway.
-2. **Top-level surfaces become four**, not three: **Atmosphäre · Dossier · Workbench · Reflexion**. The SideRail surface anchors are updated accordingly (`📚 Dossier` added between Atmosphere and Workbench).
-3. **Atmosphere globe-click** routes to `/dossier?expand=<probeId>` (was `/dossier/{probeId}`). The Atmosphere surface itself is unchanged — globe-based probe discovery remains its sole purpose; the inventory step lives on the Dossier surface now.
-4. **Dossier surface layout** (top to bottom): top-level identity header → **General Free-Compose section** (cross-probe + cross-source composer; AĒR's most powerful entry into the Workbench) → collection of **Probe Cards** (each collapsable). Each ProbeCard contains: probe-header with datasetShape (Probes / Sources / Articles-in-window / Language / Function-coverage), emic-frame, structural-meta, DF-tile grid, probe-specific Free-Compose section, Sources, MetadataCoveragePanel.
-5. **Component refactor**: today's `ProbeDossier.svelte` is renamed/refactored to `ProbeCard.svelte` (collapsable Probe container). New `Dossier.svelte` (route page) and `GeneralFreeComposeSection.svelte` (top-level section) are introduced. The probe-specific `FreeComposeSection.svelte` from Phase 122i stays as-is, embedded inside `ProbeCard`.
-
-**Why first-class and not a sub-surface.**
-
-The General Free-Compose entry is structurally distinct from Atmosphere's globe-based discovery: it composes **across** the entire probe catalog (and the entire source catalog within each probe), not within a single selected probe. Treating it as a sub-page of Atmosphere muddles two analytical operations — discovery (globe) and composition (compose anything against anything). Elevating Dossier to a peer surface keeps each surface single-purpose.
-
-**What does not change.**
-
-The Workbench surface, the three Pillar configurations (Aleph / Episteme / Rhizome), the Pillar-Switch tile grammar, the methodology anchor pattern, the FunctionBadge / MethodologyBlock primitives, all per-state behaviours, the BFF endpoint inventory, and ADR-020's technology-stack decisions — all remain authoritative under their original ADR-033 specifications. This amendment touches surface count + Dossier route + SideRail anchor count. Nothing else.
-
-**Consequences.**
-
-* Phase 127's "Surface coherence" audit covers **four** surfaces, not three. ROADMAP Phase 127 was already amended for the four-surface model in conjunction with this revision.
-* Phase 122i tests for Dossier behaviour land on the new `/dossier` route. The 308-redirect map originally written for `/lanes/*` → `/workbench` retires the corresponding `/dossier/{id}` entry — the URL grammar is simply gone.
-* No new ADR is required. The Pillar concept, three-Pillar Workbench, surface-as-room metaphor, methodology positioning, and refusal-as-content patterns all stay 1:1 valid.
+Both surfaces always link into Reflection (`/reflection/wp/wp-XXX?section=Y`) so the reader can drill from the Cell into the working paper.
 
 ---
 
-## ADR-034: Multi-Panel Workbench with Composable Scope Groups (Phase 122i)
+### Chrome
+
+* `SideRail` — four surface anchors (◉ Atmosphere · ❒ Dossier · ⚙ Workbench · ¶ Reflection) + a Probe-Filter affordance (visible on Atmos + Dossier) + Negative-Space toggle. Active pillar surfaces as a sub-item under the Workbench anchor.
+* `PillarSwitch` — three tiles in the Workbench header; switches `url.activePillar` and seeds the target pillar from the focused panel when empty.
+* `WorkbenchScopeBar` — focused-Panel chip strip + Window-date inputs (per-Panel windows via `panel.windowStart` / `panel.windowEnd` — see ADR-034).
+* `ProbeFilterModal` — guided probe-selection surface (region-grouped, searchable, Apply / Cancel). Replaces the retired sidebar-embedded ProbePicker.
+
+---
+
+### Visual Identity
+
+AĒR-türkis accent throughout. Monochrome Unicode glyphs in the SideRail (no multi-color emoji). Generous whitespace in modals (ScopeEditor, ProbeFilterModal, MetadataCoverageModal). The Design Brief (`docs/design/design_brief.md`) governs tokens, typography, spacing, Epistemic Weight, Progressive Semantics, Refusal patterns — unchanged by this ADR.
+
+---
+
+## ADR-034: Multi-Panel Workbench State Tree (Pillar → Window → Panel → ScopeGroup)
 
 **Status:** Accepted
-**Date:** 2026-05-16
-**Supersedes:** parts of ADR-033 (single-scope Workbench layout, single-cell-per-pillar shells). The Pillar concept and three-surface architecture (Atmosphäre / Workbench / Reflexion) remain.
-**Superseded by:** None
-**Related ADRs:** ADR-020 (Frontend Stack — preserved), ADR-024 (Language Capability Manifest), ADR-033 (Three Pillars).
-**Related WPs:** WP-001 (Discourse Function Taxonomy), WP-005 §6 (Pillars as Temporal Stances), WP-005 §6.2 (forthcoming working-note on merged-corpus topic modeling).
-**Authority:** Working Papers + ADR-033 remain SoT for *what* the Pillars mean. This ADR governs *how scope composes inside* each Pillar.
-
----
-
-### Context
-
-ADR-033 (Phase 122h) shipped three Pillar configurations (Aleph / Episteme / Rhizome) sharing a single global `(probeIds[], sourceIds[])` scope tuple per Workbench. The post-Phase-122h state has three structural limits that block both immediate methodological work and the planned multi-probe future:
-
-1. **Source granularity is binary inside a Pillar.** Aleph already iterates `{#each sources}` in `TimeSeriesCell.svelte:30`, but only with a globally shared `(metric, view, layer, …)`. There is no way to set Source A to `view=time_series, metric=X` alongside Source B with `view=distribution, metric=Y` in the same Workbench. Episteme and Rhizome render exactly one Cell per `(scope, scopeId)` tuple — pro-source small-multiples are not expressible.
-
-2. **The interpretive question "what does this discourse function look like for each of its sources?" has no clean entry path.** When the user clicks a discourse-function tile on the Probe Dossier, the Workbench either aggregates over all DF-sources (today's behaviour as of the Phase-122h fix) or shows all sources in small-multiples — but the choice is implicit, not user-controllable, and not preserved on share-links.
-
-3. **CoOccurrence is single-scope-only at the BFF.** `GET /entities/cooccurrence?scope=probe|source&scopeId=…` accepts exactly one target. The corresponding `CoOccurrenceNetworkCell.svelte` therefore cannot render aggregations across source-subsets or cross-probe selections. This blocks Rhizome's analytical reach from day one.
-
-The user design-review session 2026-05-16 framed the requirement directly: *"Komplette Probe, Subset der Sources, einzelne Source — und das alles entweder gemeinsam in einer View/Metrik oder getrennt nebeneinander in eigenen Views/Metriken. In Zukunft auch über Probes hinweg."* The session also established two methodological constraints: cross-language topic merging is technically broken (BERTopic embeddings are language-specific per ADR-024) and must be refused, not interpreted; and same-language merged topic modeling is permitted but must be visually framed as joint-corpus, not per-source.
+**Date:** 2026-05-18 (Phase 122k baseline — supersedes prior 122i amendments)
+**Related ADRs:** ADR-033 (Four-Surface Architecture), ADR-024 (Language Capability Manifest), ADR-030 (Per-Article Discourse Function).
+**Related WPs:** WP-001 (Discourse Function Taxonomy), WP-004 §3.4 (Cross-Frame Comparability), WP-005 §6.2 (Joint-Corpus Topic Modeling).
 
 ---
 
 ### Decision
 
-**(1) Workbench state is a tree: Pillar → Window → Panel → ScopeGroup.**
-
-```ts
-type WorkbenchState = {
-  pillars: {
-    aleph?: PillarState;
-    episteme?: PillarState;
-    rhizome?: PillarState;
-  };
-  activePillar: 'aleph' | 'episteme' | 'rhizome';
-};
-
-type PillarState = {
-  windows: WorkbenchWindow[];        // 1..4 windows per pillar
-  activeWindowIndex: number;
-};
-
-type WorkbenchWindow = {
-  panels: Panel[];                   // 1..8 per window (max 4 side-by-side; 5..8 horizontal scroll)
-  focusedPanelIndex: number;
-};
-
-type Panel = {
-  scopes: ScopeGroup[];              // 1..M scope-groups
-  composition: 'merged' | 'split';   // how scopes combine inside the panel
-  view: ViewMode;
-  metric: string;
-  layer: 'gold' | 'silver';
-  resolution?: Resolution;
-  normalization?: 'none' | 'baseline' | 'per_capita' | …;
-  topN?: number;
-  locked?: boolean;                  // DF-entrypoint sets locked=true; CellControls + ScopeEditor disabled
-  lockedReason?: 'df_entry' | …;
-};
-
-type ScopeGroup = {
-  probeIds: string[];                // 1..K
-  sourceIds: string[];               // 0..L; empty = all sources of probeIds
-};
-```
-
-**Composition semantics:**
-
-* `composition: 'merged'` + 1 ScopeGroup = one Cell, one query over the group's union.
-* `composition: 'merged'` + N ScopeGroups = one Cell, one query over the union of all groups (BFF receives unioned `probeIds`/`sourceIds`).
-* `composition: 'split'` + 1 ScopeGroup with N sources = N Cells, one per source. Today's Aleph small-multiples as a special case.
-* `composition: 'split'` + N ScopeGroups = N Cells, one per group. Groups may be heterogeneous (full probe / subset / single source).
-
-**Side-by-Side (cross-panel) is structurally different from Split (intra-panel).** Multiple panels are independent analytical units with their own `(view, metric, layer, …)`. Split-composition is the same `(view, metric, layer, …)` applied to N distinct scopes. The two are visible separately in the URL, in the controls, and in the visual hierarchy of the Workbench.
-
-**(2) URL grammar.**
-
-Phase-122h URLs remain valid. The reader interprets the legacy form `/workbench?probeId=…&sourceId=…&viewingMode=aleph&view=…` as a Single-Pillar-Single-Window-Single-Panel-Single-ScopeGroup state. Anything richer is encoded per-Pillar:
+The Workbench state is a four-level tree, fully serialised into the URL:
 
 ```
-/workbench?activePillar=aleph&aleph=<base64url-gz-json>&episteme=<…>&rhizome=<…>
+PillarsState
+  ├── aleph: PillarState | null
+  ├── episteme: PillarState | null
+  └── rhizome: PillarState | null
+
+PillarState
+  ├── windows: WorkbenchWindow[] (1..MAX_WINDOWS_PER_PILLAR=4)
+  └── activeWindowIndex: number
+
+WorkbenchWindow
+  ├── panels: Panel[] (1..MAX_PANELS_PER_WINDOW=8)
+  ├── focusedPanelIndex: number
+  └── maximizedPanelIndex?: number | null
+
+Panel
+  ├── scopes: ScopeGroup[] (1..N)
+  ├── composition: 'merged' | 'split'
+  ├── view: ViewMode
+  ├── metric: string
+  ├── layer: 'gold' | 'silver'
+  ├── resolution?: Resolution
+  ├── normalization?: Normalization
+  ├── topN?: number
+  ├── splitDirection?: 'horizontal' | 'vertical'
+  ├── cellControlsCollapsed?: boolean
+  ├── windowStart?: string         (Phase 122k F5 — per-Panel time window override)
+  ├── windowEnd?: string
+  ├── locked?: boolean             (DF-lock indicator)
+  ├── lockedReason?: 'df_entry'
+  └── lockedFunction?: string
+
+ScopeGroup
+  ├── probeIds: string[]
+  └── sourceIds: string[]           (empty = whole-probe scope)
 ```
 
-Each `aleph=` / `episteme=` / `rhizome=` value is a base64url-gzipped JSON `PillarState`. Pillars not yet touched in this session are absent from the URL (the reader synthesises a default empty PillarState on demand).
-
-Hard size cap: total URL after assembly ≤ 8 KiB. If a write would exceed this, a confirmation dialog appears: *"URL state full — discard oldest panels of pillar {X}?"* with a 5 s undo toast on confirm. Cap reached only in extreme multi-probe-multi-panel scenarios.
-
-JSON is validated against the schema (Zod or hand-rolled type guards); parse failure → refusal surface *"Shared link could not be read — please reconfigure"*.
-
-Backward compatibility: single-pillar single-window single-panel single-group states *write* in the legacy `?probeId=&sourceId=&view=&viewingMode=` form when the data fits, so the URL stays readable and existing bookmarks keep working.
-
-**(3) Pillar-specific constraints.**
-
-* **Aleph** (`time_series`, `distribution`) — all composition modes supported. Pure frontend change.
-* **Episteme** (`topic_distribution`, `topic_evolution`):
-  * **Same-language merged** — permitted. Cell renders a Methodology Note: *"BERTopic across N sources — topics reflect the joint corpus, not per-source framings. Source-specific framings may be aggregated away; see WP-005 §6.2."* Note links to `docs/methodology/en/wp-005-notes/merged-topic-modeling.md` (written in Slice 7).
-  * **Cross-language merged** — refused at the BFF (`422 cross_language_merge_unsupported`) and in the Frontend (RefusalSurface variant). Trigger: the union of `scope.probeIds`/`scope.sourceIds` resolves to more than one Language Capability Manifest language. User remedy: narrow to one language, or use split-composition (each group can have its own language).
-  * **Split** — permitted regardless of language; each Cell queries its own ScopeGroup. Small-corpus warning under each Cell when the group's article count is below the threshold (default 500 documents, configurable in `services/dashboard/src/lib/config/topic-thresholds.ts`).
-* **Rhizome** (`cooccurrence_network`):
-  * BFF-side: new endpoint `POST /entities/cooccurrence/query` accepting `{scopes: ScopeGroup[], start, end, topN, language?, ...}`. Body validator caps at 100 unique source-IDs and 25 unique probe-IDs per request (returns `413 scope_limit_exceeded` with the offending counts on the error envelope). The legacy `GET /entities/cooccurrence?scope=…&scopeId=…` remains for backward compatibility; the new POST is the only multi-scope path.
-  * Frontend-side: `CoOccurrenceNetworkCell.svelte` learns to call the POST query when `composition='merged'` with multi-scope or when any ScopeGroup contains both probe and source narrowing simultaneously.
-  * Cross-language refusal mirrors Episteme: the POST handler refuses unions spanning languages with `422 cross_language_merge_unsupported`.
-
-**(4) CellControls is per-panel.**
-
-Today's pillar-global CellControls (Phase 122h) is rebased on the `focusedPanelIndex` of the active window. Clicking a Cell focuses its panel; CellControls edits exactly that panel. A new `Merged · Split` Segmented-Control replaces the implicit composition mode. Locked panels (DF-entrypoint) render CellControls in read-only form with a `🔒 Locked to {DF}` eyebrow; user must use the Free-Compose entry to gain editability.
-
-**(5) Two entry paths from the Probe Dossier.**
-
-The Probe Dossier surfaces two equally-prominent entry paths into the Workbench:
-
-* **DF-entry (today's path, now deterministic):** clicking a discourse-function tile opens a Workbench with one panel, one ScopeGroup over the DF's covered sources, `composition='merged'`, and `locked=true`. The user inspects this DF as an aggregate; CellControls and ScopeEditor are read-only. To recombine, the user navigates back to the Dossier and uses the second path.
-
-* **Free-Compose-entry (NEW):** a parallel section in the Dossier titled *"Compose freely"* with a probe-picker (for the current probe; in multi-probe future, multiple) and a source-multiselect. The "Open Workbench (free compose) →" button opens a Workbench with one panel, one ScopeGroup over the chosen probes/sources, `composition='merged'`, and `locked=false`. All controls editable.
-
-Both sections share visual hierarchy and prominence; neither is the "primary" path. The Dossier's emic-frame, structural meta, and source-cards remain unchanged.
-
-**(6) Pillar switch preserves panels.**
-
-Each PillarState is stored independently in the URL. Switching from Aleph to Episteme to Rhizome and back loses nothing. Only the active-pillar pointer changes. If the user resets a pillar's panels explicitly via *"Reset Aleph"* in the Workbench header, the URL key for that pillar is dropped and a fresh default panel is synthesised on next access. The 8 KiB URL cap (Decision 2) is the only mechanism that can force panel deletion; in that case the confirmation dialog asks before discarding.
-
-**(7) Windows within a pillar.**
-
-A Pillar holds up to 4 Windows. The 9th panel of a pillar opens a second Window (the user is offered a Window-Tab in the Workbench header when the 4-panel-side-by-side capacity of the current Window is reached or when the user explicitly opens a new Window via `+ Window`). Tabs are reorderable; closing a Window confirms with an undo toast. The Window concept exists because pillar-level panel counts ≥ 9 produce visual chaos at typical viewport widths; Windows organise panels into legible groups while preserving full state in the URL.
-
-**Cells inside a panel have no merge-limit.** A single Cell may merge the entire AĒR dataset (all probes, all sources, same-language) into one query. The 100-source / 25-probe limit lives only on the CoOccurrence POST query (Decision 3); other endpoints are bounded only by ClickHouse query timeouts and the URL cap.
+`url.activePillar` selects which pillar is currently rendered. The three pillar payloads are encoded as base64url JSON under `?aleph=…`, `?episteme=…`, `?rhizome=…`. Compact short keys keep the URL under the 8 KiB budget for realistic states.
 
 ---
 
-### Consequences
+### Composition Semantics
 
-**Positive.**
+A Panel has 1..N ScopeGroups and a `composition` axis:
 
-* The three Pillars become fully flexible. The user's mental model — *complete probe · source-subset · single-source × merged · split × multiple panels* — is fully expressible.
-* Multi-probe future is structurally prepared: `ScopeGroup.probeIds[]` is multi-probe-capable from day one; nothing needs re-architecting when Probe 1 lands.
-* Clean separation of *cross-panel side-by-side* from *intra-panel split-composition*. The two answer different analytical questions and now have visually distinct affordances.
-* Cross-language topic merging is refused at the BFF, not silently rendered — a methodological gate written into the architecture.
-* Phase-122h URLs remain valid. No deep-link migration cost.
+* **`composition: 'merged'`** — render ONE Cell over the union of all ScopeGroups (BFF unions probeIds + sourceIds server-side).
+* **`composition: 'split'`** — render N Cells:
+  * 1 ScopeGroup with multiple sources → 1 Cell per source (small-multiples).
+  * N ScopeGroups → 1 Cell per ScopeGroup.
+  * `splitDirection: 'horizontal' | 'vertical'` controls the layout axis.
 
-**Negative.**
-
-* Frontend complexity grows. Estimated +700–900 LOC (URL state + Window/Panel hierarchy + ScopeEditor + Free-Compose-section + Methodology variants). The CellControls × ScopeEditor × Composition surface has three axes; UX risk is real and validated in Slice 7's manual walkthrough.
-* BFF gains a new endpoint (`POST /entities/cooccurrence/query`) and two new refusal codes (`422 cross_language_merge_unsupported`, `413 scope_limit_exceeded`). OpenAPI diff is non-trivial; `make codegen` runs.
-* Same-language merged topic modeling produces statistically thinner topic sets than per-source modeling for small corpora. The methodology note mitigates by being explicit, but does not eliminate the risk of misinterpretation. WP-005 §6.2 follow-up writing-note is required (Slice 7 deliverable).
-* The URL grows. Realistic share-link sizes will stay comfortably under 4 KiB; the 8 KiB cap is a safety valve. URL-cap-triggered panel deletion is a UX edge that needs polish (undo toast, confirmation copy).
-
-**Neutral.**
-
-* Cells themselves (`TimeSeriesCell`, `DistributionCell`, `TopicDistributionCell`, `TopicEvolutionCell`, `CoOccurrenceNetworkCell`) keep their `(scope, scopeId, sources[], …)` contract. The Panel-host translates ScopeGroups into per-cell calls; cells unchanged except for CoOccurrence which gains an alternate multi-scope query path.
+Cells consume per-unit `ViewModeCellProps` (`scope`, `scopeId`, `sources`, `composition`, `windowStart`, `windowEnd`, `metricName`, `dataLayer`); the PanelHost translates Panel state + ScopeGroups into the appropriate per-Cell prop set.
 
 ---
 
-### Implementation Outline
+### Per-Panel Time Window (Phase 122k F5)
 
-Phase 122i ships in seven slices, ordered for partial commit safety. Every slice leaves the dashboard buildable and Phase-122h URLs functional.
+Each Panel may carry its own `windowStart` / `windowEnd` ISO date strings. When present, they override the global `url.from` / `url.to` for that Panel only — different Panels in the same Window can analyse different time ranges. PanelHost derives the effective window via `panel.windowStart ?? props.windowStart`; PanelControls exposes the date inputs that mutate `panel.windowStart` / `panel.windowEnd` via `updatePanel`. WorkbenchScopeBar displays the focused Panel's effective window (mirroring PanelControls).
 
-* **Slice 1 — URL-state schema + encoder/decoder (frontend).** New `Panel`, `ScopeGroup`, `WorkbenchWindow`, `PillarState`, `WorkbenchState` types in `services/dashboard/src/lib/state/url-internals.ts`. Per-pillar base64url-gzip-JSON encoding. Reader migrates legacy `?probeId=&sourceId=&view=&viewingMode=` into a synthesized `WorkbenchState`. Writer prefers legacy form when state fits the single-pillar-single-window-single-panel-single-group special case. URL cap handler with confirmation dialog. Unit tests for round-trip and migration.
-* **Slice 2 — BFF CoOccurrence Multi-Scope endpoint.** New `POST /entities/cooccurrence/query` in OpenAPI, handler, and request validator (100/25 cap, language-union refusal). Tests. `make codegen` regenerates `generated.go`. Legacy `GET` stays for backward compatibility.
-* **Slice 3 — Frontend query-layer adaptation.** `entityCoOccurrenceQuery` learns the multi-scope POST path. New `buildQueryFromPanel(panel)` helper normalizes Panel → BFF request. `topicDistributionQuery` / `topicEvolutionQuery` add cross-language refusal handling (frontend mirrors BFF 422).
-* **Slice 4 — Shell refactor + new components.** `AlephShell` / `EpistemeShell` / `RhizomeShell` rebased on `WorkbenchState.pillars[activePillar].windows`. New `WindowHost.svelte` (Window-Tabs + multi-window layout) and `PanelHost.svelte` (per-Panel composition rendering). `CellControls` rebound to focused panel. New `ScopeEditor.svelte` (per-panel popover for editing ScopeGroups). New Workbench-header `Reset {pillar}` button.
-* **Slice 5 — Dossier two-entry-path UI.** DF-tile sets `locked=true` and `composition='merged'`. New "Compose freely" section in `ProbeDossier.svelte` with probe-picker + source-multiselect + "Open Workbench (free compose) →" CTA. Both sections at the same visual hierarchy level.
-* **Slice 6 — Methodology surfaces.** Joint-corpus banner on merged Episteme Cells. Small-corpus warning on split Episteme Cells. Cross-language RefusalSurface variant. Locked-panel eyebrow (`🔒 Locked to {DF}`) on CellControls and ScopeEditor.
-* **Slice 7 — Tests + docs + Working-Note.** Frontend unit tests for URL round-trip, per-pillar encoding, cap-handler. BFF tests for the new POST endpoint. Manual walkthrough across the granularity matrix (3 granularities × Merged/Split × 1-Window/Multi-Window × 3 Pillars). Working-Note `docs/methodology/en/wp-005-notes/merged-topic-modeling.md`. ROADMAP Phase 122i marked DONE. Arc42 §8.x updated with the Workbench-state-tree section.
-
-Slice boundaries are advisory; the hard constraint is that every commit leaves the dashboard buildable, Phase-122h URLs functional, and the BFF backward compatible. The CoOccurrence POST endpoint MUST land in a single PR with both BFF and Frontend so the generated code stays in sync.
+Encoding: short keys `ws` / `we` in the compact pillar payload; absent when the panel inherits the global default.
 
 ---
 
-### Amendment 2026-05-16 — Phase 122i revision: Composition clarifications, locked-scope-only, split-direction, ScopeEditor
+### DF-Lock Semantics
 
-The initial Phase-122i implementation surfaced a semantic misunderstanding (locked panels), a broken composition rendering path (TimeSeriesCell), missing affordances (real ScopeEditor, split direction toggle), and two critical bugs (PillarSwitch broken, CoOccurrence node count incorrect). The ADR's core decisions — four-level state tree, BFF multi-scope POST, cross-language refusal, per-pillar persistence — remain correct. The amendment clarifies semantics and extends the state model with three new fields.
+Panels carry a `lockedFunction` when the ScopeEditor's per-group DF-lock dropdown is set. The lock dims (but does not hide) sources that are not classified under the chosen DF for the panel's probes. The Panel's data queries still flow through the same view-mode handlers; locking is a presentation-level filter on the scope picker, not an additional refusal gate.
 
-**(A) Locked panels are scope-locked, not panel-readonly.**
+The Phase-122i "scope is locked, can only be re-edited by returning to the Dossier" semantic is retired. The ScopeEditor (re-openable from any Panel header) owns the lock — toggling the DF-lock dropdown is the same surface that opened the lock in the first place.
 
-The original Decision (4) text described locked panels as rendering "all rows read-only with a `🔒 Locked to {lockedFunction}` eyebrow". This was implemented as a whole-panel readonly state. **Corrected**: when `panel.locked === true`:
+---
 
-* The **scope** is frozen — the ScopeEditor refuses to mutate `panel.scopes`. `+Compare`, scope-group remove, and scope-group probe/source edits are all disabled within the Editor.
-* **Everything else stays editable** — the user can change view, metric, layer, normalization, resolution, composition (Merged ↔ Split), `+Panel` (clones with the locked scope), `×Remove`, Maximize, CellControls collapse. The lock banner reads as informational: *"Scope locked to {DF}. Return to the Dossier to compose freely."*
+### Cross-Language Refusal (Episteme + Rhizome)
 
-The DF-entry path's analytical value is precisely that the user can change views, metrics, and compositions over a methodologically grounded scope (the DF's covered sources); locking everything makes the surface useless beyond the initial render.
+When `composition: 'merged'` AND the resolved scope spans multiple languages:
 
-**(B) Composition = Merged actually unionises at the query layer.**
+* **Episteme** (topic_distribution, topic_evolution) → BFF returns HTTP 422 `cross_language_merge_unsupported` (gate enforced in `view_mode_handlers.go`). Frontend renders RefusalSurface with the new dual-register content entry (`services/bff-api/configs/content/{en,de}/refusals/cross_language_merge_unsupported.yaml`). Resolution paths: narrow to one language, or switch to split composition.
+* **Rhizome** (cooccurrence_network, POST `/entities/cooccurrence/query`) → same 422 refusal.
+* **Aleph** (time_series, distribution) — **no** refusal. `MethodologyBanner` renders a soft cross-frame-comparability note (`WP-004 §3.4`) when `composition: 'merged'` AND `sources.length > 1`. The asymmetry is intentional: Aleph metrics (lexicon-based polarity, structural counts) are language-agnostic enough that aggregation is meaningful with caveats; Episteme + Rhizome models are language-conditioned (WP-005 §6.2).
 
-Decision (1) defines `composition: 'merged' + 1 ScopeGroup` as "one Cell, one query over the union" and `composition: 'merged' + N ScopeGroups` as "one Cell, one query over the union of all groups". This is correct for the Panel-host's intent — but the Cell components (specifically `TimeSeriesCell.svelte`) iterate their `sources` prop and render one chart per source **regardless of composition**. The result: merged-composition with N sources renders as N stacked charts, not one merged chart.
+---
 
-**Corrected**: the Cell contract gains a `composition` prop (`'merged' | 'split'`). The Cell branches:
+### URL Grammar (Phase 122k canonical)
 
-* `merged` → ONE chart that queries the BFF with `sourceIds=a,b,…` (BFF already unions). For `TimeSeriesCell`, this means one `SourceLaneChart` instance carrying a multi-source list, not N instances. For per-scope cells (`DistributionCell`, `TopicDistributionCell`, `TopicEvolutionCell`, `CoOccurrenceNetworkCell`), the existing per-scope query already does the right thing; verify they don't accidentally split on `sources.length > 1`.
-* `split` → fan-out as today: one Cell render per source (or per ScopeGroup at the PanelHost layer above the Cell).
+The only URL form for Workbench state:
 
-`SourceLaneChart` learns to accept a list of source names and call `/metrics/...` with `sourceIds=a,b,…`. The component is no longer strictly "one lane per source"; it renders one chart whose backing query may union multiple sources.
-
-**(C) Split direction sub-modes: `split-horizontal` and `split-vertical`.**
-
-The Decision (1) Split rules implicitly relied on the PanelHost's CSS grid (`grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr))`) to wrap split-cells. This was effectively horizontal-only with wrap. **Extended**: each Panel carries a new optional field `splitDirection: 'horizontal' | 'vertical'` (default `'horizontal'`). When `composition === 'split'`, PanelHost arranges the split-cells either side-by-side (horizontal) or stacked (vertical). CellControls renders a sub-toggle inside the Composition row when composition='split'.
-
-URL grammar: short key `sd` (`'h'` | `'v'`) inside the per-Panel compact JSON.
-
-**(D) ScopeEditor is a real popover, not a default-seed action.**
-
-Decision (4) described the ScopeEditor as a "popover for editing the focused Panel's ScopeGroups". The first-pass implementation shipped `+Compare` as a button that calls `addScopeGroupToFocused` with a default-seeded group (`{probeIds: [first group's probes], sourceIds: []}`) — no UI for source selection. **Corrected**: `+Compare` opens a popover with:
-
-* Source-multiselect filtered by the chosen probes' available sources (per-probe Free-Compose case).
-* Probe-multiselect + nested source-multiselect (general Free-Compose case, post-Dossier-Home refactor).
-* Add/Remove buttons per scope group; drag-to-reorder optional, deferred to a later iteration.
-* Save commits via `updatePanel(path, p => ({ ...p, scopes: newScopes }))`.
-
-**(E) Per-Panel CellControls collapse + Window-level Maximize-Mode.**
-
-Two new state fields, both optional, both pillar-agnostic:
-
-* `Panel.cellControlsCollapsed: boolean` — controls visibility of CellControls inside the focused panel. Per-panel UI state, survives URL share-link.
-* `WorkbenchWindow.maximizedPanelIndex: number | null` — when set, the window renders only the maximized panel at full canvas, with a tray of minimised siblings for swap.
-
-URL short keys: `cc` for cellControlsCollapsed, `mp` for maximizedPanelIndex.
-
-**(F) Cross-Language soft methodology note in Aleph.**
-
-The original Decision (3) refuses cross-language merge at the BFF (`422 cross_language_merge_unsupported`) for Episteme and Rhizome. Aleph metrics (sentiment, word_count, distribution) are sprach-agnostic enough that a cross-language scope is technically valid even if methodologically suspect. **Extended**: Aleph cells render a **soft methodology banner** above the chart when the resolved scope spans more than one language: *"Cross-language scope — interpret metric comparability cautiously (WP-004 §3.4)."* The Aleph cell does not refuse; the banner makes the methodological reservation visible. Episteme + Rhizome keep their hard 422 refusal for merged cross-language scopes. The shared `MethodologyBanner.svelte` primitive (new in the revision) renders both soft notes and joint-corpus notes from a small set of variants.
-
-**(G) Two critical bugs documented for the audit trail.**
-
-* **A5 — PillarSwitch routing broken.** All three Pillar tiles in `PillarSwitch.svelte` navigate to the Aleph URL — Episteme and Rhizome unreachable from the UI. Root cause TBD (`pickPillar()` reconciliation or the tile click-handler); revision investigates + fixes early so the rest of the revision is testable. This bug was load-bearing for the manual-testing surface that exposed bugs B-F above; once fixed, the broader testing can resume.
-* **A6 — CoOccurrence node count clipped.** `CoOccurrenceNetworkCell` shows ≤ 3 nodes regardless of scope; always the same three. Likely a `topN` / `LIMIT` misapplication in the storage query or response shaping. Diagnosis traces from frontend → query factory → BFF handler → ClickHouse query → response. Fix at the right layer. Regression test added.
-
-**State-tree summary (post-revision).**
-
-```ts
-type Panel = {
-  // Phase 122i baseline
-  scopes: ScopeGroup[];
-  composition: 'merged' | 'split';
-  view: ViewMode;
-  metric: string;
-  layer: 'gold' | 'silver';
-  resolution?: Resolution;
-  normalization?: Normalization;
-  topN?: number;
-  locked?: boolean;
-  lockedReason?: 'df_entry';
-  lockedFunction?: string;
-  // Revision additions
-  splitDirection?: 'horizontal' | 'vertical';     // (C)
-  cellControlsCollapsed?: boolean;                 // (E)
-};
-
-type WorkbenchWindow = {
-  panels: Panel[];
-  focusedPanelIndex: number;
-  maximizedPanelIndex?: number | null;             // (E)
-};
+```
+/workbench?activePillar=<aleph|episteme|rhizome>
+          &aleph=<base64url-compact-pillar-state>
+          &episteme=<base64url-compact-pillar-state>
+          &rhizome=<base64url-compact-pillar-state>
+          &from=<ISO>&to=<ISO>
+          &resolution=<5min|hourly|daily|weekly|monthly>
+          &negSpace=1
+          &normalization=<zscore|percentile>
+          &selectedProbes=<a,b,c>
 ```
 
-Cells gain a `composition` prop in their `ViewModeCellProps` contract (B). All other Phase-122i decisions stand unchanged.
+Phase 122h legacy flat-form URLs (`?probeId=&sourceId=&viewingMode=&view=&metric=&viewMode=&layer=`) are retired entirely — the dashboard is pre-deployment, no bookmarks exist to preserve. The reader ignores legacy params; the writer never emits them.
 
-**Consequences.**
+---
 
-* **No backward incompatibility.** The new Panel fields are optional; old encoded URLs decode with sensible defaults (horizontal split, no maximize, controls expanded, panel fully editable when locked except for the ScopeEditor).
-* **Methodology surfacing becomes pillar-agnostic.** The shared `MethodologyBanner.svelte` is the new home for joint-corpus, small-corpus, and cross-language notes — Episteme keeps its hard refusal mechanism, Aleph gains its soft note, Rhizome inherits its hard refusal for merged cross-language.
-* **ScopeEditor as a real component** displaces the seed-only `+Compare` action. The mutator `addScopeGroupToFocused` keeps its API but is only called from the Editor's "Save" path, not from the bare `+Compare` click. Locked panels disable the Editor's Save button while leaving the rest of CellControls fully live.
-* **Methodology catalog coverage** (every dual-register YAML entry must describe what the user sees under Merged / Split-H / Split-V across all axes) and **caching/performance hardening** are deferred to Phase 122j — they are systemic concerns, not Phase-122i bug fixes.
+### Caps + Refusals at the URL Layer
+
+* `MAX_PANELS_PER_WINDOW = 8`. The `+Panel` button disables at the cap.
+* `MAX_WINDOWS_PER_PILLAR = 4`.
+* `WORKBENCH_URL_CAP_BYTES = 8192` — hard cap on the total Workbench portion of the URL. Over-cap writes are refused at the rune-store layer and the user is offered a "discard oldest window" recovery (planned; today the write silently truncates the offending pillar).
+* CoOccurrence multi-scope POST (`POST /entities/cooccurrence/query`) caps at **100 unique source-IDs** and **25 unique probe-IDs** per request; over-limit returns `413 scope_limit_exceeded` with the offending counts.
+
+---
+
+### Mutators
+
+Pure mutators in `src/lib/workbench/panel-mutators-pure.ts` (testable, no rune dependency):
+
+* `updatePanelPure` — commits an arbitrary `(prev: Panel) => Panel` mutation. The Phase-122i scope-only-lock guard is retired (the ScopeEditor owns the lock semantic now); the mutator commits scope edits on locked panels too.
+* `addPanelPure(pillars, pillar, template?)` — appends a new Panel; template comes from `buildPanelFromScopes` when called via `+Panel` → ScopeEditor → Apply.
+* `removePanelPure`, `focusPanelPure`, `addScopeGroupPure`, `setMaximizedPanelPure`, `toggleMaximizedPanelPure`, `addWindowPure`.
+
+Rune-wrapped exports in `panel-mutators.ts` apply each pure mutator against the live URL store.
+
+---
+
+### Tests
+
+* `tests/unit/url-state.test.ts` — URL grammar round-trip (single canonical Phase-122k form).
+* `tests/unit/url-panels.test.ts` — pillar-state base64url round-trip; rejection of out-of-bounds indices; per-Panel optional fields (resolution, normalization, splitDirection, cellControlsCollapsed, maximizedPanelIndex, windowStart, windowEnd) round-trip.
+* `tests/unit/panel-mutators.test.ts` — pure mutators (add / remove / update / focus / maximize / add-window / add-scope-group).
+
 
 ---

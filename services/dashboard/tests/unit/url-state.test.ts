@@ -7,15 +7,19 @@ import {
   type UrlState
 } from '../../src/lib/state/url-internals';
 
-// Test helper: builds a complete UrlState from EMPTY_URL_STATE + overrides.
-// Keeps tests resilient against future UrlState extensions (Phase 122i
-// added activePillar + pillars; future phases may add more).
+// Phase 122k — URL grammar reduced to a single canonical form. The
+// Phase-122h flat reader (?probeId=&sourceId=&viewingMode=&view=&metric=
+// &viewMode=&layer=) was retired entirely; the only fields the URL
+// surface carries are `?from`, `?to`, `?resolution`, `?negSpace`,
+// `?normalization`, `?activePillar`, `?aleph`/`?episteme`/`?rhizome`
+// (pillar-state base64url), and `?selectedProbes`.
+
 function state(overrides: Partial<UrlState> = {}): UrlState {
   return { ...EMPTY_URL_STATE, ...overrides };
 }
 
 describe('readFromSearch', () => {
-  it('returns all-null for an empty search string', () => {
+  it('returns the empty default for an empty search string', () => {
     expect(readFromSearch('')).toEqual(state());
   });
 
@@ -30,45 +34,15 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?from=not-a-date').from).toBeNull();
   });
 
-  it('validates resolution and viewingMode against their enums', () => {
-    const good = readFromSearch('?resolution=hourly&viewingMode=episteme');
-    expect(good.resolution).toBe('hourly');
-    expect(good.viewingMode).toBe('episteme');
-
-    const bad = readFromSearch('?resolution=yearly&viewingMode=ghosts');
-    expect(bad.resolution).toBeNull();
-    expect(bad.viewingMode).toBeNull();
+  it('validates resolution against its enum', () => {
+    expect(readFromSearch('?resolution=hourly').resolution).toBe('hourly');
+    expect(readFromSearch('?resolution=yearly').resolution).toBeNull();
   });
 
-  it('validates view against the Rhizome sub-view enum (Phase 122h)', () => {
-    expect(readFromSearch('?view=actors-topics').view).toBe('actors-topics');
-    expect(readFromSearch('?view=source-resonance').view).toBe('source-resonance');
-    expect(readFromSearch('?view=concept-migration').view).toBe('concept-migration');
-    expect(readFromSearch('?view=free-composition').view).toBe('free-composition');
-    expect(readFromSearch('?view=analysis').view).toBeNull();
-    expect(readFromSearch('?view=sideways').view).toBeNull();
-  });
-
-  it('accepts identifier-shaped metric names and rejects garbage', () => {
-    expect(readFromSearch('?metric=sentiment_score').metric).toBe('sentiment_score');
-    expect(readFromSearch('?metric=word_count').metric).toBe('word_count');
-    expect(readFromSearch('?metric=has%20space').metric).toBeNull();
-    expect(readFromSearch('?metric=drop%3Btable').metric).toBeNull();
-    expect(readFromSearch(`?metric=${'a'.repeat(200)}`).metric).toBeNull();
-  });
-
-  it('validates viewMode against its enum', () => {
-    expect(readFromSearch('?viewMode=time_series').viewMode).toBe('time_series');
-    expect(readFromSearch('?viewMode=distribution').viewMode).toBe('distribution');
-    expect(readFromSearch('?viewMode=cooccurrence_network').viewMode).toBe('cooccurrence_network');
-    expect(readFromSearch('?viewMode=scatter').viewMode).toBeNull();
-  });
-
-  it('parses layer=silver and layer=gold correctly', () => {
-    expect(readFromSearch('?layer=silver').layer).toBe('silver');
-    expect(readFromSearch('?layer=gold').layer).toBe('gold');
-    expect(readFromSearch('?layer=bronze').layer).toBeNull();
-    expect(readFromSearch('').layer).toBeNull();
+  it('validates activePillar against its enum', () => {
+    expect(readFromSearch('?activePillar=episteme').activePillar).toBe('episteme');
+    expect(readFromSearch('?activePillar=rhizome').activePillar).toBe('rhizome');
+    expect(readFromSearch('?activePillar=ghosts').activePillar).toBeNull();
   });
 
   it('parses negSpace=1 as true and absent/other values as null', () => {
@@ -78,19 +52,36 @@ describe('readFromSearch', () => {
     expect(readFromSearch('').negSpace).toBeNull();
   });
 
-  it('parses comma-separated probeId param into probeIds array', () => {
-    expect(readFromSearch('?probeId=probe-0-de-institutional-web').probeIds).toEqual([
+  it('parses comma-separated selectedProbes into an array', () => {
+    expect(readFromSearch('?selectedProbes=probe-0-de-institutional-web').selectedProbes).toEqual([
       'probe-0-de-institutional-web'
     ]);
     expect(
-      readFromSearch('?probeId=probe-0-de-institutional-web,probe-1-de-public-rss').probeIds
+      readFromSearch('?selectedProbes=probe-0-de-institutional-web,probe-1-de-public-rss')
+        .selectedProbes
     ).toEqual(['probe-0-de-institutional-web', 'probe-1-de-public-rss']);
-    expect(readFromSearch('').probeIds).toEqual([]);
+    expect(readFromSearch('').selectedProbes).toEqual([]);
+  });
+
+  it('ignores legacy Phase-122h flat params (probeId, sourceId, metric, …)', () => {
+    // Phase 122k — these used to populate fields on UrlState. After the
+    // single-grammar cleanup they are simply ignored.
+    const parsed = readFromSearch(
+      '?probeId=probe-0&sourceId=tagesschau&viewingMode=episteme&view=actors-topics&metric=sentiment_score&viewMode=distribution&layer=silver'
+    );
+    // activePillar is the surviving enum and is read from its canonical
+    // key only, not from `viewingMode`.
+    expect(parsed.activePillar).toBeNull();
+    expect(parsed.selectedProbes).toEqual([]);
+    // No `viewingMode` / `sourceIds` / `metric` / `viewMode` / `layer`
+    // fields exist on UrlState anymore — this is a type-level guarantee
+    // checked by tsc; here we only verify the surviving shape.
+    expect(parsed).toEqual(state());
   });
 });
 
 describe('writeToSearch', () => {
-  it('omits null fields entirely', () => {
+  it('omits all fields when state is empty', () => {
     expect(writeToSearch(state())).toBe('');
   });
 
@@ -110,41 +101,17 @@ describe('writeToSearch', () => {
     expect(qs).not.toContain('negSpace=');
   });
 
-  it('round-trips through readFromSearch', () => {
-    const original = state({
-      from: '2026-04-01T00:00:00.000Z',
-      to: '2026-04-22T00:00:00.000Z',
-      resolution: 'daily',
-      viewingMode: 'rhizome',
-      metric: 'sentiment_score',
-      view: 'actors-topics',
-      viewMode: 'distribution'
-    });
-    expect(readFromSearch(writeToSearch(original))).toEqual(original);
+  it('emits activePillar when set', () => {
+    expect(writeToSearch(state({ activePillar: 'episteme' }))).toContain('activePillar=episteme');
   });
 
-  it('emits metric when set', () => {
-    expect(writeToSearch(state({ metric: 'sentiment_score' }))).toContain('metric=sentiment_score');
-  });
-
-  it('emits view when a Rhizome sub-view is set (Phase 122h)', () => {
-    expect(writeToSearch(state({ viewingMode: 'rhizome', view: 'source-resonance' }))).toContain(
-      'view=source-resonance'
-    );
-  });
-
-  it('emits viewMode when set', () => {
-    expect(writeToSearch(state({ viewMode: 'distribution' }))).toContain('viewMode=distribution');
-  });
-
-  it('emits layer=silver when set, omits for gold', () => {
-    expect(writeToSearch(state({ layer: 'silver' }))).toContain('layer=silver');
-    expect(writeToSearch(state({ layer: 'gold' }))).not.toContain('layer=');
-  });
-
-  it('round-trips layer=silver through readFromSearch', () => {
-    const original = state({ sourceIds: ['tagesschau'], layer: 'silver' });
-    expect(readFromSearch(writeToSearch(original))).toEqual(original);
+  it('emits selectedProbes as comma-separated', () => {
+    expect(
+      writeToSearch(
+        state({ selectedProbes: ['probe-0-de-institutional-web', 'probe-1-de-public-rss'] })
+      )
+    ).toContain('selectedProbes=probe-0-de-institutional-web%2Cprobe-1-de-public-rss');
+    expect(writeToSearch(state())).not.toContain('selectedProbes=');
   });
 
   it('emits negSpace=1 when true, omits when null', () => {
@@ -152,12 +119,7 @@ describe('writeToSearch', () => {
     expect(writeToSearch(state())).not.toContain('negSpace=');
   });
 
-  it('round-trips negSpace=true through readFromSearch', () => {
-    const original = state({ negSpace: true });
-    expect(readFromSearch(writeToSearch(original))).toEqual(original);
-  });
-
-  it('normalization roundtrips zscore and percentile, omits raw (Phase 115)', () => {
+  it('normalization roundtrips zscore and percentile, omits raw', () => {
     expect(readFromSearch(writeToSearch(state({ normalization: 'zscore' }))).normalization).toBe(
       'zscore'
     );
@@ -167,16 +129,19 @@ describe('writeToSearch', () => {
     expect(writeToSearch(state({ normalization: 'raw' }))).not.toContain('normalization');
   });
 
-  it('emits probeId param for multi-probe composition and omits when empty', () => {
-    expect(
-      writeToSearch(state({ probeIds: ['probe-0-de-institutional-web', 'probe-1-de-public-rss'] }))
-    ).toContain('probeId=probe-0-de-institutional-web%2Cprobe-1-de-public-rss');
-    expect(writeToSearch(state())).not.toContain('probeId=');
+  it('round-trips selectedProbes through readFromSearch', () => {
+    const original = state({
+      selectedProbes: ['probe-0-de-institutional-web', 'probe-1-de-public-rss']
+    });
+    expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });
 
-  it('round-trips probeIds through readFromSearch', () => {
+  it('round-trips activePillar + selectedProbes + negSpace through readFromSearch', () => {
     const original = state({
-      probeIds: ['probe-0-de-institutional-web', 'probe-1-de-public-rss']
+      activePillar: 'rhizome',
+      selectedProbes: ['probe-0-de-institutional-web'],
+      negSpace: true,
+      normalization: 'zscore'
     });
     expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });

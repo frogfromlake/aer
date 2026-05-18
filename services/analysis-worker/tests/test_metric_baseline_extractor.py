@@ -109,7 +109,7 @@ class _FakeClickHouse:
         self.query_calls.append((sql, parameters))
         return _QueryResult(result_rows=list(self._rows))
 
-    def insert(self, table: str, rows: list[list], column_names: list[str]):
+    def insert(self, table: str, rows: list[list], column_names: list[str], settings: dict | None = None):
         self.insert_calls.append((table, rows, column_names))
 
 

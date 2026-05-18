@@ -25,7 +25,7 @@
   import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
-  import CellControls from './CellControls.svelte';
+  import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
 
@@ -84,36 +84,23 @@
   // legacy single-Cell shell below.
   const pillarState = $derived(url.pillars?.aleph ?? null);
 
-  // Cell selection — restricted to Aleph's presentation set
-  // (`time_series` + `distribution`). The Pillar reconciliation in
-  // `$lib/pillar.pickPillar()` ensures `url.viewMode` always belongs
-  // to the active Pillar, but `resolvePresentation` enforces it again
-  // here as a defensive measure.
-  const presentation = $derived(resolvePresentation(url.viewMode, 'aleph'));
-  const metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
-  const dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
+  // Phase 122k — legacy single-cell fallback (when pillarState is null)
+  // renders an empty Aleph with Aleph defaults. Scope is fully governed by
+  // pillar state; this fallback is only reached on a fresh /workbench
+  // visit before the user has configured anything. The K3 wiring will
+  // open the ScopeEditor instead of rendering this fallback.
+  const presentation = $derived(resolvePresentation(null, 'aleph'));
+  const metricName = $derived(DEFAULT_METRIC_NAME);
+  const dataLayer = $derived<'gold' | 'silver'>('gold');
 
-  // Sources visible in the Cell. When the user has narrowed scope via
-  // source-card clicks, only those sources render; otherwise all probe
-  // sources render.
   const cellSources = $derived(
     dossier
-      ? url.sourceIds.length > 0
-        ? dossier.sources
-            .filter((s) => url.sourceIds.includes(s.name))
-            .map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
-        : dossier.sources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
+      ? dossier.sources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
       : []
   );
 
-  // Scope: probe-scope by default. Single-source narrowing flips to
-  // source-scope, matching the per-source Silver-eligibility check.
-  const scope = $derived<'probe' | 'source'>(
-    probeIds.length === 1 && url.sourceIds.length === 1 ? 'source' : 'probe'
-  );
-  const scopeId = $derived<string>(
-    probeIds.length === 1 && url.sourceIds.length === 1 ? url.sourceIds[0]! : activeProbeId
-  );
+  const scope = $derived<'probe' | 'source'>('probe');
+  const scopeId = $derived<string>(activeProbeId);
 
   // Dataset-Shape strip values. Phase 122i revision (A4): when the URL
   // carries pillar-state, the strip reflects the FOCUSED PANEL's
@@ -238,7 +225,7 @@
         </div>
       </header>
 
-      <CellControls pillar="aleph" />
+      <PanelControls pillar="aleph" />
 
       <div class="cell-frame">
         <header class="cell-header">

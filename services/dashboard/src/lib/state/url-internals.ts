@@ -49,7 +49,7 @@ export type Normalization = 'raw' | 'zscore' | 'percentile';
 // arranged side-by-side (4 at typical viewport widths; 5..8 horizontal-
 // scroll). A `PillarState` holds 1..4 windows. Each Pillar persists its
 // own state in the URL so a pillar-switch is non-destructive.
-export type Composition = 'merged' | 'split';
+export type Composition = 'merged' | 'split' | 'overlay';
 
 // Phase 122i revision (D2). Split direction governs how a Panel arranges
 // its small-multiples when composition='split'. Horizontal = cells
@@ -87,10 +87,16 @@ export interface Panel {
   // multiples within the panel. Absent / undefined = horizontal default.
   splitDirection?: SplitDirection;
   // Phase 122i revision (C4). When true, the focused panel renders its
-  // CellControls collapsed (header-only with an expand toggle). Persists
+  // PanelControls collapsed (header-only with an expand toggle). Persists
   // in the URL so a deep-link survives. Per-panel; only meaningful on
   // the focused panel of the active window.
   cellControlsCollapsed?: boolean;
+  // Phase 122k F5 — per-Panel time window. When set, overrides the global
+  // `url.from` / `url.to` for THIS panel only. ISO-date strings; when
+  // absent the panel inherits the global default (current behaviour).
+  // Encoded as `ws` / `we` in the compact pillar payload.
+  windowStart?: string;
+  windowEnd?: string;
 }
 
 export interface WorkbenchWindow {
@@ -101,6 +107,11 @@ export interface WorkbenchWindow {
   // tray for swap. Out-of-bounds values are treated as "no maximize"
   // by the WindowHost render path. Absent / null = no maximize.
   maximizedPanelIndex?: number | null;
+  // Phase 122k §14 finding 6 — configurable panels-per-row. When set,
+  // the panel raster uses `repeat(N, 1fr)` so N panels share each row.
+  // Absent / undefined = auto-fill with the previous `minmax(28rem, 1fr)`
+  // heuristic. Valid range: 1..8 (capped by MAX_PANELS_PER_WINDOW).
+  panelsPerRow?: number;
 }
 
 export interface PillarState {
@@ -126,31 +137,6 @@ export interface UrlState {
   from: string | null;
   to: string | null;
   resolution: Resolution | null;
-  viewingMode: ViewingMode | null;
-  // Metric the L3 Analysis view is locked onto. A free-form string so
-  // new gold metrics land without a schema bump; the L3 panel falls
-  // back to a sensible default when this is null.
-  metric: string | null;
-  // Rhizome sub-view (Phase 122h). `null` = "render Rhizome's default
-  // (Akteure & Themen) when the Pillar is Rhizome; otherwise ignored".
-  view: RhizomeView | null;
-  // Source-scope narrowing: set by the Probe Dossier (Phase 106) when
-  // the user clicks source cards. Supports multi-source selection (Phase
-  // 113d). Empty array = no scope narrowing. Serialised as comma-separated
-  // `sourceId` query parameter.
-  sourceIds: string[];
-  // Multi-probe composition set (Phase 114). Populated by shift+click on
-  // the globe or the Compose CTA in the Probe Dossier. When non-empty,
-  // Function Lane cells query the BFF with all probes unioned. Serialised
-  // as comma-separated `probeId` query parameter.
-  probeIds: string[];
-  // View-Mode Matrix selection (Phase 107). Only meaningful inside
-  // Surface II's Function Lanes; consumers treat `null` as the default
-  // presentation (`time_series`).
-  viewMode: ViewMode | null;
-  // Silver-layer toggle (Phase 111). `null` and `gold` are equivalent;
-  // only `silver` is emitted in the URL.
-  layer: DataLayer | null;
   // Negative Space overlay (Phase 112). `null` and `false` are equivalent;
   // only `true` is serialised as `negSpace=1`. When active, all three
   // surfaces shift into "what AĒR doesn't see" mode per Design Brief §4.4.
@@ -159,15 +145,20 @@ export interface UrlState {
   normalization: Normalization | null;
   // Phase 122i / ADR-034 — Multi-Panel Workbench state.
   //
-  // When a richer-than-flat state is in scope (multi-panel, multi-window,
-  // multi-scope-group, or a `locked` panel), the writer emits
-  // `?activePillar=…&aleph=<base64url-json>&…` and DROPS the legacy flat
-  // params. When the state reduces to a single pillar / single window /
-  // single panel / single scope-group / not-locked, the writer prefers
-  // the legacy `?probeId=&sourceId=&view=&metric=&viewingMode=&layer=`
-  // form so Phase-122h bookmarks remain byte-stable.
+  // Single canonical URL grammar (Phase 122k pre-deployment reset):
+  // `?activePillar=…&aleph=<base64url-json>&episteme=…&rhizome=…`.
+  // The Phase-122h legacy flat form (`?probeId=&sourceId=&view=&metric=
+  // &viewingMode=&layer=`) has been retired entirely — no bookmarks exist
+  // to preserve. All per-Panel state lives inside the pillar payload.
   activePillar: ViewingMode | null;
   pillars: WorkbenchPillarsState | null;
+  // Phase 122k — Probe Selection State. Populated by Atmos SHIFT-click
+  // on probe glyphs and by the Probe-Filter Modal. Consumed by:
+  //   - Dossier: filters the catalog to these probes, auto-expanded
+  //   - Workbench: seeds the ScopeEditor's first ScopeGroup when the
+  //     user opens the Workbench with a non-empty selection
+  // Serialised as `?selectedProbes=a,b,c`. Empty array = no selection.
+  selectedProbes: string[];
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -179,27 +170,15 @@ export const EMPTY_URL_STATE: UrlState = {
   from: null,
   to: null,
   resolution: null,
-  viewingMode: null,
-  metric: null,
-  view: null,
-  sourceIds: [],
-  probeIds: [],
-  viewMode: null,
-  layer: null,
   negSpace: null,
   normalization: null,
   activePillar: null,
-  pillars: null
+  pillars: null,
+  selectedProbes: []
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
 const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
-const RHIZOME_VIEWS: readonly RhizomeView[] = [
-  'actors-topics',
-  'source-resonance',
-  'concept-migration',
-  'free-composition'
-];
 const VIEW_MODES: readonly ViewMode[] = [
   'time_series',
   'distribution',
@@ -207,7 +186,6 @@ const VIEW_MODES: readonly ViewMode[] = [
   'topic_distribution',
   'topic_evolution'
 ];
-const DATA_LAYERS: readonly DataLayer[] = ['gold', 'silver'];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
 // smuggling structure into the URL. The BFF's `metric_name` is already
@@ -227,59 +205,34 @@ function parseEnum<T extends string>(v: string | null, allowed: readonly T[]): T
 
 export function readFromSearch(search: string): UrlState {
   const p = new URLSearchParams(search);
-  // Phase 122i: when any pillar key is present, the URL is in
-  // multi-panel form. Legacy flat params (probeId/sourceId/view/…) are
-  // intentionally ignored to keep the read deterministic.
+  // Phase 122k — single canonical grammar. Pillar-state base64url is the
+  // only form for Workbench state; `?selectedProbes=…` carries the
+  // Atmos/Modal selection consumed by Dossier and Workbench.
   const alephRaw = p.get('aleph');
   const epistemeRaw = p.get('episteme');
   const rhizomeRaw = p.get('rhizome');
-  const hasPillarState = alephRaw !== null || epistemeRaw !== null || rhizomeRaw !== null;
-  if (hasPillarState) {
-    const aleph = alephRaw !== null ? decodePillarState(alephRaw) : null;
-    const episteme = epistemeRaw !== null ? decodePillarState(epistemeRaw) : null;
-    const rhizome = rhizomeRaw !== null ? decodePillarState(rhizomeRaw) : null;
-    const activePillar = parseEnum(p.get('activePillar'), VIEWING_MODES);
-    return {
-      from: parseIso(p.get('from')),
-      to: parseIso(p.get('to')),
-      resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
-      viewingMode: null,
-      metric: null,
-      view: null,
-      sourceIds: [],
-      probeIds: [],
-      viewMode: null,
-      layer: null,
-      negSpace: p.get('negSpace') === '1' ? true : null,
-      normalization: parseEnum(p.get('normalization'), NORMALIZATIONS),
-      activePillar,
-      pillars: { aleph, episteme, rhizome }
-    };
-  }
+  const aleph = alephRaw !== null ? decodePillarState(alephRaw) : null;
+  const episteme = epistemeRaw !== null ? decodePillarState(epistemeRaw) : null;
+  const rhizome = rhizomeRaw !== null ? decodePillarState(rhizomeRaw) : null;
+  // The pillars wrapper is populated whenever ANY pillar key is present in
+  // the URL — even if decoding failed (the per-pillar slot is then null).
+  // This preserves the diagnostic "pillar URL with malformed payload"
+  // case so the dashboard can render a refusal surface rather than
+  // silently falling back to an empty Workbench.
+  const hasPillars = alephRaw !== null || epistemeRaw !== null || rhizomeRaw !== null;
   return {
     from: parseIso(p.get('from')),
     to: parseIso(p.get('to')),
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
-    viewingMode: parseEnum(p.get('viewingMode'), VIEWING_MODES),
-    metric: parseMetric(p.get('metric')),
-    view: parseEnum(p.get('view'), RHIZOME_VIEWS),
-    sourceIds: parseSourceIds(p.get('sourceId')),
-    probeIds: parseSourceIds(p.get('probeId')),
-    viewMode: parseEnum(p.get('viewMode'), VIEW_MODES),
-    layer: parseEnum(p.get('layer'), DATA_LAYERS),
     negSpace: p.get('negSpace') === '1' ? true : null,
     normalization: parseEnum(p.get('normalization'), NORMALIZATIONS),
-    activePillar: null,
-    pillars: null
+    activePillar: parseEnum(p.get('activePillar'), VIEWING_MODES),
+    pillars: hasPillars ? { aleph, episteme, rhizome } : null,
+    selectedProbes: parseIdList(p.get('selectedProbes'))
   };
 }
 
-function parseMetric(v: string | null): string | null {
-  if (v === null) return null;
-  return METRIC_NAME_RE.test(v) ? v : null;
-}
-
-function parseSourceIds(v: string | null): string[] {
+function parseIdList(v: string | null): string[] {
   if (!v) return [];
   return v
     .split(',')
@@ -292,26 +245,17 @@ export function writeToSearch(state: UrlState): string {
   if (state.from) p.set('from', state.from);
   if (state.to) p.set('to', state.to);
   if (state.resolution) p.set('resolution', state.resolution);
-  // Phase 122i: when `state.pillars` is non-null, the writer emits the
-  // multi-panel form (`?activePillar=…&aleph=…&episteme=…&rhizome=…`)
-  // and drops the legacy flat Surface II params. The reader honours the
-  // pillar form as authoritative when present (see `readFromSearch`).
+  // Phase 122k — single canonical Workbench grammar.
   if (state.pillars) {
     if (state.activePillar) p.set('activePillar', state.activePillar);
     if (state.pillars.aleph) p.set('aleph', encodePillarState(state.pillars.aleph));
     if (state.pillars.episteme) p.set('episteme', encodePillarState(state.pillars.episteme));
     if (state.pillars.rhizome) p.set('rhizome', encodePillarState(state.pillars.rhizome));
-  } else {
-    if (state.viewingMode) p.set('viewingMode', state.viewingMode);
-    // metric, viewMode, layer, and sourceIds are Surface II concepts; they
-    // are meaningful on /workbench routes regardless of whether a ?probe= param
-    // is present.
-    if (state.metric) p.set('metric', state.metric);
-    if (state.view) p.set('view', state.view);
-    if (state.sourceIds.length > 0) p.set('sourceId', state.sourceIds.join(','));
-    if (state.probeIds.length > 0) p.set('probeId', state.probeIds.join(','));
-    if (state.viewMode) p.set('viewMode', state.viewMode);
-    if (state.layer === 'silver') p.set('layer', 'silver');
+  } else if (state.activePillar) {
+    // ActivePillar without a pillar payload is meaningful on the Dossier
+    // and Atmos surfaces (it lets the user pre-select which pillar a
+    // future Workbench will open into) — emit it so a reload restores it.
+    p.set('activePillar', state.activePillar);
   }
   // `negSpace=1` when the Negative Space overlay is active. Not scoped to
   // a probe — the overlay applies globally across all surfaces.
@@ -320,6 +264,10 @@ export function writeToSearch(state: UrlState): string {
   // clean for the Level-1 view.
   if (state.normalization && state.normalization !== 'raw') {
     p.set('normalization', state.normalization);
+  }
+  // Phase 122k — probe selection set.
+  if (state.selectedProbes.length > 0) {
+    p.set('selectedProbes', state.selectedProbes.join(','));
   }
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
@@ -359,7 +307,7 @@ interface CompactScopeGroup {
 
 interface CompactPanel {
   s: CompactScopeGroup[];
-  c: 'm' | 's';
+  c: 'm' | 's' | 'o';
   v: ViewMode;
   m: string;
   l: 'g' | 's';
@@ -372,6 +320,11 @@ interface CompactPanel {
   // Phase 122i revision short keys.
   sd?: 'h' | 'v'; // splitDirection (D2)
   cc?: 1; // cellControlsCollapsed (C4)
+  // Phase 122k F5 — per-panel time window. ISO date strings; absent when
+  // the panel inherits the global default. Encoded verbatim so URL-state
+  // debugging is straightforward.
+  ws?: string;
+  we?: string;
 }
 
 interface CompactWindow {
@@ -381,6 +334,8 @@ interface CompactWindow {
   // no maximize. Encoded as a numeric index when set; out-of-bounds
   // values are rejected by the type guard.
   mp?: number;
+  // Phase 122k §14 finding 6 — panels-per-row override.
+  ppr?: number;
 }
 
 interface CompactPillarState {
@@ -406,6 +361,14 @@ function compactPillarState(s: PillarState): CompactPillarState {
       ) {
         cw.mp = win.maximizedPanelIndex;
       }
+      if (
+        win.panelsPerRow !== undefined &&
+        Number.isInteger(win.panelsPerRow) &&
+        win.panelsPerRow >= 1 &&
+        win.panelsPerRow <= MAX_PANELS_PER_WINDOW
+      ) {
+        cw.ppr = win.panelsPerRow;
+      }
       return cw;
     }),
     aw: s.activeWindowIndex
@@ -415,7 +378,7 @@ function compactPillarState(s: PillarState): CompactPillarState {
 function compactPanel(p: Panel): CompactPanel {
   const c: CompactPanel = {
     s: p.scopes.map((g) => ({ pi: g.probeIds, si: g.sourceIds })),
-    c: p.composition === 'merged' ? 'm' : 's',
+    c: p.composition === 'merged' ? 'm' : p.composition === 'overlay' ? 'o' : 's',
     v: p.view,
     m: p.metric,
     l: p.layer === 'silver' ? 's' : 'g'
@@ -432,6 +395,9 @@ function compactPanel(p: Panel): CompactPanel {
   if (p.splitDirection === 'vertical') c.sd = 'v';
   else if (p.splitDirection === 'horizontal') c.sd = 'h';
   if (p.cellControlsCollapsed === true) c.cc = 1;
+  // Phase 122k F5 — per-panel window.
+  if (p.windowStart !== undefined) c.ws = p.windowStart;
+  if (p.windowEnd !== undefined) c.we = p.windowEnd;
   return c;
 }
 
@@ -443,6 +409,7 @@ function expandPillarState(c: CompactPillarState): PillarState {
         focusedPanelIndex: w.fi
       };
       if (w.mp !== undefined) win.maximizedPanelIndex = w.mp;
+      if (w.ppr !== undefined) win.panelsPerRow = w.ppr;
       return win;
     }),
     activeWindowIndex: c.aw
@@ -452,7 +419,7 @@ function expandPillarState(c: CompactPillarState): PillarState {
 function expandPanel(c: CompactPanel): Panel {
   const p: Panel = {
     scopes: c.s.map((g) => ({ probeIds: g.pi, sourceIds: g.si })),
-    composition: c.c === 'm' ? 'merged' : 'split',
+    composition: c.c === 'm' ? 'merged' : c.c === 'o' ? 'overlay' : 'split',
     view: c.v,
     metric: c.m,
     layer: c.l === 's' ? 'silver' : 'gold'
@@ -466,6 +433,9 @@ function expandPanel(c: CompactPanel): Panel {
   if (c.sd === 'v') p.splitDirection = 'vertical';
   else if (c.sd === 'h') p.splitDirection = 'horizontal';
   if (c.cc === 1) p.cellControlsCollapsed = true;
+  // Phase 122k F5 — per-panel window.
+  if (typeof c.ws === 'string') p.windowStart = c.ws;
+  if (typeof c.we === 'string') p.windowEnd = c.we;
   return p;
 }
 
@@ -515,6 +485,15 @@ function isCompactWindow(v: unknown): v is CompactWindow {
     if (typeof v.mp !== 'number' || !Number.isInteger(v.mp) || v.mp < 0 || v.mp >= v.p.length)
       return false;
   }
+  if (v.ppr !== undefined) {
+    if (
+      typeof v.ppr !== 'number' ||
+      !Number.isInteger(v.ppr) ||
+      v.ppr < 1 ||
+      v.ppr > MAX_PANELS_PER_WINDOW
+    )
+      return false;
+  }
   return v.p.every(isCompactPanel);
 }
 
@@ -522,7 +501,7 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   if (!isRecord(v)) return false;
   if (!Array.isArray(v.s) || v.s.length === 0) return false;
   if (!v.s.every(isCompactScopeGroup)) return false;
-  if (v.c !== 'm' && v.c !== 's') return false;
+  if (v.c !== 'm' && v.c !== 's' && v.c !== 'o') return false;
   if (typeof v.v !== 'string' || !(VIEW_MODES as readonly string[]).includes(v.v)) return false;
   if (typeof v.m !== 'string' || !METRIC_NAME_RE.test(v.m)) return false;
   if (v.l !== 'g' && v.l !== 's') return false;
@@ -537,6 +516,9 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   // Phase 122i revision short keys.
   if (v.sd !== undefined && v.sd !== 'h' && v.sd !== 'v') return false;
   if (v.cc !== undefined && v.cc !== 1) return false;
+  // Phase 122k F5 — per-panel window keys.
+  if (v.ws !== undefined && typeof v.ws !== 'string') return false;
+  if (v.we !== undefined && typeof v.we !== 'string') return false;
   return true;
 }
 

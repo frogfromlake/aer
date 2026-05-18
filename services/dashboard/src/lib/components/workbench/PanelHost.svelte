@@ -26,9 +26,13 @@
     focusPanel,
     removePanel,
     removeScopeGroup,
-    toggleMaximizedPanel
+    toggleMaximizedPanel,
+    updatePanel
   } from '$lib/workbench/panel-mutators';
-  import CellControls from './CellControls.svelte';
+  import type { DiscourseFunction } from '$lib/discourse-function';
+  import type { ScopeGroup } from '$lib/state/url-internals';
+  import PanelControls from './PanelControls.svelte';
+  import PanelMetaStrip from './PanelMetaStrip.svelte';
   import ScopeEditor from './ScopeEditor.svelte';
 
   interface Props {
@@ -38,7 +42,7 @@
     windowStart: string;
     windowEnd: string;
     /** Phase 122i — when set, the host enables interactive editing
-     *  (focus on click, CellControls, +Compare, ×Remove). Absent for
+     *  (focus on click, PanelControls, +Compare, ×Remove). Absent for
      *  legacy/preview rendering paths. */
     pillar?: ViewingMode;
     windowIndex?: number;
@@ -175,6 +179,11 @@
   }
 
   const dataLayer = $derived<'gold' | 'silver'>(panel.layer === 'silver' ? 'silver' : 'gold');
+
+  // Phase 122k F5 — effective per-panel window: the panel's own
+  // windowStart/windowEnd override the inherited defaults when set.
+  const effectiveWindowStart = $derived(panel.windowStart ?? windowStart);
+  const effectiveWindowEnd = $derived(panel.windowEnd ?? windowEnd);
 </script>
 
 <!--
@@ -224,12 +233,9 @@
           type="button"
           class="panel-action"
           onclick={onAddCompare}
-          disabled={panel.locked === true}
-          title={panel.locked
-            ? 'Scope locked — return to the Dossier to recombine sources'
-            : 'Add a comparison ScopeGroup to this panel'}
+          title="Configure this panel's scope (probes, sources, discourse-function restriction)"
         >
-          ＋ Compare
+          ⚙ Edit scope
         </button>
         {#if canMaximize || isMaximized}
           <!-- Phase 122i revision (C3). Maximize button. Always enabled
@@ -261,8 +267,12 @@
     {/if}
   </header>
 
+  {#if path}
+    <PanelMetaStrip {panel} {dossier} panelPath={path} />
+  {/if}
+
   {#if focused && path}
-    <CellControls pillar={path.pillar} panelPath={path} />
+    <PanelControls pillar={path.pillar} panelPath={path} />
   {/if}
 
   {#if isInteractive && panel.scopes.length > 1}
@@ -309,14 +319,26 @@
     {:else}
       {@const Cell = CellComponent}
       {#each expandedUnits as unit (unit.key)}
-        <div class="panel-cell">
+        {@const groupNum = unit.groupIndex !== undefined ? unit.groupIndex + 1 : null}
+        <div class="panel-cell" class:has-group={groupNum !== null} data-group={groupNum}>
+          {#if groupNum !== null}
+            <header class="cell-group-eyebrow">
+              <span class="cell-group-badge" aria-hidden="true">Group {groupNum}</span>
+              <span class="cell-group-summary">
+                {unit.probeIds.length > 0 ? unit.probeIds.join(', ') : unit.scopeId}
+                {#if unit.sourceIds.length > 0}
+                  · {unit.sourceIds.length} source{unit.sourceIds.length === 1 ? '' : 's'}
+                {/if}
+              </span>
+            </header>
+          {/if}
           <Cell
             {ctx}
             scopeProbeId={dossier.probeId}
             scope={unit.scope}
             scopeId={unit.scopeId}
-            {windowStart}
-            {windowEnd}
+            windowStart={effectiveWindowStart}
+            windowEnd={effectiveWindowEnd}
             metricName={panel.metric}
             sources={sourcesForUnit(unit)}
             {dataLayer}
@@ -330,7 +352,35 @@
 </article>
 
 {#if scopeEditorOpen && path}
-  <ScopeEditor panelPath={path} {panel} {dossier} onClose={() => (scopeEditorOpen = false)} />
+  <ScopeEditor
+    {panel}
+    {dossier}
+    {ctx}
+    onApply={(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) => {
+      // Commit draft state to the Panel via the mutator. The mutator
+      // respects the `locked` guard (scope edits are gated when the panel
+      // is DF-locked), but in 122k the lock is set BY the editor itself
+      // via the DF-lock dropdown, so we update both scopes and lockedFunction
+      // atomically.
+      if (path) {
+        updatePanel(path, (p) => {
+          const next: Panel = { ...p, scopes };
+          if (lockedFunction) {
+            next.locked = true;
+            next.lockedFunction = lockedFunction;
+            next.lockedReason = 'df_entry';
+          } else {
+            delete next.locked;
+            delete next.lockedFunction;
+            delete next.lockedReason;
+          }
+          return next;
+        });
+      }
+      scopeEditorOpen = false;
+    }}
+    onCancel={() => (scopeEditorOpen = false)}
+  />
 {/if}
 
 <style>
@@ -481,14 +531,22 @@
     gap: var(--space-4);
   }
 
+  /* Phase 122k §14b finding 1 — horizontal split forces side-by-side
+     equal-width cells regardless of panel width. The previous
+     auto-fit/minmax(20rem, 1fr) collapsed to a single column when the
+     panel was narrower than 40rem (e.g. with panels-per-row=2 or 4),
+     making horizontal look identical to vertical. Flex with explicit
+     row/column directions is unambiguous. */
   .panel-body.split[data-split-direction='horizontal'] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    display: flex;
+    flex-direction: row;
     gap: var(--space-4);
   }
+  .panel-body.split[data-split-direction='horizontal'] > .panel-cell {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 
-  /* Phase 122i revision (D2). Vertical split stacks the cells; flex
-     column already does that, so we only need to drop the grid layout. */
   .panel-body.split[data-split-direction='vertical'] {
     display: flex;
     flex-direction: column;
@@ -497,6 +555,69 @@
 
   .panel-cell {
     min-height: 14rem;
+  }
+
+  /* Phase 122k §11 finding — multi-group split panels need a visual
+     identity per group so the user can read which Cell belongs to
+     which ScopeGroup. Each group gets a subtle border-left tint and
+     an eyebrow header with a "Group N" badge. The colour cycles
+     through a four-tone palette consistent with the ScopeEditor's
+     step accents. */
+  .panel-cell.has-group {
+    position: relative;
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--group-color) 4%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--group-color) 50%, var(--color-border));
+    border-radius: var(--radius-sm);
+  }
+  .panel-cell.has-group[data-group='1'] {
+    --group-color: #7dc7e5;
+  }
+  .panel-cell.has-group[data-group='2'] {
+    --group-color: #e8a25c;
+  }
+  .panel-cell.has-group[data-group='3'] {
+    --group-color: #a3c984;
+  }
+  .panel-cell.has-group[data-group='4'] {
+    --group-color: #d97a7a;
+  }
+  /* Beyond four groups, fall back to a neutral accent so the layout
+     stays calm. */
+  .panel-cell.has-group:not([data-group='1']):not([data-group='2']):not([data-group='3']):not(
+      [data-group='4']
+    ) {
+    --group-color: var(--color-fg-subtle);
+  }
+
+  .cell-group-eyebrow {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    padding: 0 0 var(--space-1) 0;
+    border-bottom: 1px dashed color-mix(in srgb, var(--group-color) 30%, var(--color-border));
+    margin-bottom: var(--space-2);
+  }
+
+  .cell-group-badge {
+    display: inline-block;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--group-color) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--group-color) 50%, transparent);
+    color: var(--group-color);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .cell-group-summary {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
   }
 
   .muted {

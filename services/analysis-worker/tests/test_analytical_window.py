@@ -94,11 +94,14 @@ def test_outside_window_preserves_archive_skips_analytics(
     proc._get_document_status = MagicMock(return_value=None)
     proc._update_document_status = MagicMock()
 
-    # 918 days old — the iter-5 podcast scenario
+    # 918 days old — the iter-5 podcast scenario. RssAdapter derives
+    # `core.timestamp` from the MinIO event_time (it has no per-article
+    # publish-date parser like WebAdapter), so the old timestamp must
+    # be passed through event_time for the gate to see it.
     old_ts = (datetime.now(timezone.utc) - timedelta(days=918)).isoformat().replace("+00:00", "Z")
     mock_minio.get_object.return_value = MagicMock(read=lambda: _bronze_with_timestamp(old_ts))
 
-    proc.process_event("rss/tagesschau/old.json", "2026-05-09T10:00:00.000Z", dummy_span)
+    proc.process_event("rss/tagesschau/old.json", old_ts, dummy_span)
 
     # Silver MinIO envelope WAS written (archive layer preserved).
     assert mock_minio.put_object.called

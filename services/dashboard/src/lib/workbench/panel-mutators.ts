@@ -106,6 +106,31 @@ export function toggleMaximizedPanel(
   if (next) setUrl({ pillars: next });
 }
 
+/** Phase 122k §14 finding 6 — set or clear the panels-per-row override
+ *  on a window. Passing `null` clears (auto-fill heuristic resumes). */
+export function setPanelsPerRow(
+  pillar: ViewingMode,
+  windowIndex: number,
+  panelsPerRow: number | null
+): void {
+  const pillars = urlState().pillars;
+  if (!pillars) return;
+  const pillarState = pillars[pillar];
+  if (!pillarState) return;
+  const win = pillarState.windows[windowIndex];
+  if (!win) return;
+  const nextWin: WorkbenchWindow = { ...win };
+  if (panelsPerRow === null) delete nextWin.panelsPerRow;
+  else nextWin.panelsPerRow = panelsPerRow;
+  const nextWindows = pillarState.windows.map((w, i) => (i === windowIndex ? nextWin : w));
+  setUrl({
+    pillars: {
+      ...pillars,
+      [pillar]: { ...pillarState, windows: nextWindows }
+    }
+  });
+}
+
 /** Initialise an empty Workbench at `pillar` with a single panel built
  *  from `template`. Used when the user adds the first panel without
  *  going through a Dossier entry path. */

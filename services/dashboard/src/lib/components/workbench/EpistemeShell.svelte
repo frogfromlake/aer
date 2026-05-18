@@ -22,7 +22,7 @@
   import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
-  import CellControls from './CellControls.svelte';
+  import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
 
@@ -74,29 +74,22 @@
   // the dual-path rationale.
   const pillarState = $derived(url.pillars?.episteme ?? null);
 
-  const presentation = $derived(resolvePresentation(url.viewMode, 'episteme'));
-  const metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
-  const dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
+  // Phase 122k — legacy fallback path (only reached when pillarState is null).
+  const presentation = $derived(resolvePresentation(null, 'episteme'));
+  const metricName = $derived(DEFAULT_METRIC_NAME);
+  const dataLayer = $derived<'gold' | 'silver'>('gold');
 
   const cellSources = $derived(
     dossier
-      ? url.sourceIds.length > 0
-        ? dossier.sources
-            .filter((s) => url.sourceIds.includes(s.name))
-            .map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
-        : dossier.sources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
+      ? dossier.sources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
       : []
   );
 
-  const scope = $derived<'probe' | 'source'>(
-    probeIds.length === 1 && url.sourceIds.length === 1 ? 'source' : 'probe'
-  );
-  const scopeId = $derived<string>(
-    probeIds.length === 1 && url.sourceIds.length === 1 ? url.sourceIds[0]! : activeProbeId
-  );
+  const scope = $derived<'probe' | 'source'>('probe');
+  const scopeId = $derived<string>(activeProbeId);
 
   // Phase 122h Findings round 3 update: Resolution control was hoisted
-  // into CellControls (it is a per-Cell capability, not a per-Pillar
+  // into PanelControls (it is a per-Cell capability, not a per-Pillar
   // global). EpistemeShell no longer manages resolution state; the cell
   // honours `url.resolution` directly via SourceLaneChart.
 
@@ -136,7 +129,7 @@
     />
   {:else if dossier}
     <!-- Phase 122h legacy single-Stratum path. -->
-    <CellControls pillar="episteme" />
+    <PanelControls pillar="episteme" />
     <div class="stratum-stack">
       <article class="stratum" aria-label="Stratum — {presentation.label}">
         <header class="stratum-header">

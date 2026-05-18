@@ -82,14 +82,14 @@ export function updatePanelPure(
   if (!win) return pillars;
   const panel = win.panels[path.panelIndex];
   if (!panel) return pillars;
-  let nextPanel = update(panel);
-  // Phase 122i revision (B1): `locked` is scope-only. Updates to view /
-  // metric / layer / composition / resolution / normalization / topN /
-  // cellControlsCollapsed all apply; mutations to `scopes` are silently
-  // discarded so a stale call site can never escape the scope-lock.
-  if (panel.locked) {
-    nextPanel = { ...nextPanel, scopes: panel.scopes };
-  }
+  // Phase 122k — the Phase-122i B1 lock-protection ("locked panels reject
+  // scope updates from the mutator") is retired. In K1 the only path that
+  // edits scope is the ScopeEditor, which exposes the DF-lock toggle
+  // directly. The mutator therefore commits the update verbatim; the lock
+  // semantic moves entirely into the UI layer (the editor's DF-lock
+  // dropdown governs lockedFunction; PanelHost's Apply handler writes
+  // both scope and lock atomically).
+  const nextPanel = update(panel);
   const nextWin = setPanel(win, path.panelIndex, nextPanel);
   return setPillar(base, path.pillar, setWindow(pillar, path.windowIndex, nextWin));
 }

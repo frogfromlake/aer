@@ -26,14 +26,25 @@
   import { urlState } from '$lib/state/url.svelte';
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
-  import ProbePicker from './ProbePicker.svelte';
+  import ProbeFilterModal from './ProbeFilterModal.svelte';
   import { getPillar } from '$lib/viewmodes';
+  import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
   import type { ViewingMode } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
-  const activePillarId = $derived<ViewingMode>(url.viewingMode ?? 'aleph');
+  const activePillarId = $derived<ViewingMode>(url.activePillar ?? 'aleph');
   const activePillar = $derived(getPillar(activePillarId));
   const negSpace = $derived(negativeSpaceActive());
+
+  // Phase 122k K3 — Probe-Filter Modal trigger. Visible only on
+  // Atmosphere + Dossier (the selection-driven contexts); hidden on
+  // Workbench (the Workbench's own ScopeEditor owns scope) and on
+  // Reflection (no scope semantic). The Modal itself is mounted at the
+  // bottom of SideRail's template.
+  let probeFilterOpen = $state(false);
+  const showProbeFilter = $derived(
+    page.url.pathname === '/' || page.url.pathname.startsWith('/dossier')
+  );
 
   // Active probe — either from the route path param (Surface II legacy
   // routes + the new /dossier/{probeId}) OR from the multi-probe scope
@@ -41,14 +52,13 @@
   // rail anchor is only meaningful when at least one probe is in scope.
   const activeProbe = $derived<string | null>(
     (page.params as Record<string, string | undefined>).probeId ??
-      (url.probeIds.length > 0 ? url.probeIds[0]! : null)
+      (url.selectedProbes.length > 0 ? url.selectedProbes[0]! : null)
   );
 
-  // When the user is on the Workbench (or its sibling routes) without a
-  // probe selected, the ProbePicker is the obvious next interaction.
-  // Highlight it so it stops "going under" visually (Finding 2.1).
-  const onWorkbench = $derived(page.url.pathname.startsWith('/workbench'));
-  const probePickerHighlighted = $derived(onWorkbench && activeProbe === null);
+  // Phase 122k K3: the inline ProbePicker is retired in favour of the
+  // ProbeFilterModal opened from the Probe-Filter button. The activeProbe
+  // derivation stays — it still drives the legacy `?probeId=` SideRail
+  // pillar-sub-item display.
 
   interface SurfaceEntry {
     href: string;
@@ -73,18 +83,30 @@
       // General Free-Compose entry path.
       href: '/dossier',
       label: 'Dossier',
-      glyph: '📚',
+      glyph: '❒',
       hint: 'Probe catalogue · General Free-Compose · per-probe inspection',
       disabled: false
     },
     {
-      href: activeProbe ? `/workbench?probeId=${encodeURIComponent(activeProbe)}` : '',
+      // Phase 122k — Workbench is always reachable. When the user has a
+      // Selection-State the anchor seeds a pillar Workbench from those
+      // probes; when not, it lands on /workbench plain (empty state, to
+      // be replaced by an auto-opening ScopeEditor in K3).
+      href:
+        url.selectedProbes.length > 0
+          ? `/workbench${buildFreeComposeUrl({
+              pillar: 'aleph',
+              probeIds: [...url.selectedProbes],
+              sourceIds: []
+            })}`
+          : '/workbench',
       label: 'Workbench',
       glyph: '⚙',
-      hint: activeProbe
-        ? 'Analysis — three Pillar configurations (Aleph / Episteme / Rhizome)'
-        : 'Workbench (pick a probe on the Atmosphere first)',
-      disabled: !activeProbe,
+      hint:
+        url.selectedProbes.length > 0
+          ? `Open Workbench with ${url.selectedProbes.length} selected probe${url.selectedProbes.length === 1 ? '' : 's'}`
+          : 'Analysis — Aleph · Episteme · Rhizome',
+      disabled: false,
       ...(activeProbe
         ? {
             pillarSubItem: {
@@ -176,13 +198,30 @@
     </ul>
   </div>
 
-  <!-- Section 2: Scope selection status (probes) — central control,
-       sits directly under the surface anchors so it stays visible
-       without scrolling. Inline expansion (no popover). -->
-  <div class="section section-probe">
-    <span class="section-eyebrow">Select Probe</span>
-    <ProbePicker highlighted={probePickerHighlighted} />
-  </div>
+  <!-- Section 2: Phase 122k K3 — Probe-Filter affordance. Opens the
+       ProbeFilterModal with region-grouped probes + search. Selection
+       feeds the Dossier filter + the Workbench ScopeEditor seed. Visible
+       only on Atmosphere and Dossier surfaces (the Workbench owns its
+       own ScopeEditor; Reflection is read-only). -->
+  {#if showProbeFilter}
+    <div class="section section-probe">
+      <span class="section-eyebrow">Probes</span>
+      <button
+        type="button"
+        class="probe-filter-btn"
+        onclick={() => (probeFilterOpen = true)}
+        class:has-selection={url.selectedProbes.length > 0}
+        title="Filter the catalogue / seed the Workbench"
+      >
+        <span class="probe-filter-glyph" aria-hidden="true">▤</span>
+        <span class="probe-filter-label">
+          {url.selectedProbes.length > 0
+            ? `${url.selectedProbes.length} selected`
+            : 'Filter probes'}
+        </span>
+      </button>
+    </div>
+  {/if}
 
   <div class="flex-spacer" aria-hidden="true"></div>
 
@@ -194,6 +233,10 @@
     </div>
   </div>
 </nav>
+
+{#if probeFilterOpen}
+  <ProbeFilterModal onClose={() => (probeFilterOpen = false)} />
+{/if}
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
@@ -372,10 +415,47 @@
   }
 
   /* Probe-section gets a touch more horizontal padding so the
-     ProbePicker has full width without bumping the rail edges. */
+     Probe-Filter button has full width without bumping the rail edges. */
   .section-probe {
     padding-left: var(--space-2);
     padding-right: var(--space-2);
+  }
+
+  .probe-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    appearance: none;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+    padding: var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .probe-filter-btn:hover,
+  .probe-filter-btn:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .probe-filter-btn.has-selection {
+    color: var(--color-accent);
+    border-color: var(--color-accent-muted);
+  }
+  .probe-filter-glyph {
+    font-size: var(--font-size-sm);
+  }
+  .probe-filter-label {
+    flex: 1 1 auto;
+    text-align: left;
   }
 
   .ns-wrap {

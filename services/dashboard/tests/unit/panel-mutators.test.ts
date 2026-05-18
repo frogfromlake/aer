@@ -85,7 +85,7 @@ describe('_updatePanelPure', () => {
     expect(next?.aleph?.windows[0]?.panels[0]?.locked).toBe(true);
   });
 
-  it('silently discards scope mutations on a locked panel (B1)', () => {
+  it('commits scope mutations on locked panels too (Phase 122k retires the B1 protection)', () => {
     const originalScopes = [group(['probe-0'], ['tagesschau'])];
     const lockedState = pillars(
       pillarState([
@@ -94,14 +94,16 @@ describe('_updatePanelPure', () => {
         ])
       ])
     );
+    const swappedScopes = [group(['probe-0'], ['bundesregierung'])];
     const next = _updatePanelPure(lockedState, ALEPH_PANEL_0, (p) => ({
       ...p,
-      // Attempt to swap scope — must be ignored.
-      scopes: [group(['probe-0'], ['bundesregierung'])],
-      // Non-scope mutation in same call — must apply.
+      scopes: swappedScopes,
       metric: 'word_count'
     }));
-    expect(next?.aleph?.windows[0]?.panels[0]?.scopes).toEqual(originalScopes);
+    // 122k: the ScopeEditor is the only path that mutates scope; it
+    // exposes the lock toggle directly, so the mutator no longer guards
+    // against scope updates on locked panels. Both fields apply.
+    expect(next?.aleph?.windows[0]?.panels[0]?.scopes).toEqual(swappedScopes);
     expect(next?.aleph?.windows[0]?.panels[0]?.metric).toBe('word_count');
   });
 

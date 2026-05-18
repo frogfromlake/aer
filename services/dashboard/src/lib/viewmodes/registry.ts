@@ -56,12 +56,12 @@ export interface PresentationDefinition {
   /** Does this presentation's cell consume the active `metric` prop?
    *  BERTopic cells (`topic_*`) operate on cleaned text; `cooccurrence_*`
    *  on entity pairs. For those, the metric selector is misleading — the
-   *  Cell ignores it. CellControls hides the Metric row when this is
+   *  Cell ignores it. PanelControls hides the Metric row when this is
    *  false. Defaults to `true`. */
   usesMetric?: boolean;
   /** Does this presentation's cell consume the active `resolution` prop?
    *  Only time-series-shaped cells (per-source small-multiples on a time
-   *  axis) honour resolution today. CellControls and EpistemeShell hide
+   *  axis) honour resolution today. PanelControls and EpistemeShell hide
    *  the Resolution control when no active view honours it. Defaults to
    *  `false`. */
   usesResolution?: boolean;
@@ -96,7 +96,7 @@ export interface ViewModeCellProps {
    *  per source). Per-scope cells (DistributionCell, Topic*, CoOccurrence*)
    *  ignore this prop — they always query the unioned scope and render
    *  one artefact. Absent = legacy fan-out behaviour. */
-  composition?: 'merged' | 'split';
+  composition?: 'merged' | 'split' | 'overlay';
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [

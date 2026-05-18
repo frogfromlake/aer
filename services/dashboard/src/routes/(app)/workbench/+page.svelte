@@ -1,52 +1,150 @@
 <script lang="ts">
-  // Workbench — Phase 122h / ADR-033.
+  // Workbench — Phase 122k.
   //
-  // The Workbench is AĒR's analytical surface. It carries:
-  //   - The PillarSwitch at the top — three tiles selecting Aleph,
-  //     Episteme, or Rhizome.
-  //   - One of three Pillar Shells in the body, chosen by url.viewingMode.
-  //   - The WorkbenchScopeBar at the bottom — Probes / Sources / Functions
-  //     / Window chips.
-  //
-  // When the user lands without a probe in scope, an empty-scope surface
-  // invites them either to return to the Atmosphere globe or to pick a
-  // probe from the in-rail ProbePicker (highlighted in that state).
-  import { urlState } from '$lib/state/url.svelte';
+  // AĒR's analytical surface. On empty pillar state the page auto-opens
+  // the ScopeEditor in create-mode (F2), seeded from `url.selectedProbes`
+  // when the user arrived via the Atmos SHIFT-click flow or the Probe-
+  // Filter Modal. Apply seeds the pillar state with a new Panel; Cancel
+  // leaves the user on a minimal empty-state placeholder with a re-open
+  // affordance.
+  import { createQuery } from '@tanstack/svelte-query';
+  import { beforeNavigate } from '$app/navigation';
+  import { pushUrl, urlState } from '$lib/state/url.svelte';
   import { getPillar } from '$lib/viewmodes';
+  import { clearDraft } from '$lib/workbench/scope-editor-draft';
+  import {
+    probeDossierQuery,
+    probesQuery,
+    type FetchContext,
+    type ProbeDossierDto,
+    type ProbeDto,
+    type QueryOutcome
+  } from '$lib/api/queries';
+  import {
+    DEFAULT_LOOKBACK_MS,
+    type PillarState,
+    type ScopeGroup,
+    type ViewingMode,
+    type WorkbenchPillarsState
+  } from '$lib/state/url-internals';
+  import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
+  import type { DiscourseFunction } from '$lib/discourse-function';
   import PillarSwitch from '$lib/components/chrome/PillarSwitch.svelte';
-  import WorkbenchScopeBar from '$lib/components/chrome/WorkbenchScopeBar.svelte';
+  // Phase 122k §14b finding 2 — global WorkbenchScopeBar retired; the
+  // per-panel `PanelMetaStrip` surfaces scope info inside each panel.
+  import ScopeEditor from '$lib/components/workbench/ScopeEditor.svelte';
   import AlephShell from '$lib/components/workbench/AlephShell.svelte';
   import EpistemeShell from '$lib/components/workbench/EpistemeShell.svelte';
   import RhizomeShell from '$lib/components/workbench/RhizomeShell.svelte';
 
+  const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
 
-  // Scope is sourced exclusively from the rune store (`urlState`):
-  // - The (app)/+layout afterNavigate hook re-hydrates the store on every
-  //   SvelteKit nav.
-  // - The store is eagerly hydrated at module load for first paint.
-  // - In-page mutations (e.g. removing a probe chip in WorkbenchScopeBar)
-  //   write via setUrl → history.replaceState, which intentionally bypasses
-  //   the router and therefore does NOT update `$app/state.page.url`.
-  // Reading `page.url.searchParams` here would shadow the cleared store
-  // with a stale URL and keep charts rendered after the user clears scope.
-  const probes = $derived(url.probeIds);
-
-  // Phase 122i / ADR-034 — Multi-Panel Workbench. When `?activePillar=`
-  // is present in the URL, it overrides the Phase-122h `?viewingMode=`.
-  // Phase-122h bookmarks continue to load unchanged because the legacy
-  // params survive when `pillars` is absent.
-  const activePillar = $derived(getPillar(url.activePillar ?? url.viewingMode));
-  // Scope is considered present when the user has a probe (legacy
-  // probeIds) OR a populated PillarState for the active pillar (new
-  // multi-panel state already encodes probes inside each ScopeGroup).
+  const activePillar = $derived(getPillar(url.activePillar));
   const pillarHasState = $derived(
     url.pillars
       ? Boolean(url.pillars[activePillar.id]) &&
           (url.pillars[activePillar.id]?.windows.length ?? 0) > 0
       : false
   );
-  const hasScope = $derived(probes.length > 0 || pillarHasState);
+  const hasScope = $derived(pillarHasState);
+
+  // Phase 122k F2 — auto-open ScopeEditor when no pillar state exists.
+  // `editorDismissed` becomes true after the user explicitly cancels the
+  // first-open; the empty-state placeholder then exposes a "Configure
+  // scope" button to re-open. Apply seeds the pillar state and resets
+  // the dismissed flag.
+  let editorDismissed = $state(false);
+  const showCreateEditor = $derived(!hasScope && !editorDismissed);
+
+  // Load the default probe + dossier for the ScopeEditor's source list.
+  // For Probe-0-only production this is deterministic; when Probe 1 lands
+  // the editor's probe picker (a K1.2+ feature) will let the user choose
+  // a different primary probe.
+  const probesQ = createQuery<QueryOutcome<ProbeDto[]>, Error, QueryOutcome<ProbeDto[]>>(() => {
+    const o = probesQuery(ctx);
+    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  });
+  const probeList = $derived<ProbeDto[]>(probesQ.data?.kind === 'success' ? probesQ.data.data : []);
+  // Prefer a probe from the selection; fall back to the first known probe.
+  const seedProbeId = $derived.by<string>(() => {
+    const first = url.selectedProbes[0];
+    if (first) return first;
+    return probeList[0]?.probeId ?? '';
+  });
+
+  const windowMs = $derived.by(() => {
+    const now = Date.now();
+    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
+    const toMs = url.to ? Date.parse(url.to) : now;
+    return {
+      start: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS).toISOString(),
+      end: new Date(Number.isFinite(toMs) ? toMs : now).toISOString()
+    };
+  });
+
+  const dossierQ = createQuery<QueryOutcome<ProbeDossierDto>, Error, QueryOutcome<ProbeDossierDto>>(
+    () => {
+      const o = probeDossierQuery(ctx, seedProbeId, {
+        windowStart: windowMs.start,
+        windowEnd: windowMs.end
+      });
+      return {
+        queryKey: [...o.queryKey],
+        queryFn: o.queryFn,
+        staleTime: o.staleTime,
+        enabled: seedProbeId !== ''
+      };
+    }
+  );
+  const seedDossier = $derived<ProbeDossierDto | null>(
+    dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
+  );
+
+  function applyNewPanel(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) {
+    const panel = buildPanelFromScopes(scopes, {
+      lockedFunction: lockedFunction ?? undefined
+    });
+    const pillarId: ViewingMode = activePillar.id;
+    const pillarState: PillarState = {
+      windows: [{ panels: [panel], focusedPanelIndex: 0 }],
+      activeWindowIndex: 0
+    };
+    const nextPillars: WorkbenchPillarsState = {
+      aleph: url.pillars?.aleph ?? null,
+      episteme: url.pillars?.episteme ?? null,
+      rhizome: url.pillars?.rhizome ?? null,
+      [pillarId]: pillarState
+    };
+    // Phase 122k §11 finding — push, not replace. Browser-back from the
+    // populated Workbench restores the pre-Apply URL (no pillars), which
+    // re-triggers the auto-open ScopeEditor — the user lands back where
+    // they were configuring, not on Atmosphere.
+    pushUrl({ pillars: nextPillars, activePillar: pillarId });
+    editorDismissed = false;
+  }
+
+  function dismissCreateEditor() {
+    editorDismissed = true;
+  }
+
+  function reopenCreateEditor() {
+    editorDismissed = false;
+  }
+
+  // Phase 122k §11 — leaving the Workbench (SideRail Atmosphere /
+  // Dossier / Reflection clicks, or any other route change) invalidates
+  // the draft. Same-pathname navigations (the back-from-Apply case
+  // which only changes the search string) are NOT cleared here — that's
+  // the explicit one-shot restore path.
+  beforeNavigate((nav) => {
+    if (!nav.to) return;
+    const from = nav.from?.url.pathname;
+    const to = nav.to.url.pathname;
+    if (from !== to) {
+      clearDraft();
+    }
+  });
 </script>
 
 <svelte:head>
@@ -57,31 +155,41 @@
   {#if !hasScope}
     <div class="empty-scope">
       <h1>Workbench</h1>
-      <p class="muted">
-        Pick a probe first — click a probe glyph on the Atmosphere, or use the highlighted Probe
-        Picker in the side rail.
-      </p>
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Atmosphere route -->
-      <a class="back-to-atmos" href="/">→ Back to Atmosphere</a>
+      {#if seedProbeId === ''}
+        <p class="muted">Loading probe catalogue…</p>
+      {:else if !editorDismissed}
+        <p class="muted">Configure a scope to begin.</p>
+      {:else}
+        <p class="muted">No scope configured yet.</p>
+        <button type="button" class="reopen-btn" onclick={reopenCreateEditor}>
+          Configure scope →
+        </button>
+      {/if}
     </div>
   {:else}
     <PillarSwitch />
-    <!-- ScopeBar sits ABOVE the pillar body (Finding round 2 §D) — the
-         user has to know which probes/sources/functions/window are in
-         scope BEFORE reading the cell. Full viewport-width (the bar's
-         own .scope-bar styling does not constrain margin). -->
-    <WorkbenchScopeBar />
     <div class="pillar-body">
       {#if activePillar.id === 'aleph'}
-        <AlephShell probeIds={probes} />
+        <AlephShell probeIds={[]} />
       {:else if activePillar.id === 'episteme'}
-        <EpistemeShell probeIds={probes} />
+        <EpistemeShell probeIds={[]} />
       {:else}
-        <RhizomeShell probeIds={probes} />
+        <RhizomeShell probeIds={[]} />
       {/if}
     </div>
   {/if}
 </main>
+
+{#if showCreateEditor && seedDossier}
+  <ScopeEditor
+    dossier={seedDossier}
+    {ctx}
+    seedProbes={url.selectedProbes}
+    enableDraftPersistence
+    onApply={applyNewPanel}
+    onCancel={dismissCreateEditor}
+  />
+{/if}
 
 <style>
   .workbench-main {
@@ -115,22 +223,22 @@
     color: var(--color-fg);
   }
 
-  .back-to-atmos {
-    color: var(--color-accent);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--color-accent);
-    font-family: var(--font-mono);
+  .reopen-btn {
+    appearance: none;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-4);
     font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .reopen-btn:hover,
+  .reopen-btn:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
   }
 
-  .back-to-atmos:hover,
-  .back-to-atmos:focus-visible {
-    color: var(--color-fg);
-    border-bottom-color: var(--color-fg);
-    outline: none;
-  }
-
-  /* Pillar-body slot — hosts AlephShell / EpistemeShell / RhizomeShell. */
   .pillar-body {
     flex: 1;
     min-height: 24rem;

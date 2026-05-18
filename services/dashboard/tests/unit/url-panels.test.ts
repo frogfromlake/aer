@@ -289,17 +289,20 @@ describe('readFromSearch — pillar form (Phase 122i)', () => {
     expect(parsed.pillars?.rhizome).toEqual(rhizome);
   });
 
-  it('drops legacy flat params when any pillar key is present', () => {
+  it('ignores legacy Phase-122h flat params (retired in 122k)', () => {
     const encoded = encodePillarState(makePillarState());
     const parsed = readFromSearch(`?aleph=${encoded}&probeId=probe-X&sourceId=src-Y`);
-    expect(parsed.probeIds).toEqual([]);
-    expect(parsed.sourceIds).toEqual([]);
-    expect(parsed.viewingMode).toBeNull();
+    // Legacy fields no longer exist on UrlState; the pillar form alone
+    // survives.
     expect(parsed.pillars?.aleph).toBeTruthy();
+    expect(parsed.selectedProbes).toEqual([]);
   });
 
   it('ignores invalid pillar payloads (sets the slot to null)', () => {
     const parsed = readFromSearch('?aleph=invalid-base64-!@#');
+    // When any pillar key is present (even malformed), the pillars
+    // wrapper is populated with the failing slot set to null.
+    expect(parsed.pillars).not.toBeNull();
     expect(parsed.pillars?.aleph).toBeNull();
   });
 });
@@ -316,27 +319,24 @@ describe('writeToSearch — pillar form (Phase 122i)', () => {
     expect(qs).not.toContain('rhizome=');
   });
 
-  it('drops legacy flat params when pillars is set', () => {
+  it('writes only the canonical Phase-122k grammar (no legacy flat params)', () => {
     const aleph = makePillarState();
     const qs = writeToSearch(
       state({
         activePillar: 'aleph',
-        pillars: { aleph, episteme: null, rhizome: null },
-        probeIds: ['probe-X'],
-        sourceIds: ['src-Y'],
-        viewingMode: 'aleph',
-        viewMode: 'time_series',
-        metric: 'sentiment_score_sentiws',
-        layer: 'silver'
+        pillars: { aleph, episteme: null, rhizome: null }
       })
     );
-    // Pillar payload carries everything; flat keys must NOT also appear.
+    // Legacy flat params are no longer expressible on UrlState. We only
+    // verify here that the writer produces the canonical grammar.
     expect(qs).not.toContain('probeId=');
     expect(qs).not.toContain('sourceId=');
     expect(qs).not.toContain('viewingMode=');
     expect(qs).not.toContain('viewMode=');
     expect(qs).not.toContain('metric=');
     expect(qs).not.toContain('layer=');
+    expect(qs).toContain('activePillar=aleph');
+    expect(qs).toContain('aleph=');
   });
 
   it('round-trips a multi-pillar state through write → read', () => {

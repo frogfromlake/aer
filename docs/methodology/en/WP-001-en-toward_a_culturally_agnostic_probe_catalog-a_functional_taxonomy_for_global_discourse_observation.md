@@ -267,6 +267,58 @@ The Coverage Map directly addresses WP-006's call for "negative space visualizat
 
 The Coverage Map operates **within a uniform per-probe temporal horizon** (Phase 122b). Every source on a probe is observed across the same `time_window_days` cutoff so cross-source aggregates within a probe — and cross-probe aggregates within a region — are not contaminated by archive-depth asymmetries between sources. The horizon itself is part of the probe's metadata and surfaces on the Coverage Map as the temporal scope of the observation, distinct from the data lifecycle (Bronze 90d, Silver/Gold 365d, daily MVs 1825d after Phase 122c).
 
+### 5.4 Source-Level vs. Article-Level Discourse Function — An Open Methodological Question
+
+§3 and §4 operationalise discourse function as a **source-level** classification: every article inherits its source's etic tag. This is an *intentional imprecision* (WP-006 §3): a Tagesschau sports report and a Tagesschau political report both currently inherit `epistemic_authority` because they originate from the same source. The taxonomic apparatus operates at the level of institutional discourse roles, not individual texts.
+
+Phase 122a proposes to add an **article-level** classification — a per-article tag, automatically assigned by a hybrid pipeline (URL heuristic → multilingual zero-shot NLI classifier → source-level fallback). The question §5.4 addresses is **not** the technical question of how to compute that tag. It is the methodological question of **how the source-level and article-level tags relate to each other**, and what scientific claim AĒR is willing to make from their joint reading.
+
+#### 5.4.1 The framing question
+
+A Tagesschau sports article exists in two functional readings simultaneously:
+
+1. **Source frame (etic, institutional)** — the article was published by an `epistemic_authority` institution. Its contextual meaning includes "what an epistemic-authority source curates as worth publishing".
+2. **Content frame (computational, textual)** — the text itself, read in isolation, performs `cohesion_identity` work (national identity through sports).
+
+These two readings are not independent — the source frame **contextualises** the content frame. A sports article on a `cohesion_identity`-typed source (a sports newspaper) is methodologically a different artefact from the same content on an `epistemic_authority`-typed source, even when the text is identical. The question is how to model this relation.
+
+#### 5.4.2 Three modelling options
+
+| | What is stored | What the dashboard claims | Validation cost |
+|--|--|--|--|
+| **Option C (minimal)** | `discourse_function` remains source-level. New column `discourse_function_article` (nullable, populated when the classifier is confident). No "effective tag", no synthesis. | "Source X has 22% non-default-DF articles in this window." Descriptive only. | Classifier accuracy against a held-out hand-annotated set. ~1–2 weeks. |
+| **Option A (relational)** | Per-article tuple `(source_df, article_df)`. The pair `(EA, CI)` is the analytical unit. | "On EA sources, CI content is overrepresented relative to PL sources." Claim about the source × content relation. | Definition of all 4×4=16 pair-readings; ~6–8 of those are non-trivial. Hand-annotation per pair. ~6–8 weeks + interdisciplinary input. |
+| **Option B (vector)** | Per-article weight vector over the four functions (e.g. `{EA:0.3, CI:0.7}`). Source-level tag becomes a prior; classifier output becomes a posterior. | "Article is 30% EA, 70% CI." Continuous-function claim. | Calibration of NLI scores into probabilities (well-known hard problem); revision of the taxonomy itself, which §3 defines as categorical structural roles. Open-ended. |
+
+#### 5.4.3 Why Option C is provisionally adopted (Phase 122a.1)
+
+§3 defines the four functions as **categorical structural roles**, not as continuous content properties. Option B contradicts that framing directly: a weight vector implies the functions are graduated, which would require re-thinking §3. AĒR is not in a position to revise the taxonomy ahead of empirical evidence; Option B is therefore explicitly deferred.
+
+Option A is methodologically defensible *if* the 16 pair-readings are interpretively grounded. Each non-trivial pair (e.g. `(EA, SF)` — an investigative piece in an epistemic-authority source) needs a definition of what its **rate** means as a discourse signal. That is interdisciplinary research — political scientists, media scholars — not engineering. Until those definitions exist, publishing pair-aggregates risks attaching scientific weight to a relation AĒR has not validated.
+
+Option C makes the smallest set of claims compatible with surfacing the article-level tag. It enables the analyst to **observe** divergence between source-level and article-level discourse function without **synthesising** it. The Probe Dossier and Workbench show both tags side by side; no aggregate operates on the pair.
+
+This is the canonical "make the imprecision visible, then measure it" pattern (WP-006 §3) applied to discourse function itself: source-level classification was a known imprecision; Phase 122a.1 surfaces the divergence without prematurely resolving it.
+
+#### 5.4.4 Phase 122a.2 — re-opening Option A
+
+The decision to defer Option A is **not** "Option A is wrong". It is "Option A is unjustified by current evidence". The pre-condition for re-opening Option A is empirical: Phase 122a.1 ships, data accumulates, and the analyst observes the divergence-rate patterns. If those patterns reveal interpretable structure — e.g. *"investigative-pieces-in-EA-sources correlate with election cycles"*, *"PL-source CI-content shifts around national holidays"*, *"SF-source EA-content rises during institutional crises"* — then the interdisciplinary work to validate the 16 pair-readings becomes warranted. If the patterns are trivial (*"sports sections produce CI tags, surprise"*), the work is not.
+
+Phase 122a.2 is reserved for that decision point. It is not on the immediate roadmap and is not a blocker for downstream phases (123, 124, 125), which operate on Option-C data unchanged.
+
+#### 5.4.5 The classifier itself
+
+The Phase 122a.1 classifier is a **zero-shot NLI** model (`MoritzLaurer/mDeBERTa-v3-base-mnli-xnli`, pinned per ADR-024). It reads the article text (no source context) against four candidate hypotheses (one per function) and returns a confidence score per hypothesis. Highest score above 0.6 wins; below 0.6, the article is abstained on and falls through to the source-level tag.
+
+Realistic accuracy expectations:
+
+- ~75–85% on textually clear cases (classical sports report, classical press release).
+- ~50–60% on textually subtle cases (investigative pieces, opinion columns, background features) — exactly the cases where the divergence question is most interesting.
+- NLI scores are softmax outputs, **not** calibrated probabilities. A score of 0.85 does not mean "85% likely correct". This is a known limitation of zero-shot NLI.
+- The classifier **cannot see** source context. It classifies pure text. This is part of why Option C is provisional: the divergence we observe in Phase 122a.1 is unavoidably noisy.
+
+A held-out hand-annotated validation set (~200–300 articles per language, per probe) is the Phase 122a.1 deliverable that establishes the classifier's actual per-function accuracy on AĒR's corpus. Without that set, the divergence numbers shown in the dashboard carry no statistical interpretation — they are operator-aided observations, not measurements.
+
 ---
 
 ## 6. Probe 0 Revisited: Classification Under the Taxonomy

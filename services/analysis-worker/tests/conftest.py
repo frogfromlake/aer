@@ -85,8 +85,21 @@ def extractors():
 
 @pytest.fixture
 def processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors):
-    """Provides a DataProcessor instance with mocked infrastructure."""
-    return DataProcessor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+    """Provides a DataProcessor instance with mocked infrastructure.
+
+    `analytical_window_days` is set to a very large value so the
+    legacy `DUMMY_EVENT_TIME` (2023-10-25) used across many tests
+    is always inside the analytical window — keeps fixture stable
+    as wall-clock time advances.
+    """
+    return DataProcessor(
+        mock_minio,
+        mock_clickhouse,
+        mock_pg_pool,
+        adapter_registry,
+        extractors,
+        analytical_window_days=100_000,
+    )
 
 
 @pytest.fixture
@@ -148,5 +161,17 @@ class MalformedExtractor:
 # ---------------------------------------------------------------------------
 
 def _make_processor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors):
-    """Helper to create a processor with custom extractors."""
-    return DataProcessor(mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors)
+    """Helper to create a processor with custom extractors.
+
+    Mirrors the `processor` fixture in setting a very large
+    analytical_window_days so legacy 2023-vintage test timestamps
+    remain inside the window.
+    """
+    return DataProcessor(
+        mock_minio,
+        mock_clickhouse,
+        mock_pg_pool,
+        adapter_registry,
+        extractors,
+        analytical_window_days=100_000,
+    )

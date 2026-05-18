@@ -69,7 +69,7 @@ def pg_container():
 def pg_pool(pg_container):
     pool = ThreadedConnectionPool(
         minconn=1,
-        maxconn=10,
+        maxconn=20,
         host=pg_container.get_container_host_ip(),
         port=pg_container.get_exposed_port(5432),
         user="aer_admin",

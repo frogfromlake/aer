@@ -19,10 +19,10 @@
     type ProbeDossierDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import { setUrl, urlState } from '$lib/state/url.svelte';
+  import { urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS, type RhizomeView } from '$lib/state/url-internals';
   import { DEFAULT_METRIC_NAME, getPresentation, type ViewModeCellProps } from '$lib/viewmodes';
-  import CellControls from './CellControls.svelte';
+  import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
 
@@ -70,8 +70,11 @@
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
 
-  // Entry-question state. `null` resolves to the default (`actors-topics`).
-  const activeView = $derived<RhizomeView>(url.view ?? 'actors-topics');
+  // Entry-question state. Phase 122k: this Rhizome sub-view was previously
+  // URL-state (`?view=`); retired in the 122k single-grammar cleanup.
+  // Held as ephemeral local state for now — if it earns persistence, it
+  // moves into Panel-state, not back to top-level URL.
+  let activeView = $state<RhizomeView>('actors-topics');
 
   interface EntryQuestion {
     id: RhizomeView;
@@ -115,11 +118,11 @@
 
   function pickEntry(id: RhizomeView) {
     if (id === activeView) return;
-    setUrl({ view: id });
+    activeView = id;
   }
 
-  const metricName = $derived(url.metric ?? DEFAULT_METRIC_NAME);
-  const dataLayer = $derived<'gold' | 'silver'>(url.layer === 'silver' ? 'silver' : 'gold');
+  const metricName = $derived(DEFAULT_METRIC_NAME);
+  const dataLayer = $derived<'gold' | 'silver'>('gold');
   const cellSources = $derived(
     dossier
       ? dossier.sources.map((s) => ({ name: s.name, emicDesignation: s.emicDesignation }))
@@ -189,7 +192,7 @@
   </header>
 
   {#if activeQuestion.cellViewMode}
-    <CellControls pillar="rhizome" lockedView={activeQuestion.cellViewMode} />
+    <PanelControls pillar="rhizome" lockedView={activeQuestion.cellViewMode} />
   {/if}
 
   <div class="rhizome-body" aria-live="polite">

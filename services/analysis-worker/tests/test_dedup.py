@@ -144,7 +144,8 @@ def _build_processor(ch_pool, mock_minio, mock_pg_pool):
         {"legacy": LegacyAdapter(), "rss": RssAdapter()}
     )
     processor = DataProcessor(
-        mock_minio, ch_pool, mock_pg_pool, registry, extractors
+        mock_minio, ch_pool, mock_pg_pool, registry, extractors,
+        analytical_window_days=100_000,
     )
     # Bypass PostgreSQL idempotency gate — we want both deliveries to reach
     # the ClickHouse inserts so ReplacingMergeTree does the deduplication.

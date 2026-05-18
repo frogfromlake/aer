@@ -36,7 +36,7 @@
   // are empty in pillar-state URLs (the reader nulls them when any
   // pillar key is present), so the bar showed the "no probe selected"
   // empty state inside a populated Workbench.
-  const activePillar = $derived<ViewingMode>(url.activePillar ?? url.viewingMode ?? 'aleph');
+  const activePillar = $derived<ViewingMode>(url.activePillar ?? 'aleph');
   const activePanelInfo = $derived.by(() => {
     const pillar = url.pillars?.[activePillar];
     if (!pillar) return null;
@@ -60,7 +60,7 @@
         for (const p of g.probeIds) if (!out.includes(p)) out.push(p);
       return out;
     }
-    return url.probeIds;
+    return [];
   });
   const sourceIds = $derived.by<string[]>(() => {
     if (activePanelInfo) {
@@ -69,7 +69,7 @@
         for (const s of g.sourceIds) if (!out.includes(s)) out.push(s);
       return out;
     }
-    return url.sourceIds;
+    return [];
   });
 
   // Locked-DF chip: emitted only when the active panel was opened via
@@ -81,15 +81,21 @@
       : null
   );
 
-  // Time window — fall back to default lookback when unset so the inputs
-  // always show a meaningful value the user can edit.
+  // Phase 122k F5 — Window display reads the focused panel's effective
+  // window (panel.windowStart/End ?? global default). The bar shows it
+  // read-only; mutation happens in PanelControls.
   const windowDates = $derived.by(() => {
     const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = url.to ? Date.parse(url.to) : now;
+    const panelStart = activePanelInfo?.panel.windowStart;
+    const panelEnd = activePanelInfo?.panel.windowEnd;
+    const fromSrc = panelStart ?? url.from;
+    const toSrc = panelEnd ?? url.to;
+    const fromMs = fromSrc ? Date.parse(fromSrc) : now - DEFAULT_LOOKBACK_MS;
+    const toMs = toSrc ? Date.parse(toSrc) : now;
     return {
       from: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS),
-      to: new Date(Number.isFinite(toMs) ? toMs : now)
+      to: new Date(Number.isFinite(toMs) ? toMs : now),
+      isPanelOverride: panelStart !== undefined || panelEnd !== undefined
     };
   });
 
@@ -131,7 +137,7 @@
       if (nextPillars) setUrl({ pillars: nextPillars });
       return;
     }
-    setUrl({ probeIds: probeIds.filter((p) => p !== id) });
+    // No panel context — no-op. Legacy flat probeIds path retired in 122k.
   }
   function removeSource(id: string) {
     if (activePanelInfo) {
@@ -154,13 +160,26 @@
       if (nextPillars) setUrl({ pillars: nextPillars });
       return;
     }
-    setUrl({ sourceIds: sourceIds.filter((s) => s !== id) });
+    // No panel context — no-op. Legacy flat sourceIds path retired in 122k.
   }
+  // Phase 122k F5 — Window edits target the focused panel's
+  // windowStart/End when a panel context exists; otherwise fall back to
+  // global url.from/url.to (legacy empty-state path).
   function onFromChange(e: Event) {
     const target = e.target as HTMLInputElement;
     if (!target.value) return;
     const d = new Date(target.value);
     if (Number.isNaN(d.getTime())) return;
+    if (activePanelInfo) {
+      const info = activePanelInfo;
+      const nextPillars = updatePanelPure(
+        url.pillars,
+        { pillar: activePillar, windowIndex: info.windowIndex, panelIndex: info.panelIndex },
+        (p) => ({ ...p, windowStart: d.toISOString() })
+      );
+      if (nextPillars) setUrl({ pillars: nextPillars });
+      return;
+    }
     setUrl({ from: d.toISOString() });
   }
   function onToChange(e: Event) {
@@ -168,6 +187,16 @@
     if (!target.value) return;
     const d = new Date(target.value);
     if (Number.isNaN(d.getTime())) return;
+    if (activePanelInfo) {
+      const info = activePanelInfo;
+      const nextPillars = updatePanelPure(
+        url.pillars,
+        { pillar: activePillar, windowIndex: info.windowIndex, panelIndex: info.panelIndex },
+        (p) => ({ ...p, windowEnd: d.toISOString() })
+      );
+      if (nextPillars) setUrl({ pillars: nextPillars });
+      return;
+    }
     setUrl({ to: d.toISOString() });
   }
 

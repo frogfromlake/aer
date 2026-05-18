@@ -1,0 +1,60 @@
+entityId: wp-001-section-5-4
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Quellen-Ebene vs. Artikel-Ebene Diskursfunktion — unabhängige Beobachtungen oder zwei Lesarten desselben Akts? Phase 122a.1 zeigt beide; Phase 122a.2 würde das Paar interpretieren."
+    long: >
+      Jeder Artikel in AĒR trägt zwei Diskursfunktions-Klassifikationen: das Quellen-Tag
+      (die institutionelle Rolle der publizierenden Quelle — Tagesschau als
+      epistemic_authority, bundesregierung.de als power_legitimation) und ab Phase 122a.1
+      ein Artikel-Tag, vom Text selbst abgeleitet durch einen mehrsprachigen Zero-Shot-NLI-
+      Classifier. Die beiden Lesarten sind nicht unabhängig: ein Tagesschau-Sportartikel ist
+      methodologisch ein anderes Artefakt als derselbe Inhalt auf einer Sportzeitung, weil
+      der institutionelle Kontext den textuellen Inhalt kontextualisiert. WP-001 §5.4
+      dokumentiert drei Modellierungsoptionen für diese Beziehung. Option C (Phase 122a.1)
+      speichert beide Tags unabhängig und verweigert eine Synthese. Option A behandelt das
+      Paar (Quelle, Artikel) als analytische Einheit erster Ordnung und ermöglicht Aussagen
+      wie "EA-Quellen zeigen überproportionalen CI-Inhalt" — erfordert aber Definitions-
+      arbeit für alle 4×4=16 Paar-Lesarten, bevor solche Aussagen interpretierbar sind.
+      Option B (kontinuierlicher Gewichtsvektor über die vier Funktionen) wird abgelehnt als
+      inkompatibel mit der kategorischen Definition der Taxonomie in WP-001 §3. Die offene
+      Frage, empirisch zu beantworten nach Phase-122a.1-Auslieferung: Rechtfertigen die
+      beobachteten Divergenzmuster die interdisziplinäre Investition in Option As Paar-
+      Interpretation, oder sind sie trivial genug, um deskriptive Beobachtungen zu bleiben?
+      Siehe WP-001 §5.4.
+  methodological:
+    short: "Offen: Paar-Lesart-Gültigkeit, Classifier-Genauigkeit bei subtilen pragmatischen Kategorien, Rolle des Quellen-Kontexts. Hooks: discourse_function (source) + discourse_function_article (Phase 122a.1) Spalten; Phase 122a.2 gated auf Phase-122a.1-Evidenz."
+    long: >
+      Die methodologische Frage, die §5.4 dokumentiert, hat drei konkrete Unterfragen:
+      (1) Paar-Gültigkeit — für die 6–8 nicht-trivialen Quelle × Artikel Paare
+      (EA × CI, EA × SF, PL × SF, CI × SF, SF × EA, …) — was bedeutet die *Rate* jedes
+      Paares als Diskurs-Signal? Interdisziplinäre Arbeit aus Politikwissenschaft /
+      Medienwissenschaft ist die Antwort, nicht Engineering. Phase 122a.2s erstes
+      Deliverable ist ein Paar-Interpretations-Dokument mit handannotiertem Beispiel-Set
+      pro Paar. (2) Classifier-Genauigkeit — der Phase 122a.1 Classifier
+      (MoritzLaurer/mDeBERTa-v3-base-mnli-xnli, Zero-Shot NLI, gepinnt gemäß ADR-024)
+      erreicht voraussichtlich ~75–85% bei textuell eindeutigen Fällen und ~50–60% bei
+      subtilen pragmatischen Fällen (Investigativ-Recherchen, Meinungsstücke). NLI-
+      Konfidenz-Scores sind unkalibrierte Softmax-Ausgaben, keine Wahrscheinlichkeiten —
+      ein Score von 0.85 bedeutet nicht "85% richtig". Ein Hold-out-Set mit Hand-
+      Annotationen (~200–300 Artikel pro Sprache, pro Sonde) ist das Phase-122a.1-
+      Deliverable, das die Pro-Funktion-Genauigkeit am AĒR-Korpus etabliert. (3) Rolle
+      des Quellen-Kontexts — der Classifier sieht puren Text, keine Quellen-Metadaten. Das
+      ist beabsichtigt (vermeidet, dass das Quellen-Tag in die Artikel-Tag-Vorhersage
+      durchsickert), bedeutet aber, dass die Divergenz auf Artikel-Ebene unvermeidbar
+      verrauscht ist. Pipeline-Hooks zur Auflösung: die zwei ClickHouse-Spalten
+      (discourse_function source-level + discourse_function_article — beide vom Analysis
+      Worker populiert; beide im BFF /metrics-Endpoint via neuen
+      discourseFunctionScope=article|source Parameter zugänglich). Phase 122a.2s Paar-
+      Aggregat-Views (discourseFunctionScope=pair) liefern nur dann, wenn die Trigger-
+      Bedingungen im Phase-122a.2-Roadmap-Eintrag feuern. AĒR bleibt methodologisch
+      verteidigbar, ob 122a.2 ausgeliefert wird oder nicht — Option C allein ist eine
+      vollständige Beobachtungs-Oberfläche.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-17"
+workingPaperAnchors:
+  - "WP-001 §5.4"
+  - "WP-001 §3"
+  - "ADR-030"

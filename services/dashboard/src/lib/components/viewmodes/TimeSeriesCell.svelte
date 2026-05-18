@@ -6,6 +6,7 @@
   // Phase 111: not applicable in Silver layer (Silver documents have no
   // Gold-equivalent time-series; the distribution cell covers Silver).
   import SourceLaneChart from '$lib/components/lanes/SourceLaneChart.svelte';
+  import OverlayLaneChart from '$lib/components/lanes/OverlayLaneChart.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
@@ -59,6 +60,11 @@
       {windowEnd}
       {metricName}
     />
+  {:else if composition === 'overlay'}
+    <!-- Phase 122k §14c finding 2 — Overlay: per-source independent
+         queries, plotted as N viridis-coloured lines on a SHARED canvas.
+         Visually one chart but with per-source structure preserved. -->
+    <OverlayLaneChart sourceNames={[...sourceNames]} {ctx} {windowStart} {windowEnd} {metricName} />
   {:else}
     {#each sources as source (source.name)}
       <SourceLaneChart

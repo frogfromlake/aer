@@ -88,3 +88,19 @@ export function setUrl(next: Partial<UrlState>): void {
   const url = `${window.location.pathname}${search}${window.location.hash}`;
   window.history.replaceState(window.history.state, '', url);
 }
+
+/**
+ * Phase 122k §11 finding — `pushUrl` writes via `history.pushState` so
+ * the navigation is undoable via the browser back-button. Used by the
+ * ScopeEditor's Apply commit: after creating a Panel, back-nav should
+ * restore the pre-Apply state (no pillars), which causes the Workbench
+ * page to auto-open the ScopeEditor with the resumed draft.
+ */
+export function pushUrl(next: Partial<UrlState>): void {
+  const merged: UrlState = { ...internalState, ...next };
+  internalState = merged;
+  if (!browser) return;
+  const search = writeToSearch(merged);
+  const url = `${window.location.pathname}${search}${window.location.hash}`;
+  window.history.pushState(window.history.state, '', url);
+}

@@ -42,6 +42,7 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { urlState, setUrl } from '$lib/state/url.svelte';
+  import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
   import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import {
@@ -187,18 +188,19 @@
 
   function onProbeSelected(sel: ProbeSelection) {
     if (shiftHeld) {
-      // Shift+click toggles the probe in the composition set; no navigation.
-      const current = url.probeIds;
-      if (current.includes(sel.probeId)) {
-        setUrl({ probeIds: current.filter((id) => id !== sel.probeId) });
-      } else {
-        setUrl({ probeIds: [...current, sel.probeId] });
-      }
+      // Phase 122k — SHIFT-click toggles probe membership in `selectedProbes`
+      // (the URL-state shopping-cart consumed by Dossier filter and the
+      // Workbench ScopeEditor seed). No navigation; the Atmos Selection-Bar
+      // surfaces the choice to the user.
+      const current = url.selectedProbes;
+      const next = current.includes(sel.probeId)
+        ? current.filter((id) => id !== sel.probeId)
+        : [...current, sel.probeId];
+      setUrl({ selectedProbes: next });
       return;
     }
     descend(() => {
-      // Phase 122i revision (R5). Atmosphere globe-click routes to the
-      // new top-level Dossier with the picked probe pre-expanded.
+      // Single-click: descend to the Dossier with the picked probe expanded.
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
       void goto(`/dossier?expand=${encodeURIComponent(sel.probeId)}`);
     });
@@ -210,7 +212,7 @@
     // dossier route so descent feels instantaneous. (Component path
     // unchanged — only the route URL moved in Phase 122h.)
     if (sel) {
-      void import('$lib/components/lanes/ProbeDossier.svelte').catch(() => void 0);
+      void import('$lib/components/dossier/ProbeCard.svelte').catch(() => void 0);
     }
   }
 
@@ -219,13 +221,11 @@
   }
 
   function onSatelliteSelected(sel: SatelliteSelection) {
-    // Satellite click: descend to the Dossier with source scope pre-set.
-    // We use setUrl to update the in-memory state so the dossier receives
-    // the narrowed source immediately on render (without a query param).
-    setUrl({ sourceIds: [sel.sourceName] });
+    // Phase 122k — satellite click descends to the Dossier with the parent
+    // probe expanded. The Phase-122h `url.sourceIds` narrowing was retired
+    // alongside per-probe Free-Compose; source-level configuration now
+    // lives exclusively in the ScopeEditor (K1).
     descend(() => {
-      // Phase 122i revision (R5). Atmosphere globe-click routes to the
-      // new top-level Dossier with the picked probe pre-expanded.
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
       void goto(`/dossier?expand=${encodeURIComponent(sel.probeId)}`);
     });
@@ -298,7 +298,7 @@
     />
 
     {#if hoveredProbe}
-      {@const inCompose = url.probeIds.includes(hoveredProbe.probeId)}
+      {@const inCompose = url.selectedProbes.includes(hoveredProbe.probeId)}
       <div
         class="probe-tooltip"
         class:in-compose={inCompose}
@@ -311,7 +311,7 @@
         {#if inCompose}
           <span class="tooltip-compose-badge">✓ in composition set</span>
           <span class="tooltip-affordance">Shift+click to remove · click to open dossier</span>
-        {:else if url.probeIds.length > 0}
+        {:else if url.selectedProbes.length > 0}
           <span class="tooltip-affordance"
             >Click to open dossier · Shift+click to add to composition</span
           >
@@ -353,22 +353,52 @@
       {/each}
     </ul>
 
-    {#if url.probeIds.length > 1}
-      <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe composition">
-        <span class="compose-count">⊗ {url.probeIds.length} probes</span>
+    {#if url.selectedProbes.length > 0}
+      <!-- Phase 122k Selection-Bar (early skeleton — K3 will refine).
+           Shape: "N probes selected · [View in Dossier] [Open Workbench →] [Clear]" -->
+      <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe selection">
+        <span class="compose-count"
+          >⊗ {url.selectedProbes.length} probe{url.selectedProbes.length === 1 ? '' : 's'} selected</span
+        >
         <button
           type="button"
           class="compose-btn"
-          onclick={() =>
+          onclick={() => {
+            // Carry the selection across the navigation. setUrl writes
+            // via history.replaceState; goto('/dossier') would otherwise
+            // strip the query string. Pass selectedProbes explicitly.
+            const sel = url.selectedProbes.map(encodeURIComponent).join(',');
+            const target = sel ? `/dossier?selectedProbes=${sel}` : '/dossier';
             descend(() => {
-              const target = `/workbench?viewingMode=aleph&probeId=${url.probeIds.map(encodeURIComponent).join(',')}`;
-              // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route (Phase 122h)
+              // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
               void goto(target);
-            })}
+            });
+          }}
         >
-          Compose →
+          View in Dossier
         </button>
-        <button type="button" class="compose-clear" onclick={() => setUrl({ probeIds: [] })}>
+        <button
+          type="button"
+          class="compose-btn"
+          onclick={() => {
+            // Seed the Workbench's pillar state from the current selection
+            // before navigating. The ScopeEditor on the resulting panel
+            // can refine sources / DF-lock; here we just produce a usable
+            // single-panel Aleph Workbench over the unioned probes.
+            const qs = buildFreeComposeUrl({
+              pillar: 'aleph',
+              probeIds: [...url.selectedProbes],
+              sourceIds: []
+            });
+            descend(() => {
+              // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
+              void goto(`/workbench${qs}`);
+            });
+          }}
+        >
+          Open Workbench →
+        </button>
+        <button type="button" class="compose-clear" onclick={() => setUrl({ selectedProbes: [] })}>
           Clear
         </button>
       </div>

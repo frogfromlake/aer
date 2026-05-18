@@ -108,9 +108,9 @@
   // user was reading.
   const url = $derived(urlState());
   const referrerParams = $derived.by(() => {
-    const probe = url.probeIds[0] ?? null;
+    const probe = url.selectedProbes[0] ?? null;
     const fn = page.url.searchParams.get('functionKey');
-    const pillar = url.viewingMode ?? null;
+    const pillar = url.activePillar ?? null;
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- ephemeral URL string builder, not shared state
     const p = new URLSearchParams();
     p.set('from', 'workbench');
