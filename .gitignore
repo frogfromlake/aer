@@ -67,3 +67,9 @@ services/dashboard/coverage/
 # Populated by scripts/build_wikidata_index.py output before docker build;
 # kept out of git so the 134 MB SQLite never lands in a commit.
 infra/wikidata-index/data/
+
+# Phase-planning working log (senior-architect discussion 2026-05-18).
+# Working material consumed during the ROADMAP rewrite, not a repo artefact.
+.aer-phase-decisions.md
+.aer-roadmap-backup.md
+.roadmap-*.tmp
