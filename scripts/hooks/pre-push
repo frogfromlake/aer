@@ -2,34 +2,67 @@
 
 # ==============================================================================
 # AĒR PRE-PUSH HOOK
-# Local last-line-of-defence against issues that cannot be fixed cheaply
-# post-push: code-style drift (lint) and known CVEs in the dependency graph
-# (audit). The full test suite runs in CI as the authoritative gatekeeper —
-# duplicating it locally adds minutes to every push, drives operators toward
-# `--no-verify`, and provides no signal CI does not already provide.
+# Fast, SCOPED local gate. Runs:
+#   1. make lint                       (always — fast, catches style drift)
+#   2. tests ONLY for the services touched in this push
+#
+# The dependency audit (govulncheck + pip-audit) and Trivy image scans run in
+# CI as the authoritative gatekeeper — CI reproduces the full audit on every
+# push/PR to main, so duplicating it locally only adds minutes to every push
+# and drives operators toward `--no-verify`. Deliberate local audits belong in
+# `make deps-refresh` (run when dependencies actually change).
+#
+# Note: ingestion-api / bff-api tests are Testcontainers-based and therefore
+# slow — they run ONLY when you actually touch those services. Docs-, config-,
+# Python-, or frontend-only pushes stay fast. The full suite also runs in CI.
 # ==============================================================================
 
-echo "🛑 [Pre-Push Hook] Running Linters..."
+set -uo pipefail
 
-# 1. Run Linters
-make lint
-
-if [ $? -ne 0 ]; then
-  echo "❌ [Pre-Push Hook] Linting failed! Please fix the errors before pushing."
+echo "🛑 [Pre-Push] Linting..."
+if ! make lint; then
+  echo "❌ [Pre-Push] Lint failed. Fix before pushing."
   exit 1
 fi
+echo "✅ [Pre-Push] Lint passed."
 
-echo "✅ [Pre-Push Hook] Linting passed."
-echo "🛑 [Pre-Push Hook] Running Dependency Audit..."
+# --- Determine what this push introduces (merge-base diff, with fallbacks) ---
+if upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
+  base="$upstream"
+elif git rev-parse --verify origin/main >/dev/null 2>&1; then
+  base="origin/main"
+else
+  base="HEAD~1"
+fi
+CHANGED=$(git diff --name-only "${base}...HEAD" 2>/dev/null || true)
 
-# 2. Run Dependency Audit (govulncheck + pip-audit)
-make audit
+run_pkg=false; run_go=false; run_py=false; run_fe=false
+echo "$CHANGED" | grep -qE '^pkg/'                          && run_pkg=true
+echo "$CHANGED" | grep -qE '^services/(ingestion-api|bff-api)/' && run_go=true
+echo "$CHANGED" | grep -qE '^services/analysis-worker/'    && run_py=true
+echo "$CHANGED" | grep -qE '^services/dashboard/'          && run_fe=true
 
-if [ $? -ne 0 ]; then
-  echo "❌ [Pre-Push Hook] Dependency audit failed! Known vulnerabilities detected."
-  echo "   Update affected dependencies before pushing."
-  exit 1
+# --- Scoped tests for touched services (fast suites first) ------------------
+if $run_pkg; then
+  echo "🧪 [Pre-Push] pkg/ touched → make test-go-pkg"
+  make test-go-pkg || exit 1
+fi
+if $run_py; then
+  echo "🧪 [Pre-Push] analysis-worker touched → make test-python"
+  make test-python || exit 1
+fi
+if $run_fe; then
+  echo "🧪 [Pre-Push] dashboard touched → make fe-test"
+  make fe-test || exit 1
+fi
+if $run_go; then
+  echo "🧪 [Pre-Push] Go service touched → make test-go (Testcontainers — slow)"
+  make test-go || exit 1
 fi
 
-echo "✅ [Pre-Push Hook] Lint and Audit passed. Tests run in CI. Proceeding with push..."
+if ! $run_pkg && ! $run_go && ! $run_py && ! $run_fe; then
+  echo "ℹ️  [Pre-Push] No service code touched (docs/config only) — skipping tests."
+fi
+
+echo "✅ [Pre-Push] Scoped checks passed. Audit + full suite run in CI. Pushing..."
 exit 0
