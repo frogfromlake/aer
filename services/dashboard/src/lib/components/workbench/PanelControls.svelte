@@ -19,7 +19,12 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { setUrl, urlState } from '$lib/state/url.svelte';
-  import { DEFAULT_METRIC_NAME, presentationsForPillar, resolvePresentation } from '$lib/viewmodes';
+  import {
+    DEFAULT_METRIC_NAME,
+    metricSupportsPresentation,
+    presentationsForPillar,
+    resolvePresentation
+  } from '$lib/viewmodes';
   import {
     DEFAULT_LOOKBACK_MS,
     type Normalization,
@@ -31,17 +36,13 @@
 
   interface Props {
     pillar: ViewingMode;
-    /** When the Pillar dictates a fixed view (Rhizome entry-questions),
-     *  the parent can lock the view selection — the View row still
-     *  renders, but as an informational badge instead of a selector. */
-    lockedView?: ViewMode;
     /** Phase 122i — when set, the controls bind to the addressed Panel
      *  in the new Pillar→Window→Panel state instead of the legacy flat
      *  URL params. The pillar prop must match `panelPath.pillar`. */
     panelPath?: PanelPath;
   }
 
-  let { pillar, lockedView, panelPath }: Props = $props();
+  let { pillar, panelPath }: Props = $props();
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
@@ -108,12 +109,7 @@
   ];
 
   const presentations = $derived(presentationsForPillar(pillar as ViewingMode));
-  const activePresentation = $derived(
-    lockedView
-      ? (presentations.find((p) => p.id === lockedView) ??
-          resolvePresentation(boundPanel?.view ?? null, pillar))
-      : resolvePresentation(boundPanel?.view ?? null, pillar)
-  );
+  const activePresentation = $derived(resolvePresentation(boundPanel?.view ?? null, pillar));
 
   // Per-view capability flags (Phase 122h Findings round 3). Cells that
   // don't consume the metric / resolution prop get the corresponding
@@ -122,20 +118,37 @@
   const viewUsesMetric = $derived(activePresentation.usesMetric ?? true);
   const viewUsesResolution = $derived(activePresentation.usesResolution ?? false);
 
-  // Metric list: DEFAULT first, then API order. Defensive — `availQ` may
-  // be pending or refusing; in that case we still surface the default so
-  // the picker is never empty.
+  // Raw metric names from the API, in API order. Defensive — `availQ` may
+  // be pending or refusing.
+  const availableMetricNames = $derived<string[]>(
+    availQ.data?.kind === 'success' ? availQ.data.data.map((m) => m.metricName) : []
+  );
+
+  // Metric list: DEFAULT first, then API order; the default is always
+  // surfaced so the picker is never empty.
+  //
+  // Phase 130 — the list is filtered through the metric→presentation map so
+  // only metrics the ACTIVE view can sensibly render are offered (a
+  // distribution view drops `temporal_distribution`; a time-series view
+  // drops the cyclic `publication_hour`/`publication_weekday`). This is the
+  // catalog (`metrics × presentations`) constrained by the SoT in
+  // `metric-presentation.ts`. The UI never produces an incompatible
+  // (metric × view) pair — `pickView` reconciles the metric on every view
+  // change — so an incompatible active metric can only come from a
+  // hand-crafted URL, in which case it is simply absent from the picker.
   const metrics = $derived.by<string[]>(() => {
+    const view = activePresentation.id;
     const seen: Record<string, true> = {};
     const merged: string[] = [];
-    const fromApi =
-      availQ.data?.kind === 'success' ? availQ.data.data.map((m) => m.metricName) : [];
-    for (const name of [DEFAULT_METRIC_NAME, ...fromApi]) {
+    for (const name of [DEFAULT_METRIC_NAME, ...availableMetricNames]) {
       if (!name || seen[name]) continue;
+      if (!metricSupportsPresentation(name, view)) continue;
       seen[name] = true;
       merged.push(name);
     }
-    if (activeMetric && !seen[activeMetric]) merged.push(activeMetric);
+    if (activeMetric && !seen[activeMetric] && metricSupportsPresentation(activeMetric, view)) {
+      merged.push(activeMetric);
+    }
     return merged;
   });
 
@@ -148,11 +161,32 @@
     // panel context (the empty-state path will be wired in K3 to open the
     // ScopeEditor instead of rendering PanelControls).
   }
+  // Phase 130 — pick the first metric the target view can render, preferring
+  // the canonical default. Used to reconcile a Panel whose current metric is
+  // incompatible with a newly-chosen view (e.g. switching a `publication_hour`
+  // distribution to a time-series, which the cyclic metric cannot render).
+  function firstMetricSupporting(view: ViewMode): string {
+    if (metricSupportsPresentation(DEFAULT_METRIC_NAME, view)) return DEFAULT_METRIC_NAME;
+    return (
+      availableMetricNames.find((m) => metricSupportsPresentation(m, view)) ?? DEFAULT_METRIC_NAME
+    );
+  }
+
   function pickView(id: ViewMode) {
     if (id === activePresentation.id) return;
-    if (panelPath) {
-      updatePanel(panelPath, (p) => ({ ...p, view: id }));
-    }
+    if (!panelPath) return;
+    updatePanel(panelPath, (p) => {
+      const next = { ...p, view: id };
+      const pres = presentations.find((x) => x.id === id);
+      const usesMetric = pres?.usesMetric ?? true;
+      // Keep the Panel coherent: when the new view consumes a metric the
+      // current one cannot satisfy, swap to a compatible default so the Cell
+      // never renders a nonsensical (metric × presentation) pairing.
+      if (usesMetric && !metricSupportsPresentation(next.metric, id)) {
+        next.metric = firstMetricSupporting(id);
+      }
+      return next;
+    });
   }
   function pickLayer(next: 'gold' | 'silver') {
     if (next === activeLayer) return;
@@ -353,33 +387,26 @@
   {/if}
 
   {#if !isCollapsed}
-    <!-- View / Darstellung row — always visible. When `lockedView` is set
-       (Rhizome entry-questions), renders as an informational badge so the
-       user sees WHICH view is active without being able to switch. -->
+    <!-- View / Darstellung row — always visible. Lists the presentations
+       the active Pillar owns (Phase 130 / ADR-035: the pillar is fixed by
+       the presentation set). -->
     <div class="ctrl-row" role="radiogroup" aria-label="View">
       <span class="ctrl-eyebrow">View</span>
-      {#if lockedView}
-        <span class="ctrl-locked" title={activePresentation.description}>
-          {activePresentation.label}
-          <span class="ctrl-locked-hint">(set by the entry-question)</span>
-        </span>
-      {:else}
-        <div class="ctrl-options">
-          {#each presentations as p (p.id)}
-            <button
-              type="button"
-              role="radio"
-              aria-checked={activePresentation.id === p.id}
-              class="ctrl-btn"
-              class:active={activePresentation.id === p.id}
-              title={p.description}
-              onclick={() => pickView(p.id)}
-            >
-              {p.label}
-            </button>
-          {/each}
-        </div>
-      {/if}
+      <div class="ctrl-options">
+        {#each presentations as p (p.id)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activePresentation.id === p.id}
+            class="ctrl-btn"
+            class:active={activePresentation.id === p.id}
+            title={p.description}
+            onclick={() => pickView(p.id)}
+          >
+            {p.label}
+          </button>
+        {/each}
+      </div>
     </div>
 
     <!-- Metric row — only when the active view consumes a metric. BERTopic
@@ -714,25 +741,6 @@
     color: #7ec4a0;
     background: rgba(126, 196, 160, 0.18);
     border-color: #7ec4a0;
-  }
-
-  .ctrl-locked {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 3px var(--space-3);
-    background: rgba(82, 131, 184, 0.18);
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg);
-  }
-
-  .ctrl-locked-hint {
-    font-size: 10.5px;
-    color: var(--color-fg-subtle);
-    font-style: italic;
   }
 
   .window-inputs {

@@ -1,0 +1,50 @@
+entityId: merged_cross_probe_unsupported
+entityType: refusal
+locale: en
+registers:
+  semantic:
+    short: "A merged scope that pools more than one probe onto a single shared axis is not rendered for scaled metrics. Pooling sentiment or other intensive values across cultural contexts produces a ranking, not a composition."
+    long: >
+      You composed a Workbench Panel whose merged scope spans more than one probe, with a
+      scaled (intensive) metric — a sentiment average, a confidence score, a normalised
+      value. Merging pools those probes onto one shared axis, and on a shared axis a scaled
+      metric reads as a ranking: "context A scores higher than context B". That is exactly
+      the comparison framing AĒR refuses (Design Brief §1.3, *composition not comparison*):
+      multiple cultural contexts placed together should form a composition — a whole that
+      yields more understanding than its parts — not a leaderboard. The reason the line is
+      drawn at *scaled* metrics is that an intensive value has no meaningful pooled total;
+      averaging a German probe's sentiment with a French probe's sentiment invents a number
+      that belongs to neither context. Pure-count metrics (article counts, word counts) are
+      different: a merged total is an honest sum over the unioned corpus, so those are
+      permitted.
+      Resolution: (1) switch this Panel's composition to **split** — one Cell per probe,
+      side by side, each on its own axis (a valid parallel-context constellation); or
+      (2) switch to **overlay** — the probes share a canvas as separate lines without being
+      pooled into one value; or (3) narrow the scope to a single probe; or (4) choose a
+      pure-count metric, for which the merged sum is meaningful.
+  methodological:
+    short: "Client-side guard in PanelHost (Phase 130 / ADR-035). Triggered when composition='merged' AND a single rendered Cell pools >1 probe AND the presentation consumes a metric AND that metric is not a pure count (isPureCountMetric=false)."
+    long: >
+      This is a client-side guard, not a BFF gate: the dashboard never issues the offending
+      request. `shouldRefuseMergedCrossProbe(panel)` returns true when
+      `panel.composition === 'merged'`, the active presentation consumes a metric
+      (`usesMetric !== false`, i.e. distribution or time_series), the metric is not in the
+      pure-count set (`isPureCountMetric` — word_count, entity_count, publication_hour,
+      publication_weekday, temporal_distribution), and at least one rendered Cell pools more
+      than one probe (a ScopeGroup with >1 probeId under the merged strategy). The
+      classification lives in `src/lib/viewmodes/metric-presentation.ts`; the guard in
+      `src/lib/workbench/panel-queries.ts`. PanelHost renders this RefusalSurface in place
+      of the Cell body. The distinction between extensive (pure-count) and intensive
+      (scaled) quantities is the operational form of Brief §1.3 / WP-004 §8: a sum of counts
+      over a unioned corpus is well-defined; an average of averages across non-commensurable
+      contexts is not. Metric-less presentations (topic_distribution, topic_evolution,
+      cooccurrence_network) are out of scope for this guard — their cross-context concern is
+      language commensurability, handled by the separate cross_language_merge_unsupported
+      gate. `split` and `overlay` are never refused, since each probe keeps its own axis.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "Design Brief §1.3"
+  - "WP-004 §8"
+  - "ADR-035"

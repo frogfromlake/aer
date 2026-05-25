@@ -171,9 +171,15 @@ export function listPresentations(): readonly PresentationDefinition[] {
   return PRESENTATIONS;
 }
 
-const DEFAULT_PRESENTATION: PresentationDefinition = PRESENTATIONS[0]!;
+// Phase 130 — the registry-wide default is `distribution` (the default
+// pillar Aleph's default presentation). Before Phase 130 this was
+// `time_series`, which leaked a diachronic cell as the synchronic-pillar
+// default; the fix moves `time_series` into Episteme and makes Aleph
+// default to `distribution`.
+const DEFAULT_PRESENTATION: PresentationDefinition =
+  PRESENTATIONS.find((p) => p.id === 'distribution') ?? PRESENTATIONS[0]!;
 
-/** Lookup by URL-stable id; returns the time-series default when the
+/** Lookup by URL-stable id; returns the distribution default when the
  *  caller passed `null` (e.g. URL state was empty). */
 export function getPresentation(id: ViewMode | null): PresentationDefinition {
   const found = PRESENTATIONS.find((p) => p.id === id);
@@ -207,10 +213,20 @@ export const DEFAULT_METRIC_NAME = 'sentiment_score_sentiws';
 // full matrix at once. The Pillar switcher in the SideRail and the per-lane
 // identity strip on Surface II L3 both consume this mapping.
 //
-// Mapping (strict 1-to-1, no overlap):
-//   Aleph    = synchronic totality  → time_series, distribution
-//   Episteme = diachronic register  → topic_distribution, topic_evolution
-//   Rhizome  = relational currents  → cooccurrence_network
+// Mapping (strict 1-to-1, no overlap) — Phase 130 / ADR-035. The pillar
+// is determined by the PRESENTATION, not the metric: a presentation is
+// inherently synchronic (no time axis), diachronic (time is the axis), or
+// relational, and lands in exactly one pillar accordingly. Metrics then
+// flow through whichever presentations they support (see
+// `metric-presentation.ts`).
+//   Aleph    = synchronic totality ("the weather now")   → distribution, topic_distribution
+//   Episteme = diachronic register ("the climate record")→ time_series, topic_evolution
+//   Rhizome  = relational currents ("currents between")  → cooccurrence_network
+//
+// Phase 130 corrected two leaks: `time_series` (inherently diachronic) sat
+// in Aleph and moved to Episteme; `topic_distribution` (a synchronic
+// snapshot of what is being talked about, by volume) sat in Episteme and
+// moved to Aleph.
 // -------------------------------------------------------------------------
 
 export interface PillarDefinition {
@@ -238,9 +254,9 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     glyph: '◉',
     blurb: 'Synchronic totality — "the weather now"',
     description:
-      'Every observed probe in scope, no temporal aggregation beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape.',
+      'Every observed probe in scope, no time axis beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape, and what is being talked about right now (by volume).',
     color: '#5283b8',
-    presentations: ['time_series', 'distribution']
+    presentations: ['distribution', 'topic_distribution']
   },
   {
     id: 'episteme',
@@ -249,9 +265,9 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     glyph: '◐',
     blurb: 'Diachronic knowledge register — "the climate record"',
     description:
-      'How the expressible shifts over time. Topic models, drift, the long-term shape of what can be said within the discursive formation.',
+      'How the expressible shifts over time. Time is the axis: metric time-series, topic evolution, drift — the long-term shape of what can be said within the discursive formation.',
     color: '#c8a85a',
-    presentations: ['topic_distribution', 'topic_evolution']
+    presentations: ['time_series', 'topic_evolution']
   },
   {
     id: 'rhizome',

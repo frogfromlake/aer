@@ -2487,3 +2487,46 @@ Rune-wrapped exports in `panel-mutators.ts` apply each pure mutator against the 
 
 
 ---
+
+## ADR-035: Pillar Identity — the Pillar follows the Presentation (Phase 130)
+
+**Status:** Accepted (Phase 130)
+
+**Context.**
+AĒR's name is the ancient Greek ἀήρ — *air, atmosphere*. The three Pillars of the Workbench are the project's conceptual core and are deliberately atmospheric: **weather** (the state right now), **climate** (the record over time), and **currents** (how things move between places). Each name also carries an intellectual lineage:
+
+* **Aleph** — Borges' *El Aleph*: "the one place on earth where all places are — seen from every angle — without confusion." The synchronic totality: every observed context, *now*, with no time axis.
+* **Episteme** — Foucault's *archaeology of knowledge*: the historical *a priori* that governs what is sayable, and how it shifts. The diachronic register: time **is** the axis.
+* **Rhizome** — Deleuze & Guattari's *Mille Plateaux*: a non-hierarchical structure of connections with no centre. The relational substrate: how frames propagate between contexts.
+
+Before Phase 130 the pillar→presentation assignment had drifted and leaked its own metaphor: `time_series` — an inherently *diachronic* presentation — sat in **Aleph** (the synchronic pillar), while **Episteme** (the temporal pillar) carried no time-series at all. The split made the pillar identities incoherent and undermined their use as a teaching device.
+
+**Decision.**
+
+1. **The Pillar is determined by the PRESENTATION, not the metric.** A presentation is inherently synchronic (no time axis — `distribution`, `topic_distribution`), diachronic (time is the axis — `time_series`, `topic_evolution`), or relational (`cooccurrence_network`), and therefore belongs to exactly one Pillar. The corrected strict 1-to-1 mapping (SoT: `PILLAR_DEFINITIONS` in `src/lib/viewmodes/registry.ts`):
+   * **Aleph** → `distribution`, `topic_distribution`
+   * **Episteme** → `time_series`, `topic_evolution`
+   * **Rhizome** → `cooccurrence_network` (+ the relational cells of Phases 124/125)
+
+   Two moves corrected the leak: `time_series` Aleph→Episteme, `topic_distribution` Episteme→Aleph. The registry-wide and Aleph default presentation becomes `distribution`.
+
+2. **Metrics flow through presentations.** A metric does not pick a pillar; it declares which presentations it can sensibly render, and thereby auto-lands in whichever pillar(s) those presentations live in. The SoT for the metric→presentation map is `src/lib/viewmodes/metric-presentation.ts`:
+   * scalar metrics → `distribution` + `time_series` (so a scalar is reachable as a *distribution* in Aleph **and** a *time-series* in Episteme);
+   * cyclic metrics (`publication_hour`, `publication_weekday`) → `distribution` only (a bounded repeating domain is not a corpus-time series);
+   * `temporal_distribution` → `time_series` only;
+   * `entity_cooccurrence` → `cooccurrence_network` only.
+
+   The catalog (`availableMetrics × presentations`) is filtered through this map: PanelControls offers only the metrics the active presentation can render, and reconciles a Panel's metric when a view change would otherwise produce a nonsensical pairing. This prevents `publication_hour`-as-time-series and `temporal_distribution`-as-distribution.
+
+3. **Merged-cross-probe guard (Brief §1.3).** A `merged` composition pools a ScopeGroup's sources onto one shared axis. When a single rendered Cell pools more than one *probe*, an **intensive / scaled** metric (a sentiment average, a confidence score) on that shared axis reads as a cross-context ranking — the comparison framing Brief §1.3 forbids ("composition, not comparison"). The guard refuses such renders via the standard refusal surface (`merged_cross_probe_unsupported`); **pure-count / extensive** metrics (`isPureCountMetric`: `word_count`, `entity_count`, `publication_hour`, `publication_weekday`, `temporal_distribution`) are exempt because a merged total is an honest sum, not a ranking. `split` and `overlay` keep each probe on its own axis and are never refused. The guard is **client-side** (`shouldRefuseMergedCrossProbe` in `panel-queries.ts`, rendered by `PanelHost`) — the dashboard never issues the offending request. Metric-less presentations (topic / co-occurrence) are out of scope here; their cross-context concern is language commensurability, handled by the separate `cross_language_merge_unsupported` gate (ADR-034 §3).
+
+4. **Rhizome uses panels + cells like the other Pillars.** The bespoke Rhizome "entry-question" navigation layer (Actors&Topics / Source Resonance / Concept Migration / Free Composition) is removed. Two of the four were dead feature-gates, `source-resonance` pointed at `topic_distribution` (which moved to Aleph), and `free-composition` was a vestige of the retired card/edge canvas — and the layer was already half-superseded by the multi-panel pillar-state path. All three Pillars now behave uniformly: a multi-panel Workbench (pillar-state path) with a legacy single-Cell fallback. The relational cells become ordinary cell choices. If guided "questions" prove valuable, they return as optional **preset cell-templates**, not a parallel navigation layer.
+
+**Consequences.**
+
+* The pillar identities are crisp and scientifically communicable: Aleph = "the weather now", Episteme = "the climate record", Rhizome = "currents between contexts".
+* New metrics need an entry in `metric-presentation.ts` only when their shape is non-scalar; scalars fall through to the default and are automatically reachable in both Aleph (distribution) and Episteme (time-series).
+* `PILLAR_DEFINITIONS` and `metric-presentation.ts` are the two single-sources-of-truth: presentation→pillar placement and metric→presentation compatibility, respectively. No third list duplicates this anywhere.
+* The `RhizomeView` URL enum is retired; Rhizome panels are ordinary `ViewMode` panels.
+
+---

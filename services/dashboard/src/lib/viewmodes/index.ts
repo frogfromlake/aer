@@ -14,3 +14,9 @@ export {
   type PresentationDefinition,
   type ViewModeCellProps
 } from './registry';
+
+export {
+  isPureCountMetric,
+  metricSupportsPresentation,
+  presentationsForMetric
+} from './metric-presentation';

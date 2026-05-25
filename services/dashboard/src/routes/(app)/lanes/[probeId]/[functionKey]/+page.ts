@@ -3,26 +3,18 @@
 // was replaced by three Pillar Shells inside the Workbench. Old bookmarks
 // translate as (ADR-033 §7 redirect map):
 //   /lanes/{probeId}/{functionKey}?viewMode=cooccurrence_network&…
-//     → /workbench?probeId={probeId}&pillar=rhizome&view=actors-topics&…
-// Legacy `viewMode` params map to the new (pillar, view) tuple where
-// possible; otherwise the redirect lands the user on the default Aleph
-// Pillar with the function set as the scope filter.
+//     → /workbench?probeId={probeId}&pillar=rhizome&…
+// Legacy `viewMode` params map to the new pillar where possible; otherwise
+// the redirect lands the user on the default Aleph Pillar with the function
+// set as the scope filter. (Phase 130 / ADR-035 removed the Rhizome
+// entry-question sub-view, so cooccurrence_network maps to the pillar only.)
 import { redirect } from '@sveltejs/kit';
+import { pillarForViewMode } from '$lib/viewmodes';
+import type { ViewMode } from '$lib/state/url-internals';
 import type { PageLoad } from './$types';
 
 export const prerender = false;
 export const ssr = false;
-
-const LEGACY_VIEWMODE_TO_PILLAR: Record<
-  string,
-  { pillar: 'aleph' | 'episteme' | 'rhizome'; view?: string }
-> = {
-  time_series: { pillar: 'aleph' },
-  distribution: { pillar: 'aleph' },
-  topic_distribution: { pillar: 'episteme' },
-  topic_evolution: { pillar: 'episteme' },
-  cooccurrence_network: { pillar: 'rhizome', view: 'actors-topics' }
-};
 
 export const load: PageLoad = ({ params, url }) => {
   const probeId = params.probeId;
@@ -31,11 +23,14 @@ export const load: PageLoad = ({ params, url }) => {
   const out = new URLSearchParams();
   out.set('probeId', probeId);
 
+  // Derive the pillar from the registry SoT (`pillarForViewMode` over
+  // `PILLAR_DEFINITIONS`) rather than a parallel map, so the redirect
+  // tracks Phase 130 / ADR-035 placement automatically. Unknown legacy
+  // view-modes fall back to the default Aleph pillar.
   const legacyViewMode = url.searchParams.get('viewMode');
-  const mapping = legacyViewMode ? LEGACY_VIEWMODE_TO_PILLAR[legacyViewMode] : undefined;
-  if (mapping) {
-    out.set('viewingMode', mapping.pillar);
-    if (mapping.view) out.set('view', mapping.view);
+  const pillar = legacyViewMode ? pillarForViewMode(legacyViewMode as ViewMode) : null;
+  if (pillar) {
+    out.set('viewingMode', pillar);
     // Keep viewMode for downstream Cells that still read it directly.
     out.set('viewMode', legacyViewMode!);
   } else {

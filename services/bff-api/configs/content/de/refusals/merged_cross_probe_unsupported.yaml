@@ -1,0 +1,55 @@
+entityId: merged_cross_probe_unsupported
+entityType: refusal
+locale: de
+registers:
+  semantic:
+    short: "Ein zusammengeführter (merged) Geltungsbereich, der mehr als eine Sonde auf eine gemeinsame Achse legt, wird für skalierte Metriken nicht dargestellt. Das Zusammenlegen intensiver Werte über Kontexte hinweg ergibt eine Rangliste, keine Komposition."
+    long: >
+      Du hast in der Werkbank ein Panel zusammengestellt, dessen zusammengeführter
+      (merged) Geltungsbereich mehr als eine Sonde umfasst — mit einer skalierten
+      (intensiven) Metrik: einem Sentiment-Mittelwert, einem Konfidenzwert, einem
+      normalisierten Wert. Das Zusammenführen legt diese Sonden auf eine gemeinsame Achse,
+      und auf einer gemeinsamen Achse liest sich eine skalierte Metrik als Rangliste:
+      „Kontext A liegt höher als Kontext B“. Genau diese Vergleichsrahmung verweigert AĒR
+      (Design Brief §1.3, *Komposition statt Vergleich*): mehrere kulturelle Kontexte
+      gemeinsam dargestellt sollen eine Komposition bilden — ein Ganzes, das mehr Verständnis
+      ergibt als seine Teile — keine Bestenliste. Die Grenze verläuft bei *skalierten*
+      Metriken, weil ein intensiver Wert keine sinnvolle zusammengelegte Summe hat: das
+      Mitteln des Sentiments einer deutschen und einer französischen Sonde erfindet eine
+      Zahl, die zu keinem der beiden Kontexte gehört. Reine Zählmetriken (Artikelzahlen,
+      Wortzahlen) sind anders: eine zusammengeführte Summe ist eine ehrliche Summe über den
+      vereinigten Korpus und daher erlaubt.
+      Auflösung: (1) Stelle die Komposition dieses Panels auf **split** — eine Zelle pro
+      Sonde, nebeneinander, jede auf eigener Achse (eine gültige Parallel-Kontext-
+      Konstellation); oder (2) auf **overlay** — die Sonden teilen sich eine Leinwand als
+      getrennte Linien, ohne zu einem Wert verschmolzen zu werden; oder (3) grenze den
+      Geltungsbereich auf eine einzige Sonde ein; oder (4) wähle eine reine Zählmetrik, für
+      die die zusammengeführte Summe sinnvoll ist.
+  methodological:
+    short: "Client-seitiger Guard im PanelHost (Phase 130 / ADR-035). Ausgelöst, wenn composition='merged' UND eine einzelne gerenderte Zelle >1 Sonde bündelt UND die Darstellung eine Metrik nutzt UND diese keine reine Zählmetrik ist (isPureCountMetric=false)."
+    long: >
+      Dies ist ein client-seitiger Guard, kein BFF-Gate: das Dashboard sendet die
+      beanstandete Anfrage gar nicht erst. `shouldRefuseMergedCrossProbe(panel)` liefert
+      true, wenn `panel.composition === 'merged'`, die aktive Darstellung eine Metrik nutzt
+      (`usesMetric !== false`, also distribution oder time_series), die Metrik nicht in der
+      Menge der reinen Zählmetriken liegt (`isPureCountMetric` — word_count, entity_count,
+      publication_hour, publication_weekday, temporal_distribution) und mindestens eine
+      gerenderte Zelle mehr als eine Sonde bündelt (eine ScopeGroup mit >1 probeId unter der
+      merged-Strategie). Die Klassifikation liegt in
+      `src/lib/viewmodes/metric-presentation.ts`; der Guard in
+      `src/lib/workbench/panel-queries.ts`. PanelHost rendert diese RefusalSurface anstelle
+      des Zellinhalts. Die Unterscheidung zwischen extensiven (reine Zählung) und intensiven
+      (skalierten) Größen ist die operative Form von Brief §1.3 / WP-004 §8: eine Summe von
+      Zählungen über einen vereinigten Korpus ist wohldefiniert; ein Mittel von Mitteln über
+      nicht-kommensurable Kontexte nicht. Metrik-lose Darstellungen (topic_distribution,
+      topic_evolution, cooccurrence_network) fallen nicht unter diesen Guard — ihr
+      Kontext-Übergreifungs-Problem ist die Sprach-Kommensurabilität, abgedeckt durch das
+      separate Gate cross_language_merge_unsupported. `split` und `overlay` werden nie
+      verweigert, da jede Sonde ihre eigene Achse behält.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "Design Brief §1.3"
+  - "WP-004 §8"
+  - "ADR-035"

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   coOccurrencePostDescriptorForPanel,
-  selectCellRender
+  selectCellRender,
+  shouldRefuseMergedCrossProbe
 } from '../../src/lib/workbench/panel-queries';
 import type { Panel, ScopeGroup } from '../../src/lib/state/url-internals';
 
@@ -170,5 +171,89 @@ describe('coOccurrencePostDescriptorForPanel', () => {
     );
     expect(d).not.toBeNull();
     expect(d!.topN).toBeUndefined();
+  });
+});
+
+describe('shouldRefuseMergedCrossProbe (Phase 130 / ADR-035 — Brief §1.3)', () => {
+  it('refuses merged scaled metric pooling >1 probe in one Cell', () => {
+    // single ScopeGroup with two probes, merged → one Cell pools both
+    expect(
+      shouldRefuseMergedCrossProbe(
+        panel({
+          composition: 'merged',
+          view: 'distribution',
+          metric: 'sentiment_score_sentiws',
+          scopes: [group(['probe-0', 'probe-1'])]
+        })
+      )
+    ).toBe(true);
+  });
+
+  it('permits merged when the metric is a pure count', () => {
+    expect(
+      shouldRefuseMergedCrossProbe(
+        panel({
+          composition: 'merged',
+          view: 'distribution',
+          metric: 'word_count',
+          scopes: [group(['probe-0', 'probe-1'])]
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('permits split / overlay cross-probe (each probe keeps its own axis)', () => {
+    const scaledTwoProbes = {
+      view: 'distribution' as const,
+      metric: 'sentiment_score_sentiws',
+      scopes: [group(['probe-0']), group(['probe-1'])]
+    };
+    expect(shouldRefuseMergedCrossProbe(panel({ composition: 'split', ...scaledTwoProbes }))).toBe(
+      false
+    );
+    expect(
+      shouldRefuseMergedCrossProbe(panel({ composition: 'overlay', ...scaledTwoProbes }))
+    ).toBe(false);
+  });
+
+  it('does not refuse merged single-probe scope', () => {
+    expect(
+      shouldRefuseMergedCrossProbe(
+        panel({
+          composition: 'merged',
+          view: 'distribution',
+          metric: 'sentiment_score_sentiws',
+          scopes: [group(['probe-0'])]
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('does not apply to metric-less presentations (cooccurrence handled by cross-language gate)', () => {
+    expect(
+      shouldRefuseMergedCrossProbe(
+        panel({
+          composition: 'merged',
+          view: 'cooccurrence_network',
+          metric: 'sentiment_score_sentiws',
+          scopes: [group(['probe-0', 'probe-1'])]
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('treats multi-group merged (one Cell per group) as not cross-probe-in-one-axis', () => {
+    // merged + multiple single-probe groups → merged-multi: each group is its
+    // own Cell, so no single Cell pools >1 probe.
+    expect(
+      shouldRefuseMergedCrossProbe(
+        panel({
+          composition: 'merged',
+          view: 'distribution',
+          metric: 'sentiment_score_sentiws',
+          scopes: [group(['probe-0']), group(['probe-1'])]
+        })
+      )
+    ).toBe(false);
   });
 });

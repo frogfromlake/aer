@@ -5,17 +5,10 @@
 
 export type Resolution = '5min' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export type ViewingMode = 'aleph' | 'episteme' | 'rhizome';
-// Rhizome entry-question (Phase 122h / ADR-033 §2 Rhizome paragraph). The
-// Rhizome Pillar renders one of four opinionated default views; the URL
-// encodes which view is active so deep-links restore the exact entry.
-// Replaces the retired Surface I L3 ViewLayer (`atmosphere`/`analysis`) —
-// the L3 companion panel was retired in Phase 124b; the `view` URL key is
-// repurposed for the Rhizome sub-view.
-export type RhizomeView =
-  | 'actors-topics'
-  | 'source-resonance'
-  | 'concept-migration'
-  | 'free-composition';
+// Phase 130 / ADR-035 — the Rhizome entry-question enum (`RhizomeView`:
+// actors-topics / source-resonance / concept-migration / free-composition)
+// was removed. Rhizome now uses the universal panels+cells model like Aleph
+// and Episteme; its relational cells are ordinary `ViewMode` choices.
 // Presentation-form axis of the View-Mode Matrix (Brief §4.2.3 /
 // reframing-note §3.2). MVP cells in Phase 107: time_series,
 // distribution, cooccurrence_network. The catalog is extensible —

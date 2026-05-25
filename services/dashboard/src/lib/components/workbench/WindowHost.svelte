@@ -25,6 +25,7 @@
   } from '$lib/state/url-internals';
   import { addPanel, setMaximizedPanel, setPanelsPerRow } from '$lib/workbench/panel-mutators';
   import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
+  import { defaultViewModeForPillar } from '$lib/viewmodes';
   import type { ScopeGroup } from '$lib/state/url-internals';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import PanelHost from './PanelHost.svelte';
@@ -79,6 +80,7 @@
 
   function applyNewPanel(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) {
     const template = buildPanelFromScopes(scopes, {
+      view: defaultViewModeForPillar(pillar),
       lockedFunction: lockedFunction ?? undefined
     });
     addPanel(pillar, template);

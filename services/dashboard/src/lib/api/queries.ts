@@ -62,6 +62,8 @@ export type RefusalKind =
   // Phase 122i / ADR-034 — Multi-Panel Workbench refusal kinds.
   | 'cross_language_merge_unsupported'
   | 'scope_limit_exceeded'
+  // Phase 130 / ADR-035 — client-side merged-cross-probe guard (Brief §1.3).
+  | 'merged_cross_probe_unsupported'
   | 'unspecified';
 
 export interface RefusalOutcome {

@@ -20,8 +20,13 @@
     type ViewModeCellProps
   } from '$lib/viewmodes';
   import type { Panel, ViewingMode } from '$lib/state/url-internals';
-  import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
-  import { selectCellRender, type CellRenderUnit } from '$lib/workbench/panel-queries';
+  import type { FetchContext, ProbeDossierDto, RefusalOutcome } from '$lib/api/queries';
+  import {
+    selectCellRender,
+    shouldRefuseMergedCrossProbe,
+    type CellRenderUnit
+  } from '$lib/workbench/panel-queries';
+  import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import {
     focusPanel,
     removePanel,
@@ -111,6 +116,22 @@
 
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
   const cellRender = $derived(selectCellRender(panel));
+
+  // Phase 130 / ADR-035 — merged-cross-probe guard (Brief §1.3). A merged
+  // Cell that pools >1 probe for a scaled/intensive metric would render a
+  // cross-context ranking; refuse it via the standard refusal surface.
+  // `split`/`overlay` keep each probe on its own axis and are unaffected.
+  const crossProbeMergeRefused = $derived(shouldRefuseMergedCrossProbe(panel, cellRender));
+  const crossProbeRefusal = $derived<RefusalOutcome | null>(
+    crossProbeMergeRefused
+      ? {
+          kind: 'refusal',
+          refusalKind: 'merged_cross_probe_unsupported',
+          message: `Merged composition pools more than one probe onto a single shared axis for "${panel.metric}", a scaled metric — that reads as a cross-context ranking, which AĒR does not render (Brief §1.3). Switch this Panel to split or overlay, narrow it to one probe, or choose a pure-count metric.`,
+          httpStatus: 422
+        }
+      : null
+  );
 
   // When `split + single group without source narrowing`, the panel-queries
   // selector returns `merged-single` so this host can fan out across the
@@ -310,7 +331,9 @@
     class:split={cellRender.strategy === 'split'}
     data-split-direction={panel.splitDirection ?? 'horizontal'}
   >
-    {#if loadError}
+    {#if crossProbeRefusal}
+      <RefusalSurface refusal={crossProbeRefusal} {ctx} />
+    {:else if loadError}
       <p class="muted">Cell failed to load: {loadError}</p>
     {:else if !CellComponent}
       <p class="muted" aria-busy="true">Loading {presentation.label}…</p>

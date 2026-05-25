@@ -15,6 +15,7 @@
 // endpoint.
 
 import type { Panel, ScopeGroup, ViewMode } from '$lib/state/url-internals';
+import { getPresentation, isPureCountMetric } from '../viewmodes';
 
 // ---------------------------------------------------------------------------
 // Cell-render strategy
@@ -147,6 +148,36 @@ export function selectCellRender(panel: Panel): CellRender {
   };
 }
 
+/**
+ * Phase 130 / ADR-035 — merged-cross-probe guard (Brief §1.3).
+ *
+ * A `merged` composition pools the sources of a ScopeGroup onto one shared
+ * axis. When that single Cell pools more than one probe (a ScopeGroup with
+ * >1 probeId), an *intensive* metric (a sentiment average, a confidence
+ * score) on that shared axis reads as a cross-context ranking — the exact
+ * comparison framing Brief §1.3 forbids. Pure-count metrics are exempt
+ * (a merged total is a legitimate sum, not a ranking), and metric-less
+ * presentations (topic / co-occurrence) are governed by the separate
+ * cross-language gate, not this one. `split` / `overlay` keep each probe on
+ * its own axis and are never refused.
+ *
+ * The function is pure so it is unit-testable; the PanelHost renders the
+ * standard RefusalSurface (`merged_cross_probe_unsupported`) when it
+ * returns true. Callers that already hold a `selectCellRender(panel)` result
+ * pass it in to avoid recomputing the render plan.
+ */
+export function shouldRefuseMergedCrossProbe(panel: Panel, cellRender?: CellRender): boolean {
+  if (panel.composition !== 'merged') return false;
+  // Metric-less presentations (topic_*, cooccurrence_network) do not pool a
+  // scalar metric onto a shared axis — the §1.3 ranking concern does not
+  // apply, and cross-language merges are caught by their own gate.
+  if (getPresentation(panel.view).usesMetric === false) return false;
+  if (isPureCountMetric(panel.metric)) return false;
+  // Refuse only when a single rendered Cell actually pools >1 probe.
+  const render = cellRender ?? selectCellRender(panel);
+  return render.units.some((u) => u.probeIds.length > 1);
+}
+
 function scopeGroupToUnit(key: string, g: ScopeGroup): CellRenderUnit {
   // Resolution choice:
   //   - probe scope when the group has at least one probe and no source
@@ -236,6 +267,7 @@ import {
   type ViewMode as ViewModeType,
   type ViewingMode
 } from '../state/url-internals';
+import { defaultViewModeForPillar } from '../viewmodes';
 
 export interface BuildEntryUrlParams {
   pillar: ViewingMode;
@@ -288,7 +320,10 @@ export function buildPanelFromScopes(
     // multi-source scopes into a single aggregate, which makes sense
     // when the user explicitly asks for the union but not as a default.
     composition: 'split',
-    view: opts.view ?? 'time_series',
+    // Phase 130 — callers pass the pillar-correct default view
+    // (`defaultViewModeForPillar`); the literal fallback is the registry-
+    // wide default `distribution`, never the diachronic `time_series`.
+    view: opts.view ?? 'distribution',
     metric: opts.metric ?? 'sentiment_score_sentiws',
     layer: opts.layer ?? 'gold'
   };
@@ -314,7 +349,11 @@ function buildPillarUrl(opts: BuildPillarUrlOpts): string {
   const panel: PanelType = {
     scopes: [scopeGroup],
     composition: 'merged',
-    view: opts.view ?? 'time_series',
+    // Phase 130 — the default view follows the pillar (Aleph→distribution,
+    // Episteme→time_series, Rhizome→cooccurrence_network) so a freshly
+    // composed Workbench renders the pillar's identity cell, not a leaked
+    // time-series.
+    view: opts.view ?? defaultViewModeForPillar(opts.pillar),
     metric: opts.metric ?? 'sentiment_score_sentiws',
     layer: opts.layer ?? 'gold'
   };
