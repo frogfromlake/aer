@@ -43,7 +43,7 @@
   const lines = $derived(composeHowToRead(presentation, facts, templateBase));
 </script>
 
-<aside class="how-to-read" aria-label="How to read this cell">
+<aside class="how-to-read" aria-label="How to read this cell" data-export-exclude="always">
   <button
     type="button"
     class="htr-toggle"

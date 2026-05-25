@@ -99,7 +99,9 @@
     const seedNodes: SimNode[] = data.nodes.map((n) => ({
       id: n.text,
       label: n.label,
-      radius: 4 + 14 * Math.sqrt(sizeOf(n) / maxSize),
+      // Phase 131 (BUG2.2) — wider radius range (4..26) so the Size channel
+      // (weight vs degree) produces a visibly different node sizing.
+      radius: 4 + 22 * Math.sqrt(sizeOf(n) / maxSize),
       totalCount: n.totalCount,
       degree: n.degree ?? 0,
       presenceCount: n.presence?.length ?? 0,
@@ -121,7 +123,10 @@
           d3
             .forceLink<SimNode, SimEdge>(seedEdges)
             .id((n: SimNode) => n.id)
-            .distance(70)
+            // Phase 131 (BUG2.1) — link distance also scales with Spread so
+            // connected nodes WITHIN a cluster move apart too, not just whole
+            // clusters. 0 → tight (40), 100 → loose (200).
+            .distance(40 + spread * 1.6)
             .strength(0.5)
         )
         // Phase 131 (BUG1.7) — repulsion is user-tunable via the Spread
@@ -363,12 +368,13 @@
     'cooccurrence-network',
     scope === 'source' ? scopeId : 'probe'
   ]);
-  function getSvg(): SVGSVGElement | null {
-    return svgEl;
+  let cellEl: HTMLElement | undefined = $state();
+  function getNode(): HTMLElement | null {
+    return cellEl ?? null;
   }
 </script>
 
-<section class="net-cell" aria-labelledby="net-title">
+<section class="net-cell" aria-labelledby="net-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="net-title" class="cell-title">
       Entity co-occurrence
@@ -376,7 +382,7 @@
     </h3>
     {#if nodes.length > 0}
       <div class="header-actions">
-        <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
         <button class="reset-btn" onclick={resetView} title="Reset zoom">⊙</button>
       </div>
     {/if}

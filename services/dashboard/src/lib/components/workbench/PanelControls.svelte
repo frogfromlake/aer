@@ -130,6 +130,20 @@
   // Phase 131 (bugfix BUG4) — Compare (normalization) only does something on
   // the time-series cell; hide it elsewhere so it isn't a no-op lever.
   const viewUsesNormalization = $derived(activePresentation.usesNormalization ?? false);
+  // Phase 131 (BUG1) — deviation/percentile (z-score / percentile) assert a
+  // cross-context equivalence claim and the BFF refuses them unless the metric
+  // has a deviation/absolute `metric_equivalence` entry (ADR-016 / Phase 115).
+  // Read that availability from /metrics/available so we can DISABLE those two
+  // buttons (instead of letting the user hit a refusal), with a "?" explainer.
+  const metricEquivalenceLevel = $derived.by<string | null>(() => {
+    if (availQ.data?.kind !== 'success') return null;
+    const m = availQ.data.data.find((x) => x.metricName === activeMetric);
+    return m?.equivalenceStatus?.level ?? m?.equivalenceLevel ?? null;
+  });
+  const canNormalize = $derived(
+    metricEquivalenceLevel === 'deviation' || metricEquivalenceLevel === 'absolute'
+  );
+  let showCompareHelp = $state(false);
 
   // Raw metric names from the API, in API order. Defensive — `availQ` may
   // be pending or refusing.
@@ -844,7 +858,10 @@
               aria-checked={activeNormalization === 'zscore'}
               class="ctrl-btn"
               class:active={activeNormalization === 'zscore'}
-              title="Z-score deviation (Phase 115 cross-frame gate)"
+              disabled={!canNormalize}
+              title={canNormalize
+                ? 'Z-score deviation from the baseline'
+                : 'Needs a validated baseline + cross-context equivalence (Phase 115) — not available for this metric yet. Click ? to learn why.'}
               onclick={() => pickNorm('zscore')}
             >
               deviation
@@ -855,15 +872,41 @@
               aria-checked={activeNormalization === 'percentile'}
               class="ctrl-btn"
               class:active={activeNormalization === 'percentile'}
-              title="Percentile rank within scope"
+              disabled={!canNormalize}
+              title={canNormalize
+                ? 'Percentile rank within scope'
+                : 'Needs a validated baseline + cross-context equivalence (Phase 115) — not available for this metric yet. Click ? to learn why.'}
               onclick={() => pickNorm('percentile')}
             >
               percentile
             </button>
+            {#if !canNormalize}
+              <button
+                type="button"
+                class="ctrl-help"
+                aria-expanded={showCompareHelp}
+                title="Why are deviation / percentile disabled?"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  showCompareHelp = !showCompareHelp;
+                }}
+              >
+                ?
+              </button>
+            {/if}
           </div>
         </div>
       {/if}
     </div>
+    {#if viewUsesNormalization && !canNormalize && showCompareHelp}
+      <p class="compare-help" role="note">
+        <strong>deviation</strong> (z-score) and <strong>percentile</strong> compare values
+        <em>across contexts</em> — which asserts the metric measures the same thing in each. AĒR
+        only allows that once a baseline + a cross-context equivalence study exist for the metric
+        (ADR-016 / WP-004); <code>{activeMetric}</code> has none yet, so these stay disabled rather
+        than show an unproven comparison. <strong>raw</strong> always works.
+      </p>
+    {/if}
   {/if}
 </section>
 
@@ -1113,6 +1156,40 @@
   .config-select:hover,
   .config-select:focus-visible {
     border-color: var(--color-accent);
+  }
+
+  /* Phase 131 (BUG1) — Compare "?" explainer. */
+  .ctrl-help {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-elevated);
+    color: var(--color-fg-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+  .ctrl-help:hover,
+  .ctrl-help:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-accent);
+  }
+  .compare-help {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-loose);
+    color: var(--color-fg-muted);
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+    border-left: 2px solid var(--color-accent-muted);
+    border-radius: var(--radius-sm);
+  }
+  .compare-help code {
+    font-family: var(--font-mono);
   }
 
   @media (prefers-reduced-motion: reduce) {

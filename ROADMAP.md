@@ -3973,10 +3973,21 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Surfaced by Phase-131 manual testing. The Rhizome co-occurrence network has two linked data-quality gaps that need a worker fix + a Gold reprocess, plus the network-specific per-source / overlay affordances that the other pillars already have. Grouped because they share the same reprocess.*
 
-**Grounding.** Read first: the worker NER extractor (`services/analysis-worker/internal/extractors/`), the entity-co-occurrence extractor + `aer_gold.entity_cooccurrences` writer, `CoOccurrenceNetworkCell.svelte`, the BFF `/entities/cooccurrence` GET + POST handlers. Verify-first: confirm WHY `entity_cooccurrences` only holds tagesschau (19 724 rows / 11 articles) and nothing for bundesregierung despite bundesregierung having entities (entity_count 11–64/article) — this is the load-bearing diagnostic.
+**Grounding.** Read first: the corpus sweep driver `internal/corpus.py` (`fetch_entities_for_window` + `run_corpus_sweep` + the window cadence/config) — the `EntityCoOccurrenceExtractor` itself (`internal/extractors/entity_cooccurrence.py`) is correct, so the bug is in the **caller's window/batch logic**, not the pair enumeration. Then the worker NER extractor (boilerplate filtering), `CoOccurrenceNetworkCell.svelte`, the BFF `/entities/cooccurrence` GET + POST handlers.
+
+**Diagnosis already done (Phase-131 testing, 2026-05-25):** the gap is corpus-wide, not sparse data. Across the Gold corpus:
+
+| stage | articles |
+|---|---|
+| `metrics` | 847 |
+| `entities` (NER) | 771 (tagesschau 721, bundesregierung 50) |
+| `topic_assignments` | 844 |
+| **`entity_cooccurrences`** | **11** (all tagesschau; bundesregierung 0) |
+
+771 articles have ≥1 entity (bundesregierung averages ~40 entities/article) yet only 11 produced co-occurrence rows. So `corpus.py`'s sweep is processing a tiny fraction of articles — likely the rolling `window_seconds` only covers a sliver of the corpus, the per-(source,window) batch misses most articles, or the sweep ran once over a narrow window. Fix the windowing so every entity-bearing article is swept.
 
 ### Co-occurrence pipeline gap (BUG 1.5)
-* [ ] **Diagnose + fix** why co-occurrences are computed for only ~11 tagesschau articles and zero bundesregierung articles. Co-occurrence must be emitted per article that has ≥2 entities, for **every** source. Reprocess Gold so `entity_cooccurrences` is populated across the corpus.
+* [ ] **Fix the corpus sweep** (`internal/corpus.py`) so co-occurrences are emitted for **every** article with ≥2 entities across **every** source — target ≈771 articles, not 11. Reprocess Gold so `entity_cooccurrences` is populated corpus-wide.
 * [ ] **Per-source comparison must work** in split (it already fans out; the data was just empty). Add a clear "no co-occurrences for this source in window" hint distinguishing *sparse data* from *pipeline gap*.
 
 ### NER garbage nodes (BUG 1.1)

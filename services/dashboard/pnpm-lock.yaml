@@ -44,6 +44,9 @@ importers:
       d3-force:
         specifier: 3.0.0
         version: 3.0.0
+      html-to-image:
+        specifier: 1.11.13
+        version: 1.11.13
       three:
         specifier: 0.184.0
         version: 0.184.0
@@ -131,7 +134,7 @@ importers:
         version: 8.0.9(@types/node@22.19.17)
       vitest:
         specifier: 4.1.4
-        version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2)
+        version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2)(vite@8.0.9(@types/node@22.19.17))
 
   packages/engine-3d:
     devDependencies:
@@ -149,7 +152,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 4.1.4
-        version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2)
+        version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2)(vite@8.0.9(@types/node@22.19.17))
 
 packages:
 
@@ -1219,6 +1222,9 @@ packages:
     resolution: {integrity: sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
 
+  html-to-image@1.11.13:
+    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
+
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
@@ -1872,6 +1878,7 @@ packages:
       '@vitest/ui': 4.1.4
       happy-dom: '*'
       jsdom: '*'
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -3032,6 +3039,8 @@ snapshots:
     transitivePeerDependencies:
       - '@noble/hashes'
 
+  html-to-image@1.11.13: {}
+
   https-proxy-agent@7.0.6(supports-color@10.2.2):
     dependencies:
       agent-base: 7.1.4
@@ -3586,7 +3595,7 @@ snapshots:
     optionalDependencies:
       vite: 8.0.9(@types/node@22.19.17)
 
-  vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2):
+  vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2)(vite@8.0.9(@types/node@22.19.17)):
     dependencies:
       '@vitest/expect': 4.1.4
       '@vitest/mocker': 4.1.4(vite@8.0.9(@types/node@22.19.17))
@@ -3613,18 +3622,7 @@ snapshots:
       '@types/node': 22.19.17
       jsdom: 29.0.2
     transitivePeerDependencies:
-      - '@vitejs/devtools'
-      - esbuild
-      - jiti
-      - less
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
   w3c-xmlserializer@5.0.0:
     dependencies:

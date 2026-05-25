@@ -115,15 +115,15 @@
     metricName,
     scope === 'source' ? scopeId : 'probe'
   ]);
-  function getCanvas(): HTMLCanvasElement | null {
-    return bodyEl?.querySelector('canvas') ?? null;
+  function getNode(): HTMLElement | null {
+    return bodyEl ?? null;
   }
 </script>
 
 <div class="cell-body" bind:this={bodyEl}>
   {#if dataLayer !== 'silver' && sources.length > 0 && exportRows.length > 0}
     <div class="ts-export-row">
-      <CellExport {getCanvas} payload={exportPayload} filenameParts={exportFilenameParts} />
+      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
     </div>
   {/if}
   {#if dataLayer === 'silver'}

@@ -1,20 +1,24 @@
-// Publication-ready export helpers — Phase 131.
+// Publication-ready export helpers — Phase 131 (whole-cell capture, BUG5/round-3).
 //
-// Every configurable cell offers the same export set: a PNG raster, an SVG
-// vector, and the underlying data (CSV + JSON). The pure pieces (CSV
-// serialisation, RFC-4180 escaping, filename slugging) live here so vitest can
-// pin them without a DOM; the DOM/browser pieces (blob download, SVG → PNG via
-// canvas) are thin wrappers used only client-side.
+// Two export families per cell:
+//   • Image — the WHOLE cell rasterised/vectorised exactly as shown (chart +
+//     summary + legend + provenance), via `html-to-image` (lazy-loaded only on
+//     an export click, so it never lands in the initial bundle). Two variants:
+//       - "full"   keeps everything (the dashboard view, incl. provenance);
+//       - "figure" drops the methodology/provenance footer for a clean
+//         publication figure (chart + summary + legend only).
+//     Excluded in both: the "how to read" note and the export toolbar itself.
+//   • Data — CSV + JSON with a self-describing metadata header + summary +
+//     the how-to-read lines + every row. Pure (vitest-pinnable).
 //
-// No new runtime dependency: SVG serialisation is native (`XMLSerializer`),
-// rasterisation goes through a `<canvas>`, downloads through an object URL.
-// This keeps the cell chunks inside the Brief §7 bundle budget.
+// Elements opt out of the image via `data-export-exclude`:
+//   "always"     → never in either image variant (how-to-read, export toolbar)
+//   "provenance" → dropped from the "figure" variant only
 
 /** One exportable row — string keys to scalar values. */
 export type ExportRow = Record<string, string | number | boolean | null | undefined>;
 
-/** Escape a single CSV field per RFC 4180: quote when it contains a comma,
- *  quote, or newline; double any embedded quotes. */
+/** Escape a single CSV field per RFC 4180. */
 export function csvField(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '';
   const s = String(value);
@@ -24,9 +28,7 @@ export function csvField(value: string | number | boolean | null | undefined): s
   return s;
 }
 
-/** Serialise rows to CSV text. Columns are taken in the given order; when
- *  omitted they are the union of all row keys in first-seen order. Always
- *  emits a header row. */
+/** Serialise rows to CSV text (header + one line per row). */
 export function toCsv(rows: readonly ExportRow[], columns?: readonly string[]): string {
   const cols =
     columns ??
@@ -64,81 +66,7 @@ export function exportSlug(...parts: Array<string | number | null | undefined>):
     .join('_');
 }
 
-// ---------------------------------------------------------------------------
-// Browser-only helpers (guarded so an accidental SSR import is a no-op).
-// ---------------------------------------------------------------------------
-
-/** Trigger a browser download of `text` as `filename` with the given MIME. */
-export function downloadText(filename: string, mime: string, text: string): void {
-  if (typeof document === 'undefined') return;
-  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
-  downloadBlob(filename, blob);
-}
-
-/** Trigger a browser download of an arbitrary blob. */
-export function downloadBlob(filename: string, blob: Blob): void {
-  if (typeof document === 'undefined') return;
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // Revoke on the next tick so the click has a chance to start the download.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-// AĒR canvas tokens, hard-coded for standalone export (the CSS custom
-// properties that colour the in-app chart are gone once the SVG is detached).
-const EXPORT_BG = '#10141a';
-const EXPORT_FG = '#c9d3df';
-const EXPORT_FONT =
-  "ui-monospace, 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace";
-
-/** Serialise an SVG element to a standalone, namespaced SVG string that
- *  renders identically to the in-app cell (BUG5). Observable Plot draws axis
- *  text + lines with `currentColor`, which resolves to the page's light fg
- *  in-app but to black in a detached file — so we pin `color` (→ currentColor)
- *  and `background` on the clone, plus a font + a fallback `text { fill }`. */
-export function serializeSvg(svg: SVGSVGElement): string {
-  const clone = svg.cloneNode(true) as SVGSVGElement;
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  clone.style.color = EXPORT_FG;
-  clone.style.background = EXPORT_BG;
-  clone.style.fontFamily = EXPORT_FONT;
-  // Belt-and-suspenders for renderers that don't resolve `currentColor` from
-  // the inline style: a <style> rule for any text/tick that lacks its own fill.
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-  styleEl.textContent = `text{fill:${EXPORT_FG};font-family:${EXPORT_FONT};} [aria-label] path[stroke="currentColor"]{stroke:${EXPORT_FG};}`;
-  clone.insertBefore(styleEl, clone.firstChild);
-  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
-}
-
-/** Pick the chart's MAIN svg from a host that may contain several (Observable
- *  Plot emits a `<figure>` with a colour-legend swatch svg PLUS the plot svg;
- *  a naive `querySelector('svg')` grabs the legend — that was the scatter PNG
- *  bug). Returns the largest svg by rendered area, or null. */
-export function pickChartSvg(host: HTMLElement | null | undefined): SVGSVGElement | null {
-  if (!host) return null;
-  const svgs = Array.from(host.querySelectorAll('svg')) as SVGSVGElement[];
-  if (svgs.length === 0) return null;
-  let best = svgs[0]!;
-  let bestArea = -1;
-  for (const s of svgs) {
-    const r = s.getBoundingClientRect();
-    const area = r.width * r.height;
-    if (area > bestArea) {
-      bestArea = area;
-      best = s;
-    }
-  }
-  return best;
-}
-
-/** Build a scientific, sortable filename stem: parts + a UTC timestamp so an
- *  exported file is identifiable among thousands (BUG5). */
+/** Build a scientific, sortable filename stem: parts + a UTC timestamp. */
 export function exportFilename(parts: Array<string | number | null | undefined>): string {
   const stamp = new Date()
     .toISOString()
@@ -148,9 +76,10 @@ export function exportFilename(parts: Array<string | number | null | undefined>)
   return exportSlug('aer', ...parts, stamp);
 }
 
-/** Compose the metadata + data payload shared by CSV and JSON exports so an
- *  exported artefact is self-describing (BUG5: include ALL data + the how-to
- *  note). */
+// ---------------------------------------------------------------------------
+// Data payload (CSV / JSON)
+// ---------------------------------------------------------------------------
+
 export interface ExportPayload {
   meta: Record<string, string | number | undefined>;
   /** Summary key/value pairs (e.g. distribution quantiles). */
@@ -179,67 +108,89 @@ export function payloadToCsv(p: ExportPayload): string {
 /** Render the payload as a pretty JSON object. */
 export function payloadToJson(p: ExportPayload): string {
   return JSON.stringify(
-    {
-      meta: p.meta,
-      summary: p.summary,
-      howToRead: p.howToRead,
-      rows: p.rows
-    },
+    { meta: p.meta, summary: p.summary, howToRead: p.howToRead, rows: p.rows },
     null,
     2
   );
 }
 
-/** Download an SVG element as a `.svg` file. */
-export function downloadSvg(filename: string, svg: SVGSVGElement): void {
-  downloadText(filename, 'image/svg+xml', serializeSvg(svg));
+// ---------------------------------------------------------------------------
+// Browser-only download + whole-cell image capture
+// ---------------------------------------------------------------------------
+
+/** Trigger a browser download of `text` as `filename` with the given MIME. */
+export function downloadText(filename: string, mime: string, text: string): void {
+  if (typeof document === 'undefined') return;
+  downloadBlob(filename, new Blob([text], { type: `${mime};charset=utf-8` }));
 }
 
-/** Rasterise an SVG element to a PNG blob via an offscreen canvas. The
- *  `scale` factor (default 2) yields a retina-quality raster. */
-export async function svgToPngBlob(svg: SVGSVGElement, scale = 2): Promise<Blob> {
-  const source = serializeSvg(svg);
-  const rect = svg.getBoundingClientRect();
-  const width = Math.max(1, Math.round((rect.width || svg.clientWidth || 720) * scale));
-  const height = Math.max(1, Math.round((rect.height || svg.clientHeight || 500) * scale));
-  const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-  try {
-    const img = await loadImage(url);
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const cctx = canvas.getContext('2d');
-    if (!cctx) throw new Error('2d canvas context unavailable');
-    cctx.fillStyle = '#10141a';
-    cctx.fillRect(0, 0, width, height);
-    cctx.drawImage(img, 0, 0, width, height);
-    return await canvasToBlob(canvas);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+/** Trigger a browser download of an arbitrary blob. */
+export function downloadBlob(filename: string, blob: Blob): void {
+  if (typeof document === 'undefined') return;
+  triggerDownload(filename, URL.createObjectURL(blob), true);
 }
 
-/** Download an SVG element as a `.png` file. */
-export async function downloadPng(filename: string, svg: SVGSVGElement, scale = 2): Promise<void> {
-  const blob = await svgToPngBlob(svg, scale);
-  downloadBlob(filename, blob);
+/** Trigger a browser download from a data: URL (html-to-image output). */
+export function downloadDataUrl(filename: string, dataUrl: string): void {
+  if (typeof document === 'undefined') return;
+  triggerDownload(filename, dataUrl, false);
 }
 
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('failed to load SVG for rasterisation'));
-    img.src = url;
+function triggerDownload(filename: string, href: string, revoke: boolean): void {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  if (revoke) setTimeout(() => URL.revokeObjectURL(href), 0);
+}
+
+/** Which image variant to export. */
+export type ImageVariant = 'full' | 'figure';
+
+/** html-to-image node filter implementing the `data-export-exclude` opt-outs. */
+function exportFilter(variant: ImageVariant): (node: HTMLElement) => boolean {
+  return (node: HTMLElement) => {
+    const ex = node instanceof HTMLElement ? node.dataset?.exportExclude : undefined;
+    if (ex === 'always') return false;
+    if (variant === 'figure' && ex === 'provenance') return false;
+    return true;
+  };
+}
+
+// Dark backdrop so a transparent cell exports on the AĒR canvas, not white.
+const EXPORT_BG = '#10141a';
+
+/** Capture a cell node to PNG (lazy html-to-image). `variant` controls whether
+ *  the provenance footer is included. Computed styles are inlined by
+ *  html-to-image, so the export matches the on-screen cell exactly. */
+export async function downloadCellPng(
+  filename: string,
+  node: HTMLElement,
+  variant: ImageVariant
+): Promise<void> {
+  const { toPng } = await import('html-to-image');
+  const dataUrl = await toPng(node, {
+    filter: exportFilter(variant),
+    backgroundColor: EXPORT_BG,
+    pixelRatio: 2,
+    cacheBust: true
   });
+  downloadDataUrl(filename, dataUrl);
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('canvas.toBlob returned null'));
-    }, 'image/png');
+/** Capture a cell node to SVG (lazy html-to-image). */
+export async function downloadCellSvg(
+  filename: string,
+  node: HTMLElement,
+  variant: ImageVariant
+): Promise<void> {
+  const { toSvg } = await import('html-to-image');
+  const dataUrl = await toSvg(node, {
+    filter: exportFilter(variant),
+    backgroundColor: EXPORT_BG,
+    cacheBust: true
   });
+  downloadDataUrl(filename, dataUrl);
 }

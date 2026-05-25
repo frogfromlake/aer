@@ -13,7 +13,7 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { DEFAULT_METRIC_NAME } from '$lib/viewmodes';
   import type { ViewModeCellProps } from '$lib/viewmodes';
-  import { pickChartSvg, type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
   import CellExport from './CellExport.svelte';
   import HowToRead from './HowToRead.svelte';
@@ -160,12 +160,13 @@
     `${xMetric}-vs-${yMetric}`,
     scope === 'source' ? scopeId : 'probe'
   ]);
-  function getSvg(): SVGSVGElement | null {
-    return pickChartSvg(host);
+  let cellEl: HTMLElement | undefined = $state();
+  function getNode(): HTMLElement | null {
+    return cellEl ?? null;
   }
 </script>
 
-<section class="scatter-cell" aria-labelledby="scatter-title">
+<section class="scatter-cell" aria-labelledby="scatter-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="scatter-title" class="cell-title">
       Scatter
@@ -175,7 +176,7 @@
       >
     </h3>
     {#if points.length > 0}
-      <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
     {/if}
   </header>
 

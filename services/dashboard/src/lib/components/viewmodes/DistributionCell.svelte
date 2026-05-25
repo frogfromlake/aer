@@ -20,7 +20,7 @@
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
-  import { pickChartSvg, type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
   import CellExport from './CellExport.svelte';
   import HowToRead from './HowToRead.svelte';
@@ -222,12 +222,13 @@
     exportMetricName,
     scope === 'source' ? scopeId : 'probe'
   ]);
-  function getSvg(): SVGSVGElement | null {
-    return pickChartSvg(host);
+  let cellEl: HTMLElement | undefined = $state();
+  function getNode(): HTMLElement | null {
+    return cellEl ?? null;
   }
 </script>
 
-<section class="dist-cell" aria-labelledby="dist-title-{metricName}">
+<section class="dist-cell" aria-labelledby="dist-title-{metricName}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="dist-title-{metricName}" class="cell-title">
       <code>{dataLayer === 'silver' ? silverAggType : metricName}</code>
@@ -237,7 +238,7 @@
       {/if}
     </h3>
     {#if activeDist && activeDist.summary.count > 0}
-      <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
     {/if}
   </header>
 

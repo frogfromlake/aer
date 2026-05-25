@@ -21,7 +21,7 @@
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
-  import { pickChartSvg, type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { type ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
   import HowToRead from './HowToRead.svelte';
   import CellExport from './CellExport.svelte';
@@ -111,8 +111,9 @@
     'topic-distribution',
     scope === 'source' ? scopeId : 'probe'
   ]);
-  function getSvg(): SVGSVGElement | null {
-    return pickChartSvg(host);
+  let cellEl: HTMLElement | undefined = $state();
+  function getNode(): HTMLElement | null {
+    return cellEl ?? null;
   }
   let modelHashes = $derived(
     Array.from(
@@ -240,7 +241,7 @@
   });
 </script>
 
-<section class="topic-cell" aria-labelledby="topic-dist-title">
+<section class="topic-cell" aria-labelledby="topic-dist-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="topic-dist-title" class="cell-title">
       <span class="primary">Topics</span>
@@ -254,7 +255,7 @@
       >
     </h3>
     {#if rows.length > 0}
-      <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
     {/if}
   </header>
 
@@ -290,7 +291,7 @@
         ? `, faceted by language partition: ${languages.join(', ')}`
         : ''}"
     ></div>
-    <footer class="provenance" aria-label="Methodology provenance">
+    <footer class="provenance" aria-label="Methodology provenance" data-export-exclude="provenance">
       <dl>
         <div>
           <dt>Method</dt>
