@@ -5,9 +5,9 @@
   // the export matches the on-screen cell exactly (chart + summary + legend +
   // provenance):
   //   • Figure — publication figure: drops the provenance/methodology footer
-  //     (data-export-exclude="provenance").
-  //   • Full   — the dashboard view: keeps everything.
-  // Both always drop the "how to read" note and this toolbar
+  //     AND the how-to-read note (data-export-exclude="provenance").
+  //   • Full   — the dashboard view: keeps everything (incl. how-to-read).
+  // Only this interactive toolbar is dropped from both
   // (data-export-exclude="always"). Plus Data: CSV + JSON with metadata +
   // summary + how-to-read + rows. html-to-image is lazy-loaded on click.
   import {

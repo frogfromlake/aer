@@ -3880,49 +3880,6 @@ Manual testing is held until K4 ships. After that, iteration is open.
 * [x] **Documentation reads as if 122k was the baseline.** ADR-033, ADR-034, §8.20, CLAUDE.md contain no "in 122i this was X; in 122k it became Y" narratives. History is in git.
 * [x] **`make lint && make test && make fe-check && make codegen && git diff --exit-code` green.**
 
-### Phase ordering note
-
-Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF classification). 122a's Spannweite-on-Source-Card UI consumes the new ProbeCard layout shipped in K2 — implementing 122a before 122k would force a re-layout of the source-card during 122k. Phase 123 (Probe 1) inherits the clean URL grammar from K1 with no migration debt: when French sources enter the catalog, the same Probe-Filter Modal lists them region-grouped under "Western Europe" alongside the German probe. Solo-dev scheduling: K1 is the largest single piece (the ScopeEditor is the central UX deliverable, multiple iterations expected — *"Der ScopeEditor ist ein primärer Aspekt der Applikation und muss hervorragend funktionieren"*, design discussion 2026-05-18); K2 is mechanical refactor; K3 wires the three CTAs and the Probe-Filter Modal; K4 is the documentation rewrite — itself substantial because the delete-not-layer mandate means three ADRs / one CLAUDE.md / one TESTING.md get fresh prose, not patches. Sized at ~2–3 weeks solo, ScopeEditor iteration count being the main variable.
-
----
-
-# Open Phases
-
-*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
-
-*Cross-cutting decisions that shape every phase below:*
-
-- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
-- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
-- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
-- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
-- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
-
----
-
-## Implementation protocol (every phase)
-
-*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
-
-1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
-2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
-3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
-4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
-5. **Definition of Done (applies to every phase, on top of its specific Validation):**
-   - phase-specific **Validation** checks pass;
-   - run the **`code-review`** skill on the diff;
-   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
-   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
-   - **hand back to the operator to commit — never auto-commit.**
-
----
-
-# Iteration 7 (continued) — Workbench Foundation & Pre-Probe-1 Hardening
-
-*Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, the full per-article lens, and the finalised three-surface architecture — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) build on; the iteration closes with Phase 123a, which collapses the Dossier into a global overlay (four surfaces → three) so the second probe lands into the final surface, not a moving one.*
-
----
-
 ## Phase 130: Pillar Identity Sharpening [P1] - [x] DONE
 
 *The three pillars are AĒR's conceptual core (the app name ἀήρ = air/atmosphere; the pillars are weather/climate/currents). The intent is already in `registry.ts` but the presentation→pillar assignment leaks: `time_series` (inherently diachronic) sits in Aleph, while Episteme — the temporal pillar — has no time-series. This phase makes the pillar identities crisp and scientifically communicable, introduces the metric→presentation compatibility map so metrics auto-sort into the correct pillars, and removes the Rhizome entry-question layer so all three pillars behave uniformly.*
@@ -3966,6 +3923,50 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ### Validation
 * [x] A cell renders full-depth data; channel binding works on the network cell and the scatter; every cell shows a "how to read" note; export produces a publication-quality artefact. Composition-mode bugfixes folded in (overlay gated to time-series; split layout/direction fixed for the probe-scope fan-out).
+
+---
+
+
+### Phase ordering note
+
+Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF classification). 122a's Spannweite-on-Source-Card UI consumes the new ProbeCard layout shipped in K2 — implementing 122a before 122k would force a re-layout of the source-card during 122k. Phase 123 (Probe 1) inherits the clean URL grammar from K1 with no migration debt: when French sources enter the catalog, the same Probe-Filter Modal lists them region-grouped under "Western Europe" alongside the German probe. Solo-dev scheduling: K1 is the largest single piece (the ScopeEditor is the central UX deliverable, multiple iterations expected — *"Der ScopeEditor ist ein primärer Aspekt der Applikation und muss hervorragend funktionieren"*, design discussion 2026-05-18); K2 is mechanical refactor; K3 wires the three CTAs and the Probe-Filter Modal; K4 is the documentation rewrite — itself substantial because the delete-not-layer mandate means three ADRs / one CLAUDE.md / one TESTING.md get fresh prose, not patches. Sized at ~2–3 weeks solo, ScopeEditor iteration count being the main variable.
+
+---
+
+# Open Phases
+
+*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
+
+*Cross-cutting decisions that shape every phase below:*
+
+- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
+- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
+- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
+- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
+- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
+
+---
+
+## Implementation protocol (every phase)
+
+*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
+
+1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
+2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
+3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
+4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
+5. **Definition of Done (applies to every phase, on top of its specific Validation):**
+   - phase-specific **Validation** checks pass;
+   - run the **`code-review`** skill on the diff;
+   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
+   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
+   - **hand back to the operator to commit — never auto-commit.**
+
+---
+
+# Iteration 7 (continued) — Workbench Foundation & Pre-Probe-1 Hardening
+
+*Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, the full per-article lens, and the finalised three-surface architecture — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) build on; the iteration closes with Phase 123a, which collapses the Dossier into a global overlay (four surfaces → three) so the second probe lands into the final surface, not a moving one.*
 
 ---
 

@@ -1,19 +1,22 @@
 // Publication-ready export helpers — Phase 131 (whole-cell capture, BUG5/round-3).
 //
 // Two export families per cell:
-//   • Image — the WHOLE cell rasterised/vectorised exactly as shown (chart +
-//     summary + legend + provenance), via `html-to-image` (lazy-loaded only on
-//     an export click, so it never lands in the initial bundle). Two variants:
-//       - "full"   keeps everything (the dashboard view, incl. provenance);
-//       - "figure" drops the methodology/provenance footer for a clean
-//         publication figure (chart + summary + legend only).
-//     Excluded in both: the "how to read" note and the export toolbar itself.
+//   • Image — the WHOLE cell rasterised/vectorised exactly as shown, via
+//     `html-to-image` (lazy-loaded only on an export click, so it never lands
+//     in the initial bundle). Two variants:
+//       - "full"   the dashboard view: chart + summary + legend + provenance +
+//                  the "how to read" note (everything a human reads);
+//       - "figure" a clean publication figure: chart + summary + legend only
+//                  (no provenance/methodology, no how-to-read).
+//     The interactive export toolbar itself is excluded from both.
 //   • Data — CSV + JSON with a self-describing metadata header + summary +
 //     the how-to-read lines + every row. Pure (vitest-pinnable).
 //
 // Elements opt out of the image via `data-export-exclude`:
-//   "always"     → never in either image variant (how-to-read, export toolbar)
-//   "provenance" → dropped from the "figure" variant only
+//   "always"     → never in either image variant (the export toolbar)
+//   "provenance" → dropped from the "figure" variant only (provenance footer
+//                  AND the how-to-read note — methodology a publication figure
+//                  shouldn't carry, but the full dashboard export keeps)
 
 /** One exportable row — string keys to scalar values. */
 export type ExportRow = Record<string, string | number | boolean | null | undefined>;
