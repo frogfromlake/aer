@@ -3888,7 +3888,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 # Open Phases
 
-*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). The full discussion rationale lived in a working log consumed by this rewrite.*
+*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
 
 *Cross-cutting decisions that shape every phase below:*
 
@@ -3900,6 +3900,23 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
+## Implementation protocol (every phase)
+
+*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
+
+1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
+2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
+3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
+4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
+5. **Definition of Done (applies to every phase, on top of its specific Validation):**
+   - phase-specific **Validation** checks pass;
+   - run the **`code-review`** skill on the diff;
+   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
+   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
+   - **hand back to the operator to commit — never auto-commit.**
+
+---
+
 # Iteration 7 (continued) — Workbench Foundation & Pre-Probe-1 Hardening
 
 *Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, and the full per-article lens — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) then build on.*
@@ -3908,24 +3925,23 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ## Phase 130: Pillar Identity Sharpening [P1] - [ ] TODO
 
-*The three pillars are AĒR's conceptual core (the app name ἀήρ = air/atmosphere; the pillars are weather/climate/currents). The intent is already in `registry.ts` but the presentation→pillar assignment leaks: `time_series` (inherently diachronic) sits in Aleph, while Episteme — the temporal pillar — has no time-series. This phase makes the pillar identities crisp and scientifically communicable, and introduces the metric→presentation compatibility map so metrics auto-sort into the correct pillars.*
+*The three pillars are AĒR's conceptual core (the app name ἀήρ = air/atmosphere; the pillars are weather/climate/currents). The intent is already in `registry.ts` but the presentation→pillar assignment leaks: `time_series` (inherently diachronic) sits in Aleph, while Episteme — the temporal pillar — has no time-series. This phase makes the pillar identities crisp and scientifically communicable, introduces the metric→presentation compatibility map so metrics auto-sort into the correct pillars, and removes the Rhizome entry-question layer so all three pillars behave uniformly.*
+
+**Grounding.** Read first: `src/lib/viewmodes/registry.ts` (`PRESENTATIONS` + `PILLAR_DEFINITIONS`), the three `*Shell.svelte` (Aleph/Episteme/Rhizome), `PanelControls.svelte`, ADR-033/034 (current surface + state-tree), ADR-035 (written here). Preserve: composition modes (split/merged/overlay), the `?{aleph,episteme,rhizome}=<base64url-json>` URL grammar, the multi-panel pillar-state path (ADR-034), every working cell. Verify-first: list each pillar's current presentations and confirm the multi-panel state path renders Rhizome cells before deleting the entry-questions.
 
 ### Frontend
-* [ ] **Fix presentation→pillar assignment** in `src/lib/viewmodes/registry.ts` `PILLAR_DEFINITIONS`:
-  - Aleph (synchronic totality): `distribution`, `topic_distribution`
-  - Episteme (diachronic register): `time_series`, `topic_evolution`
-  - Rhizome (relational currents): `cooccurrence_network` (+ `concept-migration` from 124, `free-composition` from 125)
-  - Two moves: `time_series` Aleph→Episteme; `topic_distribution` Episteme→Aleph.
-* [ ] **Metric→presentation compatibility map.** Each metric declares the presentations it sensibly supports; the catalog (`metrics × presentations`) is filtered by it. Prevents nonsensical pairings (`temporal_distribution`-as-distribution, `publication_hour`-as-time_series). Map per the decision table: scalar metrics → distribution (Aleph) + time_series (Episteme); `publication_hour`/`publication_weekday` → distribution (Aleph, cyclic); `temporal_distribution` → time_series (Episteme); `entity_cooccurrence` → cooccurrence_network (Rhizome).
-* [ ] **Default-presentation adjustment.** `time_series` was the registry-wide default and the Aleph default; after the move Aleph's default becomes `distribution`. Update `DEFAULT_PRESENTATION` handling so empty URL state still renders meaningfully per pillar.
-* [ ] **merged-cross-probe guard.** `merged` composition across probes produces a shared cross-context axis (violates Brief §1.3). Allow `merged` cross-probe only for pure count metrics; for normalized/scaled metrics, refuse with the standard refusal surface. `split`/`overlay` cross-probe remain allowed.
+* [ ] **Fix presentation→pillar assignment** in `PILLAR_DEFINITIONS`: Aleph → `distribution`, `topic_distribution`; Episteme → `time_series`, `topic_evolution`; Rhizome → `cooccurrence_network` (+ relational cells from 124/125). Two moves: `time_series` Aleph→Episteme; `topic_distribution` Episteme→Aleph.
+* [ ] **Metric→presentation compatibility map.** Each metric declares the presentations it sensibly supports; the catalog (`metrics × presentations`) is filtered by it. Prevents nonsensical pairings (`temporal_distribution`-as-distribution, `publication_hour`-as-time_series). Scalar metrics → distribution + time_series; cyclic (`publication_hour`/`publication_weekday`) → distribution only; `temporal_distribution` → time_series only; `entity_cooccurrence` → cooccurrence_network.
+* [ ] **Remove the Rhizome entry-question layer.** Today `RhizomeShell` carries `actors-topics` / `source-resonance` / `concept-migration` / `free-composition` — a parallel navigation layer no other pillar has. Two of four are dead gates; `source-resonance` points at `topic_distribution` (which moves to Aleph here); `free-composition` is the vestige of the killed canvas paradigm; and the layer is already half-superseded by the multi-panel pillar-state path (RhizomeShell line ~134). Make Rhizome work like Aleph/Episteme — panels + cell selection. The relational cells (`cooccurrence_network`, and later lead-lag/correlation/multivariate/configurable-network) become normal cell choices. (If guided "questions" prove valuable later, they return as optional preset cell-templates, not a navigation layer.)
+* [ ] **Default-presentation adjustment.** `time_series` was the registry-wide + Aleph default; after the move Aleph's default becomes `distribution`. Empty URL state still renders meaningfully per pillar.
+* [ ] **merged-cross-probe guard.** `merged` across probes produces a shared cross-context axis (violates Brief §1.3). Allow `merged` cross-probe only for pure count metrics; otherwise refuse via the standard refusal surface. `split`/`overlay` cross-probe remain allowed.
 
 ### Documentation
-* [ ] **ADR-035 — Pillar Identity.** Weather/climate/currents metaphor + name etymology (Borges/Foucault/Deleuze) + the "pillar follows presentation" rule + the metric→presentation principle + the merged-cross-probe guard.
-* [ ] **CLAUDE.md.** Sharpen the pillar description; document the metric→presentation map as the SoT for pillar placement.
+* [ ] **ADR-035 — Pillar Identity.** Weather/climate/currents metaphor + etymology (Borges/Foucault/Deleuze) + "pillar follows presentation" + the metric→presentation principle + the merged-cross-probe guard + the entry-question removal rationale.
+* [ ] **CLAUDE.md.** Sharpen the pillar description; document the metric→presentation map as the SoT for pillar placement; note Rhizome now uses panels+cells like the others.
 
 ### Validation
-* [ ] `make fe-check` green; pillar switcher shows each pillar's corrected presentation set; a scalar metric is reachable as both a distribution (Aleph) and a time-series (Episteme); `publication_hour` is offered only as a distribution; merged cross-probe on a normalized metric refuses.
+* [ ] A scalar metric is reachable as a distribution (Aleph) and a time-series (Episteme); `publication_hour` is offered only as a distribution; Rhizome shows panels+cells with no entry-question selector and no functionality lost; merged cross-probe on a normalized metric refuses.
 
 ---
 
@@ -3933,41 +3949,42 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *The foundation for everything analytical that follows. Today's cells are often shallow (2–3 points per axis) and not configurable. This phase makes the existing presentations deep, configurable, and publication-ready, and introduces visual-channel binding (a visual channel — size/colour/position/edge-weight — bound to a chosen dimension). This is what turns presentation into analysis (Kriesel: it is not "network vs chart", it is "visual channels bound to real data"). Built before the cell-building phases (122d.0, 122a.1) so those build on the configurable framework rather than being retrofitted.*
 
+**Grounding.** Read first: `src/lib/viewmodes/registry.ts`, `src/lib/components/viewmodes/*Cell.svelte`, `PanelControls.svelte`, `services/bff-api/configs/content/{en,de}/view_modes/` (Dual-Register explanations), the BFF metric/topic/entity endpoints. Preserve: the cell registry contract, the Dual-Register content-catalog mechanism, bundle-size budgets (Brief §7). Verify-first: confirm Phase 130 landed (this builds on the corrected pillar/cell model).
+
 ### Frontend
-* [ ] **Cell configurability framework.** Shared per-cell configuration (axes, grouping, aggregation, bins, top-N, annotation) surfaced through `PanelControls.svelte`. Cells declare their configurable parameters; the framework renders the controls.
-* [ ] **Depth.** Remove the shallow 2–3-points-per-axis ceiling; render full data with real axes and detail. Uncertainty bands where applicable.
-* [ ] **Visual-channel binding.** A cell can bind size/colour/position/edge-weight to a chosen metric or (after Phase 133) metadata dimension. Applies to `cooccurrence_network` first (Kriesel-style: node size = metric, colour = dimension) and to scalar cells (e.g. scatter with x/y/size/colour).
-* [ ] **Publication-ready output.** Clean axis labels, legends, titles, and an export affordance (PNG/SVG + the underlying data).
-* [ ] **"Always explained" foundation.** Each cell renders a "how to read this" note; for parameterised/composed configurations the note is composed from building blocks + a per-presentation template. Hook into the existing content-catalog Dual-Register system.
+* [ ] **Cell configurability framework** — shared per-cell config (axes, grouping, aggregation, bins, top-N, annotation) surfaced through `PanelControls.svelte`; cells declare their configurable parameters.
+* [ ] **Depth** — remove the shallow 2–3-points ceiling; full data, real axes, uncertainty bands where applicable.
+* [ ] **Visual-channel binding** — bind size/colour/position/edge-weight to a chosen metric (and, after Phase 133, metadata) dimension. Apply to `cooccurrence_network` (Kriesel-style) and scalar cells (scatter x/y/size/colour).
+* [ ] **Publication-ready output** — clean labels, legends, titles, export (PNG/SVG + underlying data).
+* [ ] **"Always explained" foundation** — every cell renders a "how to read this" note; parameterised/composed configs compose the note from building blocks + a per-presentation template (hook into the content-catalog Dual-Register system).
 
 ### Backend (BFF)
-* [ ] Endpoints that back the configurable cells return enough resolution/detail for the deepened views (verify `/metrics/*`, `/topics/*`, `/entities/*` responses are not artificially truncated). OpenAPI + `make codegen` where shapes change.
+* [ ] Verify metric/topic/entity endpoints return enough resolution for the deepened views; OpenAPI + `make codegen` where shapes change.
 
 ### Documentation
-* [ ] Arc42 cross-cutting concept "Configurable Cells & Visual-Channel Binding". CLAUDE.md note. Content-catalog convention for composed explanations.
+* [ ] Arc42 cross-cutting concept "Configurable Cells & Visual-Channel Binding"; CLAUDE.md note; content-catalog convention for composed explanations.
 
 ### Validation
-* [ ] `make fe-check && make codegen && git diff --exit-code` green; a cell renders full-depth data; visual-channel binding works on the network cell and a scatter cell; every cell shows a "how to read" note; export produces a publication-quality artefact.
+* [ ] A cell renders full-depth data; channel binding works on the network cell and a scatter; every cell shows a "how to read" note; export produces a publication-quality artefact.
 
 ---
 
 ## Phase 132: News-Backbone Sentiment Model Evaluation [P1] - [ ] TODO (Epic)
 
-*The cross-probe sentiment backbone is currently `cardiffnlp/twitter-xlm-roberta-base-sentiment` — a Twitter-domain model used on news text, a domain mismatch ADR-023 itself acknowledges. That model is the natural backbone for a future social-media probe class, mis-filed under news. This epic selects the best available multilingual sentiment model for the **news** source class, replaces it, and establishes a reusable evaluation methodology that every future source-class backbone will reuse. Runs early so all downstream sentiment data is produced on the final backbone (no double re-processing).*
+*The cross-probe sentiment backbone is currently `cardiffnlp/twitter-xlm-roberta-base-sentiment` — a Twitter-domain model used on news text, a domain mismatch ADR-023 itself acknowledges. That model is the natural backbone for a future social-media probe class, mis-filed under news. This epic selects the best available multilingual sentiment model for the **news** source class, replaces it, and establishes a reusable evaluation methodology every future source-class backbone will reuse. Runs early so all downstream sentiment data is produced on the final backbone (no double re-processing).*
+
+**Grounding.** Read first: `services/analysis-worker/configs/language_capabilities.yaml` (`shared.multilingual_bert`), the sentiment extractors in `internal/extractors/`, ADR-023 (+ its duplicate), `services/bff-api/configs/metric_provenance.yaml`. Preserve: the Tier-1/Tier-2/Tier-2.5 dual-metric pattern (ADR-016), determinism gates, pinned-revision discipline (`make deps-refresh`). Verify-first: confirm the exact current backbone model + revision before swapping.
 
 ### Evaluation
-* [ ] **Annotation gold set.** ~80 Probe-0 articles (≈60 DE + 20 EN already in the corpus), manually sentiment-annotated by the researcher.
-* [ ] **Candidate shortlist (built at execution time — fresh market scan, models age fast).** Starting candidates for orientation: (A) status-quo Twitter-XLM-R (baseline), (B) general-/news-domain multilingual model(s), (C) zero-shot via `mDeBERTa-v3-base-mnli-xnli` (zero extra footprint — Phase 122a.0 already loads it). Final shortlist is a deliverable of this epic, not fixed in advance.
-* [ ] **Eval harness.** Measure agreement/calibration of each candidate against the annotation set; record honestly (provisional, per WP-002).
-* [ ] **Reusable methodology** documented in the Operations Playbook so the social-media backbone (Probe 2+) reuses it.
+* [ ] **Annotation gold set** — ~80 Probe-0 articles (≈60 DE + 20 EN already in the corpus), manually sentiment-annotated.
+* [ ] **Candidate shortlist (built at execution time — fresh market scan).** Orientation: (A) status-quo Twitter-XLM-R baseline, (B) general-/news-domain multilingual model(s), (C) zero-shot via `mDeBERTa-v3-base-mnli-xnli` (zero extra footprint — Phase 122a.0 already loads it). Final shortlist is a deliverable, not fixed here.
+* [ ] **Eval harness** — agreement/calibration vs the gold set; recorded honestly (provisional, WP-002). Reusable methodology documented in the Operations Playbook.
 
 ### Cutover
-* [ ] Selected model becomes the news-class backbone in `language_capabilities.yaml` `shared.multilingual_bert` (pinned revision, `make deps-refresh`).
-* [ ] **ADR-023 amendment** — per-source-class backbone rule, explicit cross-probe-backbone restriction, model re-evaluation record. **Fix the ADR-023 duplicate** (it appears twice, identical, in `09_architecture_decisions.md`).
-* [ ] **Re-process Probe-0 sentiment** on the new backbone (one-shot operational step).
+* [ ] Chosen model → news-class backbone in `language_capabilities.yaml` (pinned revision). **ADR-023 amendment** (per-source-class backbone rule + cross-probe-backbone restriction + model record) and **fix the ADR-023 duplicate**. **Re-process Probe-0 sentiment** on the new backbone.
 
 ### Validation
-* [ ] `make test-python` green; the chosen model's agreement with the gold set is recorded; Probe-0 Gold sentiment reflects the new backbone; ADR-023 is single and amended.
+* [ ] `make test-python` green; chosen model's agreement recorded; Probe-0 Gold sentiment reflects the new backbone; ADR-023 single and amended.
 
 ---
 
@@ -3975,67 +3992,68 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Phase 122d is completely reframed: not a worker sidecar feeding a teaching cell, but a first-class analytical stratum in the Workbench, alongside sentiment/entity/topic, cutting across all three pillars. Silent edits — publishers revising articles without notice — are one of the strongest signals of platform-mediated discourse manipulation (WP-003 §5). This sub-phase makes edit activity observable: which source/discourse-function/probe edits how often, when. The Internet Archive is the independent third-party witness.*
 
+**Grounding.** Read first: `services/analysis-worker/internal/adapters/web.py` (`harmonize()`) + `web_meta.py` (WebMeta tiers), `internal/adapters/registry.py`, the ClickHouse migrations dir, the BFF article/silver path specs, `L5EvidenceReader.svelte`, the Phase-131 configurable-cell framework. Preserve: the SilverEnvelope contract, the no-DLQ-for-extractor-failures rule, Bronze-stores-raw-HTML (ADR-028). Verify-first: confirm the WebMeta provenance shape + the cell-registration pattern from 131.
+
 ### Worker
-* [ ] **`wayback_cdx.py`** — async CDX client (token-bucket ~5 req/s/host), `fetch_revisions(canonical_url, timeout) -> WaybackLookupResult` with `status ∈ {ok, no_snapshots, failed, skipped}`. **Fail-silent: a Wayback timeout NEVER produces a DLQ event** (enforced in the WebAdapter, not just documented).
-* [ ] **Postgres cache** `wayback_cdx_cache(canonical_url, fetched_at, status, revisions_jsonb)` so re-processing does not re-query the IA.
-* [ ] **WebMeta extension** — `wayback_revisions[]` (typed `WaybackRevision`) + `wayback_lookup_status`. WebAdapter calls the CDX client as the last step of `harmonize()`.
+* [ ] **`wayback_cdx.py`** — async CDX client (token-bucket ~5 req/s/host), typed result with `status ∈ {ok, no_snapshots, failed, skipped}`. **A Wayback timeout NEVER produces a DLQ event** (enforced in the WebAdapter).
+* [ ] **Postgres cache** `wayback_cdx_cache(canonical_url, fetched_at, status, revisions_jsonb)`.
+* [ ] **WebMeta extension** — `wayback_revisions[]` + `wayback_lookup_status`; CDX call is the last step of `harmonize()`.
 * [ ] **Config** — `WAYBACK_CDX_{ENABLED,TIMEOUT_SECONDS,RATE_LIMIT_PER_SECOND,BASE_URL}` + `.env.example`.
 
 ### Gold + BFF
-* [ ] **`aer_gold.article_revisions`** (`article_id, source, probe, discourse_function, snapshot_at, content_hash, prev_content_hash, revision_index, time_since_prev_hours`). ClickHouse migration.
-* [ ] **BFF** — `/revisions` (aggregation: edits per source/DF/probe/time), `/articles/{id}/revisions` (detail). OpenAPI + `make codegen`.
+* [ ] **`aer_gold.article_revisions`** (`article_id, source, probe, discourse_function, snapshot_at, content_hash, prev_content_hash, revision_index, time_since_prev_hours`).
+* [ ] **BFF** — `/revisions` (aggregation), `/articles/{id}/revisions` (detail). OpenAPI + `make codegen`.
 
 ### Frontend
-* [ ] **`revision_activity` cell** — built on the Phase-131 configurable framework; registered for **Aleph** (who edits how much, now) + **Episteme** (edit activity over time). "How to read" note + provenance honesty (`wayback_lookup_status` surfaced).
-* [ ] **L5EvidenceReader** — revisions list with snapshot timestamps.
+* [ ] **`revision_activity` cell** (on the Phase-131 framework) registered for Aleph (now) + Episteme (over time); "how to read" note + `wayback_lookup_status` surfaced. **L5EvidenceReader** — revisions list with timestamps.
 
 ### Documentation
-* [ ] **ADR-032 — Silent-Edit Observability as an analytical stratum** (re-scoped from the old "CDX out-of-band sidecar"). Operations Playbook: status distribution, "IA is down" runbook (degrade silently). Coverage invariant: empirical post-first-run, no fixed threshold.
+* [ ] **ADR-032 — Silent-Edit Observability as an analytical stratum** (re-scoped). Operations Playbook: status distribution + "IA is down" runbook. Coverage invariant: empirical post-first-run, no fixed threshold.
 
 ### Validation
-* [ ] `make test-python` green incl. the fail-silent invariant (spike timeout → 100% ship to Silver, DLQ counter stays 0); `revision_activity` renders in Aleph + Episteme; aggregation answers "which source edits most".
+* [ ] Fail-silent invariant holds (spike timeout → 100% ship to Silver, DLQ counter 0); `revision_activity` renders in Aleph + Episteme; aggregation answers "which source edits most".
 
 ---
 
 ## Phase 122d.1: Silent-Edit — Diff Substance [P1] - [ ] TODO
 
-*Answers "what was changed". Fetches the IA-archived HTML snapshots and diffs consecutive versions at paragraph level, with headline changes called out (the highest-semantic-shift signal).*
+*Answers "what was changed". Fetches IA-archived HTML snapshots and diffs consecutive versions at paragraph level, with headline changes called out (the highest-semantic-shift signal).*
+
+**Grounding.** Read first: Phase-122d.0 output (`article_revisions`, the CDX client), `web_extract.py` / trafilatura usage in the WebAdapter, `L5EvidenceReader.svelte`. Preserve: Bronze-immutability (snapshots are fetched from the IA, not stored in Bronze), the fail-silent posture. Verify-first: confirm 122d.0 landed and `wayback_revisions[]` is populated.
 
 ### Worker + Gold
-* [ ] **Snapshot fetcher** — loads archived HTML via `archive_url`, runs trafilatura at parity with the Bronze→Silver path.
-* [ ] **Paragraph-level diff extractor** between consecutive snapshots.
-* [ ] **Gold columns** on `article_revisions`: `diff_paragraphs`, `headline_changed`, `headline_before`, `headline_after`.
+* [ ] **Snapshot fetcher** — loads archived HTML via `archive_url`, runs trafilatura at parity with Bronze→Silver. **Paragraph-level diff extractor** between consecutive snapshots. **Gold columns** on `article_revisions`: `diff_paragraphs`, `headline_changed`, `headline_before`, `headline_after`.
 
 ### Frontend
-* [ ] **L5EvidenceReader** — diff view between snapshot pairs (scrub the timeline, see the inline diff; headline change highlighted).
+* [ ] **L5EvidenceReader** — diff view between snapshot pairs (scrub timeline → inline diff; headline change highlighted).
 
 ### Validation
-* [ ] `make test-python` green; a known edited Probe-0 article shows correct paragraph diffs and headline-change detection in L5.
+* [ ] A known edited Probe-0 article shows correct paragraph diffs + headline-change detection in L5.
 
 ---
 
 ## Phase 122a.0: Per-Article Discourse Function — Backend [P1] - [ ] TODO
 
-*Today every Gold row inherits a single source-level `discourse_function`. A tagesschau sports article is not "epistemic authority" — but it inherits it. This sub-phase classifies discourse function per article (Option C per WP-001 §5.4: both tags stored independently, no synthesis), via a four-stage pipeline. Multilingual by construction (mDeBERTa covers 10 languages) so Probe 1 inherits it with no backfill. Backend before Probe 1 so the column is populated from day one.*
+*Today every Gold row inherits a single source-level `discourse_function`. A tagesschau sports article is not "epistemic authority" — but inherits it. This sub-phase classifies discourse function per article (Option C per WP-001 §5.4: both tags stored independently, no synthesis) via a four-stage pipeline. Multilingual by construction (mDeBERTa covers 10 languages) so Probe 1 inherits it with no backfill.*
+
+**Grounding.** Read first: `internal/models/discourse.py` (current source-level model), the extractor registration in `main.py` + `internal/extractors/`, the ClickHouse `metrics`/`entities` schema, `internal/adapters/` Postgres usage, the BFF `/articles/{id}` + `/metrics` specs, `language_capabilities.yaml`. Preserve: the `MetricExtractor` protocol (`extract_all`), the language-detection-first ordering, graceful-degradation (missing model → no rows, not DLQ). Verify-first: confirm the exact metrics/entities columns + the manifest schema before migrating.
 
 ### Schema
-* [ ] **ClickHouse** — add to `aer_gold.metrics` AND `aer_gold.entities`: `discourse_function_article LowCardinality(String) NULL`, `discourse_function_method LowCardinality(String) DEFAULT 'unclassified'`, `discourse_function_article_confidence Nullable(Float64)` (the confidence column allows later threshold re-tuning without a ClickHouse re-write). The existing source-level `discourse_function` is unchanged — no "effective tag".
+* [ ] **ClickHouse** — add to `aer_gold.metrics` AND `aer_gold.entities`: `discourse_function_article LowCardinality(String) NULL`, `discourse_function_method LowCardinality(String) DEFAULT 'unclassified'`, `discourse_function_article_confidence Nullable(Float64)`. Source-level `discourse_function` unchanged — no "effective tag".
 * [ ] **Postgres** — `discourse_function_overrides(article_id PK, function, reviewer, review_date, rationale)`.
 
 ### Worker
-* [ ] **`DiscourseFunctionClassifier`** — four stages: (0) manual-override lookup → (1) URL-section heuristic → (2) zero-shot `mDeBERTa-v3-base-mnli-xnli` (confidence threshold) → (3) source-default fallback. Pre-fetched in the Dockerfile, `TRANSFORMERS_OFFLINE=1`, determinism flags. Runs synchronously in the main pipeline (like sentiment/NER).
-* [ ] **`configs/discourse_function_rules.yaml`** — per-source URL rules (Probe 0; FR added in Phase 123).
-* [ ] **Capability Manifest** — `discourse_function_classification.languages: [de, fr, en, es, it, ru, zh, ja, ar, hi]`.
-* [ ] **Config** — `DF_CLASSIFIER_CONFIDENCE_THRESHOLD` (0.6), `DF_CLASSIFIER_ENABLED` (true).
+* [ ] **`DiscourseFunctionClassifier`** — four stages (manual-override → URL-section heuristic → zero-shot `mDeBERTa-v3-base-mnli-xnli` → source-default). Pre-fetched, `TRANSFORMERS_OFFLINE=1`, determinism flags, synchronous in the main pipeline.
+* [ ] **`configs/discourse_function_rules.yaml`** (Probe 0; FR added in 123). **Capability Manifest** — `discourse_function_classification.languages: [de, fr, en, es, it, ru, zh, ja, ar, hi]`. **Config** — `DF_CLASSIFIER_CONFIDENCE_THRESHOLD` (0.6), `DF_CLASSIFIER_ENABLED` (true).
 
 ### BFF
-* [ ] `?discourseFunctionScope=article|source` on `/metrics` (default `source`; `article` excludes nulls and returns `unclassified_share`). `/articles/{id}` gains a dual DF object `{source, article, method, confidence}`. New `/sources/{id}/discourse_function_distribution`. OpenAPI + `make codegen`.
+* [ ] `?discourseFunctionScope=article|source` on `/metrics` (default `source`; `article` excludes nulls + returns `unclassified_share`). `/articles/{id}` gains `{source, article, method, confidence}`. New `/sources/{id}/discourse_function_distribution`. OpenAPI + `make codegen`.
 
 ### Documentation
 * [ ] **ADR-030 — Per-Article Discourse Function Classification.** `metric_validity` scaffold rows (`unvalidated`). Operations Playbook: confidence histogram per source, abstain rate, manual-override workflow.
 
 ### Validation
-* [ ] `make lint && make test && make codegen && git diff --exit-code` green; a freshly-classified Probe-0 corpus shows non-trivial divergence (≥5% of tagesschau articles classified away from `epistemic_authority`); `discourseFunctionScope=article` returns `unclassified_share`.
+* [ ] Freshly-classified Probe-0 shows non-trivial divergence (≥5% of tagesschau away from `epistemic_authority`); `discourseFunctionScope=article` returns `unclassified_share`.
 
 ---
 
@@ -4043,109 +4061,114 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Surfaces the per-article classification. Built before Probe 1 so the lens is in place when the second probe lands. Written mount-agnostic because Phase 123a later moves the ProbeCard from the Dossier page into the Dossier overlay.*
 
+**Grounding.** Read first: Phase-122a.0 BFF output, `L5EvidenceReader.svelte`, `src/lib/components/dossier/ProbeCard.svelte` + the DF-cards, `FunctionBadge` + `discourse-function.ts`, the Negative-Space toggle (`tray.svelte.ts`), the Phase-131 cell framework. Preserve: the `FunctionBadge` primitive as the single DF representation, the Negative-Space URL toggle. Verify-first: build the ProbeCard work **mount-agnostic** — 123a re-mounts ProbeCard into the Dossier overlay.
+
 ### Frontend
-* [ ] **`discourse_function_spannweite` cell** — registered in the Cell registry (Aleph). Per-source bar of article-level DF proportions vs the source default as a reference line. (Drift: this is a normal cell, not a "Sub-Stratum toggle".)
+* [ ] **`discourse_function_spannweite` cell** — registered in the Cell registry (Aleph); per-source bar of article-level DF proportions vs the source default as a reference line. (A normal cell, not a "Sub-Stratum toggle".)
 * [ ] **L5EvidenceReader divergence indicator** — source vs article DF side by side with a diverging-arrow when they differ; MethodologyBanner hover cites WP-001 §5.4.
-* [ ] **ProbeCard DF-card** — sparkline histogram per source-card ("78% EA · 15% CI · 7% other"). Written mount-agnostic (re-mounted into the Dossier overlay in 123a).
-* [ ] **Negative-Space overlay** — divergent articles receive the canonical Negative-Space annotation when the toggle is on.
+* [ ] **ProbeCard DF-card** — sparkline histogram per source-card ("78% EA · 15% CI · 7% other"), mount-agnostic.
+* [ ] **Negative-Space overlay** — divergent articles annotated when the toggle is on.
 
 ### Validation
-* [ ] `make fe-check` green; the Spannweite cell renders with the source-default reference line; an article whose article-DF diverges from source-DF shows the divergence indicator; the ProbeCard sparkline renders.
+* [ ] Spannweite cell renders with the source-default reference line; a diverging article shows the indicator; the ProbeCard sparkline renders.
 
 ---
 
 # Iteration 8 — Probe Expansion & Cross-Cultural Operations
 
-*Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one. Then the first cross-probe equivalence grant, the Atmosphäre/Dossier restructuring, and the silent-edit discourse-shift analysis (which benefits from cross-cultural data).*
+*Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one. Then the first cross-probe equivalence grant, the Atmosphäre/Dossier restructuring, and the silent-edit discourse-shift analysis.*
 
 ---
 
 ## Phase 123: Probe 1 — French Institutional Sources [P1] - [ ] TODO
 
-*Lands `francetvinfo.fr` (public broadcaster, EA primary) + `gouvernement.fr` (government, PL primary) — the first non-German cultural context. Mirrors Probe 0's discourse-function coverage so cross-probe composition has overlapping lanes. Provisional engineering classification (`review_status='provisional_engineering'`, `function_weights=NULL`); every Probe-1 metric reports `validation_status=unvalidated`.*
+*Lands `francetvinfo.fr` (public broadcaster, EA primary) + `gouvernement.fr` (government, PL primary) — the first non-German cultural context, mirroring Probe 0's discourse-function coverage. Provisional engineering classification; every Probe-1 metric reports `validation_status=unvalidated`.*
+
+**Grounding.** Read first: `crawlers/web-crawler/probes/probe0/sources.yaml` (the pattern to mirror), `infra/postgres/migrations/` (esp. `000011` silver_eligible + the Probe-0 seed migrations), `services/bff-api/configs/probes/` + `configs/content/{en,de}/probes/`, `language_capabilities.yaml`, `docs/probes/probe-0-de-institutional-web/` (dossier template), `docs/extending/add-a-source.md`. Preserve: ADR-028 single-configurable-binary crawler, the Capability-Manifest-driven NLP routing, the provisional-classification discipline. Verify-first: next free Postgres migration index; that the WebAdapter handles FR with no code change.
 
 ### Infrastructure
-* [ ] **No new crawler binary.** Add `crawlers/web-crawler/probes/probe-1-fr-institutional-web/sources.yaml` (the web-crawler is a single configurable binary per ADR-028). `make crawl-probe1` target.
-* [ ] **Postgres seed migrations** — register both sources (`type='web'`, **`silver_eligible=true`** with the same WP-006 §7 source-class rationale as Probe 0's migration 000011 — institutional public data, no re-identification risk); `source_classifications` rows; `documentation_url`.
-* [ ] **ProbeRegistry + content** — `services/bff-api/configs/probes/probe-1-fr-institutional-web.yaml`; content under `configs/content/{en,de}/probes/` (EN+DE only — UI locale and probe-content language are orthogonal; FR UI is out of POC scope). The existing `WebAdapter` handles French transparently.
+* [ ] **No new crawler binary** — add `crawlers/web-crawler/probes/probe-1-fr-institutional-web/sources.yaml`; `make crawl-probe1`.
+* [ ] **Postgres seed migrations** — register both sources (`type='web'`, **`silver_eligible=true`** with the same WP-006 §7 source-class rationale as 000011); `source_classifications`; `documentation_url`.
+* [ ] **ProbeRegistry + content** — BFF probe config + content under `configs/content/{en,de}/probes/` (EN+DE only; FR UI out of scope). Existing `WebAdapter` handles FR transparently.
 
 ### NLP
-* [ ] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); Tier-2 multilingual backbone covers FR automatically (the news backbone from Phase 132). **Tier-1 FEEL and Tier-2.5 CamemBERT are deferred** (see Deferred Phases) — within-frame enrichments only, never the cross-probe basis.
-* [ ] **DF URL rules** for francetvinfo + gouvernement added to `discourse_function_rules.yaml` (classifier from 122a.0 already covers FR natively).
-* [ ] **Cultural calendars** — ship BOTH `cultural_calendars/fr.yaml` (new, POC-minimum) AND `cultural_calendars/de.yaml` (retroactive — the manifest references it but the file is currently missing). Structural parity is the precondition for the Phase-124 Level-1 grant.
+* [ ] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); Tier-2 multilingual backbone (from Phase 132) covers FR. **Tier-1 FEEL + Tier-2.5 CamemBERT deferred** (see Deferred Phases) — within-frame only, never the cross-probe basis.
+* [ ] **DF URL rules** for francetvinfo + gouvernement in `discourse_function_rules.yaml`.
+* [ ] **Cultural calendars** — ship BOTH `fr.yaml` (new, POC-minimum) AND `de.yaml` (retroactive — the manifest references it but the file is currently missing). Structural parity is the precondition for the Phase-124 grant.
 
 ### Documentation
-* [ ] Probe Dossier `docs/probes/probe-1-fr-institutional-web/` (5 mandatory files, mirror Probe 0). Arc42 §13.11. CLAUDE.md ProbeRegistry update. MkDocs nav.
+* [ ] Probe Dossier `docs/probes/probe-1-fr-institutional-web/` (5 files). Arc42 §13.11. CLAUDE.md ProbeRegistry update. MkDocs nav.
 
 ### Validation
-* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green; `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; Probe 1 appears as a second luminous point on the Atmosphäre globe; composing Probe 0 + Probe 1 renders parallel streams in EA/PL with CI/SF explicitly empty; cross-frame `?normalization=zscore` returns the Phase-115 refusal surface; all Probe-1 metrics report `validation_status=unvalidated`.
+* [ ] `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; second luminous point on the globe; Probe 0 + Probe 1 compose as parallel EA/PL streams with CI/SF empty; cross-frame `?normalization=zscore` returns the refusal surface; all Probe-1 metrics `unvalidated`.
 
 ---
 
 ## Phase 124: Cross-Probe & Cross-Cultural Operations [P1] - [ ] TODO
 
-*Cross-probe **composition** (parallel streams) already works. This phase delivers cross-probe **comparison** discipline: the first non-empty entry in the equivalence registry (temporal Level 1, always valid per WP-004 Appendix B), the lead-lag tooling that opens RhizomeShell's `concept-migration` entry-question (which already waits explicitly on this phase), and the first Probe-1 baselines. No Level-2/3 (sentiment) grant — that needs interdisciplinary validation, out of scope.*
+*Cross-probe **composition** already works. This phase delivers cross-probe **comparison** discipline: the first non-empty equivalence-registry entry (temporal Level 1, always valid per WP-004 Appendix B), the lead-lag tooling, and the first Probe-1 baselines. No Level-2/3 (sentiment) grant — out of scope.*
+
+**Grounding.** Read first: `scripts/operations/compute_baselines.py`, the ClickHouse `metric_equivalence` + `metric_baselines` schema, Postgres `equivalence_reviews`, the BFF `probe_equivalence.yaml` + correlation handler, `cultural_calendars/`, `RhizomeShell.svelte` (post-130: panels+cells, no entry-questions). Preserve: the Phase-115 refusal-surface behaviour, the empty-until-granted equivalence registry semantics. Verify-first: confirm Phase 130 removed the entry-questions — the lead-lag is now a **cell**, not an entry-question.
 
 ### Operations + Backend
-* [ ] **First Probe-1 baselines** — `compute_baselines.py --probe probe-1-fr-institutional-web` (script exists).
-* [ ] **First equivalence grant** — `aer_gold.metric_equivalence` rows for `temporal_distribution`, `publication_hour`, `publication_weekday` at `level='temporal'`, plus an `equivalence_reviews` record documenting **calendar parity** (both `de.yaml` + `fr.yaml` cover holidays/elections/recess/media-events — the grant is conditional on structural comparability, not mere existence).
-* [ ] **Cultural calendar FR extension** — add media-events + Assemblée recess; verify DE parity.
-* [ ] **Lead-lag query path** — internal helper on the existing correlation handler (Pearson at ±168h lags); exercised end-to-end via a Probe-0×Probe-1 fixture. Promoted to a public endpoint in Phase 125. (Without the helper the opened `concept-migration` gate would render an empty result.)
-* [ ] **`/probes/{probeId}/equivalence?comparedTo=`** — scopes the response to a probe pair; reports Level-1 temporal as `validated`. OpenAPI + `make codegen`.
+* [ ] **First Probe-1 baselines** — `compute_baselines.py --probe probe-1-fr-institutional-web`.
+* [ ] **First equivalence grant** — `metric_equivalence` rows for `temporal_distribution`, `publication_hour`, `publication_weekday` at `level='temporal'`, plus an `equivalence_reviews` record documenting **calendar parity** (grant conditional on both calendars being structurally comparable, not merely present).
+* [ ] **Cultural calendar FR extension** — media-events + Assemblée recess; verify DE parity.
+* [ ] **Lead-lag query path** — internal helper on the correlation handler (Pearson at ±168h), exercised via a Probe-0×Probe-1 fixture (promoted to a public endpoint in Phase 125).
+* [ ] **`/probes/{probeId}/equivalence?comparedTo=`** — probe-pair scope; reports Level-1 temporal as `validated`. OpenAPI + `make codegen`.
 
 ### Frontend
-* [ ] **`concept-migration` opens** — renders the cross-probe temporal lead-lag chart in **Rhizome**; MethodologyBanner shows the Level-1 grant with both cultural calendars and the WP-004 Appendix B anchor. (Drift: this lives in the Workbench Rhizome pillar, NOT on a Probe Dossier "panel"; the Dossier overlay carries at most a link.)
+* [ ] **Lead-lag cell in Rhizome** — the cross-probe temporal lead-lag renders as a relational **cell** in a Rhizome panel (per the post-130 panels+cells model); MethodologyBanner shows the Level-1 grant + both calendars + the WP-004 Appendix B anchor. (Lives in the Workbench Rhizome pillar, not on a Probe Dossier panel.)
 
 ### Documentation
-* [ ] Operations Playbook "Cross-probe operations". WP-004 §6.3 Level-1 marked operationalised. Arc42 §13.4 Aleph row update. CLAUDE.md equivalence-registry note.
+* [ ] Operations Playbook "Cross-probe operations". WP-004 §6.3 Level-1 operationalised. Arc42 §13.4 Aleph row. CLAUDE.md equivalence note.
 
 ### Validation
-* [ ] `make lint && make test && make fe-check` green; `?normalization=zscore` on a temporal metric across Probe 0 + Probe 1 succeeds; the same on sentiment still refuses (no Level-2 grant); `concept-migration` renders the lead-lag chart.
-
-*Per-function baselines (122a synergy) are deliberately **not** populated here — at ~hundreds of articles per function per source the statistics are not yet meaningful; the schema hook may be added but left empty.*
+* [ ] `?normalization=zscore` on a temporal metric across both probes succeeds; on sentiment still refuses; the lead-lag cell renders in Rhizome. *(Per-function baselines deliberately not populated — at ~hundreds of articles per function the statistics are not yet meaningful.)*
 
 ---
 
 ## Phase 123a: Atmosphäre — Dossier-Collapse + Coverage & Selection UX [P1] - [ ] TODO
 
-*The old "Coverage Map" phase is reframed: the engine-3d globe already has probe glyphs, source satellites, hover, selection, fly-to, multiselect, a compose-bar, and an absence-banner. Rather than a new map/overlay/endpoint, this phase evolves the Atmosphäre and **collapses the Dossier from a top-level surface into a global overlay modal** (four surfaces → three: Atmosphäre [+Dossier overlay] · Workbench · Reflexion). Coverage and selection become a calm, legible, in-place experience.*
+*The old "Coverage Map" phase, reframed. The engine-3d globe already has probe glyphs, source satellites, hover, selection, fly-to, multiselect, a compose-bar, and an absence-banner. Rather than a new map/overlay/endpoint, this phase evolves the Atmosphäre and **collapses the Dossier from a top-level surface into a global overlay modal** (four surfaces → three: Atmosphäre [+Dossier overlay] · Workbench · Reflexion).*
+
+**Grounding.** Read first: `services/dashboard/packages/engine-3d/` (public API: `setProbes`, `setSelection`, `flyTo`, `EngineEvents`), `src/routes/(app)/+page.svelte` (current click/SHIFT-click/compose-bar wiring), `src/lib/components/chrome/` (SideRail, ProbeFilterModal, PillarSwitch), `src/lib/components/dossier/` (ProbeCard, MetadataCoverageModal), `/probes/{id}/dossier` spec, ADR-033 (amended here). Preserve: the `?selectedProbes=` selection-state grammar, the engine's fallback path (no-WebGL2), deep-linkability. Verify-first: confirm `flyTo` exists and that ProbeCard (post-122a.1) is mount-agnostic before moving it.
 
 ### Selection UX (three-tier disclosure)
-* [ ] **Glyph** (globe) → non-blocking. **Banner** (top-center strip, `pointer-events` only on the strip so the globe stays clickable) shows selection info for 1…N probes; SHIFT-click grows it into a comparison strip; the banner NEVER auto-opens the large overlay. **Large glassy overlay (80–90%)** opens only explicitly (banner CTA or SideRail Dossier) — a real modal, globe dimmed behind.
-* [ ] **Plain click** → in-place selection + shader highlight + `flyTo` (exists, enable it) + banner. CTAs → Workbench / → Open Dossier. (No more instant jump to the Dossier.)
-* [ ] **No territorial highlighting** — coverage = glyphs/satellites + banner (highlighting a country would over-claim: sources ≠ territory/population). Blind spots: globe dark (geographic) + CI/SF unobserved (functional, in the banner).
+* [ ] **Glyph** (non-blocking) → **Banner** (top-center strip, `pointer-events` only on the strip so the globe stays clickable; 1…N probes; SHIFT-click grows it; NEVER auto-opens the large overlay) → **Large glassy overlay (80–90%)** opens only explicitly (banner CTA or SideRail Dossier).
+* [ ] **Plain click** → in-place selection + shader highlight + `flyTo` + banner; CTAs → Workbench / → Open Dossier (no instant Dossier jump).
+* [ ] **No territorial highlighting** (sources ≠ territory/population). Blind spots: globe dark (geographic) + CI/SF unobserved (functional, in the banner).
 
 ### Dossier as global overlay (Option A)
-* [ ] **`/dossier` route retired** → global overlay modal openable over any surface; URL-state on the root route (`/?probe=` mini, `/?dossier=open&selectedProbes=` large); deep-links preserved; redirect from `/dossier`.
-* [ ] **SideRail "Dossier" = search/catalogue overlay** — full-text/facet search over **universal attributes only** (probe, source, language, country, discourse function — NEVER capability/metric facets). **Replaces `ProbeFilterModal` entirely; Probe-Select removed from the SideRail.**
-* [ ] **Workbench access via Dossier removed** (the SideRail ScopeEditor already covers it).
-* [ ] One **ProbeCard** source shared by the mini-banner and the large overlay (re-mounts the 122a.1 ProbeCard; no divergent copies).
+* [ ] **`/dossier` route retired** → global overlay modal openable over any surface; root-route URL-state (`/?probe=` mini, `/?dossier=open&selectedProbes=` large); deep-links preserved; redirect from `/dossier`.
+* [ ] **SideRail "Dossier" = search/catalogue overlay** — full-text/facet search over **universal attributes only** (probe, source, language, country, discourse function — never capability/metric). **Replaces `ProbeFilterModal`; Probe-Select removed from the SideRail.**
+* [ ] **Workbench access via Dossier removed.** One **ProbeCard** shared by mini-banner + large overlay.
 
 ### Backend + capability data
-* [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data (verify field coverage). Capability matrix reflects backbone reality: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier`.
-* [ ] **Auto-generated `add-a-language.md`** matrix from the Capability Manifest at MkDocs build time.
+* [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data. Capability matrix: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier`. **Auto-generated `add-a-language.md`** from the manifest at MkDocs build.
 
 ### Technical requirements
-* [ ] **ADR-033 amendment** (four-surface → three-surface; Dossier surface → overlay). Engine pause/throttle while the large overlay is open. **Fallback: the Dossier overlay must be fully usable without WebGL2.** Modal a11y (focus-trap, Esc, ARIA). CLAUDE.md surface list 4→3.
+* [ ] **ADR-033 amendment** (four→three surfaces). Engine pause while the overlay is open. **Dossier overlay fully usable without WebGL2.** Modal a11y (focus-trap, Esc, ARIA). CLAUDE.md surface list 4→3.
 
 ### Validation
-* [ ] `make fe-check && make codegen && git diff --exit-code` green; clicking a probe selects in-place + flies-to + shows the banner (no Dossier jump); SHIFT-click grows the banner while the globe stays interactive; the large overlay opens only on explicit action; search works on universal attributes; the overlay works in the no-WebGL2 fallback; deep-links round-trip.
+* [ ] Clicking a probe selects in-place + flies-to + shows the banner (no jump); SHIFT-click grows the banner while the globe stays interactive; the large overlay opens only on explicit action; search works on universal attributes; the overlay works in the no-WebGL2 fallback; deep-links round-trip.
 
 ---
 
 ## Phase 122d.2: Silent-Edit — Discourse Shift [P1] - [ ] TODO
 
-*Answers "how does the discourse shift through edits". Re-extracts sentiment/NER/topic over each snapshot version (on the news-class backbone) and surfaces edit-driven deltas. Placed after Probe 1 because the re-extraction (the most expensive part) yields the richest comparison on cross-cultural data.*
+*Answers "how does the discourse shift through edits". Re-extracts sentiment/NER/topic over each snapshot version (on the news-class backbone) and surfaces edit-driven deltas. After Probe 1 because the re-extraction (the most expensive part) yields the richest comparison on cross-cultural data.*
+
+**Grounding.** Read first: Phase-122d.0/.1 output (`article_revisions` + diffs), the extractor pipeline (`main.py`, `internal/extractors/`), the news backbone (Phase 132), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs + the Phase-132 backbone are in place.
 
 ### Worker + Gold
 * [ ] **Re-extraction** over snapshot versions → delta columns on `article_revisions`: `sentiment_delta`, `entities_added`, `entities_removed`, `topic_shift_score`.
 
 ### Frontend
-* [ ] **`revision_discourse_shift` cell** (configurable; Episteme for trajectory, Rhizome for relation).
-* [ ] **Rhizome — coordinated edit clusters** (a `silent-edit-coordination` entry-question, or a sub-mode of `concept-migration`): cross-source temporally-clustered edits.
+* [ ] **`revision_discourse_shift` cell** (configurable; Episteme for trajectory, Rhizome for relation). **Rhizome — coordinated edit clusters** (a relational cell): cross-source temporally-clustered edits.
 
 ### Validation
-* [ ] `make test-python && make fe-check` green; an edited article shows sentiment-trajectory + entity add/remove deltas; coordinated cross-source edit bursts render in Rhizome.
+* [ ] An edited article shows sentiment-trajectory + entity add/remove deltas; coordinated cross-source edit bursts render in Rhizome.
 
 ---
 
@@ -4159,41 +4182,42 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *One of AĒR's most powerful levers, currently a blind spot: today only Gold metrics are analysable; metadata appears only as a coverage signal. This phase makes metadata first-class analytical dimensions that flow through the SAME cell/presentation/pillar model as metrics — no new subsystem. Must be excellent and must honour metadata asymmetry.*
 
+**Grounding.** Read first: `internal/adapters/web_meta.py` (WebMeta tiers), the Silver layer + `/silver/aggregations/{aggregationType}` (Phase 103b), the metadata-coverage surface (Phase 122f), the Phase-131 cell framework + metric→presentation map (Phase 130). Preserve: the metric→presentation→pillar model (metadata dimensions flow through it identically), no-discovery-bias. Verify-first: **decide and document Gold-promotion vs Silver-aggregation** (the main risk — data volume/shape) before building.
+
 ### Backend (data engineering — the main risk)
-* [ ] **Decision + implementation: make analytically-useful metadata queryable.** Either Gold-promotion of selected WebMeta fields or Silver-aggregation endpoints (Phase 103b has the first). Fields: `section`, `author`, `paywall_status`, `external_citations`, `editorial_labels`, `reading_time`, `categories`, `tags`, `comment_count`, `images`, etc. (WebMeta Tier-A/B/C/D). This volume/shape decision is the riskiest unknown — resolve it explicitly in the phase design.
+* [ ] **Make analytically-useful metadata queryable** — Gold-promotion of selected WebMeta fields OR Silver-aggregation endpoints. Fields: `section`, `author`, `paywall_status`, `external_citations`, `editorial_labels`, `reading_time`, `categories`, `tags`, `comment_count`, `images`. Resolve the volume/shape decision explicitly.
 * [ ] **BFF** — metadata dimensions exposed through the existing metric/aggregation endpoints so cells consume them identically. OpenAPI + `make codegen`.
 
 ### Frontend
-* [ ] Metadata dimensions selectable wherever a metric dimension is (cells, visual-channel binding, grouping/faceting). 1–N metadata points chainable.
-* [ ] **Metadata asymmetry as Negative Space** — not every probe/source has every field; show honestly; never a discovery-bias facet.
-* [ ] Publication-ready + always explained.
+* [ ] Metadata dimensions selectable wherever a metric dimension is (cells, channel-binding, grouping/faceting); 1–N chainable. **Metadata asymmetry as Negative Space** (not every probe/source has every field; never a discovery-bias facet). Publication-ready + always explained.
 
 ### Validation
-* [ ] `make test && make fe-check && make codegen && git diff --exit-code` green; a metadata dimension renders through a configurable cell (e.g. mean sentiment by `section`); a missing-field case renders as Negative Space, not an error.
+* [ ] A metadata dimension renders through a configurable cell (e.g. mean sentiment by `section`); a missing-field case renders as Negative Space, not an error.
 
 ---
 
 ## Phase 125: Relational & Multivariate Cells [P1] - [ ] TODO
 
-*The capstone of the analytical surface — and a deliberate simplification of the old "Composition Workspace". There is NO separate canvas: after reframing cards→configurable cells and edges→relational cells, a separate surface had no distinct paradigm (it was effectively a second, more powerful Workbench locked in Rhizome). Instead, the Workbench cell system gains relational and multivariate cell types, each appearing in its natural pillar. This delivers the operator's requirement: chain arbitrarily many metrics/metadata into publication-ready, always-explained analyses.*
+*The capstone of the analytical surface — and a deliberate simplification of the old "Composition Workspace". There is NO separate canvas: after reframing cards→configurable cells and edges→relational cells, a separate surface had no distinct paradigm (it was effectively a second, more powerful Workbench). Instead the Workbench cell system gains relational and multivariate cell types, each in its natural pillar. Delivers the requirement: chain arbitrarily many metrics/metadata into publication-ready, always-explained analyses.*
+
+**Grounding.** Read first: the Cell registry + Phase-131 channel-binding, `CoOccurrenceNetworkCell.svelte` (d3-force precedent), `RhizomeShell` (panels+cells, post-130), the Phase-124 lead-lag helper, Phase-133 metadata dimensions, `buildFreeComposeUrl` in `panel-queries.ts` (the "Quick-Compose" name to disambiguate from this). Preserve: the unified Workbench model (no parallel surface), no-discovery-bias in any search, the refusal-surface contract, bundle budgets. Verify-first: confirm 131 + 133 + 124 landed (this composes their building blocks).
 
 ### New cell types
-* [ ] **Bivariate (relational):** Correlation (metric×metric / metric×metadata; scatter + regression + r), Cross-Tab (metadata×metric; heatmap), Lead-Lag (two metrics over time). → Lead-Lag/Correlation in Rhizome; Cross-Tab in Aleph or Episteme by time-relation.
-* [ ] **Multivariate (chain N dimensions):** Parallel Coordinates (N axes), Correlation Matrix (N metrics pairwise, drill → scatter), Sankey/Alluvial (N categorical metadata dimensions). → Aleph/Episteme/Rhizome per the presentation rule.
-* [ ] **Configurable network (Kriesel):** the `cooccurrence_network` cell with node-size/colour bound to dimensions (channel-binding from Phase 131). → Rhizome.
+* [ ] **Bivariate:** Correlation (metric×metric / metric×metadata; scatter + regression + r), Cross-Tab (metadata×metric; heatmap), Lead-Lag (two metrics over time). → Lead-Lag/Correlation in Rhizome; Cross-Tab in Aleph/Episteme by time-relation.
+* [ ] **Multivariate (chain N dimensions):** Parallel Coordinates (N axes), Correlation Matrix (N metrics pairwise, drill → scatter), Sankey/Alluvial (N categorical metadata dimensions). → per the presentation rule.
+* [ ] **Configurable network (Kriesel):** the `cooccurrence_network` cell with node-size/colour bound to dimensions. → Rhizome.
 
 ### Cross-cutting capabilities
-* [ ] **Faceting / small-multiples** — break any cell by a dimension (adds one dimension to any form).
-* [ ] **Linked brushing** — select in one cell, highlight across others (turns "N dimensions shown" into "N dimensions explored"). **In scope but defer-friendly** (cross-cell state, the hardest piece; may slip if effort presses, but it is the core of the chaining experience).
+* [ ] **Faceting / small-multiples** — break any cell by a dimension. **Linked brushing** — select in one cell, highlight across others. **In scope but defer-friendly** (cross-cell state, the hardest piece; may slip, but it is the core of the chaining experience).
 
 ### Backend
-* [ ] Promote the lead-lag helper (Phase 124) to a public `/correlation/lead-lag` endpoint; add correlation/cross-tab/multivariate aggregation helpers. Cross-frame requests without an equivalence grant return the refusal surface (refusal-as-cell). Card/dimension search respects no-discovery-bias. OpenAPI + `make codegen`.
+* [ ] Promote the lead-lag helper to a public `/correlation/lead-lag`; add correlation/cross-tab/multivariate aggregation helpers. Cross-frame without equivalence → refusal-as-cell. Search respects no-discovery-bias. OpenAPI + `make codegen`.
 
 ### Frontend home + drift
-* [ ] Lives in RhizomeShell `free-composition` (a Window of relational/multivariate cells; optional freer layout mode is defer-friendly). **No `/compose` route, no card/edge physics, no "more powerful than the Workbench" parallel.** Disambiguate from `buildFreeComposeUrl` ("Quick-Compose" = scopes into a panel).
+* [ ] Lives in RhizomeShell as relational/multivariate cells in panels (optional freer layout mode is defer-friendly). **No `/compose` route, no card/edge physics, no parallel surface.** Disambiguate from `buildFreeComposeUrl` ("Quick-Compose").
 
 ### Validation
-* [ ] `make fe-check && make codegen && git diff --exit-code` green; Parallel Coordinates + Correlation Matrix + Sankey render and chain N dimensions; faceting breaks a cell by a metadata dimension; a cross-probe lead-lag without equivalence renders refusal-as-cell with a Level-1 alternative; every cell carries a "how to read" note.
+* [ ] Parallel Coordinates + Correlation Matrix + Sankey render and chain N dimensions; faceting breaks a cell by a metadata dimension; cross-probe lead-lag without equivalence renders refusal-as-cell with a Level-1 alternative; every cell carries a "how to read" note.
 
 ---
 
@@ -4207,44 +4231,37 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *The gate. The whole application sits behind authentication.*
 
-### Architecture (BFF auth pattern — modern standard)
-* [ ] **No tokens in the client.** Browser holds only an `httpOnly`+`Secure`+`SameSite` cookie with an opaque session id (no JWT, nothing JS-reachable → immune to XSS token theft).
-* [ ] **BFF holds state server-side** (Postgres `sessions`): `session_id → (user_id, access_token, refresh_token, expiry)`; tokens never leave the server. **Silent stateful refresh** (short access token refreshed server-side via the stored refresh token; browser just sends its cookie).
-* [ ] **Stateful (not stateless JWT)** is load-bearing — enables **immediate revocation** (LICENSE §3.3); revocation = a SQL query over the sessions table.
-* [ ] **Session store: Postgres** (not Redis — at AĒR's scale a session lookup is an indexed point query; Postgres is also better for queryable revocation/audit; CLAUDE.md "No Redis unless justified"). Reassess only on evidence (measurable session DB load in OTel, or a feature that independently justifies Redis); size the BFF connection pool accordingly.
-* [ ] argon2id passwords; CSRF tokens for state-changing requests; constant-time comparisons (extend `pkg/middleware/apikey.go` with session middleware).
+**Grounding.** Read first: `pkg/middleware/apikey.go` (constant-time pattern to extend), the BFF server setup + the Security Defaults section of CLAUDE.md, the Postgres migration dir + `postgres-init-roles`, `services/dashboard` auth-less request layer, Phase 55 (Privacy Architecture), LICENSE.md §3. Preserve: ALL existing security defaults (HTTP timeouts, body caps, generic 5xx, graceful shutdown, least-privilege roles), the static-dashboard deployment model (BFF is the auth authority — no SvelteKit server adapter), the zero-trust network posture. Verify-first: enumerate every data endpoint that must move from X-API-Key to session auth.
+
+### Architecture (BFF auth pattern)
+* [ ] **No tokens in the client** — `httpOnly`+`Secure`+`SameSite` cookie with an opaque session id. **BFF holds state server-side** (Postgres `sessions`); tokens never leave the server. **Silent stateful refresh.** **Stateful** enables immediate revocation (LICENSE §3.3). **Session store: Postgres** (not Redis — indexed point query at this scale, and better for queryable revocation/audit; reassess only on evidence: measurable session DB load or a feature that independently justifies Redis). argon2id passwords; CSRF tokens; constant-time comparisons.
 
 ### Gatekeeping (license-driven)
-* [ ] **No open self-registration** — invite/approval-based, admin (copyright holder) creates/approves accounts; responsible-use agreement recorded at account creation (LICENSE §3.2.b).
-* [ ] **Whole app gated** — data endpoints require session auth (not only X-API-Key); endpoint sweep across the BFF.
-* [ ] **RBAC** — admin/researcher; admin can suspend/revoke.
+* [ ] **No open self-registration** — invite/approval-based; responsible-use agreement recorded at account creation (§3.2.b). **Whole app gated** (data endpoints require session, not only X-API-Key). **RBAC** admin/researcher; admin suspend/revoke.
 
 ### Privacy (DSGVO + identity)
 * [ ] Store only email + argon2id hash + minimal profile + responsible-use flag. No tracking of what users analyse beyond explicitly-saved analyses. DSGVO: deletion, export, consent.
 
-### Frontend
-* [ ] Login/logout + minimal user area (dashboard stays static — the BFF is the auth authority; no SvelteKit server adapter).
-
-### Documentation
-* [ ] **ADR-036 — Access Control Architecture** (BFF pattern, stateful Postgres sessions, gatekeeping model, privacy-minimal, license enforcement). Align with Phase 55 (Privacy Architecture). Security defaults section in CLAUDE.md updated.
+### Frontend + Docs
+* [ ] Login/logout + minimal user area (dashboard stays static). **ADR-036 — Access Control Architecture**; align with Phase 55; CLAUDE.md Security Defaults updated.
 
 ### Validation
-* [ ] `make lint && make test && make fe-check && make codegen && git diff --exit-code` green; all data endpoints require a valid session; an admin revocation invalidates a session immediately; no token is reachable from client JS; argon2id verified; DSGVO delete/export work. **If AĒR is deployed (even staging) before later phases — LICENSE §4c — this phase must precede that deployment.**
+* [ ] All data endpoints require a valid session; admin revocation invalidates a session immediately; no token reachable from client JS; argon2id verified; DSGVO delete/export work. **If AĒR is deployed (even staging) before later phases — LICENSE §4c — this phase must precede that deployment.**
 
 ---
 
 ## Phase 135: Saved Analyses & Sharing (Auth-2) [P1] - [ ] TODO
 
-*The persistence feature on top of the gate. Lets a researcher save a configured analysis and (optionally) share it — solving the "lose your work on browser-back" pain server-side.*
+*The persistence feature on top of the gate. Save a configured analysis and (optionally) share it — solving "lose your work on browser-back" server-side.*
 
-### Backend
-* [ ] **`saved_analyses`** (Postgres) — owner, visibility (private/shared), the serialized Workbench/analysis state. CRUD endpoints (RBAC-scoped). OpenAPI + `make codegen`.
+**Grounding.** Read first: Phase-134 session/RBAC, the Workbench URL-state grammar (`?{aleph,episteme,rhizome}=`), the Phase-127 leave-guard (localStorage), the Postgres migration dir. Preserve: the URL-state encoding (a saved analysis serializes it), RBAC scoping. Verify-first: confirm the Workbench state fully round-trips through the URL grammar before persisting it.
 
-### Frontend
-* [ ] Saved-analyses list in the user area; **seed a saved analysis into the Workbench** (restore full state). Upgrade the Phase-127 leave-guard from localStorage to server-side persistence. Private/shared toggle.
+### Backend + Frontend
+* [ ] **`saved_analyses`** (Postgres: owner, visibility private/shared, serialized analysis state) + RBAC-scoped CRUD. OpenAPI + `make codegen`.
+* [ ] Saved-analyses list in the user area; **seed a saved analysis into the Workbench** (full state restore); upgrade the Phase-127 leave-guard from localStorage to server-side; private/shared toggle.
 
 ### Validation
-* [ ] `make test && make fe-check && make codegen && git diff --exit-code` green; a configured analysis saves, lists, restores byte-identically into the Workbench, and shares per its visibility.
+* [ ] A configured analysis saves, lists, restores byte-identically into the Workbench, and shares per its visibility.
 
 ---
 
@@ -4258,33 +4275,37 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Holistic verification that every piece composes into one coherent dashboard. Run as a continuous lightweight checklist after each major complex (Pillar Sharpening, 123a, A/B/125, Auth) plus a final pass — avoids drift accumulation.*
 
-### Routing & state
-* [ ] **Back/forward state preservation** — from any view, back AND forward preserve charts/panels/configuration/Dossier filters. **"Your work will be lost" guard** (`beforeunload`/navigation guard) + localStorage quick-save (server-side from Phase 135). Every reachable state encoded in the URL; deep-links round-trip byte-identically.
+**Grounding.** Read first: every surface route, the SideRail/chrome, the RefusalSurface component, the Negative-Space toggle, the URL-state grammar across surfaces. Preserve: the three-surface invariant (post-123a), the single RefusalSurface shape, deep-linkability. Verify-first: this phase is itself the reconciliation — treat each prior phase's output as the thing under audit.
 
-### Coherence audit (three surfaces: Atmosphäre [+Dossier overlay] · Workbench · Reflexion)
-* [ ] Pillar-identity coherence (weather/climate/currents, correct cell assignment, "pillar follows presentation"). Metric+metadata inventory coherence (all in the picker, EN+DE explanations). "Always explained" coherence (every presentation, incl. composed, has a "how to read"). Configurable-cell coherence.
-* [ ] Refusal-surface consistency (cross-frame equivalence, refusal-as-cell, merged-cross-probe guard, k-anonymity, Silver-eligibility, invalid_language) — all through one `RefusalSurface` shape with anchor + alternatives.
-* [ ] Negative-Space / empty-state audit (tier asymmetry, metadata asymmetry, coverage gaps, CI/SF unobserved, silent-edit `no_snapshots`) — every absence is a Dual-Register invitation.
-* [ ] Cross-probe symmetry; Dossier-overlay coherence (mini-banner ↔ large overlay, global modal, deep-links); Auth-surface coherence.
+### Routing & state
+* [ ] **Back/forward state preservation** — from any view, back AND forward preserve charts/panels/configuration/Dossier filters. **"Your work will be lost" guard** (`beforeunload`/navigation guard) + localStorage quick-save (server-side from Phase 135). Every reachable state in the URL; deep-links round-trip byte-identically.
+
+### Coherence audit (three surfaces)
+* [ ] Pillar-identity coherence; metric+metadata inventory coherence (all in the picker, EN+DE explanations); "always explained" coherence; configurable-cell coherence.
+* [ ] Refusal consistency (cross-frame equivalence, refusal-as-cell, merged-cross-probe guard, k-anonymity, Silver-eligibility, invalid_language) — one `RefusalSurface` shape with anchor + alternatives.
+* [ ] Negative-Space / empty-state audit (tier asymmetry, metadata asymmetry, coverage gaps, CI/SF, silent-edit `no_snapshots`).
+* [ ] Cross-probe symmetry; Dossier-overlay coherence; Auth-surface coherence.
 
 ### Validation
-* [ ] `make fe-check` green; keyboard-only and deep-link round-trip E2E green; reduced-motion E2E green; coherence walkthrough recorded.
+* [ ] Keyboard-only and deep-link round-trip E2E green; reduced-motion E2E green; coherence walkthrough recorded.
 
 ---
 
 ## Phase 128: Accessibility + Performance Verification [P1] - [ ] TODO
 
-*Full WCAG 2.2 AA + Lighthouse CI + High-Fi hardware performance across the complete post-Iteration-10 surface and both languages (DE+FR content alongside EN/DE UI).*
+*Full WCAG 2.2 AA + Lighthouse CI + High-Fi hardware performance across the complete post-Iteration-10 surface and both content languages (DE+FR alongside EN/DE UI).*
 
-* [ ] **Axe audit** over every reachable state across three surfaces × Dossier overlay × configurable cells × Composition cells (incl. D3-force network) × auth surfaces × overlays × single/multi-probe scope. Zero AA violations.
-* [ ] **Modal a11y** for the Dossier overlay (focus-trap, Esc, ARIA); keyboard-operable cell configuration; auth surfaces narrated.
-* [ ] **Lighthouse + bundle budgets** (shell unchanged; new lazy chunks for Composition/network within budget; CI fails on regression).
-* [ ] **Performance** — Kriesel network with many nodes (force budget), full-depth configurable cells, engine pause while the Dossier overlay is open; 60 fps / <16 ms frame on M1-class hardware; results filed in the Operations Playbook.
-* [ ] **Screen-reader pass** — incl. composed "how to read" explanations and refusal prose. **Reduced-motion** — network → static layout, fly-to → instant, transitions → cuts. **EN/DE parity** across all new surfaces.
+**Grounding.** Read first: existing Lighthouse/bundle-budget config + the a11y E2E setup, Brief §10 (performance budgets), the engine-3d reduced-motion path. Preserve: existing bundle budgets (shell), the reduced-motion contract. Verify-first: Phase 127 substantially in place (this audits the coherent surface).
+
+* [ ] **Axe audit** over every reachable state (three surfaces × Dossier overlay × configurable cells × Composition cells incl. D3-force × auth surfaces × overlays × single/multi-probe). Zero AA violations.
+* [ ] **Modal a11y** (Dossier overlay focus-trap/Esc/ARIA); keyboard-operable cell config; auth surfaces narrated.
+* [ ] **Lighthouse + bundle budgets** (new lazy chunks within budget; CI fails on regression).
+* [ ] **Performance** — Kriesel network (force budget), full-depth cells, engine pause while overlay open; 60 fps / <16 ms frame on M1-class hardware; filed in the Operations Playbook.
+* [ ] **Screen-reader pass** (incl. composed "how to read" + refusal prose). **Reduced-motion** (network→static, fly-to→instant). **EN/DE parity** across new surfaces.
 * [ ] Arc42 Accessibility & Performance Envelope; CI gate spec; bundle-budget table.
 
 ### Validation
-* [ ] All CI gates green; hardware-test log + screen-reader log filed.
+* [ ] All CI gates green; hardware-test + screen-reader logs filed.
 
 ---
 
@@ -4292,13 +4313,15 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Final consolidation against post-Iteration-10 reality.*
 
+**Grounding.** Read first: all ADRs in `docs/arc42/09_architecture_decisions.md`, CLAUDE.md, the extending guides, the Operations Playbook, `mkdocs.yml`. Preserve: the MkDocs strict-build constraint (cross-references resolve), the English-only documentation rule. Verify-first: which ADRs actually landed vs. planned before writing the coherence pass.
+
 * [ ] **Arc42 sweep** — three surfaces, pillar identity, per-source-class backbone, metadata analysis, relational/multivariate cells, silent-edit stratum, access-control layer; all cross-references resolve.
-* [ ] **ADR coherence** — new/changed: ADR-023 amendment (+ duplicate fix), ADR-030 (per-article DF), ADR-032 (silent-edit, re-scoped), ADR-033 amendment (4→3 surfaces), ADR-035 (pillar identity), ADR-036 (access control). Review deferred-ADR trigger conditions (ADR-025/026). Delete `docs/design/reframing-note.md` if served.
+* [ ] **ADR coherence** — ADR-023 amendment (+ duplicate fix), ADR-030, ADR-032 (re-scoped), ADR-033 amendment, ADR-035 (pillar identity), ADR-036 (access control). Review deferred-ADR triggers (ADR-025/026). Delete `docs/design/reframing-note.md` if served.
 * [ ] **CLAUDE.md sweep** — three surfaces, pillar identity, backbone strategy, metadata analysis, composition cells, auth layer, new endpoints/tables/extractors.
-* [ ] **Working Paper cross-link audit**; **Operations Playbook** end-to-end (probe bring-up, equivalence grant, backbone evaluation, silent-edit ops, metadata ops, cross-probe ops, auth ops); **extending guides** review; auto-generated `add-a-language.md` cutover.
-* [ ] **RSS-crawler retirement** — delete the archived `crawlers/_archived/rss-crawler/`.
+* [ ] **Working-Paper cross-link audit**; **Operations Playbook** end-to-end; **extending guides** review; auto-generated `add-a-language.md` cutover.
+* [ ] **RSS-crawler retirement** — delete archived `crawlers/_archived/rss-crawler/`.
 * [ ] **Terminology reconciliation** — the "Probe/Source" rename question (Path A vs B), now more concrete with the user/auth layer; opens as a review PR, does not land here.
-* [ ] **Completed-Phases index** in `ROADMAP.md` reflects all landed phases.
+* [ ] **Completed-Phases index** reflects all landed phases.
 
 ### Validation
 * [ ] `mkdocs build --strict` passes; all cross-references resolve; terminology PR opened; Completed-Phases index current.
@@ -4313,18 +4336,18 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ## Deferred: Phase 122a.2 — Source × Article Discourse-Function Pair Validation [P3]
 
-*Moves from Option C (both DF tags observable, no synthesis) to Option A (the `(source_df, article_df)` pair as a first-class analytical unit). Gated on Phase-122a.1 divergence data demonstrating interpretable structure AND interdisciplinary completion of the 4×4 pair-interpretation work. Triggers: a temporally non-trivial divergence pattern; interdisciplinary collaborators proposing a concrete pair-reading; or a downstream analytical question unanswerable with Option-C semantics. If none fires, it stays deferred — Option C is sufficient for every question AĒR is methodologically prepared to ask. (Honours the operator principle: avoid inventing imprecise metrics.)*
+*Moves from Option C (both DF tags observable, no synthesis) to Option A (the `(source_df, article_df)` pair as a first-class analytical unit). Gated on Phase-122a.1 divergence data demonstrating interpretable structure AND interdisciplinary completion of the 4×4 pair-interpretation work. Triggers: a temporally non-trivial divergence pattern; collaborators proposing a concrete pair-reading; or a downstream question unanswerable with Option-C semantics. If none fires, it stays deferred — Option C suffices. (Honours the operator principle: avoid inventing imprecise metrics.)*
 
 ---
 
 ## Deferred: Non-Human Actor Detection (full WP-003 §5)
 
-*Reserved for the iteration that lands the first social-media probe. AI-text detection on news sources is methodologically wrong-shaped for a solo dev (professional editing confounds stylometric features; high false-positive rates; an arms race with no stable equilibrium per WP-003 §5.2). Social-media account-level signals (account age, posting cadence, follower ratios — Cresci 2020) and network-level coordination (Pacheco et al. 2021) are deterministic metadata / established statistics — tractable when that source class exists. Reserved scope: `aer_gold.coordination_clusters`, `account_features/` + `network_features/` extractor layers, the `CorpusExtractor` protocol, AI-text detection only if calibrated per source class with documented FPR. The news-source authenticity signal AĒR ships now is silent-edit observability (Phase 122d.x).*
+*Reserved for the iteration that lands the first social-media probe. AI-text detection on news sources is methodologically wrong-shaped for a solo dev (professional editing confounds stylometric features; high false-positive rates; an arms race with no stable equilibrium per WP-003 §5.2). Social-media account-level signals (Cresci 2020) and network-level coordination (Pacheco et al. 2021) are deterministic / established statistics — tractable when that source class exists. Reserved scope: `aer_gold.coordination_clusters`, `account_features/` + `network_features/` layers, the `CorpusExtractor` protocol, AI-text detection only if calibrated per source class with documented FPR. The news-source authenticity signal AĒR ships now is silent-edit observability (Phase 122d.x).*
 
 ---
 
 ## Deferred: Probe-1 Tier-1 (FEEL) + Tier-2.5 (CamemBERT) Sentiment Enrichments [P3]
 
-*French within-frame sentiment enrichments, deferred from Phase 123. The multilingual news backbone covers French for both within-frame and the cross-probe basis; FEEL (Tier-1 lexicon) and CamemBERT (Tier-2.5 fine-tuned) would add within-frame depth only — never the cross-probe comparison basis (that is always the symmetric backbone). Add later if the effort is justified for richer French within-frame analysis. Trigger: a concrete French within-frame analytical need that the backbone does not serve well. Same pattern available for any future probe's language. Note: per-source-class backbone strategy means new probes scale at O(1) — these enrichments are explicitly optional and must never become a per-language onboarding requirement.*
+*French within-frame sentiment enrichments, deferred from Phase 123. The multilingual news backbone covers French for both within-frame and the cross-probe basis; FEEL (Tier-1 lexicon) and CamemBERT (Tier-2.5 fine-tuned) would add within-frame depth only — never the cross-probe basis. Add later if the effort is justified for richer French within-frame analysis. Trigger: a concrete French within-frame need the backbone does not serve well. Per-source-class backbone strategy means new probes scale at O(1) — these enrichments are explicitly optional and must never become a per-language onboarding requirement.*
 
 ---
