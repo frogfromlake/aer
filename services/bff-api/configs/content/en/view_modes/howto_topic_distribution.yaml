@@ -1,0 +1,25 @@
+entityId: howto_topic_distribution
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Each ridge is a topic; its area is how much of the corpus discusses it right now — a synchronic snapshot, no time axis."
+    long: >
+      A topic distribution answers "what is being talked about right now, by volume?". Read the
+      tallest ridges as the dominant themes of the window and the long tail as the niche ones.
+      There is no time axis here — this is the synchronic snapshot (Aleph). Topics are
+      partitioned by language because the embeddings are language-specific; do not read across
+      language partitions as if the topic ids aligned.
+  methodological:
+    short: "BERTopic assignment counts per topic in the window, per language partition. Tier-2 (pinned model + seeded UMAP/HDBSCAN)."
+    long: >
+      The note is composed from a per-presentation template. Volumes are distinct-article counts
+      per topic within the window; topic labels are the c-TF-IDF / KeyBERT representation. The
+      model hash is surfaced in the provenance footer — more than one hash in a window means the
+      topic identities may have rotated and should not be read as a single stable basis.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"

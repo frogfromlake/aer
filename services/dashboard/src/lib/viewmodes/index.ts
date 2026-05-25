@@ -10,6 +10,7 @@ export {
   presentationsForPillar,
   resolvePresentation,
   type AnalyticalDiscipline,
+  type CellParamKind,
   type PillarDefinition,
   type PresentationDefinition,
   type ViewModeCellProps

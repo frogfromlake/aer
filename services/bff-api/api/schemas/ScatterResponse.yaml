@@ -1,0 +1,47 @@
+type: object
+description: >
+  Paired-metric scatter (Phase 131). Each point is one article positioned by
+  two metrics, with optional size / colour visual channels bound to further
+  metrics. Backs the metadata-mining × scatter view-mode cell and is the
+  building block the later metric-chaining phases (133+) extend.
+required:
+  - xMetric
+  - yMetric
+  - points
+  - truncated
+  - windowStart
+  - windowEnd
+properties:
+  xMetric:
+    type: string
+    description: Echo of the requested X-position metric.
+  yMetric:
+    type: string
+    description: Echo of the requested Y-position metric.
+  sizeMetric:
+    type: string
+    description: Echo of the requested size-channel metric, when bound.
+  colorMetric:
+    type: string
+    description: Echo of the requested colour-channel metric, when bound.
+  scope:
+    type: string
+    description: Resolved scope kind (`probe` or `source`).
+  scopeId:
+    type: string
+  points:
+    type: array
+    description: Per-article points, ordered by article id for determinism.
+    items:
+      $ref: './ScatterPoint.yaml'
+  truncated:
+    type: boolean
+    description: >
+      True when the in-window article set exceeded `maxPoints` and the point
+      list was capped. The dashboard surfaces a "showing N of more" note.
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time

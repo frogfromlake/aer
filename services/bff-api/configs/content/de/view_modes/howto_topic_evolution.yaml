@@ -1,0 +1,25 @@
+entityId: howto_topic_evolution
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Jeder Strom ist ein Thema; seine Breite über die Zeit zeigt, wie sein Anteil am Diskurs steigt und fällt."
+    long: >
+      Ein Themenentwicklungs-Stromdiagramm beantwortet „Wie verschiebt sich das Sagbare über die
+      Zeit?". Lies ein breiter werdendes Band als Thema, das Anteil gewinnt, ein schmaler werdendes
+      als verblassendes; lies ein neu erscheinendes Band als Thema, das in den Diskurs eintritt.
+      Farbe ist eine Viridis-Rampe in willkürlicher Themenreihenfolge — sie trägt keine Valenz.
+      Ströme sind Sprachpartitionen ohne sprachübergreifende Ausrichtung.
+  methodological:
+    short: "BERTopic-Volumen je Thema über Zeit-Teilfenster, gestapelt. Tier-2 (gepinntes Modell + geseedetes UMAP/HDBSCAN)."
+    long: >
+      Die Notiz wird aus einer Vorlage je Darstellung komponiert. Jedes Teilfenster ist ein
+      unabhängiger Themenvolumen-Schnitt; die Stapelung zeigt den relativen Anteil über die Zeit.
+      Da Themen nach Sprache partitioniert und nicht sprachübergreifend ausgerichtet sind, wird ein
+      mehrsprachiger Geltungsbereich facettiert statt zusammengeführt (WP-004 §3.4).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"

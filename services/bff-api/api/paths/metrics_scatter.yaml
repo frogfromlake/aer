@@ -1,0 +1,58 @@
+get:
+  tags: [Metrics]
+  summary: Paired-metric scatter (Metadata mining × visual-channel binding)
+  description: >
+    Returns one point per article in the resolved scope, positioned by two
+    per-article metrics (`xMetric`, `yMetric`) with optional `sizeMetric` /
+    `colorMetric` channels. Only articles carrying both position metrics in
+    the window contribute a point; the optional channel values are attached
+    when present. Powers the Phase-131 scatter cell where size / colour /
+    position are bound to chosen metric dimensions, and is the
+    forward-compatible substrate for the Phase-133+ metric-chaining work.
+
+    Scope is resolved from the union of `scopeId`, `probeIds`, and
+    `sourceIds` — at least one must be present. Points are ordered by article
+    id and capped at `maxPoints` (response `truncated=true` when the cap
+    bit).
+  operationId: getMetricScatter
+  parameters:
+    - $ref: '../parameters/xMetric.yaml'
+    - $ref: '../parameters/yMetric.yaml'
+    - $ref: '../parameters/sizeMetric.yaml'
+    - $ref: '../parameters/colorMetric.yaml'
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when
+        `probeIds` and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - $ref: '../parameters/maxPoints.yaml'
+  responses:
+    '200':
+      description: Per-article scatter points with bound visual channels.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ScatterResponse.yaml'
+    '400':
+      description: Invalid scope, missing position metric, or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

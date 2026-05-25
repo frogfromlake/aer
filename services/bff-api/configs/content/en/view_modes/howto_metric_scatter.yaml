@@ -1,0 +1,26 @@
+entityId: howto_metric_scatter
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Each point is one article, positioned by two metrics — read the cloud for correlation, clusters, and outliers."
+    long: >
+      A scatter answers "do two measurements move together, and which articles break the
+      pattern?". Read the overall tilt of the cloud for correlation, dense regions for the
+      typical article, and stragglers for outliers worth opening. Phase 131 binds four visual
+      channels independently: x and y position, point size, and point colour, each to a metric
+      of your choice. This is visual-channel binding made concrete — it is not "scatter vs
+      chart", it is real channels bound to real per-article data.
+  methodological:
+    short: "Per-article pivot of two (optionally four) metrics over the scope; only articles carrying both position metrics contribute a point."
+    long: >
+      The note is composed from a per-presentation template plus the live channel bindings. The
+      server pivots the raw Gold metrics table by article: a point appears only when the article
+      carries both the x and y metric in the window; the size and colour values attach when the
+      article also carries those metrics. The cloud is capped (default 2000 points); when the
+      cap bites the cell shows a "showing N of more" note rather than implying exhaustiveness.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §3"

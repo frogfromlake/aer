@@ -76,6 +76,8 @@ func unionSourceParams(source, sourceIds *string) []string {
 type Store interface {
 	Ping(ctx context.Context) error
 	GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
+	// Phase 131: time-series with per-bucket sample stddev for the ±1σ band.
+	GetMetricsWithSpread(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
 	GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
 	// Phase 115: percentile-rank normalization, deviation labelling, cross-frame gate.
 	GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
@@ -95,6 +97,8 @@ type Store interface {
 	GetMetricHeatmap(ctx context.Context, metricName string, sources []string, xDim, yDim storage.HeatmapDimension, start, end time.Time) ([]storage.HeatmapCell, error)
 	GetMetricCorrelation(ctx context.Context, metricNames []string, sources []string, start, end time.Time) (storage.CorrelationResult, error)
 	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int) (storage.CoOccurrenceResult, error)
+	// Phase 131: paired-metric scatter over aer_gold.metrics (visual-channel binding).
+	GetMetricScatter(ctx context.Context, xMetric, yMetric string, sizeMetric, colorMetric *string, sources []string, start, end time.Time, maxPoints int) (storage.ScatterResult, error)
 	// Phase 120: BERTopic topic-distribution endpoint over aer_gold.topic_assignments.
 	GetTopicDistribution(ctx context.Context, params storage.TopicDistributionParams) ([]storage.TopicDistributionRow, error)
 	// Phase 103b: silver-aggregation endpoints over aer_silver.documents.
@@ -356,6 +360,12 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 
 	resolution := resolutionFromParam(request.Params.Resolution)
 
+	// Phase 131: a spread-bearing request reads the raw layer so the
+	// per-bucket sample stddev (absent from the resolution MVs) is
+	// available. Mutually exclusive with normalization — a z-score /
+	// percentile series has no raw spread to attach.
+	includeStddev := request.Params.IncludeStddev != nil && *request.Params.IncludeStddev && !useNormalization
+
 	var data []storage.MetricRow
 	var excludedCount int64
 	var err error
@@ -365,7 +375,11 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	case Percentile:
 		data, excludedCount, err = s.db.GetPercentileNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
 	default:
-		data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+		if includeStddev {
+			data, err = s.db.GetMetricsWithSpread(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+		} else {
+			data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+		}
 	}
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetrics", "error", err)
@@ -376,6 +390,7 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		Count      *int64    `json:"count,omitempty"`
 		MetricName string    `json:"metricName"`
 		Source     string    `json:"source"`
+		Stddev     *float64  `json:"stddev,omitempty"`
 		Timestamp  time.Time `json:"timestamp"`
 		Value      float64   `json:"value"`
 	}, 0, len(data))
@@ -384,10 +399,11 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		// Gold-layer bucket counts in a bounded time window fit well under
 		// math.MaxInt64, but we clamp defensively rather than trust the type.
 		count := max(int64(d.Count), 0) //nolint:gosec // clamped above
-		points = append(points, struct {
+		p := struct {
 			Count      *int64    `json:"count,omitempty"`
 			MetricName string    `json:"metricName"`
 			Source     string    `json:"source"`
+			Stddev     *float64  `json:"stddev,omitempty"`
 			Timestamp  time.Time `json:"timestamp"`
 			Value      float64   `json:"value"`
 		}{
@@ -396,7 +412,12 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 			Value:      d.Value,
 			Source:     d.Source,
 			MetricName: d.MetricName,
-		})
+		}
+		if includeStddev {
+			stddev := d.Stddev
+			p.Stddev = &stddev
+		}
+		points = append(points, p)
 	}
 
 	return GetMetrics200JSONResponse{
@@ -435,12 +456,12 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 			conf = &c
 		}
 		response = append(response, struct {
-			Count          int64     `json:"count"`
-			EntityLabel    string    `json:"entityLabel"`
-			EntityText     string    `json:"entityText"`
-			LinkConfidence *float32  `json:"linkConfidence,omitempty"`
-			Sources        []string  `json:"sources"`
-			WikidataQid    *string   `json:"wikidataQid,omitempty"`
+			Count          int64    `json:"count"`
+			EntityLabel    string   `json:"entityLabel"`
+			EntityText     string   `json:"entityText"`
+			LinkConfidence *float32 `json:"linkConfidence,omitempty"`
+			Sources        []string `json:"sources"`
+			WikidataQid    *string  `json:"wikidataQid,omitempty"`
 		}{
 			EntityText:     d.EntityText,
 			EntityLabel:    d.EntityLabel,
@@ -589,9 +610,9 @@ func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProb
 		// positionally here rather than introducing a parallel named
 		// type that would have to be kept in sync with the generator.
 		probe := Probe{
-			ProbeId:        p.ProbeID,
-			Language:       p.Language,
-			Sources:        append([]string(nil), p.Sources...),
+			ProbeId:  p.ProbeID,
+			Language: p.Language,
+			Sources:  append([]string(nil), p.Sources...),
 			EmissionPoints: make([]struct {
 				Label     string  `json:"label"`
 				Latitude  float64 `json:"latitude"`

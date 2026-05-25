@@ -27,6 +27,10 @@
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
+  import { pickChartSvg, type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import HowToRead from './HowToRead.svelte';
+  import CellExport from './CellExport.svelte';
   import { JOINT_CORPUS_MIN_SOURCES } from '$lib/config/topic-thresholds';
 
   let {
@@ -454,13 +458,41 @@
     }
     return out;
   });
+
+  // Phase 131 (BUG5) — export.
+  const exportPayload = $derived<ExportPayload>({
+    meta: {
+      viewMode: 'topic_evolution',
+      scope,
+      scopeId,
+      windowStart,
+      windowEnd,
+      languages: languages.join('+')
+    },
+    summary: { buckets: buckets.length, series: legendEntries.length },
+    howToRead: composeHowToRead('topic_evolution', { renderedCount: legendEntries.length }),
+    rows: plotRows.map((r) => ({
+      bucket: r.bucket.toISOString(),
+      topicId: r.topicId,
+      label: r.label,
+      language: r.language,
+      articleCount: r.articleCount
+    })),
+    columns: ['bucket', 'topicId', 'label', 'language', 'articleCount']
+  });
+  const exportFilenameParts = $derived(['topic-evolution', scope === 'source' ? scopeId : 'probe']);
+  function getSvg(): SVGSVGElement | null {
+    return pickChartSvg(host);
+  }
 </script>
 
 <section class="topic-cell" aria-labelledby="topic-evo-title">
   <header class="cell-header">
     <h3 id="topic-evo-title" class="cell-title">
       <span class="primary">Topics over time</span>
-      <span class="muted">— BERTopic stream graph ({scope})</span>
+      <span class="muted"
+        >— BERTopic stream graph · <strong class="scope-name">{scopeId}</strong></span
+      >
       <span
         class="tier-badge"
         title="Tier 2 (Phase 120) — reproducible with pinned model, not bit-for-bit deterministic across platforms."
@@ -472,6 +504,9 @@
         >
       {/if}
     </h3>
+    {#if plotRows.length > 0}
+      <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+    {/if}
   </header>
 
   {#if buckets.length === 0}
@@ -543,6 +578,7 @@
         </div>
       </dl>
     </footer>
+    <HowToRead presentation="topic_evolution" facts={{ renderedCount: legendEntries.length }} />
   {/if}
 </section>
 
@@ -682,5 +718,11 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .scope-name {
+    color: var(--color-fg);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
   }
 </style>

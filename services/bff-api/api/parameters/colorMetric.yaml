@@ -1,0 +1,12 @@
+name: colorMetric
+in: query
+description: >
+  Optional metric name bound to the point-colour visual channel. When set,
+  the point's `color` field carries this metric's per-article value (absent
+  on articles lacking it). Omit to leave the colour channel unbound. Like
+  `sizeMetric`, this is a forward-compatible seam for Phase 133+ metric
+  chaining.
+required: false
+schema:
+  type: string
+  minLength: 1

@@ -1121,3 +1121,43 @@ A cross-surface shopping-cart populated by Atmosphere SHIFT-click and the `Probe
 
 Rune-wrapped exports in `panel-mutators.ts` apply each pure mutator against the live URL store.
 
+## 8.21 Configurable Cells & Visual-Channel Binding (Phase 131)
+
+Phase 131 turns the View-Mode Matrix cells (§8.13) from fixed, shallow renders into **configurable, publication-ready, always-explained** analytical units. The guiding principle (after Kriesel): analysis is not "network vs. chart" — it is **visual channels (position, size, colour, edge-weight) bound to real data**.
+
+### Per-cell configuration framework
+
+Each presentation declares the configuration levers its cell consumes via `configurableParams` on its `PresentationDefinition` (`src/lib/viewmodes/registry.ts`):
+
+| Presentation | `configurableParams` | Lever effect |
+|--------------|----------------------|--------------|
+| `distribution` | `bins` | histogram bin count (BFF-clamped [1, 200]) |
+| `time_series` | `band` | ±1σ uncertainty band toggle |
+| `cooccurrence_network` | `topN`, `networkChannels` | top-edge cap + node size/colour channel binding |
+| `metric_scatter` | `scatterAxes` | x / y / size / colour metric-dimension binding |
+
+`PanelControls.svelte` renders exactly the declared levers (and nothing else), so the config surface never offers a knob the cell ignores. Config lives in per-Panel state (`Panel.bins`, `Panel.channels`, `Panel.showBand`, plus the pre-existing `Panel.topN`) and round-trips through the compact URL codec (`bn` / `ch` / `sb` keys) so a configured cell deep-links byte-identically (ADR-034 grammar).
+
+### Visual-channel binding
+
+`CellChannelBinding` (`url-internals.ts`) is the single state shape for channel binding, consumed by two cells:
+
+* **`cooccurrence_network`** — node **size** binds to total co-occurrence weight or node degree; node **colour** binds to entity type, cross-source presence, or a uniform tone.
+* **`metric_scatter`** (new Aleph presentation) — **x**, **y**, **size**, and **colour** each bind independently to a chosen metric. Backed by the BFF `GET /metrics/scatter` endpoint, which pivots `aer_gold.metrics` by article (a point appears only when the article carries both position metrics). The endpoint is intentionally **chaining-friendly** (named metric dimensions, additive response shape) — the substrate the later metric-chaining phases extend without a breaking change.
+
+### Depth
+
+`time_series` gains a real **±1σ uncertainty band**: a `includeStddev=true` request makes `GET /metrics` read the raw Gold layer (the resolution materialized views carry no variance state) and return `stddev` per bucket; the cell draws value ± stddev. The distribution cell exposes its bin count; the network cell its top-N. No fabricated precision — buckets with n<2 report zero spread.
+
+### "How to read this" — composed, catalog-hooked
+
+Every cell renders a **composed** "how to read" note (`HowToRead.svelte` + the pure `how-to-read.ts` composer). The note is a per-presentation template line — sourced from the content-catalog Dual-Register `view_mode/howto_<presentation>` entry, with a built-in fallback — followed by config-derived building blocks that reflect the cell's **live** configuration (active bin count, bound channels, band visibility). This is the content-catalog convention for composed explanations: the catalog owns the editable, dual-register, en/de template; the frontend owns the live-config composition.
+
+### Publication-ready export
+
+`CellExport.svelte` + the pure `cell-export.ts` helpers give every SVG-based cell a uniform **PNG / SVG / CSV / JSON** export. Serialisation is native (`XMLSerializer`, an offscreen `<canvas>` for PNG, object-URL downloads) — no new runtime dependency, keeping the cell chunks inside the Brief §7 bundle budget.
+
+### Composition sanity (Phase 131 bugfix)
+
+`overlay` composition (N per-source lines on one shared canvas) is implemented only for `time_series`; per-scope cells render one artefact and would show overlay identically to merged. `PresentationDefinition.supportsOverlay` gates the Overlay control so it is offered only where meaningful, and switching to a non-overlay view reconciles an overlay panel to `split`. The split **layout + direction** (`PanelHost.isSplitLayout`) engages whenever a `split`-composed panel renders more than one cell — including the common probe-scope fan-out where `selectCellRender` returns `merged-single` and the host expands per dossier source — so the horizontal/vertical direction toggle is live for every split render, not only the multi-ScopeGroup case.
+

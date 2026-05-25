@@ -428,6 +428,24 @@ func (e GetMetricCorrelationParamsScope) Valid() bool {
 	}
 }
 
+// Defines values for GetMetricScatterParamsScope.
+const (
+	GetMetricScatterParamsScopeProbe  GetMetricScatterParamsScope = "probe"
+	GetMetricScatterParamsScopeSource GetMetricScatterParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricScatterParamsScope enum.
+func (e GetMetricScatterParamsScope) Valid() bool {
+	switch e {
+	case GetMetricScatterParamsScopeProbe:
+		return true
+	case GetMetricScatterParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMetricDistributionParamsScope.
 const (
 	GetMetricDistributionParamsScopeProbe  GetMetricDistributionParamsScope = "probe"
@@ -1145,6 +1163,9 @@ type GetMetricsParams struct {
 
 	// Resolution Temporal aggregation resolution for the returned series. Maps to ClickHouse bucketing functions: 5min → toStartOfFiveMinute, hourly → toStartOfHour, daily → toStartOfDay, weekly → toStartOfWeek, monthly → toStartOfMonth. Wider buckets relax the per-request row cap proportionally.
 	Resolution *GetMetricsParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+
+	// IncludeStddev When true (Phase 131), each data point additionally carries `stddev` — the Bessel-corrected sample standard deviation of the per-document metric values in the bucket — so the dashboard can render a ±1σ uncertainty band. Because the pre-aggregated resolution materialized views do not store a variance state, a spread-bearing request reads the raw `aer_gold.metrics` table at the requested bucket resolution. Mutually exclusive with `normalization` (z-score / percentile responses do not carry a raw spread); when both are set the spread is omitted. Defaults to false, preserving the byte-identical materialized-view fast path for every existing caller.
+	IncludeStddev *bool `form:"includeStddev,omitempty" json:"includeStddev,omitempty"`
 }
 
 // GetMetricsParamsNormalization defines parameters for GetMetrics.
@@ -1188,6 +1209,45 @@ type GetMetricCorrelationParams struct {
 
 // GetMetricCorrelationParamsScope defines parameters for GetMetricCorrelation.
 type GetMetricCorrelationParamsScope string
+
+// GetMetricScatterParams defines parameters for GetMetricScatter.
+type GetMetricScatterParams struct {
+	// XMetric Metric name bound to the scatter's X position channel (e.g. `word_count`). Required. Only articles carrying both `xMetric` and `yMetric` in the window contribute a point.
+	XMetric string `form:"xMetric" json:"xMetric"`
+
+	// YMetric Metric name bound to the scatter's Y position channel (e.g. `sentiment_score_sentiws`). Required. Only articles carrying both `xMetric` and `yMetric` in the window contribute a point.
+	YMetric string `form:"yMetric" json:"yMetric"`
+
+	// SizeMetric Optional metric name bound to the point-size visual channel. When set, the point's `size` field carries this metric's per-article value (absent on articles lacking it). Omit to leave the size channel unbound. This is the forward-compatible seam for Phase 133+ metric chaining: additional bound channels extend the request without breaking the response shape.
+	SizeMetric *string `form:"sizeMetric,omitempty" json:"sizeMetric,omitempty"`
+
+	// ColorMetric Optional metric name bound to the point-colour visual channel. When set, the point's `color` field carries this metric's per-article value (absent on articles lacking it). Omit to leave the colour channel unbound. Like `sizeMetric`, this is a forward-compatible seam for Phase 133+ metric chaining.
+	ColorMetric *string `form:"colorMetric,omitempty" json:"colorMetric,omitempty"`
+
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetricScatterParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the query window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+
+	// MaxPoints Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive.
+	MaxPoints *int `form:"maxPoints,omitempty" json:"maxPoints,omitempty"`
+}
+
+// GetMetricScatterParamsScope defines parameters for GetMetricScatter.
+type GetMetricScatterParamsScope string
 
 // GetMetricDistributionParams defines parameters for GetMetricDistribution.
 type GetMetricDistributionParams struct {
@@ -1411,6 +1471,9 @@ type ServerInterface interface {
 	// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
 	// (GET /metrics/correlation)
 	GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams)
+	// Paired-metric scatter (Metadata mining × visual-channel binding)
+	// (GET /metrics/scatter)
+	GetMetricScatter(w http.ResponseWriter, r *http.Request, params GetMetricScatterParams)
 	// Per-scope distribution of a metric (EDA x ridgeline / violin / density)
 	// (GET /metrics/{metricName}/distribution)
 	GetMetricDistribution(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricDistributionParams)
@@ -1525,6 +1588,12 @@ func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Reques
 // Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
 // (GET /metrics/correlation)
 func (_ Unimplemented) GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Paired-metric scatter (Metadata mining × visual-channel binding)
+// (GET /metrics/scatter)
+func (_ Unimplemented) GetMetricScatter(w http.ResponseWriter, r *http.Request, params GetMetricScatterParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2119,6 +2188,14 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// ------------- Optional query parameter "includeStddev" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "includeStddev", r.URL.Query(), &params.IncludeStddev, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "includeStddev", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetrics(w, r, params)
 	}))
@@ -2278,6 +2355,147 @@ func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetricCorrelation(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetricScatter operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricScatter(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricScatterParams
+
+	// ------------- Required query parameter "xMetric" -------------
+
+	if paramValue := r.URL.Query().Get("xMetric"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "xMetric"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "xMetric", r.URL.Query(), &params.XMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "xMetric", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "yMetric" -------------
+
+	if paramValue := r.URL.Query().Get("yMetric"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "yMetric"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "yMetric", r.URL.Query(), &params.YMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "yMetric", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sizeMetric" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sizeMetric", r.URL.Query(), &params.SizeMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sizeMetric", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "colorMetric" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "colorMetric", r.URL.Query(), &params.ColorMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "colorMetric", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "maxPoints" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxPoints", r.URL.Query(), &params.MaxPoints, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxPoints", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricScatter(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3368,6 +3586,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/metrics/correlation", wrapper.GetMetricCorrelation)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/scatter", wrapper.GetMetricScatter)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics/{metricName}/distribution", wrapper.GetMetricDistribution)
 	})
 	r.Group(func(r chi.Router) {
@@ -4031,6 +4252,9 @@ type GetMetrics200JSONResponse struct {
 		// Source The data source that produced this metric (e.g., "tagesschau", "bundesregierung").
 		Source string `json:"source"`
 
+		// Stddev Sample standard deviation (Bessel-corrected) of the per-document metric values that contributed to `value` in this bucket. Populated only when the request set `includeStddev=true` (Phase 131); absent otherwise. Powers the time-series uncertainty band (±1σ around `value`). Computed from the raw `aer_gold.metrics` table — the pre-aggregated resolution MVs do not carry a variance state — so a spread-bearing request always reads the raw layer regardless of resolution. Buckets with fewer than two contributing rows report 0 (the sample stddev is undefined for n<2).
+		Stddev *float64 `json:"stddev,omitempty"`
+
 		// Timestamp The UTC timestamp of the aggregation interval.
 		Timestamp time.Time `json:"timestamp"`
 
@@ -4238,6 +4462,131 @@ type GetMetricCorrelation500JSONResponse struct {
 }
 
 func (response GetMetricCorrelation500JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricScatterRequestObject struct {
+	Params GetMetricScatterParams
+}
+
+type GetMetricScatterResponseObject interface {
+	VisitGetMetricScatterResponse(w http.ResponseWriter) error
+}
+
+type GetMetricScatter200JSONResponse struct {
+	// ColorMetric Echo of the requested colour-channel metric, when bound.
+	ColorMetric *string `json:"colorMetric,omitempty"`
+
+	// Points Per-article points, ordered by article id for determinism.
+	Points []struct {
+		// ArticleId The article identifier, when available (used for the publication-ready data export so a point traces back to its document).
+		ArticleId *string `json:"articleId,omitempty"`
+
+		// Color Value of the request's `colorMetric` for this article. Absent when the colour channel is unbound or the article lacks that metric.
+		Color *float64 `json:"color,omitempty"`
+
+		// Size Value of the request's `sizeMetric` for this article. Absent when the size channel is unbound or the article lacks that metric.
+		Size *float64 `json:"size,omitempty"`
+
+		// Source The source that produced the article.
+		Source string `json:"source"`
+
+		// Timestamp The article's publication timestamp.
+		Timestamp time.Time `json:"timestamp"`
+
+		// X Value of the request's `xMetric` for this article.
+		X float64 `json:"x"`
+
+		// Y Value of the request's `yMetric` for this article.
+		Y float64 `json:"y"`
+	} `json:"points"`
+
+	// Scope Resolved scope kind (`probe` or `source`).
+	Scope   *string `json:"scope,omitempty"`
+	ScopeId *string `json:"scopeId,omitempty"`
+
+	// SizeMetric Echo of the requested size-channel metric, when bound.
+	SizeMetric *string `json:"sizeMetric,omitempty"`
+
+	// Truncated True when the in-window article set exceeded `maxPoints` and the point list was capped. The dashboard surfaces a "showing N of more" note.
+	Truncated   bool      `json:"truncated"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	WindowStart time.Time `json:"windowStart"`
+
+	// XMetric Echo of the requested X-position metric.
+	XMetric string `json:"xMetric"`
+
+	// YMetric Echo of the requested Y-position metric.
+	YMetric string `json:"yMetric"`
+}
+
+func (response GetMetricScatter200JSONResponse) VisitGetMetricScatterResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricScatter400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetricScatter400JSONResponse) VisitGetMetricScatterResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricScatter404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetricScatter404JSONResponse) VisitGetMetricScatterResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricScatter500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetricScatter500JSONResponse) VisitGetMetricScatterResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -5652,6 +6001,9 @@ type StrictServerInterface interface {
 	// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
 	// (GET /metrics/correlation)
 	GetMetricCorrelation(ctx context.Context, request GetMetricCorrelationRequestObject) (GetMetricCorrelationResponseObject, error)
+	// Paired-metric scatter (Metadata mining × visual-channel binding)
+	// (GET /metrics/scatter)
+	GetMetricScatter(ctx context.Context, request GetMetricScatterRequestObject) (GetMetricScatterResponseObject, error)
 	// Per-scope distribution of a metric (EDA x ridgeline / violin / density)
 	// (GET /metrics/{metricName}/distribution)
 	GetMetricDistribution(ctx context.Context, request GetMetricDistributionRequestObject) (GetMetricDistributionResponseObject, error)
@@ -5993,6 +6345,32 @@ func (sh *strictHandler) GetMetricCorrelation(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricCorrelationResponseObject); ok {
 		if err := validResponse.VisitGetMetricCorrelationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetricScatter operation middleware
+func (sh *strictHandler) GetMetricScatter(w http.ResponseWriter, r *http.Request, params GetMetricScatterParams) {
+	var request GetMetricScatterRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricScatter(ctx, request.(GetMetricScatterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricScatter")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricScatterResponseObject); ok {
+		if err := validResponse.VisitGetMetricScatterResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

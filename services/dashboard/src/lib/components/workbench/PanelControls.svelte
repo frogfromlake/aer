@@ -27,12 +27,22 @@
   } from '$lib/viewmodes';
   import {
     DEFAULT_LOOKBACK_MS,
+    type CellChannelBinding,
     type Normalization,
+    type NetworkColorChannel,
+    type NetworkSizeChannel,
     type Resolution,
     type ViewMode,
     type ViewingMode
   } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+
+  // Phase 131 — default per-cell config values. Mirrors the cell-side and
+  // BFF-side defaults so a freshly-added Panel renders identically whether
+  // or not the user has touched the config levers.
+  const DEFAULT_BINS = 30;
+  const DEFAULT_TOPN = 60;
+  const DEFAULT_FORCE_STRENGTH = 50;
 
   interface Props {
     pillar: ViewingMode;
@@ -117,6 +127,9 @@
   // when they click.
   const viewUsesMetric = $derived(activePresentation.usesMetric ?? true);
   const viewUsesResolution = $derived(activePresentation.usesResolution ?? false);
+  // Phase 131 (bugfix BUG4) — Compare (normalization) only does something on
+  // the time-series cell; hide it elsewhere so it isn't a no-op lever.
+  const viewUsesNormalization = $derived(activePresentation.usesNormalization ?? false);
 
   // Raw metric names from the API, in API order. Defensive — `availQ` may
   // be pending or refusing.
@@ -184,6 +197,22 @@
       // never renders a nonsensical (metric × presentation) pairing.
       if (usesMetric && !metricSupportsPresentation(next.metric, id)) {
         next.metric = firstMetricSupporting(id);
+      }
+      // Phase 131 (bugfix) — reconcile composition: if the panel was in
+      // overlay but the new view cannot render overlay (only time-series
+      // can), fall back to split — the per-scope equivalent of "keep the
+      // sources distinct" — so the panel never sits in a no-op composition.
+      if (next.composition === 'overlay' && !(pres?.supportsOverlay ?? false)) {
+        next.composition = 'split';
+      }
+      // Phase 131 — seed scatter position channels on first switch so the
+      // cell renders immediately rather than waiting for the user to pick
+      // both axes. Distinct x/y when the corpus offers >1 metric.
+      if (id === 'metric_scatter' && (!next.channels?.x || !next.channels?.y)) {
+        const opts = scalarMetricOptions;
+        const x = next.channels?.x ?? opts[0] ?? DEFAULT_METRIC_NAME;
+        const y = next.channels?.y ?? opts.find((m) => m !== x) ?? x;
+        next.channels = { ...(next.channels ?? {}), x, y };
       }
       return next;
     });
@@ -261,6 +290,96 @@
     boundPanel?.splitDirection ?? 'horizontal'
   );
   const isCollapsed = $derived(boundPanel?.cellControlsCollapsed === true);
+
+  // -----------------------------------------------------------------------
+  // Phase 131 — per-cell configuration. The active presentation declares the
+  // levers it consumes (`configurableParams`); we render exactly those.
+  // -----------------------------------------------------------------------
+  const configParams = $derived(activePresentation.configurableParams ?? []);
+  const activeBins = $derived(boundPanel?.bins ?? DEFAULT_BINS);
+  const activeTopN = $derived(boundPanel?.topN ?? DEFAULT_TOPN);
+  const activeShowBand = $derived(boundPanel?.showBand ?? true);
+  const activeChannels = $derived<CellChannelBinding>(boundPanel?.channels ?? {});
+  const activeForceStrength = $derived(boundPanel?.forceStrength ?? DEFAULT_FORCE_STRENGTH);
+
+  // Scalar-metric options for the scatter axis/size/colour pickers. Every
+  // real metric from /metrics/available, default-prepended so the picker is
+  // never empty (cooccurrence's pair-shaped pseudo-metric never appears here
+  // because it is not a /metrics/available entry).
+  const scalarMetricOptions = $derived.by<string[]>(() => {
+    const seen: Record<string, true> = {};
+    const out: string[] = [];
+    for (const name of [DEFAULT_METRIC_NAME, ...availableMetricNames]) {
+      if (!name || seen[name]) continue;
+      seen[name] = true;
+      out.push(name);
+    }
+    return out;
+  });
+
+  const NET_SIZE_CHANNELS: ReadonlyArray<{ id: NetworkSizeChannel; label: string }> = [
+    { id: 'total_count', label: 'Weight' },
+    { id: 'degree', label: 'Degree' }
+  ];
+  const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: string }> = [
+    { id: 'label', label: 'Entity type' },
+    { id: 'presence', label: 'Source presence' },
+    { id: 'uniform', label: 'Uniform' }
+  ];
+
+  // Live slider read-outs. The range sliders update these on every `oninput`
+  // tick for instant visual feedback, but COMMIT to Panel state (and thus the
+  // URL + a BFF refetch) only on `onchange` (pointer release) — otherwise a
+  // single drag would fire ~100 full-tree URL writes and superseded fetches.
+  // `null` = not mid-drag, fall back to the committed value.
+  let liveBins = $state<number | null>(null);
+  let liveTopN = $state<number | null>(null);
+  let liveForce = $state<number | null>(null);
+  const displayBins = $derived(liveBins ?? activeBins);
+  const displayTopN = $derived(liveTopN ?? activeTopN);
+  const displayForce = $derived(liveForce ?? activeForceStrength);
+
+  function setBins(n: number) {
+    if (!panelPath || !Number.isFinite(n)) return;
+    const clamped = Math.min(200, Math.max(1, Math.round(n)));
+    if (clamped === activeBins) return;
+    updatePanel(panelPath, (p) => ({ ...p, bins: clamped }));
+  }
+  function setTopN(n: number) {
+    if (!panelPath || !Number.isFinite(n)) return;
+    const clamped = Math.min(500, Math.max(1, Math.round(n)));
+    if (clamped === activeTopN) return;
+    updatePanel(panelPath, (p) => ({ ...p, topN: clamped }));
+  }
+  function setForceStrength(n: number) {
+    if (!panelPath || !Number.isFinite(n)) return;
+    const clamped = Math.min(100, Math.max(0, Math.round(n)));
+    if (clamped === activeForceStrength) return;
+    updatePanel(panelPath, (p) => ({ ...p, forceStrength: clamped }));
+  }
+  function setShowBand(next: boolean) {
+    if (!panelPath || next === activeShowBand) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      // Shown is the default — omit the field to keep the URL clean.
+      if (next) delete o.showBand;
+      else o.showBand = false;
+      return o;
+    });
+  }
+  // Mutate one visual channel; empty string clears (unbinds) the channel.
+  function setChannel(key: keyof CellChannelBinding, value: string) {
+    if (!panelPath || (activeChannels[key] ?? '') === value) return;
+    updatePanel(panelPath, (p) => {
+      const ch: CellChannelBinding = { ...(p.channels ?? {}) };
+      if (value === '') delete ch[key];
+      else (ch[key] as string) = value;
+      const o = { ...p };
+      if (Object.keys(ch).length > 0) o.channels = ch;
+      else delete o.channels;
+      return o;
+    });
+  }
 </script>
 
 <section
@@ -326,17 +445,23 @@
           >
             Split
           </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={boundPanel.composition === 'overlay'}
-            class="ctrl-btn"
-            class:active={boundPanel.composition === 'overlay'}
-            onclick={() => pickComposition('overlay')}
-            title="One Cell — sources rendered as separate viridis-coloured lines on a shared canvas"
-          >
-            Overlay
-          </button>
+          {#if activePresentation.supportsOverlay}
+            <!-- Phase 131 (bugfix) — Overlay is only meaningful for the
+                 time-series cell; per-scope cells render one artefact and
+                 would show overlay identically to merged, so the option is
+                 hidden there. -->
+            <button
+              type="button"
+              role="radio"
+              aria-checked={boundPanel.composition === 'overlay'}
+              class="ctrl-btn"
+              class:active={boundPanel.composition === 'overlay'}
+              onclick={() => pickComposition('overlay')}
+              title="One Cell — sources rendered as separate viridis-coloured lines on a shared canvas"
+            >
+              Overlay
+            </button>
+          {/if}
           <button
             type="button"
             role="radio"
@@ -455,6 +580,180 @@
       </div>
     {/if}
 
+    <!-- Phase 131 — per-cell configuration. The active presentation declares
+         which levers it consumes; we render exactly those. Panel-bound only
+         (config is per-Panel state, absent from the legacy global path). -->
+    {#if isPanelBound && configParams.length > 0}
+      {#if configParams.includes('bins')}
+        <div class="ctrl-row config-row" role="group" aria-label="Histogram bins">
+          <span class="ctrl-eyebrow">Bins</span>
+          <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
+            <input
+              type="range"
+              min="5"
+              max="120"
+              step="1"
+              value={activeBins}
+              oninput={(e) => (liveBins = Number((e.currentTarget as HTMLInputElement).value))}
+              onchange={(e) => {
+                setBins(Number((e.currentTarget as HTMLInputElement).value));
+                liveBins = null;
+              }}
+              aria-label="Histogram bin count slider"
+            />
+            <output class="config-value">{displayBins}</output>
+          </div>
+        </div>
+      {/if}
+
+      {#if configParams.includes('topN')}
+        <div class="ctrl-row config-row" role="group" aria-label="Top edges">
+          <span class="ctrl-eyebrow">Top N</span>
+          <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
+            <input
+              type="range"
+              min="5"
+              max="500"
+              step="5"
+              value={activeTopN}
+              oninput={(e) => (liveTopN = Number((e.currentTarget as HTMLInputElement).value))}
+              onchange={(e) => {
+                setTopN(Number((e.currentTarget as HTMLInputElement).value));
+                liveTopN = null;
+              }}
+              aria-label="Top co-occurrence edge count slider"
+            />
+            <output class="config-value">{displayTopN}</output>
+          </div>
+        </div>
+      {/if}
+
+      {#if configParams.includes('forceStrength')}
+        <div class="ctrl-row config-row" role="group" aria-label="Graph spread">
+          <span class="ctrl-eyebrow">Spread</span>
+          <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={activeForceStrength}
+              oninput={(e) => (liveForce = Number((e.currentTarget as HTMLInputElement).value))}
+              onchange={(e) => {
+                setForceStrength(Number((e.currentTarget as HTMLInputElement).value));
+                liveForce = null;
+              }}
+              title="How strongly nodes repel each other — higher spreads a crowded graph apart"
+              aria-label="Graph spread (node repulsion) slider"
+            />
+            <output class="config-value">{displayForce}</output>
+          </div>
+        </div>
+      {/if}
+
+      {#if configParams.includes('band')}
+        <div class="ctrl-row config-row" role="group" aria-label="Uncertainty band">
+          <span class="ctrl-eyebrow">Band</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={activeShowBand}
+            class="ctrl-btn"
+            class:active={activeShowBand}
+            onclick={() => setShowBand(!activeShowBand)}
+            title="Toggle the ±1σ uncertainty band around each series"
+          >
+            {activeShowBand ? '±1σ shown' : '±1σ hidden'}
+          </button>
+        </div>
+      {/if}
+
+      {#if configParams.includes('networkChannels')}
+        <div class="ctrl-row config-row" role="group" aria-label="Network visual channels">
+          <span class="ctrl-eyebrow">Size</span>
+          <select
+            class="config-select"
+            value={activeChannels.netSize ?? 'total_count'}
+            onchange={(e) => setChannel('netSize', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Node size channel"
+          >
+            {#each NET_SIZE_CHANNELS as c (c.id)}
+              <option value={c.id}>{c.label}</option>
+            {/each}
+          </select>
+          <span class="ctrl-eyebrow">Colour</span>
+          <select
+            class="config-select"
+            value={activeChannels.netColor ?? 'label'}
+            onchange={(e) => setChannel('netColor', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Node colour channel"
+          >
+            {#each NET_COLOR_CHANNELS as c (c.id)}
+              <option value={c.id}>{c.label}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      {#if configParams.includes('scatterAxes')}
+        <div class="ctrl-row config-row" role="group" aria-label="Scatter position channels">
+          <span class="ctrl-eyebrow">X · Y</span>
+          <select
+            class="config-select"
+            value={activeChannels.x ?? ''}
+            onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Scatter X-axis metric"
+          >
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+          <select
+            class="config-select"
+            value={activeChannels.y ?? ''}
+            onchange={(e) => setChannel('y', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Scatter Y-axis metric"
+          >
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+        </div>
+        <div class="ctrl-row config-row" role="group" aria-label="Scatter size and colour channels">
+          <span class="ctrl-eyebrow">Size</span>
+          <select
+            class="config-select"
+            value={activeChannels.size ?? ''}
+            onchange={(e) => setChannel('size', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Scatter point-size metric"
+          >
+            <option value="">— none —</option>
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+          <span class="ctrl-eyebrow">Colour</span>
+          <select
+            class="config-select"
+            value={activeChannels.color ?? ''}
+            onchange={(e) => setChannel('color', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Scatter point-colour metric"
+          >
+            <option value="">— none —</option>
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+    {/if}
+
     <!-- Phase 122k §14 finding 5 — Window is more important than
          Layer/Compare so it sits above them in the row order. The date
          inputs have their click events stopped from bubbling so the
@@ -524,44 +823,46 @@
         </div>
       </div>
 
-      <div class="ctrl-group" role="radiogroup" aria-label="Normalization">
-        <span class="ctrl-eyebrow">Compare</span>
-        <div class="ctrl-options">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activeNormalization === 'raw'}
-            class="ctrl-btn"
-            class:active={activeNormalization === 'raw'}
-            title="Raw values"
-            onclick={() => pickNorm('raw')}
-          >
-            raw
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activeNormalization === 'zscore'}
-            class="ctrl-btn"
-            class:active={activeNormalization === 'zscore'}
-            title="Z-score deviation (Phase 115 cross-frame gate)"
-            onclick={() => pickNorm('zscore')}
-          >
-            deviation
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activeNormalization === 'percentile'}
-            class="ctrl-btn"
-            class:active={activeNormalization === 'percentile'}
-            title="Percentile rank within scope"
-            onclick={() => pickNorm('percentile')}
-          >
-            percentile
-          </button>
+      {#if viewUsesNormalization}
+        <div class="ctrl-group" role="radiogroup" aria-label="Normalization">
+          <span class="ctrl-eyebrow">Compare</span>
+          <div class="ctrl-options">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeNormalization === 'raw'}
+              class="ctrl-btn"
+              class:active={activeNormalization === 'raw'}
+              title="Raw values"
+              onclick={() => pickNorm('raw')}
+            >
+              raw
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeNormalization === 'zscore'}
+              class="ctrl-btn"
+              class:active={activeNormalization === 'zscore'}
+              title="Z-score deviation (Phase 115 cross-frame gate)"
+              onclick={() => pickNorm('zscore')}
+            >
+              deviation
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={activeNormalization === 'percentile'}
+              class="ctrl-btn"
+              class:active={activeNormalization === 'percentile'}
+              title="Percentile rank within scope"
+              onclick={() => pickNorm('percentile')}
+            >
+              percentile
+            </button>
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
   {/if}
 </section>
@@ -771,6 +1072,47 @@
     color: var(--color-fg-subtle);
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
+  }
+
+  /* Phase 131 — per-cell config rows. */
+  .config-row {
+    align-items: center;
+  }
+  .config-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .config-inline input[type='range'] {
+    flex: 1 1 auto;
+    max-width: 16rem;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+  }
+  .config-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    min-width: 2.5ch;
+    text-align: right;
+  }
+  .config-select {
+    appearance: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    padding: 3px var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    max-width: 14rem;
+  }
+  .config-select:hover,
+  .config-select:focus-visible {
+    border-color: var(--color-accent);
   }
 
   @media (prefers-reduced-motion: reduce) {

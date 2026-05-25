@@ -1,0 +1,27 @@
+entityId: howto_time_series
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Dies verfolgt die Metrik über die Zeit. Jeder Punkt ist ein Bucket-Mittel — lies die Steigung und das Band, nicht einzelne Punkte."
+    long: >
+      Eine Zeitreihe beantwortet „Driftet das, und wie sicher sind wir je Bucket?". Lies den
+      Trend statt eines einzelnen Buckets; ein einzelner Ausschlag auf einem dünnen Bucket ist
+      meist Rauschen. Das schattierte Band (Phase 131) ist ±1 Standardabweichung der
+      Dokumentwerte innerhalb jedes Buckets: ein breites Band bedeutet, dass das Bucket-Mittel
+      viel interne Streuung verbirgt. Schalte das Band unter „Band" ab, wenn du nur den zentralen
+      Trend willst.
+  methodological:
+    short: "Bucket-Mittel über das Fenster bei gewählter Auflösung; optionales ±1σ-Band aus der rohen Dokumentstreuung."
+    long: >
+      Die Notiz wird aus einer Vorlage je Darstellung plus der aktuellen Band-Einstellung
+      komponiert. Die Mittelwertreihe läuft über die Auflösungs-Materialized-Views; das
+      ±1σ-Band benötigt die rohe Dokumentstreuung, daher liest eine Band-Anfrage die rohe
+      Gold-Schicht bei der gewählten Bucket-Auflösung. Buckets mit weniger als zwei Dokumenten
+      melden Streuung null (die Stichproben-Standardabweichung ist für n<2 undefiniert).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

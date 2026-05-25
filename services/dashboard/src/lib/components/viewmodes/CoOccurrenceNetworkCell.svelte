@@ -15,6 +15,10 @@
   import ArticlePreviewList from '$lib/components/lanes/ArticlePreviewList.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import type { ViewModeCellProps } from '$lib/viewmodes';
+  import type { ExportRow, ExportPayload } from '$lib/viewmodes/cell-export';
+  import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import CellExport from './CellExport.svelte';
+  import HowToRead from './HowToRead.svelte';
 
   let {
     ctx,
@@ -23,10 +27,20 @@
     windowStart,
     windowEnd,
     sources,
-    dataLayer = 'gold'
+    dataLayer = 'gold',
+    topN,
+    channels,
+    forceStrength
   }: ViewModeCellProps = $props();
 
-  const TOP_N = 60;
+  // Phase 131 — configurable top-edge cap (default 60, BFF-clamped to [1,500])
+  // and visual-channel binding (node size, node colour).
+  const TOP_N = $derived(topN ?? 60);
+  const netSize = $derived(channels?.netSize ?? 'total_count');
+  const netColor = $derived(channels?.netColor ?? 'label');
+  // Phase 131 (BUG1.7) — force-layout spread (0..100 → node repulsion).
+  // Higher spreads a crowded graph apart so it stays readable.
+  const spread = $derived(forceStrength ?? 50);
   const WIDTH = 720;
   const HEIGHT = 500;
 
@@ -49,6 +63,12 @@
     id: string;
     label: string;
     radius: number;
+    /** Raw channel values for the tooltip. */
+    totalCount: number;
+    degree: number;
+    /** Number of distinct sources the entity appears in (colour channel
+     *  `presence`); 0 when the BFF did not return a presence array. */
+    presenceCount: number;
     wikidataQid?: string | null;
     x?: number;
     y?: number;
@@ -71,11 +91,18 @@
     const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
     if (!data) return;
     const t = ++token;
-    const maxTotal = data.nodes.reduce((m, n) => Math.max(m, n.totalCount), 1);
+    // Phase 131 — node size bound to the selected channel: total co-occurrence
+    // weight (default) or node degree.
+    const sizeOf = (n: (typeof data.nodes)[number]) =>
+      netSize === 'degree' ? (n.degree ?? 0) : n.totalCount;
+    const maxSize = data.nodes.reduce((m, n) => Math.max(m, sizeOf(n)), 1);
     const seedNodes: SimNode[] = data.nodes.map((n) => ({
       id: n.text,
       label: n.label,
-      radius: 4 + 14 * Math.sqrt(n.totalCount / maxTotal),
+      radius: 4 + 14 * Math.sqrt(sizeOf(n) / maxSize),
+      totalCount: n.totalCount,
+      degree: n.degree ?? 0,
+      presenceCount: n.presence?.length ?? 0,
       wikidataQid: n.wikidataQid ?? null
     }));
     const seedEdges: SimEdge[] = data.edges.map((e) => ({
@@ -97,9 +124,10 @@
             .distance(70)
             .strength(0.5)
         )
-        // Reduced repulsion: -80 instead of -120 — tight enough to separate
-        // labels but not strong enough to fling isolated nodes to infinity.
-        .force('charge', d3.forceManyBody<SimNode>().strength(-80))
+        // Phase 131 (BUG1.7) — repulsion is user-tunable via the Spread
+        // slider (0..100). Maps to charge magnitude so a crowded single
+        // cluster can be pulled apart for readability. Default 50 → -150.
+        .force('charge', d3.forceManyBody<SimNode>().strength(-(20 + spread * 2.6)))
         .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2).strength(0.05))
         // Weak gravitational well toward center: prevents disconnected
         // sub-graphs from drifting out of the viewport entirely.
@@ -154,6 +182,9 @@
   $effect(() => {
     if (!svgEl) return;
     function onWheel(e: WheelEvent) {
+      // Phase 131 (BUG1.6) — only zoom when Ctrl/Cmd is held, so a plain
+      // mouse-wheel scrolls the page instead of being swallowed by the graph.
+      if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const { x: svgX, y: svgY } = clientToSvg(e.clientX, e.clientY);
       const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
@@ -268,6 +299,20 @@
     return palette[Math.abs(h) % palette.length] ?? palette[0]!;
   }
 
+  // Phase 131 — node colour bound to the selected channel.
+  let maxPresence = $derived(nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1));
+  function nodeFill(n: SimNode): string {
+    if (netColor === 'uniform') return '#5283b8';
+    if (netColor === 'presence') {
+      const t = maxPresence > 1 ? (n.presenceCount - 1) / (maxPresence - 1) : 0;
+      const lo = [82, 131, 184];
+      const hi = [224, 160, 80];
+      const c = lo.map((l, i) => Math.round(l + ((hi[i] ?? l) - l) * t));
+      return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+    }
+    return labelColor(n.label);
+  }
+
   function nodeX(n: SimNode | string): number {
     return typeof n === 'string' ? 0 : (n.x ?? 0);
   }
@@ -282,16 +327,58 @@
   }
 
   let maxEdgeWeight = $derived(edges.reduce((m, e) => Math.max(m, e.weight), 1));
+
+  // Phase 131 — export (the full edge list) + how-to-read facts.
+  const exportRows = $derived<ExportRow[]>(
+    (graphQ.data?.kind === 'success' ? graphQ.data.data.edges : []).map((e) => ({
+      entityA: e.a,
+      entityB: e.b,
+      weight: e.weight,
+      articleCount: e.articleCount ?? ''
+    }))
+  );
+  const howToReadFacts = $derived({
+    topN: TOP_N,
+    netSize,
+    netColor,
+    renderedCount: nodes.length
+  });
+  const exportPayload = $derived<ExportPayload>({
+    meta: {
+      viewMode: 'cooccurrence_network',
+      scope,
+      scopeId,
+      windowStart,
+      windowEnd,
+      topN: TOP_N,
+      sizeChannel: netSize,
+      colorChannel: netColor
+    },
+    summary: { nodes: nodes.length, edges: edges.length },
+    howToRead: composeHowToRead('cooccurrence_network', howToReadFacts),
+    rows: exportRows,
+    columns: ['entityA', 'entityB', 'weight', 'articleCount']
+  });
+  const exportFilenameParts = $derived([
+    'cooccurrence-network',
+    scope === 'source' ? scopeId : 'probe'
+  ]);
+  function getSvg(): SVGSVGElement | null {
+    return svgEl;
+  }
 </script>
 
 <section class="net-cell" aria-labelledby="net-title">
   <header class="cell-header">
     <h3 id="net-title" class="cell-title">
       Entity co-occurrence
-      <span class="muted">— top {TOP_N} pairs ({scope})</span>
+      <span class="muted">— top {TOP_N} pairs · <strong class="scope-name">{scopeId}</strong></span>
     </h3>
     {#if nodes.length > 0}
-      <button class="reset-btn" onclick={resetView} title="Reset zoom">⊙</button>
+      <div class="header-actions">
+        <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+        <button class="reset-btn" onclick={resetView} title="Reset zoom">⊙</button>
+      </div>
     {/if}
   </header>
 
@@ -329,7 +416,7 @@
       class:panning
       viewBox="0 0 {WIDTH} {HEIGHT}"
       role="img"
-      aria-label="Force-directed entity co-occurrence graph. Scroll to zoom, drag to pan, drag nodes to reposition."
+      aria-label="Force-directed entity co-occurrence graph. Ctrl or Cmd plus scroll to zoom, drag to pan, drag nodes to reposition."
     >
       <!-- Transparent hit-target for pan -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -368,12 +455,18 @@
             >
               <circle
                 r={n.radius}
-                fill={labelColor(n.label)}
+                fill={nodeFill(n)}
                 fill-opacity="0.85"
                 stroke={selectedEntity?.text === n.id ? 'var(--color-fg)' : 'none'}
                 stroke-width="1.5"
               />
-              <title>{n.id} ({n.label})</title>
+              <title
+                >{n.id} · {n.label} — weight {n.totalCount}, {n.degree} neighbour{n.degree === 1
+                  ? ''
+                  : 's'}{n.presenceCount > 0
+                  ? `, in ${n.presenceCount} source${n.presenceCount === 1 ? '' : 's'}`
+                  : ''} · click to see articles</title
+              >
               <text
                 x={n.radius + 3}
                 y={3}
@@ -388,8 +481,10 @@
       </g>
     </svg>
     <p class="hint">
-      Scroll to zoom · drag background to pan · drag nodes to reposition · click node for articles
+      Ctrl/⌘ + scroll to zoom · drag background to pan · drag nodes to reposition · click node for
+      articles
     </p>
+    <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
   {:else}
     <p class="muted" aria-busy="true">Laying out…</p>
   {/if}
@@ -499,6 +594,12 @@
     display: flex;
     gap: var(--space-2);
     align-items: baseline;
+  }
+
+  .header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .reset-btn {
@@ -693,5 +794,11 @@
     border: 1px dashed var(--color-border-strong);
     border-radius: var(--radius-md);
     max-width: 36rem;
+  }
+
+  .scope-name {
+    color: var(--color-fg);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
   }
 </style>

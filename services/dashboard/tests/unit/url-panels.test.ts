@@ -49,6 +49,43 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded).toEqual(original);
   });
 
+  // Phase 131 — per-cell config (bins, visual-channel binding, band toggle).
+  it('preserves Phase-131 per-cell config (bins, channels, showBand=false)', () => {
+    const original = makePillarState([
+      makeWindow([
+        makePanel({
+          view: 'metric_scatter',
+          bins: 64,
+          showBand: false,
+          forceStrength: 75,
+          channels: {
+            x: 'word_count',
+            y: 'sentiment_score_sentiws',
+            size: 'entity_count',
+            color: 'language_confidence',
+            netSize: 'degree',
+            netColor: 'presence'
+          }
+        })
+      ])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+  });
+
+  it('omits showBand when shown (default) so the URL stays clean', () => {
+    const original = makePillarState([makeWindow([makePanel({ showBand: true })])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    // showBand=true is the default and is dropped on the round-trip.
+    expect(decoded?.windows[0]?.panels[0]?.showBand).toBeUndefined();
+  });
+
+  it('drops an empty channels object rather than serialising it', () => {
+    const original = makePillarState([makeWindow([makePanel({ channels: {} })])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.channels).toBeUndefined();
+  });
+
   it('preserves optional Panel fields (resolution, normalization, topN, locked)', () => {
     const original = makePillarState([
       makeWindow([

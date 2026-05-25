@@ -21,6 +21,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { urlState } from '$lib/state/url.svelte';
+  import type { Resolution, Normalization } from '$lib/state/url-internals';
 
   interface Props {
     sourceNames: readonly string[];
@@ -29,12 +30,24 @@
     windowEnd: string;
     metricName: string;
     height?: number;
+    /** Phase 131 (BUG4) — per-panel resolution / Compare; fall back to URL. */
+    resolution?: Resolution | undefined;
+    normalization?: Normalization | undefined;
   }
 
-  let { sourceNames, ctx, windowStart, windowEnd, metricName, height = 220 }: Props = $props();
+  let {
+    sourceNames,
+    ctx,
+    windowStart,
+    windowEnd,
+    metricName,
+    height = 220,
+    resolution,
+    normalization
+  }: Props = $props();
 
   const url = $derived(urlState());
-  const activeResolution = $derived(url.resolution ?? 'hourly');
+  const activeResolution = $derived(resolution ?? url.resolution ?? 'hourly');
 
   // Five-stop viridis palette. For N > 5 sources the colours cycle —
   // good enough for K1 production (single probe with ≤ 3 sources).
@@ -57,7 +70,8 @@
         endDate: windowEnd,
         source: name,
         metricName,
-        resolution: activeResolution
+        resolution: activeResolution,
+        ...(normalization && normalization !== 'raw' ? { normalization } : {})
       });
       return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
     })

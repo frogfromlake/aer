@@ -20,6 +20,7 @@ get:
     - $ref: '../parameters/metricName.yaml'
     - $ref: '../parameters/normalization.yaml'
     - $ref: '../parameters/resolution.yaml'
+    - $ref: '../parameters/includeStddev.yaml'
   responses:
     '200':
       description: Envelope containing the time-series data points and query metadata.

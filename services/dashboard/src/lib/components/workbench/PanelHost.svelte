@@ -205,6 +205,16 @@
   // windowStart/windowEnd override the inherited defaults when set.
   const effectiveWindowStart = $derived(panel.windowStart ?? windowStart);
   const effectiveWindowEnd = $derived(panel.windowEnd ?? windowEnd);
+
+  // Phase 131 (bugfix) — the split LAYOUT (side-by-side / stacked + the
+  // horizontal/vertical direction) must engage whenever the panel renders
+  // more than one cell under `split` composition, INCLUDING the common
+  // probe-scope fan-out where `selectCellRender` returns `merged-single`
+  // and the host expands it per dossier source via `expandedUnits`. Keying
+  // the layout off `cellRender.strategy === 'split'` alone missed that path,
+  // so per-scope split cells always stacked vertically and the direction
+  // toggle appeared dead. Drive it off the composition + rendered-cell count.
+  const isSplitLayout = $derived(panel.composition === 'split' && expandedUnits.length > 1);
 </script>
 
 <!--
@@ -328,7 +338,7 @@
 
   <div
     class="panel-body"
-    class:split={cellRender.strategy === 'split'}
+    class:split={isSplitLayout}
     data-split-direction={panel.splitDirection ?? 'horizontal'}
   >
     {#if crossProbeRefusal}
@@ -367,6 +377,13 @@
             {dataLayer}
             probeIds={unit.probeIds.length > 1 ? [...unit.probeIds] : []}
             composition={panel.composition}
+            bins={panel.bins}
+            topN={panel.topN}
+            channels={panel.channels}
+            showBand={panel.showBand}
+            resolution={panel.resolution}
+            normalization={panel.normalization}
+            forceStrength={panel.forceStrength}
           />
         </div>
       {/each}

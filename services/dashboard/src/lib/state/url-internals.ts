@@ -18,7 +18,12 @@ export type ViewMode =
   | 'distribution'
   | 'cooccurrence_network'
   | 'topic_distribution'
-  | 'topic_evolution';
+  | 'topic_evolution'
+  // Phase 131 — paired-metric scatter (Aleph, synchronic). Visual channels
+  // (x / y position, point size, point colour) are each bound to a chosen
+  // metric dimension via `Panel.channels`, so the single-metric picker is
+  // hidden for this presentation (registry `usesMetric: false`).
+  | 'metric_scatter';
 // Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
@@ -59,6 +64,26 @@ export interface ScopeGroup {
   sourceIds: string[];
 }
 
+// Phase 131 — visual-channel binding. Each visual channel (position / size /
+// colour) of a configurable cell can be bound to a chosen dimension. For the
+// scatter cell the channels bind to *metric* names; for the co-occurrence
+// network they bind to a graph dimension (node weight vs. degree; colour by
+// entity label, cross-source presence, or uniform).
+export type NetworkSizeChannel = 'total_count' | 'degree';
+export type NetworkColorChannel = 'label' | 'presence' | 'uniform';
+
+export interface CellChannelBinding {
+  // Scatter — metric names bound to the position + optional size/colour
+  // channels. `x` / `y` are required for a render; `size` / `color` optional.
+  x?: string;
+  y?: string;
+  size?: string;
+  color?: string;
+  // Co-occurrence network — node-size + node-colour channel selectors.
+  netSize?: NetworkSizeChannel;
+  netColor?: NetworkColorChannel;
+}
+
 export interface Panel {
   scopes: ScopeGroup[]; // 1..M scope-groups
   composition: Composition;
@@ -68,6 +93,21 @@ export interface Panel {
   resolution?: Resolution;
   normalization?: Normalization;
   topN?: number;
+  // Phase 131 — per-cell configuration. Each cell declares which of these it
+  // consumes (registry `configurableParams`); PanelControls surfaces only
+  // the relevant levers. All optional so a Panel without explicit config
+  // renders at the cell's published defaults.
+  //   bins      — distribution histogram bin count (default 30).
+  //   channels  — visual-channel binding (scatter axes/size/colour; network
+  //               node size/colour).
+  //   showBand  — time-series ±1σ uncertainty band; undefined = shown.
+  bins?: number;
+  channels?: CellChannelBinding;
+  showBand?: boolean;
+  // Phase 131 (BUG1.7) — co-occurrence force-layout spread (0..100). Higher =
+  // stronger node repulsion = more spread-out graph (less single-cluster
+  // crowding). Layout-only, not a metric. Default 50.
+  forceStrength?: number;
   // Phase 122i revision (B1). When `locked` is true the Panel's scope is
   // frozen (the ScopeEditor refuses scope mutations); everything else —
   // view, metric, layer, composition, splitDirection, cellControlsCollapsed
@@ -177,7 +217,8 @@ const VIEW_MODES: readonly ViewMode[] = [
   'distribution',
   'cooccurrence_network',
   'topic_distribution',
-  'topic_evolution'
+  'topic_evolution',
+  'metric_scatter'
 ];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
@@ -298,6 +339,15 @@ interface CompactScopeGroup {
   si: string[];
 }
 
+interface CompactChannelBinding {
+  x?: string;
+  y?: string;
+  sz?: string;
+  co?: string;
+  ns?: NetworkSizeChannel;
+  nc?: NetworkColorChannel;
+}
+
 interface CompactPanel {
   s: CompactScopeGroup[];
   c: 'm' | 's' | 'o';
@@ -310,6 +360,11 @@ interface CompactPanel {
   L?: 1;
   lr?: 'df_entry';
   lf?: string;
+  // Phase 131 per-cell config short keys.
+  bn?: number; // bins (distribution)
+  ch?: CompactChannelBinding; // visual-channel binding
+  sb?: 0; // showBand=false (default true → omitted)
+  fs?: number; // forceStrength (network spread)
   // Phase 122i revision short keys.
   sd?: 'h' | 'v'; // splitDirection (D2)
   cc?: 1; // cellControlsCollapsed (C4)
@@ -391,6 +446,21 @@ function compactPanel(p: Panel): CompactPanel {
   // Phase 122k F5 — per-panel window.
   if (p.windowStart !== undefined) c.ws = p.windowStart;
   if (p.windowEnd !== undefined) c.we = p.windowEnd;
+  // Phase 131 per-cell config. bins/channels omitted when unset; showBand
+  // omitted unless explicitly disabled (default = shown).
+  if (p.bins !== undefined) c.bn = p.bins;
+  if (p.channels !== undefined) {
+    const cb: CompactChannelBinding = {};
+    if (p.channels.x !== undefined) cb.x = p.channels.x;
+    if (p.channels.y !== undefined) cb.y = p.channels.y;
+    if (p.channels.size !== undefined) cb.sz = p.channels.size;
+    if (p.channels.color !== undefined) cb.co = p.channels.color;
+    if (p.channels.netSize !== undefined) cb.ns = p.channels.netSize;
+    if (p.channels.netColor !== undefined) cb.nc = p.channels.netColor;
+    if (Object.keys(cb).length > 0) c.ch = cb;
+  }
+  if (p.showBand === false) c.sb = 0;
+  if (p.forceStrength !== undefined) c.fs = p.forceStrength;
   return c;
 }
 
@@ -429,6 +499,21 @@ function expandPanel(c: CompactPanel): Panel {
   // Phase 122k F5 — per-panel window.
   if (typeof c.ws === 'string') p.windowStart = c.ws;
   if (typeof c.we === 'string') p.windowEnd = c.we;
+  // Phase 131 per-cell config.
+  if (typeof c.bn === 'number') p.bins = c.bn;
+  if (c.ch !== undefined && typeof c.ch === 'object') {
+    const cb: CellChannelBinding = {};
+    if (typeof c.ch.x === 'string') cb.x = c.ch.x;
+    if (typeof c.ch.y === 'string') cb.y = c.ch.y;
+    if (typeof c.ch.sz === 'string') cb.size = c.ch.sz;
+    if (typeof c.ch.co === 'string') cb.color = c.ch.co;
+    if (c.ch.ns === 'total_count' || c.ch.ns === 'degree') cb.netSize = c.ch.ns;
+    if (c.ch.nc === 'label' || c.ch.nc === 'presence' || c.ch.nc === 'uniform')
+      cb.netColor = c.ch.nc;
+    if (Object.keys(cb).length > 0) p.channels = cb;
+  }
+  if (c.sb === 0) p.showBand = false;
+  if (typeof c.fs === 'number') p.forceStrength = c.fs;
   return p;
 }
 

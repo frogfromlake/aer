@@ -33,6 +33,23 @@ export type AnalyticalDiscipline =
   | 'clustering'
   | 'episteme';
 
+// Phase 131 — the per-cell configuration levers a presentation exposes.
+// PanelControls renders the matching control for each entry a presentation
+// declares in `configurableParams`, so the config surface stays in lockstep
+// with what the cell can actually consume (no misleading no-op knobs).
+//   bins             — distribution histogram bin count.
+//   band             — time-series ±1σ uncertainty band toggle.
+//   topN             — co-occurrence network top-edge cap.
+//   networkChannels  — co-occurrence node size/colour channel binding.
+//   scatterAxes      — scatter x/y/size/colour metric-dimension binding.
+export type CellParamKind =
+  | 'bins'
+  | 'band'
+  | 'topN'
+  | 'networkChannels'
+  | 'scatterAxes'
+  | 'forceStrength';
+
 /** One presentation-form axis entry. The matrix-cell id is composed at
  *  call-sites as `<id>_<metricName>` to match content-catalog yaml keys. */
 export interface PresentationDefinition {
@@ -65,6 +82,24 @@ export interface PresentationDefinition {
    *  the Resolution control when no active view honours it. Defaults to
    *  `false`. */
   usesResolution?: boolean;
+  /** Does this presentation's cell consume the `normalization` prop (the
+   *  Compare lever: raw / deviation / percentile)? Only the time-series cell
+   *  threads it into its query today; everywhere else the control was a no-op,
+   *  so PanelControls hides the Compare row unless this is true. Defaults to
+   *  `false`. */
+  usesNormalization?: boolean;
+  /** Phase 131 — the per-cell configuration levers this presentation's cell
+   *  consumes. PanelControls renders exactly these (and nothing else) so the
+   *  config surface never offers a knob the cell ignores. Absent / empty =
+   *  no configurable parameters. */
+  configurableParams?: readonly CellParamKind[];
+  /** Phase 131 (bugfix) — whether the `overlay` composition is meaningful for
+   *  this presentation. Overlay (N per-source lines on one shared canvas) is
+   *  only implemented for the time-series cell; every other (per-scope) cell
+   *  renders one artefact regardless, making overlay indistinguishable from
+   *  merged. PanelControls hides the Overlay button when this is false.
+   *  Defaults to false. */
+  supportsOverlay?: boolean;
 }
 
 /** Common props passed to every cell. The cell decides which subset
@@ -97,6 +132,28 @@ export interface ViewModeCellProps {
    *  ignore this prop — they always query the unioned scope and render
    *  one artefact. Absent = legacy fan-out behaviour. */
   composition?: 'merged' | 'split' | 'overlay';
+  // Phase 131 — per-cell configuration, threaded from `Panel` by PanelHost.
+  // Each cell reads only the levers it declares in `configurableParams`. The
+  // explicit `| undefined` keeps these assignable under the project's
+  // `exactOptionalPropertyTypes` when PanelHost forwards an unset Panel field.
+  /** Distribution histogram bin count (default 30 when absent). */
+  bins?: number | undefined;
+  /** Co-occurrence network top-edge cap (default 60 when absent). */
+  topN?: number | undefined;
+  /** Visual-channel binding — scatter axes/size/colour, network size/colour. */
+  channels?: import('$lib/state/url-internals').CellChannelBinding | undefined;
+  /** Time-series ±1σ uncertainty band; undefined = shown. */
+  showBand?: boolean | undefined;
+  /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
+   *  the time-series cell previously read the global URL resolution, ignoring
+   *  the panel control. */
+  resolution?: import('$lib/state/url-internals').Resolution | undefined;
+  /** Normalization mode (Compare lever): raw | zscore | percentile. Consumed
+   *  by the time-series cell only. */
+  normalization?: import('$lib/state/url-internals').Normalization | undefined;
+  /** Co-occurrence force-layout spread (0..100; default 50). Higher = stronger
+   *  repulsion = more spread-out graph. Network cell only. */
+  forceStrength?: number | undefined;
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [
@@ -108,6 +165,11 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     layout: 'per-source',
     usesMetric: true,
     usesResolution: true,
+    usesNormalization: true,
+    configurableParams: ['band'],
+    // Overlay (N per-source viridis lines on one canvas) is implemented only
+    // here — the per-scope cells render one artefact and ignore it.
+    supportsOverlay: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/TimeSeriesCell.svelte')).default
   },
@@ -119,6 +181,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     layout: 'per-scope',
     usesMetric: true,
     usesResolution: false,
+    configurableParams: ['bins'],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/DistributionCell.svelte')).default
   },
@@ -132,8 +195,26 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     // metric is not consumed.
     usesMetric: false,
     usesResolution: false,
+    configurableParams: ['topN', 'networkChannels', 'forceStrength'],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CoOccurrenceNetworkCell.svelte')).default
+  },
+  // Phase 131 — Aleph-pillar paired-metric scatter. Synchronic (no time
+  // axis): each point is one article positioned by two metrics, with optional
+  // size/colour channels bound to further metrics. The single-metric picker
+  // is hidden (usesMetric:false) — the x/y/size/colour pickers under
+  // `scatterAxes` drive the cell instead.
+  {
+    id: 'metric_scatter',
+    label: 'Scatter',
+    discipline: 'metadata_mining',
+    description: 'Per-article scatter — position, size, and colour each bound to a metric.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: ['scatterAxes'],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/ScatterCell.svelte')).default
   },
   // Phase 121 — Episteme-pillar topic view modes.
   // Both cells are metric-agnostic in terms of the active `metric` URL
@@ -219,7 +300,7 @@ export const DEFAULT_METRIC_NAME = 'sentiment_score_sentiws';
 // relational, and lands in exactly one pillar accordingly. Metrics then
 // flow through whichever presentations they support (see
 // `metric-presentation.ts`).
-//   Aleph    = synchronic totality ("the weather now")   → distribution, topic_distribution
+//   Aleph    = synchronic totality ("the weather now")   → distribution, topic_distribution, metric_scatter
 //   Episteme = diachronic register ("the climate record")→ time_series, topic_evolution
 //   Rhizome  = relational currents ("currents between")  → cooccurrence_network
 //
@@ -254,9 +335,9 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     glyph: '◉',
     blurb: 'Synchronic totality — "the weather now"',
     description:
-      'Every observed probe in scope, no time axis beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape, and what is being talked about right now (by volume).',
+      'Every observed probe in scope, no time axis beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape, paired-metric structure, and what is being talked about right now (by volume).',
     color: '#5283b8',
-    presentations: ['distribution', 'topic_distribution']
+    presentations: ['distribution', 'topic_distribution', 'metric_scatter']
   },
   {
     id: 'episteme',

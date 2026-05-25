@@ -5,11 +5,18 @@
   // this cell is selected.
   // Phase 111: not applicable in Silver layer (Silver documents have no
   // Gold-equivalent time-series; the distribution cell covers Silver).
+  import { createQuery } from '@tanstack/svelte-query';
   import SourceLaneChart from '$lib/components/lanes/SourceLaneChart.svelte';
   import OverlayLaneChart from '$lib/components/lanes/OverlayLaneChart.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
+  import { metricsQuery, type MetricsResponseDto, type QueryOutcome } from '$lib/api/queries';
+  import { urlState } from '$lib/state/url.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
+  import { type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import HowToRead from './HowToRead.svelte';
+  import CellExport from './CellExport.svelte';
 
   let {
     ctx,
@@ -17,9 +24,23 @@
     windowStart,
     windowEnd,
     metricName,
+    scope,
+    scopeId,
     dataLayer = 'gold',
-    composition
+    composition,
+    showBand,
+    resolution,
+    normalization
   }: ViewModeCellProps = $props();
+
+  // Phase 131 — ±1σ uncertainty band toggle (default shown).
+  const bandShown = $derived(showBand ?? true);
+
+  // Phase 131 (BUG4) — the chart's effective resolution: per-panel override,
+  // else the global URL resolution, else hourly. Computed once here and passed
+  // down so the charts AND the export query stay consistent.
+  const url = $derived(urlState());
+  const effectiveResolution = $derived(resolution ?? url.resolution ?? 'hourly');
 
   // Phase 122i revision (C6). Soft methodology note when the Aleph
   // time-series cell aggregates over multiple sources — the chart
@@ -35,9 +56,76 @@
   // Composition absent → fan-out per source (legacy callers, e.g. the
   // Phase-122h shells when the user hits a legacy flat URL).
   const sourceNames = $derived(sources.map((s) => s.name));
+
+  // Phase 131 (BUG5) — export. One query over ALL sources (the BFF returns
+  // per-source rows) gives the complete underlying data regardless of
+  // composition; PNG captures the rendered uPlot canvas (no SVG — uPlot is
+  // canvas-only).
+  let bodyEl: HTMLDivElement | undefined = $state();
+  const exportQ = createQuery<
+    QueryOutcome<MetricsResponseDto>,
+    Error,
+    QueryOutcome<MetricsResponseDto>
+  >(() => {
+    const o = metricsQuery(ctx, {
+      startDate: windowStart,
+      endDate: windowEnd,
+      sourceIds: sourceNames.join(','),
+      metricName,
+      resolution: effectiveResolution,
+      includeStddev: bandShown,
+      ...(normalization && normalization !== 'raw' ? { normalization } : {})
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: dataLayer !== 'silver' && sourceNames.length > 0
+    };
+  });
+  const exportRows = $derived(
+    exportQ.data?.kind === 'success'
+      ? exportQ.data.data.data.map((p) => ({
+          timestamp: p.timestamp,
+          source: p.source,
+          value: p.value,
+          stddev: p.stddev,
+          count: p.count
+        }))
+      : []
+  );
+  const exportPayload = $derived<ExportPayload>({
+    meta: {
+      viewMode: 'time_series',
+      metric: metricName,
+      scope,
+      scopeId,
+      resolution: effectiveResolution,
+      normalization: normalization ?? 'raw',
+      band: bandShown ? '±1σ' : 'off',
+      windowStart,
+      windowEnd
+    },
+    howToRead: composeHowToRead('time_series', { showBand: bandShown }),
+    rows: exportRows,
+    columns: ['timestamp', 'source', 'value', 'stddev', 'count']
+  });
+  const exportFilenameParts = $derived([
+    'time-series',
+    metricName,
+    scope === 'source' ? scopeId : 'probe'
+  ]);
+  function getCanvas(): HTMLCanvasElement | null {
+    return bodyEl?.querySelector('canvas') ?? null;
+  }
 </script>
 
-<div class="cell-body">
+<div class="cell-body" bind:this={bodyEl}>
+  {#if dataLayer !== 'silver' && sources.length > 0 && exportRows.length > 0}
+    <div class="ts-export-row">
+      <CellExport {getCanvas} payload={exportPayload} filenameParts={exportFilenameParts} />
+    </div>
+  {/if}
   {#if dataLayer === 'silver'}
     <p class="notice">
       Time-series view is not available for Silver-layer data. Switch to Distribution to explore
@@ -59,12 +147,27 @@
       {windowStart}
       {windowEnd}
       {metricName}
+      showBand={bandShown}
+      resolution={effectiveResolution}
+      {normalization}
     />
+    <HowToRead presentation="time_series" facts={{ showBand: bandShown }} />
   {:else if composition === 'overlay'}
     <!-- Phase 122k §14c finding 2 — Overlay: per-source independent
          queries, plotted as N viridis-coloured lines on a SHARED canvas.
          Visually one chart but with per-source structure preserved. -->
-    <OverlayLaneChart sourceNames={[...sourceNames]} {ctx} {windowStart} {windowEnd} {metricName} />
+    <OverlayLaneChart
+      sourceNames={[...sourceNames]}
+      {ctx}
+      {windowStart}
+      {windowEnd}
+      {metricName}
+      resolution={effectiveResolution}
+      {normalization}
+    />
+    <!-- Overlay has no ±1σ band (OverlayLaneChart plots per-source lines only),
+         so the note must not claim one. -->
+    <HowToRead presentation="time_series" facts={{ showBand: false }} />
   {:else}
     {#each sources as source (source.name)}
       <SourceLaneChart
@@ -74,8 +177,12 @@
         {windowStart}
         {windowEnd}
         {metricName}
+        showBand={bandShown}
+        resolution={effectiveResolution}
+        {normalization}
       />
     {/each}
+    <HowToRead presentation="time_series" facts={{ showBand: bandShown }} />
   {/if}
 </div>
 
@@ -84,6 +191,12 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
+  }
+
+  .ts-export-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: calc(-1 * var(--space-4));
   }
 
   .empty,

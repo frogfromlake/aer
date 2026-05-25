@@ -1,0 +1,27 @@
+entityId: howto_cooccurrence_network
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Nodes are entities; an edge means two entities were named in the same article. Read clusters as recurring framings."
+    long: >
+      A co-occurrence network answers "which actors, places, and concepts are spoken about
+      together?". Read tight clusters as recurring framings and bridge nodes as entities that
+      link otherwise-separate conversations. Phase 131 binds two visual channels: node size can
+      encode total co-occurrence weight or node degree, and node colour can encode entity type,
+      cross-source presence, or a single uniform tone. Drag nodes to untangle, click one to read
+      the underlying articles.
+  methodological:
+    short: "Top-N entity pairs by co-occurrence weight, force-directed; node size/colour bound to a chosen graph dimension."
+    long: >
+      The note is composed from a per-presentation template plus the live top-N cap and the
+      bound size/colour channels. Edges are the top-N pairs by summed co-occurrence count in the
+      window (clamped server-side to [1, 500]); a sparse graph reflects corpus sparseness, not an
+      analytical conclusion. Colour carries no valence — it is a categorical/by-presence
+      encoding only.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §5"
+  - "WP-005 §6.2"

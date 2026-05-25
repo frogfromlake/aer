@@ -3945,27 +3945,50 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 131: Configurable Cells & Publication-Ready Presentations [P1] - [ ] TODO
+## Phase 131: Configurable Cells & Publication-Ready Presentations [P1] - [x] DONE
 
 *The foundation for everything analytical that follows. Today's cells are often shallow (2–3 points per axis) and not configurable. This phase makes the existing presentations deep, configurable, and publication-ready, and introduces visual-channel binding (a visual channel — size/colour/position/edge-weight — bound to a chosen dimension). This is what turns presentation into analysis (Kriesel: it is not "network vs chart", it is "visual channels bound to real data"). Built before the cell-building phases (122d.0, 122a.1) so those build on the configurable framework rather than being retrofitted.*
 
 **Grounding.** Read first: `src/lib/viewmodes/registry.ts`, `src/lib/components/viewmodes/*Cell.svelte`, `PanelControls.svelte`, `services/bff-api/configs/content/{en,de}/view_modes/` (Dual-Register explanations), the BFF metric/topic/entity endpoints. Preserve: the cell registry contract, the Dual-Register content-catalog mechanism, bundle-size budgets (Brief §7). Verify-first: confirm Phase 130 landed (this builds on the corrected pillar/cell model).
 
 ### Frontend
-* [ ] **Cell configurability framework** — shared per-cell config (axes, grouping, aggregation, bins, top-N, annotation) surfaced through `PanelControls.svelte`; cells declare their configurable parameters.
-* [ ] **Depth** — remove the shallow 2–3-points ceiling; full data, real axes, uncertainty bands where applicable.
-* [ ] **Visual-channel binding** — bind size/colour/position/edge-weight to a chosen metric (and, after Phase 133, metadata) dimension. Apply to `cooccurrence_network` (Kriesel-style) and scalar cells (scatter x/y/size/colour).
-* [ ] **Publication-ready output** — clean labels, legends, titles, export (PNG/SVG + underlying data).
-* [ ] **"Always explained" foundation** — every cell renders a "how to read this" note; parameterised/composed configs compose the note from building blocks + a per-presentation template (hook into the content-catalog Dual-Register system).
+* [x] **Cell configurability framework** — shared per-cell config (bins, top-N, band, visual-channel binding) surfaced through `PanelControls.svelte`; cells declare their configurable parameters via `PresentationDefinition.configurableParams`. Config persists in `Panel.bins`/`channels`/`showBand` (URL keys `bn`/`ch`/`sb`).
+* [x] **Depth** — bins regler on distribution; top-N on the network; real ±1σ uncertainty band on time-series (BFF `includeStddev`); real axes/labels on the scatter.
+* [x] **Visual-channel binding** — `CellChannelBinding` binds size/colour to `cooccurrence_network` and x/y/size/colour to the new `metric_scatter` cell (BFF `GET /metrics/scatter`). (Metadata dimensions arrive after Phase 133.)
+* [x] **Publication-ready output** — clean labels/legends/titles + `CellExport` (PNG/SVG/CSV/JSON, native serialisation, no new dep).
+* [x] **"Always explained" foundation** — every cell renders a composed "how to read" note (`HowToRead` + pure `how-to-read.ts`): per-presentation template from the content-catalog `view_mode/howto_<presentation>` Dual-Register entry + live-config building blocks.
 
 ### Backend (BFF)
-* [ ] Verify metric/topic/entity endpoints return enough resolution for the deepened views; OpenAPI + `make codegen` where shapes change.
+* [x] Added `GET /metrics/scatter` (paired-metric pivot, chaining-friendly) + `stddev`/`includeStddev` on `/metrics`; OpenAPI + `make codegen` + Testcontainers + handler unit tests. Distribution `bins` / cooccurrence `topN` were already deep enough — wired into the UI.
 
 ### Documentation
-* [ ] Arc42 cross-cutting concept "Configurable Cells & Visual-Channel Binding"; CLAUDE.md note; content-catalog convention for composed explanations.
+* [x] Arc42 §8.21 "Configurable Cells & Visual-Channel Binding"; CLAUDE.md note; content-catalog `howto_<presentation>` convention documented.
 
 ### Validation
-* [ ] A cell renders full-depth data; channel binding works on the network cell and a scatter; every cell shows a "how to read" note; export produces a publication-quality artefact.
+* [x] A cell renders full-depth data; channel binding works on the network cell and the scatter; every cell shows a "how to read" note; export produces a publication-quality artefact. Composition-mode bugfixes folded in (overlay gated to time-series; split layout/direction fixed for the probe-scope fan-out).
+
+---
+
+## Phase 131a: Co-Occurrence Quality & Network Scope [P1] - [ ] TODO
+
+*Surfaced by Phase-131 manual testing. The Rhizome co-occurrence network has two linked data-quality gaps that need a worker fix + a Gold reprocess, plus the network-specific per-source / overlay affordances that the other pillars already have. Grouped because they share the same reprocess.*
+
+**Grounding.** Read first: the worker NER extractor (`services/analysis-worker/internal/extractors/`), the entity-co-occurrence extractor + `aer_gold.entity_cooccurrences` writer, `CoOccurrenceNetworkCell.svelte`, the BFF `/entities/cooccurrence` GET + POST handlers. Verify-first: confirm WHY `entity_cooccurrences` only holds tagesschau (19 724 rows / 11 articles) and nothing for bundesregierung despite bundesregierung having entities (entity_count 11–64/article) — this is the load-bearing diagnostic.
+
+### Co-occurrence pipeline gap (BUG 1.5)
+* [ ] **Diagnose + fix** why co-occurrences are computed for only ~11 tagesschau articles and zero bundesregierung articles. Co-occurrence must be emitted per article that has ≥2 entities, for **every** source. Reprocess Gold so `entity_cooccurrences` is populated across the corpus.
+* [ ] **Per-source comparison must work** in split (it already fans out; the data was just empty). Add a clear "no co-occurrences for this source in window" hint distinguishing *sparse data* from *pipeline gap*.
+
+### NER garbage nodes (BUG 1.1)
+* [ ] **Worker NER filter** drops self-referential / boilerplate entities at extraction time: outlet names ("ARD-aktuell"), domains ("tagesschau.de"), nav/section labels ("Video Tagesschau"). Configurable blocklist + heuristic (entity text == source/domain). Reprocess Gold. (Reprocess is feasible on a metered connection — BERT/BERTopic models are baked into the worker image and Docker-layer-cached; only the re-crawl fetches ~7 days/source.)
+
+### Network scope / overlay (BUG 1.5)
+* [ ] **Merged-provenance note** — show what is merged (like the other pillars' methodology banner).
+* [ ] **Source-coloured overlay** — one merged graph with nodes/edges coloured by originating source + an auto-assigned source palette + legend. Needs per-source **edge** provenance in the BFF co-occurrence response (node `presence` already exists; edges do not). OpenAPI + `make codegen`.
+* [ ] **Kriesel-scale (stretch / may defer)** — thousands of nodes need a non-d3-force-SVG renderer (canvas/WebGL); evaluate whether this belongs here or in a later Quick-Compose phase.
+
+### Validation
+* [ ] `entity_cooccurrences` populated for all sources; bundesregierung network renders; no outlet/domain garbage nodes; per-source split + source-coloured overlay work; `make test` + `make lint` green.
 
 ---
 

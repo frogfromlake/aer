@@ -1,0 +1,27 @@
+entityId: howto_metric_scatter
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Jeder Punkt ist ein Artikel, positioniert durch zwei Metriken — lies die Wolke auf Korrelation, Cluster und Ausreißer."
+    long: >
+      Ein Streudiagramm beantwortet „Bewegen sich zwei Messgrößen gemeinsam, und welche Artikel
+      brechen das Muster?". Lies die Gesamtneigung der Wolke als Korrelation, dichte Bereiche als
+      typischen Artikel und Ausreißer als lohnenswerte Einzelfälle. Phase 131 bindet vier visuelle
+      Kanäle unabhängig: x- und y-Position, Punktgröße und Punktfarbe, je an eine Metrik deiner
+      Wahl. Das ist Visual-Channel-Binding konkret — es ist nicht „Streudiagramm vs. Diagramm",
+      sondern echte Kanäle an echten Artikeldaten.
+  methodological:
+    short: "Artikelweise Pivotierung zweier (optional vier) Metriken über den Geltungsbereich; nur Artikel mit beiden Positionsmetriken liefern einen Punkt."
+    long: >
+      Die Notiz wird aus einer Vorlage je Darstellung plus den aktuellen Kanalbindungen komponiert.
+      Der Server pivotiert die rohe Gold-Metriktabelle nach Artikel: ein Punkt erscheint nur, wenn
+      der Artikel im Fenster sowohl die x- als auch die y-Metrik trägt; Größen- und Farbwerte
+      hängen an, wenn der Artikel auch diese Metriken trägt. Die Wolke ist begrenzt (Standard 2000
+      Punkte); greift das Limit, zeigt die Zelle einen „N von mehr"-Hinweis statt Vollständigkeit
+      vorzutäuschen.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §3"

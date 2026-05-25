@@ -19,6 +19,12 @@ type MetricRow struct {
 	// the Atmosphere's per-probe pulse): Value is an average of the
 	// per-document metric, not a document tally. UInt64 in ClickHouse.
 	Count uint64
+	// Stddev is the Bessel-corrected sample standard deviation of the
+	// per-document metric values in the bucket. Populated only by
+	// GetMetricsWithSpread (Phase 131) — the default GetMetrics path and
+	// the normalized/percentile paths leave it zero. Powers the
+	// time-series ±1σ uncertainty band. Zero for buckets with n<2.
+	Stddev float64
 }
 
 // Resolution selects the temporal bucketing applied at query time.
@@ -210,6 +216,63 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	err := s.conn.Select(ctx, &results, query, args...)
 	if err != nil {
 		slog.Error("Failed to query metrics from ClickHouse", "error", err)
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// GetMetricsWithSpread retrieves aggregated time-series data together with the
+// per-bucket sample standard deviation (Phase 131). Unlike GetMetrics it always
+// reads the raw `aer_gold.metrics` table — the pre-aggregated resolution MVs
+// carry an avg/count state but no variance state, so the spread can only be
+// reconstructed from the raw rows. Bucketing still honours the requested
+// resolution via bucketExpr, so the ±1σ band is available at any resolution at
+// the cost of a raw scan (bounded by the same resolution-scaled row cap the
+// normalized path uses).
+//
+// stddevSamp is undefined for single-row buckets (n-1 == 0 → NaN, which would
+// break JSON encoding); the `if(count() > 1, …, 0)` guard collapses those to 0.
+func (s *ClickHouseStorage) GetMetricsWithSpread(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, error) {
+	var results []MetricRow
+
+	bucket := resolution.bucketExpr("timestamp")
+	query := fmt.Sprintf(`
+		SELECT
+			%s as TS,
+			avg(value) as Value,
+			source as Source,
+			metric_name as MetricName,
+			count() as Count,
+			if(count() > 1, stddevSamp(value), 0) as Stddev
+		FROM aer_gold.metrics
+		WHERE timestamp >= $1 AND timestamp <= $2
+	`, bucket)
+	args := []any{start, end}
+	argIdx := 3
+
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			argIdx++
+			args = append(args, src)
+		}
+		query += fmt.Sprintf(" AND source IN (%s)", strings.Join(placeholders, ", "))
+	}
+	if metricName != nil {
+		query += fmt.Sprintf(" AND metric_name = $%d", argIdx)
+		args = append(args, *metricName)
+	}
+
+	query += fmt.Sprintf(`
+		GROUP BY TS, Source, MetricName
+		ORDER BY TS ASC
+		LIMIT %d
+	`, s.rowLimit*resolution.rowLimitMultiplier())
+
+	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
+		slog.Error("Failed to query metrics with spread from ClickHouse", "error", err)
 		return nil, err
 	}
 

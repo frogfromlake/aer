@@ -1,0 +1,26 @@
+entityId: howto_distribution
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Dies ist die vollständige Verteilung der Metrik über den Geltungsbereich — lies die Form der Streuung, nicht nur den Mittelwert."
+    long: >
+      Eine Verteilung beantwortet „Wie stark variiert das, und ist es schief?" statt „Was ist
+      der Durchschnitt?". Lies den Körper für die Lage der meisten Artikel, die Ränder für
+      Ausreißer und einen zweiten Hügel für zwei koexistierende Inhaltstypen. Die gestrichelten
+      Linien markieren den Interquartilsabstand (25.–75. Perzentil); die durchgezogene Linie ist
+      der Median. Phase 131 erlaubt das Einstellen der Klassenzahl: weniger Klassen glätten die
+      Form, mehr Klassen zeigen Feinstruktur (auf Kosten von Rauschen bei kleinen Korpora).
+  methodological:
+    short: "Histogramm über die Metrikwerte im Geltungsbereich; Klassenzahl konfigurierbar (Standard 30). Für strukturelle Metriken Tier-1-deterministisch."
+    long: >
+      Die Notiz wird zur Renderzeit aus einer Vorlage je Darstellung plus der aktuellen
+      Konfiguration der Zelle (aktive Klassenzahl) komponiert. Das Histogramm wird serverseitig
+      über die rohen Metrikwerte im gewählten Fenster und Geltungsbereich berechnet; die
+      Perzentil-Linien stammen aus derselben Stichprobe. Die Klassenzahl ist der einzige
+      Tiefenregler — serverseitig auf [1, 200] begrenzt.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §3"

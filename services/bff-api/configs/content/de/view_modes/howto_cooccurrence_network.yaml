@@ -1,0 +1,27 @@
+entityId: howto_cooccurrence_network
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Knoten sind Entitäten; eine Kante bedeutet, dass zwei Entitäten im selben Artikel genannt wurden. Lies Cluster als wiederkehrende Rahmungen."
+    long: >
+      Ein Ko-Okkurrenz-Netzwerk beantwortet „Welche Akteure, Orte und Konzepte werden zusammen
+      besprochen?". Lies dichte Cluster als wiederkehrende Rahmungen und Brückenknoten als
+      Entitäten, die sonst getrennte Gespräche verbinden. Phase 131 bindet zwei visuelle Kanäle:
+      die Knotengröße kann das Gesamt-Ko-Okkurrenzgewicht oder den Knotengrad kodieren, und die
+      Knotenfarbe den Entitätstyp, die quellenübergreifende Präsenz oder einen einheitlichen Ton.
+      Ziehe Knoten zum Entwirren, klicke einen für die zugrunde liegenden Artikel.
+  methodological:
+    short: "Top-N-Entitätspaare nach Ko-Okkurrenzgewicht, kräftegerichtet; Knotengröße/-farbe an eine gewählte Graph-Dimension gebunden."
+    long: >
+      Die Notiz wird aus einer Vorlage je Darstellung plus dem aktuellen Top-N-Limit und den
+      gebundenen Größen-/Farbkanälen komponiert. Kanten sind die Top-N-Paare nach summierter
+      Ko-Okkurrenz im Fenster (serverseitig auf [1, 500] begrenzt); ein dünner Graph spiegelt
+      Korpus-Dünnheit wider, keine analytische Schlussfolgerung. Farbe trägt keine Valenz — sie
+      ist nur eine kategoriale/Präsenz-Kodierung.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §5"
+  - "WP-005 §6.2"

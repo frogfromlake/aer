@@ -339,6 +339,101 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	return resp, nil
 }
 
+// GetMetricScatter returns one per-article point positioned by two metrics
+// (xMetric, yMetric) with optional size / colour channels bound to further
+// metrics. Backs the Phase-131 metadata-mining × scatter view-mode cell where
+// visual channels are bound to chosen metric dimensions, and is the
+// forward-compatible substrate for the Phase-133+ metric-chaining work.
+func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterRequestObject) (GetMetricScatterResponseObject, error) {
+	rawScope := ""
+	if request.Params.Scope != nil {
+		rawScope = string(*request.Params.Scope)
+	}
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	if !ok {
+		if strings.HasPrefix(reason, "unknown probe") {
+			return GetMetricScatter404JSONResponse{Message: reason}, nil
+		}
+		return GetMetricScatter400JSONResponse{Message: reason}, nil
+	}
+	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+		return GetMetricScatter400JSONResponse{Message: msg}, nil
+	}
+
+	// Phase 117 read-side alias on every bound metric.
+	xMetric := canonicalMetricName(strings.TrimSpace(request.Params.XMetric))
+	yMetric := canonicalMetricName(strings.TrimSpace(request.Params.YMetric))
+	if xMetric == "" || yMetric == "" {
+		return GetMetricScatter400JSONResponse{Message: "xMetric and yMetric are required"}, nil
+	}
+
+	var sizeMetric, colorMetric *string
+	if request.Params.SizeMetric != nil && strings.TrimSpace(*request.Params.SizeMetric) != "" {
+		v := canonicalMetricName(strings.TrimSpace(*request.Params.SizeMetric))
+		sizeMetric = &v
+	}
+	if request.Params.ColorMetric != nil && strings.TrimSpace(*request.Params.ColorMetric) != "" {
+		v := canonicalMetricName(strings.TrimSpace(*request.Params.ColorMetric))
+		colorMetric = &v
+	}
+
+	maxPoints := 2000
+	if request.Params.MaxPoints != nil {
+		maxPoints = *request.Params.MaxPoints
+	}
+
+	res, err := s.db.GetMetricScatter(ctx, xMetric, yMetric, sizeMetric, colorMetric, sources, request.Params.Start, request.Params.End, maxPoints)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetricScatter", "error", err)
+		return GetMetricScatter500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetMetricScatter200JSONResponse{
+		XMetric:     xMetric,
+		YMetric:     yMetric,
+		SizeMetric:  sizeMetric,
+		ColorMetric: colorMetric,
+		Scope:       strPtr(string(kind)),
+		ScopeId:     request.Params.ScopeId,
+		WindowStart: request.Params.Start,
+		WindowEnd:   request.Params.End,
+		Truncated:   res.Truncated,
+	}
+	resp.Points = make([]struct {
+		ArticleId *string   `json:"articleId,omitempty"`
+		Color     *float64  `json:"color,omitempty"`
+		Size      *float64  `json:"size,omitempty"`
+		Source    string    `json:"source"`
+		Timestamp time.Time `json:"timestamp"`
+		X         float64   `json:"x"`
+		Y         float64   `json:"y"`
+	}, len(res.Points))
+	for i, p := range res.Points {
+		elem := struct {
+			ArticleId *string   `json:"articleId,omitempty"`
+			Color     *float64  `json:"color,omitempty"`
+			Size      *float64  `json:"size,omitempty"`
+			Source    string    `json:"source"`
+			Timestamp time.Time `json:"timestamp"`
+			X         float64   `json:"x"`
+			Y         float64   `json:"y"`
+		}{
+			Source:    p.Source,
+			Timestamp: p.TS,
+			X:         p.X,
+			Y:         p.Y,
+			Size:      p.Size,
+			Color:     p.Color,
+		}
+		if p.ArticleID != "" {
+			aid := p.ArticleID
+			elem.ArticleId = &aid
+		}
+		resp.Points[i] = elem
+	}
+	return resp, nil
+}
+
 // GetMetricHeatmap returns a 2D aggregation of a metric for the requested
 // xDimension / yDimension within a window. Backs the EDA x heatmap view-mode
 // cells; entityLabel and language dimensions trigger Gold-table joins.

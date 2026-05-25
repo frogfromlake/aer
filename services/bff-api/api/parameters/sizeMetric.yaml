@@ -1,0 +1,12 @@
+name: sizeMetric
+in: query
+description: >
+  Optional metric name bound to the point-size visual channel. When set, the
+  point's `size` field carries this metric's per-article value (absent on
+  articles lacking it). Omit to leave the size channel unbound. This is the
+  forward-compatible seam for Phase 133+ metric chaining: additional bound
+  channels extend the request without breaking the response shape.
+required: false
+schema:
+  type: string
+  minLength: 1

@@ -1,0 +1,25 @@
+entityId: howto_distribution
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "This is the full distribution of the metric across the scope — read the shape of how values spread, not just the average."
+    long: >
+      A distribution answers "how varied is this, and is it lopsided?" rather than "what is
+      the average?". Read the body for where most articles sit, the tails for outliers, and a
+      second hump for two coexisting content types. The dashed lines mark the inter-quartile
+      range (25th–75th percentile); the solid line is the median. Phase 131 lets you set the
+      bin count: fewer bins smooth the shape, more bins reveal fine structure (at the cost of
+      noise on small corpora).
+  methodological:
+    short: "Histogram over the metric values in scope; bin count configurable (default 30). Tier-1 deterministic for structural metrics."
+    long: >
+      The note is composed at render time from a per-presentation template plus the cell's live
+      configuration (the active bin count). The histogram is computed server-side over the raw
+      metric values in the selected window and scope; the percentile rules come from the same
+      sample. Bin count is the one depth lever — it is clamped server-side to [1, 200].
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §3"

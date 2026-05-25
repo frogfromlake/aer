@@ -1,0 +1,26 @@
+entityId: howto_time_series
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "This traces the metric over time. Each point is a bucket mean — read the slope and the band, not single points."
+    long: >
+      A time series answers "is this drifting, and how confident are we per bucket?". Read the
+      trend rather than any single bucket; a lone spike on a thin bucket is usually noise. The
+      shaded band (Phase 131) is ±1 standard deviation of the per-document values inside each
+      bucket: a wide band means the bucket mean hides a lot of internal spread. Toggle the band
+      off under Band if you only want the central trend.
+  methodological:
+    short: "Per-bucket mean over the window at the chosen resolution; optional ±1σ band from the raw per-document spread."
+    long: >
+      The note is composed from a per-presentation template plus the live band setting. The
+      mean series routes through the resolution materialized views; the ±1σ band requires the
+      raw per-document spread, so a band-bearing request reads the raw Gold layer at the chosen
+      bucket resolution. Buckets with fewer than two documents report zero spread (the sample
+      standard deviation is undefined for n<2).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-005 §3"

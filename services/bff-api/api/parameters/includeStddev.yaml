@@ -1,0 +1,16 @@
+name: includeStddev
+in: query
+description: >
+  When true (Phase 131), each data point additionally carries `stddev` —
+  the Bessel-corrected sample standard deviation of the per-document metric
+  values in the bucket — so the dashboard can render a ±1σ uncertainty band.
+  Because the pre-aggregated resolution materialized views do not store a
+  variance state, a spread-bearing request reads the raw `aer_gold.metrics`
+  table at the requested bucket resolution. Mutually exclusive with
+  `normalization` (z-score / percentile responses do not carry a raw spread);
+  when both are set the spread is omitted. Defaults to false, preserving the
+  byte-identical materialized-view fast path for every existing caller.
+required: false
+schema:
+  type: boolean
+  default: false

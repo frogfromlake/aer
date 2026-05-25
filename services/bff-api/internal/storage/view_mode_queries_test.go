@@ -68,9 +68,9 @@ func TestGetMetricDistribution_HistogramAndSummary(t *testing.T) {
 func seedHeatmapFixture(t *testing.T, s *ClickHouseStorage, ctx hasContext) {
 	t.Helper()
 	rows := [][]any{
-		{mustParse(t, "2026-04-20T10:00:00Z"), 0.5, "tagesschau", "sentiment_score", "a1"}, // Mon, 10:00
-		{mustParse(t, "2026-04-20T10:30:00Z"), 0.3, "tagesschau", "sentiment_score", "a2"}, // Mon, 10:00
-		{mustParse(t, "2026-04-20T11:00:00Z"), -0.1, "tagesschau", "sentiment_score", "a3"}, // Mon, 11:00
+		{mustParse(t, "2026-04-20T10:00:00Z"), 0.5, "tagesschau", "sentiment_score", "a1"},      // Mon, 10:00
+		{mustParse(t, "2026-04-20T10:30:00Z"), 0.3, "tagesschau", "sentiment_score", "a2"},      // Mon, 10:00
+		{mustParse(t, "2026-04-20T11:00:00Z"), -0.1, "tagesschau", "sentiment_score", "a3"},     // Mon, 11:00
 		{mustParse(t, "2026-04-21T10:00:00Z"), 0.4, "bundesregierung", "sentiment_score", "a4"}, // Tue, 10:00
 	}
 	if err := bulkInsert(ctx.Ctx(), s, "aer_gold.metrics",
@@ -274,6 +274,141 @@ func bulkInsert(ctx contextOnly, s *ClickHouseStorage, table string, columns []s
 func joinCols(cols []string) string {
 	return strings.Join(cols, ", ")
 }
+
+// ---------------------------------------------------------------------------
+// Scatter (Phase 131) — paired-metric pivot by article.
+// ---------------------------------------------------------------------------
+
+func seedScatterFixture(t *testing.T, s *ClickHouseStorage, ctx hasContext) {
+	t.Helper()
+	base := mustParse(t, "2026-04-24T10:00:00Z")
+	rows := [][]any{
+		// a1: full triple (x word_count, y sentiment, size entity_count).
+		{base, 100.0, "tagesschau", "word_count", "a1"},
+		{base, 0.5, "tagesschau", "sentiment_score", "a1"},
+		{base, 3.0, "tagesschau", "entity_count", "a1"},
+		// a2: x + y only (size channel absent for this article).
+		{base, 200.0, "tagesschau", "word_count", "a2"},
+		{base, -0.2, "tagesschau", "sentiment_score", "a2"},
+		// a3: x only → excluded by the HAVING (no y).
+		{base, 300.0, "tagesschau", "word_count", "a3"},
+		// a4: full pair but off-source → excluded by scope filter.
+		{base, 50.0, "wikipedia", "word_count", "a4"},
+		{base, 0.1, "wikipedia", "sentiment_score", "a4"},
+	}
+	if err := bulkInsert(ctx.Ctx(), s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		rows); err != nil {
+		t.Fatalf("seed scatter: %v", err)
+	}
+}
+
+func TestGetMetricScatter_PivotsByArticleAndBindsSize(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	seedScatterFixture(t, s, contextWrap{ctx})
+
+	size := "entity_count"
+	res, err := s.GetMetricScatter(
+		ctx,
+		"word_count", "sentiment_score",
+		&size, nil,
+		[]string{"tagesschau"},
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		2000,
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	// a1 + a2 contribute; a3 (no y) and a4 (off-source) drop out.
+	if len(res.Points) != 2 {
+		t.Fatalf("expected 2 points, got %d: %+v", len(res.Points), res.Points)
+	}
+	if res.Truncated {
+		t.Fatalf("did not expect truncation under a 2000 cap")
+	}
+	// Ordered by article id: a1 first.
+	p1 := res.Points[0]
+	if p1.ArticleID != "a1" || p1.X != 100.0 || p1.Y != 0.5 {
+		t.Fatalf("a1 point wrong: %+v", p1)
+	}
+	if p1.Size == nil || *p1.Size != 3.0 {
+		t.Fatalf("a1 size channel should be bound to 3.0, got %v", p1.Size)
+	}
+	p2 := res.Points[1]
+	if p2.ArticleID != "a2" || p2.Size != nil {
+		t.Fatalf("a2 should have no size value: %+v", p2)
+	}
+}
+
+func TestGetMetricScatter_TruncationFlag(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	seedScatterFixture(t, s, contextWrap{ctx})
+
+	res, err := s.GetMetricScatter(
+		ctx,
+		"word_count", "sentiment_score",
+		nil, nil,
+		[]string{"tagesschau"},
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		1,
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if !res.Truncated {
+		t.Fatalf("expected truncation at maxPoints=1 with 2 eligible articles")
+	}
+	if len(res.Points) != 1 {
+		t.Fatalf("expected exactly 1 point after truncation, got %d", len(res.Points))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Time-series spread (Phase 131) — per-bucket sample stddev.
+// ---------------------------------------------------------------------------
+
+func TestGetMetricsWithSpread_ComputesStddev(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	base := mustParse(t, "2026-04-24T10:00:00Z")
+	// Four values in one hourly bucket: mean 0.5, sample stddev of
+	// {0.2,0.4,0.6,0.8} = 0.2581988897…
+	rows := [][]any{
+		{base, 0.2, "tagesschau", "sentiment_score", "s1"},
+		{base.Add(time.Minute), 0.4, "tagesschau", "sentiment_score", "s2"},
+		{base.Add(2 * time.Minute), 0.6, "tagesschau", "sentiment_score", "s3"},
+		{base.Add(3 * time.Minute), 0.8, "tagesschau", "sentiment_score", "s4"},
+	}
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		rows); err != nil {
+		t.Fatalf("seed spread: %v", err)
+	}
+
+	got, err := s.GetMetricsWithSpread(
+		ctx,
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		[]string{"tagesschau"},
+		strPtrTest("sentiment_score"),
+		ResolutionHourly,
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected one hourly bucket, got %d", len(got))
+	}
+	if got[0].Count != 4 {
+		t.Fatalf("expected count 4, got %d", got[0].Count)
+	}
+	if got[0].Stddev < 0.25 || got[0].Stddev > 0.27 {
+		t.Fatalf("sample stddev out of expected range (~0.258): %f", got[0].Stddev)
+	}
+}
+
+func strPtrTest(s string) *string { return &s }
 
 // hasContext lets the seed helpers accept either the storage-test wrapper or a
 // raw context in the future without churning the call sites.

@@ -14,15 +14,43 @@ import {
 } from '../../src/lib/viewmodes';
 
 describe('view-mode registry', () => {
-  it('exposes the Phase 107 MVP plus Phase 121 Episteme presentations', () => {
+  it('exposes the Phase 107 MVP, Phase 121 Episteme, and Phase 131 scatter presentations', () => {
     const ids = listPresentations().map((p) => p.id);
     expect(ids).toEqual([
       'time_series',
       'distribution',
       'cooccurrence_network',
+      'metric_scatter',
       'topic_distribution',
       'topic_evolution'
     ]);
+  });
+
+  // Phase 131 — the scatter presentation lives in Aleph (synchronic) and
+  // declares its configurable visual-channel binding.
+  it('places metric_scatter in the Aleph pillar', () => {
+    expect(presentationsForPillar('aleph').map((p) => p.id)).toContain('metric_scatter');
+    expect(pillarForViewMode('metric_scatter')).toBe('aleph');
+  });
+
+  it('declares per-cell configurable params (Phase 131)', () => {
+    const byId = Object.fromEntries(listPresentations().map((p) => [p.id, p]));
+    expect(byId['distribution']?.configurableParams).toContain('bins');
+    expect(byId['time_series']?.configurableParams).toContain('band');
+    expect(byId['cooccurrence_network']?.configurableParams).toContain('topN');
+    expect(byId['cooccurrence_network']?.configurableParams).toContain('networkChannels');
+    expect(byId['metric_scatter']?.configurableParams).toContain('scatterAxes');
+    // The scatter cell ignores the single-metric picker (channels drive it).
+    expect(byId['metric_scatter']?.usesMetric).toBe(false);
+  });
+
+  it('marks overlay as supported only on the time-series cell (Phase 131 bugfix)', () => {
+    const byId = Object.fromEntries(listPresentations().map((p) => [p.id, p]));
+    expect(byId['time_series']?.supportsOverlay).toBe(true);
+    expect(byId['distribution']?.supportsOverlay ?? false).toBe(false);
+    expect(byId['topic_distribution']?.supportsOverlay ?? false).toBe(false);
+    expect(byId['cooccurrence_network']?.supportsOverlay ?? false).toBe(false);
+    expect(byId['metric_scatter']?.supportsOverlay ?? false).toBe(false);
   });
 
   it('pairs each presentation with a discipline (Phase 121 introduces episteme as the second per-discipline pairing)', () => {
@@ -86,8 +114,12 @@ describe('pillar mapping', () => {
       }
     }
     // Phase 130 / ADR-035 — pillar follows presentation.
-    // Aleph (synchronic): distribution + topic_distribution
-    expect(getPillar('aleph').presentations).toEqual(['distribution', 'topic_distribution']);
+    // Aleph (synchronic): distribution + topic_distribution + metric_scatter (Phase 131)
+    expect(getPillar('aleph').presentations).toEqual([
+      'distribution',
+      'topic_distribution',
+      'metric_scatter'
+    ]);
     // Episteme (diachronic): time_series + topic_evolution
     expect(getPillar('episteme').presentations).toEqual(['time_series', 'topic_evolution']);
     // Rhizome (relational): cooccurrence_network
@@ -100,7 +132,7 @@ describe('pillar mapping', () => {
 
   it('returns the right presentations per pillar', () => {
     const alephIds = presentationsForPillar('aleph').map((p) => p.id);
-    expect(alephIds).toEqual(['distribution', 'topic_distribution']);
+    expect(alephIds).toEqual(['distribution', 'topic_distribution', 'metric_scatter']);
 
     const epistemIds = presentationsForPillar('episteme').map((p) => p.id);
     expect(epistemIds).toEqual(['time_series', 'topic_evolution']);
@@ -111,7 +143,8 @@ describe('pillar mapping', () => {
     // null → Aleph default
     expect(presentationsForPillar(null).map((p) => p.id)).toEqual([
       'distribution',
-      'topic_distribution'
+      'topic_distribution',
+      'metric_scatter'
     ]);
   });
 

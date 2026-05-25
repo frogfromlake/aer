@@ -1,0 +1,25 @@
+entityId: howto_topic_evolution
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Each stream is a topic; its width over time shows how its share of the discourse rises and falls."
+    long: >
+      A topic-evolution stream graph answers "how does what-can-be-said shift over time?". Read a
+      widening band as a topic gaining share and a narrowing one as it fading; read a new band
+      appearing as a theme entering the discourse. Colour is a Viridis ramp in arbitrary topic
+      order — it carries no valence. Streams are per-language partitions with no cross-language
+      alignment.
+  methodological:
+    short: "BERTopic volume per topic across time sub-windows, stacked. Tier-2 (pinned model + seeded UMAP/HDBSCAN)."
+    long: >
+      The note is composed from a per-presentation template. Each sub-window is an independent
+      topic-volume slice; the stacking shows relative share over time. Because topics are
+      partitioned by language and not aligned across languages, a multi-language scope is faceted
+      rather than merged (WP-004 §3.4).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"

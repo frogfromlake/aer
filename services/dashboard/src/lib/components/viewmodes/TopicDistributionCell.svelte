@@ -21,6 +21,10 @@
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
+  import { pickChartSvg, type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import HowToRead from './HowToRead.svelte';
+  import CellExport from './CellExport.svelte';
   import {
     normaliseTopics,
     languagesOf,
@@ -81,6 +85,35 @@
   let totalArticles = $derived(rows.reduce((sum, r) => sum + r.articleCount, 0));
   let isJointCorpus = $derived(sources.length >= JOINT_CORPUS_MIN_SOURCES);
   let isSmallCorpus = $derived(totalArticles > 0 && totalArticles < TOPIC_MIN_DOCS);
+
+  // Phase 131 (BUG5) — export.
+  const exportPayload = $derived<ExportPayload>({
+    meta: {
+      viewMode: 'topic_distribution',
+      scope,
+      scopeId,
+      windowStart,
+      windowEnd,
+      languages: languages.join('+')
+    },
+    summary: { topics: rows.length, totalArticles },
+    howToRead: composeHowToRead('topic_distribution', { renderedCount: rows.length }),
+    rows: rows.map((r) => ({
+      topicId: r.topicId,
+      label: r.label,
+      articleCount: r.articleCount,
+      avgConfidence: r.avgConfidence,
+      language: r.language
+    })),
+    columns: ['topicId', 'label', 'articleCount', 'avgConfidence', 'language']
+  });
+  const exportFilenameParts = $derived([
+    'topic-distribution',
+    scope === 'source' ? scopeId : 'probe'
+  ]);
+  function getSvg(): SVGSVGElement | null {
+    return pickChartSvg(host);
+  }
   let modelHashes = $derived(
     Array.from(
       new Set(
@@ -211,13 +244,18 @@
   <header class="cell-header">
     <h3 id="topic-dist-title" class="cell-title">
       <span class="primary">Topics</span>
-      <span class="muted">— BERTopic distribution ({scope})</span>
+      <span class="muted"
+        >— BERTopic distribution · <strong class="scope-name">{scopeId}</strong></span
+      >
       <span
         class="tier-badge"
         title="Tier 2 (Phase 120) — reproducible with pinned model, not bit-for-bit deterministic across platforms."
         >Tier 2</span
       >
     </h3>
+    {#if rows.length > 0}
+      <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+    {/if}
   </header>
 
   {#if isPending}
@@ -291,6 +329,7 @@
         {/if}
       </dl>
     </footer>
+    <HowToRead presentation="topic_distribution" facts={{ renderedCount: rows.length }} />
   {/if}
 </section>
 
@@ -396,5 +435,11 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .scope-name {
+    color: var(--color-fg);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
   }
 </style>

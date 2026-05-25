@@ -59,8 +59,15 @@ export function removePanel(path: PanelPath): void {
 
 /** Focus a Panel at `path`. */
 export function focusPanel(path: PanelPath): void {
-  const next = focusPanelPure(urlState().pillars, path);
-  if (next) setUrl({ pillars: next });
+  const current = urlState().pillars;
+  const next = focusPanelPure(current, path);
+  // focusPanelPure returns the SAME reference when the panel is already
+  // focused. Without this guard, clicking anywhere inside an already-focused
+  // panel still calls setUrl → a fresh internalState object → a global
+  // re-render every click (felt as a "panel refresh", and reset in-cell
+  // interactions: d3 selection/drag, the how-to-read collapse). Only write
+  // when focus actually moved.
+  if (next && next !== current) setUrl({ pillars: next });
 }
 
 /** Append a new ScopeGroup to the focused panel of `pillar`. */

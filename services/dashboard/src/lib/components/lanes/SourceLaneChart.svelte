@@ -12,6 +12,7 @@
   import TimeSeriesChart from '$lib/components/TimeSeriesChart.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { urlState } from '$lib/state/url.svelte';
+  import type { Resolution, Normalization } from '$lib/state/url-internals';
 
   interface Props {
     // Phase 122i revision (D1). Either a single source (legacy + split
@@ -26,10 +27,29 @@
     windowStart: string;
     windowEnd: string;
     metricName: string;
+    /** Phase 131 — render the ±1σ uncertainty band (default true). When set,
+     *  the metrics query requests `includeStddev` and the chart draws a band
+     *  at value ± stddev per bucket. */
+    showBand?: boolean;
+    /** Phase 131 (BUG4) — per-panel temporal resolution. Falls back to the
+     *  global URL resolution for legacy callers that don't pass it. */
+    resolution?: Resolution | undefined;
+    /** Phase 131 (BUG4) — Compare/normalization mode threaded into the query. */
+    normalization?: Normalization | undefined;
   }
 
-  let { sourceName, sourceNames, emicDesignation, ctx, windowStart, windowEnd, metricName }: Props =
-    $props();
+  let {
+    sourceName,
+    sourceNames,
+    emicDesignation,
+    ctx,
+    windowStart,
+    windowEnd,
+    metricName,
+    showBand = true,
+    resolution,
+    normalization
+  }: Props = $props();
 
   // Resolve effective scope: prefer multi-source list when present.
   const resolvedSources = $derived<readonly string[]>(
@@ -46,7 +66,9 @@
   // from the URL state (the Episteme Resolution selector writes here).
   // Hardcoded `hourly` previously meant the selector had no effect.
   const url = $derived(urlState());
-  const activeResolution = $derived(url.resolution ?? 'hourly');
+  // Phase 131 (BUG4): prefer the per-panel resolution; fall back to the global
+  // URL resolution for legacy callers that don't thread it.
+  const activeResolution = $derived(resolution ?? url.resolution ?? 'hourly');
 
   const metricsQ = createQuery<
     QueryOutcome<MetricsResponseDto>,
@@ -64,18 +86,35 @@
           ? { source: resolvedSources[0] }
           : {}),
       metricName,
-      resolution: activeResolution
+      resolution: activeResolution,
+      includeStddev: showBand,
+      ...(normalization && normalization !== 'raw' ? { normalization } : {})
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
-  function toChartData(result: QueryOutcome<MetricsResponseDto>): { x: number[]; y: number[] } {
-    if (result.kind !== 'success') return { x: [], y: [] };
+  interface ChartSeries {
+    x: number[];
+    y: number[];
+    low: number[] | null;
+    high: number[] | null;
+  }
+
+  function toChartData(result: QueryOutcome<MetricsResponseDto>): ChartSeries {
+    if (result.kind !== 'success') return { x: [], y: [], low: null, high: null };
     const pts = result.data.data
-      .map((d) => ({ t: Date.parse(d.timestamp) / 1000, v: d.value }))
+      .map((d) => ({ t: Date.parse(d.timestamp) / 1000, v: d.value, s: d.stddev ?? null }))
       .filter((d) => Number.isFinite(d.t) && Number.isFinite(d.v))
       .sort((a, b) => a.t - b.t);
-    return { x: pts.map((p) => p.t), y: pts.map((p) => p.v) };
+    // The band is drawn only when requested AND the response actually carried
+    // a spread (>0 for at least one bucket) — a flat band adds no information.
+    const hasSpread = showBand && pts.some((p) => p.s !== null && p.s > 0);
+    return {
+      x: pts.map((p) => p.t),
+      y: pts.map((p) => p.v),
+      low: hasSpread ? pts.map((p) => p.v - (p.s ?? 0)) : null,
+      high: hasSpread ? pts.map((p) => p.v + (p.s ?? 0)) : null
+    };
   }
 
   let chartData = $derived.by(() => {
@@ -111,6 +150,8 @@
     <TimeSeriesChart
       x={chartData.x}
       y={chartData.y}
+      yLow={chartData.low}
+      yHigh={chartData.high}
       yLabel={metricName}
       ariaLabel="{metricName} for {displayName}"
       height={180}

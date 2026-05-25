@@ -31,3 +31,17 @@ properties:
       `count / window_hours`, not the metric value itself, because most
       metrics store a per-document *measurement* (hour-of-day, sentiment,
       word count), not a document tally.
+  stddev:
+    type: number
+    format: double
+    minimum: 0
+    description: >
+      Sample standard deviation (Bessel-corrected) of the per-document
+      metric values that contributed to `value` in this bucket. Populated
+      only when the request set `includeStddev=true` (Phase 131); absent
+      otherwise. Powers the time-series uncertainty band (±1σ around
+      `value`). Computed from the raw `aer_gold.metrics` table — the
+      pre-aggregated resolution MVs do not carry a variance state — so a
+      spread-bearing request always reads the raw layer regardless of
+      resolution. Buckets with fewer than two contributing rows report 0
+      (the sample stddev is undefined for n<2).

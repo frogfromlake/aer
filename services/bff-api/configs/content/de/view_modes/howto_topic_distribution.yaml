@@ -1,0 +1,26 @@
+entityId: howto_topic_distribution
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Jeder Grat ist ein Thema; seine Fläche ist, wie viel des Korpus es gerade bespricht — eine synchrone Momentaufnahme, ohne Zeitachse."
+    long: >
+      Eine Themenverteilung beantwortet „Worüber wird gerade gesprochen, nach Volumen?". Lies die
+      höchsten Grate als die dominanten Themen des Fensters und den langen Schwanz als die
+      Nischenthemen. Es gibt hier keine Zeitachse — dies ist die synchrone Momentaufnahme (Aleph).
+      Themen sind nach Sprache partitioniert, weil die Embeddings sprachspezifisch sind; lies nicht
+      über Sprachpartitionen hinweg, als wären die Themen-IDs ausgerichtet.
+  methodological:
+    short: "BERTopic-Zuordnungszahlen je Thema im Fenster, je Sprachpartition. Tier-2 (gepinntes Modell + geseedetes UMAP/HDBSCAN)."
+    long: >
+      Die Notiz wird aus einer Vorlage je Darstellung komponiert. Volumina sind distinkte
+      Artikelzahlen je Thema innerhalb des Fensters; Themenlabels sind die c-TF-IDF-/KeyBERT-
+      Repräsentation. Der Modell-Hash steht in der Provenienz-Fußzeile — mehr als ein Hash in einem
+      Fenster bedeutet, dass die Themenidentitäten rotiert sein können und nicht als eine stabile
+      Basis gelesen werden sollten.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-25"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"

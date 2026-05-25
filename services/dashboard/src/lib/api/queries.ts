@@ -30,6 +30,12 @@ export type ArticleListItemDto = components['schemas']['ArticleListItem'];
 export type ArticleDetailDto = components['schemas']['ArticleDetail'];
 export type DistributionResponseDto = components['schemas']['DistributionResponse'];
 export type CoOccurrenceGraphDto = components['schemas']['CoOccurrenceGraph'];
+// Phase 131 — paired-metric scatter (visual-channel binding). Sourced from
+// the path response (the bundler inlines these schemas into the operation
+// rather than registering them under components.schemas).
+export type ScatterResponseDto =
+  paths['/metrics/scatter']['get']['responses'][200]['content']['application/json'];
+export type ScatterPointDto = ScatterResponseDto['points'][number];
 export type AvailableMetricDto = components['schemas']['AvailableMetric'];
 export type SilverAggregationResponseDto = components['schemas']['SilverAggregationResponse'];
 export type TopicDistributionResponseDto = components['schemas']['TopicDistributionResponse'];
@@ -270,6 +276,9 @@ export function metricsQuery(
   if (params.metricName) qs.set('metricName', params.metricName);
   if (params.normalization) qs.set('normalization', params.normalization);
   if (params.resolution) qs.set('resolution', params.resolution);
+  // Phase 131 — request the per-bucket spread so the time-series cell can
+  // draw a ±1σ uncertainty band. Server reads the raw layer when set.
+  if (params.includeStddev) qs.set('includeStddev', 'true');
 
   // Normalization is the one parameter that trips an equivalence gate;
   // raw queries can only fail on validation. The default refusal kind is
@@ -556,6 +565,37 @@ export function metricDistributionQuery(
         `/metrics/${encodeURIComponent(metricName)}/distribution?${qs.toString()}`,
         'validation_missing'
       ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 131 — paired-metric scatter. `xMetric` / `yMetric` are required;
+// `sizeMetric` / `colorMetric` bind the optional visual channels. The BFF
+// pivots `aer_gold.metrics` by article and caps the cloud at `maxPoints`.
+export function metricScatterQuery(
+  ctx: FetchContext,
+  params: ViewModeQueryParams & {
+    xMetric: string;
+    yMetric: string;
+    sizeMetric?: string | undefined;
+    colorMetric?: string | undefined;
+    maxPoints?: number | undefined;
+  }
+): QueryOptions<ScatterResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  qs.set('start', params.start);
+  qs.set('end', params.end);
+  qs.set('xMetric', params.xMetric);
+  qs.set('yMetric', params.yMetric);
+  if (params.sizeMetric) qs.set('sizeMetric', params.sizeMetric);
+  if (params.colorMetric) qs.set('colorMetric', params.colorMetric);
+  if (params.maxPoints) qs.set('maxPoints', String(params.maxPoints));
+  return {
+    queryKey: ['aer', 'metric-scatter', params] as const,
+    queryFn: () =>
+      fetchJson<ScatterResponseDto>(ctx, `/metrics/scatter?${qs.toString()}`, 'validation_missing'),
     staleTime: FIVE_MINUTES
   };
 }

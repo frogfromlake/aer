@@ -20,6 +20,10 @@
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
   import type { ViewModeCellProps } from '$lib/viewmodes';
+  import { pickChartSvg, type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
+  import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import CellExport from './CellExport.svelte';
+  import HowToRead from './HowToRead.svelte';
 
   let {
     ctx,
@@ -30,8 +34,13 @@
     metricName,
     dataLayer = 'gold',
     sources = [],
-    composition
+    composition,
+    bins
   }: ViewModeCellProps = $props();
+
+  // Phase 131 — configurable histogram bin count (default 30, BFF-clamped to
+  // [1, 200]). Threaded from PanelControls via the Panel state.
+  const activeBins = $derived(bins ?? 30);
 
   // Phase 122i revision (C6). Soft methodology note when the
   // distribution cell aggregates over multiple sources.
@@ -56,7 +65,8 @@
       scope,
       scopeId,
       start: windowStart,
-      end: windowEnd
+      end: windowEnd,
+      bins: activeBins
     });
     return {
       queryKey: [...o.queryKey],
@@ -169,17 +179,66 @@
     if (!Number.isFinite(n)) return '—';
     return Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(3);
   }
+
+  // Phase 131 — export + how-to-read.
+  const exportRows = $derived<ExportRow[]>(
+    (activeDist?.bins ?? []).map((b) => ({
+      lower: b.lower,
+      upper: b.upper,
+      count: b.count
+    }))
+  );
+  const exportMetricName = $derived(dataLayer === 'silver' ? silverAggType : metricName);
+  const exportPayload = $derived<ExportPayload>({
+    meta: {
+      viewMode: 'distribution',
+      metric: exportMetricName,
+      scope,
+      scopeId,
+      layer: dataLayer,
+      windowStart,
+      windowEnd,
+      bins: activeBins
+    },
+    summary: activeDist
+      ? {
+          n: activeDist.summary.count,
+          min: activeDist.summary.min,
+          p05: activeDist.summary.p05,
+          p25: activeDist.summary.p25,
+          median: activeDist.summary.median,
+          mean: activeDist.summary.mean,
+          p75: activeDist.summary.p75,
+          p95: activeDist.summary.p95,
+          max: activeDist.summary.max
+        }
+      : undefined,
+    howToRead: composeHowToRead('distribution', { bins: activeBins }),
+    rows: exportRows,
+    columns: ['lower', 'upper', 'count']
+  });
+  const exportFilenameParts = $derived([
+    'distribution',
+    exportMetricName,
+    scope === 'source' ? scopeId : 'probe'
+  ]);
+  function getSvg(): SVGSVGElement | null {
+    return pickChartSvg(host);
+  }
 </script>
 
 <section class="dist-cell" aria-labelledby="dist-title-{metricName}">
   <header class="cell-header">
     <h3 id="dist-title-{metricName}" class="cell-title">
       <code>{dataLayer === 'silver' ? silverAggType : metricName}</code>
-      <span class="muted">— distribution ({scope})</span>
+      <span class="muted">— distribution · <strong class="scope-name">{scopeId}</strong></span>
       {#if dataLayer === 'silver'}
         <span class="layer-badge silver" aria-label="Silver layer data">Ag</span>
       {/if}
     </h3>
+    {#if activeDist && activeDist.summary.count > 0}
+      <CellExport {getSvg} payload={exportPayload} filenameParts={exportFilenameParts} />
+    {/if}
   </header>
 
   {#if dataLayer === 'silver' && scope !== 'source'}
@@ -239,6 +298,7 @@
         <dd>{fmt(s.max)}</dd>
       </div>
     </dl>
+    <HowToRead presentation="distribution" facts={{ bins: activeBins }} />
   {/if}
 </section>
 
@@ -332,5 +392,11 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .scope-name {
+    color: var(--color-fg);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
   }
 </style>
