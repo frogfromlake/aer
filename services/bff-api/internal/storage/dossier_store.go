@@ -209,16 +209,40 @@ func (s *DossierStore) fetchSourceCounts(
 		return nil, fmt.Errorf("source counts query: %w", err)
 	}
 
+	// Window length in days for the in-window publication rate, floored at
+	// 1 so a sub-day window never divides by zero. Only meaningful when both
+	// bounds are bound.
+	hasWindow := windowStart != nil && windowEnd != nil
+	var windowDays float64
+	if hasWindow {
+		windowDays = windowEnd.Sub(*windowStart).Hours() / 24.0
+		if windowDays < 1.0 {
+			windowDays = 1.0
+		}
+	}
+
 	out := make(map[string]sourceCount, len(rows))
 	for _, r := range rows {
 		c := sourceCount{
 			total:    int64(r.Total),    //nolint:gosec // bounded by source rowcount
 			inWindow: int64(r.InWindow), //nolint:gosec // bounded by source rowcount
 		}
-		// Publication-frequency-per-day mirrors the previous Postgres
-		// computation: total over the active span in days, with a 1-day
-		// floor so a same-day burst doesn't divide by zero.
-		if r.Total > 0 && r.LastTS > r.FirstTS {
+		// Publication-frequency-per-day is the IN-WINDOW rate
+		// (`in_window / window_days`). The earlier total-over-published-span
+		// average collapsed to a misleadingly low number whenever a single
+		// legitimately old-dated article — a recently-edited but originally
+		// old page that passed the crawler's lastmod window and carries its
+		// true (old) `html_meta_published`/`json_ld_published` date —
+		// stretched the span to months. The in-window rate is robust to such
+		// outliers and reports the cadence the user is actually looking at.
+		// Window-less callers fall back to the long-run total-over-span
+		// average (a 1-day floor guards the same-day-burst divide-by-zero).
+		switch {
+		case hasWindow:
+			if r.InWindow > 0 {
+				c.freqPerDay = float64(r.InWindow) / windowDays
+			}
+		case r.Total > 0 && r.LastTS > r.FirstTS:
 			spanDays := float64(int64(r.LastTS)-int64(r.FirstTS)) / 86400.0
 			if spanDays < 1.0 {
 				spanDays = 1.0

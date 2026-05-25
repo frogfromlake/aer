@@ -91,8 +91,9 @@ func TestResolveArticle_IgnoresEmptyBronzeKey(t *testing.T) {
 
 // TestFetchSourceCounts_FromSilverDocuments confirms that per-source
 // totals, in-window totals, and publication-frequency-per-day are read
-// from the analytical layer rather than Postgres. Two articles a day
-// apart on the same source → freq ≈ 2/1 = 2.0 (1-day floor).
+// from the analytical layer rather than Postgres. The frequency is the
+// in-window rate (in_window / window_days), so the 3-day window covering
+// both articles yields a positive rate (2/3 ≈ 0.67).
 func TestFetchSourceCounts_FromSilverDocuments(t *testing.T) {
 	s, ctx := setupTestStore(t)
 
