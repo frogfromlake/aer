@@ -3919,7 +3919,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 # Iteration 7 (continued) — Workbench Foundation & Pre-Probe-1 Hardening
 
-*Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, and the full per-article lens — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) then build on.*
+*Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, the full per-article lens, and the finalised three-surface architecture — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) build on; the iteration closes with Phase 123a, which collapses the Dossier into a global overlay (four surfaces → three) so the second probe lands into the final surface, not a moving one.*
 
 ---
 
@@ -4074,9 +4074,38 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
+## Phase 123a: Atmosphäre — Dossier-Collapse + Coverage & Selection UX [P1] - [ ] TODO
+
+*The old "Coverage Map" phase, reframed. The engine-3d globe already has probe glyphs, source satellites, hover, selection, fly-to, multiselect, a compose-bar, and an absence-banner. Rather than a new map/overlay/endpoint, this phase evolves the Atmosphäre and **collapses the Dossier from a top-level surface into a global overlay modal** (four surfaces → three: Atmosphäre [+Dossier overlay] · Workbench · Reflexion).*
+
+*Position: the LAST dashboard-foundation phase of Iteration 7, before Probe 1 — this is dashboard-architecture restructuring, not probe expansion, so it lands with the rebuild and finalises the surface (3 surfaces, Dossier-as-overlay) before the second probe inherits it. It runs at N=1: single-probe coverage + the full selection UX are exercised here; the multi-probe coverage comparison in the banner activates when Probe 1 lands (validated in Phase 123). Placed after 122a.0/122d.0 so the capability matrix can show every flag (silent-edit, discourse-function); the ProbeCard re-mount from 122a.1 stays trivial (122a.1 is written mount-agnostic).*
+
+**Grounding.** Read first: `services/dashboard/packages/engine-3d/` (public API: `setProbes`, `setSelection`, `flyTo`, `EngineEvents`), `src/routes/(app)/+page.svelte` (current click/SHIFT-click/compose-bar wiring), `src/lib/components/chrome/` (SideRail, ProbeFilterModal, PillarSwitch), `src/lib/components/dossier/` (ProbeCard, MetadataCoverageModal), `/probes/{id}/dossier` spec, ADR-033 (amended here). Preserve: the `?selectedProbes=` selection-state grammar, the engine's fallback path (no-WebGL2), deep-linkability. Verify-first: confirm `flyTo` exists and that ProbeCard (post-122a.1) is mount-agnostic before moving it.
+
+### Selection UX (three-tier disclosure)
+* [ ] **Glyph** (non-blocking) → **Banner** (top-center strip, `pointer-events` only on the strip so the globe stays clickable; 1…N probes; SHIFT-click grows it; NEVER auto-opens the large overlay) → **Large glassy overlay (80–90%)** opens only explicitly (banner CTA or SideRail Dossier).
+* [ ] **Plain click** → in-place selection + shader highlight + `flyTo` + banner; CTAs → Workbench / → Open Dossier (no instant Dossier jump).
+* [ ] **No territorial highlighting** (sources ≠ territory/population). Blind spots: globe dark (geographic) + CI/SF unobserved (functional, in the banner).
+
+### Dossier as global overlay (Option A)
+* [ ] **`/dossier` route retired** → global overlay modal openable over any surface; root-route URL-state (`/?probe=` mini, `/?dossier=open&selectedProbes=` large); deep-links preserved; redirect from `/dossier`.
+* [ ] **SideRail "Dossier" = search/catalogue overlay** — full-text/facet search over **universal attributes only** (probe, source, language, country, discourse function — never capability/metric). **Replaces `ProbeFilterModal`; Probe-Select removed from the SideRail.**
+* [ ] **Workbench access via Dossier removed.** One **ProbeCard** shared by mini-banner + large overlay.
+
+### Backend + capability data
+* [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data. Capability matrix: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier`. **Auto-generated `add-a-language.md`** from the manifest at MkDocs build.
+
+### Technical requirements
+* [ ] **ADR-033 amendment** (four→three surfaces). Engine pause while the overlay is open. **Dossier overlay fully usable without WebGL2.** Modal a11y (focus-trap, Esc, ARIA). CLAUDE.md surface list 4→3.
+
+### Validation
+* [ ] Clicking a probe selects in-place + flies-to + shows the banner (no jump); SHIFT-click grows the banner while the globe stays interactive; the large overlay opens only on explicit action; search works on universal attributes; the overlay works in the no-WebGL2 fallback; deep-links round-trip. (Multi-probe coverage comparison is validated in Phase 123 once the second probe exists.)
+
+---
+
 # Iteration 8 — Probe Expansion & Cross-Cultural Operations
 
-*Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one. Then the first cross-probe equivalence grant, the Atmosphäre/Dossier restructuring, and the silent-edit discourse-shift analysis.*
+*Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one — including the finalised three-surface Dossier-as-overlay architecture (Phase 123a, landed at the end of Iteration 7). Then the first cross-probe equivalence grant and the silent-edit discourse-shift analysis.*
 
 ---
 
@@ -4101,6 +4130,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ### Validation
 * [ ] `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; second luminous point on the globe; Probe 0 + Probe 1 compose as parallel EA/PL streams with CI/SF empty; cross-frame `?normalization=zscore` returns the refusal surface; all Probe-1 metrics `unvalidated`.
+* [ ] **Multi-probe coverage (deferred from Phase 123a, which ran at N=1):** Probe 1 appears in the Dossier overlay + the Atmosphäre selection banner alongside Probe 0; SHIFT-click composes both into the comparison strip; the per-region capability matrix shows DE and FR side by side with CI/SF unobserved on both.
 
 ---
 
@@ -4125,33 +4155,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ### Validation
 * [ ] `?normalization=zscore` on a temporal metric across both probes succeeds; on sentiment still refuses; the lead-lag cell renders in Rhizome. *(Per-function baselines deliberately not populated — at ~hundreds of articles per function the statistics are not yet meaningful.)*
-
----
-
-## Phase 123a: Atmosphäre — Dossier-Collapse + Coverage & Selection UX [P1] - [ ] TODO
-
-*The old "Coverage Map" phase, reframed. The engine-3d globe already has probe glyphs, source satellites, hover, selection, fly-to, multiselect, a compose-bar, and an absence-banner. Rather than a new map/overlay/endpoint, this phase evolves the Atmosphäre and **collapses the Dossier from a top-level surface into a global overlay modal** (four surfaces → three: Atmosphäre [+Dossier overlay] · Workbench · Reflexion).*
-
-**Grounding.** Read first: `services/dashboard/packages/engine-3d/` (public API: `setProbes`, `setSelection`, `flyTo`, `EngineEvents`), `src/routes/(app)/+page.svelte` (current click/SHIFT-click/compose-bar wiring), `src/lib/components/chrome/` (SideRail, ProbeFilterModal, PillarSwitch), `src/lib/components/dossier/` (ProbeCard, MetadataCoverageModal), `/probes/{id}/dossier` spec, ADR-033 (amended here). Preserve: the `?selectedProbes=` selection-state grammar, the engine's fallback path (no-WebGL2), deep-linkability. Verify-first: confirm `flyTo` exists and that ProbeCard (post-122a.1) is mount-agnostic before moving it.
-
-### Selection UX (three-tier disclosure)
-* [ ] **Glyph** (non-blocking) → **Banner** (top-center strip, `pointer-events` only on the strip so the globe stays clickable; 1…N probes; SHIFT-click grows it; NEVER auto-opens the large overlay) → **Large glassy overlay (80–90%)** opens only explicitly (banner CTA or SideRail Dossier).
-* [ ] **Plain click** → in-place selection + shader highlight + `flyTo` + banner; CTAs → Workbench / → Open Dossier (no instant Dossier jump).
-* [ ] **No territorial highlighting** (sources ≠ territory/population). Blind spots: globe dark (geographic) + CI/SF unobserved (functional, in the banner).
-
-### Dossier as global overlay (Option A)
-* [ ] **`/dossier` route retired** → global overlay modal openable over any surface; root-route URL-state (`/?probe=` mini, `/?dossier=open&selectedProbes=` large); deep-links preserved; redirect from `/dossier`.
-* [ ] **SideRail "Dossier" = search/catalogue overlay** — full-text/facet search over **universal attributes only** (probe, source, language, country, discourse function — never capability/metric). **Replaces `ProbeFilterModal`; Probe-Select removed from the SideRail.**
-* [ ] **Workbench access via Dossier removed.** One **ProbeCard** shared by mini-banner + large overlay.
-
-### Backend + capability data
-* [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data. Capability matrix: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier`. **Auto-generated `add-a-language.md`** from the manifest at MkDocs build.
-
-### Technical requirements
-* [ ] **ADR-033 amendment** (four→three surfaces). Engine pause while the overlay is open. **Dossier overlay fully usable without WebGL2.** Modal a11y (focus-trap, Esc, ARIA). CLAUDE.md surface list 4→3.
-
-### Validation
-* [ ] Clicking a probe selects in-place + flies-to + shows the banner (no jump); SHIFT-click grows the banner while the globe stays interactive; the large overlay opens only on explicit action; search works on universal attributes; the overlay works in the no-WebGL2 fallback; deep-links round-trip.
 
 ---
 
