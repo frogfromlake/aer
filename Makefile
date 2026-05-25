@@ -477,28 +477,12 @@ audit-go:
 	@cd services/bff-api && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (BFF API) passed!$(RESET)"
 	@cd pkg && govulncheck ./... && echo -e "$(SYMBOL_SUCCESS) $(GREEN)govulncheck (pkg/) passed!$(RESET)"
 
-# pip-audit advisory suppressions — only when no stable fix is available
-# upstream OR the fix carries disproportionate migration cost relative
-# to the deployment's exercised attack surface. Each entry must list
-# (a) the CVE, (b) the justification, (c) the upstream-fix tracker.
-# Revisit on every `make deps-refresh`.
-#
-#   * CVE-2026-1839 — transformers 4.57.6: stable transformers 5.x is
-#     now available (5.8.1 as of 2026-05). The remaining blocker is a
-#     coordinated major-version migration: sentence-transformers 3.3.1
-#     pins `transformers<5.0.0`, so the fix requires bumping BOTH
-#     transformers (4.x → 5.x) and sentence-transformers (3.x → 5.x).
-#     Both touch the Tier-2 sentiment path (XLM-R via
-#     `AutoModelForSequenceClassification`) and the BERTopic embedding
-#     path; the Phase-119 determinism CI gate must be re-validated
-#     end-to-end after the bump. Deferred to its own phase to keep the
-#     migration auditable in isolation. Meanwhile the disclosed
-#     exposure is not exercised: the worker invokes transformers solely
-#     via pre-validated pinned model revisions baked into the image
-#     with `TRANSFORMERS_OFFLINE=1`, so the advisory's network-borne
-#     attack surface is unreachable.
-#     Tracker: https://github.com/huggingface/sentence-transformers/releases
-PIP_AUDIT_IGNORE_VULNS := --ignore-vuln CVE-2026-1839
+# pip-audit advisory suppressions are policy, not build logic — they live in
+# services/analysis-worker/pip-audit-ignores.txt (one vuln ID per line, each
+# with its justification + upstream-fix tracker). The line below reads the bare
+# IDs into the --ignore-vuln flags. If the file is missing, no suppressions are
+# applied (pip-audit fails loudly — the safe default).
+PIP_AUDIT_IGNORE_VULNS := $(shell awk '!/^[[:space:]]*#/ && NF {print "--ignore-vuln", $$1}' services/analysis-worker/pip-audit-ignores.txt 2>/dev/null)
 
 audit-python:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running pip-audit (Python vulnerability scanner)...$(RESET)"

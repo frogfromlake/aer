@@ -1348,6 +1348,14 @@ If the post-refresh Trivy run still shows HIGH/CRITICAL, the vulnerable package 
 
 `.trivyignore` is the supply-chain equivalent of a `// TODO`. Any entry there must have a date and an owner.
 
+### pip-audit suppressions
+
+`make audit-python` runs `pip-audit` against each Python service's `requirements.txt`. Suppress a finding **only** when there is no upstream fix (or the fix carries disproportionate migration cost) **and** the vulnerable code path is unreachable from our usage — never suppress a reachable, fixable vulnerability.
+
+Suppressions live in a **per-service, co-located** file: `services/<python-service>/pip-audit-ignores.txt` (today only `services/analysis-worker/`, the sole Python service). The Makefile reads the bare vulnerability-ID lines from it into `pip-audit --ignore-vuln` flags; every other line is documentation. This is the pip-audit analog of `.trivyignore` (images) and carries the same discipline: **each entry MUST document (a) the vulnerability ID, (b) the justification, (c) the upstream-fix tracker**, and is revisited on every `make deps-refresh`. If a fix ships, bump the dependency and delete the entry.
+
+A future Python service gets its own `pip-audit-ignores.txt` beside its `requirements.txt`. `find services -name pip-audit-ignores.txt` enumerates every suppression across the tree — the single review surface, without a central file that would decouple a suppression from the dependency set it annotates.
+
 ### Failure recovery
 
 The script uses `set -euo pipefail`, so a failure at any step stops immediately with a red log line pointing at the failing step. The partial diff is preserved so you can inspect it:
