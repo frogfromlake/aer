@@ -41,8 +41,12 @@
   interface Props {
     probe: ProbeDto;
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
+    /** Phase 131a — `undefined` ⇒ "no window filter, show whole dataset"
+     *  (BFF treats absent bounds as no filter; `in_window == total` and
+     *  the per-day rate falls back to the long-run pub-date span). The
+     *  Phase-123a date-range picker passes concrete ISO strings here. */
+    windowStart: string | undefined;
+    windowEnd: string | undefined;
     /** Driven by the `/dossier?expand=<id>` deep-link reader. */
     startCollapsed?: boolean;
   }

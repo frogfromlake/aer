@@ -82,8 +82,19 @@ class CorpusConfig:
     interval_seconds: float = field(
         default_factory=lambda: float(os.getenv("CORPUS_EXTRACTION_INTERVAL_SECONDS", "3600"))
     )
+    # Phase 131a (BUG 1.5): the sweep window must cover the entire Gold
+    # ``aer_gold.entities`` retention (365 days). A short rolling window
+    # (the Phase-102 default of 3600 s) only picked up articles whose
+    # ``published_date`` fell in the last hour and silently dropped every
+    # entity-bearing article older than that — corpus-wide we observed
+    # 771 articles with NER entities but only 11 with co-occurrence rows.
+    # Per-article ``window_start = published_date`` (Phase 131a) keeps the
+    # row PK stable across overlapping sweeps so re-emission is a no-op
+    # under ReplacingMergeTree(ingestion_version).
     window_seconds: float = field(
-        default_factory=lambda: float(os.getenv("CORPUS_EXTRACTION_WINDOW_SECONDS", "3600"))
+        default_factory=lambda: float(
+            os.getenv("CORPUS_EXTRACTION_WINDOW_SECONDS", str(365 * 86400))
+        )
     )
     initial_delay_seconds: float = field(
         default_factory=lambda: float(os.getenv("CORPUS_EXTRACTION_INITIAL_DELAY_SECONDS", "60"))
@@ -153,14 +164,19 @@ def list_active_sources(pg_pool) -> list[str]:
 
 
 def fetch_entities_for_window(ch_pool, source: str, window: TimeWindow) -> list[EntityRecord]:
-    """Read entity rows from aer_gold.entities for one (source, window)."""
+    """Read entity rows from aer_gold.entities for one (source, window).
+
+    Phase 131a: also returns each record's ``timestamp`` (the article's
+    ``published_date``). The co-occurrence row uses this per-article
+    timestamp as ``window_start`` so re-sweeps collapse on a stable PK.
+    """
     client = ch_pool.getconn()
     try:
         # FINAL collapses ReplacingMergeTree duplicates so a re-run reads
         # the same logical rows on every sweep, keeping the output stable.
         result = client.query(
             """
-            SELECT article_id, entity_text, entity_label
+            SELECT article_id, entity_text, entity_label, timestamp
             FROM aer_gold.entities FINAL
             WHERE source = %(source)s
               AND timestamp >= %(start)s
@@ -175,7 +191,12 @@ def fetch_entities_for_window(ch_pool, source: str, window: TimeWindow) -> list[
             },
         )
         return [
-            EntityRecord(article_id=row[0], entity_text=row[1], entity_label=row[2])
+            EntityRecord(
+                article_id=row[0],
+                entity_text=row[1],
+                entity_label=row[2],
+                timestamp=row[3],
+            )
             for row in result.result_rows
         ]
     finally:
@@ -186,8 +207,18 @@ def insert_cooccurrence_rows(
     ch_pool,
     rows: list[CoOccurrenceRow],
     ingestion_version: int,
+    sweep_window: TimeWindow | None = None,
 ) -> None:
-    """Bulk-insert co-occurrence rows; ingestion_version stamped per sweep."""
+    """Bulk-insert co-occurrence rows; ingestion_version stamped per sweep.
+
+    Phase 131a: each row's ``window_start`` is now the article's
+    ``published_date`` (per-article, varying across rows), so the dedup
+    token can no longer be derived from ``rows[0].window_start``. We
+    instead key the token on the sweep's bounding window — passed in by
+    the caller — which is constant for one sweep call. Falls back to
+    ``rows[0]`` when the caller does not pass a sweep window so legacy
+    test invocations remain valid.
+    """
     if not rows:
         return
     payload = [
@@ -205,12 +236,11 @@ def insert_cooccurrence_rows(
         ]
         for r in rows
     ]
-    # Phase 122e A19: stable token per (source, window, ingestion_version)
-    # so a redelivered sweep no-ops at insert-time. Co-occurrence rows are
-    # produced corpus-wide rather than per-article, so the source+window
-    # pair is the natural granularity.
-    window_key = rows[0].window_start.isoformat() if rows else "empty"
-    source_key = rows[0].source if rows else "unknown"
+    if sweep_window is not None:
+        window_key = sweep_window.start.isoformat()
+    else:
+        window_key = rows[0].window_start.isoformat()
+    source_key = rows[0].source
     ch_pool.insert(
         "aer_gold.entity_cooccurrences",
         payload,
@@ -225,7 +255,18 @@ def run_sweep(
     extractor: EntityCoOccurrenceExtractor,
     window: TimeWindow,
 ) -> int:
-    """Run one corpus sweep across all active sources. Returns rows written."""
+    """Run one corpus sweep across all active sources. Returns rows written.
+
+    Phase 131a: observability extended so the pipeline-gap failure mode
+    (entity-bearing articles producing zero co-occurrence rows) is loud
+    in the logs. Each per-source iteration emits
+    ``input_articles`` (articles with ≥1 entity) and
+    ``entity_bearing_articles`` (articles with ≥2 entities — the actual
+    co-occurrence-eligible set). A non-zero
+    ``entity_bearing_articles`` with zero output rows now logs a
+    structured warning instead of an info line, surfacing the
+    regression on every sweep that misbehaves.
+    """
     sources = list_active_sources(pg_pool)
     if not sources:
         logger.info("corpus.sweep.no_sources", window_start=str(window.start))
@@ -248,18 +289,52 @@ def run_sweep(
             ).inc()
             continue
 
+        # Pipeline-gap visibility (Phase 131a): count articles whose
+        # entity set contains ≥2 DISTINCT (text, label) entities so a
+        # zero-output sweep can be discriminated from a sparse-corpus
+        # sweep at a glance.
+        #
+        # Counting *rows* would mislead: an article that mentions
+        # "Merkel" twice and no one else has two entity rows but only
+        # one unique entity → ``_pairs_for_article`` legitimately emits
+        # zero pairs. Row-counting would fire a false-positive
+        # ``pipeline_gap`` warning on every such article.
+        per_article_unique: dict[str, set[tuple[str, str]]] = {}
+        for rec in records:
+            if rec.article_id and rec.entity_text:
+                per_article_unique.setdefault(rec.article_id, set()).add(
+                    (rec.entity_text, rec.entity_label)
+                )
+        input_articles = len(per_article_unique)
+        entity_bearing_articles = sum(1 for ents in per_article_unique.values() if len(ents) >= 2)
+
         rows = extractor.extract_pairs(records, window, source)
         if not rows:
-            logger.info(
-                "corpus.sweep.empty",
-                source=source,
-                window_start=str(window.start),
-                input_records=len(records),
-            )
+            if entity_bearing_articles > 0:
+                # PIPELINE GAP: the data says rows should exist but the
+                # extractor emitted nothing. Loud, structured, sweep-by-sweep.
+                logger.warning(
+                    "corpus.sweep.pipeline_gap",
+                    source=source,
+                    window_start=str(window.start),
+                    window_end=str(window.end),
+                    input_records=len(records),
+                    input_articles=input_articles,
+                    entity_bearing_articles=entity_bearing_articles,
+                    cooccurrence_rows=0,
+                )
+            else:
+                logger.info(
+                    "corpus.sweep.empty",
+                    source=source,
+                    window_start=str(window.start),
+                    input_records=len(records),
+                    input_articles=input_articles,
+                )
             continue
 
         try:
-            insert_cooccurrence_rows(ch_pool, rows, ingestion_version)
+            insert_cooccurrence_rows(ch_pool, rows, ingestion_version, sweep_window=window)
         except Exception as e:
             logger.error(
                 "corpus.sweep.insert_failed",
@@ -281,8 +356,11 @@ def run_sweep(
             "corpus.sweep.source_complete",
             source=source,
             window_start=str(window.start),
+            window_end=str(window.end),
             rows=len(rows),
             input_records=len(records),
+            input_articles=input_articles,
+            entity_bearing_articles=entity_bearing_articles,
         )
 
     return total_rows

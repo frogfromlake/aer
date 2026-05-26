@@ -146,6 +146,8 @@ function networkColorLabel(v: string): string {
   switch (v) {
     case 'presence':
       return 'how many sources mention it (one colour per count)';
+    case 'source_overlay':
+      return 'which source it came from — one colour per source, grey when shared (Phase 131a)';
     case 'uniform':
       return 'nothing — all dots share one colour';
     case 'label':

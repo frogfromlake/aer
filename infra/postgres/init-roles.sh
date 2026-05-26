@@ -63,11 +63,21 @@ GRANT SELECT ON TABLE public.sources TO :"bff_user";
 -- and the article-browsing endpoint (documents joined back to source via
 -- ingestion_jobs). The new grants are still SELECT-only — write paths
 -- continue to belong to the ingestion-api role.
+--
+-- IMPORTANT (Phase 131a): the REVOKE-then-allow-list pattern is a
+-- whitelist. EVERY new Postgres table the BFF queries must be added
+-- here explicitly, otherwise the handler returns 500 with
+-- "permission denied for table X (SQLSTATE 42501)". This file is the
+-- single point of truth for BFF Postgres permissions — do not grant
+-- elsewhere. Tables added since Phase 101: crawler_discovery_runs
+-- (Phase 122g — Discovery Surface Hardening).
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM :"bff_user";
 GRANT SELECT ON TABLE public.sources TO :"bff_user";
 GRANT SELECT ON TABLE public.documents TO :"bff_user";
 GRANT SELECT ON TABLE public.ingestion_jobs TO :"bff_user";
 GRANT SELECT ON TABLE public.source_classifications TO :"bff_user";
+GRANT SELECT ON TABLE public.crawler_discovery_runs TO :"bff_user";
+GRANT SELECT ON TABLE public.crawler_discovery_alerts TO :"bff_user";
 SQL
 
 echo "postgres-init-roles: done."

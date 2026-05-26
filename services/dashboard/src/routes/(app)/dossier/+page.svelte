@@ -26,7 +26,6 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { urlState } from '$lib/state/url.svelte';
-  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import ProbeCard from '$lib/components/dossier/ProbeCard.svelte';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
@@ -34,13 +33,27 @@
 
   const expandedProbeId = $derived(page.url.searchParams.get('expand') ?? '');
 
-  const windowMs = $derived.by(() => {
+  // Phase 131a — Dossier default window is **the whole dataset**, not a
+  // rolling 7-day lookback. Rationale: the rolling-7d default produced a
+  // confusing "245 in window / 288 total" split that an unprompted user
+  // (or the operator returning after a week) could not interpret. Now:
+  // without explicit `?from=` / `?to=` URL params the cell passes
+  // `undefined` to ProbeCard → the BFF treats absent bounds as
+  // "no filter" → `in_window == total` and the per-day rate falls back
+  // to the long-run average over the published-date span (already
+  // implemented in `dossier_store.go::fetchSourceCounts`). A
+  // user-controllable date-range picker lands with Phase 123a.
+  const windowMs = $derived.by<{ start: string | undefined; end: string | undefined }>(() => {
     const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = url.to ? Date.parse(url.to) : now;
+    const fromMs = url.from ? Date.parse(url.from) : NaN;
+    const toMs = url.to ? Date.parse(url.to) : NaN;
     return {
-      start: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS).toISOString(),
-      end: new Date(Number.isFinite(toMs) ? toMs : now).toISOString()
+      start: Number.isFinite(fromMs) ? new Date(fromMs).toISOString() : undefined,
+      end: Number.isFinite(toMs)
+        ? new Date(toMs).toISOString()
+        : url.from
+          ? new Date(now).toISOString()
+          : undefined
     };
   });
 

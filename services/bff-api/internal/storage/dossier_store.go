@@ -171,36 +171,68 @@ func (s *DossierStore) fetchSourceCounts(
 
 	// Window args reuse the Gold convention: when both are nil, in-window
 	// equals total. ClickHouse-go does not support NULL placeholders for
-	// DateTime, so we branch the predicate textually instead of binding nil.
-	// Placeholder order in the rendered query is: windowStart, windowEnd
-	// (in the SELECT projection), then sourceNames (in the WHERE clause).
+	// DateTime, so we branch the predicate textually instead of binding
+	// nil.
+	//
+	// Phase 131a — placeholder order in the rendered query is now:
+	//   (1) sourceNames        — CTE `WHERE d_inner.source IN ?`
+	//   (2) windowStart, windowEnd — projection's `countDistinctIf`
+	//   (3) sourceNames        — outer `WHERE d.source IN ?`
+	// The CTE and outer query each take the IN-list independently because
+	// ClickHouse bind parameters are positional, not named.
 	var windowFilter string
 	var args []any
+	args = append(args, sourceNames)
 	if windowStart != nil && windowEnd != nil {
 		windowFilter = "AND timestamp >= ? AND timestamp <= ?"
 		args = append(args, *windowStart, *windowEnd)
 	}
-	args = append(args, sourceNames)
 
 	// FINAL collapses ReplacingMergeTree duplicates from NATS redelivery so
 	// the count is per distinct (timestamp, source, article_id) tuple,
 	// matching the dedupe Gold/Silver readers see at query time.
+	//
+	// Phase 131a — `recent_7d` counts articles whose `published_date`
+	// falls within 7 days of the source's NEWEST `published_date` (not
+	// of `now()`). That makes the per-day rate robust to two failure
+	// modes: (a) a crawl that runs once and then idles — `now()-7d`
+	// would drift past the latest article and the rate would collapse
+	// to 0; (b) the recently-re-listed-old-article artefact that
+	// stretched the published-date span and deflated the long-run
+	// `total / span` rate to a misleadingly small number (the value
+	// users saw as "0.9 / day" when the actual cadence was ~35/day).
 	query := fmt.Sprintf(`
+		WITH source_max AS (
+		    SELECT source, max(timestamp) AS max_ts
+		      FROM aer_silver.documents AS d_inner FINAL
+		     WHERE d_inner.source IN ?
+		     GROUP BY d_inner.source
+		)
 		SELECT
-			source                                            AS source,
-			count(DISTINCT article_id)                        AS total,
-			countDistinctIf(article_id, 1=1 %s)               AS in_window,
-			toUnixTimestamp(min(timestamp))                   AS first_ts,
-			toUnixTimestamp(max(timestamp))                   AS last_ts
-		  FROM aer_silver.documents FINAL
-		 WHERE source IN ?
-		 GROUP BY source
+			d.source                                          AS source,
+			count(DISTINCT d.article_id)                      AS total,
+			countDistinctIf(d.article_id, 1=1 %s)             AS in_window,
+			countDistinctIf(
+				d.article_id,
+				d.timestamp >= sm.max_ts - INTERVAL 7 DAY
+			)                                                 AS recent_7d,
+			toUnixTimestamp(min(d.timestamp))                 AS first_ts,
+			toUnixTimestamp(max(d.timestamp))                 AS last_ts
+		  FROM aer_silver.documents AS d FINAL
+		  INNER JOIN source_max sm ON d.source = sm.source
+		 WHERE d.source IN ?
+		 GROUP BY d.source
 	`, windowFilter)
+
+	// Outer-query sourceNames IN-list (positional placeholder #3 in
+	// the rendered SQL — see args ordering comment at function top).
+	args = append(args, sourceNames)
 
 	type row struct {
 		Source   string `ch:"source"`
 		Total    uint64 `ch:"total"`
 		InWindow uint64 `ch:"in_window"`
+		Recent7d uint64 `ch:"recent_7d"`
 		FirstTS  uint32 `ch:"first_ts"`
 		LastTS   uint32 `ch:"last_ts"`
 	}
@@ -227,27 +259,28 @@ func (s *DossierStore) fetchSourceCounts(
 			total:    int64(r.Total),    //nolint:gosec // bounded by source rowcount
 			inWindow: int64(r.InWindow), //nolint:gosec // bounded by source rowcount
 		}
-		// Publication-frequency-per-day is the IN-WINDOW rate
-		// (`in_window / window_days`). The earlier total-over-published-span
-		// average collapsed to a misleadingly low number whenever a single
-		// legitimately old-dated article — a recently-edited but originally
-		// old page that passed the crawler's lastmod window and carries its
-		// true (old) `html_meta_published`/`json_ld_published` date —
-		// stretched the span to months. The in-window rate is robust to such
-		// outliers and reports the cadence the user is actually looking at.
-		// Window-less callers fall back to the long-run total-over-span
-		// average (a 1-day floor guards the same-day-burst divide-by-zero).
+		// Publication-frequency-per-day reports the cadence the user is
+		// actually looking at, in two modes:
+		//
+		//   - With an explicit window: `in_window / window_days`
+		//     (a 1-day floor guards the same-day-burst divide-by-zero).
+		//
+		//   - Without a window (Phase 131a default): a 7-day rolling
+		//     rate anchored on the SOURCE'S NEWEST `published_date`,
+		//     i.e. `recent_7d / 7`. This robustly reports the natural
+		//     publication cadence even when (a) the crawl is idle and
+		//     `now()` has drifted past the latest article and (b)
+		//     the published-date span includes recently-re-listed-old
+		//     articles that would deflate a `total / span` average to
+		//     a misleadingly small number (the "0.9 / day" artefact
+		//     observed on tagesschau at 288 total / 10-month span).
 		switch {
 		case hasWindow:
 			if r.InWindow > 0 {
 				c.freqPerDay = float64(r.InWindow) / windowDays
 			}
-		case r.Total > 0 && r.LastTS > r.FirstTS:
-			spanDays := float64(int64(r.LastTS)-int64(r.FirstTS)) / 86400.0
-			if spanDays < 1.0 {
-				spanDays = 1.0
-			}
-			c.freqPerDay = float64(r.Total) / spanDays
+		case r.Recent7d > 0:
+			c.freqPerDay = float64(r.Recent7d) / 7.0
 		}
 		out[r.Source] = c
 	}

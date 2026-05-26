@@ -1184,7 +1184,14 @@ export interface components {
                  * @description Number of distinct articles contributing to this edge.
                  */
                 articleCount: number;
+                /** @description Source names this edge was observed in within the returned window (Phase 131a). Lets the frontend render a source-coloured overlay on a merged multi-source graph without a follow-up call. Populated whenever the scope covers multiple sources; omitted (or a single entry) for single-source scopes. */
+                presence?: string[];
             }[];
+            /**
+             * Format: int64
+             * @description Count of distinct articles in the window whose `aer_gold.entities` contain ≥2 entities for the resolved scope. The Phase 131a pipeline-gap diagnostic: when `articlesInScope > 0` but `edges` is empty, the dashboard surfaces a "pipeline gap" hint instead of "sparse corpus" — distinguishing missing data from a missing sweep. Always populated.
+             */
+            articlesInScope?: number;
         };
         /** @description A single source record carrying the fields from the Source schema plus the Silver-layer eligibility state and the WP-006 §5.2 review metadata recorded at the time `silverEligible` was flipped. Fields beyond `silverEligible` are present only on eligible sources (and may be empty on auto-eligible Probe 0 sources where the metadata is a stub). */
         SourceDetail: {

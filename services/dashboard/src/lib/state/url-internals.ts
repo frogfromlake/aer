@@ -70,7 +70,11 @@ export interface ScopeGroup {
 // network they bind to a graph dimension (node weight vs. degree; colour by
 // entity label, cross-source presence, or uniform).
 export type NetworkSizeChannel = 'total_count' | 'degree';
-export type NetworkColorChannel = 'label' | 'presence' | 'uniform';
+// Phase 131a — `source_overlay` colours nodes & edges by their originating
+// source from the BFF per-edge `presence` field. Available whenever the
+// scope covers multiple sources; the cell auto-promotes it as the default
+// for merged scopes.
+export type NetworkColorChannel = 'label' | 'presence' | 'uniform' | 'source_overlay';
 
 export interface CellChannelBinding {
   // Scatter — metric names bound to the position + optional size/colour
@@ -508,7 +512,12 @@ function expandPanel(c: CompactPanel): Panel {
     if (typeof c.ch.sz === 'string') cb.size = c.ch.sz;
     if (typeof c.ch.co === 'string') cb.color = c.ch.co;
     if (c.ch.ns === 'total_count' || c.ch.ns === 'degree') cb.netSize = c.ch.ns;
-    if (c.ch.nc === 'label' || c.ch.nc === 'presence' || c.ch.nc === 'uniform')
+    if (
+      c.ch.nc === 'label' ||
+      c.ch.nc === 'presence' ||
+      c.ch.nc === 'uniform' ||
+      c.ch.nc === 'source_overlay'
+    )
       cb.netColor = c.ch.nc;
     if (Object.keys(cb).length > 0) p.channels = cb;
   }

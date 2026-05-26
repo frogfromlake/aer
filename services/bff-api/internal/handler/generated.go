@@ -3880,7 +3880,9 @@ type GetEntityCoOccurrenceResponseObject interface {
 }
 
 type GetEntityCoOccurrence200JSONResponse struct {
-	Edges []struct {
+	// ArticlesInScope Count of distinct articles in the window whose `aer_gold.entities` contain ≥2 entities for the resolved scope. The Phase 131a pipeline-gap diagnostic: when `articlesInScope > 0` but `edges` is empty, the dashboard surfaces a "pipeline gap" hint instead of "sparse corpus" — distinguishing missing data from a missing sweep. Always populated.
+	ArticlesInScope *int64 `json:"articlesInScope,omitempty"`
+	Edges           []struct {
 		// A Lexicographically smaller entity text in the pair.
 		A      string  `json:"a"`
 		ALabel *string `json:"aLabel,omitempty"`
@@ -3889,6 +3891,9 @@ type GetEntityCoOccurrence200JSONResponse struct {
 		ArticleCount int64   `json:"articleCount"`
 		B            string  `json:"b"`
 		BLabel       *string `json:"bLabel,omitempty"`
+
+		// Presence Source names this edge was observed in within the returned window (Phase 131a). Lets the frontend render a source-coloured overlay on a merged multi-source graph without a follow-up call. Populated whenever the scope covers multiple sources; omitted (or a single entry) for single-source scopes.
+		Presence *[]string `json:"presence,omitempty"`
 
 		// Weight Sum of cooccurrence_count over articles in the window.
 		Weight int64 `json:"weight"`
@@ -3996,7 +4001,9 @@ type PostEntityCoOccurrenceQueryResponseObject interface {
 }
 
 type PostEntityCoOccurrenceQuery200JSONResponse struct {
-	Edges []struct {
+	// ArticlesInScope Count of distinct articles in the window whose `aer_gold.entities` contain ≥2 entities for the resolved scope. The Phase 131a pipeline-gap diagnostic: when `articlesInScope > 0` but `edges` is empty, the dashboard surfaces a "pipeline gap" hint instead of "sparse corpus" — distinguishing missing data from a missing sweep. Always populated.
+	ArticlesInScope *int64 `json:"articlesInScope,omitempty"`
+	Edges           []struct {
 		// A Lexicographically smaller entity text in the pair.
 		A      string  `json:"a"`
 		ALabel *string `json:"aLabel,omitempty"`
@@ -4005,6 +4012,9 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 		ArticleCount int64   `json:"articleCount"`
 		B            string  `json:"b"`
 		BLabel       *string `json:"bLabel,omitempty"`
+
+		// Presence Source names this edge was observed in within the returned window (Phase 131a). Lets the frontend render a source-coloured overlay on a merged multi-source graph without a follow-up call. Populated whenever the scope covers multiple sources; omitted (or a single entry) for single-source scopes.
+		Presence *[]string `json:"presence,omitempty"`
 
 		// Weight Sum of cooccurrence_count over articles in the window.
 		Weight int64 `json:"weight"`

@@ -245,6 +245,96 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 	}
 }
 
+// Phase 131a — per-edge source presence + pipeline-gap diagnostic.
+func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	w0 := mustParse(t, "2026-04-24T10:00:00Z")
+	w1 := mustParse(t, "2026-04-24T11:00:00Z")
+	rows := [][]any{
+		// Berlin/Merkel appears in BOTH sources — presence should list both.
+		{w0, w1, "tagesschau", "art-1", "Berlin", "LOC", "Merkel", "PER", uint32(1), uint64(1000)},
+		{w0, w1, "bundesregierung", "art-2", "Berlin", "LOC", "Merkel", "PER", uint32(1), uint64(1000)},
+		// Berlin/Scholz appears in tagesschau only — presence should list one.
+		{w0, w1, "tagesschau", "art-3", "Berlin", "LOC", "Scholz", "PER", uint32(2), uint64(1000)},
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.entity_cooccurrences",
+		[]string{
+			"window_start", "window_end", "source", "article_id",
+			"entity_a_text", "entity_a_label", "entity_b_text", "entity_b_label",
+			"cooccurrence_count", "ingestion_version",
+		}, rows); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	res, err := s.GetEntityCoOccurrence(
+		ctx,
+		[]string{"tagesschau", "bundesregierung"},
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		10,
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+
+	edgePresence := map[string][]string{}
+	for _, e := range res.Edges {
+		edgePresence[e.A+"|"+e.B] = e.Presence
+	}
+	bm := edgePresence["Berlin|Merkel"]
+	if len(bm) != 2 {
+		t.Fatalf("Berlin/Merkel should appear in 2 sources, got %d: %v", len(bm), bm)
+	}
+	bs := edgePresence["Berlin|Scholz"]
+	if len(bs) != 1 || bs[0] != "tagesschau" {
+		t.Fatalf("Berlin/Scholz should appear only in tagesschau, got %v", bs)
+	}
+}
+
+// Phase 131a — articlesInScope is the pipeline-gap diagnostic. Articles
+// with ≥2 entities in aer_gold.entities must be counted regardless of
+// whether co-occurrence rows exist for them.
+func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	base := mustParse(t, "2026-04-24T10:00:00Z")
+	// Seed three articles with ≥2 entities, but NO co-occurrence rows
+	// — this is exactly the Phase 131a failure mode. The test schema
+	// for aer_gold.entities only carries the 7 columns the existing
+	// view-mode test suite needs (`clickhouse_test.go`).
+	entityRows := [][]any{
+		{base, "tagesschau", "art-1", "Berlin", "LOC", uint32(0), uint32(6)},
+		{base, "tagesschau", "art-1", "Merkel", "PER", uint32(10), uint32(16)},
+		{base, "tagesschau", "art-2", "Hamburg", "LOC", uint32(0), uint32(7)},
+		{base, "tagesschau", "art-2", "Scholz", "PER", uint32(8), uint32(14)},
+		// One entity-only article — excluded from the ≥2 set.
+		{base, "tagesschau", "art-3", "Bayern", "LOC", uint32(0), uint32(6)},
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.entities",
+		[]string{
+			"timestamp", "source", "article_id", "entity_text", "entity_label",
+			"start_char", "end_char",
+		}, entityRows); err != nil {
+		t.Fatalf("seed entities: %v", err)
+	}
+
+	res, err := s.GetEntityCoOccurrence(
+		ctx,
+		[]string{"tagesschau"},
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		10,
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if res.ArticlesInScope != 2 {
+		t.Fatalf("expected ArticlesInScope=2 (entity-bearing articles), got %d", res.ArticlesInScope)
+	}
+	if len(res.Edges) != 0 {
+		t.Fatalf("expected 0 edges (no co-occurrence rows seeded), got %d", len(res.Edges))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // helpers (test-only)
 // ---------------------------------------------------------------------------

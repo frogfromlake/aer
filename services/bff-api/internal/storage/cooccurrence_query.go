@@ -9,6 +9,12 @@ import (
 )
 
 // CoOccurrenceEdge is one entity-pair edge aggregated over a window.
+//
+// Phase 131a: ``Presence`` lists the source names where this edge was
+// observed within the window. The dashboard uses it to render the
+// source-coloured overlay on a merged multi-source graph. Populated
+// only when the scope covers multiple sources (single-source scopes
+// leave it nil — every edge in that case is trivially mono-source).
 type CoOccurrenceEdge struct {
 	A            string
 	B            string
@@ -16,6 +22,7 @@ type CoOccurrenceEdge struct {
 	BLabel       string
 	Weight       int64
 	ArticleCount int64
+	Presence     []string
 }
 
 // CoOccurrenceNode is one entity vertex derived from the edge set.
@@ -34,10 +41,17 @@ type CoOccurrenceNode struct {
 }
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
+//
+// Phase 131a: ``ArticlesInScope`` is the pipeline-gap diagnostic — the
+// count of articles in the window whose ``aer_gold.entities`` contain
+// ≥2 entities for the resolved scope. The dashboard compares it against
+// ``len(Edges)`` to distinguish a sparse corpus (both small) from a
+// missing co-occurrence sweep (entities exist, no edges).
 type CoOccurrenceResult struct {
-	Nodes []CoOccurrenceNode
-	Edges []CoOccurrenceEdge
-	TopN  int64
+	Nodes           []CoOccurrenceNode
+	Edges           []CoOccurrenceEdge
+	TopN            int64
+	ArticlesInScope int64
 }
 
 // nodeAccumulator tracks per-entity degree and total weight while building
@@ -145,6 +159,20 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		presenceMap, _ = s.queryNodePresence(ctx, acc, args, clauses)
 	}
 
+	// Phase 131a — per-edge source presence powers the source-coloured
+	// overlay on a merged multi-source graph. Single-source scopes get
+	// a trivial mono-source presence, so we skip the round-trip there.
+	if len(sources) > 1 && len(edges) > 0 {
+		if edgePresence, err := s.queryEdgePresence(ctx, edges, args, clauses); err == nil {
+			for i := range edges {
+				key := edgeKey(edges[i].A, edges[i].B)
+				if p, ok := edgePresence[key]; ok {
+					edges[i].Presence = p
+				}
+			}
+		}
+	}
+
 	// Phase 118: resolve a Wikidata QID per node. The lookup is best-effort
 	// — failure does not block the graph response, just leaves QIDs empty.
 	var qidMap map[string]string
@@ -169,11 +197,132 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		nodes = append(nodes, n)
 	}
 
+	// Phase 131a pipeline-gap diagnostic: count articles with ≥2 entities
+	// in the window/scope. Lets the dashboard distinguish "sparse corpus"
+	// from "co-occurrence sweep missing this article". Best-effort — a
+	// failure leaves the count at 0 and the dashboard falls back to the
+	// generic empty-graph hint rather than returning 5xx.
+	articlesInScope, _ := s.queryArticlesInScopeForCoOccurrence(ctx, sources, start, end)
+
 	return CoOccurrenceResult{
-		Nodes: nodes,
-		Edges: edges,
-		TopN:  int64(topN),
+		Nodes:           nodes,
+		Edges:           edges,
+		TopN:            int64(topN),
+		ArticlesInScope: articlesInScope,
 	}, nil
+}
+
+// edgeKey gives a canonical key for the unordered pair (a, b). Storage
+// rows already store the lexicographic canonical order so the input is
+// assumed sorted; keeping a helper keeps the contract explicit.
+func edgeKey(a, b string) string { return a + "\x00" + b }
+
+// queryEdgePresence returns the distinct source set for each
+// already-returned edge, keyed by ``edgeKey(a, b)``. Used by the
+// source-coloured-overlay overlay path (Phase 131a). Best-effort:
+// failure leaves edges without presence and the dashboard falls back
+// to label-based colouring.
+func (s *ClickHouseStorage) queryEdgePresence(
+	ctx context.Context,
+	edges []CoOccurrenceEdge,
+	args []any,
+	clauses []string,
+) (map[string][]string, error) {
+	if len(edges) == 0 {
+		return nil, nil //nolint:nilnil // empty input → empty result
+	}
+	// Build a (entity_a_text, entity_b_text) IN ((..)) tuple filter. Per
+	// the table contract entity_a_text <= entity_b_text, so the same
+	// canonical order applies on both sides of the IN.
+	tuples := make([]string, len(edges))
+	pArgs := make([]any, len(args), len(args)+len(edges)*2)
+	copy(pArgs, args)
+	for i, e := range edges {
+		aPos := len(args) + i*2 + 1
+		bPos := aPos + 1
+		tuples[i] = fmt.Sprintf("($%d, $%d)", aPos, bPos)
+		pArgs = append(pArgs, e.A, e.B)
+	}
+	windowFilter := strings.Join(clauses, " AND ")
+	query := fmt.Sprintf(`
+		SELECT
+			entity_a_text AS A,
+			entity_b_text AS B,
+			groupArrayDistinct(source) AS Presence
+		FROM aer_gold.entity_cooccurrences FINAL
+		WHERE %s AND (entity_a_text, entity_b_text) IN (%s)
+		GROUP BY A, B
+	`, windowFilter, strings.Join(tuples, ", "))
+
+	var rows []struct {
+		A        string   `ch:"A"`
+		B        string   `ch:"B"`
+		Presence []string `ch:"Presence"`
+	}
+	if err := s.conn.Select(ctx, &rows, query, pArgs...); err != nil {
+		slog.Warn("Failed to query edge presence (non-fatal)", "error", err)
+		return nil, err //nolint:wrapcheck // caller treats this as optional
+	}
+	out := make(map[string][]string, len(rows))
+	for _, r := range rows {
+		out[edgeKey(r.A, r.B)] = r.Presence
+	}
+	return out, nil
+}
+
+// queryArticlesInScopeForCoOccurrence returns the count of distinct
+// article_ids in ``aer_gold.entities`` for the given scope+window whose
+// entity count is ≥2. This is the Phase 131a pipeline-gap probe — when
+// the cooccurrence query returns zero edges but this count is non-zero,
+// the worker's sweep is failing to emit rows for entity-bearing
+// articles. Best-effort: failure returns 0 and the dashboard falls back
+// to the generic empty-graph hint.
+func (s *ClickHouseStorage) queryArticlesInScopeForCoOccurrence(
+	ctx context.Context,
+	sources []string,
+	start, end time.Time,
+) (int64, error) {
+	args := []any{start, end}
+	clauses := []string{
+		"timestamp >= $1",
+		"timestamp < $2",
+		"article_id IS NOT NULL",
+		"entity_text != ''",
+	}
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
+			args = append(args, src)
+		}
+		clauses = append(clauses, fmt.Sprintf("source IN (%s)", strings.Join(placeholders, ", ")))
+	}
+	// Phase 131a — count articles whose entity set contains ≥2 DISTINCT
+	// (entity_text, entity_label) pairs, matching the worker extractor's
+	// _pairs_for_article logic. Row-count would mislead: an article
+	// mentioning "Merkel" twice and no one else has two entity rows but
+	// only one unique entity and legitimately produces zero pairs.
+	query := fmt.Sprintf(`
+		SELECT count() AS ArticlesInScope FROM (
+			SELECT article_id
+			FROM aer_gold.entities FINAL
+			WHERE %s
+			GROUP BY article_id
+			HAVING uniqExact(entity_text, entity_label) >= 2
+		)
+	`, strings.Join(clauses, " AND "))
+
+	var rows []struct {
+		ArticlesInScope uint64 `ch:"ArticlesInScope"`
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Warn("Failed to query articles-in-scope (non-fatal)", "error", err)
+		return 0, err //nolint:wrapcheck // caller treats this as optional
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return int64(rows[0].ArticlesInScope), nil //nolint:gosec // bounded by aggregation
 }
 
 // queryNodePresence returns a map from entity text to the sorted list of

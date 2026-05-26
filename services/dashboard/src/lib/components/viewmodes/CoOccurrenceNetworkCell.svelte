@@ -37,7 +37,26 @@
   // and visual-channel binding (node size, node colour).
   const TOP_N = $derived(topN ?? 60);
   const netSize = $derived(channels?.netSize ?? 'total_count');
-  const netColor = $derived(channels?.netColor ?? 'label');
+  // Phase 131a — "merged scope" is decided from the BFF response (the
+  // union of distinct source names across edge.presence / node.presence),
+  // NOT the `sources` prop. A single-probe scope often resolves to
+  // multiple underlying sources on the BFF side ("probe-as-aggregator"),
+  // and the `sources` prop may carry only the probe's primary entry.
+  // The BFF-resolved set is the SoT for the overlay.
+  const resolvedSourceCount = $derived.by(() => {
+    const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    if (!data) return 0;
+    const names: Record<string, true> = {};
+    for (const e of data.edges) {
+      for (const s of e.presence ?? []) names[s] = true;
+    }
+    for (const n of data.nodes) {
+      for (const s of n.presence ?? []) names[s] = true;
+    }
+    return Object.keys(names).length;
+  });
+  const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
+  const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
   // Phase 131 (BUG1.7) — force-layout spread (0..100 → node repulsion).
   // Higher spreads a crowded graph apart so it stays readable.
   const spread = $derived(forceStrength ?? 50);
@@ -69,6 +88,10 @@
     /** Number of distinct sources the entity appears in (colour channel
      *  `presence`); 0 when the BFF did not return a presence array. */
     presenceCount: number;
+    /** Source names this node appears in (Phase 131a — copied from
+     *  `node.presence` so the source-overlay palette can colour the node
+     *  directly without an additional lookup). */
+    presence: string[];
     wikidataQid?: string | null;
     x?: number;
     y?: number;
@@ -79,6 +102,10 @@
     source: string | SimNode;
     target: string | SimNode;
     weight: number;
+    /** Source names this edge appears in (Phase 131a — copied from
+     *  `edge.presence`). Empty array when the BFF did not return per-
+     *  edge presence (single-source scope). */
+    presence: string[];
   }
 
   let nodes: SimNode[] = $state([]);
@@ -105,12 +132,14 @@
       totalCount: n.totalCount,
       degree: n.degree ?? 0,
       presenceCount: n.presence?.length ?? 0,
+      presence: n.presence ?? [],
       wikidataQid: n.wikidataQid ?? null
     }));
     const seedEdges: SimEdge[] = data.edges.map((e) => ({
       source: e.a,
       target: e.b,
-      weight: e.weight
+      weight: e.weight,
+      presence: e.presence ?? []
     }));
     (async () => {
       const d3 = await import('d3-force');
@@ -142,7 +171,27 @@
           'collide',
           d3.forceCollide<SimNode>().radius((n: SimNode) => n.radius + 3)
         );
+      // Phase 131a — at 500 nodes the default d3 simulation runs for
+      // several seconds with ~300 ticks. We raise alphaDecay so the
+      // layout stabilises in ~1 s (default 0.0228 → 0.05, halving the
+      // tick count) and lower the minimum-alpha threshold so the
+      // simulation hard-stops once it's settled enough. Both reduce
+      // total Svelte re-render work without throttling the per-tick
+      // render path — the previous deferred-rAF throttle caused
+      // pointer events to mis-target nodes because the rendered DOM
+      // position lagged the simulation's internal positions by up to
+      // 33 ms, making clicks land on the transparent pan-rect instead
+      // of the visible node.
+      simulation.alphaDecay(0.05).alphaMin(0.01);
       simulation.on('tick', () => {
+        if (t !== token) return;
+        nodes = [...seedNodes];
+        edges = [...seedEdges];
+      });
+      // Belt-and-braces: simulation.on('end') guarantees a final
+      // render at the stabilised positions, in case the last `tick`
+      // raced with a token bump on data refresh.
+      simulation.on('end', () => {
         if (t !== token) return;
         nodes = [...seedNodes];
         edges = [...seedEdges];
@@ -304,7 +353,53 @@
     return palette[Math.abs(h) % palette.length] ?? palette[0]!;
   }
 
-  // Phase 131 — node colour bound to the selected channel.
+  // Phase 131a — categorical source palette. One colour per source name
+  // for the source-coloured overlay. Auto-assigned by index in the
+  // *current* `sources` prop so the graph keeps stable colours as long
+  // as the scope is stable. Edges and nodes with multi-source presence
+  // fall back to the "shared" grey so overlap is visually distinct
+  // from single-source contribution.
+  //
+  // Channel separation (per user redirect): the *fill* channel always
+  // encodes the selected `netColor` metric (label / presence /
+  // uniform). The *border ring* and the *edge stroke* always encode
+  // source provenance when the scope is merged. That keeps the viridis-
+  // style metric ramp readable on the disc while still surfacing
+  // which source contributed each node and edge. `netColor === 'source_overlay'`
+  // is the one mode where both fill and ring use the source palette — for
+  // users who don't want a competing metric channel.
+  const SOURCE_PALETTE = [
+    '#5283b8',
+    '#b87a52',
+    '#52b885',
+    '#a058b8',
+    '#b85265',
+    '#7f8a4e',
+    '#3c5da0',
+    '#a07b3c'
+  ];
+  const SHARED_COLOR = '#9aa1ab';
+  // Phase 131a — a distinct "no provenance data" colour so empty
+  // `presence` (BFF's best-effort lookup failed) is not silently
+  // mislabelled as "shared (≥2 sources)" by the legend.
+  const UNKNOWN_PROVENANCE_COLOR = '#3b3f47';
+  const sourceColorMap = $derived.by(() => {
+    const map: Record<string, string> = {};
+    sources.forEach((s, i) => {
+      const fallback = SOURCE_PALETTE[i % SOURCE_PALETTE.length] ?? '#5283b8';
+      map[s.name] = fallback;
+    });
+    return map;
+  });
+  function sourceColor(presence: string[]): string {
+    if (presence.length === 0) return UNKNOWN_PROVENANCE_COLOR;
+    if (presence.length === 1) {
+      return sourceColorMap[presence[0]!] ?? UNKNOWN_PROVENANCE_COLOR;
+    }
+    return SHARED_COLOR;
+  }
+
+  // Phase 131 — node fill bound to the selected channel.
   let maxPresence = $derived(nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1));
   function nodeFill(n: SimNode): string {
     if (netColor === 'uniform') return '#5283b8';
@@ -315,7 +410,36 @@
       const c = lo.map((l, i) => Math.round(l + ((hi[i] ?? l) - l) * t));
       return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
     }
+    if (netColor === 'source_overlay') {
+      return sourceColor(n.presence);
+    }
     return labelColor(n.label);
+  }
+
+  // Phase 131a — node border channel: source provenance. The selection
+  // ring (--color-fg) keeps priority when the node is selected — that
+  // is the active UI affordance, not a data channel.
+  function nodeStrokeColor(n: SimNode, isSelected: boolean): string | 'none' {
+    if (isSelected) return 'var(--color-fg)';
+    if (!isMergedScope) return 'none';
+    return sourceColor(n.presence);
+  }
+  function nodeStrokeWidth(n: SimNode, isSelected: boolean): number {
+    if (isSelected) return 1.5;
+    if (!isMergedScope) return 0;
+    // Border ring scales with node radius so small nodes still show
+    // their source provenance legibly without drowning the fill.
+    return Math.max(1.5, n.radius * 0.18);
+  }
+
+  // Edges have no metric channel, so they always source-colour-encode
+  // when the scope is merged. Single-source scopes leave them in the
+  // neutral grey since there is no per-edge provenance to display.
+  function edgeStroke(e: SimEdge): string {
+    if (isMergedScope) {
+      return sourceColor(e.presence);
+    }
+    return 'rgba(180, 200, 220, 0.5)';
   }
 
   function nodeX(n: SimNode | string): number {
@@ -339,7 +463,10 @@
       entityA: e.a,
       entityB: e.b,
       weight: e.weight,
-      articleCount: e.articleCount ?? ''
+      articleCount: e.articleCount ?? '',
+      // Phase 131a — preserve per-edge provenance in CSV/JSON exports so
+      // the source-coloured overlay is reproducible in downstream tools.
+      sources: (e.presence ?? []).join('|')
     }))
   );
   const howToReadFacts = $derived({
@@ -362,7 +489,7 @@
     summary: { nodes: nodes.length, edges: edges.length },
     howToRead: composeHowToRead('cooccurrence_network', howToReadFacts),
     rows: exportRows,
-    columns: ['entityA', 'entityB', 'weight', 'articleCount']
+    columns: ['entityA', 'entityB', 'weight', 'articleCount', 'sources']
   });
   const exportFilenameParts = $derived([
     'cooccurrence-network',
@@ -401,8 +528,39 @@
   {:else if graphQ.isError || graphQ.data?.kind === 'network-error'}
     <p class="muted">Could not load co-occurrence graph.</p>
   {:else if graphQ.data?.kind === 'success' && graphQ.data.data.edges.length === 0}
-    <p class="muted">No entity co-occurrences in this window.</p>
+    {@const articlesInScope = graphQ.data.data.articlesInScope ?? 0}
+    {#if articlesInScope > 0}
+      <!-- Phase 131a pipeline-gap hint (BUG 1.5). The BFF reports
+           `articlesInScope > 0` while the co-occurrence sweep emitted
+           no rows — i.e. the data exists in `aer_gold.entities` but
+           the corpus extractor missed it. Distinct from sparse data;
+           the worker also logs `corpus.sweep.pipeline_gap` per source. -->
+      <aside class="pipeline-gap" role="alert" aria-label="Pipeline gap warning">
+        <strong>Pipeline gap detected.</strong>
+        {articlesInScope}
+        {articlesInScope === 1 ? 'article' : 'articles'} in this window have ≥2 entities, but the co-occurrence
+        sweep produced zero rows. The data exists in
+        <code>aer_gold.entities</code>; the worker's corpus extractor is missing it. Check
+        <code>corpus.sweep.pipeline_gap</code> warnings in the analysis-worker logs.
+      </aside>
+    {:else}
+      <p class="muted">No entity co-occurrences in this window.</p>
+    {/if}
   {:else if nodes.length > 0}
+    {#if isMergedScope}
+      <!-- Phase 131a merged-provenance note (BUG 1.5). Surfaces what is
+           merged so the reader does not mistake an overlay graph for a
+           single-source one. Mirrors the methodology-banner pattern
+           the other pillars already use. -->
+      <aside class="methodology-merged" role="note" aria-label="Merged provenance">
+        <strong>Merged graph</strong> — co-occurrences from {sources.length} sources are pooled into one
+        network. Source provenance is carried by the <em>border ring</em> on each node and the
+        <em>edge stroke</em>, so a metric channel (entity type, source presence, …) on the node
+        <em>fill</em> stays readable. Nodes and edges observed in more than one source render in
+        grey. Picking <em>Source overlay</em> as the Colour channel makes the fill match the border for
+        a single-encoding view.
+      </aside>
+    {/if}
     {#if nodes.length < 8}
       <!-- Phase 122i revision (A6). When the graph collapses to a handful
            of nodes, surface a methodology note so the reader does not
@@ -443,7 +601,7 @@
               y1={nodeY(e.source)}
               x2={nodeX(e.target)}
               y2={nodeY(e.target)}
-              stroke="rgba(180, 200, 220, 0.5)"
+              stroke={edgeStroke(e)}
               stroke-width={0.4 + 2.4 * (e.weight / maxEdgeWeight)}
             />
           {/each}
@@ -463,8 +621,8 @@
                 r={n.radius}
                 fill={nodeFill(n)}
                 fill-opacity="0.85"
-                stroke={selectedEntity?.text === n.id ? 'var(--color-fg)' : 'none'}
-                stroke-width="1.5"
+                stroke={nodeStrokeColor(n, selectedEntity?.text === n.id)}
+                stroke-width={nodeStrokeWidth(n, selectedEntity?.text === n.id)}
               />
               <title
                 >{n.id} · {n.label} — weight {n.totalCount}, {n.degree} neighbour{n.degree === 1
@@ -490,6 +648,39 @@
       Ctrl/⌘ + scroll to zoom · drag background to pan · drag nodes to reposition · click node for
       articles
     </p>
+    {#if isMergedScope}
+      <!-- Phase 131a — source-coloured overlay legend.
+           Shown whenever the scope is merged, regardless of the active
+           Colour channel, because source provenance is always carried
+           by the node border ring + edge stroke in merged scopes (the
+           Colour channel controls the *fill* metric). When the user
+           picks `Source overlay` as the Colour channel, the fill ALSO
+           matches the legend — the legend is consistent either way. -->
+      <ul class="source-legend" aria-label="Source overlay legend">
+        {#each sources as src (src.name)}
+          <li>
+            <span
+              class="legend-swatch"
+              style="background:{sourceColorMap[src.name] ?? UNKNOWN_PROVENANCE_COLOR}"
+              aria-hidden="true"
+            ></span>
+            <span class="legend-label">{src.emicDesignation ?? src.name}</span>
+          </li>
+        {/each}
+        <li>
+          <span class="legend-swatch" style="background:{SHARED_COLOR}" aria-hidden="true"></span>
+          <span class="legend-label">shared (≥2 sources)</span>
+        </li>
+        <li>
+          <span
+            class="legend-swatch"
+            style="background:{UNKNOWN_PROVENANCE_COLOR}"
+            aria-hidden="true"
+          ></span>
+          <span class="legend-label">provenance unavailable</span>
+        </li>
+      </ul>
+    {/if}
     <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
   {:else}
     <p class="muted" aria-busy="true">Laying out…</p>
@@ -670,6 +861,66 @@
     background: color-mix(in srgb, var(--color-status-expired) 10%, var(--color-surface));
     border-left: 3px solid var(--color-status-expired);
     margin-bottom: var(--space-2);
+  }
+
+  /* Phase 131a — merged-provenance note (informational). */
+  .methodology-merged {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    line-height: 1.4;
+    background: color-mix(in srgb, var(--color-info, #5283b8) 8%, var(--color-surface));
+    border-left: 3px solid var(--color-info, #5283b8);
+    margin-bottom: var(--space-2);
+  }
+
+  /* Phase 131a — pipeline-gap warning (actionable / alarm). */
+  .pipeline-gap {
+    display: block;
+    padding: var(--space-3) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    line-height: 1.5;
+    background: color-mix(in srgb, var(--color-status-expired) 14%, var(--color-surface));
+    border-left: 3px solid var(--color-status-expired);
+  }
+  .pipeline-gap code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 4px;
+  }
+
+  /* Phase 131a — source-overlay legend. */
+  .source-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font-size: 10px;
+    color: var(--color-fg-muted);
+  }
+  .source-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+    border: 1px solid var(--color-border);
+  }
+  .legend-label {
+    font-family: var(--font-mono);
   }
 
   .entity-panel {

@@ -338,6 +338,7 @@
   const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: string }> = [
     { id: 'label', label: 'Entity type' },
     { id: 'presence', label: 'Source presence' },
+    { id: 'source_overlay', label: 'Source overlay' },
     { id: 'uniform', label: 'Uniform' }
   ];
 

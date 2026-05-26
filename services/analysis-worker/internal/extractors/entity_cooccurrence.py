@@ -7,7 +7,7 @@ from typing import Iterable
 
 import structlog
 
-from internal.extractors.base import TimeWindow
+from internal.extractors.base import TimeWindow  # re-exported for backward compat
 
 logger = structlog.get_logger()
 
@@ -20,6 +20,14 @@ class CoOccurrenceRow:
     Maps 1:1 to aer_gold.entity_cooccurrences. Pair ordering is
     lexicographic on (entity_a_text, entity_b_text) so the unordered
     pair (A, B) has exactly one canonical representation.
+
+    Phase 131a (BUG 1.5): ``window_start`` is the article's
+    ``published_date``, not the sweep's wall-clock window. This makes the
+    PK ``(window_start, source, article_id, A, B)`` stable across sweeps
+    so re-runs collapse via ReplacingMergeTree(ingestion_version), and
+    aligns the row TTL anchor (``window_start + 365 DAY``) with the rest
+    of Gold (which anchors on ``published_date``). ``window_end`` mirrors
+    ``window_start`` for one-article-one-row semantics.
     """
 
     window_start: datetime
@@ -35,11 +43,16 @@ class CoOccurrenceRow:
 
 @dataclass(frozen=True, slots=True)
 class EntityRecord:
-    """Subset of aer_gold.entities used as input to the co-occurrence sweep."""
+    """Subset of aer_gold.entities used as input to the co-occurrence sweep.
+
+    Phase 131a: ``timestamp`` carries the article's ``published_date`` so
+    co-occurrence rows can be stamped per article rather than per sweep.
+    """
 
     article_id: str
     entity_text: str
     entity_label: str
+    timestamp: datetime | None = None
 
 
 class EntityCoOccurrenceExtractor:
@@ -76,7 +89,16 @@ class EntityCoOccurrenceExtractor:
         window: TimeWindow,
         source: str,
     ) -> list[CoOccurrenceRow]:
-        """Group records by article_id and emit one row per unordered pair."""
+        """Group records by article_id and emit one row per unordered pair.
+
+        Phase 131a (BUG 1.5): the ``window`` argument bounds the sweep's
+        scan range but is **not** stamped onto the emitted rows — each row
+        carries the article's own ``timestamp`` so the PK
+        ``(window_start, source, article_id, A, B)`` is stable across
+        sweeps and ReplacingMergeTree collapses repeated emissions
+        idempotently. ``window`` is retained for caller-side logging and
+        to keep the legacy two-argument call sites valid.
+        """
         per_article: dict[str, list[EntityRecord]] = defaultdict(list)
         for rec in records:
             if not rec.article_id or not rec.entity_text:
@@ -85,14 +107,26 @@ class EntityCoOccurrenceExtractor:
 
         rows: list[CoOccurrenceRow] = []
         for article_id, entities in per_article.items():
-            rows.extend(self._pairs_for_article(article_id, entities, window, source))
+            # Per-article timestamp: pick the first non-null record timestamp
+            # for this article (all records for one article share a
+            # published_date). Fall back to the sweep window's start so a
+            # legacy caller that does not populate the field still produces
+            # rows — preserves the Phase-102 contract for unit tests.
+            article_ts: datetime | None = next(
+                (r.timestamp for r in entities if r.timestamp is not None), None
+            )
+            if article_ts is None:
+                article_ts = window.start
+            rows.extend(
+                self._pairs_for_article(article_id, entities, article_ts, source)
+            )
         return rows
 
     @staticmethod
     def _pairs_for_article(
         article_id: str,
         entities: list[EntityRecord],
-        window: TimeWindow,
+        article_timestamp: datetime,
         source: str,
     ) -> list[CoOccurrenceRow]:
         # Collapse repeats by (text, label); count occurrences per surface form.
@@ -113,8 +147,8 @@ class EntityCoOccurrenceExtractor:
                 count_b = counts[unique[j]]
                 rows.append(
                     CoOccurrenceRow(
-                        window_start=window.start,
-                        window_end=window.end,
+                        window_start=article_timestamp,
+                        window_end=article_timestamp,
                         source=source,
                         article_id=article_id,
                         entity_a_text=text_a,

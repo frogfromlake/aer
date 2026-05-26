@@ -399,12 +399,16 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - WORKER_BRONZE_BUCKET=${WORKER_BRONZE_BUCKET:-bronze}
       # Phase 102 / 115 / 120 corpus-loop cadences. Production defaults
-      # match .env.example (1h corpus, 24h baseline, weekly topic). The
-      # dev-mode .env overrides all three to fire within minutes — both
-      # paths flow through these compose entries.
+      # match .env.example (1h corpus interval over the full 365-day
+      # Gold-entities window per Phase 131a, 24h baseline, weekly
+      # topic). The dev-mode .env overrides INTERVAL only — the
+      # window must stay at the Gold-TTL to avoid the Phase-131a
+      # BUG-1.5 regression (entity-bearing articles outside a narrow
+      # window producing no co-occurrence rows). Both paths flow
+      # through these compose entries.
       - CORPUS_EXTRACTION_ENABLED=${CORPUS_EXTRACTION_ENABLED:-true}
       - CORPUS_EXTRACTION_INTERVAL_SECONDS=${CORPUS_EXTRACTION_INTERVAL_SECONDS:-3600}
-      - CORPUS_EXTRACTION_WINDOW_SECONDS=${CORPUS_EXTRACTION_WINDOW_SECONDS:-3600}
+      - CORPUS_EXTRACTION_WINDOW_SECONDS=${CORPUS_EXTRACTION_WINDOW_SECONDS:-31536000}
       - CORPUS_EXTRACTION_INITIAL_DELAY_SECONDS=${CORPUS_EXTRACTION_INITIAL_DELAY_SECONDS:-60}
       - BASELINE_EXTRACTION_ENABLED=${BASELINE_EXTRACTION_ENABLED:-true}
       - BASELINE_EXTRACTION_INTERVAL_SECONDS=${BASELINE_EXTRACTION_INTERVAL_SECONDS:-86400}

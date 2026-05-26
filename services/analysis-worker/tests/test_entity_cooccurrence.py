@@ -1,4 +1,4 @@
-"""Unit tests for EntityCoOccurrenceExtractor (Phase 102)."""
+"""Unit tests for EntityCoOccurrenceExtractor (Phase 102, Phase 131a)."""
 
 from datetime import datetime, timedelta
 
@@ -15,6 +15,12 @@ SOURCE = "tagesschau"
 
 
 def _records(*pairs: tuple[str, str, str]) -> list[EntityRecord]:
+    """Records without per-article timestamps — fall back to WINDOW.start.
+
+    Phase 131a: ``EntityRecord.timestamp`` defaults to None; when absent,
+    ``extract_pairs`` stamps the row with the sweep ``window.start`` so
+    the legacy two-argument tests still pass.
+    """
     return [
         EntityRecord(article_id=art, entity_text=text, entity_label=label)
         for art, text, label in pairs
@@ -36,8 +42,9 @@ def test_basic_pair_enumeration_one_article():
         assert r.entity_a_text < r.entity_b_text  # lexicographic canonical form
         assert r.article_id == "a1"
         assert r.source == SOURCE
+        # Phase 131a: no per-record timestamp → falls back to sweep window.
         assert r.window_start == WINDOW.start
-        assert r.window_end == WINDOW.end
+        assert r.window_end == WINDOW.start
 
 
 def test_per_article_isolation():
@@ -146,7 +153,9 @@ def test_same_text_different_labels_skipped():
     assert labels == ["LOC", "ORG"]
 
 
-def test_window_metadata_is_copied_onto_every_row():
+def test_window_metadata_falls_back_to_sweep_window_when_record_has_no_timestamp():
+    """Phase 131a backwards compat: legacy callers that omit per-record
+    timestamps still get a sane ``window_start`` (the sweep's start)."""
     extractor = EntityCoOccurrenceExtractor()
     custom_window = TimeWindow(
         start=datetime(2026, 1, 1), end=datetime(2026, 1, 1) + timedelta(hours=2)
@@ -158,8 +167,30 @@ def test_window_metadata_is_copied_onto_every_row():
     )
     assert len(rows) == 1
     assert rows[0].window_start == custom_window.start
-    assert rows[0].window_end == custom_window.end
+    assert rows[0].window_end == custom_window.start
     assert rows[0].source == "bundesregierung"
+
+
+def test_phase131a_per_article_window_start_is_article_timestamp():
+    """Phase 131a (BUG 1.5): rows stamp the article's ``published_date``
+    so the PK ``(window_start, source, article_id, A, B)`` is stable
+    across overlapping sweeps and ReplacingMergeTree collapses re-runs.
+    """
+    extractor = EntityCoOccurrenceExtractor()
+    ts_a = datetime(2026, 3, 1, 9, 30)
+    ts_b = datetime(2026, 3, 5, 14, 15)
+    records = [
+        EntityRecord(article_id="a1", entity_text="Merkel", entity_label="PER", timestamp=ts_a),
+        EntityRecord(article_id="a1", entity_text="Berlin", entity_label="LOC", timestamp=ts_a),
+        EntityRecord(article_id="a2", entity_text="Scholz", entity_label="PER", timestamp=ts_b),
+        EntityRecord(article_id="a2", entity_text="Hamburg", entity_label="LOC", timestamp=ts_b),
+    ]
+    rows = extractor.extract_pairs(records, WINDOW, SOURCE)
+    by_article = {r.article_id: r for r in rows}
+    assert by_article["a1"].window_start == ts_a
+    assert by_article["a1"].window_end == ts_a
+    assert by_article["a2"].window_start == ts_b
+    assert by_article["a2"].window_end == ts_b
 
 
 def test_co_occurrence_row_is_frozen_dataclass():

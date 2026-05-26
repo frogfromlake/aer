@@ -14,11 +14,20 @@
   interface Props {
     source: ProbeDossierSourceDto;
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
+    /** Phase 131a — `undefined` means "whole dataset, no window filter".
+     *  Concrete ISO strings narrow the article list to that range. */
+    windowStart: string | undefined;
+    windowEnd: string | undefined;
   }
 
   let { source, ctx, windowStart, windowEnd }: Props = $props();
+
+  // Phase 131a — "active window" guards the in-window vs whole-dataset
+  // labels. When the parent Dossier page passes `undefined` (the new
+  // default), the BFF returns `articlesInWindow === articlesTotal` and
+  // showing both labels would be misleading. With a user-set range
+  // (Phase-123a date-range picker), both columns regain meaning.
+  const hasActiveWindow = $derived(windowStart !== undefined && windowEnd !== undefined);
 
   // Function metadata sourced from $lib/discourse-function
   // (Phase 122h / ADR-033 §4 — single source of truth).
@@ -65,8 +74,18 @@
         title="Silver-layer access approved (WP-006 §5.2)">Ag</span
       >
     {/if}
-    <span class="toggle-summary" aria-hidden={cardExpanded ? 'true' : 'false'}>
-      {source.articlesInWindow.toLocaleString()} in window · {freqDisplay}
+    <span
+      class="toggle-summary"
+      aria-hidden={cardExpanded ? 'true' : 'false'}
+      title={hasActiveWindow
+        ? `Articles inside selected window · publication rate inside window`
+        : `Total articles for this source · recent publication cadence (last 7 days of articles)`}
+    >
+      {#if hasActiveWindow}
+        {source.articlesInWindow.toLocaleString()} in window · {freqDisplay}
+      {:else}
+        {source.articlesTotal.toLocaleString()} articles · {freqDisplay}
+      {/if}
     </span>
   </button>
 
@@ -84,18 +103,40 @@
         </a>
       {/if}
 
-      <!-- Article counts -->
+      <!-- Article counts — tooltipped, window-conditional. -->
       <dl class="stats-row">
-        <div class="stat">
-          <dt>Total</dt>
+        <div
+          class="stat"
+          title="All articles ingested for this source. The crawler discovers articles whose sitemap or RSS entry was updated within the last 7 days; individual articles can be older if their listing was recently refreshed by the publisher (re-publications, edits)."
+        >
+          <dt>
+            Total
+            <span class="info-hint" aria-hidden="true">ⓘ</span>
+          </dt>
           <dd>{source.articlesTotal.toLocaleString()}</dd>
         </div>
-        <div class="stat">
-          <dt>In window</dt>
-          <dd>{source.articlesInWindow.toLocaleString()}</dd>
-        </div>
-        <div class="stat">
-          <dt>Frequency</dt>
+        {#if hasActiveWindow}
+          <div
+            class="stat"
+            title="Articles whose publication date falls inside the date range selected on this page."
+          >
+            <dt>
+              In window
+              <span class="info-hint" aria-hidden="true">ⓘ</span>
+            </dt>
+            <dd>{source.articlesInWindow.toLocaleString()}</dd>
+          </div>
+        {/if}
+        <div
+          class="stat"
+          title={hasActiveWindow
+            ? 'Publication rate inside the selected window: articles in window divided by the window length in days.'
+            : 'Recent publication cadence: how many articles per day this source publishes, measured over the last 7 days of its newest articles. Robust against older re-published articles that would otherwise deflate a long-run average.'}
+        >
+          <dt>
+            {hasActiveWindow ? 'Frequency' : 'Recent cadence'}
+            <span class="info-hint" aria-hidden="true">ⓘ</span>
+          </dt>
           <dd>{freqDisplay}</dd>
         </div>
       </dl>
@@ -141,12 +182,14 @@
           {articlesExpanded ? '↑ Hide articles' : '↓ View articles'}
           <span
             class="article-count-badge"
-            class:zero={source.articlesInWindow === 0}
-            title={source.articlesInWindow === 0 && source.articlesTotal > 0
-              ? `0 articles in window · ${source.articlesTotal} total`
-              : `${source.articlesInWindow} articles in window`}
+            class:zero={(hasActiveWindow ? source.articlesInWindow : source.articlesTotal) === 0}
+            title={hasActiveWindow
+              ? source.articlesInWindow === 0 && source.articlesTotal > 0
+                ? `0 articles in window · ${source.articlesTotal} total`
+                : `${source.articlesInWindow} articles in window`
+              : `${source.articlesTotal} articles (whole dataset)`}
           >
-            {source.articlesInWindow}
+            {hasActiveWindow ? source.articlesInWindow : source.articlesTotal}
           </span>
         </button>
 
@@ -317,6 +360,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    cursor: help; /* signal hover-tooltip availability */
   }
 
   .stat dt {
@@ -324,6 +368,20 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--color-fg-subtle);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .info-hint {
+    font-size: 9px;
+    color: var(--color-fg-subtle);
+    opacity: 0.6;
+    line-height: 1;
+  }
+  .stat:hover .info-hint {
+    opacity: 1;
+    color: var(--color-fg-muted);
   }
 
   .stat dd {

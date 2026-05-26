@@ -909,6 +909,33 @@ def _extract_body(html: str) -> tuple[str, Optional[str]]:
     """Run trafilatura with readability fallback. Returns (cleaned_text,
     fallback_marker). ``fallback_marker`` is ``"readability"`` when
     readability salvaged the body, ``None`` otherwise.
+
+    Phase 131a (BUG 1.1) — extraction tightened to ``favor_precision``
+    so ``cleaned_text`` carries article prose (headline, lead, body)
+    only, never publisher chrome (navigation menus, footer links,
+    "Mehr aus …" rail items, video module captions). Every consumer
+    of ``SilverCore.cleaned_text`` (NER, sentiment, word-count,
+    BERTopic, …) inherits the cleaner input, so the co-occurrence
+    network no longer contains outlet self-references like
+    "ARD-aktuell" / "tagesschau.de" / "Video Tagesschau" as nodes.
+
+    The previous ``favor_recall=True`` was greedy by design — it
+    pulled in any text block trafilatura was uncertain about, which
+    on news templates is mostly navigation and the related-articles
+    rail. The Phase-122 cut-over comment trail records no
+    investigated reason for it; this restores trafilatura to its
+    document-default behaviour with an explicit precision bias.
+
+    Crucially, ``include_links`` keeps its default (True) — news
+    articles routinely wrap named entities ("Olaf Scholz", "SPD",
+    "Bundestag") inside hyperlinks to dossier/Wikipedia/internal
+    pages. Stripping link text would remove those entities entirely
+    from NER input, regressing the very co-occurrence network this
+    phase is meant to repair.
+
+    If ``favor_precision`` returns empty text on a real article (rare;
+    seen on aggressively-templated pages) the readability fallback
+    below picks it up just as before.
     """
     cleaned = ""
     if trafilatura is not None:
@@ -918,7 +945,7 @@ def _extract_body(html: str) -> tuple[str, Optional[str]]:
                     html,
                     include_comments=False,
                     include_tables=False,
-                    favor_recall=True,
+                    favor_precision=True,
                     deduplicate=True,
                 )
                 or ""

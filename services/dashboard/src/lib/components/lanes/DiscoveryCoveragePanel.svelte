@@ -121,9 +121,33 @@
   <header>
     <h3 id="discovery-coverage-heading">Discovery coverage</h3>
     <p class="lede">
-      Per-channel URL counts from the most recent crawler discovery pass. Compare against the
-      trailing-window average to spot publisher-side surface changes early.
+      Every crawl pass asks each publisher channel (XML sitemap, RSS feed, HTML sitemap pages,
+      date-indexed archive walker) which articles exist in the recent window. This panel shows what
+      the most recent pass actually returned, per channel.
     </p>
+    <details class="how-to-read">
+      <summary>How to read these numbers</summary>
+      <dl>
+        <dt>Discovered</dt>
+        <dd>Raw count of article URLs the channel returned in this pass — before any cleanup.</dd>
+        <dt>Dedup → N</dt>
+        <dd>
+          Of the discovered URLs, how many were unique to this channel <em
+            >within this single pass</em
+          >. The first channel to surface a URL gets credit; later channels that hit the same URL
+          report it as discovered but not as dedup-unique. Strong overlap (low dedup number for the
+          richer channel) means the publisher's surfaces agree about which articles exist — this is
+          the healthy case. It does NOT mean articles are being skipped; the crawl still fetches
+          every unique URL.
+        </dd>
+        <dt>Avg</dt>
+        <dd>
+          Trailing-window average of the discovered count. Sudden drops vs avg are the publisher
+          changing its discovery surface (sitemap broken, archive truncated, RSS format change) and
+          are flagged as an underflow.
+        </dd>
+      </dl>
+    </details>
   </header>
 
   {#if query.isPending}
@@ -197,9 +221,41 @@
     font-weight: 600;
   }
   .lede {
-    margin: 0 0 1rem 0;
+    margin: 0 0 0.5rem 0;
     color: var(--text-muted, #888);
     font-size: 0.85rem;
+  }
+  .how-to-read {
+    margin: 0 0 1rem 0;
+    font-size: 0.8rem;
+    color: var(--text-muted, #888);
+  }
+  .how-to-read summary {
+    cursor: pointer;
+    color: var(--color-fg-muted, #aaa);
+    user-select: none;
+  }
+  .how-to-read summary:hover {
+    color: var(--color-fg, #ddd);
+  }
+  .how-to-read dl {
+    margin: 0.5rem 0 0 0;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-bg-elevated, rgba(255, 255, 255, 0.02));
+    border-left: 2px solid var(--border-subtle, #2a2a2a);
+    border-radius: 2px;
+  }
+  .how-to-read dt {
+    font-weight: 600;
+    color: var(--color-fg-muted, #bbb);
+    margin-top: 0.5rem;
+  }
+  .how-to-read dt:first-of-type {
+    margin-top: 0;
+  }
+  .how-to-read dd {
+    margin: 0.15rem 0 0 0;
+    line-height: 1.4;
   }
   .summary {
     display: grid;

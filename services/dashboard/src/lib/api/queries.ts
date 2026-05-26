@@ -370,8 +370,12 @@ export function probeEquivalenceQuery(
 }
 
 export interface DossierParams {
-  windowStart?: string;
-  windowEnd?: string;
+  // Phase 131a — explicit `| undefined` so callers can pass the
+  // window-less mode (`{windowStart: undefined, windowEnd: undefined}`)
+  // under `exactOptionalPropertyTypes: true`. Same falsy guard in
+  // qs.set still suppresses the query-string entry when absent.
+  windowStart?: string | undefined;
+  windowEnd?: string | undefined;
 }
 
 export function probeDossierQuery(

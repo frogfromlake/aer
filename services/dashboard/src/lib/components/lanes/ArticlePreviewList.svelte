@@ -2,6 +2,7 @@
   // Paginated article list for a source (Phase 106).
   // Feeds from /api/v1/sources/{id}/articles with cursor-based pagination.
   // Each row opens L5EvidenceReader on click.
+  import { untrack } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import {
     sourceArticlesQuery,
@@ -15,9 +16,12 @@
   interface Props {
     sourceId: string;
     ctx: FetchContext;
-    windowStart?: string;
-    windowEnd?: string;
-    entityMatch?: string;
+    // Phase 131a — explicit `| undefined` so callers under
+    // `exactOptionalPropertyTypes: true` can pass `windowStart: undefined`
+    // for the "whole dataset, no filter" mode.
+    windowStart?: string | undefined;
+    windowEnd?: string | undefined;
+    entityMatch?: string | undefined;
   }
 
   let { sourceId, ctx, windowStart, windowEnd, entityMatch }: Props = $props();
@@ -34,6 +38,25 @@
   // Filters (local state, resets pagination on change)
   let filterLang = $state('');
   let filterSentiment = $state<'' | 'negative' | 'neutral' | 'positive'>('');
+
+  // Phase 131a — reset pagination whenever a filter that changes the
+  // result set switches. Without this, the parent (e.g. clicking a
+  // different entity on the co-occurrence map switching `entityMatch`)
+  // leaves the stale `cursor` + `allItems` from the previous selection
+  // in place; the next query result is then APPENDED to a list of
+  // articles from a different filter, producing duplicate keys
+  // (`each_key_duplicate` Svelte crash) and a broken UI.
+  $effect.pre(() => {
+    // Track the filter identity. Cursor itself is excluded — cursor
+    // movement is the legitimate "Load more" path and must NOT reset.
+    void entityMatch;
+    void windowStart;
+    void windowEnd;
+    void filterLang;
+    void filterSentiment;
+    cursor = undefined;
+    allItems = [];
+  });
 
   let queryParams = $derived.by<ArticleListParams>(() => {
     const p: ArticleListParams = { limit: PAGE_SIZE };
@@ -62,8 +85,25 @@
         // First page or reset: replace
         allItems = [...page.items];
       } else {
-        // Append next page
-        allItems = [...allItems, ...page.items];
+        // Append next page, deduplicating by articleId as a defensive
+        // net against a stray double-fire (svelte-query cache replay,
+        // duplicate $effect tick, redelivered NATS row that escaped
+        // RMT FINAL). The reset $effect.pre above is the primary
+        // guard; this is belt-and-braces.
+        //
+        // Phase 131a — read `allItems` via `untrack` so this $effect
+        // does NOT register itself as a reader of `allItems`. Without
+        // that, the read-then-write pattern below registers `allItems`
+        // as both a dependency and a write target of the same effect,
+        // which Svelte 5 detects as a self-loop and aborts with
+        // `effect_update_depth_exceeded`. The reset $effect.pre +
+        // svelte-query's cache invalidation are the legitimate
+        // triggers; the $effect itself must not re-fire on its own
+        // writes.
+        const existing = untrack(() => allItems);
+        const seen = new Set(existing.map((a) => a.articleId));
+        const fresh = page.items.filter((a) => !seen.has(a.articleId));
+        allItems = [...existing, ...fresh];
       }
       hasMore = page.hasMore;
     }

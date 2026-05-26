@@ -3933,6 +3933,38 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
+## Phase 131a: Co-Occurrence Quality & Network Scope [P1] - [x] DONE
+
+*Surfaced by Phase-131 manual testing. The Rhizome co-occurrence network has two linked data-quality gaps that need a worker fix + a Gold reprocess, plus the network-specific per-source / overlay affordances that the other pillars already have. Grouped because they share the same reprocess.*
+
+**Grounding.** Read first: the corpus sweep driver `internal/corpus.py` (`fetch_entities_for_window` + `run_corpus_sweep` + the window cadence/config) — the `EntityCoOccurrenceExtractor` itself (`internal/extractors/entity_cooccurrence.py`) is correct, so the bug is in the **caller's window/batch logic**, not the pair enumeration. Then the worker NER extractor (boilerplate filtering), `CoOccurrenceNetworkCell.svelte`, the BFF `/entities/cooccurrence` GET + POST handlers.
+
+**Diagnosis already done (Phase-131 testing, 2026-05-25):** the gap is corpus-wide, not sparse data. Across the Gold corpus:
+
+| stage | articles |
+|---|---|
+| `metrics` | 847 |
+| `entities` (NER) | 771 (tagesschau 721, bundesregierung 50) |
+| `topic_assignments` | 844 |
+| **`entity_cooccurrences`** | **11** (all tagesschau; bundesregierung 0) |
+
+771 articles have ≥1 entity (bundesregierung averages ~40 entities/article) yet only 11 produced co-occurrence rows. So `corpus.py`'s sweep is processing a tiny fraction of articles — likely the rolling `window_seconds` only covers a sliver of the corpus, the per-(source,window) batch misses most articles, or the sweep ran once over a narrow window. Fix the windowing so every entity-bearing article is swept.
+
+### Co-occurrence pipeline gap (BUG 1.5)
+* [x] **Fix the corpus sweep** (`internal/corpus.py`) so co-occurrences are emitted for **every** article with ≥2 entities across **every** source — target ≈771 articles, not 11. Reprocess Gold so `entity_cooccurrences` is populated corpus-wide.
+* [x] **Per-source comparison must work** in split (it already fans out; the data was just empty). Add a clear "no co-occurrences for this source in window" hint distinguishing *sparse data* from *pipeline gap*.
+
+### NER garbage nodes (BUG 1.1)
+* [x] **Worker NER filter** drops self-referential / boilerplate entities at extraction time: outlet names ("ARD-aktuell"), domains ("tagesschau.de"), nav/section labels ("Video Tagesschau"). Configurable blocklist + heuristic (entity text == source/domain). Reprocess Gold. (Reprocess is feasible on a metered connection — BERT/BERTopic models are baked into the worker image and Docker-layer-cached; only the re-crawl fetches ~7 days/source.)
+
+### Network scope / overlay (BUG 1.5)
+* [x] **Merged-provenance note** — show what is merged (like the other pillars' methodology banner).
+* [x] **Source-coloured overlay** — one merged graph with nodes/edges coloured by originating source + an auto-assigned source palette + legend. Needs per-source **edge** provenance in the BFF co-occurrence response (node `presence` already exists; edges do not). OpenAPI + `make codegen`.
+* [x] **Kriesel-scale (stretch / may defer)** — thousands of nodes need a non-d3-force-SVG renderer (canvas/WebGL); evaluate whether this belongs here or in a later Quick-Compose phase.
+
+### Validation
+* [x] `entity_cooccurrences` populated for all sources; bundesregierung network renders; no outlet/domain garbage nodes; per-source split + source-coloured overlay work; `make test` + `make lint` green.
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -3970,64 +4002,13 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 131a: Co-Occurrence Quality & Network Scope [P1] - [ ] TODO
-
-*Surfaced by Phase-131 manual testing. The Rhizome co-occurrence network has two linked data-quality gaps that need a worker fix + a Gold reprocess, plus the network-specific per-source / overlay affordances that the other pillars already have. Grouped because they share the same reprocess.*
-
-**Grounding.** Read first: the corpus sweep driver `internal/corpus.py` (`fetch_entities_for_window` + `run_corpus_sweep` + the window cadence/config) — the `EntityCoOccurrenceExtractor` itself (`internal/extractors/entity_cooccurrence.py`) is correct, so the bug is in the **caller's window/batch logic**, not the pair enumeration. Then the worker NER extractor (boilerplate filtering), `CoOccurrenceNetworkCell.svelte`, the BFF `/entities/cooccurrence` GET + POST handlers.
-
-**Diagnosis already done (Phase-131 testing, 2026-05-25):** the gap is corpus-wide, not sparse data. Across the Gold corpus:
-
-| stage | articles |
-|---|---|
-| `metrics` | 847 |
-| `entities` (NER) | 771 (tagesschau 721, bundesregierung 50) |
-| `topic_assignments` | 844 |
-| **`entity_cooccurrences`** | **11** (all tagesschau; bundesregierung 0) |
-
-771 articles have ≥1 entity (bundesregierung averages ~40 entities/article) yet only 11 produced co-occurrence rows. So `corpus.py`'s sweep is processing a tiny fraction of articles — likely the rolling `window_seconds` only covers a sliver of the corpus, the per-(source,window) batch misses most articles, or the sweep ran once over a narrow window. Fix the windowing so every entity-bearing article is swept.
-
-### Co-occurrence pipeline gap (BUG 1.5)
-* [ ] **Fix the corpus sweep** (`internal/corpus.py`) so co-occurrences are emitted for **every** article with ≥2 entities across **every** source — target ≈771 articles, not 11. Reprocess Gold so `entity_cooccurrences` is populated corpus-wide.
-* [ ] **Per-source comparison must work** in split (it already fans out; the data was just empty). Add a clear "no co-occurrences for this source in window" hint distinguishing *sparse data* from *pipeline gap*.
-
-### NER garbage nodes (BUG 1.1)
-* [ ] **Worker NER filter** drops self-referential / boilerplate entities at extraction time: outlet names ("ARD-aktuell"), domains ("tagesschau.de"), nav/section labels ("Video Tagesschau"). Configurable blocklist + heuristic (entity text == source/domain). Reprocess Gold. (Reprocess is feasible on a metered connection — BERT/BERTopic models are baked into the worker image and Docker-layer-cached; only the re-crawl fetches ~7 days/source.)
-
-### Network scope / overlay (BUG 1.5)
-* [ ] **Merged-provenance note** — show what is merged (like the other pillars' methodology banner).
-* [ ] **Source-coloured overlay** — one merged graph with nodes/edges coloured by originating source + an auto-assigned source palette + legend. Needs per-source **edge** provenance in the BFF co-occurrence response (node `presence` already exists; edges do not). OpenAPI + `make codegen`.
-* [ ] **Kriesel-scale (stretch / may defer)** — thousands of nodes need a non-d3-force-SVG renderer (canvas/WebGL); evaluate whether this belongs here or in a later Quick-Compose phase.
-
-### Validation
-* [ ] `entity_cooccurrences` populated for all sources; bundesregierung network renders; no outlet/domain garbage nodes; per-source split + source-coloured overlay work; `make test` + `make lint` green.
-
----
-
-## Phase 132: News-Backbone Sentiment Model Evaluation [P1] - [ ] TODO (Epic)
-
-*The cross-probe sentiment backbone is currently `cardiffnlp/twitter-xlm-roberta-base-sentiment` — a Twitter-domain model used on news text, a domain mismatch ADR-023 itself acknowledges. That model is the natural backbone for a future social-media probe class, mis-filed under news. This epic selects the best available multilingual sentiment model for the **news** source class, replaces it, and establishes a reusable evaluation methodology every future source-class backbone will reuse. Runs early so all downstream sentiment data is produced on the final backbone (no double re-processing).*
-
-**Grounding.** Read first: `services/analysis-worker/configs/language_capabilities.yaml` (`shared.multilingual_bert`), the sentiment extractors in `internal/extractors/`, ADR-023 (+ its duplicate), `services/bff-api/configs/metric_provenance.yaml`. Preserve: the Tier-1/Tier-2/Tier-2.5 dual-metric pattern (ADR-016), determinism gates, pinned-revision discipline (`make deps-refresh`). Verify-first: confirm the exact current backbone model + revision before swapping.
-
-### Evaluation
-* [ ] **Annotation gold set** — ~80 Probe-0 articles (≈60 DE + 20 EN already in the corpus), manually sentiment-annotated.
-* [ ] **Candidate shortlist (built at execution time — fresh market scan).** Orientation: (A) status-quo Twitter-XLM-R baseline, (B) general-/news-domain multilingual model(s), (C) zero-shot via `mDeBERTa-v3-base-mnli-xnli` (zero extra footprint — Phase 122a.0 already loads it). Final shortlist is a deliverable, not fixed here.
-* [ ] **Eval harness** — agreement/calibration vs the gold set; recorded honestly (provisional, WP-002). Reusable methodology documented in the Operations Playbook.
-
-### Cutover
-* [ ] Chosen model → news-class backbone in `language_capabilities.yaml` (pinned revision). **ADR-023 amendment** (per-source-class backbone rule + cross-probe-backbone restriction + model record) and **fix the ADR-023 duplicate**. **Re-process Probe-0 sentiment** on the new backbone.
-
-### Validation
-* [ ] `make test-python` green; chosen model's agreement recorded; Probe-0 Gold sentiment reflects the new backbone; ADR-023 single and amended.
-
----
-
 ## Phase 122d.0: Silent-Edit Observability — Edit Beobachtbarkeit [P1] - [ ] TODO
 
 *Phase 122d is completely reframed: not a worker sidecar feeding a teaching cell, but a first-class analytical stratum in the Workbench, alongside sentiment/entity/topic, cutting across all three pillars. Silent edits — publishers revising articles without notice — are one of the strongest signals of platform-mediated discourse manipulation (WP-003 §5). This sub-phase makes edit activity observable: which source/discourse-function/probe edits how often, when. The Internet Archive is the independent third-party witness.*
 
-**Grounding.** Read first: `services/analysis-worker/internal/adapters/web.py` (`harmonize()`) + `web_meta.py` (WebMeta tiers), `internal/adapters/registry.py`, the ClickHouse migrations dir, the BFF article/silver path specs, `L5EvidenceReader.svelte`, the Phase-131 configurable-cell framework. Preserve: the SilverEnvelope contract, the no-DLQ-for-extractor-failures rule, Bronze-stores-raw-HTML (ADR-028). Verify-first: confirm the WebMeta provenance shape + the cell-registration pattern from 131.
+*Phase 131a flagged a related UX/conceptual artefact that **must land elegantly in this phase**, not as a separate fix: the crawler's `time_window_days` filters discovery (sitemap-`<lastmod>` / RSS `pubDate`), but an article's stored `published_date` can be far older when the publisher re-listed an old article whose sitemap-`<lastmod>` was recently bumped. That mechanism is GENAU the silent-edit signal this phase observes — a 10-month-old article reappearing with a fresh `<lastmod>` is a re-publication / revision event. The dossier already exposes this as the "Total vs In Window" diagnostic; 122d.0 must (a) document the mechanism as a named first-class concept (e.g. "republication trigger"), (b) wire the discovery-trigger metadata into `article_revisions` so the source of each revision (Wayback CDX vs publisher re-list vs both) is observable, and (c) reconcile the UX so the dossier numbers no longer confuse anyone: a re-listed old article is correctly framed as a Silent-Edit signal, not as "stale article slipping past the 7-day window". This avoids treating the Phase-131a artefact as a bug to patch over.*
+
+**Grounding.** Read first: `services/analysis-worker/internal/adapters/web.py` (`harmonize()`) + `web_meta.py` (WebMeta tiers), `internal/adapters/registry.py`, the ClickHouse migrations dir, the BFF article/silver path specs, `L5EvidenceReader.svelte`, the Phase-131 configurable-cell framework, `crawlers/web-crawler/probes/probe0/sources.yaml` (the `time_window_days` knob + its comment-block rationale), `services/bff-api/internal/storage/dossier_store.go::fetchSourceCounts` (the existing in-window vs whole-dataset split). Preserve: the SilverEnvelope contract, the no-DLQ-for-extractor-failures rule, Bronze-stores-raw-HTML (ADR-028). Verify-first: confirm the WebMeta provenance shape + the cell-registration pattern from 131.
 
 ### Worker
 * [ ] **`wayback_cdx.py`** — async CDX client (token-bucket ~5 req/s/host), typed result with `status ∈ {ok, no_snapshots, failed, skipped}`. **A Wayback timeout NEVER produces a DLQ event** (enforced in the WebAdapter).
@@ -4054,7 +4035,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Answers "what was changed". Fetches IA-archived HTML snapshots and diffs consecutive versions at paragraph level, with headline changes called out (the highest-semantic-shift signal).*
 
-**Grounding.** Read first: Phase-122d.0 output (`article_revisions`, the CDX client), `web_extract.py` / trafilatura usage in the WebAdapter, `L5EvidenceReader.svelte`. Preserve: Bronze-immutability (snapshots are fetched from the IA, not stored in Bronze), the fail-silent posture. Verify-first: confirm 122d.0 landed and `wayback_revisions[]` is populated.
+**Grounding.** Read first: Phase-122d.0 output (`article_revisions`, the CDX client, the "republication trigger" concept landed there), `web_extract.py` / trafilatura usage in the WebAdapter, `L5EvidenceReader.svelte`. Preserve: Bronze-immutability (snapshots are fetched from the IA, not stored in Bronze), the fail-silent posture, the 122d.0 framing that publisher-side re-list events are themselves a silent-edit signal (not just IA snapshots). Verify-first: confirm 122d.0 landed and `wayback_revisions[]` is populated.
 
 ### Worker + Gold
 * [ ] **Snapshot fetcher** — loads archived HTML via `archive_url`, runs trafilatura at parity with Bronze→Silver. **Paragraph-level diff extractor** between consecutive snapshots. **Gold columns** on `article_revisions`: `diff_paragraphs`, `headline_changed`, `headline_before`, `headline_after`.
@@ -4130,6 +4111,11 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 ### Backend + capability data
 * [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data. Capability matrix: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier`. **Auto-generated `add-a-language.md`** from the manifest at MkDocs build.
 
+### Time-window UX (Phase 131a follow-up)
+* [ ] **Date-range picker** on the Dossier overlay header — explicit `?from=&to=` URL grammar driving `windowStart` / `windowEnd` to the dossier endpoint. Pre-set chips: `Whole dataset` (default — passes `undefined` to BFF, `in_window == total`), `Last 7d`, `Last 30d`, `Custom…`. Selection persists via URL params so deep-links round-trip.
+* [ ] **Default window = whole dataset** (already wired in Phase 131a: `dossier/+page.svelte` passes `undefined` when no `?from=`/`?to=` is set; BFF `dossier_store.go::fetchSourceCounts` already supports the window-less branch). The picker only narrows.
+* [ ] **Stats-row UX consistency** — the SourceCard's per-source stats row already collapses to a single `Total` column under the whole-dataset default (Phase 131a). The picker must keep the `Total` + `In window` columns aligned and tooltipped consistently with the ProbeCard summary line.
+
 ### Technical requirements
 * [ ] **ADR-033 amendment** (four→three surfaces). Engine pause while the overlay is open. **Dossier overlay fully usable without WebGL2.** Modal a11y (focus-trap, Esc, ARIA). CLAUDE.md surface list 4→3.
 
@@ -4156,7 +4142,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [ ] **ProbeRegistry + content** — BFF probe config + content under `configs/content/{en,de}/probes/` (EN+DE only; FR UI out of scope). Existing `WebAdapter` handles FR transparently.
 
 ### NLP
-* [ ] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); Tier-2 multilingual backbone (from Phase 132) covers FR. **Tier-1 FEEL + Tier-2.5 CamemBERT deferred** (see Deferred Phases) — within-frame only, never the cross-probe basis.
+* [ ] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); the current multilingual backbone (`cardiffnlp/twitter-xlm-roberta-base-sentiment`, status quo) covers FR for Probe 1 — the news-class backbone re-selection is deferred (see Deferred Phases), so Probe-1 sentiment ships on the same backbone Probe 0 already uses. **Tier-1 FEEL + Tier-2.5 CamemBERT deferred** (see Deferred Phases) — within-frame only, never the cross-probe basis.
 * [ ] **DF URL rules** for francetvinfo + gouvernement in `discourse_function_rules.yaml`.
 * [ ] **Cultural calendars** — ship BOTH `fr.yaml` (new, POC-minimum) AND `de.yaml` (retroactive — the manifest references it but the file is currently missing). Structural parity is the precondition for the Phase-124 grant.
 
@@ -4197,7 +4183,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Answers "how does the discourse shift through edits". Re-extracts sentiment/NER/topic over each snapshot version (on the news-class backbone) and surfaces edit-driven deltas. After Probe 1 because the re-extraction (the most expensive part) yields the richest comparison on cross-cultural data.*
 
-**Grounding.** Read first: Phase-122d.0/.1 output (`article_revisions` + diffs), the extractor pipeline (`main.py`, `internal/extractors/`), the news backbone (Phase 132), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs + the Phase-132 backbone are in place.
+**Grounding.** Read first: Phase-122d.0/.1 output (`article_revisions` + diffs), the extractor pipeline (`main.py`, `internal/extractors/`), the current multilingual sentiment backbone (`shared.multilingual_bert` in `language_capabilities.yaml` — backbone re-selection deferred to the Deferred block, so re-extraction runs on whatever backbone is current at execution time), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs are in place and re-record the active backbone revision before re-extracting.
 
 ### Worker + Gold
 * [ ] **Re-extraction** over snapshot versions → delta columns on `article_revisions`: `sentiment_delta`, `entities_added`, `entities_removed`, `topic_shift_score`.
@@ -4282,6 +4268,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ### Frontend + Docs
 * [ ] Login/logout + minimal user area (dashboard stays static). **ADR-036 — Access Control Architecture**; align with Phase 55; CLAUDE.md Security Defaults updated.
+* [ ] **Public/Internal docs split (Phase 131a follow-up).** Today the dossier's "Documentation" link on each source card points at the full MkDocs build (`http://localhost:8000/probes/{id}/`), which exposes Arc42, ADRs, Operations Playbook etc. — fine for the engineering-POC stage with one operator, but inappropriate once the app gates auth and serves external researchers. Split into (a) a **Public docs build** (Methodology Working Papers, per-probe and per-source descriptions, the manifesto, the published-data caveats — what an external researcher needs to interpret the visible data) and (b) an **Internal docs build** (Arc42, ADRs, Operations Playbook, security defaults — RBAC-gated to `admin` role). The source-card "Documentation" link routes to (a); a separate admin-only entry routes to (b). Re-link from `services/bff-api/configs/probes/` and `infra/postgres/migrations/000016_probe0_documentation_url_refresh.up.sql` accordingly.
 
 ### Validation
 * [ ] All data endpoints require a valid session; admin revocation invalidates a session immediately; no token reachable from client JS; argon2id verified; DSGVO delete/export work. **If AĒR is deployed (even staging) before later phases — LICENSE §4c — this phase must precede that deployment.**
@@ -4387,5 +4374,30 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 ## Deferred: Probe-1 Tier-1 (FEEL) + Tier-2.5 (CamemBERT) Sentiment Enrichments [P3]
 
 *French within-frame sentiment enrichments, deferred from Phase 123. The multilingual news backbone covers French for both within-frame and the cross-probe basis; FEEL (Tier-1 lexicon) and CamemBERT (Tier-2.5 fine-tuned) would add within-frame depth only — never the cross-probe basis. Add later if the effort is justified for richer French within-frame analysis. Trigger: a concrete French within-frame need the backbone does not serve well. Per-source-class backbone strategy means new probes scale at O(1) — these enrichments are explicitly optional and must never become a per-language onboarding requirement.*
+
+---
+
+## Deferred: Phase 132 — News-Backbone Sentiment Model Evaluation [P2] (Epic, methodology-first)
+
+*Originally drafted as a Pre-Probe-1 Iteration-7 phase that would re-select the `shared.multilingual_bert` backbone (currently `cardiffnlp/twitter-xlm-roberta-base-sentiment`, a Twitter-domain model running on news text — a domain mismatch ADR-023 itself acknowledges). Deferred because (1) cross-probe comparison is not AĒR's primary use case — within-probe analysis on the current Tier-2 backbone + the Tier-2.5 German-news refinement (`mdraw/german-news-sentiment-bert`) is methodologically sound for the engineering POC stage; (2) backbone re-selection is interdisciplinary work the solo operator cannot responsibly close alone — it needs annotation guidelines, inter-annotator agreement, calibration analysis; (3) committing to a backbone now risks a second re-processing later if the methodology shifts. Probe 1 ships on the status-quo backbone (the cross-probe Tier-2 column is still populated for both languages, just with the acknowledged domain mismatch). Within-frame sentiment surfaces are unaffected.*
+
+*Scope when re-opened: a **methodology epic**, not a pick-the-best-model exercise. The deliverable is a reusable evaluation framework every future source-class backbone re-uses — model selection is a downstream by-product.*
+
+*Methodology deliverables:*
+* *Gold-set definition (sample size derivation, annotator selection, annotation guidelines, 3-vs-5-class taxonomy decision, inter-annotator-agreement threshold and procedure).*
+* *Eval metrics suite (agreement = Cohen's κ; calibration = Expected Calibration Error; cross-language transfer consistency DE↔FR↔EN; robustness on news's neutral-skewed class imbalance; long-text aggregation strategy since news articles exceed 512 tokens on classic BERT-style backbones).*
+* *Reproducibility (pinned revisions, deterministic seeds per ADR-016, eval harness committed under `scripts/evaluation/sentiment_backbone/`, recorded honestly as provisional per WP-002).*
+* *Operator handbook entry: how to re-run the evaluation when a new candidate model lands.*
+
+*Cutover deliverables (only after the methodology is in place and runs cleanly):*
+* *Candidate shortlist (fresh market scan at re-open time; orientation snapshot from the Mai-2026 scan recorded here so it is not lost): (A) status-quo baseline `cardiffnlp/twitter-xlm-roberta-base-sentiment` (Twitter domain); (B) `clapAI/modernBERT-large-multilingual-sentiment` (Apache 2.0, ModernBERT architecture, 8K context — long news articles fit without truncation, ~396M params, generic-domain training data); (C) `clapAI/roberta-large-multilingual-sentiment` (Apache 2.0, higher reported F1 but 512-token cap and 560M params); (D) zero-shot via `MoritzLaurer/mDeBERTa-v3-base-mnli-xnli` (zero extra image footprint — Phase 122a.0 already loads it); (E) the only true news-domain multilingual release found in the scan, `z-dickson/multilingual_sentiment_newspaper_headlines`, is headline-only and too narrow to serve as the article-body backbone. Generic non-commercial-licensed candidates like `tabularisai/multilingual-sentiment-analysis` (CC-BY-NC-4.0) are excluded on license grounds. The market gap (no Apache-licensed, full-article, multilingual news-domain SOTA) may justify a future in-house fine-tune as a separate epic ("Phase 132b: AĒR-Backbone-Fine-Tune") rather than another off-the-shelf swap.*
+* *Chosen model wired into `language_capabilities.yaml` (pinned revision); Probe-0 + Probe-1 sentiment re-processed; ADR-023 amendment (per-source-class backbone rule + cross-probe-backbone restriction + the model-record line) and the existing ADR-023 duplicate cleaned up (the duplicate-cleanup alone stays in Phase 129's Documentation Sweep regardless).*
+
+*Triggers to re-open:*
+* *An interdisciplinary collaborator (annotation, linguistics, computational social science) can carry the gold-set work — the bottleneck is annotation, not engineering.*
+* *A concrete downstream analytical question that fails on the status-quo backbone in a way the within-frame Tier-2.5 refinement does not absorb.*
+* *AĒR exits the engineering-POC stage and moves toward something publication- or deployment-shaped where the documented domain mismatch becomes a load-bearing weakness.*
+
+*Until then: status quo holds. Within-probe sentiment is the load-bearing surface; the cross-probe overlay uses the same backbone for both probes with the domain caveat surfaced via `metric_provenance.yaml`.*
 
 ---
