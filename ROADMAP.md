@@ -3965,6 +3965,36 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 ### Validation
 * [x] `entity_cooccurrences` populated for all sources; bundesregierung network renders; no outlet/domain garbage nodes; per-source split + source-coloured overlay work; `make test` + `make lint` green.
 
+
+## Phase 122d.0: Silent-Edit Observability — Edit Beobachtbarkeit [P1] - [x] DONE
+
+*Phase 122d is completely reframed: not a worker sidecar feeding a teaching cell, but a first-class analytical stratum in the Workbench, alongside sentiment/entity/topic, cutting across all three pillars. Silent edits — publishers revising articles without notice — are one of the strongest signals of platform-mediated discourse manipulation (WP-003 §5). This sub-phase makes edit activity observable: which source/discourse-function/probe edits how often, when. The Internet Archive is the independent third-party witness.*
+
+*Phase 131a flagged a related UX/conceptual artefact that **must land elegantly in this phase**, not as a separate fix: the crawler's `time_window_days` filters discovery (sitemap-`<lastmod>` / RSS `pubDate`), but an article's stored `published_date` can be far older when the publisher re-listed an old article whose sitemap-`<lastmod>` was recently bumped. That mechanism is GENAU the silent-edit signal this phase observes — a 10-month-old article reappearing with a fresh `<lastmod>` is a re-publication / revision event. The dossier already exposes this as the "Total vs In Window" diagnostic; 122d.0 must (a) document the mechanism as a named first-class concept (e.g. "republication trigger"), (b) wire the discovery-trigger metadata into `article_revisions` so the source of each revision (Wayback CDX vs publisher re-list vs both) is observable, and (c) reconcile the UX so the dossier numbers no longer confuse anyone: a re-listed old article is correctly framed as a Silent-Edit signal, not as "stale article slipping past the 7-day window". This avoids treating the Phase-131a artefact as a bug to patch over.*
+
+**Grounding.** Read first: `services/analysis-worker/internal/adapters/web.py` (`harmonize()`) + `web_meta.py` (WebMeta tiers), `internal/adapters/registry.py`, the ClickHouse migrations dir, the BFF article/silver path specs, `L5EvidenceReader.svelte`, the Phase-131 configurable-cell framework, `crawlers/web-crawler/probes/probe0/sources.yaml` (the `time_window_days` knob + its comment-block rationale), `services/bff-api/internal/storage/dossier_store.go::fetchSourceCounts` (the existing in-window vs whole-dataset split). Preserve: the SilverEnvelope contract, the no-DLQ-for-extractor-failures rule, Bronze-stores-raw-HTML (ADR-028). Verify-first: confirm the WebMeta provenance shape + the cell-registration pattern from 131.
+
+### Worker
+* [x] **`internal/wayback/`** — sync `requests`-backed CDX client (token-bucket ~5 req/s/host, operator-tunable), typed `CDXResult` with `status ∈ {ok, no_snapshots, failed, skipped, disabled}`. Runs in the harmoniser thread; **a Wayback timeout / network error / rate-limit denial NEVER produces a DLQ event** (enforced by the catch-all in `WebAdapter._resolve_wayback`).
+* [x] **Postgres cache** `wayback_cdx_cache(canonical_url PK, fetched_at, status, revisions_jsonb)` — migration `000019`, point-cache with operator-managed TTL `WAYBACK_CDX_CACHE_TTL_HOURS` (default 24 h).
+* [x] **WebMeta extension** — `wayback_revisions[]` + `wayback_lookup_status` (Tier-C provenance, allowed-value set in `ALLOWED_WAYBACK_LOOKUP_STATUSES`); CDX call is the last step of `harmonize()`.
+* [x] **Config** — `WAYBACK_CDX_{ENABLED,BASE_URL,TIMEOUT_SECONDS,RATE_LIMIT_PER_SECOND,CACHE_TTL_HOURS}` + `REPUBLICATION_TRIGGER_MIN_DELTA_DAYS` + `.env.example`.
+
+### Gold + BFF
+* [x] **`aer_gold.article_revisions`** (`article_id, source, discourse_function, snapshot_at, content_hash, prev_content_hash, revision_index, time_since_prev_hours, revision_trigger, ingestion_version`) — migration `000023`. `revision_trigger ∈ {cdx_snapshot, republication_trigger, unknown}` reconciles the Phase-131a re-publication-trigger artefact into the analytical layer (`internal/article_revisions.py` detects it from the `sitemap_lastmod` − `published_date` delta). `probe` column omitted (probe→source mapping is BFF-configured per the established Gold pattern; mirrors `aer_gold.metrics`).
+* [x] **BFF** — `GET /revisions` (aggregation with `?resolution=snapshot|daily|weekly|monthly`), `GET /articles/{id}/revisions` (per-article chain; Silver-eligibility-gated). OpenAPI + `make codegen` clean diff.
+
+### Frontend
+* [x] **Two presentations** (ADR-035 — pillar follows presentation): `revision_activity` (Aleph, synchronic per-source bar) + `revision_timeline` (Episteme, per-source line per bucket). Registered in `registry.ts` + `PILLAR_DEFINITIONS`; built on the Phase-131 framework with composed how-to-read + CellExport. **L5EvidenceReader** — expandable revision-chain section with `wayback_lookup_status` surfaced + per-snapshot archive links.
+
+### Documentation
+* [x] **ADR-032 — Silent-Edit Observability as an analytical stratum.** Operations Playbook: status distribution health-check + "IA is down" runbook + Postgres-cache trim recipe + republication-trigger framing. Coverage invariant: empirical, no fixed threshold (the IA's coverage of any given publisher is a property of the IA).
+
+### Validation
+* [x] Fail-silent invariant holds by construction (`WaybackCDXClient.lookup` documented + structured to never raise; `WebAdapter._resolve_wayback` catch-all collapses any future regression to `status='failed'`); `revision_activity` renders in Aleph + `revision_timeline` in Episteme; aggregation answers "which source edits most" via `GET /revisions?scope=probe`.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -3999,35 +4029,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 # Iteration 7 (continued) — Workbench Foundation & Pre-Probe-1 Hardening
 
 *Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, the full per-article lens, and the finalised three-surface architecture — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) build on; the iteration closes with Phase 123a, which collapses the Dossier into a global overlay (four surfaces → three) so the second probe lands into the final surface, not a moving one.*
-
----
-
-## Phase 122d.0: Silent-Edit Observability — Edit Beobachtbarkeit [P1] - [ ] TODO
-
-*Phase 122d is completely reframed: not a worker sidecar feeding a teaching cell, but a first-class analytical stratum in the Workbench, alongside sentiment/entity/topic, cutting across all three pillars. Silent edits — publishers revising articles without notice — are one of the strongest signals of platform-mediated discourse manipulation (WP-003 §5). This sub-phase makes edit activity observable: which source/discourse-function/probe edits how often, when. The Internet Archive is the independent third-party witness.*
-
-*Phase 131a flagged a related UX/conceptual artefact that **must land elegantly in this phase**, not as a separate fix: the crawler's `time_window_days` filters discovery (sitemap-`<lastmod>` / RSS `pubDate`), but an article's stored `published_date` can be far older when the publisher re-listed an old article whose sitemap-`<lastmod>` was recently bumped. That mechanism is GENAU the silent-edit signal this phase observes — a 10-month-old article reappearing with a fresh `<lastmod>` is a re-publication / revision event. The dossier already exposes this as the "Total vs In Window" diagnostic; 122d.0 must (a) document the mechanism as a named first-class concept (e.g. "republication trigger"), (b) wire the discovery-trigger metadata into `article_revisions` so the source of each revision (Wayback CDX vs publisher re-list vs both) is observable, and (c) reconcile the UX so the dossier numbers no longer confuse anyone: a re-listed old article is correctly framed as a Silent-Edit signal, not as "stale article slipping past the 7-day window". This avoids treating the Phase-131a artefact as a bug to patch over.*
-
-**Grounding.** Read first: `services/analysis-worker/internal/adapters/web.py` (`harmonize()`) + `web_meta.py` (WebMeta tiers), `internal/adapters/registry.py`, the ClickHouse migrations dir, the BFF article/silver path specs, `L5EvidenceReader.svelte`, the Phase-131 configurable-cell framework, `crawlers/web-crawler/probes/probe0/sources.yaml` (the `time_window_days` knob + its comment-block rationale), `services/bff-api/internal/storage/dossier_store.go::fetchSourceCounts` (the existing in-window vs whole-dataset split). Preserve: the SilverEnvelope contract, the no-DLQ-for-extractor-failures rule, Bronze-stores-raw-HTML (ADR-028). Verify-first: confirm the WebMeta provenance shape + the cell-registration pattern from 131.
-
-### Worker
-* [ ] **`wayback_cdx.py`** — async CDX client (token-bucket ~5 req/s/host), typed result with `status ∈ {ok, no_snapshots, failed, skipped}`. **A Wayback timeout NEVER produces a DLQ event** (enforced in the WebAdapter).
-* [ ] **Postgres cache** `wayback_cdx_cache(canonical_url, fetched_at, status, revisions_jsonb)`.
-* [ ] **WebMeta extension** — `wayback_revisions[]` + `wayback_lookup_status`; CDX call is the last step of `harmonize()`.
-* [ ] **Config** — `WAYBACK_CDX_{ENABLED,TIMEOUT_SECONDS,RATE_LIMIT_PER_SECOND,BASE_URL}` + `.env.example`.
-
-### Gold + BFF
-* [ ] **`aer_gold.article_revisions`** (`article_id, source, probe, discourse_function, snapshot_at, content_hash, prev_content_hash, revision_index, time_since_prev_hours`).
-* [ ] **BFF** — `/revisions` (aggregation), `/articles/{id}/revisions` (detail). OpenAPI + `make codegen`.
-
-### Frontend
-* [ ] **`revision_activity` cell** (on the Phase-131 framework) registered for Aleph (now) + Episteme (over time); "how to read" note + `wayback_lookup_status` surfaced. **L5EvidenceReader** — revisions list with timestamps.
-
-### Documentation
-* [ ] **ADR-032 — Silent-Edit Observability as an analytical stratum** (re-scoped). Operations Playbook: status distribution + "IA is down" runbook. Coverage invariant: empirical post-first-run, no fixed threshold.
-
-### Validation
-* [ ] Fail-silent invariant holds (spike timeout → 100% ship to Silver, DLQ counter 0); `revision_activity` renders in Aleph + Episteme; aggregation answers "which source edits most".
 
 ---
 

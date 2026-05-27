@@ -1,0 +1,55 @@
+type: object
+description: >
+  One row of the aggregated revision-activity surface. Each entry rolls
+  up `aer_gold.article_revisions` by (source, bucket) where the bucket
+  is the time-grain produced by the requested resolution. Phase 122d.0
+  (ADR-032). Used by the `revision_activity` (Aleph snapshot) and
+  `revision_timeline` (Episteme over-time) cells.
+required:
+  - source
+  - bucket
+  - revisions
+  - articlesAffected
+properties:
+  source:
+    type: string
+    description: Canonical source identifier (e.g. `tagesschau`).
+    example: tagesschau
+  bucket:
+    type: string
+    format: date-time
+    description: >
+      The aggregation bucket start, normalised to the requested
+      resolution. For the synchronic snapshot cell the BFF collapses to
+      a single bucket spanning the whole window; for the diachronic
+      time-series the bucket is daily/weekly/monthly per the
+      `?resolution=` parameter.
+    example: 2026-05-01T00:00:00Z
+  revisions:
+    type: integer
+    minimum: 0
+    description: >
+      Count of revision rows in this (source, bucket) cell. CDX
+      snapshots and republication-trigger rows are both included; the
+      `byTrigger` breakdown distinguishes them.
+    example: 42
+  articlesAffected:
+    type: integer
+    minimum: 0
+    description: >
+      Distinct article_ids contributing at least one revision in this
+      cell. Tightly bounded by `revisions` from above.
+    example: 18
+  byTrigger:
+    type: object
+    description: >
+      Per-revision-trigger breakdown. Keys are the allowed
+      `revision_trigger` vocabulary (`cdx_snapshot`,
+      `republication_trigger`, `unknown`); missing keys mean zero. The
+      sum across keys equals `revisions`.
+    additionalProperties:
+      type: integer
+      minimum: 0
+    example:
+      cdx_snapshot: 30
+      republication_trigger: 12

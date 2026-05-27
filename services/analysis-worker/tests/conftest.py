@@ -43,14 +43,33 @@ VALID_RSS_BRONZE_DATA = json.dumps({
 # ---------------------------------------------------------------------------
 
 def gold_insert_calls(mock_ch):
-    """Return mock_ch.insert call_args_list excluding aer_silver projection writes.
+    """Return mock_ch.insert call_args_list excluding side-effect-only writes.
 
-    Phase 103b adds a per-document `aer_silver.documents` insert alongside
-    the existing Gold inserts. Tests written before that change asserted
-    only on the Gold call(s); this helper preserves those assertions
-    without baking the projection into every test.
+    The processor performs several ancillary ClickHouse inserts alongside
+    the canonical Gold metric/entity rows. These auxiliary writes carry
+    their own coverage in dedicated tests; folding them into
+    `gold_insert_calls` would force every per-extractor test to keep
+    track of a count that depends on which non-Gold tables the processor
+    pipeline currently writes to.
+
+    Carve-outs:
+      * `aer_silver.documents` — Phase 103b per-document Silver
+        projection. Tests written before Phase 103b asserted only on
+        the Gold call(s); this helper preserves those assertions
+        without baking the projection into every test.
+      * `aer_gold.metadata_coverage_raw` — Phase 122f per-field
+        provenance projection (one write per harmonised WebMeta).
+      * `aer_gold.article_revisions` — Phase 122d.0 silent-edit
+        observability projection (one write per harmonised WebMeta
+        whose Wayback CDX lookup or republication-trigger detection
+        emitted at least one row).
     """
-    return [c for c in mock_ch.insert.call_args_list if not c.args or c.args[0] != "aer_silver.documents"]
+    excluded = {
+        "aer_silver.documents",
+        "aer_gold.metadata_coverage_raw",
+        "aer_gold.article_revisions",
+    }
+    return [c for c in mock_ch.insert.call_args_list if not c.args or c.args[0] not in excluded]
 
 
 @pytest.fixture

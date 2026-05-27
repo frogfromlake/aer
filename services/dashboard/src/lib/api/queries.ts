@@ -45,6 +45,12 @@ export type MetadataCoverageFieldDto = components['schemas']['MetadataCoverageFi
 // Phase 122g — per-channel discovery telemetry (ADR-031).
 export type DiscoveryCoverageResponseDto = components['schemas']['DiscoveryCoverageResponse'];
 export type DiscoveryCoveragePerChannelDto = components['schemas']['DiscoveryCoveragePerChannel'];
+// Phase 122d.0 — Silent-Edit Observability (ADR-032).
+export type RevisionActivityResponseDto = components['schemas']['RevisionActivityResponse'];
+export type RevisionActivityEntryDto = components['schemas']['RevisionActivityEntry'];
+export type ArticleRevisionsResponseDto = components['schemas']['ArticleRevisionsResponse'];
+export type ArticleRevisionEntryDto = ArticleRevisionsResponseDto['revisions'][number];
+export type RevisionActivityResolution = 'snapshot' | 'daily' | 'weekly' | 'monthly';
 export type TopicDistributionEntryDto = TopicDistributionResponseDto['topics'][number];
 export type SilverAggregationType =
   | 'cleaned_text_length'
@@ -760,6 +766,60 @@ export function silverAggregationQuery(
       fetchJson<SilverAggregationResponseDto>(
         ctx,
         `/silver/aggregations/${encodeURIComponent(aggregationType)}?${qs.toString()}`,
+        'silver_eligibility'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// -------------------------------------------------------------------------
+// Phase 122d.0 — Silent-Edit Observability (ADR-032).
+//
+// `revision_activity` (Aleph) and `revision_timeline` (Episteme) share
+// one BFF endpoint `/revisions`; the difference is the `?resolution=`
+// parameter (`snapshot` collapses to one bucket per source, the rest
+// bucket on a calendar grain). The per-article chain endpoint
+// `/articles/{id}/revisions` carries the Silver-eligibility gate, so
+// the call-site surfaces refusals like the rest of the per-article
+// surface.
+// -------------------------------------------------------------------------
+
+export interface RevisionActivityParams {
+  scope: ViewModeScope;
+  scopeId: string;
+  start: string;
+  end: string;
+  resolution: RevisionActivityResolution;
+}
+
+export function revisionActivityQuery(
+  ctx: FetchContext,
+  params: RevisionActivityParams
+): QueryOptions<RevisionActivityResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  qs.set('startDate', params.start);
+  qs.set('endDate', params.end);
+  qs.set('resolution', params.resolution);
+  return {
+    queryKey: ['aer', 'revision-activity', params] as const,
+    queryFn: () =>
+      fetchJson<RevisionActivityResponseDto>(ctx, `/revisions?${qs.toString()}`, 'unspecified'),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export function articleRevisionsQuery(
+  ctx: FetchContext,
+  articleId: string
+): QueryOptions<ArticleRevisionsResponseDto> {
+  return {
+    queryKey: ['aer', 'article-revisions', articleId] as const,
+    queryFn: () =>
+      fetchJson<ArticleRevisionsResponseDto>(
+        ctx,
+        `/articles/${encodeURIComponent(articleId)}/revisions`,
         'silver_eligibility'
       ),
     staleTime: FIVE_MINUTES

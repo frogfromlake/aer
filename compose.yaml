@@ -418,6 +418,19 @@ services:
       - TOPIC_EXTRACTION_INTERVAL_SECONDS=${TOPIC_EXTRACTION_INTERVAL_SECONDS:-604800}
       - TOPIC_EXTRACTION_WINDOW_SECONDS=${TOPIC_EXTRACTION_WINDOW_SECONDS:-2592000}
       - TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS=${TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS:-600}
+      # Phase 122d.0 / ADR-032 — Silent-Edit Observability (Wayback CDX).
+      # Default disabled; flip WAYBACK_CDX_ENABLED=true in .env to exercise.
+      # The worker reads these via `os.getenv` (see `main.py::_init_wayback_client`);
+      # they MUST be declared here so Docker Compose injects them into the
+      # container — `.env` alone is only read by Compose for interpolation,
+      # not auto-forwarded to the process environment.
+      - WAYBACK_CDX_ENABLED=${WAYBACK_CDX_ENABLED:-false}
+      - WAYBACK_CDX_BASE_URL=${WAYBACK_CDX_BASE_URL:-https://web.archive.org/cdx/search/cdx}
+      - WAYBACK_CDX_TIMEOUT_SECONDS=${WAYBACK_CDX_TIMEOUT_SECONDS:-5.0}
+      - WAYBACK_CDX_RATE_LIMIT_PER_SECOND=${WAYBACK_CDX_RATE_LIMIT_PER_SECOND:-5.0}
+      - WAYBACK_CDX_CACHE_TTL_HOURS=${WAYBACK_CDX_CACHE_TTL_HOURS:-24}
+      - REPUBLICATION_TRIGGER_MIN_DELTA_DAYS=${REPUBLICATION_TRIGGER_MIN_DELTA_DAYS:-7}
+      - WEB_CRAWLER_USER_AGENT=${WEB_CRAWLER_USER_AGENT:-AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)}
       # Phase 118: Wikidata alias index, populated into wikidata_data by the
       # wikidata-index-init service. Empty WIKIDATA_INDEX_SHA256 disables the
       # fail-fast hash check (recommended only for development).

@@ -35,6 +35,7 @@ from internal.models import SilverCore, generate_document_id
 from internal.models.bias import BiasContext
 from internal.models.discourse import DiscourseContext
 from internal.storage.postgres_client import get_source_classification
+from internal.wayback import WaybackCDXClient
 
 logger = structlog.get_logger()
 
@@ -64,10 +65,21 @@ class WebAdapter:
     high-throughput batch ingest.
     """
 
-    def __init__(self, pg_pool: ThreadedConnectionPool | None = None):
+    def __init__(
+        self,
+        pg_pool: ThreadedConnectionPool | None = None,
+        wayback_client: WaybackCDXClient | None = None,
+    ):
         self._pg_pool = pg_pool
         self._classification_cache: OrderedDict[str, tuple[Optional[dict], float]] = OrderedDict()
         self._cache_lock = threading.Lock()
+        # Phase 122d.0 — Silent-Edit Observability. None disables the
+        # lookup entirely; the WebMeta `wayback_lookup_status` is left
+        # empty so the Gold-row writer skips this article. A
+        # non-disabled-but-failing lookup returns a `failed` status
+        # which IS recorded on WebMeta — those rows surface as the
+        # "we tried, IA was down" signal on the dashboard.
+        self._wayback_client = wayback_client
 
     # ------------------------------------------------------------------
     # Classification cache (mirrors RssAdapter pattern)
@@ -140,6 +152,16 @@ class WebAdapter:
         # ---- Timestamp resolution ----------------------------------------
         timestamp = _resolve_timestamp(meta, http_last_modified, event_time)
 
+        # ---- Silent-Edit Observability (Phase 122d.0) --------------------
+        # The CDX lookup is the last step of `harmonize()` per ADR-032:
+        # by this point `meta.canonical_url` is final and the
+        # cleaned_text / WebMeta tiers are stable. The client itself is
+        # fail-silent — every error mode collapses to a typed status on
+        # `meta.wayback_lookup_status` and `meta.wayback_revisions`
+        # remains the empty list. A CDX outage NEVER produces a DLQ
+        # event (enforced by the catch-all in `_resolve_wayback`).
+        self._resolve_wayback(meta)
+
         # ---- DiscourseContext / BiasContext ------------------------------
         discourse_context = self._lookup_discourse(source)
         meta.discourse_context = discourse_context
@@ -171,6 +193,38 @@ class WebAdapter:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _resolve_wayback(self, meta: WebMeta) -> None:
+        """Populate `meta.wayback_revisions` + `wayback_lookup_status`.
+
+        Fail-silent invariant (Phase 122d.0 / ADR-032): a missing
+        client, missing URL, or any exception inside the client
+        collapses to a typed status on the meta. We never raise out
+        of this method — the caller (`harmonize`) treats Wayback as
+        purely augmentative provenance.
+        """
+        if self._wayback_client is None:
+            # Worker boot disabled the integration (e.g. tests). Leave
+            # the fields blank so the Gold writer skips this article;
+            # any non-empty status value would be misleading.
+            return
+        try:
+            result = self._wayback_client.lookup(meta.canonical_url)
+        except Exception as exc:
+            # Defence-in-depth — `WaybackCDXClient.lookup` is documented
+            # to never raise, but a future refactor could regress. We
+            # log at INFO and move on.
+            logger.info(
+                "Wayback CDX adapter call raised; collapsing to failed.",
+                canonical_url=meta.canonical_url,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            meta.wayback_lookup_status = "failed"
+            meta.wayback_revisions = []
+            return
+        meta.wayback_lookup_status = result.status
+        meta.wayback_revisions = [r.to_dict() for r in result.revisions]
+
     def _lookup_discourse(self, source: str) -> Optional[DiscourseContext]:
         if self._pg_pool is None or not source:
             return None

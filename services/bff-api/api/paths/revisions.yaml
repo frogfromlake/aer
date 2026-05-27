@@ -1,0 +1,64 @@
+get:
+  tags: [Analysis]
+  summary: Aggregated silent-edit revision activity for a probe or source
+  description: >
+    Returns aggregated revision-activity rows over `aer_gold.article_revisions`
+    (Phase 122d.0 / ADR-032). Each entry is one (source, bucket) cell;
+    `byTrigger` distinguishes Wayback CDX snapshots from publisher-side
+    republication-trigger events. Backs the `revision_activity` (Aleph
+    snapshot) and `revision_timeline` (Episteme over-time) cells.
+
+    The endpoint is read-only and follows the same scope grammar as
+    `/entities` and `/metrics`. Sources with zero rows in the window
+    do NOT appear in `entries`; the dashboard renders absences from
+    the scope membership.
+  operationId: getRevisionActivity
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - name: startDate
+      in: query
+      required: true
+      description: Inclusive start of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: endDate
+      in: query
+      required: true
+      description: Exclusive end of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: resolution
+      in: query
+      required: false
+      description: >
+        Aggregation grain. `snapshot` collapses to a single bucket
+        spanning the whole window (Aleph cell); `daily` / `weekly` /
+        `monthly` bucket the window on that grain (Episteme cell).
+      schema:
+        type: string
+        enum: [snapshot, daily, weekly, monthly]
+        default: snapshot
+  responses:
+    '200':
+      description: Aggregated revision-activity payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RevisionActivityResponse'
+    '400':
+      description: Invalid scope/window/resolution parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

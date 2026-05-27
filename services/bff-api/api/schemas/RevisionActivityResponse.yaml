@@ -1,0 +1,42 @@
+type: object
+description: >
+  Aggregation response for the Silent-Edit Observability cells
+  (Phase 122d.0 / ADR-032). Read from `aer_gold.article_revisions`
+  with the same scope+window grammar as every other Gold endpoint.
+required:
+  - scope
+  - scopeId
+  - resolution
+  - entries
+properties:
+  scope:
+    type: string
+    enum: [probe, source]
+    description: Echoed scope of the request.
+  scopeId:
+    type: string
+    description: Echoed scope identifier.
+  resolution:
+    type: string
+    enum: [snapshot, daily, weekly, monthly]
+    description: >
+      Aggregation grain. `snapshot` collapses to a single bucket
+      spanning the whole window (Aleph cell); the others bucket the
+      window on the requested grain (Episteme cell).
+  windowStart:
+    type: string
+    format: date-time
+    description: Echoed inclusive window start.
+  windowEnd:
+    type: string
+    format: date-time
+    description: Echoed exclusive window end.
+  entries:
+    type: array
+    description: >
+      One entry per (source, bucket). Sources with zero rows in the
+      window do NOT appear — absence is itself a signal and the
+      dashboard renders the empty row from the scope membership, not
+      from this list.
+    items:
+      $ref: './RevisionActivityEntry.yaml'

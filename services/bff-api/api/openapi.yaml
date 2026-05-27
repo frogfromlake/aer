@@ -73,6 +73,10 @@ paths:
     $ref: './paths/source_discovery_coverage.yaml'
   /articles/{id}:
     $ref: './paths/article_detail.yaml'
+  /articles/{id}/revisions:
+    $ref: './paths/article_revisions.yaml'
+  /revisions:
+    $ref: './paths/revisions.yaml'
   /healthz:
     $ref: './paths/healthz.yaml'
   /readyz:
@@ -163,3 +167,9 @@ components:
       $ref: './schemas/DiscoveryCoveragePerChannel.yaml'
     DiscoveryCoverageResponse:
       $ref: './schemas/DiscoveryCoverageResponse.yaml'
+    RevisionActivityEntry:
+      $ref: './schemas/RevisionActivityEntry.yaml'
+    RevisionActivityResponse:
+      $ref: './schemas/RevisionActivityResponse.yaml'
+    ArticleRevisionsResponse:
+      $ref: './schemas/ArticleRevisionsResponse.yaml'

@@ -1,0 +1,83 @@
+type: object
+description: >
+  Per-article revision chain for the L5 Evidence Reader (Phase 122d.0).
+  Returns the ordered list of detected revisions for one article —
+  Wayback CDX snapshots and publisher-side republication-trigger
+  events. The endpoint is subject to the Silver-eligibility gate
+  inherited from `GET /articles/{id}`: a source whose
+  `silver_eligible=false` returns 403 with the same refusal payload.
+required:
+  - articleId
+  - source
+  - lookupStatus
+  - revisions
+properties:
+  articleId:
+    type: string
+    description: SHA-256 article identifier.
+  source:
+    type: string
+    description: Canonical source of the article.
+  lookupStatus:
+    type: string
+    enum: [ok, no_snapshots, failed, skipped, disabled, '']
+    description: >
+      Wayback CDX coverage signal for THIS article. `ok` = ≥ 1 CDX
+      snapshot was captured; `no_snapshots` = the URL is not yet
+      archived; `failed` = the lookup attempted but errored (timeout,
+      rate-limit, network); `skipped` = canonical URL missing;
+      `disabled` = the worker had the CDX integration off; empty
+      string = pre-Phase-122d.0 data with no provenance recorded.
+  revisions:
+    type: array
+    description: >
+      Ordered list of revisions (snapshot_at ascending). An article
+      with a republication-trigger but no CDX snapshots still emits
+      one entry whose `trigger='republication_trigger'`. An article
+      with `lookupStatus='no_snapshots'` and no republication trigger
+      returns an empty list.
+    items:
+      type: object
+      required:
+        - snapshotAt
+        - contentHash
+        - revisionIndex
+        - trigger
+      properties:
+        snapshotAt:
+          type: string
+          format: date-time
+          description: When this revision was observed.
+        contentHash:
+          type: string
+          description: >
+            Content-body digest at this snapshot. For CDX snapshots,
+            the value the Wayback Machine recorded (SHA-1 hex). For
+            republication-trigger rows, the SHA-1 of the current
+            cleaned-text.
+        prevContentHash:
+          type: string
+          description: >
+            `contentHash` of the immediately preceding entry, or empty
+            string for the chain head.
+        revisionIndex:
+          type: integer
+          minimum: 0
+          description: Zero-based position in the chain.
+        timeSincePrevHours:
+          type: number
+          format: double
+          minimum: 0
+          description: >
+            Hours between this entry and the preceding one. Zero for
+            the chain head.
+        trigger:
+          type: string
+          enum: [cdx_snapshot, republication_trigger, unknown]
+          description: Which mechanism produced this row.
+        archiveUrl:
+          type: string
+          description: >
+            Internet Archive playback URL for CDX snapshots. Empty
+            string for republication-trigger rows (no archive page
+            exists yet).

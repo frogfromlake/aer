@@ -20,6 +20,57 @@ const (
 	ApiKeyAuthScopes = "ApiKeyAuth.Scopes"
 )
 
+// Defines values for ArticleRevisionsResponseLookupStatus.
+const (
+	Disabled    ArticleRevisionsResponseLookupStatus = "disabled"
+	Empty       ArticleRevisionsResponseLookupStatus = ""
+	Failed      ArticleRevisionsResponseLookupStatus = "failed"
+	NoSnapshots ArticleRevisionsResponseLookupStatus = "no_snapshots"
+	Ok          ArticleRevisionsResponseLookupStatus = "ok"
+	Skipped     ArticleRevisionsResponseLookupStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ArticleRevisionsResponseLookupStatus enum.
+func (e ArticleRevisionsResponseLookupStatus) Valid() bool {
+	switch e {
+	case Disabled:
+		return true
+	case Empty:
+		return true
+	case Failed:
+		return true
+	case NoSnapshots:
+		return true
+	case Ok:
+		return true
+	case Skipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArticleRevisionsResponseRevisionsTrigger.
+const (
+	CdxSnapshot          ArticleRevisionsResponseRevisionsTrigger = "cdx_snapshot"
+	RepublicationTrigger ArticleRevisionsResponseRevisionsTrigger = "republication_trigger"
+	Unknown              ArticleRevisionsResponseRevisionsTrigger = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ArticleRevisionsResponseRevisionsTrigger enum.
+func (e ArticleRevisionsResponseRevisionsTrigger) Valid() bool {
+	switch e {
+	case CdxSnapshot:
+		return true
+	case RepublicationTrigger:
+		return true
+	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AvailableMetricEquivalenceLevel.
 const (
 	Absolute  AvailableMetricEquivalenceLevel = "absolute"
@@ -284,6 +335,48 @@ func (e RefusalPayloadGate) Valid() bool {
 	case MetricEquivalence:
 		return true
 	case SilverEligibility:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevisionActivityResponseResolution.
+const (
+	RevisionActivityResponseResolutionDaily    RevisionActivityResponseResolution = "daily"
+	RevisionActivityResponseResolutionMonthly  RevisionActivityResponseResolution = "monthly"
+	RevisionActivityResponseResolutionSnapshot RevisionActivityResponseResolution = "snapshot"
+	RevisionActivityResponseResolutionWeekly   RevisionActivityResponseResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the RevisionActivityResponseResolution enum.
+func (e RevisionActivityResponseResolution) Valid() bool {
+	switch e {
+	case RevisionActivityResponseResolutionDaily:
+		return true
+	case RevisionActivityResponseResolutionMonthly:
+		return true
+	case RevisionActivityResponseResolutionSnapshot:
+		return true
+	case RevisionActivityResponseResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevisionActivityResponseScope.
+const (
+	RevisionActivityResponseScopeProbe  RevisionActivityResponseScope = "probe"
+	RevisionActivityResponseScopeSource RevisionActivityResponseScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the RevisionActivityResponseScope enum.
+func (e RevisionActivityResponseScope) Valid() bool {
+	switch e {
+	case RevisionActivityResponseScopeProbe:
+		return true
+	case RevisionActivityResponseScopeSource:
 		return true
 	default:
 		return false
@@ -572,6 +665,48 @@ func (e GetMetricHeatmapParamsYDimension) Valid() bool {
 	}
 }
 
+// Defines values for GetRevisionActivityParamsScope.
+const (
+	GetRevisionActivityParamsScopeProbe  GetRevisionActivityParamsScope = "probe"
+	GetRevisionActivityParamsScopeSource GetRevisionActivityParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionActivityParamsScope enum.
+func (e GetRevisionActivityParamsScope) Valid() bool {
+	switch e {
+	case GetRevisionActivityParamsScopeProbe:
+		return true
+	case GetRevisionActivityParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetRevisionActivityParamsResolution.
+const (
+	GetRevisionActivityParamsResolutionDaily    GetRevisionActivityParamsResolution = "daily"
+	GetRevisionActivityParamsResolutionMonthly  GetRevisionActivityParamsResolution = "monthly"
+	GetRevisionActivityParamsResolutionSnapshot GetRevisionActivityParamsResolution = "snapshot"
+	GetRevisionActivityParamsResolutionWeekly   GetRevisionActivityParamsResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionActivityParamsResolution enum.
+func (e GetRevisionActivityParamsResolution) Valid() bool {
+	switch e {
+	case GetRevisionActivityParamsResolutionDaily:
+		return true
+	case GetRevisionActivityParamsResolutionMonthly:
+		return true
+	case GetRevisionActivityParamsResolutionSnapshot:
+		return true
+	case GetRevisionActivityParamsResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetSilverAggregationParamsAggregationType.
 const (
 	CleanedTextLength            GetSilverAggregationParamsAggregationType = "cleaned_text_length"
@@ -666,6 +801,48 @@ type ArticleDetail struct {
 	Url           *string   `json:"url,omitempty"`
 	WordCount     int       `json:"wordCount"`
 }
+
+// ArticleRevisionsResponse Per-article revision chain for the L5 Evidence Reader (Phase 122d.0). Returns the ordered list of detected revisions for one article — Wayback CDX snapshots and publisher-side republication-trigger events. The endpoint is subject to the Silver-eligibility gate inherited from `GET /articles/{id}`: a source whose `silver_eligible=false` returns 403 with the same refusal payload.
+type ArticleRevisionsResponse struct {
+	// ArticleId SHA-256 article identifier.
+	ArticleId string `json:"articleId"`
+
+	// LookupStatus Wayback CDX coverage signal for THIS article. `ok` = ≥ 1 CDX snapshot was captured; `no_snapshots` = the URL is not yet archived; `failed` = the lookup attempted but errored (timeout, rate-limit, network); `skipped` = canonical URL missing; `disabled` = the worker had the CDX integration off; empty string = pre-Phase-122d.0 data with no provenance recorded.
+	LookupStatus ArticleRevisionsResponseLookupStatus `json:"lookupStatus"`
+
+	// Revisions Ordered list of revisions (snapshot_at ascending). An article with a republication-trigger but no CDX snapshots still emits one entry whose `trigger='republication_trigger'`. An article with `lookupStatus='no_snapshots'` and no republication trigger returns an empty list.
+	Revisions []struct {
+		// ArchiveUrl Internet Archive playback URL for CDX snapshots. Empty string for republication-trigger rows (no archive page exists yet).
+		ArchiveUrl *string `json:"archiveUrl,omitempty"`
+
+		// ContentHash Content-body digest at this snapshot. For CDX snapshots, the value the Wayback Machine recorded (SHA-1 hex). For republication-trigger rows, the SHA-1 of the current cleaned-text.
+		ContentHash string `json:"contentHash"`
+
+		// PrevContentHash `contentHash` of the immediately preceding entry, or empty string for the chain head.
+		PrevContentHash *string `json:"prevContentHash,omitempty"`
+
+		// RevisionIndex Zero-based position in the chain.
+		RevisionIndex int `json:"revisionIndex"`
+
+		// SnapshotAt When this revision was observed.
+		SnapshotAt time.Time `json:"snapshotAt"`
+
+		// TimeSincePrevHours Hours between this entry and the preceding one. Zero for the chain head.
+		TimeSincePrevHours *float64 `json:"timeSincePrevHours,omitempty"`
+
+		// Trigger Which mechanism produced this row.
+		Trigger ArticleRevisionsResponseRevisionsTrigger `json:"trigger"`
+	} `json:"revisions"`
+
+	// Source Canonical source of the article.
+	Source string `json:"source"`
+}
+
+// ArticleRevisionsResponseLookupStatus Wayback CDX coverage signal for THIS article. `ok` = ≥ 1 CDX snapshot was captured; `no_snapshots` = the URL is not yet archived; `failed` = the lookup attempted but errored (timeout, rate-limit, network); `skipped` = canonical URL missing; `disabled` = the worker had the CDX integration off; empty string = pre-Phase-122d.0 data with no provenance recorded.
+type ArticleRevisionsResponseLookupStatus string
+
+// ArticleRevisionsResponseRevisionsTrigger Which mechanism produced this row.
+type ArticleRevisionsResponseRevisionsTrigger string
 
 // ArticlesPage Paginated article-listing response. Cursor-based to keep deep paging stable under late-arriving Gold rows; `nextCursor` is opaque and must be echoed back unchanged on the next request.
 type ArticlesPage struct {
@@ -1019,6 +1196,48 @@ type RefusalPayload struct {
 // RefusalPayloadGate Machine identifier of the gate that fired. The `metric_equivalence` value (Phase 115) is returned when a cross-frame normalization request lacks a deviation-level entry in `aer_gold.metric_equivalence`. The `invalid_language` value (Phase 118a / ADR-024) is returned when a `?language=` query parameter is not declared in the Language Capability Manifest; `alternatives` then carries the manifest's sorted language codes.
 type RefusalPayloadGate string
 
+// RevisionActivityResponse Aggregation response for the Silent-Edit Observability cells (Phase 122d.0 / ADR-032). Read from `aer_gold.article_revisions` with the same scope+window grammar as every other Gold endpoint.
+type RevisionActivityResponse struct {
+	// Entries One entry per (source, bucket). Sources with zero rows in the window do NOT appear — absence is itself a signal and the dashboard renders the empty row from the scope membership, not from this list.
+	Entries []struct {
+		// ArticlesAffected Distinct article_ids contributing at least one revision in this cell. Tightly bounded by `revisions` from above.
+		ArticlesAffected int `json:"articlesAffected"`
+
+		// Bucket The aggregation bucket start, normalised to the requested resolution. For the synchronic snapshot cell the BFF collapses to a single bucket spanning the whole window; for the diachronic time-series the bucket is daily/weekly/monthly per the `?resolution=` parameter.
+		Bucket time.Time `json:"bucket"`
+
+		// ByTrigger Per-revision-trigger breakdown. Keys are the allowed `revision_trigger` vocabulary (`cdx_snapshot`, `republication_trigger`, `unknown`); missing keys mean zero. The sum across keys equals `revisions`.
+		ByTrigger *map[string]int `json:"byTrigger,omitempty"`
+
+		// Revisions Count of revision rows in this (source, bucket) cell. CDX snapshots and republication-trigger rows are both included; the `byTrigger` breakdown distinguishes them.
+		Revisions int `json:"revisions"`
+
+		// Source Canonical source identifier (e.g. `tagesschau`).
+		Source string `json:"source"`
+	} `json:"entries"`
+
+	// Resolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window (Aleph cell); the others bucket the window on the requested grain (Episteme cell).
+	Resolution RevisionActivityResponseResolution `json:"resolution"`
+
+	// Scope Echoed scope of the request.
+	Scope RevisionActivityResponseScope `json:"scope"`
+
+	// ScopeId Echoed scope identifier.
+	ScopeId string `json:"scopeId"`
+
+	// WindowEnd Echoed exclusive window end.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Echoed inclusive window start.
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+}
+
+// RevisionActivityResponseResolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window (Aleph cell); the others bucket the window on the requested grain (Episteme cell).
+type RevisionActivityResponseResolution string
+
+// RevisionActivityResponseScope Echoed scope of the request.
+type RevisionActivityResponseScope string
+
 // Source defines model for Source.
 type Source struct {
 	// DocumentationUrl Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
@@ -1333,6 +1552,30 @@ type GetProbeDossierParams struct {
 	WindowEnd *time.Time `form:"windowEnd,omitempty" json:"windowEnd,omitempty"`
 }
 
+// GetRevisionActivityParams defines parameters for GetRevisionActivity.
+type GetRevisionActivityParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetRevisionActivityParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// StartDate Inclusive start of the analysis window (RFC 3339).
+	StartDate time.Time `form:"startDate" json:"startDate"`
+
+	// EndDate Exclusive end of the analysis window (RFC 3339).
+	EndDate time.Time `form:"endDate" json:"endDate"`
+
+	// Resolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window (Aleph cell); `daily` / `weekly` / `monthly` bucket the window on that grain (Episteme cell).
+	Resolution *GetRevisionActivityParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+}
+
+// GetRevisionActivityParamsScope defines parameters for GetRevisionActivity.
+type GetRevisionActivityParamsScope string
+
+// GetRevisionActivityParamsResolution defines parameters for GetRevisionActivity.
+type GetRevisionActivityParamsResolution string
+
 // GetSilverAggregationParams defines parameters for GetSilverAggregation.
 type GetSilverAggregationParams struct {
 	// SourceId Source identifier — canonical name or integer id.
@@ -1444,6 +1687,9 @@ type ServerInterface interface {
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams)
+	// Per-article revision chain for L5 Evidence
+	// (GET /articles/{id}/revisions)
+	GetArticleRevisions(w http.ResponseWriter, r *http.Request, id string)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
@@ -1498,6 +1744,9 @@ type ServerInterface interface {
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
+	// Aggregated silent-edit revision activity for a probe or source
+	// (GET /revisions)
+	GetRevisionActivity(w http.ResponseWriter, r *http.Request, params GetRevisionActivityParams)
 	// Silver-layer aggregations (distribution / heatmap / correlation)
 	// (GET /silver/aggregations/{aggregationType})
 	GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams)
@@ -1534,6 +1783,12 @@ type Unimplemented struct{}
 // L5 Evidence — article detail with k-anonymity gate
 // (GET /articles/{id})
 func (_ Unimplemented) GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-article revision chain for L5 Evidence
+// (GET /articles/{id}/revisions)
+func (_ Unimplemented) GetArticleRevisions(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1645,6 +1900,12 @@ func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Aggregated silent-edit revision activity for a probe or source
+// (GET /revisions)
+func (_ Unimplemented) GetRevisionActivity(w http.ResponseWriter, r *http.Request, params GetRevisionActivityParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Silver-layer aggregations (distribution / heatmap / correlation)
 // (GET /silver/aggregations/{aggregationType})
 func (_ Unimplemented) GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams) {
@@ -1741,6 +2002,37 @@ func (siw *ServerInterfaceWrapper) GetArticleDetail(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetArticleDetail(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetArticleRevisions operation middleware
+func (siw *ServerInterfaceWrapper) GetArticleRevisions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetArticleRevisions(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2928,6 +3220,92 @@ func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetRevisionActivity operation middleware
+func (siw *ServerInterfaceWrapper) GetRevisionActivity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRevisionActivityParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "startDate" -------------
+
+	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "endDate" -------------
+
+	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "resolution" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resolution", r.URL.Query(), &params.Resolution, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resolution", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRevisionActivity(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSilverAggregation operation middleware
 func (siw *ServerInterfaceWrapper) GetSilverAggregation(w http.ResponseWriter, r *http.Request) {
 
@@ -3559,6 +3937,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/articles/{id}", wrapper.GetArticleDetail)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/articles/{id}/revisions", wrapper.GetArticleRevisions)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
 	})
 	r.Group(func(r chi.Router) {
@@ -3611,6 +3992,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/revisions", wrapper.GetRevisionActivity)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/silver/aggregations/{aggregationType}", wrapper.GetSilverAggregation)
@@ -3706,6 +4090,74 @@ type GetArticleDetail500JSONResponse struct {
 }
 
 func (response GetArticleDetail500JSONResponse) VisitGetArticleDetailResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisionsRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetArticleRevisionsResponseObject interface {
+	VisitGetArticleRevisionsResponse(w http.ResponseWriter) error
+}
+
+type GetArticleRevisions200JSONResponse ArticleRevisionsResponse
+
+func (response GetArticleRevisions200JSONResponse) VisitGetArticleRevisionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisions403JSONResponse RefusalPayload
+
+func (response GetArticleRevisions403JSONResponse) VisitGetArticleRevisionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisions404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetArticleRevisions404JSONResponse) VisitGetArticleRevisionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisions500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetArticleRevisions500JSONResponse) VisitGetArticleRevisionsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -5225,6 +5677,86 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetRevisionActivityRequestObject struct {
+	Params GetRevisionActivityParams
+}
+
+type GetRevisionActivityResponseObject interface {
+	VisitGetRevisionActivityResponse(w http.ResponseWriter) error
+}
+
+type GetRevisionActivity200JSONResponse RevisionActivityResponse
+
+func (response GetRevisionActivity200JSONResponse) VisitGetRevisionActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionActivity400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionActivity400JSONResponse) VisitGetRevisionActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionActivity404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionActivity404JSONResponse) VisitGetRevisionActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionActivity500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionActivity500JSONResponse) VisitGetRevisionActivityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSilverAggregationRequestObject struct {
 	AggregationType GetSilverAggregationParamsAggregationType `json:"aggregationType"`
 	Params          GetSilverAggregationParams
@@ -5984,6 +6516,9 @@ type StrictServerInterface interface {
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(ctx context.Context, request GetArticleDetailRequestObject) (GetArticleDetailResponseObject, error)
+	// Per-article revision chain for L5 Evidence
+	// (GET /articles/{id}/revisions)
+	GetArticleRevisions(ctx context.Context, request GetArticleRevisionsRequestObject) (GetArticleRevisionsResponseObject, error)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
@@ -6038,6 +6573,9 @@ type StrictServerInterface interface {
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
+	// Aggregated silent-edit revision activity for a probe or source
+	// (GET /revisions)
+	GetRevisionActivity(ctx context.Context, request GetRevisionActivityRequestObject) (GetRevisionActivityResponseObject, error)
 	// Silver-layer aggregations (distribution / heatmap / correlation)
 	// (GET /silver/aggregations/{aggregationType})
 	GetSilverAggregation(ctx context.Context, request GetSilverAggregationRequestObject) (GetSilverAggregationResponseObject, error)
@@ -6116,6 +6654,32 @@ func (sh *strictHandler) GetArticleDetail(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetArticleDetailResponseObject); ok {
 		if err := validResponse.VisitGetArticleDetailResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetArticleRevisions operation middleware
+func (sh *strictHandler) GetArticleRevisions(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetArticleRevisionsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetArticleRevisions(ctx, request.(GetArticleRevisionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetArticleRevisions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetArticleRevisionsResponseObject); ok {
+		if err := validResponse.VisitGetArticleRevisionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -6588,6 +7152,32 @@ func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetReadyzResponseObject); ok {
 		if err := validResponse.VisitGetReadyzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRevisionActivity operation middleware
+func (sh *strictHandler) GetRevisionActivity(w http.ResponseWriter, r *http.Request, params GetRevisionActivityParams) {
+	var request GetRevisionActivityRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRevisionActivity(ctx, request.(GetRevisionActivityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRevisionActivity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRevisionActivityResponseObject); ok {
+		if err := validResponse.VisitGetRevisionActivityResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

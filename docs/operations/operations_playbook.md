@@ -986,6 +986,55 @@ The same telemetry feeds the BFF endpoint `GET /api/v1/sources/{sourceId}/discov
 
 **Probe-0 Structural Bias #8 — discovery-surface asymmetry — closes for specific instances under Phase 122g.** tagesschau's RSS-only configuration is replaced by RSS + HTML sitemap + archive walker (≈ 250–300 unique articles per 7-day run vs. the prior ≈ 70). bundesregierung's single-RSS-feed configuration is extended to all four publisher-curated feeds. New discovery-surface asymmetries on future sources are caught by the underflow telemetry rather than by post-hoc inspection.
 
+### Silent-Edit Observability — Wayback CDX integration (Phase 122d.0 / ADR-032)
+
+The worker queries the Internet Archive's CDX API as the last step of `harmonize()` for every `source_type='web'` article. The result lives on `WebMeta.wayback_revisions[]` and `wayback_lookup_status`, and a corresponding row-set lands in `aer_gold.article_revisions`. The integration is operator-managed via the `WAYBACK_CDX_*` env vars (`WAYBACK_CDX_ENABLED`, `WAYBACK_CDX_BASE_URL`, `WAYBACK_CDX_TIMEOUT_SECONDS`, `WAYBACK_CDX_RATE_LIMIT_PER_SECOND`, `WAYBACK_CDX_CACHE_TTL_HOURS`, `REPUBLICATION_TRIGGER_MIN_DELTA_DAYS`).
+
+**Fail-silent invariant.** A CDX timeout, network error, malformed response, or rate-limit denial NEVER produces a DLQ event and NEVER aborts harmonisation. Each outcome maps to a typed `wayback_lookup_status` value:
+
+| Status        | What it means                                              | Operator action                                                |
+| :------------ | :--------------------------------------------------------- | :------------------------------------------------------------- |
+| `ok`          | CDX returned ≥ 1 snapshot.                                 | None — the dashboard renders the chain.                        |
+| `no_snapshots`| CDX returned 0 — the URL is not yet archived.              | None — IA coverage is a property of the Internet Archive.       |
+| `failed`      | Timeout, network error, non-2xx HTTP, or rate-limit denial.| Spike in `failed` rate indicates an IA outage. See runbook below. |
+| `skipped`     | Canonical URL was empty.                                   | Check `WebAdapter.harmonize` — should not normally occur.       |
+| `disabled`    | `WAYBACK_CDX_ENABLED=false`.                                | None.                                                          |
+
+**Status distribution health-check.** A healthy production run produces a mix of `ok` and `no_snapshots`; `failed` should be rare. Query the per-source distribution:
+
+```sql
+SELECT
+    source,
+    JSONExtractString(meta, 'wayback_lookup_status') AS status,
+    countDistinct(article_id) AS articles
+FROM aer_silver.documents
+WHERE timestamp > now() - INTERVAL 7 DAY
+GROUP BY source, status
+ORDER BY source, status;
+```
+
+(The Silver projection does not currently carry the CDX status as a typed column; the query above will need the WebMeta JSON path adjusted once Phase 122d.x adds a typed column. Until then, the per-article check is `SELECT count() FROM aer_gold.article_revisions WHERE source = ? GROUP BY revision_trigger`.)
+
+**"IA is down" runbook.** If the `failed` rate spikes:
+
+1. **Verify the outage is on the IA side, not the local stack.** From a worker host: `curl -I -m 10 'https://web.archive.org/cdx/search/cdx?url=tagesschau.de&output=json&limit=1'`. A 5xx, 429, or persistent timeout confirms the IA-side outage.
+2. **No emergency action is required.** Articles continue to flow through to Silver and Gold; only the `article_revisions` rows are missing for the duration of the outage. The dashboard's revision cells render the gap honestly via `wayback_lookup_status='failed'`.
+3. **Optional: lower the per-worker rate limit.** If the IA is rate-limiting AĒR specifically (uncommon — IA's public CDX has been generous historically), set `WAYBACK_CDX_RATE_LIMIT_PER_SECOND` to `1.0` or lower in `.env` and restart the worker (`make worker-restart`). Re-raise once the IA recovers.
+4. **Backfill is automatic.** The next worker run on the same Bronze keys (after a manual `make reset` or a backfill replay) re-issues the CDX lookup — the Postgres cache write is a no-op for stale entries, so a fresh lookup happens after the cache TTL expires (`WAYBACK_CDX_CACHE_TTL_HOURS`, default 24 h). Manually invalidate the cache for a specific URL with `DELETE FROM wayback_cdx_cache WHERE canonical_url = ?`.
+
+**Coverage invariant.** There is no fixed minimum-coverage threshold for the Wayback signal. The Internet Archive's coverage of any given publisher is a property of the IA, not of AĒR, so a probe whose sources have `no_snapshots` is not a degraded state — it is the honest baseline. The dashboard renders that baseline; if an analyst needs deeper coverage, the path is to submit the source's URLs to the IA's save-page-now endpoint (out of scope for AĒR's operational responsibility).
+
+**Republication trigger.** The republication-trigger row family is the Phase-131a UX/conceptual artefact reconciled at the methodological layer: an article whose `sitemap_lastmod` is ≥ 7 days (configurable via `REPUBLICATION_TRIGGER_MIN_DELTA_DAYS`) ahead of its `published_date` emits a synthetic revision row. The dashboard renders these alongside CDX snapshots in the revision chain. A pure-republication-trigger article (no CDX snapshots, only a re-listing event) is the canonical case for publisher-side re-listing without a third-party archive — useful for sources the IA does not yet cover.
+
+**Postgres cache.** `wayback_cdx_cache` is a thin point cache keyed on canonical_url. At one row per canonical URL the table is naturally bounded by the worker's source set. No retention sweep is required; stale rows are overwritten on the next lookup. If a manual purge is needed (e.g. after a large probe-roster change):
+
+```sql
+-- Trim the cache to the most recent 90 days of lookups.
+DELETE FROM wayback_cdx_cache WHERE fetched_at < now() - INTERVAL '90 days';
+```
+
+**Disabling the integration.** Set `WAYBACK_CDX_ENABLED=false` and restart the worker. Existing `aer_gold.article_revisions` rows are retained until the schema TTL (365 days on `snapshot_at`) merges them out; the cell renders an empty state for new articles. Re-enabling resumes lookups on the next harmonisation.
+
 **Robots.txt verification.** Before adding a new source, verify that the polite default `User-Agent` is permitted:
 
 ```bash

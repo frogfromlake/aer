@@ -1,0 +1,45 @@
+get:
+  tags: [Reference]
+  summary: Per-article revision chain for L5 Evidence
+  description: >
+    Returns the ordered revision chain for one article (Phase 122d.0).
+    Each entry is one detected revision — a Wayback CDX snapshot or a
+    publisher-side republication-trigger event. The dashboard's
+    L5EvidenceReader renders the list below the article body so the
+    operator can scrub the silent-edit timeline alongside the cleaned
+    text.
+
+    The endpoint is subject to the Silver-eligibility gate that
+    governs `GET /articles/{id}`: a source whose `silver_eligible=false`
+    returns 403 with a methodological refusal payload (`gate=silver_eligibility`).
+    Articles with no detected revisions return `revisions: []` and a
+    non-empty `lookupStatus` (`no_snapshots`, `disabled`, etc.).
+  operationId: getArticleRevisions
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: SHA-256 article_id.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Article revision chain.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ArticleRevisionsResponse'
+    '403':
+      description: Silver-eligibility gate refusal.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RefusalPayload'
+    '404':
+      description: Article not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

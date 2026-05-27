@@ -14,7 +14,7 @@ import {
 } from '../../src/lib/viewmodes';
 
 describe('view-mode registry', () => {
-  it('exposes the Phase 107 MVP, Phase 121 Episteme, and Phase 131 scatter presentations', () => {
+  it('exposes the Phase 107 MVP, Phase 121 Episteme, Phase 131 scatter, and Phase 122d.0 revision presentations', () => {
     const ids = listPresentations().map((p) => p.id);
     expect(ids).toEqual([
       'time_series',
@@ -22,7 +22,9 @@ describe('view-mode registry', () => {
       'cooccurrence_network',
       'metric_scatter',
       'topic_distribution',
-      'topic_evolution'
+      'topic_evolution',
+      'revision_activity',
+      'revision_timeline'
     ]);
   });
 
@@ -115,13 +117,20 @@ describe('pillar mapping', () => {
     }
     // Phase 130 / ADR-035 — pillar follows presentation.
     // Aleph (synchronic): distribution + topic_distribution + metric_scatter (Phase 131)
+    //                   + revision_activity (Phase 122d.0 / ADR-032 — silent-edit snapshot)
     expect(getPillar('aleph').presentations).toEqual([
       'distribution',
       'topic_distribution',
-      'metric_scatter'
+      'metric_scatter',
+      'revision_activity'
     ]);
     // Episteme (diachronic): time_series + topic_evolution
-    expect(getPillar('episteme').presentations).toEqual(['time_series', 'topic_evolution']);
+    //                      + revision_timeline (Phase 122d.0 — silent-edit over time)
+    expect(getPillar('episteme').presentations).toEqual([
+      'time_series',
+      'topic_evolution',
+      'revision_timeline'
+    ]);
     // Rhizome (relational): cooccurrence_network
     expect(getPillar('rhizome').presentations).toEqual(['cooccurrence_network']);
   });
@@ -132,10 +141,15 @@ describe('pillar mapping', () => {
 
   it('returns the right presentations per pillar', () => {
     const alephIds = presentationsForPillar('aleph').map((p) => p.id);
-    expect(alephIds).toEqual(['distribution', 'topic_distribution', 'metric_scatter']);
+    expect(alephIds).toEqual([
+      'distribution',
+      'topic_distribution',
+      'metric_scatter',
+      'revision_activity'
+    ]);
 
     const epistemIds = presentationsForPillar('episteme').map((p) => p.id);
-    expect(epistemIds).toEqual(['time_series', 'topic_evolution']);
+    expect(epistemIds).toEqual(['time_series', 'topic_evolution', 'revision_timeline']);
 
     const rhizIds = presentationsForPillar('rhizome').map((p) => p.id);
     expect(rhizIds).toEqual(['cooccurrence_network']);
@@ -144,7 +158,8 @@ describe('pillar mapping', () => {
     expect(presentationsForPillar(null).map((p) => p.id)).toEqual([
       'distribution',
       'topic_distribution',
-      'metric_scatter'
+      'metric_scatter',
+      'revision_activity'
     ]);
   });
 
@@ -161,6 +176,9 @@ describe('pillar mapping', () => {
     expect(pillarForViewMode('topic_distribution')).toBe('aleph');
     expect(pillarForViewMode('topic_evolution')).toBe('episteme');
     expect(pillarForViewMode('cooccurrence_network')).toBe('rhizome');
+    // Phase 122d.0 / ADR-032 — silent-edit observability.
+    expect(pillarForViewMode('revision_activity')).toBe('aleph');
+    expect(pillarForViewMode('revision_timeline')).toBe('episteme');
   });
 
   it('resolvePresentation respects the active pillar', () => {

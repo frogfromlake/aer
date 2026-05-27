@@ -107,6 +107,10 @@ type Store interface {
 	GetSilverCorrelation(ctx context.Context, source string, start, end time.Time) (storage.SilverCorrelationResult, error)
 	// Phase 122f: metadata-coverage matrix over aer_gold.metadata_coverage.
 	GetMetadataCoverage(ctx context.Context, sources []string) ([]storage.MetadataCoverageCell, error)
+	// Phase 122d.0: Silent-Edit Observability — aggregation + per-article
+	// chain over aer_gold.article_revisions.
+	GetRevisionActivity(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error)
+	GetArticleRevisions(ctx context.Context, articleID string) ([]storage.ArticleRevisionRow, error)
 }
 
 // SourceLister abstracts the source-metadata read path so the handler

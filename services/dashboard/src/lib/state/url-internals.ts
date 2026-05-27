@@ -23,7 +23,18 @@ export type ViewMode =
   // (x / y position, point size, point colour) are each bound to a chosen
   // metric dimension via `Panel.channels`, so the single-metric picker is
   // hidden for this presentation (registry `usesMetric: false`).
-  | 'metric_scatter';
+  | 'metric_scatter'
+  // Phase 122d.0 — Silent-Edit Observability (ADR-032). Two presentations
+  // because the same underlying signal answers two different questions:
+  //   `revision_activity` (Aleph, snapshot) — "which source edits most
+  //                                            right now"
+  //   `revision_timeline` (Episteme, over-time) — "how edit activity
+  //                                                drifts week-to-week"
+  // The pillar-follows-presentation rule (ADR-035) admits the two cells
+  // into Aleph and Episteme respectively without breaking the strict 1-1
+  // pillar→presentation mapping.
+  | 'revision_activity'
+  | 'revision_timeline';
 // Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
@@ -222,7 +233,9 @@ const VIEW_MODES: readonly ViewMode[] = [
   'cooccurrence_network',
   'topic_distribution',
   'topic_evolution',
-  'metric_scatter'
+  'metric_scatter',
+  'revision_activity',
+  'revision_timeline'
 ];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid

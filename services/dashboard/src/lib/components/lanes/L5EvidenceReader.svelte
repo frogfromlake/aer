@@ -9,7 +9,9 @@
   import { createQuery } from '@tanstack/svelte-query';
   import {
     articleDetailQuery,
+    articleRevisionsQuery,
     type ArticleDetailDto,
+    type ArticleRevisionsResponseDto,
     type FetchContext,
     type QueryOutcome
   } from '$lib/api/queries';
@@ -27,6 +29,12 @@
 
   let provenanceExpanded = $state(false);
   let showRaw = $state(false);
+  // Phase 122d.0 — Silent-Edit Observability. The L5 reader surfaces
+  // the per-article revision chain inline so the operator can scrub
+  // the silent-edit timeline beside the article body. Folded by
+  // default; the summary surfaces the count + lookup status so a
+  // closed section is still informative.
+  let revisionsExpanded = $state(false);
 
   const detailQ = createQuery<
     QueryOutcome<ArticleDetailDto>,
@@ -55,6 +63,46 @@
     };
   });
 
+  // Phase 122d.0 — Silent-Edit Observability per-article chain. Fires
+  // alongside the detail query but is independent: a refusal on the
+  // detail (k-anonymity) does not block the revisions query (which
+  // has its own Silver-eligibility gate); a refusal on revisions
+  // does not block the body render. Both surfaces degrade
+  // independently to keep the L5 reader resilient.
+  const revisionsQ = createQuery<
+    QueryOutcome<ArticleRevisionsResponseDto>,
+    Error,
+    QueryOutcome<ArticleRevisionsResponseDto>
+  >(() => {
+    const enabled = open && articleId !== null;
+    if (!enabled || !articleId) {
+      return {
+        queryKey: ['aer', 'article-revisions', null],
+        queryFn: () =>
+          Promise.resolve({
+            kind: 'success',
+            data: null
+          } as unknown as QueryOutcome<ArticleRevisionsResponseDto>),
+        staleTime: 0,
+        enabled: false
+      };
+    }
+    const o = articleRevisionsQuery(ctx, articleId);
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled
+    };
+  });
+
+  const revisionList = $derived(
+    revisionsQ.data?.kind === 'success' ? (revisionsQ.data.data.revisions ?? []) : []
+  );
+  const revisionStatus = $derived(
+    revisionsQ.data?.kind === 'success' ? revisionsQ.data.data.lookupStatus : ''
+  );
+
   let title = $derived.by(() => {
     if (!articleId) return 'Article';
     if (detailQ.data?.kind === 'success' && detailQ.data.data) {
@@ -77,8 +125,26 @@
 
   function onDialogClose() {
     provenanceExpanded = false;
+    revisionsExpanded = false;
     showRaw = false;
     onClose();
+  }
+
+  function lookupStatusLabel(status: string): string {
+    switch (status) {
+      case 'ok':
+        return 'Wayback CDX returned snapshots.';
+      case 'no_snapshots':
+        return 'No Wayback snapshots — the URL is not yet archived.';
+      case 'failed':
+        return 'Wayback lookup failed (timeout or rate-limit).';
+      case 'skipped':
+        return 'Lookup skipped (canonical URL missing).';
+      case 'disabled':
+        return 'Wayback integration is disabled in this deployment.';
+      default:
+        return 'No revision metadata recorded for this article.';
+    }
   }
 </script>
 
@@ -174,6 +240,63 @@
     <div class="article-text" lang={article.language ?? undefined}>
       {showRaw && article.rawText ? article.rawText : article.cleanedText}
     </div>
+
+    <!-- Silent-Edit Observability — per-article revision chain (Phase 122d.0). -->
+    <!-- Only meaningful for `source_type='web'` articles: the Wayback CDX -->
+    <!-- signal needs a canonical URL the IA can archive, which RSS / legacy -->
+    <!-- envelopes do not carry. Rendering the panel for non-web sources -->
+    <!-- would collapse the "we did not look because RSS articles have no -->
+    <!-- canonical_url chain" state into the same blank surface as "we -->
+    <!-- looked, found nothing" — the four-state lookup-status vocabulary -->
+    <!-- exists precisely to keep those apart. Hide the section entirely -->
+    <!-- when the article is not a web article; restore it transparently -->
+    <!-- when WebMeta is the envelope. -->
+    {#if article.sourceType !== 'web'}
+      <!-- Section intentionally omitted for non-web articles. -->
+    {:else if revisionsQ.data?.kind === 'refusal'}
+      <details class="revisions-section">
+        <summary class="provenance-summary">Revision history (refused)</summary>
+        <div class="revisions-body">
+          <RefusalSurface refusal={revisionsQ.data} {ctx} />
+        </div>
+      </details>
+    {:else if revisionsQ.data?.kind === 'success'}
+      <details class="revisions-section" bind:open={revisionsExpanded}>
+        <summary class="provenance-summary">
+          Revision history ({revisionList.length}
+          {revisionList.length === 1 ? 'revision' : 'revisions'})
+          {#if revisionStatus && revisionStatus !== 'ok'}
+            <span class="status-badge"><code>{revisionStatus}</code></span>
+          {/if}
+        </summary>
+        <div class="revisions-body">
+          <p class="status-line">{lookupStatusLabel(revisionStatus)}</p>
+          {#if revisionList.length > 0}
+            <ol class="revisions-list">
+              {#each revisionList as rev, idx (rev.contentHash + idx)}
+                <li class="rev-row">
+                  <time datetime={rev.snapshotAt}>{formatTs(rev.snapshotAt)}</time>
+                  <span class="rev-trigger"><code>{rev.trigger}</code></span>
+                  <code class="rev-hash" title={rev.contentHash}>
+                    {rev.contentHash.slice(0, 12)}…
+                  </code>
+                  {#if rev.archiveUrl}
+                    <a
+                      href={rev.archiveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="rev-link"
+                    >
+                      view snapshot ↗
+                    </a>
+                  {/if}
+                </li>
+              {/each}
+            </ol>
+          {/if}
+        </div>
+      </details>
+    {/if}
 
     <!-- Extraction provenance (expandable) -->
     {#if article.extractionProvenance && Object.keys(article.extractionProvenance).length > 0}
@@ -319,11 +442,82 @@
   }
 
   .provenance-section,
-  .meta-section {
+  .meta-section,
+  .revisions-section {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     overflow: hidden;
     margin-bottom: var(--space-3);
+  }
+
+  .revisions-body {
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .status-line {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+  }
+
+  .status-badge {
+    margin-left: var(--space-2);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    background: rgba(154, 143, 184, 0.18);
+    border: 1px solid var(--color-border);
+    font-size: 10px;
+  }
+
+  .revisions-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .rev-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: baseline;
+    font-size: var(--font-size-xs);
+    padding: var(--space-2);
+    border-bottom: 1px dashed var(--color-border);
+  }
+
+  .rev-row time {
+    font-family: var(--font-mono);
+    color: var(--color-fg);
+    flex-shrink: 0;
+  }
+
+  .rev-trigger code {
+    font-family: var(--font-mono);
+    color: var(--color-accent-muted);
+  }
+
+  .rev-hash {
+    font-family: var(--font-mono);
+    color: var(--color-fg-subtle);
+  }
+
+  .rev-link {
+    color: var(--color-accent-muted);
+    text-decoration: none;
+    font-size: var(--font-size-xs);
+    margin-left: auto;
+  }
+
+  .rev-link:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
   }
 
   .provenance-summary {

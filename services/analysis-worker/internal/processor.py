@@ -29,6 +29,7 @@ from internal import quarantine as _quarantine_module
 from internal import silver as _silver_module
 from internal import silver_projection as _silver_projection_module
 from internal import metadata_coverage as _metadata_coverage_module
+from internal import article_revisions as _article_revisions_module
 from internal.models.probe_scope import ProbeLanguageScope
 
 logger = structlog.get_logger()
@@ -506,11 +507,34 @@ class DataProcessor:
                     error=str(e),
                 )
 
+        # Phase 122d.0 (ADR-032): Silent-Edit Observability. Project the
+        # Wayback CDX result plus the publisher-side republication-trigger
+        # signal into `aer_gold.article_revisions`. No-op for non-web meta
+        # and for articles with no detected revisions — the absence of
+        # rows is itself the signal.
+        #
+        # This write is ordered AFTER the canonical Gold inserts (metrics,
+        # entities, entity_links, language_detections) so that a partial
+        # Gold-insert failure does NOT leave a revision row visible for an
+        # article that has no metrics row to anchor it. The L5 Evidence
+        # Reader resolves an article via the k-anonymity-gated
+        # /articles/{id} endpoint (which reads `aer_gold.metrics`); a
+        # populated /articles/{id}/revisions with a 404'd parent would
+        # render as an orphan. Skipping revisions on partial Gold failure
+        # is the consistent choice — the operator can re-run the document
+        # through the recovery path once Gold is healthy.
+        if not gold_insert_failed:
+            _article_revisions_module.upload_article_revisions(
+                self.ch, working_core, meta, discourse_fn, ingestion_version
+            )
+
         if gold_insert_failed:
             logger.warning(
                 "Document marked processed despite partial Gold insert failure. "
                 "Successfully inserted rows are correct; failed rows will be "
-                "absent until the next reprocessing window.",
+                "absent until the next reprocessing window. "
+                "Article revisions (Phase 122d.0) skipped on this run to avoid "
+                "orphan revision rows; will be re-attempted on next reprocessing.",
                 object=obj_key,
             )
 

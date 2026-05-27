@@ -130,6 +130,25 @@ class WebMeta(SilverMeta):
     discourse_context: Optional[DiscourseContext] = None
     bias_context: Optional[BiasContext] = None
 
+    # ----- Silent-Edit Observability — Phase 122d.0 (ADR-032) ------------
+    # `wayback_revisions` is the raw, ordered list of Wayback CDX
+    # snapshots the worker resolved at harmonisation time. Each entry
+    # carries `snapshot_at`, `content_hash`, `archive_url`. The list is
+    # serialised verbatim into the Silver MinIO envelope so re-running
+    # the Bronze→Silver replay (ADR-028) does not need to re-query
+    # CDX. The analytical projection lives in
+    # `aer_gold.article_revisions` and is written by the processor
+    # alongside the rest of Gold.
+    #
+    # `wayback_lookup_status` is the operationally-meaningful coverage
+    # signal (`ok` / `no_snapshots` / `failed` / `skipped` /
+    # `disabled`) — see `internal.wayback.client` for the canonical
+    # vocabulary. The BFF surfaces it on the `revision_activity` cell
+    # so a "we did not look" article is distinguishable from "we
+    # looked, the URL is not yet archived".
+    wayback_revisions: list[dict[str, Any]] = Field(default_factory=list)
+    wayback_lookup_status: str = Field(default="")
+
 
 # Allowed values for the extraction-method provenance markers. Used as a
 # defensive whitelist by tests — the WebAdapter is the source of truth at
@@ -158,5 +177,21 @@ ALLOWED_TIMESTAMP_SOURCES: frozenset[str] = frozenset(
         "sitemap_lastmod",
         "http_last_modified",
         "fetch_at_fallback",
+    }
+)
+
+# Allowed values for ``wayback_lookup_status`` (Phase 122d.0 / ADR-032).
+# Mirrors the constants in ``internal.wayback.client`` — duplicated here
+# so the WebMeta surface tests can pin the vocabulary without importing
+# the optional wayback subpackage. The empty string covers non-web
+# meta where this provenance dimension does not apply.
+ALLOWED_WAYBACK_LOOKUP_STATUSES: frozenset[str] = frozenset(
+    {
+        "",
+        "ok",
+        "no_snapshots",
+        "failed",
+        "skipped",
+        "disabled",
     }
 )

@@ -274,6 +274,14 @@ func (m *mockStore) GetMetadataCoverage(_ context.Context, sources []string) ([]
 	return m.metadataCoverage, m.metadataCoverageErr
 }
 
+func (m *mockStore) GetRevisionActivity(_ context.Context, _ []string, _, _ time.Time, _ storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error) {
+	return nil, nil
+}
+
+func (m *mockStore) GetArticleRevisions(_ context.Context, _ string) ([]storage.ArticleRevisionRow, error) {
+	return nil, nil
+}
+
 // newTestRouter builds the full chi router for HTTP-level tests.
 func newTestRouter(s *Server) http.Handler {
 	return HandlerWithOptions(NewStrictHandler(s, nil), ChiServerOptions{})

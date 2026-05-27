@@ -46,7 +46,11 @@ const FALLBACK_TEMPLATES: Record<ViewMode, string> = {
   topic_evolution:
     'Each stream is a topic; its width over time shows how its share of the discourse rises and falls.',
   metric_scatter:
-    'Each point is one article, positioned by two metrics — read the cloud for correlation, clusters, and outliers.'
+    'Each point is one article, positioned by two metrics — read the cloud for correlation, clusters, and outliers.',
+  revision_activity:
+    'One bar per source — how many silent edits we observed in the active window. Wayback CDX captures third-party-witnessed edits; sitemap-lastmod jumps capture publisher-side re-listings (republication trigger).',
+  revision_timeline:
+    'Edit activity over time. Each point is a per-source bucket count: rising = the source is editing more often; falling = it has settled.'
 };
 
 /** Compose the "how to read" note as an ordered list of sentences: the
@@ -117,6 +121,8 @@ export function composeHowToRead(
       break;
     case 'topic_distribution':
     case 'topic_evolution':
+    case 'revision_activity':
+    case 'revision_timeline':
       // No extra config levers yet; the template line stands alone.
       break;
   }

@@ -22,6 +22,7 @@ from prometheus_client import start_http_server
 from internal.storage import init_minio, init_clickhouse, init_postgres, PG_POOL_HEADROOM
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter, WebAdapter
+from internal.wayback import WaybackCDXCache, WaybackCDXClient
 from internal.extractors import (
     WordCountExtractor,
     TemporalDistributionExtractor,
@@ -87,6 +88,51 @@ DEFAULT_EXTRACTOR_CLASSES = [
     GermanNewsBertSentimentExtractor,
     NamedEntityExtractor,
 ]
+
+
+def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
+    """Construct the Wayback CDX client, or None when disabled.
+
+    `WAYBACK_CDX_ENABLED=false` (or unset) returns None — the
+    WebAdapter then leaves `wayback_lookup_status=""` so the Gold
+    writer skips this article. Any construction error degrades to None
+    with a warning log; we never abort worker boot for a CDX-side
+    configuration issue (the lookup is augmentative provenance, not a
+    blocking dependency).
+    """
+    if os.getenv("WAYBACK_CDX_ENABLED", "false").strip().lower() not in {"1", "true", "yes", "on"}:
+        logger.info("Wayback CDX integration disabled (WAYBACK_CDX_ENABLED is off).")
+        return None
+    try:
+        base_url = os.getenv("WAYBACK_CDX_BASE_URL", "https://web.archive.org/cdx/search/cdx").strip()
+        timeout = float(os.getenv("WAYBACK_CDX_TIMEOUT_SECONDS", "5.0"))
+        rate = float(os.getenv("WAYBACK_CDX_RATE_LIMIT_PER_SECOND", "5.0"))
+        user_agent = os.getenv(
+            "WEB_CRAWLER_USER_AGENT",
+            "AerWebCrawler/0.1 (+https://aer.example/about)",
+        )
+        cache = WaybackCDXCache(pg_pool) if pg_pool is not None else None
+        client = WaybackCDXClient(
+            enabled=True,
+            base_url=base_url,
+            timeout_seconds=timeout,
+            rate_limit_per_second=rate,
+            user_agent=user_agent,
+            cache=cache,
+        )
+        logger.info(
+            "Wayback CDX integration enabled",
+            base_url=base_url,
+            rate_limit_per_second=rate,
+            cache_enabled=cache is not None,
+        )
+        return client
+    except Exception as exc:
+        logger.warning(
+            "Wayback CDX client init failed; continuing without silent-edit observability.",
+            error=str(exc),
+        )
+        return None
 
 
 def _load_wikidata_index() -> WikidataAliasIndex | None:
@@ -303,11 +349,17 @@ async def main(config: WorkerConfig | None = None):
     # worker does not starve on PG connections when WORKER_COUNT is raised.
     pg_pool = init_postgres(maxconn=config.worker_count + PG_POOL_HEADROOM)
 
+    # Phase 122d.0 — Silent-Edit Observability (ADR-032). The Wayback
+    # CDX client is fail-silent by construction; the WebAdapter calls
+    # it as the last step of harmonisation, and `None` disables the
+    # lookup entirely without changing the rest of the pipeline.
+    wayback_client = _init_wayback_client(pg_pool)
+
     adapter_registry = AdapterRegistry(
         {
             "legacy": LegacyAdapter(),
             "rss": RssAdapter(pg_pool=pg_pool),
-            "web": WebAdapter(pg_pool=pg_pool),
+            "web": WebAdapter(pg_pool=pg_pool, wayback_client=wayback_client),
         }
     )
     alias_index = _load_wikidata_index()

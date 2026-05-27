@@ -2530,3 +2530,58 @@ Before Phase 130 the pillar→presentation assignment had drifted and leaked its
 * The `RhizomeView` URL enum is retired; Rhizome panels are ordinary `ViewMode` panels.
 
 ---
+
+## ADR-032: Silent-Edit Observability as an Analytical Stratum (Phase 122d.0)
+
+**Status:** Accepted (Phase 122d.0)
+
+**Context.**
+Publishers revise published articles without notice. Working Paper WP-003 §5 frames silent editing as one of the strongest signals of platform-mediated discourse manipulation: a story can be reframed (headline, lede, sourcing, attribution) days or weeks after first publication, and the analytical record will inherit the most recent version unless something else witnesses the chain. AĒR's manifesto commits to "observation over surveillance", which forbids stylometric AI-text detection (an arms race with no stable equilibrium, high FPR, and methodologically dubious assumptions about authorship) — but the analytical pipeline must still surface *that* edits happen so the dashboard can render the activity honestly.
+
+A previous Phase-122d sketch placed this as a worker sidecar feeding a single teaching cell. Phase 122d.0 reframes it: silent-edit observability is a **first-class analytical stratum** in the Workbench, alongside sentiment, entity, and topic, cutting across all three pillars. It answers two questions at two pillar-grains:
+
+* **Aleph (synchronic)** — *which source edits most right now*, in the active window.
+* **Episteme (diachronic)** — *how the edit-frequency curve moves over time*, by daily / weekly / monthly bucket.
+
+(The third question — *what was changed* — is Phase 122d.1.)
+
+There is also a Phase-131a UX/conceptual artefact that this phase reconciles in-place. The crawler's `time_window_days` filters discovery (sitemap-`<lastmod>` / RSS pubDate), but an article's stored `published_date` can be far older when the publisher re-listed an old article whose sitemap-`<lastmod>` was recently bumped. The dossier had been surfacing this as a "Total vs In Window" diagnostic, which framed the re-listed article as a *bug* (a stale article slipping past the 7-day window). But the mechanism is exactly the silent-edit signal this phase observes: a re-listed article is itself an editorial event, and should be a first-class revision row alongside Wayback CDX snapshots.
+
+**Decision.**
+
+1. **Internet Archive CDX as the third-party witness.** The Wayback Machine's CDX API tells us, for any canonical URL, the timestamps and content-hashes of every archived snapshot. The worker queries CDX as the last step of `harmonize()` (after the timestamp resolution, before the discourse / bias context lookup). The result lives on `WebMeta.wayback_revisions[]` plus `wayback_lookup_status` so the BFF can render the coverage signal honestly: `ok` / `no_snapshots` / `failed` / `skipped` / `disabled` are operationally distinct and the dashboard must distinguish them. The CDX client is fail-silent by construction — a timeout, rate-limit denial, or any exception collapses to a typed status; never to a DLQ event.
+
+2. **Republication-trigger as a first-class revision family.** When the publisher's `sitemap_lastmod` is at least `REPUBLICATION_TRIGGER_MIN_DELTA_DAYS` ahead of the article's `published_date` (default 7 days), the worker emits a synthetic revision row with `revision_trigger='republication_trigger'`. This is the Phase-131a artefact reconciled into the analytical layer: the re-listing is not a discovery bug to patch over, it is a publisher-side editorial event observable through the publisher's own infrastructure (independent of whether the Internet Archive captured it). CDX snapshots and republication triggers co-exist for an article — both rows belong to the same `article_id` chain.
+
+3. **Two presentations, one signal.** The `revision_activity` cell (Aleph) and `revision_timeline` cell (Episteme) are registered in the cell registry like every other presentation (ADR-035). Both consume the same BFF endpoint `/revisions`; the difference is the `?resolution=` parameter (`snapshot` collapses to one bucket per source, the others bucket on a calendar grain). The per-article chain `/articles/{id}/revisions` is consumed by the L5EvidenceReader. ADR-035's "pillar follows presentation" rule is preserved: each cell lives in exactly one pillar.
+
+4. **Storage shape: Gold is SoT, WebMeta is provenance.** The processor projects every detected revision into `aer_gold.article_revisions` (`ReplacingMergeTree(ingestion_version)`, 365 d TTL on `snapshot_at`). The BFF aggregates the same way as every other Gold endpoint — one source-list-filtered `GROUP BY` over the CH table — and the per-article endpoint reads the same table with `FINAL` to collapse straggling merges. The Silver MinIO envelope retains `WebMeta.wayback_revisions[]` as raw provenance so a future Bronze→Silver replay (ADR-028) does not re-query CDX. The aggregate endpoint reads Gold; the per-article chain reads Gold (the Silver envelope remains the witness of the raw CDX response for audit). `aer_gold.article_revisions` deliberately omits a `probe` column — the probe→source mapping is BFF-configured (`configs/probes/*.yaml`) and resolved at query time, matching every other Gold table.
+
+5. **Postgres-backed CDX cache.** Every harmonised web article queries CDX. The `wayback_cdx_cache` Postgres table is a thin point-cache keyed on `canonical_url` with operator-managed TTL (`WAYBACK_CDX_CACHE_TTL_HOURS`, default 24 h). A cache miss falls through to the network call; a cache-write failure logs and continues; neither path ever DLQs the document. Silent edits are a slow-moving signal so a one-day window is well inside the public CDX usage envelope without losing analytical resolution.
+
+6. **Silver-eligibility gate on the per-article endpoint.** `GET /articles/{id}/revisions` reuses the existing `requireSilverEligible` helper that governs `GET /silver/documents/{id}` and the rest of the per-article surface. A non-eligible source returns the standard `SilverEligibility` refusal; the dashboard's existing `RefusalSurface` renders it without a new code path. Aggregate endpoints (`/revisions`) are not gated — aggregate counts are not Silver-text exposure.
+
+7. **Operations: empirical coverage, no fixed threshold.** The Operations Playbook documents the per-source status distribution that a healthy run produces (`ok` / `no_snapshots` proportions) and provides an "IA is down" runbook (`failed` rate spikes are expected; the corpus keeps flowing). There is no fixed minimum-coverage threshold for the lookup invariant — the Wayback Machine's coverage of any given publisher is a property of the IA, not of AĒR.
+
+**Consequences.**
+
+* Silent-edit activity becomes a first-class analytical signal in the Workbench, queryable through the same scope + window grammar as every other endpoint. The two cells are distinguishable from any other Aleph / Episteme cell by the underlying data product, not by a parallel UI mechanism.
+* The Phase-131a "Total vs In Window" UX artefact is resolved at the methodological layer: re-listed articles are correctly framed as silent-edit events, not as time-window leaks. The dossier's diagnostic can later be reworded to point at the `revision_activity` cell instead of being a stand-alone counter.
+* The CDX lookup is augmentative provenance, not a blocking dependency. An IA outage produces `wayback_lookup_status='failed'` on every harmonisation but otherwise leaves the pipeline untouched. The cell renders the failure rate honestly so the operator sees the outage without the alarm bells of a DLQ spike.
+* The cache amortises the CDX cost across NATS redeliveries, re-processings, and adapter restarts. At ~one row per canonical URL the table is naturally bounded by the worker's source set.
+* Phase 122d.1 (Diff Substance) builds on this stratum: it loads the archived HTML for consecutive snapshots and projects a paragraph-level diff into the same table. Phase 122d.2 (Discourse Shift) projects the diff into an analytical metric.
+
+**Out of scope (Phase 122d.0).**
+
+* The diff itself (snapshot HTML fetch + paragraph diff + headline-change detection) — Phase 122d.1.
+* AI-text detection of any kind. WP-003 §5.2 documents the methodological refusal; ADR-032 inherits it.
+* Cross-source rate-limit budgeting beyond the per-worker token bucket. The operator can raise `WAYBACK_CDX_RATE_LIMIT_PER_SECOND` per-deployment if they coordinate with the Internet Archive.
+
+**Validation.**
+
+* `WAYBACK_CDX_ENABLED=false` ⇒ no DLQ events; no Gold rows; `wayback_lookup_status` blank on Silver.
+* `WAYBACK_CDX_ENABLED=true` against a probe-0 article known to have ≥ 1 Wayback snapshot ⇒ `wayback_lookup_status='ok'`, ≥ 1 row in `aer_gold.article_revisions`, the `revision_activity` cell renders a bar for the article's source, the `/articles/{id}/revisions` endpoint returns the chain, the L5EvidenceReader renders the revision section.
+* `WAYBACK_CDX_TIMEOUT_SECONDS=0.001` (forced timeout) ⇒ 100% ship to Silver, DLQ counter 0, every article carries `wayback_lookup_status='failed'`.
+* A republication-detection contract test: a synthetic `WebMeta` with `published_date=2024-01-01` and `sitemap_lastmod=2024-06-01` produces one `republication_trigger` row.
+* OpenAPI bundle round-trips (`make codegen` clean diff).
+

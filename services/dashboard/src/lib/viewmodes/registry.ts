@@ -244,6 +244,50 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/TopicEvolutionCell.svelte')).default
+  },
+  // Phase 122d.0 — Silent-Edit Observability (ADR-032). Two presentations
+  // surface the same underlying `aer_gold.article_revisions` signal at
+  // different time-grains:
+  //
+  //   `revision_activity` is the synchronic Aleph cell — "which source
+  //   edits most right now". The BFF collapses the window to a single
+  //   bucket and the cell renders one bar per source. The metric picker
+  //   is hidden (`usesMetric: false`) because edits-per-source is the
+  //   *only* quantity this cell answers.
+  //
+  //   `revision_timeline` is the diachronic Episteme cell — "how the
+  //   edit-frequency curve moves over time". The BFF buckets the window
+  //   on a calendar grain (daily / weekly / monthly) chosen by the
+  //   shared resolution control.
+  //
+  // Neither cell exposes a normalization / overlay / band — all per-cell
+  // configurable parameters from Phase 131 are inapplicable; the cell
+  // surface is therefore declared as `configurableParams: []`.
+  {
+    id: 'revision_activity',
+    label: 'Revision activity',
+    discipline: 'metadata_mining',
+    description:
+      'Silent-edit activity per source for the current window (Wayback CDX + sitemap-lastmod). Synchronic snapshot.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: [],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/RevisionActivityCell.svelte')).default
+  },
+  {
+    id: 'revision_timeline',
+    label: 'Revision timeline',
+    discipline: 'episteme',
+    description:
+      'Silent-edit activity over time — how often each source revises, by daily / weekly / monthly bucket.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: true,
+    configurableParams: [],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/RevisionTimelineCell.svelte')).default
   }
 ];
 
@@ -335,9 +379,9 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     glyph: '◉',
     blurb: 'Synchronic totality — "the weather now"',
     description:
-      'Every observed probe in scope, no time axis beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape, paired-metric structure, and what is being talked about right now (by volume).',
+      'Every observed probe in scope, no time axis beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape, paired-metric structure, what is being talked about right now (by volume), and which sources are currently editing most (silent-edit activity).',
     color: '#5283b8',
-    presentations: ['distribution', 'topic_distribution', 'metric_scatter']
+    presentations: ['distribution', 'topic_distribution', 'metric_scatter', 'revision_activity']
   },
   {
     id: 'episteme',
@@ -346,9 +390,9 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     glyph: '◐',
     blurb: 'Diachronic knowledge register — "the climate record"',
     description:
-      'How the expressible shifts over time. Time is the axis: metric time-series, topic evolution, drift — the long-term shape of what can be said within the discursive formation.',
+      'How the expressible shifts over time. Time is the axis: metric time-series, topic evolution, drift, and silent-edit activity over time — the long-term shape of what can be said within the discursive formation.',
     color: '#c8a85a',
-    presentations: ['time_series', 'topic_evolution']
+    presentations: ['time_series', 'topic_evolution', 'revision_timeline']
   },
   {
     id: 'rhizome',
