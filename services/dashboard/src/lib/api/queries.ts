@@ -51,6 +51,11 @@ export type RevisionActivityEntryDto = components['schemas']['RevisionActivityEn
 export type ArticleRevisionsResponseDto = components['schemas']['ArticleRevisionsResponse'];
 export type ArticleRevisionEntryDto = ArticleRevisionsResponseDto['revisions'][number];
 export type RevisionActivityResolution = 'snapshot' | 'daily' | 'weekly' | 'monthly';
+// Phase 122d.1 — Diff Substance + Drilldown surfaces.
+export type ArticleRevisionDiffDto = components['schemas']['ArticleRevisionDiff'];
+export type ArticleRevisionDiffOpDto = ArticleRevisionDiffDto['diffParagraphs'][number];
+export type RevisionsArticlesPageDto = components['schemas']['RevisionsArticlesPage'];
+export type RevisionsArticlesItemDto = RevisionsArticlesPageDto['items'][number];
 export type TopicDistributionEntryDto = TopicDistributionResponseDto['topics'][number];
 export type SilverAggregationType =
   | 'cleaned_text_length'
@@ -472,6 +477,10 @@ export interface ArticleListParams {
   sentimentBand?: 'negative' | 'neutral' | 'positive';
   limit?: number;
   cursor?: string;
+  /** Phase 122d.1 — opt in to per-row chainLength + hasHeadlineChange
+   *  fields. Server-side cost is a thin LEFT JOIN against
+   *  `aer_gold.article_revisions`. */
+  includeRevisions?: boolean;
 }
 
 export function sourceArticlesQuery(
@@ -487,6 +496,7 @@ export function sourceArticlesQuery(
   if (params.sentimentBand) qs.set('sentimentBand', params.sentimentBand);
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.cursor) qs.set('cursor', params.cursor);
+  if (params.includeRevisions) qs.set('includeRevisions', 'true');
   return {
     queryKey: ['aer', 'source-articles', sourceId, params] as const,
     queryFn: () =>
@@ -820,6 +830,64 @@ export function articleRevisionsQuery(
       fetchJson<ArticleRevisionsResponseDto>(
         ctx,
         `/articles/${encodeURIComponent(articleId)}/revisions`,
+        'silver_eligibility'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// -------------------------------------------------------------------------
+// Phase 122d.1 — Diff Substance + Drilldown queries.
+// -------------------------------------------------------------------------
+
+export interface RevisionsArticlesParams {
+  scope: 'probe' | 'source';
+  scopeId: string;
+  start: string;
+  end: string;
+  hasHeadlineChange?: boolean;
+  minChainLength?: number;
+  limit?: number;
+  cursor?: string;
+}
+
+export function revisionsArticlesQuery(
+  ctx: FetchContext,
+  params: RevisionsArticlesParams
+): QueryOptions<RevisionsArticlesPageDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  qs.set('startDate', params.start);
+  qs.set('endDate', params.end);
+  if (params.hasHeadlineChange) qs.set('hasHeadlineChange', 'true');
+  if (params.minChainLength && params.minChainLength > 1)
+    qs.set('minChainLength', String(params.minChainLength));
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  return {
+    queryKey: ['aer', 'revisions-articles', params] as const,
+    queryFn: () =>
+      fetchJson<RevisionsArticlesPageDto>(
+        ctx,
+        `/revisions/articles?${qs.toString()}`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+export function articleRevisionDiffQuery(
+  ctx: FetchContext,
+  articleId: string,
+  revisionIndex: number
+): QueryOptions<ArticleRevisionDiffDto> {
+  return {
+    queryKey: ['aer', 'article-revision-diff', articleId, revisionIndex] as const,
+    queryFn: () =>
+      fetchJson<ArticleRevisionDiffDto>(
+        ctx,
+        `/articles/${encodeURIComponent(articleId)}/revisions/${revisionIndex}/diff`,
         'silver_eligibility'
       ),
     staleTime: FIVE_MINUTES

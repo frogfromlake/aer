@@ -32,3 +32,26 @@ properties:
     type: number
     nullable: true
     description: Sentiment score from `aer_gold.metrics` (provisional, WP-002).
+  chainLength:
+    type: integer
+    nullable: true
+    description: >
+      Phase 122d.1 — number of revisions detected for this article
+      (sum of CDX snapshots + republication-trigger rows). Only present
+      when the request opts in via `?includeRevisions=true`. Null
+      when the article has no revisions in `aer_gold.article_revisions`.
+  hasHeadlineChange:
+    type: boolean
+    nullable: true
+    description: >
+      Phase 122d.1 — true iff at least one revision in this article's
+      chain reports `headline_changed=true`. Only present when the
+      request opts in via `?includeRevisions=true`.
+  latestRevisionAt:
+    type: string
+    format: date-time
+    nullable: true
+    description: >
+      Phase 122d.1 — timestamp of the most recent revision in this
+      article's chain. Only present when the request opts in via
+      `?includeRevisions=true`.

@@ -20,6 +20,27 @@ const (
 	ApiKeyAuthScopes = "ApiKeyAuth.Scopes"
 )
 
+// Defines values for ArticleRevisionDiffDiffParagraphsOp.
+const (
+	Add ArticleRevisionDiffDiffParagraphsOp = "add"
+	Del ArticleRevisionDiffDiffParagraphsOp = "del"
+	Mod ArticleRevisionDiffDiffParagraphsOp = "mod"
+)
+
+// Valid indicates whether the value is a known member of the ArticleRevisionDiffDiffParagraphsOp enum.
+func (e ArticleRevisionDiffDiffParagraphsOp) Valid() bool {
+	switch e {
+	case Add:
+		return true
+	case Del:
+		return true
+	case Mod:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArticleRevisionsResponseLookupStatus.
 const (
 	Disabled    ArticleRevisionsResponseLookupStatus = "disabled"
@@ -707,6 +728,24 @@ func (e GetRevisionActivityParamsResolution) Valid() bool {
 	}
 }
 
+// Defines values for GetRevisionsArticlesParamsScope.
+const (
+	GetRevisionsArticlesParamsScopeProbe  GetRevisionsArticlesParamsScope = "probe"
+	GetRevisionsArticlesParamsScopeSource GetRevisionsArticlesParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionsArticlesParamsScope enum.
+func (e GetRevisionsArticlesParamsScope) Valid() bool {
+	switch e {
+	case GetRevisionsArticlesParamsScopeProbe:
+		return true
+	case GetRevisionsArticlesParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetSilverAggregationParamsAggregationType.
 const (
 	CleanedTextLength            GetSilverAggregationParamsAggregationType = "cleaned_text_length"
@@ -802,6 +841,46 @@ type ArticleDetail struct {
 	WordCount     int       `json:"wordCount"`
 }
 
+// ArticleRevisionDiff Paragraph-aligned diff between two consecutive Wayback CDX snapshots of one article (Phase 122d.1 / ADR-032 amendment). Returned by `GET /articles/{id}/revisions/{revisionIndex}/diff` where the `revisionIndex` parameter selects the LATER snapshot of the pair (the diff compares `revisionIndex-1` → `revisionIndex`).
+// The dashboard's L5 Evidence Reader Diff tab consumes this payload to render the inline diff view. Equal paragraphs are intentionally not included — the payload only carries the changes — so the consumer should not expect a complete document reconstruction.
+type ArticleRevisionDiff struct {
+	// ArticleId SHA-256 article identifier.
+	ArticleId string `json:"articleId"`
+
+	// DiffParagraphs Ordered list of paragraph-level ops. Equal paragraphs are not included — the payload is sparse. Op vocabulary: `add` (paragraph inserted), `del` (paragraph removed), `mod` (paragraph modified — similarity ≥ 0.4 between before and after).
+	DiffParagraphs []struct {
+		// After Replacement paragraph text (`add`, `mod`).
+		After *string `json:"after,omitempty"`
+
+		// Before Original paragraph text (`del`, `mod`).
+		Before *string `json:"before,omitempty"`
+
+		// Op Op type.
+		Op ArticleRevisionDiffDiffParagraphsOp `json:"op"`
+	} `json:"diffParagraphs"`
+
+	// HeadlineAfter Title at the later snapshot; empty when `headlineChanged=false`.
+	HeadlineAfter *string `json:"headlineAfter,omitempty"`
+
+	// HeadlineBefore Title at the earlier snapshot; empty when `headlineChanged=false`.
+	HeadlineBefore *string `json:"headlineBefore,omitempty"`
+
+	// HeadlineChanged True iff the article's headline (extracted from the title-chain `<title>` → `og:title` → `<h1>`) differs between the two snapshots. Engineering-derived signal — not a methodological canon; see ADR-037 for the disclosure prose.
+	HeadlineChanged bool `json:"headlineChanged"`
+
+	// RevisionIndex Zero-based position of the LATER snapshot in the chain (`revisionIndex=0` is the chain head and has no predecessor; requesting it returns 404).
+	RevisionIndex int `json:"revisionIndex"`
+
+	// SnapshotAtAfter Wayback capture time of the later snapshot.
+	SnapshotAtAfter time.Time `json:"snapshotAtAfter"`
+
+	// SnapshotAtBefore Wayback capture time of the earlier snapshot.
+	SnapshotAtBefore time.Time `json:"snapshotAtBefore"`
+}
+
+// ArticleRevisionDiffDiffParagraphsOp Op type.
+type ArticleRevisionDiffDiffParagraphsOp string
+
 // ArticleRevisionsResponse Per-article revision chain for the L5 Evidence Reader (Phase 122d.0). Returns the ordered list of detected revisions for one article — Wayback CDX snapshots and publisher-side republication-trigger events. The endpoint is subject to the Silver-eligibility gate inherited from `GET /articles/{id}`: a source whose `silver_eligible=false` returns 403 with the same refusal payload.
 type ArticleRevisionsResponse struct {
 	// ArticleId SHA-256 article identifier.
@@ -852,8 +931,17 @@ type ArticlesPage struct {
 		// ArticleId SHA-256 hash of source + bronze_object_key (worker-derived).
 		ArticleId string `json:"articleId"`
 
+		// ChainLength Phase 122d.1 — number of revisions detected for this article (sum of CDX snapshots + republication-trigger rows). Only present when the request opts in via `?includeRevisions=true`. Null when the article has no revisions in `aer_gold.article_revisions`.
+		ChainLength *int `json:"chainLength,omitempty"`
+
+		// HasHeadlineChange Phase 122d.1 — true iff at least one revision in this article's chain reports `headline_changed=true`. Only present when the request opts in via `?includeRevisions=true`.
+		HasHeadlineChange *bool `json:"hasHeadlineChange,omitempty"`
+
 		// Language Top language detection result for the article (ISO 639-1).
 		Language *string `json:"language,omitempty"`
+
+		// LatestRevisionAt Phase 122d.1 — timestamp of the most recent revision in this article's chain. Only present when the request opts in via `?includeRevisions=true`.
+		LatestRevisionAt *time.Time `json:"latestRevisionAt,omitempty"`
 
 		// SentimentScore Sentiment score from `aer_gold.metrics` (provisional, WP-002).
 		SentimentScore *float32 `json:"sentimentScore,omitempty"`
@@ -1238,6 +1326,32 @@ type RevisionActivityResponseResolution string
 // RevisionActivityResponseScope Echoed scope of the request.
 type RevisionActivityResponseScope string
 
+// RevisionsArticlesPage Paginated list of articles with at least one revision in the active window (Phase 122d.1 / ADR-032 amendment). Powers the Workbench drill-down from a `revision_activity` bar or a `revision_timeline` bucket-point into the article list backing the signal. Cursor-based pagination identical to `/sources/{id}/articles` for consistency.
+type RevisionsArticlesPage struct {
+	HasMore bool `json:"hasMore"`
+	Items   []struct {
+		ArticleId string `json:"articleId"`
+
+		// ChainLength Total revisions detected for this article in the window.
+		ChainLength int `json:"chainLength"`
+
+		// HasHeadlineChange True iff at least one revision in the chain reports `headline_changed=true`.
+		HasHeadlineChange bool    `json:"hasHeadlineChange"`
+		Language          *string `json:"language,omitempty"`
+
+		// LatestRevisionAt Timestamp of the most recent revision in the chain.
+		LatestRevisionAt *time.Time `json:"latestRevisionAt,omitempty"`
+		Source           string     `json:"source"`
+
+		// Timestamp Article's published date.
+		Timestamp time.Time `json:"timestamp"`
+		WordCount *int      `json:"wordCount,omitempty"`
+	} `json:"items"`
+
+	// NextCursor Opaque cursor token; pass back on the next request.
+	NextCursor *string `json:"nextCursor,omitempty"`
+}
+
 // Source defines model for Source.
 type Source struct {
 	// DocumentationUrl Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
@@ -1576,6 +1690,36 @@ type GetRevisionActivityParamsScope string
 // GetRevisionActivityParamsResolution defines parameters for GetRevisionActivity.
 type GetRevisionActivityParamsResolution string
 
+// GetRevisionsArticlesParams defines parameters for GetRevisionsArticles.
+type GetRevisionsArticlesParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetRevisionsArticlesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// StartDate Inclusive start of the analysis window (RFC 3339).
+	StartDate time.Time `form:"startDate" json:"startDate"`
+
+	// EndDate Exclusive end of the analysis window (RFC 3339).
+	EndDate time.Time `form:"endDate" json:"endDate"`
+
+	// HasHeadlineChange When `true`, only return articles whose chain contains at least one revision with `headline_changed=true`. The default (unset / `false`) returns every article with ≥ 1 revision.
+	HasHeadlineChange *bool `form:"hasHeadlineChange,omitempty" json:"hasHeadlineChange,omitempty"`
+
+	// MinChainLength Minimum chain length per article. Defaults to 1 (any article with at least one revision); raise to filter for articles edited multiple times.
+	MinChainLength *int `form:"minChainLength,omitempty" json:"minChainLength,omitempty"`
+
+	// Limit Page size; max 200.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor token from the previous response.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetRevisionsArticlesParamsScope defines parameters for GetRevisionsArticles.
+type GetRevisionsArticlesParamsScope string
+
 // GetSilverAggregationParams defines parameters for GetSilverAggregation.
 type GetSilverAggregationParams struct {
 	// SourceId Source identifier — canonical name or integer id.
@@ -1635,6 +1779,9 @@ type GetSourceArticlesParams struct {
 
 	// Cursor Opaque pagination cursor from a previous response's `nextCursor`.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// IncludeRevisions Phase 122d.1 — when `true`, each item gains `chainLength`, `hasHeadlineChange`, and `latestRevisionAt` fields drawn from `aer_gold.article_revisions`. Server-side cost is a thin LEFT JOIN; rows with no revisions get null fields and the badges hide in the UI. Default `false` so existing callers receive the legacy shape.
+	IncludeRevisions *bool `form:"includeRevisions,omitempty" json:"includeRevisions,omitempty"`
 }
 
 // GetSourceArticlesParamsSentimentBand defines parameters for GetSourceArticles.
@@ -1690,6 +1837,9 @@ type ServerInterface interface {
 	// Per-article revision chain for L5 Evidence
 	// (GET /articles/{id}/revisions)
 	GetArticleRevisions(w http.ResponseWriter, r *http.Request, id string)
+	// Per-pair paragraph-aligned diff between two snapshots
+	// (GET /articles/{id}/revisions/{revisionIndex}/diff)
+	GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request, id string, revisionIndex int)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
@@ -1747,6 +1897,9 @@ type ServerInterface interface {
 	// Aggregated silent-edit revision activity for a probe or source
 	// (GET /revisions)
 	GetRevisionActivity(w http.ResponseWriter, r *http.Request, params GetRevisionActivityParams)
+	// List articles with revisions for the Workbench drill-down
+	// (GET /revisions/articles)
+	GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams)
 	// Silver-layer aggregations (distribution / heatmap / correlation)
 	// (GET /silver/aggregations/{aggregationType})
 	GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams)
@@ -1789,6 +1942,12 @@ func (_ Unimplemented) GetArticleDetail(w http.ResponseWriter, r *http.Request, 
 // Per-article revision chain for L5 Evidence
 // (GET /articles/{id}/revisions)
 func (_ Unimplemented) GetArticleRevisions(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-pair paragraph-aligned diff between two snapshots
+// (GET /articles/{id}/revisions/{revisionIndex}/diff)
+func (_ Unimplemented) GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request, id string, revisionIndex int) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1903,6 +2062,12 @@ func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
 // Aggregated silent-edit revision activity for a probe or source
 // (GET /revisions)
 func (_ Unimplemented) GetRevisionActivity(w http.ResponseWriter, r *http.Request, params GetRevisionActivityParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List articles with revisions for the Workbench drill-down
+// (GET /revisions/articles)
+func (_ Unimplemented) GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2033,6 +2198,46 @@ func (siw *ServerInterfaceWrapper) GetArticleRevisions(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetArticleRevisions(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetArticleRevisionDiff operation middleware
+func (siw *ServerInterfaceWrapper) GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "revisionIndex" -------------
+	var revisionIndex int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "revisionIndex", chi.URLParam(r, "revisionIndex"), &revisionIndex, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "revisionIndex", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetArticleRevisionDiff(w, r, id, revisionIndex)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3306,6 +3511,116 @@ func (siw *ServerInterfaceWrapper) GetRevisionActivity(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetRevisionsArticles operation middleware
+func (siw *ServerInterfaceWrapper) GetRevisionsArticles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRevisionsArticlesParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "startDate" -------------
+
+	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "endDate" -------------
+
+	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "hasHeadlineChange" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "hasHeadlineChange", r.URL.Query(), &params.HasHeadlineChange, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hasHeadlineChange", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "minChainLength" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "minChainLength", r.URL.Query(), &params.MinChainLength, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "minChainLength", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRevisionsArticles(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSilverAggregation operation middleware
 func (siw *ServerInterfaceWrapper) GetSilverAggregation(w http.ResponseWriter, r *http.Request) {
 
@@ -3639,6 +3954,14 @@ func (siw *ServerInterfaceWrapper) GetSourceArticles(w http.ResponseWriter, r *h
 		return
 	}
 
+	// ------------- Optional query parameter "includeRevisions" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "includeRevisions", r.URL.Query(), &params.IncludeRevisions, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "includeRevisions", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSourceArticles(w, r, id, params)
 	}))
@@ -3940,6 +4263,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/articles/{id}/revisions", wrapper.GetArticleRevisions)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/articles/{id}/revisions/{revisionIndex}/diff", wrapper.GetArticleRevisionDiff)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
 	})
 	r.Group(func(r chi.Router) {
@@ -3995,6 +4321,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/revisions", wrapper.GetRevisionActivity)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/revisions/articles", wrapper.GetRevisionsArticles)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/silver/aggregations/{aggregationType}", wrapper.GetSilverAggregation)
@@ -4158,6 +4487,75 @@ type GetArticleRevisions500JSONResponse struct {
 }
 
 func (response GetArticleRevisions500JSONResponse) VisitGetArticleRevisionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisionDiffRequestObject struct {
+	Id            string `json:"id"`
+	RevisionIndex int    `json:"revisionIndex"`
+}
+
+type GetArticleRevisionDiffResponseObject interface {
+	VisitGetArticleRevisionDiffResponse(w http.ResponseWriter) error
+}
+
+type GetArticleRevisionDiff200JSONResponse ArticleRevisionDiff
+
+func (response GetArticleRevisionDiff200JSONResponse) VisitGetArticleRevisionDiffResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisionDiff403JSONResponse RefusalPayload
+
+func (response GetArticleRevisionDiff403JSONResponse) VisitGetArticleRevisionDiffResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisionDiff404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetArticleRevisionDiff404JSONResponse) VisitGetArticleRevisionDiffResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetArticleRevisionDiff500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetArticleRevisionDiff500JSONResponse) VisitGetArticleRevisionDiffResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -5757,6 +6155,86 @@ func (response GetRevisionActivity500JSONResponse) VisitGetRevisionActivityRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetRevisionsArticlesRequestObject struct {
+	Params GetRevisionsArticlesParams
+}
+
+type GetRevisionsArticlesResponseObject interface {
+	VisitGetRevisionsArticlesResponse(w http.ResponseWriter) error
+}
+
+type GetRevisionsArticles200JSONResponse RevisionsArticlesPage
+
+func (response GetRevisionsArticles200JSONResponse) VisitGetRevisionsArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionsArticles400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionsArticles400JSONResponse) VisitGetRevisionsArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionsArticles404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionsArticles404JSONResponse) VisitGetRevisionsArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionsArticles500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionsArticles500JSONResponse) VisitGetRevisionsArticlesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSilverAggregationRequestObject struct {
 	AggregationType GetSilverAggregationParamsAggregationType `json:"aggregationType"`
 	Params          GetSilverAggregationParams
@@ -6519,6 +6997,9 @@ type StrictServerInterface interface {
 	// Per-article revision chain for L5 Evidence
 	// (GET /articles/{id}/revisions)
 	GetArticleRevisions(ctx context.Context, request GetArticleRevisionsRequestObject) (GetArticleRevisionsResponseObject, error)
+	// Per-pair paragraph-aligned diff between two snapshots
+	// (GET /articles/{id}/revisions/{revisionIndex}/diff)
+	GetArticleRevisionDiff(ctx context.Context, request GetArticleRevisionDiffRequestObject) (GetArticleRevisionDiffResponseObject, error)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
@@ -6576,6 +7057,9 @@ type StrictServerInterface interface {
 	// Aggregated silent-edit revision activity for a probe or source
 	// (GET /revisions)
 	GetRevisionActivity(ctx context.Context, request GetRevisionActivityRequestObject) (GetRevisionActivityResponseObject, error)
+	// List articles with revisions for the Workbench drill-down
+	// (GET /revisions/articles)
+	GetRevisionsArticles(ctx context.Context, request GetRevisionsArticlesRequestObject) (GetRevisionsArticlesResponseObject, error)
 	// Silver-layer aggregations (distribution / heatmap / correlation)
 	// (GET /silver/aggregations/{aggregationType})
 	GetSilverAggregation(ctx context.Context, request GetSilverAggregationRequestObject) (GetSilverAggregationResponseObject, error)
@@ -6680,6 +7164,33 @@ func (sh *strictHandler) GetArticleRevisions(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetArticleRevisionsResponseObject); ok {
 		if err := validResponse.VisitGetArticleRevisionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetArticleRevisionDiff operation middleware
+func (sh *strictHandler) GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request, id string, revisionIndex int) {
+	var request GetArticleRevisionDiffRequestObject
+
+	request.Id = id
+	request.RevisionIndex = revisionIndex
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetArticleRevisionDiff(ctx, request.(GetArticleRevisionDiffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetArticleRevisionDiff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetArticleRevisionDiffResponseObject); ok {
+		if err := validResponse.VisitGetArticleRevisionDiffResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7178,6 +7689,32 @@ func (sh *strictHandler) GetRevisionActivity(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRevisionActivityResponseObject); ok {
 		if err := validResponse.VisitGetRevisionActivityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRevisionsArticles operation middleware
+func (sh *strictHandler) GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams) {
+	var request GetRevisionsArticlesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRevisionsArticles(ctx, request.(GetRevisionsArticlesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRevisionsArticles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRevisionsArticlesResponseObject); ok {
+		if err := validResponse.VisitGetRevisionsArticlesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -111,6 +111,9 @@ type Store interface {
 	// chain over aer_gold.article_revisions.
 	GetRevisionActivity(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error)
 	GetArticleRevisions(ctx context.Context, articleID string) ([]storage.ArticleRevisionRow, error)
+	// Phase 122d.1: Silent-Edit Diff Substance + Drilldown.
+	GetArticleRevisionDiff(ctx context.Context, articleID string, revisionIndex int) (*storage.ArticleRevisionDiffRow, error)
+	GetRevisionsArticles(ctx context.Context, filter storage.RevisionsArticlesFilter) ([]storage.RevisionArticleRow, error)
 }
 
 // SourceLister abstracts the source-metadata read path so the handler

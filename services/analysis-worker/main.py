@@ -39,12 +39,15 @@ from internal.extractors import (
 from internal.corpus import (
     BaselineConfig,
     CorpusConfig,
+    RevisionDiffConfig,
     TopicConfig,
     baseline_extraction_loop,
     corpus_extraction_loop,
+    revision_diff_extraction_loop,
     topic_extraction_loop,
 )
 from internal.models.probe_scope import ProbeLanguageScope
+from internal.wayback import WaybackSnapshotFetcher
 
 load_dotenv()
 
@@ -130,6 +133,46 @@ def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
     except Exception as exc:
         logger.warning(
             "Wayback CDX client init failed; continuing without silent-edit observability.",
+            error=str(exc),
+        )
+        return None
+
+
+def _init_snapshot_fetcher() -> WaybackSnapshotFetcher | None:
+    """Construct the Phase 122d.1 snapshot fetcher, or None when disabled.
+
+    Independent enable-flag from the CDX integration (Phase 122d.0).
+    An operator can run with CDX enabled (revision *counts* observable)
+    but snapshot diffs disabled (revision *substance* not yet wanted —
+    e.g. when IA full-HTML bandwidth is constrained).
+    """
+    if os.getenv("REVISION_DIFF_EXTRACTION_ENABLED", "false").strip().lower() not in {
+        "1", "true", "yes", "on",
+    }:
+        logger.info("Wayback snapshot fetcher disabled (REVISION_DIFF_EXTRACTION_ENABLED is off).")
+        return None
+    try:
+        timeout = float(os.getenv("WAYBACK_SNAPSHOT_TIMEOUT_SECONDS", "15.0"))
+        rate = float(os.getenv("WAYBACK_SNAPSHOT_RATE_LIMIT_PER_SECOND", "2.0"))
+        user_agent = os.getenv(
+            "WEB_CRAWLER_USER_AGENT",
+            "AerWebCrawler/0.1 (+https://aer.example/about)",
+        )
+        fetcher = WaybackSnapshotFetcher(
+            enabled=True,
+            timeout_seconds=timeout,
+            rate_limit_per_second=rate,
+            user_agent=user_agent,
+        )
+        logger.info(
+            "Wayback snapshot fetcher enabled",
+            timeout_seconds=timeout,
+            rate_limit_per_second=rate,
+        )
+        return fetcher
+    except Exception as exc:
+        logger.warning(
+            "Wayback snapshot fetcher init failed; continuing without diff loop.",
             error=str(exc),
         )
         return None
@@ -483,6 +526,23 @@ async def main(config: WorkerConfig | None = None):
         )
     )
 
+    # Phase 122d.1 / ADR-032 amendment — Silent-Edit Diff Substance.
+    # Polls aer_gold.article_revisions for undiffed consecutive CDX
+    # snapshot pairs, fetches archived HTML, computes paragraph-level
+    # diffs + headline-change detection, re-writes the row with the
+    # diff columns filled in. Opt-in (default disabled) — flip
+    # REVISION_DIFF_EXTRACTION_ENABLED=true in .env to exercise.
+    snapshot_fetcher = _init_snapshot_fetcher()
+    revision_diff_config = RevisionDiffConfig()
+    revision_diff_task = asyncio.create_task(
+        revision_diff_extraction_loop(
+            ch_client,
+            snapshot_fetcher,
+            revision_diff_config,
+            stop_event,
+        )
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -509,6 +569,9 @@ async def main(config: WorkerConfig | None = None):
 
         logger.info("Waiting for topic-extraction loop to drain...")
         await topic_task
+
+        logger.info("Waiting for revision-diff loop to drain...")
+        await revision_diff_task
 
         await nc.close()
 

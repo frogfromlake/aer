@@ -13,6 +13,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { type ExportPayload, type ExportRow } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
@@ -20,6 +21,10 @@
   import HowToRead from './HowToRead.svelte';
 
   let { ctx, scope, scopeId, windowStart, windowEnd }: ViewModeCellProps = $props();
+
+  // Phase 122d.1 — drill-down: click a source bar to open the article
+  // list filtered to that source's revisions in the active window.
+  let drilldownSource = $state<string | null>(null);
 
   const revisionQ = createQuery<
     QueryOutcome<RevisionActivityResponseDto>,
@@ -75,7 +80,12 @@
             x: 'revisions',
             y: 'source',
             fill: 'rgba(154, 143, 184, 0.55)',
-            stroke: 'rgba(154, 143, 184, 0.95)'
+            stroke: 'rgba(154, 143, 184, 0.95)',
+            // Phase 122d.1 — bar click opens the article drill-down
+            // modal filtered to that source's revisions in the active
+            // window.
+            channels: { source: 'source' },
+            tip: false
           }),
           Plot.ruleX([0])
         ]
@@ -84,6 +94,30 @@
       // eslint-disable-next-line svelte/no-dom-manipulating
       host.appendChild(next as unknown as HTMLElement);
       plotEl = next as unknown as HTMLElement;
+      // Wire bar clicks to the drilldown — Observable Plot does not
+      // emit a typed click; attach a delegated listener on the svg.
+      const svg = plotEl?.querySelector('svg');
+      if (svg) {
+        svg.addEventListener('click', (ev) => {
+          const target = ev.target as Element | null;
+          const rect = target?.closest('rect');
+          if (!rect) return;
+          // Plot annotates marks with a `__data__` getter we can read
+          // via the d3 datum interface — fall back to bar index by
+          // y-coordinate if the datum isn't accessible.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const datum = (rect as any).__data__ as number | undefined;
+          if (typeof datum === 'number' && rows[datum]) {
+            drilldownSource = rows[datum].source;
+          }
+        });
+        // Cursor hint that the bars are interactive. SVGRectElement
+        // shares the `style` setter with HTMLElement via SVGElement,
+        // so a typed widening is sufficient here.
+        for (const rect of svg.querySelectorAll('rect')) {
+          (rect as SVGRectElement).style.cursor = 'pointer';
+        }
+      }
     })();
   });
 
@@ -148,11 +182,29 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Revision counts per source"
+      aria-label="Revision counts per source. Click a bar to view the articles."
     ></div>
     <HowToRead presentation="revision_activity" facts={{}} />
   {/if}
 </section>
+
+<!-- Phase 122d.1 drill-down — opens articles for the clicked source's
+     revisions in the active window. -->
+{#if drilldownSource}
+  <ArticleListModal
+    open={drilldownSource !== null}
+    title={`Articles edited — ${drilldownSource}`}
+    {ctx}
+    {windowStart}
+    {windowEnd}
+    onClose={() => (drilldownSource = null)}
+    config={{
+      mode: 'revisions-articles',
+      scope: 'source',
+      scopeId: drilldownSource
+    }}
+  />
+{/if}
 
 <style>
   .rev-cell {

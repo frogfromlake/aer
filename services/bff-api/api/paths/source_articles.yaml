@@ -65,6 +65,18 @@ get:
       description: Opaque pagination cursor from a previous response's `nextCursor`.
       schema:
         type: string
+    - name: includeRevisions
+      in: query
+      required: false
+      description: >
+        Phase 122d.1 — when `true`, each item gains `chainLength`,
+        `hasHeadlineChange`, and `latestRevisionAt` fields drawn from
+        `aer_gold.article_revisions`. Server-side cost is a thin LEFT
+        JOIN; rows with no revisions get null fields and the badges
+        hide in the UI. Default `false` so existing callers receive
+        the legacy shape.
+      schema:
+        type: boolean
   responses:
     '200':
       description: Paginated article listing.

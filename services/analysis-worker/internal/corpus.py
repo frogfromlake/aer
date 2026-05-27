@@ -769,3 +769,257 @@ async def topic_extraction_loop(
             continue
 
     logger.info("topic.loop.stopped", extractor=extractor.name)
+
+
+# ---------------------------------------------------------------------------
+# Phase 122d.1 — Silent-Edit Diff Substance loop.
+# ---------------------------------------------------------------------------
+
+ARTICLE_REVISIONS_COLUMNS_FULL = [
+    "article_id",
+    "source",
+    "discourse_function",
+    "snapshot_at",
+    "content_hash",
+    "prev_content_hash",
+    "revision_index",
+    "time_since_prev_hours",
+    "revision_trigger",
+    "ingestion_version",
+    "archive_url",
+    "diff_paragraphs",
+    "headline_changed",
+    "headline_before",
+    "headline_after",
+]
+
+
+@dataclass
+class RevisionDiffConfig:
+    """Tuneables for the Phase 122d.1 revision-diff sweep loop.
+
+    Operates on `aer_gold.article_revisions` rows whose
+    ``revision_trigger='cdx_snapshot'`` and ``revision_index > 0``
+    (only consecutive CDX snapshots are diffable; republication-
+    trigger rows have no archive_url). Idempotent via
+    ``ReplacingMergeTree(ingestion_version)`` — re-runs re-write
+    rows with a fresh, higher version and the table collapses.
+
+    Default cadence is hourly, mirroring corpus-extraction. The
+    per-tick row budget (``max_pairs_per_tick``) prevents one tick
+    from monopolising the worker's CPU + IA-rate-limit budget when
+    a fresh crawl produces thousands of new revisions at once.
+    """
+
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("REVISION_DIFF_EXTRACTION_ENABLED", "false").lower()
+        == "true"
+    )
+    interval_seconds: float = field(
+        default_factory=lambda: float(
+            os.getenv("REVISION_DIFF_EXTRACTION_INTERVAL_SECONDS", "3600")
+        )
+    )
+    initial_delay_seconds: float = field(
+        default_factory=lambda: float(
+            os.getenv("REVISION_DIFF_EXTRACTION_INITIAL_DELAY_SECONDS", "180")
+        )
+    )
+    max_pairs_per_tick: int = field(
+        default_factory=lambda: int(os.getenv("REVISION_DIFF_MAX_PAIRS_PER_TICK", "200"))
+    )
+
+
+def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
+    """Find consecutive CDX-snapshot pairs that have not yet been diffed.
+
+    Joins `aer_gold.article_revisions` against itself on
+    `(article_id, revision_index = prev.revision_index + 1)`. Only
+    returns pairs where:
+
+      * both rows are `cdx_snapshot` (republication-trigger pseudo-rows
+        have no IA archive page to fetch);
+      * both rows carry a non-empty `archive_url` (122d.0 rows written
+        before migration 000024 had an empty default, gracefully skip);
+      * the `curr` row has not yet been diffed (empty `diff_paragraphs`).
+
+    The LIMIT bounds the per-tick workload — successive ticks chip
+    away at the backlog until it drains. ReplacingMergeTree collapses
+    re-runs cleanly so an interrupted tick simply retries.
+    """
+    client = ch_pool.getconn()
+    try:
+        result = client.query(
+            """
+            SELECT
+                curr.article_id            AS article_id,
+                curr.source                AS source,
+                curr.discourse_function    AS discourse_function,
+                curr.snapshot_at           AS snapshot_at,
+                curr.content_hash          AS content_hash,
+                curr.prev_content_hash     AS prev_content_hash,
+                curr.revision_index        AS revision_index,
+                curr.time_since_prev_hours AS time_since_prev_hours,
+                curr.revision_trigger      AS revision_trigger,
+                curr.ingestion_version     AS ingestion_version,
+                curr.archive_url           AS curr_archive_url,
+                prev.archive_url           AS prev_archive_url
+            FROM aer_gold.article_revisions FINAL AS curr
+            INNER JOIN aer_gold.article_revisions FINAL AS prev
+                ON prev.article_id     = curr.article_id
+               AND prev.revision_index = curr.revision_index - 1
+            WHERE curr.revision_index > 0
+              AND curr.revision_trigger = 'cdx_snapshot'
+              AND prev.revision_trigger = 'cdx_snapshot'
+              AND length(curr.diff_paragraphs) = 0
+              AND curr.archive_url != ''
+              AND prev.archive_url != ''
+            ORDER BY curr.snapshot_at DESC
+            LIMIT %(limit)s
+            """,
+            parameters={"limit": int(limit)},
+        )
+        return [
+            {
+                "article_id": row[0],
+                "source": row[1],
+                "discourse_function": row[2],
+                "snapshot_at": row[3],
+                "content_hash": row[4],
+                "prev_content_hash": row[5],
+                "revision_index": row[6],
+                "time_since_prev_hours": row[7],
+                "revision_trigger": row[8],
+                "ingestion_version": row[9],
+                "curr_archive_url": row[10],
+                "prev_archive_url": row[11],
+            }
+            for row in result.result_rows
+        ]
+    finally:
+        ch_pool.putconn(client)
+
+
+def run_revision_diff_sweep(ch_pool, snapshot_fetcher, max_pairs: int) -> int:
+    """One revision-diff sweep tick. Returns rows written.
+
+    Pulls up to ``max_pairs`` undiffed pairs from Gold, fetches both
+    snapshot HTMLs (rate-limited via the shared snapshot fetcher),
+    computes the paragraph diff + headline-change signal, and re-
+    inserts the ``curr`` row with the diff columns filled in and a
+    fresh ingestion_version so ReplacingMergeTree collapses to the
+    diffed version on next merge.
+
+    Fail-silent per pair: any single pair that fails (snapshot fetch
+    error, trafilatura empty result) is logged and skipped; the sweep
+    continues with the next pair. The next tick re-attempts skipped
+    pairs (their `diff_paragraphs` is still empty).
+    """
+    # Imported here rather than at module top so the corpus module
+    # boots without the wayback dependency (legacy compatibility for
+    # operators running the worker with WAYBACK_CDX_ENABLED=false).
+    from internal.article_revisions_diff import compute_diff
+    from internal.wayback.snapshot_fetcher import FETCH_OK
+
+    pairs = fetch_undiffed_pairs(ch_pool, max_pairs)
+    if not pairs:
+        return 0
+
+    rows_to_write: list[list[object]] = []
+    for pair in pairs:
+        prev_result = snapshot_fetcher.fetch(pair["prev_archive_url"])
+        if prev_result.status != FETCH_OK:
+            continue
+        curr_result = snapshot_fetcher.fetch(pair["curr_archive_url"])
+        if curr_result.status != FETCH_OK:
+            continue
+        diff = compute_diff(prev_result.html, curr_result.html)
+        # Bump the ingestion_version to the current monotonic ns so
+        # ReplacingMergeTree collapses to this row on the next merge.
+        # No worker contention possible here — the diff sweep is the
+        # only writer that uses `time.time_ns()`-scale versions.
+        new_version = max(int(pair["ingestion_version"]) + 1, time.time_ns())
+        rows_to_write.append(
+            [
+                pair["article_id"],
+                pair["source"],
+                pair["discourse_function"],
+                pair["snapshot_at"],
+                pair["content_hash"],
+                pair["prev_content_hash"],
+                pair["revision_index"],
+                pair["time_since_prev_hours"],
+                pair["revision_trigger"],
+                new_version,
+                pair["curr_archive_url"],
+                diff.diff_paragraphs,
+                diff.headline_changed,
+                diff.headline_before,
+                diff.headline_after,
+            ]
+        )
+
+    if not rows_to_write:
+        return 0
+
+    ch_pool.insert(
+        "aer_gold.article_revisions",
+        rows_to_write,
+        column_names=ARTICLE_REVISIONS_COLUMNS_FULL,
+    )
+    return len(rows_to_write)
+
+
+async def revision_diff_extraction_loop(
+    ch_pool,
+    snapshot_fetcher,
+    config: RevisionDiffConfig,
+    stop_event: asyncio.Event,
+) -> None:
+    """Background task: every ``interval_seconds`` invoke a diff sweep.
+
+    Cleanly stops on ``stop_event``. Errors at the sweep level are
+    contained and logged — the fail-silent posture of the Phase-122d
+    family extends to this loop.
+    """
+    if not config.enabled:
+        logger.info("revision_diff.loop.disabled")
+        return
+    if snapshot_fetcher is None:
+        logger.info("revision_diff.loop.no_snapshot_fetcher")
+        return
+
+    logger.info(
+        "revision_diff.loop.started",
+        interval_seconds=config.interval_seconds,
+        max_pairs_per_tick=config.max_pairs_per_tick,
+    )
+
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=config.initial_delay_seconds)
+        return
+    except asyncio.TimeoutError:
+        pass
+
+    while not stop_event.is_set():
+        try:
+            rows_written = await asyncio.to_thread(
+                run_revision_diff_sweep,
+                ch_pool,
+                snapshot_fetcher,
+                config.max_pairs_per_tick,
+            )
+            logger.info("revision_diff.sweep.complete", rows_written=rows_written)
+        except Exception as e:
+            logger.error(
+                "revision_diff.sweep.failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=config.interval_seconds)
+        except asyncio.TimeoutError:
+            continue
+
+    logger.info("revision_diff.loop.stopped")

@@ -75,8 +75,12 @@ paths:
     $ref: './paths/article_detail.yaml'
   /articles/{id}/revisions:
     $ref: './paths/article_revisions.yaml'
+  /articles/{id}/revisions/{revisionIndex}/diff:
+    $ref: './paths/revision_diff.yaml'
   /revisions:
     $ref: './paths/revisions.yaml'
+  /revisions/articles:
+    $ref: './paths/revisions_articles.yaml'
   /healthz:
     $ref: './paths/healthz.yaml'
   /readyz:
@@ -173,3 +177,7 @@ components:
       $ref: './schemas/RevisionActivityResponse.yaml'
     ArticleRevisionsResponse:
       $ref: './schemas/ArticleRevisionsResponse.yaml'
+    ArticleRevisionDiff:
+      $ref: './schemas/ArticleRevisionDiff.yaml'
+    RevisionsArticlesPage:
+      $ref: './schemas/RevisionsArticlesPage.yaml'

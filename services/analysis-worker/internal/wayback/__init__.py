@@ -16,10 +16,13 @@ coverage signal honestly.
 
 from .client import CDXResult, WaybackCDXClient, WaybackRevision
 from .cache import WaybackCDXCache
+from .snapshot_fetcher import SnapshotFetchResult, WaybackSnapshotFetcher
 
 __all__ = [
     "CDXResult",
     "WaybackCDXClient",
     "WaybackCDXCache",
     "WaybackRevision",
+    "SnapshotFetchResult",
+    "WaybackSnapshotFetcher",
 ]

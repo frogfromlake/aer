@@ -12,7 +12,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
-  import ArticlePreviewList from '$lib/components/lanes/ArticlePreviewList.svelte';
+  import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportRow, ExportPayload } from '$lib/viewmodes/cell-export';
@@ -752,23 +752,32 @@
           aria-label="Close entity panel">✕</button
         >
       </header>
-      <div class="source-lists">
-        {#each sources as src (src.name)}
-          <div class="source-section">
-            <h4 class="source-section-title">{src.emicDesignation ?? src.name}</h4>
-            <ArticlePreviewList
-              sourceId={src.name}
-              {ctx}
-              {windowStart}
-              {windowEnd}
-              entityMatch={selectedEntity.text}
-            />
-          </div>
-        {/each}
-      </div>
     </div>
   {/if}
 </section>
+
+<!-- Phase 122d.1 refactor — the article list for a selected entity
+     opens in a modal stacked above the graph. Pre-122d.1 this was
+     N source-lists stacked inline under the graph; the graph
+     scrolled out of view on entity click. The modal keeps the
+     graph visible behind it and pre-fills source tabs from the
+     active scope. -->
+<ArticleListModal
+  open={selectedEntity !== null}
+  title={selectedEntity ? `Articles mentioning "${selectedEntity.text}"` : 'Articles'}
+  {ctx}
+  {windowStart}
+  {windowEnd}
+  onClose={() => (selectedEntity = null)}
+  config={{
+    mode: 'source-articles',
+    sources: sources.map((s) => ({
+      name: s.name,
+      label: s.emicDesignation ?? s.name
+    })),
+    entityMatch: selectedEntity?.text
+  }}
+/>
 
 <style>
   .net-cell {
@@ -1019,28 +1028,9 @@
     color: var(--color-fg);
   }
 
-  .source-lists {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .source-section {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--color-border);
-  }
-  .source-section:last-child {
-    border-bottom: none;
-  }
-
-  .source-section-title {
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg-muted);
-    margin: 0 0 var(--space-2);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
+  /* Pre-Phase-122d.1 N-stacked-source-list styles removed —
+   * the entity-click article list now opens in `ArticleListModal`
+   * with source tabs, so the graph stays visible behind it. */
 
   .notice {
     font-size: var(--font-size-sm);

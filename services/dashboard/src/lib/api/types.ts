@@ -556,6 +556,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/articles/{id}/revisions/{revisionIndex}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-pair paragraph-aligned diff between two snapshots
+         * @description Returns the paragraph-aligned diff between revision `revisionIndex-1` and `revisionIndex` for one article (Phase 122d.1 / ADR-032 amendment). Subject to the same Silver-eligibility gate as `GET /articles/{id}` and `GET /articles/{id}/revisions`. A `revisionIndex=0` request returns 404 — the chain head has no predecessor to diff against.
+         *     The diff is produced by the worker's periodic revision-diff sweep (Wayback snapshot fetch → trafilatura re-extraction → paragraph- aligned diff). If the sweep has not yet processed this pair the endpoint returns 404 with a `pending` message; the dashboard surface should render this as a "diff not yet computed" notice.
+         */
+        get: operations["getArticleRevisionDiff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/revisions": {
         parameters: {
             query?: never;
@@ -569,6 +590,26 @@ export interface paths {
          *     The endpoint is read-only and follows the same scope grammar as `/entities` and `/metrics`. Sources with zero rows in the window do NOT appear in `entries`; the dashboard renders absences from the scope membership.
          */
         get: operations["getRevisionActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/revisions/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List articles with revisions for the Workbench drill-down
+         * @description Returns a paginated list of articles that have at least one revision in the active window (Phase 122d.1 / ADR-032 amendment). Powers the Workbench drill-down from a `revision_activity` bar or a `revision_timeline` bucket-point to the underlying article list. Cursor-based pagination identical to `/sources/{id}/articles` so the dashboard re-uses the same pagination primitive.
+         */
+        get: operations["getRevisionsArticles"];
         put?: never;
         post?: never;
         delete?: never;
@@ -973,6 +1014,15 @@ export interface components {
             wordCount?: number | null;
             /** @description Sentiment score from `aer_gold.metrics` (provisional, WP-002). */
             sentimentScore?: number | null;
+            /** @description Phase 122d.1 — number of revisions detected for this article (sum of CDX snapshots + republication-trigger rows). Only present when the request opts in via `?includeRevisions=true`. Null when the article has no revisions in `aer_gold.article_revisions`. */
+            chainLength?: number | null;
+            /** @description Phase 122d.1 — true iff at least one revision in this article's chain reports `headline_changed=true`. Only present when the request opts in via `?includeRevisions=true`. */
+            hasHeadlineChange?: boolean | null;
+            /**
+             * Format: date-time
+             * @description Phase 122d.1 — timestamp of the most recent revision in this article's chain. Only present when the request opts in via `?includeRevisions=true`.
+             */
+            latestRevisionAt?: string | null;
         };
         /** @description Paginated article-listing response. Cursor-based to keep deep paging stable under late-arriving Gold rows; `nextCursor` is opaque and must be echoed back unchanged on the next request. */
         ArticlesPage: {
@@ -1618,6 +1668,70 @@ export interface components {
                 /** @description Internet Archive playback URL for CDX snapshots. Empty string for republication-trigger rows (no archive page exists yet). */
                 archiveUrl?: string;
             }[];
+        };
+        /**
+         * @description Paragraph-aligned diff between two consecutive Wayback CDX snapshots of one article (Phase 122d.1 / ADR-032 amendment). Returned by `GET /articles/{id}/revisions/{revisionIndex}/diff` where the `revisionIndex` parameter selects the LATER snapshot of the pair (the diff compares `revisionIndex-1` → `revisionIndex`).
+         *     The dashboard's L5 Evidence Reader Diff tab consumes this payload to render the inline diff view. Equal paragraphs are intentionally not included — the payload only carries the changes — so the consumer should not expect a complete document reconstruction.
+         */
+        ArticleRevisionDiff: {
+            /** @description SHA-256 article identifier. */
+            articleId: string;
+            /** @description Zero-based position of the LATER snapshot in the chain (`revisionIndex=0` is the chain head and has no predecessor; requesting it returns 404). */
+            revisionIndex: number;
+            /**
+             * Format: date-time
+             * @description Wayback capture time of the earlier snapshot.
+             */
+            snapshotAtBefore: string;
+            /**
+             * Format: date-time
+             * @description Wayback capture time of the later snapshot.
+             */
+            snapshotAtAfter: string;
+            /** @description True iff the article's headline (extracted from the title-chain `<title>` → `og:title` → `<h1>`) differs between the two snapshots. Engineering-derived signal — not a methodological canon; see ADR-037 for the disclosure prose. */
+            headlineChanged: boolean;
+            /** @description Title at the earlier snapshot; empty when `headlineChanged=false`. */
+            headlineBefore?: string;
+            /** @description Title at the later snapshot; empty when `headlineChanged=false`. */
+            headlineAfter?: string;
+            /** @description Ordered list of paragraph-level ops. Equal paragraphs are not included — the payload is sparse. Op vocabulary: `add` (paragraph inserted), `del` (paragraph removed), `mod` (paragraph modified — similarity ≥ 0.4 between before and after). */
+            diffParagraphs: {
+                /**
+                 * @description Op type.
+                 * @enum {string}
+                 */
+                op: "add" | "del" | "mod";
+                /** @description Original paragraph text (`del`, `mod`). */
+                before?: string;
+                /** @description Replacement paragraph text (`add`, `mod`). */
+                after?: string;
+            }[];
+        };
+        /** @description Paginated list of articles with at least one revision in the active window (Phase 122d.1 / ADR-032 amendment). Powers the Workbench drill-down from a `revision_activity` bar or a `revision_timeline` bucket-point into the article list backing the signal. Cursor-based pagination identical to `/sources/{id}/articles` for consistency. */
+        RevisionsArticlesPage: {
+            items: {
+                articleId: string;
+                source: string;
+                /**
+                 * Format: date-time
+                 * @description Article's published date.
+                 */
+                timestamp: string;
+                language?: string | null;
+                wordCount?: number | null;
+                /** @description Total revisions detected for this article in the window. */
+                chainLength: number;
+                /** @description True iff at least one revision in the chain reports `headline_changed=true`. */
+                hasHeadlineChange: boolean;
+                /**
+                 * Format: date-time
+                 * @description Timestamp of the most recent revision in the chain.
+                 */
+                latestRevisionAt?: string;
+            }[];
+            hasMore: boolean;
+            /** @description Opaque cursor token; pass back on the next request. */
+            nextCursor?: string;
         };
     };
     responses: never;
@@ -3378,6 +3492,8 @@ export interface operations {
                 limit?: number;
                 /** @description Opaque pagination cursor from a previous response's `nextCursor`. */
                 cursor?: string;
+                /** @description Phase 122d.1 — when `true`, each item gains `chainLength`, `hasHeadlineChange`, and `latestRevisionAt` fields drawn from `aer_gold.article_revisions`. Server-side cost is a thin LEFT JOIN; rows with no revisions get null fields and the badges hide in the UI. Default `false` so existing callers receive the legacy shape. */
+                includeRevisions?: boolean;
             };
             header?: never;
             path: {
@@ -3713,6 +3829,76 @@ export interface operations {
             };
         };
     };
+    getArticleRevisionDiff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SHA-256 article_id. */
+                id: string;
+                /** @description Zero-based index of the LATER snapshot in the pair. Must be ≥ 1. */
+                revisionIndex: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The paragraph-aligned diff payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleRevisionDiff"];
+                };
+            };
+            /** @description Silver-eligibility gate refusal. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefusalPayload"];
+                };
+            };
+            /** @description Article unknown, `revisionIndex` out of range, or diff not yet computed by the worker sweep. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
     getRevisionActivity: {
         parameters: {
             query: {
@@ -3743,6 +3929,97 @@ export interface operations {
                 };
             };
             /** @description Invalid scope/window/resolution parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getRevisionsArticles: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Inclusive start of the analysis window (RFC 3339). */
+                startDate: string;
+                /** @description Exclusive end of the analysis window (RFC 3339). */
+                endDate: string;
+                /** @description When `true`, only return articles whose chain contains at least one revision with `headline_changed=true`. The default (unset / `false`) returns every article with ≥ 1 revision. */
+                hasHeadlineChange?: boolean;
+                /** @description Minimum chain length per article. Defaults to 1 (any article with at least one revision); raise to filter for articles edited multiple times. */
+                minChainLength?: number;
+                /** @description Page size; max 200. */
+                limit?: number;
+                /** @description Opaque cursor token from the previous response. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated article list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionsArticlesPage"];
+                };
+            };
+            /** @description Invalid scope/window/filter parameters. */
             400: {
                 headers: {
                     [name: string]: unknown;

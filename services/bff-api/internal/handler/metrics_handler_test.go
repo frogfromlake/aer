@@ -282,6 +282,14 @@ func (m *mockStore) GetArticleRevisions(_ context.Context, _ string) ([]storage.
 	return nil, nil
 }
 
+func (m *mockStore) GetArticleRevisionDiff(_ context.Context, _ string, _ int) (*storage.ArticleRevisionDiffRow, error) {
+	return nil, nil
+}
+
+func (m *mockStore) GetRevisionsArticles(_ context.Context, _ storage.RevisionsArticlesFilter) ([]storage.RevisionArticleRow, error) {
+	return nil, nil
+}
+
 // newTestRouter builds the full chi router for HTTP-level tests.
 func newTestRouter(s *Server) http.Handler {
 	return HandlerWithOptions(NewStrictHandler(s, nil), ChiServerOptions{})

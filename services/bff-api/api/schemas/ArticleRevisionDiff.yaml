@@ -1,0 +1,74 @@
+type: object
+description: >
+  Paragraph-aligned diff between two consecutive Wayback CDX snapshots
+  of one article (Phase 122d.1 / ADR-032 amendment). Returned by
+  `GET /articles/{id}/revisions/{revisionIndex}/diff` where the
+  `revisionIndex` parameter selects the LATER snapshot of the pair
+  (the diff compares `revisionIndex-1` → `revisionIndex`).
+
+  The dashboard's L5 Evidence Reader Diff tab consumes this payload
+  to render the inline diff view. Equal paragraphs are intentionally
+  not included — the payload only carries the changes — so the
+  consumer should not expect a complete document reconstruction.
+required:
+  - articleId
+  - revisionIndex
+  - snapshotAtBefore
+  - snapshotAtAfter
+  - headlineChanged
+  - diffParagraphs
+properties:
+  articleId:
+    type: string
+    description: SHA-256 article identifier.
+  revisionIndex:
+    type: integer
+    minimum: 1
+    description: >
+      Zero-based position of the LATER snapshot in the chain
+      (`revisionIndex=0` is the chain head and has no predecessor;
+      requesting it returns 404).
+  snapshotAtBefore:
+    type: string
+    format: date-time
+    description: Wayback capture time of the earlier snapshot.
+  snapshotAtAfter:
+    type: string
+    format: date-time
+    description: Wayback capture time of the later snapshot.
+  headlineChanged:
+    type: boolean
+    description: >
+      True iff the article's headline (extracted from the title-chain
+      `<title>` → `og:title` → `<h1>`) differs between the two
+      snapshots. Engineering-derived signal — not a methodological
+      canon; see ADR-037 for the disclosure prose.
+  headlineBefore:
+    type: string
+    description: Title at the earlier snapshot; empty when `headlineChanged=false`.
+  headlineAfter:
+    type: string
+    description: Title at the later snapshot; empty when `headlineChanged=false`.
+  diffParagraphs:
+    type: array
+    description: >
+      Ordered list of paragraph-level ops. Equal paragraphs are not
+      included — the payload is sparse. Op vocabulary:
+      `add` (paragraph inserted), `del` (paragraph removed),
+      `mod` (paragraph modified — similarity ≥ 0.4 between before
+      and after).
+    items:
+      type: object
+      required:
+        - op
+      properties:
+        op:
+          type: string
+          enum: [add, del, mod]
+          description: Op type.
+        before:
+          type: string
+          description: Original paragraph text (`del`, `mod`).
+        after:
+          type: string
+          description: Replacement paragraph text (`add`, `mod`).

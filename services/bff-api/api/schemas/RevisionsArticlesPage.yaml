@@ -1,0 +1,55 @@
+type: object
+description: >
+  Paginated list of articles with at least one revision in the
+  active window (Phase 122d.1 / ADR-032 amendment). Powers the
+  Workbench drill-down from a `revision_activity` bar or a
+  `revision_timeline` bucket-point into the article list backing
+  the signal. Cursor-based pagination identical to
+  `/sources/{id}/articles` for consistency.
+required:
+  - items
+  - hasMore
+properties:
+  items:
+    type: array
+    items:
+      type: object
+      required:
+        - articleId
+        - source
+        - timestamp
+        - chainLength
+        - hasHeadlineChange
+      properties:
+        articleId:
+          type: string
+        source:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+          description: Article's published date.
+        language:
+          type: string
+          nullable: true
+        wordCount:
+          type: integer
+          nullable: true
+        chainLength:
+          type: integer
+          minimum: 1
+          description: Total revisions detected for this article in the window.
+        hasHeadlineChange:
+          type: boolean
+          description: >
+            True iff at least one revision in the chain reports
+            `headline_changed=true`.
+        latestRevisionAt:
+          type: string
+          format: date-time
+          description: Timestamp of the most recent revision in the chain.
+  hasMore:
+    type: boolean
+  nextCursor:
+    type: string
+    description: Opaque cursor token; pass back on the next request.

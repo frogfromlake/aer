@@ -146,6 +146,14 @@ def _build_chain(
             {
                 "snapshot_at": snapshot_at,
                 "content_hash": str(content_hash),
+                # Phase 122d.1: carry the archive_url forward so the Gold
+                # row has everything the Phase-122d.1 sweep loop needs to
+                # fetch the snapshot HTML without a second round-trip to
+                # CDX or to Silver MinIO. Empty string for the
+                # republication-trigger pseudo-revisions — they have no
+                # IA archive page (it is a publisher-side re-list event,
+                # not a third-party witness).
+                "archive_url": str(entry.get("archive_url") or ""),
                 "trigger": "cdx_snapshot",
             }
         )
@@ -207,11 +215,75 @@ def build_revision_rows(
                 time_since_prev,
                 rev["trigger"],
                 ingestion_version,
+                # Phase 122d.1 — archive_url column (migration 000024).
+                # Empty string for republication-trigger rows.
+                rev.get("archive_url", ""),
             ]
         )
         prev_hash = rev["content_hash"]
         prev_at = snapshot_at
     return rows
+
+
+def _upload_revision_count_metric(
+    ch_client,
+    core,
+    discourse_function: str,
+    ingestion_version: int,
+    chain_length: int,
+) -> None:
+    """Emit a Gold-metrics row carrying the per-article ``revision_count``.
+
+    Phase 122d.1: the per-article chain length lifts from a hidden
+    `aer_gold.article_revisions` aggregate to a first-class Gold metric.
+    Once present in `aer_gold.metrics`, the value is consumed unchanged
+    by `/metrics/available`, by Phase-131 cell channel bindings
+    (Scatter / Distribution / Cooccurrence overlays), and by the
+    `metric_provenance.yaml`-anchored `/metrics/{name}/provenance`
+    endpoint (entry registered in BFF configs/metric_provenance.yaml).
+
+    Fail-silent: an insert failure logs and continues — the row already
+    exists in `aer_gold.article_revisions`, so the chain itself is
+    observable; only the metric-binding surface degrades.
+    """
+    if chain_length <= 0:
+        return
+    try:
+        row = [
+            core.timestamp,
+            float(chain_length),
+            core.source,
+            "revision_count",
+            core.document_id,
+            discourse_function or "",
+            ingestion_version,
+            # Use the same `timestamp_source` as the article — the
+            # revision_count is per-article and carries the article's
+            # provenance, not a per-revision one.
+            "",
+        ]
+        ch_client.insert(
+            "aer_gold.metrics",
+            [row],
+            column_names=[
+                "timestamp",
+                "value",
+                "source",
+                "metric_name",
+                "article_id",
+                "discourse_function",
+                "ingestion_version",
+                "timestamp_source",
+            ],
+            deduplication_token=f"aer_gold.metrics:revision_count:{core.document_id}:{ingestion_version}",
+        )
+    except Exception as exc:
+        logger.info(
+            "revision_count metric insert failed; continuing.",
+            source=core.source,
+            article_id=core.document_id,
+            error=str(exc),
+        )
 
 
 def upload_article_revisions(
@@ -261,6 +333,7 @@ def upload_article_revisions(
                 "time_since_prev_hours",
                 "revision_trigger",
                 "ingestion_version",
+                "archive_url",
             ],
             deduplication_token=f"{ARTICLE_REVISIONS_TABLE}:{core.document_id}:{ingestion_version}",
         )
@@ -270,6 +343,15 @@ def upload_article_revisions(
             article_id=core.document_id,
             revision_count=len(rows),
             wayback_status=getattr(meta, "wayback_lookup_status", ""),
+        )
+        # Phase 122d.1: also write the per-article chain length to
+        # aer_gold.metrics so it is bindable as a Phase-131 cell channel.
+        _upload_revision_count_metric(
+            ch_client,
+            core,
+            discourse_function,
+            ingestion_version,
+            chain_length=len(rows),
         )
     except Exception as exc:
         logger.error(

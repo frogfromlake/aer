@@ -12,6 +12,7 @@
     type ArticleListParams
   } from '$lib/api/queries';
   import L5EvidenceReader from './L5EvidenceReader.svelte';
+  import ArticleRow from './ArticleRow.svelte';
 
   interface Props {
     sourceId: string;
@@ -66,6 +67,12 @@
     if (filterSentiment) p.sentimentBand = filterSentiment as 'negative' | 'neutral' | 'positive';
     if (entityMatch) p.entityMatch = entityMatch;
     if (cursor) p.cursor = cursor;
+    // Phase 122d.1 — opt in to the per-row revision fields so the
+    // ArticleRow renders the chainLength + headlineChanged badges
+    // when applicable. Server-side cost is a thin LEFT JOIN against
+    // aer_gold.article_revisions; rows with no revisions simply get
+    // null fields and the badges hide.
+    p.includeRevisions = true;
     return p;
   });
 
@@ -127,26 +134,8 @@
     allItems = [];
   }
 
-  function formatTs(iso: string): string {
-    try {
-      return new Date(iso).toLocaleString('en-CA', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-    } catch {
-      return iso.slice(0, 16).replace('T', ' ');
-    }
-  }
-
-  function sentimentClass(score: number | null | undefined): string {
-    if (score === null || score === undefined) return '';
-    if (score >= 0.05) return 'sentiment-pos';
-    if (score <= -0.05) return 'sentiment-neg';
-    return 'sentiment-neu';
+  function openArticle(articleId: string): void {
+    openArticleId = articleId;
   }
 </script>
 
@@ -199,41 +188,13 @@
             <th scope="col">Lang</th>
             <th scope="col" class="right">Words</th>
             <th scope="col" class="right">Sentiment</th>
+            <th scope="col"><span class="sr-only">Revision badges</span></th>
             <th scope="col"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           {#each allItems as item (item.articleId)}
-            <tr class="article-row">
-              <td>
-                <time datetime={item.timestamp} class="ts-cell">
-                  {formatTs(item.timestamp)}
-                </time>
-              </td>
-              <td>
-                <span class="lang-cell">{item.language ?? '—'}</span>
-              </td>
-              <td class="right">
-                <span class="num-cell">{item.wordCount?.toLocaleString() ?? '—'}</span>
-              </td>
-              <td class="right">
-                {#if item.sentimentScore !== null && item.sentimentScore !== undefined}
-                  <span class="sentiment-cell {sentimentClass(item.sentimentScore)}">
-                    {item.sentimentScore.toFixed(3)}
-                  </span>
-                {:else}
-                  <span class="num-cell muted">—</span>
-                {/if}
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="view-btn"
-                  aria-label="View article detail: {formatTs(item.timestamp)}"
-                  onclick={() => (openArticleId = item.articleId)}>View</button
-                >
-              </td>
-            </tr>
+            <ArticleRow {item} onOpen={openArticle} showSourceCol={false} />
           {/each}
         </tbody>
       </table>
@@ -355,76 +316,14 @@
     font-weight: var(--font-weight-medium);
   }
 
-  .article-table th.right,
-  .article-table td.right {
+  .article-table th.right {
     text-align: right;
   }
 
-  .article-row {
-    border-bottom: 1px solid var(--color-border);
-    transition: background var(--motion-duration-instant) var(--motion-ease-standard);
-  }
-
-  .article-row:hover {
-    background: var(--color-surface-hover);
-  }
-
-  .article-row td {
-    padding: var(--space-2) var(--space-3);
-    vertical-align: middle;
-  }
-
-  .ts-cell {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    white-space: nowrap;
-  }
-
-  .lang-cell {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-    text-transform: uppercase;
-  }
-
-  .num-cell {
-    font-family: var(--font-mono);
-    color: var(--color-fg-muted);
-  }
-
-  .sentiment-cell {
-    font-family: var(--font-mono);
-  }
-
-  .sentiment-pos {
-    color: #7ec4a0;
-  }
-  .sentiment-neg {
-    color: #c47e7e;
-  }
-  .sentiment-neu {
-    color: var(--color-fg-muted);
-  }
-
-  .view-btn {
-    padding: 2px var(--space-2);
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-xs);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .view-btn:hover,
-  .view-btn:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-accent-muted);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
+  /* Row-level styles (.article-row, .ts-cell, .lang-cell, .num-cell,
+   * .sentiment-*, .view-btn) live in `ArticleRow.svelte` — the row is
+   * its own component (Phase 122d.1 refactor) so the badges + the
+   * row chrome stay co-located with the row markup. */
 
   .load-more-btn {
     align-self: flex-start;
@@ -470,9 +369,6 @@
     border: 0;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .article-row {
-      transition: none;
-    }
-  }
+  /* Reduced-motion preference for row-hover transitions lives in
+   * ArticleRow.svelte alongside the row chrome. */
 </style>

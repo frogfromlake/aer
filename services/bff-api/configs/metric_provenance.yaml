@@ -145,3 +145,23 @@ entity_count:
     - "No coreference resolution — pronouns and anaphoric references are not resolved to antecedents, so frequency counts reflect only explicit named mentions (WP-002 §3)."
   extractor_version_hash: de_core_news_lg-3.8.0
   wp_reference: WP-002 §3
+
+revision_count:
+  tier_classification: 1
+  algorithm_description: >
+    Count of detected revisions per article, sourced from
+    aer_gold.article_revisions. Each row in that table is either a
+    Wayback CDX snapshot (third-party witness, WP-003 §5.3.1
+    "authoritative ground truth (the IA archive)") or a publisher-
+    side republication-trigger event (Phase 122d.0 — sitemap_lastmod
+    ≥ REPUBLICATION_TRIGGER_MIN_DELTA_DAYS days after published_date).
+    Promoted to a first-class metric in Phase 122d.1 so the value
+    is bindable as a Phase-131 visual channel (Scatter, Distribution,
+    Cooccurrence overlay).
+  known_limitations:
+    - "Coverage is bounded by Internet-Archive snapshot frequency, which is publisher-dependent — a source IA does not regularly archive will appear to have lower revision_count than a heavily-archived source even when actual edit cadence is identical (WP-003 §5.3.1)."
+    - "republication_trigger rows depend on the publisher's sitemap-lastmod behaviour — publishers that never update lastmod produce no republication-trigger signal even when articles are silently re-listed."
+    - "The CDX `collapse=digest` projection deduplicates consecutive identical content hashes, so the count reflects content transitions, not raw archive captures."
+    - "Coverage gap signalling: a wayback_lookup_status of `failed` / `no_snapshots` / `disabled` produces zero revision_count rows — distinct from `we observed an unedited article` (chain_length=1). The dashboard must surface this distinction; see Phase 122d.2 / ADR-037 Silent-Edit NS-class."
+  extractor_version_hash: v1
+  wp_reference: WP-003 §5.3.1

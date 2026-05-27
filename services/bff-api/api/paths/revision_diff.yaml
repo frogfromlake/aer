@@ -1,0 +1,55 @@
+get:
+  tags: [Reference]
+  summary: Per-pair paragraph-aligned diff between two snapshots
+  description: >
+    Returns the paragraph-aligned diff between revision `revisionIndex-1`
+    and `revisionIndex` for one article (Phase 122d.1 / ADR-032
+    amendment). Subject to the same Silver-eligibility gate as
+    `GET /articles/{id}` and `GET /articles/{id}/revisions`. A
+    `revisionIndex=0` request returns 404 — the chain head has no
+    predecessor to diff against.
+
+    The diff is produced by the worker's periodic revision-diff sweep
+    (Wayback snapshot fetch → trafilatura re-extraction → paragraph-
+    aligned diff). If the sweep has not yet processed this pair the
+    endpoint returns 404 with a `pending` message; the dashboard
+    surface should render this as a "diff not yet computed" notice.
+  operationId: getArticleRevisionDiff
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: SHA-256 article_id.
+      schema:
+        type: string
+    - name: revisionIndex
+      in: path
+      required: true
+      description: >
+        Zero-based index of the LATER snapshot in the pair. Must be ≥ 1.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    '200':
+      description: The paragraph-aligned diff payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ArticleRevisionDiff'
+    '403':
+      description: Silver-eligibility gate refusal.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RefusalPayload'
+    '404':
+      description: >
+        Article unknown, `revisionIndex` out of range, or diff not yet
+        computed by the worker sweep.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

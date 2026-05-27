@@ -3995,6 +3995,49 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
+## Phase 122d.1: Silent-Edit — Diff Substance + Drilldown + Cross-Cell Metric [P1] - [x] DONE
+
+*Answers "what was changed" AND lifts silent-edit from a hidden L5-detail into a first-class analytical signal that flows through the whole Workbench. Three concerns ship together because they are mutually reinforcing — the diff alone is worthless without a drilldown path; the drilldown is worthless without the diff; the cross-cell metric promotion makes the signal usable in every Phase-131 cell binding without further changes.*
+
+*Position rationale.* Phase 122d.0 made the revision data exist; this phase makes it analytically valuable. Postponing the drilldown and metric promotion to a later phase would leave the data dormant: the cells render counts but the user has no path from "this source edits a lot" to "here is what changed". Bundling them now also avoids two passes over the same surfaces (`ArticleListModal`, `L5EvidenceReader`).
+
+**Grounding.** Read first: Phase-122d.0 output (`article_revisions`, the CDX client, the "republication trigger" concept), `services/analysis-worker/internal/adapters/web_extract.py` / trafilatura usage in the WebAdapter, `services/dashboard/src/lib/components/lanes/ArticlePreviewList.svelte` + `L5EvidenceReader.svelte` (the existing article-list + per-article surface), `services/dashboard/src/lib/components/lanes/SourceCard.svelte` (Dossier inline-list host), `services/dashboard/src/lib/components/viewmodes/CoOccurrenceNetworkCell.svelte` (workbench inline-list host — currently stacks N source-lists below the graph; **this phase refactors it to a modal**), Phase-131 cell registry + channel-binding, `services/bff-api/api/paths/source_articles.yaml` + storage handlers. Preserve: Bronze-immutability (Wayback snapshots are fetched from the IA, not stored in Bronze); the fail-silent posture (a Wayback fetch failure NEVER produces a DLQ event); the 122d.0 framing that publisher-side re-list events are themselves a silent-edit signal (not just IA snapshots); the Dossier inline-expand UX (Dossier list stays inline; Workbench list moves to modal — explicit two-design decision). Verify-first: confirm 122d.0 landed and `wayback_revisions[]` is populated; confirm `ArticlePreviewList` is currently the single article-list component (one source of truth to refactor).
+
+### Worker + Gold — diff substance
+
+* [ ] **Snapshot fetcher** — loads archived HTML via `archive_url` from each `aer_gold.article_revisions` row whose `revision_trigger='cdx_snapshot'`. Polite (token-bucket, same rate-limiter pattern as the CDX client; default `WAYBACK_SNAPSHOT_RATE_LIMIT_PER_SECOND=2.0` — IA prefers lower rates for full-HTML fetches than for CDX queries). Fail-silent: missing snapshot → row not extended; fetch error → log INFO, do not retry the article in-line.
+* [ ] **Paragraph-level diff extractor** — runs trafilatura on each snapshot at parity with the Bronze→Silver pipeline (same version, same flags), then computes a paragraph-aligned diff between consecutive snapshots (Hirschberg/Myers, paragraph-granularity is intentional — sub-paragraph noise dominates at finer grains). Headline-change detection is a separate signal extracted from the `<title>` / `og:title` / `<h1>` chain.
+* [ ] **Gold-column extension** on `article_revisions`: `diff_paragraphs Array(String)` (LZ4-compressed JSON of `{op, before, after}` tuples), `headline_changed Bool`, `headline_before String`, `headline_after String`. Column-ADD migration (`000024_extend_article_revisions_diff.sql`) — additive, no breaking change to 122d.0 row shape.
+
+### BFF — diff + drilldown surface
+
+* [ ] **`GET /articles/{id}/revisions/{revisionIndex}/diff`** — returns the prepared diff payload (paragraph-aligned ops, headline-before/after) for the snapshot pair `(revisionIndex-1, revisionIndex)`. Silver-eligibility-gated like the rest of the per-article surface. `revisionIndex=0` (chain head) returns 404 — there is no "previous" to diff against.
+* [ ] **`GET /revisions/articles`** — paginated list of articles with `≥1` revision in the active window. Query params: `scope`, `scopeId`, `startDate`, `endDate`, `hasHeadlineChange` (filter), `minChainLength` (filter), cursor pagination identical to `/sources/{id}/articles`. Powers the Workbench drilldown (revision-cell click → article list).
+* [ ] **`?includeRevisions=true` on existing article-list endpoints** — additive query parameter on `GET /sources/{id}/articles` and the cooccurrence-article-lookup. When set, each row gains `{chainLength, hasHeadlineChange, latestRevisionAt}`. Default off (no breaking change for existing callers).
+* [ ] **`revision_count` promoted as a first-class metric** in `/metrics/available` — a thin view over `aer_gold.article_revisions GROUP BY article_id`. Registered in `metric_provenance.yaml` (`tier_classification=engineering`, `validation_status=unvalidated`). Behaves identically to any other Phase-131 metric: usable as `x`/`y`/`size`/`color` channel in Scatter; as the binned dimension in Distribution; as the line in TimeSeries; as the node-size/colour overlay in Cooccurrence (`netSize=revision_count_avg`). Mirror metric `headline_change_count` registered the same way for filtering / faceting.
+* [ ] OpenAPI + `make codegen` clean diff.
+
+### Frontend — drilldown UX + diff render + cross-cell binding
+
+* [ ] **Refactor `ArticlePreviewList.svelte` → extract `ArticleRow.svelte`** as a pure row-renderer (timestamp, language, words, sentiment, `chainLength` badge, `headlineChanged` badge, "View" button). Zero behaviour change for the Dossier consumer.
+* [ ] **`ArticlePreviewList.svelte`** keeps its current Dossier-inline role (filter toolbar + pagination + list-of-`ArticleRow`); embedded under `SourceCard` as today. **No design change** — the Dossier inline pattern works for the lesemodus use case.
+* [ ] **`ArticleListModal.svelte`** — NEW Workbench-modal wrapper. Dialog host (Esc/Click-outside to close), sticky filter-toolbar, source-grouping when the article set spans multiple sources, embeds the same `ArticleRow`. Row-click opens `L5EvidenceReader` over the modal (z-stack); Esc on L5 returns to the modal, Esc on the modal returns to the cell. Closes without affecting the underlying cell render — preserves "user keeps the analytical question in sight" UX.
+* [ ] **Refactor `CoOccurrenceNetworkCell` drilldown** — replaces the current pattern (N stacked `ArticlePreviewList` instances rendered inline below the graph, one per source in scope) with a single `ArticleListModal` opened on entity-node click. Removes the scroll-the-graph-out-of-view UX wart; consolidates the workbench-list pattern.
+* [ ] **`RevisionActivityCell` drilldown (NEW from 122d.0)** — click on a source bar opens `ArticleListModal` filtered to that source + window + `hasEdits=true`. Row-click → L5 with the diff-tab directly active.
+* [ ] **`RevisionTimelineCell` drilldown (NEW from 122d.0)** — click on a bucket point opens `ArticleListModal` filtered to that source + bucket-range + `hasEdits=true`. Row-click → L5 with the diff-tab directly active.
+* [ ] **`L5EvidenceReader` diff tab** — when an article has `≥2` revisions, a "Diff" tab joins the existing Article-body / Provenance / Revision-history sections. Scrub timeline picks the pair (revisionIndex `n-1` vs `n`); paragraph-aligned inline diff renders the ops (add/del/modify); headline change rendered prominently at the top of the diff view when `headline_changed=true`. Defaults to the most recent diff-pair on open.
+
+### Documentation
+* [ ] **ADR-032 amendment** — record the two-design article-list decision (Dossier inline / Workbench modal) and the shared `ArticleRow` primitive. Operations Playbook: `WAYBACK_SNAPSHOT_RATE_LIMIT_PER_SECOND` knob + "snapshot fetch failed" runbook. CLAUDE.md: `revision_count` + `headline_change_count` added to the metric inventory note.
+
+### Validation
+* [ ] A known-edited Probe-0 article shows correct paragraph diffs + headline-change detection in the L5 diff tab.
+* [ ] Clicking a bar in `revision_activity` opens the modal pre-filtered to that source; clicking a row opens L5 with the diff tab active.
+* [ ] Cooccurrence drilldown opens the same modal (single instance, source-grouped when scope spans multiple sources); the underlying graph remains visible behind the modal.
+* [ ] `revision_count` appears in `/metrics/available` and binds successfully as a Scatter axis + as a Cooccurrence-network `netSize` channel; the Distribution cell renders a `revision_count` histogram without code changes.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -4032,20 +4075,93 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 122d.1: Silent-Edit — Diff Substance [P1] - [ ] TODO
+## Phase 122d.2: Negative Space Coherence [P1] - [ ] TODO
 
-*Answers "what was changed". Fetches IA-archived HTML snapshots and diffs consecutive versions at paragraph level, with headline changes called out (the highest-semantic-shift signal).*
+*Reframes the Negative-Space toggle from a functional-but-incoherent visual gimmick into a methodologically-grounded reflexive-architecture surface. The current implementation tints the globe and inconsistently overlays cells; the toggle's signal — "show me what AĒR is NOT seeing" — has no stable taxonomy and no consistent visual contract. This phase grounds the taxonomy in WP-001 §5.3, WP-003 §2.1/§3.2/§5.3/§6, and WP-006 §4.2/§6/§7; folds the silent-edit signals from 122d.0/122d.1 (republication-trigger, headline-change, fetch_at_fallback) into the taxonomy as first-class markers; and codifies the "disclose, never coerce" invariant as a per-cell rendering policy.*
 
-**Grounding.** Read first: Phase-122d.0 output (`article_revisions`, the CDX client, the "republication trigger" concept landed there), `web_extract.py` / trafilatura usage in the WebAdapter, `L5EvidenceReader.svelte`. Preserve: Bronze-immutability (snapshots are fetched from the IA, not stored in Bronze), the fail-silent posture, the 122d.0 framing that publisher-side re-list events are themselves a silent-edit signal (not just IA snapshots). Verify-first: confirm 122d.0 landed and `wayback_revisions[]` is populated.
+*Position rationale.* Lands between 122d.1 (which produces the headline-change signal as a first-class NS marker) and 122a.0 (per-article discourse function — a separate analytical lens). Before Probe 1 (Phase 123) because Probe 1 will arrive with its own publisher-side metadata gaps, its own k-anonymity cohorts, and its own language-capability constraints; the negative-space discipline must render those honestly from day one, not retrofit. The phase is bundled with 122d.x because the silent-edit family is the single most concrete source of new NS-signals the project has produced — it is the natural moment to formalise the surface.
 
-### Worker + Gold
-* [ ] **Snapshot fetcher** — loads archived HTML via `archive_url`, runs trafilatura at parity with Bronze→Silver. **Paragraph-level diff extractor** between consecutive snapshots. **Gold columns** on `article_revisions`: `diff_paragraphs`, `headline_changed`, `headline_before`, `headline_after`.
+**Grounding.** Read first: WP-001 §5.3 (Probe Coverage Map — "the telescope's field of view indicator"); WP-003 §2.1 ("absence may reflect platform policy rather than societal attitudes"), §3.2 (metadata-richness asymmetry — "absent fields are absent by design, not by accident"), §5.3 ("Document, Don't Filter") + §5.3.1 (Wayback CDX = "authoritative ground truth (the IA archive)"), §6 (demographic skew, "telescope's light pollution map"); WP-005 §3.1 ("a gap between publications is not a gap in discourse — it is a gap in observation"); WP-006 §3 (reflexive risks), §4.1 (self-reference), §4.2 ("what AĒR does not observe is as important as what it does"), §4.3 (interpretive versioning), §6 (reflexive principles), §7.2.2 (k-anonymity), §8.3 Q6 (visual representation of absence as open research question); the current implementation (`services/dashboard/src/lib/state/url-internals.ts::negSpace`, `services/dashboard/src/lib/state/tray.svelte.ts`, `services/dashboard/packages/engine-3d/` globe overlay), Phase 122f metadata-coverage surface (`structurallyAbsent` semantics), Phase 115/118a refusal-surface contract. Preserve: the `?negSpace=1` URL-toggle grammar (additive expansion, not breaking change); WP-006 §3.4 "the frame determines what is reflected and what is excluded" — the NS layer is itself a framing choice and must self-disclose; the Phase-131 cell registry pattern (every new capability declares itself via the registry, not via per-cell special-cases). Verify-first: enumerate every cell type and confirm whether the methodology supports an NS-rendering for it (some cells have no NS-meaningful behaviour and the toggle should be an explicit no-op with a methodological tooltip — better than misleading).
+
+### The taxonomy
+
+The methodology recognises multiple distinct classes of "what is not visible / not analysable." This phase ships six dashboard-relevant classes; the remaining methodology-recognised classes are documented as future extensions, not silently merged.
+
+**Shipped in this phase:**
+
+1. **Structural-Metadata-Absence** (WP-003 §3.2). Publisher emits no JSON-LD / no `author` / no `dateModified` etc. — already surfaced as Phase 122f `metadata_coverage.structurallyAbsent`. Threshold: ≥50 articles / 30d at 0% population. **Publisher choice, NOT source defect.** Prose register must never read as "source X is broken" — that violates WP-003 §3.2.
+2. **Temporal-Provenance-Absence** (WP-003 §3.2 + WP-005 §3.1). Articles whose timestamp is the crawler fetch time, not a publication date. Sources: `timestamp_source='fetch_at_fallback'`. WP-005 §3.1: "a publication gap is not a discourse gap — it is an observation gap."
+3. **Silent-Edit / Post-hoc Revision** (WP-003 §5.3.1, the "authoritative ground truth (the IA archive)" anchor). Sources: `revision_trigger='republication_trigger'` (Phase 122d.0); `headline_changed=true` (Phase 122d.1); `wayback_lookup_status ∈ {failed, no_snapshots}` (we do not know — distinct from "no edits observed"). Note: the framing of headline-change as the "highest-semantic-shift" signal is **engineering-derived**, not in the WPs; ADR-037 must label it as such and not present it as methodological canon.
+4. **Analytical-Capability Absence** (WP-002 / WP-004 / Language Capability Manifest). The active scope's language has no NER or no sentiment backbone, so the question is structurally unanswerable. Already surfaced as Phase-118a `invalid_language` refusals — but the toggle should make the per-language gap legible in the Workbench, not only as a 400-response.
+5. **k-anonymity Suppression** (WP-006 §7.2.2). Distinct class — "we have data but ethics forbid showing it" is methodologically different from "the publisher chose not to emit." Share a visual register with the others (dim, non-warning), but the prose anchor differs (WP-006 §7.2.2, not WP-003 §3.2).
+6. **Equivalence-Refusal** (WP-004 §5.3 / Phase 115). Cross-frame normalisation requested without a granted `metric_equivalence` row. Already a refusal surface; this phase makes it a first-class NS-class in the toggle vocabulary so the surface is uniform with the other classes.
+
+**Documented as future extensions, NOT shipped in this phase** (signals worth marking, no current data path):
+
+- **Probe / Regional Coverage Absence** (WP-001 §5.3). The Globe overlay reframing below partially addresses it, but a full Coverage-Map cell is deferred to Phase 133 / 125.
+- **Platform-Suppression** (WP-003 §2.1). Methodology recognised but AĒR has no current signal for it.
+- **Demographic / Digital-Divide blind-spots** (WP-003 §6, Manifesto §II). Per-probe profile in the Dossier already; this phase does not bind them to the NS toggle.
+- **Technical / Legal / Ethical inaccessibility** (WP-003 §2.2). Documented but no runtime signal.
+- **Self-reference Absence** (WP-006 §4.1). Minor; not in the cell-level surface.
+
+### Invariants (codified from Working Papers)
+
+This phase enforces the following — every implementation choice must satisfy them or be flagged:
+
+* **DISCLOSE, NEVER COERCE.** WP-003 §3.2: absent fields are NEVER silently set to zero or to a derived default. Aggregates touching a structurally-absent field must refuse, not coerce.
+* **DOCUMENT, NEVER FILTER.** WP-003 §5.3 + WP-006 §3. The dashboard never decides what is absent; it makes absence legible. Negative Space is not a content filter.
+* **PUBLISHER CHOICE, NOT SOURCE DEFECT.** WP-003 §3.2. Prose must use methodological-register language ("publisher does not emit this field"), never quality framing ("source X is missing data").
+* **DISTINGUISH STRUCTURAL ABSENCE FROM SAMPLING VARIANCE.** WP-003 §3.2 threshold (≥50 articles / 30d at 0%) is methodological; the ≥50 floor must hold across all NS-class detections that depend on it.
+* **METHODOLOGICAL REGISTER, NOT WARNING REGISTER.** WP-006 §6.2. NS-styling is perceptually neutral dim, never red/error. Tooltips invite questions; they do not assert defects.
+* **THE FRAME IS SELF-DISCLOSING.** WP-006 §3.4. The NS toggle itself is a framing choice; its presence and effect must be discoverable from the surface (not buried in URL grammar).
+* **VERSION THE ABSENCE.** WP-006 §4.3 interpretive versioning. A field that becomes `structurallyAbsent` at threshold T1 and recovers at T2 is itself a measurement; the surface should expose the transition (deferred — future Phase 133 / 122f extension; this phase only documents the requirement).
+* **PRIVACY ≠ PUBLISHER CHOICE.** WP-006 §7.2.2. k-anonymity suppression and structural-metadata-absence share a visual register but carry distinct methodological prose; do not collapse them.
+
+### Backend
+
+* [ ] **Per-row NS classification is client-side.** Every signal needed is already in the existing columns (`timestamp_source`, `revision_trigger`, `headline_changed`, `validation_status`, equivalence-state, capability manifest). No new BFF endpoint for classification itself.
+* [ ] **`GET /probes/{id}/dossier` extension** — declare per-probe NS-class densities (counts per class over the active window) so the Atmosphäre globe + the Dossier render without N round-trips.
+* [ ] **Cooccurrence-network NS-overlay** — optional `?negativeSpaceOverlay=ghost` on the existing entity-cooccurrence endpoint returns the ghost edges (the cooccurrence edges that would exist if NS-articles were re-admitted). Default off; toggle-ON in the cell triggers it. Distinct from filtering — the NS articles were excluded from the cooccurrence count *because cooccurrence over `fetch_at_fallback` rows is methodologically meaningless* (per WP-005 §3.1), but the user is entitled to see what was excluded.
+* [ ] OpenAPI + `make codegen`.
 
 ### Frontend
-* [ ] **L5EvidenceReader** — diff view between snapshot pairs (scrub timeline → inline diff; headline change highlighted).
+
+* [ ] **`negativeSpace.ts` pure classifier** — `classifyNegativeSpace(row): NSClass[]` (a row can belong to multiple classes — e.g. a republication-trigger article with headline_changed=true is in both Temporal-Provenance-Absence and Silent-Edit). Vitest-pinned vocabulary. One source of truth.
+* [ ] **`NegativeSpaceBadge.svelte`** — visual primitive, matches `FunctionBadge`. One class → one badge. Tooltip carries the methodological anchor (WP-§) and the class-specific prose. Same component everywhere (ArticleRow, L5, cell overlays).
+* [ ] **Cell-level NS rendering policy via the Phase-131 registry.** Each `PresentationDefinition` declares `negativeSpacePolicy: 'overlay' | 'badge' | 'gap' | 'refuse' | 'no-op'`:
+  - `overlay` (cooccurrence, scatter): ghost-render NS-points/edges when toggle is ON.
+  - `gap` (TimeSeries): dashed segments for buckets with ≥50% NS density; explicit gap (not zero) when 100%.
+  - `badge` (Distribution, ArticleRow, L5): badges on the affected items; aggregate stats split into "observed" and "absent" rows.
+  - `refuse` (Cells that aggregate over a structurally-absent field): the cell renders the refusal surface in place, not a misleading zero.
+  - `no-op` (Topic Distribution, Topic Evolution, where the NS signal has no meaningful in-cell rendering): the toggle is visually inert with a methodological tooltip explaining why ("Topic modeling operates on cleaned text; the per-article NS-classes do not change the topic structure").
+* [ ] **Atmosphäre globe overlay — reframed.** Per WP-001 §5.3 + WP-003 §6.2, regional probe-absence (instrument-design choice) and per-cell analytical absence (per-query) are visually distinct:
+  - **Persistent layer (mode-independent):** the dim methodological-register caption "AĒR has no source emitting from this region" stays visible at all times. This is the WP-001 §5.3 Probe-Coverage-Map signal.
+  - **`?negSpace=1` toggle:** flips the source-glyph render-mode from analytical-mode (current sentiment colouring) to NS-class density mode — each glyph shows its dominant NS-class as colour, magnitude as size. Tooltip discloses the per-class breakdown.
+  - The current uniform globe-tint behaviour is retired.
+* [ ] **L5EvidenceReader NS-section.** Collapsible header above the article body listing every NS-marker that applies to this article + the methodological anchor (WP-§-link). Open-by-default when ≥1 marker fires.
+* [ ] **Headline-change indicator (deferred from 122d.1) shipped here as part of Silent-Edit NS class.** `headlineChanged=true` articles surface a `NegativeSpaceBadge` (class=`silent_edit_headline`) in:
+  - ArticleRow (every list context — Dossier inline list + Workbench modal)
+  - L5EvidenceReader NS-section header (with the headline-before / headline-after diff already landed in 122d.1)
+  - Dossier source-card stats row — secondary stat `headline_change_share` next to the existing in-window count
+  - **Caveat (per WP grounding)**: the indicator is engineering-derived. ADR-037 prose must label it as such; it is not presented as a methodological canon, only as a structural signal extracted from the article's `<title>` chain.
+* [ ] **Toggle discoverability (WP-006 §3.4 self-disclosure).** The current `?negSpace=1` URL-only toggle is exposed in the chrome — SideRail or a global tray button — with a clear label ("Show what AĒR doesn't see") and a hover tooltip explaining the reflexive-architecture intent. The URL grammar remains the SoT, but the surface is no longer buried.
+
+### Documentation
+
+* [ ] **ADR-037 — Negative Space as a Reflexive-Architecture Surface.** The six shipped classes + the four documented-but-not-shipped classes; per-cell rendering policy; globe overlay reframing; the eight invariants codified above; verbatim WP-quotes (WP-003 §3.2, WP-006 §4.2, WP-001 §5.3, WP-006 §9, WP-005 §3.1, WP-003 §2.1 — list above is the citation set).
+* [ ] **Operations Playbook section** — interpreting NS-density (a source whose Silent-Edit-NS density spikes is a candidate for review; a source moving from `structurallyAbsent=false` → `true` on a Tier-B field is itself a measurement worth noting). Cross-reference WP-006 §4.3 interpretive versioning.
+* [ ] **CLAUDE.md** — Negative-Space taxonomy + the eight invariants in the Design Brief surface notes; SoT pointer to `negativeSpace.ts`.
+* [ ] **Working Paper bridge** (optional, defer if time-bounded) — WP-006 §8.3 Q6 ("How should AĒR visually represent what it cannot observe?") gets a partial answer in this phase; the WP could be amended with a §7.x or §10 section codifying the six shipped classes as the methodological vocabulary. Out of scope as a code task; flag for the operator.
 
 ### Validation
-* [ ] A known edited Probe-0 article shows correct paragraph diffs + headline-change detection in L5.
+
+* [ ] Each of the six shipped NS-classes is detectable on a known Probe-0 article (e.g., a republication-trigger article fires Temporal-Provenance + Silent-Edit; a tagesschau article missing `editor` fires Structural-Metadata-Absence; a cross-frame normalisation request fires Equivalence-Refusal).
+* [ ] `?negSpace=1` toggle produces a visually distinct, semantically consistent rendering in every cell type per the per-cell policy — no cell silently no-ops without an explanatory tooltip; no cell coerces an absent value to zero.
+* [ ] A `headline_changed=true` article shows the same `NegativeSpaceBadge` in L5, in every ArticleRow context, and in the Dossier source-card stats — same visual token, same methodological tooltip everywhere.
+* [ ] The Atmosphäre globe shows the persistent "no source from this region" caption regardless of toggle state; the `?negSpace=1` toggle flips source-glyphs from sentiment-colouring to NS-class-density-colouring (and back); the current uniform tint is gone.
+* [ ] An aggregate over a structurally-absent field renders the refusal surface in place — does NOT coerce the missing value to zero.
+* [ ] Per-cell NS prose never reads as a source-quality complaint; every NS surface carries a methodological-anchor link (WP-§).
+* [ ] The toggle is discoverable from the chrome (not URL-only).
 
 ---
 
@@ -4180,11 +4296,13 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 122d.2: Silent-Edit — Discourse Shift [P1] - [ ] TODO
+## Phase 122d.3: Silent-Edit — Discourse Shift [P1] - [ ] TODO
 
 *Answers "how does the discourse shift through edits". Re-extracts sentiment/NER/topic over each snapshot version (on the news-class backbone) and surfaces edit-driven deltas. After Probe 1 because the re-extraction (the most expensive part) yields the richest comparison on cross-cultural data.*
 
-**Grounding.** Read first: Phase-122d.0/.1 output (`article_revisions` + diffs), the extractor pipeline (`main.py`, `internal/extractors/`), the current multilingual sentiment backbone (`shared.multilingual_bert` in `language_capabilities.yaml` — backbone re-selection deferred to the Deferred block, so re-extraction runs on whatever backbone is current at execution time), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs are in place and re-record the active backbone revision before re-extracting.
+*Renamed from 122d.2 → 122d.3 when the Negative Space Coherence phase landed as 122d.2 (no scope change, position unchanged — still post-Probe-1).*
+
+**Grounding.** Read first: Phase-122d.0/.1/.2 output (`article_revisions` + diffs + the Negative-Space taxonomy that classifies edit signatures), the extractor pipeline (`main.py`, `internal/extractors/`), the current multilingual sentiment backbone (`shared.multilingual_bert` in `language_capabilities.yaml` — backbone re-selection deferred to the Deferred block, so re-extraction runs on whatever backbone is current at execution time), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs are in place and re-record the active backbone revision before re-extracting.
 
 ### Worker + Gold
 * [ ] **Re-extraction** over snapshot versions → delta columns on `article_revisions`: `sentiment_delta`, `entities_added`, `entities_removed`, `topic_shift_score`.

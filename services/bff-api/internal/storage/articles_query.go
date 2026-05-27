@@ -17,6 +17,12 @@ type ArticleQueryFilter struct {
 	SentimentBand  *string // "negative" | "neutral" | "positive"
 	Limit          int
 	Offset         int
+	// Phase 122d.1 — opt in to per-row revision fields (chainLength,
+	// hasHeadlineChange, latestRevisionAt). Server-side cost is one
+	// extra `aer_gold.article_revisions` lookup per page; rows with
+	// no revisions get the zero-values and the dashboard hides the
+	// badges. Default false so existing callers receive the legacy shape.
+	IncludeRevisions bool
 }
 
 // ArticleAggRow is the per-article row materialised by the article-listing
@@ -33,6 +39,13 @@ type ArticleAggRow struct {
 	HasLanguage    bool
 	HasWordCount   bool
 	HasSentiment   bool
+	// Phase 122d.1 — revision fields. Populated only when
+	// `ArticleQueryFilter.IncludeRevisions=true` AND the article has
+	// at least one row in `aer_gold.article_revisions`.
+	ChainLength       uint32
+	HasHeadlineChange bool
+	HasRevisions      bool
+	LatestRevisionAt  time.Time
 }
 
 // GetSourceArticles returns paginated articles for a source. Filters
@@ -145,6 +158,19 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 		languages = nil
 	}
 
+	// Phase 122d.1 — optional revision lookup. Single follow-up query
+	// keyed on the same articleIDs slice; no correlated subquery per row.
+	var revisions map[string]revisionAggRow
+	if f.IncludeRevisions {
+		revisions, err = s.lookupArticleRevisions(ctx, articleIDs)
+		if err != nil {
+			// Revision fields are decorative for the list view — log
+			// and continue without them.
+			slog.Warn("article revisions lookup failed; continuing without revision badges", "error", err)
+			revisions = nil
+		}
+	}
+
 	out := make([]ArticleAggRow, 0, len(raw))
 	for _, r := range raw {
 		row := ArticleAggRow{
@@ -160,7 +186,47 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 			row.Language = lang
 			row.HasLanguage = true
 		}
+		if rev, ok := revisions[r.ArticleID]; ok {
+			row.ChainLength = rev.ChainLength
+			row.HasHeadlineChange = rev.HasHeadlineChange
+			row.LatestRevisionAt = rev.LatestRevisionAt
+			row.HasRevisions = true
+		}
 		out = append(out, row)
+	}
+	return out, nil
+}
+
+// revisionAggRow is the per-article aggregate of
+// `aer_gold.article_revisions` used to decorate the article-list view.
+type revisionAggRow struct {
+	ArticleID         string    `ch:"article_id"`
+	ChainLength       uint32    `ch:"chain_length"`
+	HasHeadlineChange bool      `ch:"has_headline_change"`
+	LatestRevisionAt  time.Time `ch:"latest_revision_at"`
+}
+
+func (s *ClickHouseStorage) lookupArticleRevisions(ctx context.Context, articleIDs []string) (map[string]revisionAggRow, error) {
+	if len(articleIDs) == 0 {
+		return map[string]revisionAggRow{}, nil
+	}
+	const q = `
+		SELECT
+			article_id,
+			toUInt32(count())              AS chain_length,
+			countIf(headline_changed) > 0  AS has_headline_change,
+			max(snapshot_at)               AS latest_revision_at
+		FROM aer_gold.article_revisions FINAL
+		WHERE article_id IN ?
+		GROUP BY article_id
+	`
+	var rows []revisionAggRow
+	if err := s.conn.Select(ctx, &rows, q, articleIDs); err != nil {
+		return nil, err
+	}
+	out := make(map[string]revisionAggRow, len(rows))
+	for _, r := range rows {
+		out[r.ArticleID] = r
 	}
 	return out, nil
 }

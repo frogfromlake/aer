@@ -1,0 +1,83 @@
+get:
+  tags: [Analysis]
+  summary: List articles with revisions for the Workbench drill-down
+  description: >
+    Returns a paginated list of articles that have at least one
+    revision in the active window (Phase 122d.1 / ADR-032 amendment).
+    Powers the Workbench drill-down from a `revision_activity` bar
+    or a `revision_timeline` bucket-point to the underlying article
+    list. Cursor-based pagination identical to
+    `/sources/{id}/articles` so the dashboard re-uses the same
+    pagination primitive.
+  operationId: getRevisionsArticles
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - name: startDate
+      in: query
+      required: true
+      description: Inclusive start of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: endDate
+      in: query
+      required: true
+      description: Exclusive end of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: hasHeadlineChange
+      in: query
+      required: false
+      description: >
+        When `true`, only return articles whose chain contains at
+        least one revision with `headline_changed=true`. The default
+        (unset / `false`) returns every article with ≥ 1 revision.
+      schema:
+        type: boolean
+    - name: minChainLength
+      in: query
+      required: false
+      description: >
+        Minimum chain length per article. Defaults to 1 (any article
+        with at least one revision); raise to filter for articles
+        edited multiple times.
+      schema:
+        type: integer
+        minimum: 1
+    - name: limit
+      in: query
+      required: false
+      description: Page size; max 200.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+    - name: cursor
+      in: query
+      required: false
+      description: Opaque cursor token from the previous response.
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Paginated article list.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RevisionsArticlesPage'
+    '400':
+      description: Invalid scope/window/filter parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

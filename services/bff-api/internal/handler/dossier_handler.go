@@ -193,6 +193,9 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 		band := string(*request.Params.SentimentBand)
 		filter.SentimentBand = &band
 	}
+	if request.Params.IncludeRevisions != nil && *request.Params.IncludeRevisions {
+		filter.IncludeRevisions = true
+	}
 
 	rows, err := s.articles.GetSourceArticles(ctx, sourceName, filter)
 	if err != nil {
@@ -212,12 +215,15 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 	}
 	for _, r := range rows {
 		item := struct {
-			ArticleId      string    `json:"articleId"`
-			Language       *string   `json:"language,omitempty"`
-			SentimentScore *float32  `json:"sentimentScore,omitempty"`
-			Source         string    `json:"source"`
-			Timestamp      time.Time `json:"timestamp"`
-			WordCount      *int      `json:"wordCount,omitempty"`
+			ArticleId         string     `json:"articleId"`
+			ChainLength       *int       `json:"chainLength,omitempty"`
+			HasHeadlineChange *bool      `json:"hasHeadlineChange,omitempty"`
+			Language          *string    `json:"language,omitempty"`
+			LatestRevisionAt  *time.Time `json:"latestRevisionAt,omitempty"`
+			SentimentScore    *float32   `json:"sentimentScore,omitempty"`
+			Source            string     `json:"source"`
+			Timestamp         time.Time  `json:"timestamp"`
+			WordCount         *int       `json:"wordCount,omitempty"`
 		}{
 			ArticleId: r.ArticleID,
 			Source:    r.Source,
@@ -235,16 +241,29 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 			s32 := float32(r.SentimentScore)
 			item.SentimentScore = &s32
 		}
+		if r.HasRevisions {
+			cl := int(r.ChainLength) //nolint:gosec // bounded
+			item.ChainLength = &cl
+			h := r.HasHeadlineChange
+			item.HasHeadlineChange = &h
+			if !r.LatestRevisionAt.IsZero() {
+				t := r.LatestRevisionAt
+				item.LatestRevisionAt = &t
+			}
+		}
 		page.Items = append(page.Items, item)
 	}
 	if page.Items == nil {
 		page.Items = []struct {
-			ArticleId      string    `json:"articleId"`
-			Language       *string   `json:"language,omitempty"`
-			SentimentScore *float32  `json:"sentimentScore,omitempty"`
-			Source         string    `json:"source"`
-			Timestamp      time.Time `json:"timestamp"`
-			WordCount      *int      `json:"wordCount,omitempty"`
+			ArticleId         string     `json:"articleId"`
+			ChainLength       *int       `json:"chainLength,omitempty"`
+			HasHeadlineChange *bool      `json:"hasHeadlineChange,omitempty"`
+			Language          *string    `json:"language,omitempty"`
+			LatestRevisionAt  *time.Time `json:"latestRevisionAt,omitempty"`
+			SentimentScore    *float32   `json:"sentimentScore,omitempty"`
+			Source            string     `json:"source"`
+			Timestamp         time.Time  `json:"timestamp"`
+			WordCount         *int       `json:"wordCount,omitempty"`
 		}{}
 	}
 	return page, nil
