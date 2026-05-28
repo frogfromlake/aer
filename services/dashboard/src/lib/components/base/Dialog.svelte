@@ -8,9 +8,22 @@
     onClose?: () => void;
     children?: Snippet;
     footer?: Snippet;
+    /** Dialog width preset. `default` = the compact 560px modal used
+     *  by L5 / confirm dialogs. `wide` = a roomy modal (min(95vw,
+     *  1100px)) for tabular content like the article-list drilldown,
+     *  so the table columns fit without horizontal scrolling. */
+    size?: 'default' | 'wide';
   }
 
-  let { open = $bindable(), title, describedBy, onClose, children, footer }: Props = $props();
+  let {
+    open = $bindable(),
+    title,
+    describedBy,
+    onClose,
+    children,
+    footer,
+    size = 'default'
+  }: Props = $props();
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let previouslyFocused: HTMLElement | null = null;
@@ -76,6 +89,7 @@
   <div
     bind:this={dialogEl}
     class="dialog"
+    class:wide={size === 'wide'}
     role="dialog"
     aria-modal="true"
     aria-labelledby={titleId}
@@ -113,6 +127,7 @@
     min-width: 320px;
     max-width: min(90vw, 560px);
     max-height: 85vh;
+    width: max-content;
     display: flex;
     flex-direction: column;
     background: var(--color-surface);
@@ -122,6 +137,11 @@
     box-shadow: var(--elevation-3);
     z-index: 1000;
     overflow: hidden;
+  }
+
+  .dialog.wide {
+    max-width: min(95vw, 1100px);
+    width: min(95vw, 1100px);
   }
 
   header {

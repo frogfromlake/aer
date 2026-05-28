@@ -26,10 +26,13 @@ get:
       in: path
       required: true
       description: >
-        Zero-based index of the LATER snapshot in the pair. Must be ≥ 1.
+        Zero-based index of the LATER snapshot in the pair. `0` is
+        the chain-head pair (current Silver → Wayback[0], Phase
+        122d.1 BUG-11 amendment); values > 0 compare consecutive
+        Wayback snapshots.
       schema:
         type: integer
-        minimum: 1
+        minimum: 0
   responses:
     '200':
       description: The paragraph-aligned diff payload.

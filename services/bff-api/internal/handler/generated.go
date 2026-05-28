@@ -41,6 +41,24 @@ func (e ArticleRevisionDiffDiffParagraphsOp) Valid() bool {
 	}
 }
 
+// Defines values for ArticleRevisionDiffPairKind.
+const (
+	ChainHead ArticleRevisionDiffPairKind = "chain_head"
+	MidChain  ArticleRevisionDiffPairKind = "mid_chain"
+)
+
+// Valid indicates whether the value is a known member of the ArticleRevisionDiffPairKind enum.
+func (e ArticleRevisionDiffPairKind) Valid() bool {
+	switch e {
+	case ChainHead:
+		return true
+	case MidChain:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArticleRevisionsResponseLookupStatus.
 const (
 	Disabled    ArticleRevisionsResponseLookupStatus = "disabled"
@@ -841,8 +859,16 @@ type ArticleDetail struct {
 	WordCount     int       `json:"wordCount"`
 }
 
-// ArticleRevisionDiff Paragraph-aligned diff between two consecutive Wayback CDX snapshots of one article (Phase 122d.1 / ADR-032 amendment). Returned by `GET /articles/{id}/revisions/{revisionIndex}/diff` where the `revisionIndex` parameter selects the LATER snapshot of the pair (the diff compares `revisionIndex-1` → `revisionIndex`).
-// The dashboard's L5 Evidence Reader Diff tab consumes this payload to render the inline diff view. Equal paragraphs are intentionally not included — the payload only carries the changes — so the consumer should not expect a complete document reconstruction.
+// ArticleRevisionDiff Paragraph-aligned diff for one article-revision pair (Phase 122d.1 / ADR-032 amendment, BUG-11 amendment). Two pair kinds exist:
+//
+//   - `revisionIndex=0` (chain_head): pair is `current Silver body →
+//     Wayback[0]` — answers "what has the publisher changed since
+//     the last Wayback archive". Makes articles with chainLength=1
+//     diffable.
+//   - `revisionIndex>0` (mid_chain): pair is `Wayback[n-1] →
+//     Wayback[n]` — diff between two consecutive archived snapshots.
+//
+// Equal paragraphs are intentionally not included — the payload is sparse; the consumer should not expect a complete document reconstruction. When the two snapshots parse to identical paragraph content, `identical=true` and `diffParagraphs` is empty (BUG-10 distinct from `404 pending`).
 type ArticleRevisionDiff struct {
 	// ArticleId SHA-256 article identifier.
 	ArticleId string `json:"articleId"`
@@ -865,21 +891,30 @@ type ArticleRevisionDiff struct {
 	// HeadlineBefore Title at the earlier snapshot; empty when `headlineChanged=false`.
 	HeadlineBefore *string `json:"headlineBefore,omitempty"`
 
-	// HeadlineChanged True iff the article's headline (extracted from the title-chain `<title>` → `og:title` → `<h1>`) differs between the two snapshots. Engineering-derived signal — not a methodological canon; see ADR-037 for the disclosure prose.
+	// HeadlineChanged True iff the article's headline (extracted via trafilatura metadata with a Wayback-toolbar-stripping fallback) differs between the two snapshots. Engineering-derived signal — not a methodological canon; see ADR-037 for the disclosure prose.
 	HeadlineChanged bool `json:"headlineChanged"`
 
-	// RevisionIndex Zero-based position of the LATER snapshot in the chain (`revisionIndex=0` is the chain head and has no predecessor; requesting it returns 404).
+	// Identical True when the worker computed the diff and found the two snapshots parsed to identical paragraph content. The `diffParagraphs` array is empty in that case — the dashboard surfaces this as "snapshots identical after extraction", distinct from a 404 "diff pending".
+	Identical bool `json:"identical"`
+
+	// PairKind `chain_head` when `revisionIndex=0` (Silver-now → Wayback[0]). `mid_chain` otherwise.
+	PairKind ArticleRevisionDiffPairKind `json:"pairKind"`
+
+	// RevisionIndex Zero-based position of the LATER snapshot. `0` is the chain head (current Silver → Wayback[0]); values > 0 compare consecutive Wayback snapshots.
 	RevisionIndex int `json:"revisionIndex"`
 
 	// SnapshotAtAfter Wayback capture time of the later snapshot.
 	SnapshotAtAfter time.Time `json:"snapshotAtAfter"`
 
-	// SnapshotAtBefore Wayback capture time of the earlier snapshot.
-	SnapshotAtBefore time.Time `json:"snapshotAtBefore"`
+	// SnapshotAtBefore Wayback capture time of the earlier snapshot. Null for `chain_head` pairs (the "before" side is the live Silver body, with no archive timestamp).
+	SnapshotAtBefore *time.Time `json:"snapshotAtBefore,omitempty"`
 }
 
 // ArticleRevisionDiffDiffParagraphsOp Op type.
 type ArticleRevisionDiffDiffParagraphsOp string
+
+// ArticleRevisionDiffPairKind `chain_head` when `revisionIndex=0` (Silver-now → Wayback[0]). `mid_chain` otherwise.
+type ArticleRevisionDiffPairKind string
 
 // ArticleRevisionsResponse Per-article revision chain for the L5 Evidence Reader (Phase 122d.0). Returns the ordered list of detected revisions for one article — Wayback CDX snapshots and publisher-side republication-trigger events. The endpoint is subject to the Silver-eligibility gate inherited from `GET /articles/{id}`: a source whose `silver_eligible=false` returns 403 with the same refusal payload.
 type ArticleRevisionsResponse struct {

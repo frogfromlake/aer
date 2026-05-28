@@ -15,6 +15,7 @@
   // hosts, one row.
 
   import { untrack } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { createQuery } from '@tanstack/svelte-query';
   import {
     sourceArticlesQuery,
@@ -81,6 +82,13 @@
   let allItems = $state<Array<RowItem>>([]);
   let hasMore = $state(false);
   let activeSourceIdx = $state(0);
+  // BUG-4 fix — auto-advance to first non-empty source.
+  // We track which source-tab indices we have already tried in the
+  // current modal open so we don't loop forever on a fully-empty
+  // entity selection. Reset when the config/window/entityMatch
+  // changes (in the same $effect.pre as `allItems`). SvelteSet is
+  // the reactivity-aware Set wrapper (svelte/prefer-svelte-reactivity).
+  let triedSourceIndices = new SvelteSet<number>();
 
   // Unified row shape — both endpoints normalise into this.
   type RowItem = {
@@ -96,11 +104,14 @@
   };
 
   // Reset pagination when the active source / config / window changes.
+  // The reset includes `triedSourceIndices` ONLY when the filter
+  // identity changes — not when the user manually switches tabs (in
+  // which case activeSourceIdx changes but we want to keep memory of
+  // which tabs were already auto-tried).
   $effect.pre(() => {
     void open;
     void windowStart;
     void windowEnd;
-    void activeSourceIdx;
     if (config.mode === 'source-articles') {
       void config.entityMatch;
     } else {
@@ -109,6 +120,15 @@
       void config.hasHeadlineChange;
       void config.minChainLength;
     }
+    cursor = undefined;
+    allItems = [];
+    activeSourceIdx = 0;
+    triedSourceIndices.clear();
+  });
+
+  // Pagination reset on manual tab switch (no auto-advance reset).
+  $effect.pre(() => {
+    void activeSourceIdx;
     cursor = undefined;
     allItems = [];
   });
@@ -201,6 +221,31 @@
     };
   });
 
+  // --- BUG-4 auto-advance — when the active source returns 0 items
+  // on the first page (cursor=undefined), try the next source until
+  // we either find one with items OR exhausted all sources.
+  $effect(() => {
+    if (config.mode !== 'source-articles') return;
+    const out = sourceArticlesQ;
+    if (out.data?.kind !== 'success' || !out.data.data) return;
+    const page = out.data.data;
+    const currentCursor = untrack(() => cursor);
+    const currentIdx = untrack(() => activeSourceIdx);
+    const tried = untrack(() => triedSourceIndices);
+    if (currentCursor !== undefined && currentCursor !== null) return; // pagination, not first page
+    if ((page.items ?? []).length > 0) return; // current source has data
+    // Mark current source as tried; advance to next un-tried.
+    tried.add(currentIdx);
+    const sources = config.sources;
+    for (let i = 0; i < sources.length; i++) {
+      if (i !== currentIdx && !tried.has(i)) {
+        activeSourceIdx = i;
+        return;
+      }
+    }
+    // All sources exhausted — stop trying, the empty-state UI fires.
+  });
+
   // --- merge incoming pages into allItems --------------------------------
   $effect(() => {
     const out = config.mode === 'source-articles' ? sourceArticlesQ : revisionsArticlesQ;
@@ -266,20 +311,29 @@
   }
 </script>
 
-<Dialog {open} {title} onClose={onDialogClose}>
+<Dialog {open} {title} size="wide" onClose={onDialogClose}>
   {#if config.mode === 'source-articles' && config.sources.length > 1}
-    <!-- Source tabs for multi-source contexts (cooccurrence). -->
+    <!-- Source tabs for multi-source contexts (cooccurrence). BUG-4
+         fix — dim tabs we've auto-tried and found empty, so the
+         user immediately sees which sources actually carry the
+         selected entity. -->
     <div class="source-tabs" role="tablist" aria-label="Source tabs">
       {#each config.sources as src, idx (src.name)}
+        {@const isEmpty =
+          triedSourceIndices.has(idx) && idx !== activeSourceIdx && allItems.length === 0}
         <button
           type="button"
           role="tab"
           aria-selected={idx === activeSourceIdx}
           class="source-tab"
           class:active={idx === activeSourceIdx}
+          class:empty={isEmpty}
+          title={isEmpty
+            ? `${src.label ?? src.name} has no articles for this selection.`
+            : undefined}
           onclick={() => selectSource(idx)}
         >
-          {src.label ?? src.name}
+          {src.label ?? src.name}{isEmpty ? ' · 0' : ''}
         </button>
       {/each}
     </div>
@@ -290,7 +344,23 @@
   {:else if activeQuery.isError || activeQuery.data?.kind === 'network-error'}
     <p class="state-msg error">Failed to load articles.</p>
   {:else if allItems.length === 0}
-    <p class="state-msg muted">No articles match the current filter.</p>
+    <!-- BUG-5 fix — source/filter-specific empty message instead of
+         the generic "No articles match the current filter." which
+         confused users in multi-source contexts. -->
+    {#if config.mode === 'source-articles'}
+      {@const activeSrc = config.sources[activeSourceIdx]}
+      {@const srcLabel = activeSrc?.label ?? activeSrc?.name ?? 'this source'}
+      <p class="state-msg muted">
+        <strong>{srcLabel}</strong> has no articles{config.entityMatch
+          ? ` mentioning «${config.entityMatch}»`
+          : ''} in the active window.
+        {#if config.sources.length > 1 && triedSourceIndices.size >= config.sources.length}
+          (No source in the active scope carries this selection.)
+        {/if}
+      </p>
+    {:else}
+      <p class="state-msg muted">No articles have revisions in the active window for this scope.</p>
+    {/if}
   {:else}
     <div class="table-wrap" role="region" aria-label="Article list">
       <table class="article-table">
@@ -368,6 +438,15 @@
     color: var(--color-fg);
     background: var(--color-surface);
     border-color: var(--color-accent-muted);
+  }
+
+  .source-tab.empty {
+    opacity: 0.4;
+    font-style: italic;
+  }
+
+  .source-tab.empty:not(.active):hover {
+    opacity: 0.7;
   }
 
   .source-tab:focus-visible {

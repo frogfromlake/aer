@@ -10,13 +10,20 @@ import (
 
 // ErrRevisionDiffPending signals that the requested diff has not yet
 // been computed by the worker's revision-diff sweep. Distinct from
-// "article not found" so the BFF handler can return a 404 with a
-// `pending` message instead of a generic error.
+// "article not found" and from "snapshots identical" so the BFF
+// handler returns an honest user-facing status.
 var ErrRevisionDiffPending = errors.New("revision diff pending; worker has not yet processed this pair")
 
-// ErrRevisionDiffHeadRequested signals that the caller requested a
-// diff for `revisionIndex=0` (the chain head). Returned as 404.
-var ErrRevisionDiffHeadRequested = errors.New("revision diff requested for chain head; no predecessor")
+// BUG-11: ErrRevisionDiffHeadRequested removed — revisionIndex=0 is
+// now a legal pair anchored on (Silver-now → Wayback[0]). The
+// handler no longer 404s on revisionIndex=0.
+
+// sentinelIdentityMarker is the JSON-encoded sentinel the worker
+// writes when the two snapshots parse to identical paragraph content
+// (BUG-B). Used by `GetArticleRevisionDiff` to detect "computed but
+// empty" and return a distinct status (BUG-10) rather than the
+// confusing "pending" message.
+const sentinelIdentityMarker = `{"op":"identical"}`
 
 // ArticleRevisionDiffRow is the ClickHouse-side projection of one
 // `aer_gold.article_revisions` row plus the prior row's
@@ -59,25 +66,29 @@ func DecodeDiffParagraphs(raw []string) ([]DiffOp, error) {
 }
 
 // GetArticleRevisionDiff returns the diff payload for one (articleId,
-// revisionIndex) pair. The query joins `article_revisions` against
-// itself to capture the predecessor's `snapshot_at` as the "before"
-// timestamp; without `FINAL` the ReplacingMergeTree row at higher
-// `ingestion_version` (the diff-sweep write) would not necessarily
-// win on first read.
+// revisionIndex) pair.
+//
+// Two pair kinds (BUG-11):
+//   - revisionIndex == 0: chain-head pair. `snapshot_at_before` is
+//     zero-time (no predecessor in `article_revisions`); the
+//     comparison is "Silver-now → Wayback[0]". The handler labels
+//     the pair as "current article → archived snapshot".
+//   - revisionIndex > 0: mid-chain pair. The LEFT JOIN resolves the
+//     predecessor row to populate `snapshot_at_before`.
 //
 // Returns:
-//   - `ErrRevisionDiffHeadRequested` when `revisionIndex==0`.
-//   - `ErrSourceNotFound` when the article_id is unknown.
-//   - `ErrRevisionDiffPending` when the row exists but the diff
-//     columns are empty (the sweep has not yet processed this pair).
+//   - `ErrSourceNotFound` when the article_id+revision_index is unknown.
+//   - `ErrRevisionDiffPending` when the row exists but diff_paragraphs
+//     is empty AND no sentinel — sweep hasn't processed yet.
+//   - A row whose `DiffParagraphs` contains ONLY the sentinel marker
+//     when the snapshots parse to identical paragraph content.
+//     `IsIdentical()` checks this case so the handler can render a
+//     distinct user message (BUG-10).
 func (s *ClickHouseStorage) GetArticleRevisionDiff(
 	ctx context.Context,
 	articleID string,
 	revisionIndex int,
 ) (*ArticleRevisionDiffRow, error) {
-	if revisionIndex <= 0 {
-		return nil, ErrRevisionDiffHeadRequested
-	}
 	const query = `
 		SELECT
 			curr.article_id           AS article_id,
@@ -89,8 +100,8 @@ func (s *ClickHouseStorage) GetArticleRevisionDiff(
 			curr.headline_after       AS headline_after,
 			curr.diff_paragraphs      AS diff_paragraphs,
 			curr.source               AS source
-		FROM aer_gold.article_revisions FINAL AS curr
-		LEFT JOIN aer_gold.article_revisions FINAL AS prev
+		FROM aer_gold.article_revisions AS curr FINAL
+		LEFT JOIN aer_gold.article_revisions AS prev FINAL
 			ON prev.article_id     = curr.article_id
 		   AND prev.revision_index = curr.revision_index - 1
 		WHERE curr.article_id     = ?
@@ -106,14 +117,17 @@ func (s *ClickHouseStorage) GetArticleRevisionDiff(
 	}
 	r := &rows[0]
 	if len(r.DiffParagraphs) == 0 && !r.HeadlineChanged {
-		// The row exists but neither a paragraph diff nor a headline
-		// change has been recorded — by construction the sweep has
-		// not yet processed this pair. (A pair that legitimately had
-		// neither would also pass this check; the dashboard's
-		// "pending" surface is harmless in that minority case.)
+		// True pending — sweep has not yet written anything for this pair.
 		return nil, ErrRevisionDiffPending
 	}
 	return r, nil
+}
+
+// IsIdentical returns true when the row's `DiffParagraphs` contains
+// ONLY the BUG-B sentinel marker — "snapshots parsed to identical
+// content". Used by the BFF handler to render a distinct user message.
+func (r *ArticleRevisionDiffRow) IsIdentical() bool {
+	return len(r.DiffParagraphs) == 1 && r.DiffParagraphs[0] == sentinelIdentityMarker
 }
 
 // ----------------------------------------------------------------------
@@ -227,7 +241,7 @@ func (s *ClickHouseStorage) GetRevisionsArticles(
 			r.any_headline_change   AS has_headline_change,
 			r.latest_revision_at    AS latest_revision_at
 		FROM revisions_window AS r
-		LEFT JOIN aer_silver.documents FINAL AS d
+		LEFT JOIN aer_silver.documents AS d FINAL
 			ON d.article_id = r.article_id
 		ORDER BY latest_revision_at DESC, r.article_id
 		LIMIT ? OFFSET ?

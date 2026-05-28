@@ -64,7 +64,9 @@
     "@opentelemetry/sdk-trace-web": "2.7.0",
     "@opentelemetry/semantic-conventions": "1.40.0",
     "@tanstack/svelte-query": "6.1.18",
+    "@types/diff": "8.0.0",
     "d3-force": "3.0.0",
+    "diff": "9.0.0",
     "html-to-image": "1.11.13",
     "three": "0.184.0",
     "uplot": "1.6.32"

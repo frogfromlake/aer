@@ -106,19 +106,82 @@ class DiffResult:
     headline_after: str
 
 
+def _strip_wayback_wrapper(html: str) -> str:
+    """Strip the Wayback-Machine-injected banner/script blocks.
+
+    Wayback prepends a toolbar script + CSS block to every archived
+    page (delimited by `<!-- BEGIN WAYBACK TOOLBAR INSERT -->` /
+    `<!-- END WAYBACK TOOLBAR INSERT -->` markers, or by an
+    `id="wm-ipp"` div near the body start). These blocks can contain
+    `<title>`-like substrings inside templated script content, which
+    a naive regex picks up instead of the article's real title.
+    """
+    if not html:
+        return html
+    # Remove toolbar HTML block via the documented markers.
+    pattern = re.compile(
+        r"<!--\s*BEGIN WAYBACK TOOLBAR INSERT.*?END WAYBACK TOOLBAR INSERT\s*-->",
+        re.IGNORECASE | re.DOTALL,
+    )
+    cleaned = pattern.sub("", html)
+    # Remove the JS-injected toolbar container that survives the marker
+    # strip on newer Wayback playback paths.
+    cleaned = re.sub(
+        r'<div[^>]+id=[\"\']wm-ipp[\"\'][^>]*>.*?</div>',
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    return cleaned
+
+
 def extract_headline(html: str) -> str:
     """Extract the article's title using the canonical priority chain.
 
-    The priority is operator-stable across trafilatura versions:
-    ``<title>`` is the most reliable; ``og:title`` is the social-card
-    title (sometimes shorter / punchier than ``<title>``); ``<h1>``
-    is the on-page heading (sometimes the only one when the publisher
-    uses a single SPA shell ``<title>``).
+    Priority:
+      1. ``trafilatura.metadata.extract_metadata().title`` — the
+         canonical extractor, robust against the Wayback toolbar that
+         confuses naive ``<title>`` regexes (BUG-A).
+      2. Regex chain on the Wayback-toolbar-stripped HTML — fallback
+         when trafilatura's metadata extractor returns nothing
+         (e.g. unusual page structure, missing dependency).
+
+    Returns the empty string when no title can be recovered. The
+    caller treats that as "headline unknown" — distinct from an
+    empty title element, which is a real publisher signal.
     """
     if not html:
         return ""
+
+    # Step 1 — trafilatura metadata. The canonical extractor knows
+    # about JSON-LD / OpenGraph / RDFa / OG:Title in addition to
+    # `<title>`, and (crucially) is built to ignore template noise
+    # like the Wayback toolbar. Available when DIFF_AVAILABLE (= the
+    # production worker image), otherwise we skip straight to the
+    # regex fallback so the function still returns something useful
+    # in the test image.
+    if DIFF_AVAILABLE:
+        try:
+            from trafilatura.metadata import extract_metadata  # type: ignore
+
+            md = extract_metadata(html)
+            if md is not None:
+                title = getattr(md, "title", None)
+                if isinstance(title, str):
+                    cleaned = _normalise_text(title)
+                    if cleaned:
+                        return cleaned
+        except Exception as exc:
+            logger.info(
+                "diff.trafilatura.metadata_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
+    # Step 2 — regex fallback on the toolbar-stripped HTML.
+    stripped = _strip_wayback_wrapper(html)
     for pattern in (_TITLE_RE, _OG_TITLE_RE, _OG_TITLE_RE_ALT, _H1_RE):
-        match = pattern.search(html)
+        match = pattern.search(stripped)
         if match:
             candidate = _normalise_text(_HTML_TAG_RE.sub("", match.group(1)))
             if candidate:
@@ -162,6 +225,18 @@ def extract_paragraphs(html: str) -> list[str]:
     return [p for p in paragraphs if p]
 
 
+# Sentinel marker for "diff computed but no paragraph-level changes
+# detected" — emitted when both inputs parse identically through
+# trafilatura. Without this marker the sweep query `WHERE
+# length(diff_paragraphs) = 0` would treat the pair as undiffed on
+# every subsequent tick and re-fetch the snapshots from IA forever
+# (BUG-B). The sentinel makes the row terminal: future sweeps skip
+# it. The BFF surface (`GetArticleRevisionDiff`) decodes the
+# sentinel into a distinct "snapshots identical" status, distinct
+# from the genuine "diff pending" 404 (BUG-10).
+SENTINEL_IDENTICAL_OP: dict = {"op": "identical"}
+
+
 def compute_diff(prev_html: str, curr_html: str) -> DiffResult:
     """Compare two snapshot HTMLs and return the paragraph-aligned diff.
 
@@ -169,6 +244,12 @@ def compute_diff(prev_html: str, curr_html: str) -> DiffResult:
     `headline_changed=False`). The caller is expected to skip writing
     when both inputs are empty — there is no meaningful "diff between
     nothing and nothing".
+
+    When both inputs parse but yield identical paragraph content, the
+    result carries the `SENTINEL_IDENTICAL_OP` marker so the sweep
+    loop's "find undiffed pairs" query stops re-processing the pair
+    on every tick (BUG-B). The BFF picks this marker up to surface a
+    distinct "snapshots identical" state.
     """
     prev_headline = extract_headline(prev_html)
     curr_headline = extract_headline(curr_html)
@@ -177,6 +258,13 @@ def compute_diff(prev_html: str, curr_html: str) -> DiffResult:
 
     ops = _paragraph_diff(prev_paragraphs, curr_paragraphs)
     headline_changed = prev_headline != curr_headline and bool(curr_headline)
+
+    # BUG-B sentinel — empty ops AND no headline change = genuinely
+    # identical-after-extraction. Mark it so the sweep does not re-
+    # process. We still keep `headline_changed=false` in that case.
+    if not ops and not headline_changed:
+        ops = [SENTINEL_IDENTICAL_OP]
+
     return DiffResult(
         diff_paragraphs=[json.dumps(op, ensure_ascii=False) for op in ops],
         headline_changed=headline_changed,

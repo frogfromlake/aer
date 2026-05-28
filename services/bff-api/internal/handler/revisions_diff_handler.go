@@ -60,11 +60,10 @@ func (s *Server) GetArticleRevisionDiff(
 
 	row, err := s.db.GetArticleRevisionDiff(ctx, request.Id, request.RevisionIndex)
 	if err != nil {
-		if errors.Is(err, storage.ErrRevisionDiffHeadRequested) {
-			return GetArticleRevisionDiff404JSONResponse{Message: "revisionIndex=0 has no predecessor to diff against"}, nil
-		}
 		if errors.Is(err, storage.ErrRevisionDiffPending) {
-			return GetArticleRevisionDiff404JSONResponse{Message: "diff not yet computed; the worker sweep has not yet processed this snapshot pair"}, nil
+			// BUG-7: text trimmed to remove the operator-side
+			// `REVISION_DIFF_EXTRACTION_INTERVAL_SECONDS` hint.
+			return GetArticleRevisionDiff404JSONResponse{Message: "diff is being computed; check back in a few minutes"}, nil
 		}
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetArticleRevisionDiff404JSONResponse{Message: "revision pair not found"}, nil
@@ -73,7 +72,18 @@ func (s *Server) GetArticleRevisionDiff(
 		return GetArticleRevisionDiff500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	ops, err := storage.DecodeDiffParagraphs(row.DiffParagraphs)
+	// BUG-10 — Sentinel-detection: the row exists but the worker
+	// recorded "snapshots parsed to identical content". Surface as a
+	// successful response with `identical=true` and empty
+	// `diffParagraphs` so the frontend can render the distinct
+	// "identical after extraction" state.
+	identical := row.IsIdentical()
+	rawOps := row.DiffParagraphs
+	if identical {
+		rawOps = nil
+	}
+
+	ops, err := storage.DecodeDiffParagraphs(rawOps)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetArticleRevisionDiff.decode", "error", err)
 		return GetArticleRevisionDiff500JSONResponse{Message: genericInternalError}, nil
@@ -81,9 +91,9 @@ func (s *Server) GetArticleRevisionDiff(
 
 	// Project the storage op slice onto the generated inline shape.
 	opShapes := make([]struct {
-		After  *string                              `json:"after,omitempty"`
-		Before *string                              `json:"before,omitempty"`
-		Op     ArticleRevisionDiffDiffParagraphsOp  `json:"op"`
+		After  *string                             `json:"after,omitempty"`
+		Before *string                             `json:"before,omitempty"`
+		Op     ArticleRevisionDiffDiffParagraphsOp `json:"op"`
 	}, 0, len(ops))
 	for _, op := range ops {
 		opShape := struct {
@@ -104,13 +114,27 @@ func (s *Server) GetArticleRevisionDiff(
 		opShapes = append(opShapes, opShape)
 	}
 
+	// BUG-11 pair-kind: revisionIndex=0 is chain_head (Silver-now →
+	// Wayback[0]); otherwise mid_chain.
+	pairKind := ChainHead
+	if row.RevisionIndex > 0 {
+		pairKind = MidChain
+	}
+
 	resp := GetArticleRevisionDiff200JSONResponse{
-		ArticleId:        row.ArticleID,
-		RevisionIndex:    int(row.RevisionIndex), //nolint:gosec // bounded
-		SnapshotAtBefore: row.SnapshotAtBefore,
-		SnapshotAtAfter:  row.SnapshotAtAfter,
-		HeadlineChanged:  row.HeadlineChanged,
-		DiffParagraphs:   opShapes,
+		ArticleId:       row.ArticleID,
+		RevisionIndex:   int(row.RevisionIndex), //nolint:gosec // bounded
+		SnapshotAtAfter: row.SnapshotAtAfter,
+		HeadlineChanged: row.HeadlineChanged,
+		DiffParagraphs:  opShapes,
+		PairKind:        pairKind,
+		Identical:       identical,
+	}
+	// snapshotAtBefore is null for chain_head (no predecessor in
+	// article_revisions); only emit when we have a real timestamp.
+	if !row.SnapshotAtBefore.IsZero() {
+		t := row.SnapshotAtBefore
+		resp.SnapshotAtBefore = &t
 	}
 	if row.HeadlineBefore != "" {
 		b := row.HeadlineBefore

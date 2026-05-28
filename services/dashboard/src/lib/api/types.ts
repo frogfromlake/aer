@@ -1670,25 +1670,40 @@ export interface components {
             }[];
         };
         /**
-         * @description Paragraph-aligned diff between two consecutive Wayback CDX snapshots of one article (Phase 122d.1 / ADR-032 amendment). Returned by `GET /articles/{id}/revisions/{revisionIndex}/diff` where the `revisionIndex` parameter selects the LATER snapshot of the pair (the diff compares `revisionIndex-1` → `revisionIndex`).
-         *     The dashboard's L5 Evidence Reader Diff tab consumes this payload to render the inline diff view. Equal paragraphs are intentionally not included — the payload only carries the changes — so the consumer should not expect a complete document reconstruction.
+         * @description Paragraph-aligned diff for one article-revision pair (Phase 122d.1 / ADR-032 amendment, BUG-11 amendment). Two pair kinds exist:
+         *
+         *       * `revisionIndex=0` (chain_head): pair is `current Silver body →
+         *         Wayback[0]` — answers "what has the publisher changed since
+         *         the last Wayback archive". Makes articles with chainLength=1
+         *         diffable.
+         *       * `revisionIndex>0` (mid_chain): pair is `Wayback[n-1] →
+         *         Wayback[n]` — diff between two consecutive archived snapshots.
+         *
+         *     Equal paragraphs are intentionally not included — the payload is sparse; the consumer should not expect a complete document reconstruction. When the two snapshots parse to identical paragraph content, `identical=true` and `diffParagraphs` is empty (BUG-10 distinct from `404 pending`).
          */
         ArticleRevisionDiff: {
             /** @description SHA-256 article identifier. */
             articleId: string;
-            /** @description Zero-based position of the LATER snapshot in the chain (`revisionIndex=0` is the chain head and has no predecessor; requesting it returns 404). */
+            /** @description Zero-based position of the LATER snapshot. `0` is the chain head (current Silver → Wayback[0]); values > 0 compare consecutive Wayback snapshots. */
             revisionIndex: number;
             /**
-             * Format: date-time
-             * @description Wayback capture time of the earlier snapshot.
+             * @description `chain_head` when `revisionIndex=0` (Silver-now → Wayback[0]). `mid_chain` otherwise.
+             * @enum {string}
              */
-            snapshotAtBefore: string;
+            pairKind: "chain_head" | "mid_chain";
+            /** @description True when the worker computed the diff and found the two snapshots parsed to identical paragraph content. The `diffParagraphs` array is empty in that case — the dashboard surfaces this as "snapshots identical after extraction", distinct from a 404 "diff pending". */
+            identical: boolean;
+            /**
+             * Format: date-time
+             * @description Wayback capture time of the earlier snapshot. Null for `chain_head` pairs (the "before" side is the live Silver body, with no archive timestamp).
+             */
+            snapshotAtBefore?: string | null;
             /**
              * Format: date-time
              * @description Wayback capture time of the later snapshot.
              */
             snapshotAtAfter: string;
-            /** @description True iff the article's headline (extracted from the title-chain `<title>` → `og:title` → `<h1>`) differs between the two snapshots. Engineering-derived signal — not a methodological canon; see ADR-037 for the disclosure prose. */
+            /** @description True iff the article's headline (extracted via trafilatura metadata with a Wayback-toolbar-stripping fallback) differs between the two snapshots. Engineering-derived signal — not a methodological canon; see ADR-037 for the disclosure prose. */
             headlineChanged: boolean;
             /** @description Title at the earlier snapshot; empty when `headlineChanged=false`. */
             headlineBefore?: string;
@@ -3836,7 +3851,7 @@ export interface operations {
             path: {
                 /** @description SHA-256 article_id. */
                 id: string;
-                /** @description Zero-based index of the LATER snapshot in the pair. Must be ≥ 1. */
+                /** @description Zero-based index of the LATER snapshot in the pair. `0` is the chain-head pair (current Silver → Wayback[0], Phase 122d.1 BUG-11 amendment); values > 0 compare consecutive Wayback snapshots. */
                 revisionIndex: number;
             };
             cookie?: never;

@@ -68,6 +68,36 @@
       : []
   );
 
+  // Phase 122d.1 (Run-3) — Observable Plot restored for the chart LOOK
+  // (time axis, grid, multi-source colour legend). Same fix as the
+  // activity cell: the earlier click failures were `tip: true`'s
+  // interaction overlay, not the rendering. Render WITHOUT tip and
+  // bind clicks via a delegated SVG listener that maps the clicked
+  // <circle> to its data point by DOM index. Plot's `dot` mark
+  // renders one <circle> per `points` row in input order, so the
+  // index ↔ points mapping is exact. Hover affordance is pure CSS.
+  function bucketDurationMs(res: RevisionActivityResolution): number {
+    switch (res) {
+      case 'monthly':
+        return 30 * 24 * 3_600_000;
+      case 'weekly':
+        return 7 * 24 * 3_600_000;
+      default:
+        return 24 * 3_600_000;
+    }
+  }
+
+  function openPointDrilldown(idx: number): void {
+    const pt = points[idx];
+    if (!pt) return;
+    const bucketStartMs = pt.bucket.getTime();
+    drilldown = {
+      source: pt.source,
+      bucketStart: new Date(bucketStartMs).toISOString(),
+      bucketEnd: new Date(bucketStartMs + bucketDurationMs(activeResolution)).toISOString()
+    };
+  }
+
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
   let renderToken = 0;
@@ -81,24 +111,27 @@
       if (!host || token !== renderToken) return;
       const next = Plot.plot({
         width: host.clientWidth,
-        height: 240,
-        marginLeft: 56,
-        marginBottom: 36,
-        x: { label: 'bucket', type: 'time' },
-        y: { label: 'revisions', grid: true },
+        height: 260,
+        marginLeft: 48,
+        marginBottom: 40,
+        x: { label: null, type: 'time', grid: false },
+        y: { label: 'revisions ↑', grid: true, nice: true },
         color: { legend: true },
         marks: [
           Plot.line(rows, {
             x: 'bucket',
             y: 'revisions',
             stroke: 'source',
-            strokeWidth: 1.4
+            strokeWidth: 1.6,
+            curve: 'monotone-x'
           }),
           Plot.dot(rows, {
             x: 'bucket',
             y: 'revisions',
             stroke: 'source',
-            r: 2.2
+            fill: 'var(--color-surface)',
+            r: 4,
+            strokeWidth: 2
           }),
           Plot.ruleY([0])
         ]
@@ -108,50 +141,23 @@
       host.appendChild(next as unknown as HTMLElement);
       plotEl = next as unknown as HTMLElement;
 
-      // Phase 122d.1 — bucket-click drill-down. The dot marks are
-      // small targets; we delegate click on the SVG and resolve the
-      // nearest point by index.
-      const svg = plotEl?.querySelector('svg');
-      if (svg) {
-        for (const dot of svg.querySelectorAll('circle')) {
-          (dot as SVGCircleElement).style.cursor = 'pointer';
-        }
-        svg.addEventListener('click', (ev) => {
-          const target = ev.target as Element | null;
-          const circle = target?.closest('circle');
-          if (!circle) return;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const idx = (circle as any).__data__ as number | undefined;
-          if (typeof idx !== 'number' || !rows[idx]) return;
-          const pt = rows[idx];
-          // Pick the bucket's matching window. For daily / weekly / monthly
-          // we expand bucket_start → bucket_start + duration. Approximate
-          // via the next bucket's start when available; otherwise add the
-          // resolution's nominal length.
-          const bucketStartMs = pt.bucket.getTime();
-          const nextRow = rows[idx + 1];
-          const bucketEndMs = nextRow
-            ? nextRow.bucket.getTime()
-            : bucketStartMs + bucketDurationMs(activeResolution);
-          drilldown = {
-            source: pt.source,
-            bucketStart: new Date(bucketStartMs).toISOString(),
-            bucketEnd: new Date(bucketEndMs).toISOString()
-          };
-        });
-      }
+      // ROOT-CAUSE FIX (Run-4): see RevisionActivityCell. Listener on
+      // the stable `host` div; the clicked circle's `ownerSVGElement`
+      // is the chart svg (NOT the colour-legend swatch svg that
+      // Plot prepends inside the returned <figure>), so the index
+      // lookup is scoped to the real data circles.
     })();
   });
 
-  function bucketDurationMs(res: RevisionActivityResolution): number {
-    switch (res) {
-      case 'monthly':
-        return 30 * 24 * 3_600_000;
-      case 'weekly':
-        return 7 * 24 * 3_600_000;
-      default:
-        return 24 * 3_600_000;
-    }
+  function onHostClick(ev: MouseEvent): void {
+    const target = ev.target as Element | null;
+    const circle = target?.closest('circle');
+    if (!circle) return;
+    const svg = (circle as SVGCircleElement).ownerSVGElement;
+    if (!svg) return;
+    const dots = Array.from(svg.querySelectorAll('circle'));
+    const idx = dots.indexOf(circle as SVGCircleElement);
+    if (idx >= 0 && points[idx]) openPointDrilldown(idx);
   }
 
   onDestroy(() => {
@@ -212,11 +218,17 @@
   {:else if points.length === 0}
     <p class="muted">No silent-edit activity observed in this window.</p>
   {:else}
+    <p class="click-hint" aria-hidden="true">
+      <span class="click-hint-icon">↻</span> Click any point to see the articles edited in that bucket.
+    </p>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Revisions over time. Click a point to view articles in that bucket."
+      aria-label="Revisions over time per source. Click a point to view articles in that bucket."
+      onclick={onHostClick}
     ></div>
     <HowToRead presentation="revision_timeline" facts={{}} />
   {/if}
@@ -264,7 +276,7 @@
   }
   .plot-host {
     width: 100%;
-    min-height: 240px;
+    min-height: 260px;
   }
   .plot-host :global(text) {
     fill: var(--color-fg-muted);
@@ -273,6 +285,16 @@
   }
   .plot-host :global(svg) {
     background: transparent;
+  }
+  /* Pure-CSS click affordance + hover on the dot marks. No JS mouse
+     listeners → nothing can stick. The delegated click handler is the
+     only JS interaction. */
+  .plot-host :global(svg circle) {
+    cursor: pointer;
+    transition: r var(--motion-duration-instant) var(--motion-ease-standard);
+  }
+  .plot-host :global(svg circle:hover) {
+    r: 7;
   }
   .muted {
     font-size: var(--font-size-sm);
@@ -283,5 +305,18 @@
     color: var(--color-fg);
     font-weight: var(--font-weight-medium);
     font-family: var(--font-mono);
+  }
+  .click-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+    margin: 0;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .click-hint-icon {
+    font-style: normal;
+    color: rgba(154, 143, 184, 0.95);
   }
 </style>

@@ -7,6 +7,7 @@
   // The reader does not trap the rest of the surface — it floats over without
   // replacing it (Design Brief §4.1 rule 2 "no layer replaces").
   import { createQuery } from '@tanstack/svelte-query';
+  import { diffWordsWithSpace, type Change } from 'diff';
   import {
     articleDetailQuery,
     articleRevisionsQuery,
@@ -113,9 +114,16 @@
   let activeTab = $state<'article' | 'diff'>('article');
   let diffPairIndex = $state<number>(1);
 
-  // Diff query — only fires when we are on the diff tab AND the
-  // article has at least 2 revisions, so we don't hit the BFF
-  // for a 404 in the common case.
+  // BUG-9 + BUG-6 fix — diff query fires EAGERLY when the modal
+  // opens (not only when the user clicks the Diff tab). This pre-
+  // loads the diff so the tab switch is instant; previously the
+  // 5–10s diff fetch on tab-click felt like "the modal disappeared
+  // and reopened" because the body content unmounted/remounted.
+  //
+  // BUG-11 — chainLength=1 is now also diffable (pair 0 = current
+  // Silver vs Wayback[0]); the enabled condition allows index >= 0.
+  // pairCount = chainLength (was chainLength - 1 in pre-122d.1
+  // semantics).
   const diffQ = createQuery<
     QueryOutcome<ArticleRevisionDiffDto>,
     Error,
@@ -124,9 +132,8 @@
     const enabled =
       open &&
       articleId !== null &&
-      activeTab === 'diff' &&
-      revisionList.length >= 2 &&
-      diffPairIndex >= 1 &&
+      revisionList.length >= 1 &&
+      diffPairIndex >= 0 &&
       diffPairIndex < revisionList.length;
     if (!enabled || !articleId) {
       return {
@@ -150,13 +157,15 @@
   });
 
   // Auto-pick the most recent pair when the revision list becomes
-  // available (or when the article changes). The most recent pair
-  // is `revisionIndex = revisionList.length - 1`.
+  // available (or when the article changes). With BUG-11 chain-head
+  // diffing landed, "most recent" is index = chainLength - 1 (the
+  // last Wayback snapshot diffed against its predecessor). For a
+  // chainLength=1 article the only valid index is 0 (chain head).
   $effect(() => {
-    if (revisionList.length >= 2) {
+    if (revisionList.length >= 1) {
       diffPairIndex = revisionList.length - 1;
     } else {
-      diffPairIndex = 1;
+      diffPairIndex = 0;
     }
   });
 
@@ -186,6 +195,31 @@
     showRaw = false;
     activeTab = 'article';
     onClose();
+  }
+
+  // Phase 122d.1 BUG-8 — word-level inline diff for `mod` ops via
+  // jsdiff. Returns an array of Change records the template renders
+  // with rote/green spans. `add` / `del` ops keep their full-paragraph
+  // styling (the user wants the whole new/removed paragraph
+  // highlighted, not word-by-word).
+  function wordDiff(before: string, after: string): Change[] {
+    return diffWordsWithSpace(before ?? '', after ?? '');
+  }
+
+  // Pair labels — display the (before → after) timestamps so the
+  // slider readout is meaningful. Chain-head pair (revisionIndex=0):
+  // "Current article → snapshot from <date>". Mid-chain: "<date> →
+  // <date>".
+  function formatPairLabel(idx: number): string {
+    if (idx === 0) {
+      const after = revisionList[0]?.snapshotAt;
+      if (!after) return 'Current article → archived';
+      return `Current → ${new Date(after).toLocaleDateString('en-CA')}`;
+    }
+    const before = revisionList[idx - 1]?.snapshotAt;
+    const after = revisionList[idx]?.snapshotAt;
+    if (!before || !after) return `Pair ${idx}`;
+    return `${new Date(before).toLocaleDateString('en-CA')} → ${new Date(after).toLocaleDateString('en-CA')}`;
   }
 
   function lookupStatusLabel(status: string): string {
@@ -274,11 +308,12 @@
       </div>
     </dl>
 
-    <!-- Phase 122d.1 — Article body / Diff tabs. The Diff tab is
-         only meaningful when ≥ 2 revisions exist; we still render it
-         dimmed when chainLength is 0/1 so the absence is legible
-         (per WP-006 §4.2 "what AĒR does not observe is as important
-         as what it does"). -->
+    <!-- Phase 122d.1 — Article body / Diff tabs. With BUG-11 the
+         Diff tab is enabled at chainLength >= 1 (chain-head pair =
+         current Silver vs Wayback[0]). The Diff tab is dimmed only
+         for non-web articles. BUG-6 fix: both tab contents stay
+         mounted (toggled via CSS .hidden) so the tab switch is
+         instant — no remount, no "modal disappeared" perception. -->
     <div class="text-controls" role="tablist" aria-label="Article view tabs">
       <button
         type="button"
@@ -286,28 +321,34 @@
         class:active={activeTab === 'article'}
         role="tab"
         aria-selected={activeTab === 'article'}
-        onclick={() => (activeTab = 'article')}>Article body</button
+        onclick={(e) => {
+          e.stopPropagation();
+          activeTab = 'article';
+        }}>Article body</button
       >
       <button
         type="button"
         class="toggle-btn"
         class:active={activeTab === 'diff'}
-        class:disabled-tab={article.sourceType !== 'web' || revisionList.length < 2}
+        class:disabled-tab={article.sourceType !== 'web' || revisionList.length < 1}
         role="tab"
         aria-selected={activeTab === 'diff'}
-        disabled={article.sourceType !== 'web' || revisionList.length < 2}
+        disabled={article.sourceType !== 'web' || revisionList.length < 1}
         title={article.sourceType !== 'web'
           ? 'Diff view is only meaningful for web articles with a canonical URL.'
-          : revisionList.length < 2
-            ? 'Need at least two revisions to diff. This article has ' + revisionList.length + '.'
-            : 'View paragraph diff between consecutive snapshots'}
-        onclick={() => (activeTab = 'diff')}
-        >Diff{revisionList.length >= 2 ? ` (${revisionList.length - 1})` : ''}</button
+          : revisionList.length < 1
+            ? 'No Wayback snapshots — nothing to diff against.'
+            : 'View paragraph diff between current and archived snapshots'}
+        onclick={(e) => {
+          e.stopPropagation();
+          activeTab = 'diff';
+        }}>Diff{revisionList.length >= 1 ? ` (${revisionList.length})` : ''}</button
       >
     </div>
 
-    {#if activeTab === 'article'}
-      <!-- Cleaned/raw sub-toggle within the article tab -->
+    <!-- Article body tab — always mounted, toggled via CSS so the
+         tab switch keeps scroll position + state. -->
+    <div class="tab-panel" class:hidden={activeTab !== 'article'}>
       <div class="text-subcontrols">
         <button
           type="button"
@@ -329,24 +370,29 @@
       <div class="article-text" lang={article.language ?? undefined}>
         {showRaw && article.rawText ? article.rawText : article.cleanedText}
       </div>
-    {:else}
-      <!-- Phase 122d.1 — Diff view between consecutive snapshots. -->
-      {@const pairCount = revisionList.length - 1}
-      {#if pairCount >= 1}
+    </div>
+
+    <!-- Diff tab — also always mounted so the diff query result
+         persists across tab switches. The diff fires eagerly on
+         modal open (BUG-9 prefetch) so by the time the user clicks
+         the tab, content is usually already loaded. -->
+    <div class="tab-panel" class:hidden={activeTab !== 'diff'}>
+      {#if revisionList.length >= 1}
+        {@const pairCount = revisionList.length}
         <div class="diff-controls">
           <label class="diff-pair-label">
             <span class="label-xs">Snapshot pair</span>
             <input
               type="range"
-              min={1}
-              max={pairCount}
+              min={0}
+              max={pairCount - 1}
               step={1}
               bind:value={diffPairIndex}
               aria-label="Snapshot pair selector"
             />
-            <span class="diff-pair-readout"
-              >{diffPairIndex} / {pairCount} (revision {diffPairIndex - 1} → {diffPairIndex})</span
-            >
+            <span class="diff-pair-readout">
+              {diffPairIndex + 1} / {pairCount} · {formatPairLabel(diffPairIndex)}
+            </span>
           </label>
         </div>
         {#if diffQ.isPending}
@@ -356,21 +402,25 @@
         {:else if diffQ.isError || diffQ.data?.kind === 'network-error'}
           {@const err = (diffQ.error ?? null) as { httpStatus?: number; message?: string } | null}
           {#if err?.httpStatus === 404 || (diffQ.data?.kind === 'network-error' && diffQ.data.httpStatus === 404)}
-            <p class="muted">
-              Diff for this snapshot pair has not yet been computed by the worker sweep. The diff
-              loop processes pairs in batches; check back in a few minutes, or operator can lower
-              <code>REVISION_DIFF_EXTRACTION_INTERVAL_SECONDS</code> for faster turnaround.
-            </p>
+            <!-- BUG-7 fix — operator info removed. -->
+            <p class="muted">Diff is being computed; check back in a few minutes.</p>
           {:else}
             <p class="error">Could not load diff.</p>
           {/if}
         {:else if diffQ.data?.kind === 'success' && diffQ.data.data}
           {@const diff = diffQ.data.data}
+          {#if diff.pairKind === 'chain_head'}
+            <p class="diff-kind-note">
+              <span class="diff-kind-pill">current vs. archived</span>
+              Comparing the current article body to the oldest Wayback snapshot — answers "what has the
+              publisher changed since the IA last archived this URL".
+            </p>
+          {/if}
           {#if diff.headlineChanged}
             <div class="headline-change">
               <p class="headline-label">Headline changed</p>
               <p class="headline-before">
-                <span class="op-mark op-del">—</span>
+                <span class="op-mark op-del">−</span>
                 {diff.headlineBefore || '(empty)'}
               </p>
               <p class="headline-after">
@@ -379,30 +429,48 @@
               </p>
             </div>
           {/if}
-          {#if diff.diffParagraphs.length === 0}
+          {#if diff.identical}
+            <!-- BUG-10 fix — distinct surface for "computed but
+                 identical" (vs. BUG-7's "pending" state). -->
             <p class="muted">
-              No paragraph-level changes between these snapshots. The article was archived at two
-              different points but the body (after trafilatura re-extraction) is identical.
+              Both snapshots parse to identical content after extraction. The Wayback Machine
+              archived two captures with different file hashes but trafilatura recovers the same
+              article body from each — likely just an HTTP re-fetch without an editorial change.
             </p>
+          {:else if diff.diffParagraphs.length === 0}
+            <p class="muted">No paragraph-level changes detected between these snapshots.</p>
           {:else}
             <ol class="diff-list" aria-label="Paragraph diff">
               {#each diff.diffParagraphs as op, idx (idx)}
                 <li class="diff-item op-{op.op}">
                   {#if op.op === 'add'}
                     <span class="op-mark op-add">+</span>
-                    <span class="diff-text">{op.after}</span>
+                    <span class="diff-text diff-add-block">{op.after}</span>
                   {:else if op.op === 'del'}
                     <span class="op-mark op-del">−</span>
-                    <span class="diff-text strike">{op.before}</span>
+                    <span class="diff-text diff-del-block">{op.before}</span>
                   {:else if op.op === 'mod'}
+                    <!-- BUG-8 fix — word-level inline diff. Each
+                         token is wrapped in a span: added text gets
+                         a green background, removed text gets a red
+                         background with strike-through, unchanged
+                         text stays plain. Reads like a GitHub PR
+                         diff inline within the paragraph. -->
+                    {@const wordOps = wordDiff(op.before ?? '', op.after ?? '')}
                     <div class="diff-mod">
-                      <p class="diff-mod-before">
-                        <span class="op-mark op-del">−</span>
-                        <span class="diff-text strike">{op.before}</span>
-                      </p>
-                      <p class="diff-mod-after">
-                        <span class="op-mark op-add">+</span>
-                        <span class="diff-text">{op.after}</span>
+                      <p class="diff-mod-line">
+                        <span class="op-mark op-mod">~</span>
+                        <span class="diff-text">
+                          {#each wordOps as token, tIdx (tIdx)}
+                            {#if token.added}
+                              <span class="word-add">{token.value}</span>
+                            {:else if token.removed}
+                              <span class="word-del">{token.value}</span>
+                            {:else}
+                              <span class="word-eq">{token.value}</span>
+                            {/if}
+                          {/each}
+                        </span>
                       </p>
                     </div>
                   {/if}
@@ -411,8 +479,13 @@
             </ol>
           {/if}
         {/if}
+      {:else}
+        <p class="muted">
+          No Wayback snapshots are available for this article yet. The diff view becomes available
+          once Wayback CDX captures the first snapshot.
+        </p>
       {/if}
-    {/if}
+    </div>
 
     <!-- Silent-Edit Observability — per-article revision chain (Phase 122d.0). -->
     <!-- Only meaningful for `source_type='web'` articles: the Wayback CDX -->
@@ -704,28 +777,20 @@
   }
 
   .diff-item.op-mod {
-    background: rgba(232, 168, 80, 0.06);
-    border-left: 2px solid rgba(232, 168, 80, 0.85);
-    padding: 0;
+    background: transparent;
+    border-left: 2px solid rgba(232, 168, 80, 0.55);
+    padding: var(--space-2);
   }
 
   .diff-mod {
-    display: flex;
-    flex-direction: column;
     width: 100%;
   }
 
-  .diff-mod-before,
-  .diff-mod-after {
+  .diff-mod-line {
     margin: 0;
-    padding: var(--space-2);
     display: flex;
     gap: var(--space-2);
     align-items: flex-start;
-  }
-
-  .diff-mod-before {
-    border-bottom: 1px dashed rgba(232, 168, 80, 0.3);
   }
 
   .op-mark {
@@ -745,16 +810,85 @@
     color: rgba(196, 126, 126, 0.95);
   }
 
+  .op-mod {
+    color: rgba(232, 168, 80, 0.95);
+  }
+
   .diff-text {
     font-size: var(--font-size-sm);
     color: var(--color-fg);
     line-height: var(--line-height-loose);
     white-space: pre-wrap;
+    flex: 1;
   }
 
-  .diff-text.strike {
+  /* BUG-8 — Git-style block highlighting for full-paragraph add/del. */
+  .diff-add-block {
+    background: rgba(126, 196, 160, 0.18);
+    border-radius: var(--radius-sm);
+    padding: 2px 4px;
+  }
+
+  .diff-del-block {
+    background: rgba(196, 126, 126, 0.18);
+    border-radius: var(--radius-sm);
+    padding: 2px 4px;
     text-decoration: line-through;
+    text-decoration-color: rgba(196, 126, 126, 0.55);
+  }
+
+  /* BUG-8 — word-level inline diff spans for `mod` ops. Tight
+     padding so adjacent words stay visually connected; subtle
+     border so the span boundary is legible. */
+  .word-add {
+    background: rgba(126, 196, 160, 0.25);
+    color: var(--color-fg);
+    border-radius: 2px;
+    padding: 0 2px;
+    border-bottom: 1px solid rgba(126, 196, 160, 0.6);
+  }
+
+  .word-del {
+    background: rgba(196, 126, 126, 0.22);
+    color: rgba(196, 126, 126, 0.95);
+    border-radius: 2px;
+    padding: 0 2px;
+    text-decoration: line-through;
+    text-decoration-color: rgba(196, 126, 126, 0.7);
+    border-bottom: 1px solid rgba(196, 126, 126, 0.6);
+  }
+
+  .word-eq {
+    color: var(--color-fg);
+  }
+
+  /* BUG-6 — tab panels always mounted; visibility toggled via class. */
+  .tab-panel.hidden {
+    display: none;
+  }
+
+  /* BUG-11 — pair-kind banner for chain-head pairs. */
+  .diff-kind-note {
+    font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
+    margin: 0 0 var(--space-3);
+    line-height: var(--line-height-loose);
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+
+  .diff-kind-pill {
+    display: inline-block;
+    padding: 1px var(--space-2);
+    background: rgba(82, 131, 184, 0.15);
+    border: 1px solid rgba(82, 131, 184, 0.5);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(82, 131, 184, 0.95);
+    white-space: nowrap;
   }
 
   .toggle-btn:focus-visible {

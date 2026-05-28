@@ -538,6 +538,8 @@ async def main(config: WorkerConfig | None = None):
         revision_diff_extraction_loop(
             ch_client,
             snapshot_fetcher,
+            minio_client,
+            os.getenv("WORKER_SILVER_BUCKET", "silver"),
             revision_diff_config,
             stop_event,
         )

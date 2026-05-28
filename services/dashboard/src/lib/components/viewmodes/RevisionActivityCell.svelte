@@ -57,6 +57,16 @@
       : []
   );
 
+  // Phase 122d.1 (Run-3) — Observable Plot restored for the chart LOOK
+  // (axes, grid, polished bars). The earlier click failures were NOT
+  // the rendering — they were `tip: true`, whose interaction overlay
+  // swallowed pointer events (sticky tooltips + clicks never reached
+  // the bars). Fix: render WITHOUT tip, and bind clicks via a single
+  // delegated SVG listener that maps the clicked <rect> to its data
+  // row by DOM index. `barX` + `ruleX` produce exactly one <rect> per
+  // bar and zero other rects (the rule is a <line>), so the index ↔
+  // entries mapping is exact. Hover affordance is pure CSS (no JS, so
+  // nothing can stick).
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
   let renderToken = 0;
@@ -70,10 +80,10 @@
       if (!host || token !== renderToken) return;
       const next = Plot.plot({
         width: host.clientWidth,
-        height: Math.max(180, rows.length * 32 + 60),
-        marginLeft: 140,
+        height: Math.max(160, rows.length * 38 + 50),
+        marginLeft: 150,
         marginBottom: 36,
-        x: { label: 'revisions', grid: true },
+        x: { label: 'revisions →', grid: true, nice: true },
         y: { label: null, domain: rows.map((r) => r.source) },
         marks: [
           Plot.barX(rows, {
@@ -81,11 +91,7 @@
             y: 'source',
             fill: 'rgba(154, 143, 184, 0.55)',
             stroke: 'rgba(154, 143, 184, 0.95)',
-            // Phase 122d.1 — bar click opens the article drill-down
-            // modal filtered to that source's revisions in the active
-            // window.
-            channels: { source: 'source' },
-            tip: false
+            rx: 2
           }),
           Plot.ruleX([0])
         ]
@@ -94,32 +100,31 @@
       // eslint-disable-next-line svelte/no-dom-manipulating
       host.appendChild(next as unknown as HTMLElement);
       plotEl = next as unknown as HTMLElement;
-      // Wire bar clicks to the drilldown — Observable Plot does not
-      // emit a typed click; attach a delegated listener on the svg.
-      const svg = plotEl?.querySelector('svg');
-      if (svg) {
-        svg.addEventListener('click', (ev) => {
-          const target = ev.target as Element | null;
-          const rect = target?.closest('rect');
-          if (!rect) return;
-          // Plot annotates marks with a `__data__` getter we can read
-          // via the d3 datum interface — fall back to bar index by
-          // y-coordinate if the datum isn't accessible.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const datum = (rect as any).__data__ as number | undefined;
-          if (typeof datum === 'number' && rows[datum]) {
-            drilldownSource = rows[datum].source;
-          }
-        });
-        // Cursor hint that the bars are interactive. SVGRectElement
-        // shares the `style` setter with HTMLElement via SVGElement,
-        // so a typed widening is sufficient here.
-        for (const rect of svg.querySelectorAll('rect')) {
-          (rect as SVGRectElement).style.cursor = 'pointer';
-        }
-      }
+
+      // ROOT-CAUSE FIX (Run-4): the listener is attached to the stable
+      // `host` div, NOT to `plotEl.querySelector('svg')`. Plot.plot()
+      // returns the <svg> DIRECTLY when there's no legend, so
+      // `plotEl.querySelector('svg')` returned null (an svg has no
+      // descendant svg) and the listener was never bound — every prior
+      // Plot iteration silently failed here. `host` always exists and
+      // bar clicks bubble up to it. The clicked rect's own
+      // `ownerSVGElement` is the authoritative chart svg, so the
+      // index lookup is scoped correctly even if a legend svg exists.
     })();
   });
+
+  function onHostClick(ev: MouseEvent): void {
+    const target = ev.target as Element | null;
+    const rect = target?.closest('rect');
+    if (!rect) return;
+    const svg = (rect as SVGRectElement).ownerSVGElement;
+    if (!svg) return;
+    const barRects = Array.from(svg.querySelectorAll('rect'));
+    const idx = barRects.indexOf(rect as SVGRectElement);
+    if (idx >= 0 && entries[idx]) {
+      drilldownSource = entries[idx].source;
+    }
+  }
 
   onDestroy(() => {
     if (plotEl) plotEl.remove();
@@ -178,11 +183,17 @@
       sources yet, or the publishers have not bumped their sitemap-lastmod inside the window.
     </p>
   {:else}
+    <p class="click-hint" aria-hidden="true">
+      <span class="click-hint-icon">↻</span> Click any bar to see the articles edited under that source.
+    </p>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Revision counts per source. Click a bar to view the articles."
+      aria-label="Revision counts per source. Click a bar to view its articles."
+      onclick={onHostClick}
     ></div>
     <HowToRead presentation="revision_activity" facts={{}} />
   {/if}
@@ -228,7 +239,7 @@
   }
   .plot-host {
     width: 100%;
-    min-height: 200px;
+    min-height: 160px;
   }
   .plot-host :global(text) {
     fill: var(--color-fg-muted);
@@ -238,6 +249,18 @@
   .plot-host :global(svg) {
     background: transparent;
   }
+  /* Pure-CSS click affordance + hover — no JS mouse listeners, so no
+     sticky-tooltip class of bug. The delegated click handler is the
+     only JS interaction. */
+  .plot-host :global(svg [aria-label='bar'] rect),
+  .plot-host :global(svg rect) {
+    cursor: pointer;
+    transition: opacity var(--motion-duration-instant) var(--motion-ease-standard);
+  }
+  .plot-host :global(svg rect:hover) {
+    opacity: 0.8;
+  }
+
   .muted {
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
@@ -247,5 +270,18 @@
     color: var(--color-fg);
     font-weight: var(--font-weight-medium);
     font-family: var(--font-mono);
+  }
+  .click-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+    margin: 0;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .click-hint-icon {
+    font-style: normal;
+    color: rgba(154, 143, 184, 0.95);
   }
 </style>

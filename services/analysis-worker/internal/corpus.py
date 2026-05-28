@@ -833,23 +833,29 @@ class RevisionDiffConfig:
 def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
     """Find consecutive CDX-snapshot pairs that have not yet been diffed.
 
-    Joins `aer_gold.article_revisions` against itself on
-    `(article_id, revision_index = prev.revision_index + 1)`. Only
-    returns pairs where:
+    Returns two kinds of undiffed pairs:
 
-      * both rows are `cdx_snapshot` (republication-trigger pseudo-rows
-        have no IA archive page to fetch);
-      * both rows carry a non-empty `archive_url` (122d.0 rows written
-        before migration 000024 had an empty default, gracefully skip);
-      * the `curr` row has not yet been diffed (empty `diff_paragraphs`).
+      1. **Mid-chain pairs** (revision_index > 0): both `curr` and
+         `prev` are real Wayback snapshots. `prev_archive_url` is
+         non-empty. `compute_diff` runs over the two Wayback HTMLs.
 
-    The LIMIT bounds the per-tick workload — successive ticks chip
-    away at the backlog until it drains. ReplacingMergeTree collapses
-    re-runs cleanly so an interrupted tick simply retries.
+      2. **Chain-head pairs** (revision_index = 0, BUG-11): the
+         `curr` row is the oldest Wayback snapshot for the article;
+         the "previous" side of the diff is the **current Silver
+         body** (the article as crawled now). This answers
+         "what has the publisher changed since the last IA capture",
+         which is the most direct silent-edit question and makes
+         every article with ≥1 Wayback snapshot diffable — including
+         the previously-disabled `chainLength=1` case.
+
+    Both kinds return one row per pair with a `kind` field so the
+    sweep loop dispatches correctly. The LIMIT bounds the per-tick
+    workload; ReplacingMergeTree collapses re-runs cleanly.
     """
     client = ch_pool.getconn()
     try:
-        result = client.query(
+        # Mid-chain pairs (existing 122d.1 behaviour).
+        mid_result = client.query(
             """
             SELECT
                 curr.article_id            AS article_id,
@@ -864,8 +870,8 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                 curr.ingestion_version     AS ingestion_version,
                 curr.archive_url           AS curr_archive_url,
                 prev.archive_url           AS prev_archive_url
-            FROM aer_gold.article_revisions FINAL AS curr
-            INNER JOIN aer_gold.article_revisions FINAL AS prev
+            FROM aer_gold.article_revisions AS curr FINAL
+            INNER JOIN aer_gold.article_revisions AS prev FINAL
                 ON prev.article_id     = curr.article_id
                AND prev.revision_index = curr.revision_index - 1
             WHERE curr.revision_index > 0
@@ -879,8 +885,9 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
             """,
             parameters={"limit": int(limit)},
         )
-        return [
+        pairs: list[dict] = [
             {
+                "kind": "mid_chain",
                 "article_id": row[0],
                 "source": row[1],
                 "discourse_function": row[2],
@@ -894,26 +901,149 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                 "curr_archive_url": row[10],
                 "prev_archive_url": row[11],
             }
-            for row in result.result_rows
+            for row in mid_result.result_rows
         ]
+
+        remaining = max(0, int(limit) - len(pairs))
+        if remaining <= 0:
+            return pairs
+
+        # Chain-head pairs (BUG-11 — Silver-now vs Wayback[0]).
+        head_result = client.query(
+            """
+            SELECT
+                article_id, source, discourse_function, snapshot_at,
+                content_hash, prev_content_hash, revision_index,
+                time_since_prev_hours, revision_trigger,
+                ingestion_version, archive_url
+            FROM aer_gold.article_revisions FINAL
+            WHERE revision_index = 0
+              AND revision_trigger = 'cdx_snapshot'
+              AND length(diff_paragraphs) = 0
+              AND archive_url != ''
+            ORDER BY snapshot_at DESC
+            LIMIT %(limit)s
+            """,
+            parameters={"limit": int(remaining)},
+        )
+        for row in head_result.result_rows:
+            pairs.append(
+                {
+                    "kind": "chain_head",
+                    "article_id": row[0],
+                    "source": row[1],
+                    "discourse_function": row[2],
+                    "snapshot_at": row[3],
+                    "content_hash": row[4],
+                    "prev_content_hash": row[5],
+                    "revision_index": row[6],
+                    "time_since_prev_hours": row[7],
+                    "revision_trigger": row[8],
+                    "ingestion_version": row[9],
+                    "curr_archive_url": row[10],
+                    # No prev_archive_url for chain-head — the
+                    # "before" side is the current Silver body,
+                    # fetched separately at sweep time.
+                    "prev_archive_url": "",
+                }
+            )
+        return pairs
     finally:
         ch_pool.putconn(client)
 
 
-def run_revision_diff_sweep(ch_pool, snapshot_fetcher, max_pairs: int) -> int:
+def fetch_silver_body_for_article(ch_pool, minio_client, bucket: str, article_id: str) -> str:
+    """Fetch the current Silver cleaned-text body for one article.
+
+    BUG-11 helper — backs the chain-head diff (current Silver-now vs
+    Wayback[0]) so articles with `chainLength=1` become diffable.
+    Returns the empty string when:
+
+      * the article has no `aer_silver.documents` row (was archived-
+        only past the analytical window, or never harmonised);
+      * the MinIO Silver envelope cannot be retrieved;
+      * the envelope's `cleaned_text` is empty.
+
+    The sweep loop treats an empty result as "skip this article on
+    this tick" and continues.
+    """
+    import json
+
+    client = ch_pool.getconn()
+    try:
+        result = client.query(
+            """
+            SELECT bronze_object_key
+            FROM aer_silver.documents FINAL
+            WHERE article_id = %(article_id)s
+              AND bronze_object_key != ''
+            ORDER BY ingestion_version DESC
+            LIMIT 1
+            """,
+            parameters={"article_id": article_id},
+        )
+        rows = list(result.result_rows)
+    finally:
+        ch_pool.putconn(client)
+    if not rows:
+        return ""
+    object_key = rows[0][0]
+    if not object_key:
+        return ""
+    try:
+        response = minio_client.get_object(bucket, object_key)
+        try:
+            envelope = json.loads(response.read().decode("utf-8"))
+        finally:
+            response.close()
+            response.release_conn()
+    except Exception as exc:
+        logger.info(
+            "revision_diff.silver_fetch_failed",
+            article_id=article_id,
+            object_key=object_key,
+            error=str(exc),
+        )
+        return ""
+    return (envelope.get("core") or {}).get("cleaned_text", "") or ""
+
+
+def _silver_text_to_html(cleaned_text: str) -> str:
+    """Wrap Silver cleaned-text as a minimal HTML doc so the
+    `compute_diff` extractors (which expect HTML) treat it uniformly.
+
+    The Silver `cleaned_text` is plain text with `\\n\\n` paragraph
+    breaks (trafilatura's `output_format='txt'`). To diff it against
+    a Wayback HTML response without writing two different extraction
+    paths, we wrap it as `<html><body>` with paragraphs. The
+    headline-extractor returns nothing for this wrapper (no
+    `<title>`), which is correct — we have no canonical title for
+    "current Silver" so `headline_changed` stays false for
+    chain-head pairs even if the title actually drifted.
+    """
+    paragraphs = cleaned_text.split("\n\n")
+    body = "".join(f"<p>{p.strip()}</p>" for p in paragraphs if p.strip())
+    return f"<!DOCTYPE html><html><body>{body}</body></html>"
+
+
+def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str, max_pairs: int) -> int:
     """One revision-diff sweep tick. Returns rows written.
 
-    Pulls up to ``max_pairs`` undiffed pairs from Gold, fetches both
-    snapshot HTMLs (rate-limited via the shared snapshot fetcher),
-    computes the paragraph diff + headline-change signal, and re-
-    inserts the ``curr`` row with the diff columns filled in and a
-    fresh ingestion_version so ReplacingMergeTree collapses to the
-    diffed version on next merge.
+    Handles two pair kinds:
+
+    * **mid_chain** (revision_index > 0): fetches BOTH `prev` and
+      `curr` Wayback HTMLs; diff is paragraph-aligned between them.
+
+    * **chain_head** (revision_index = 0, BUG-11): fetches `curr`
+      Wayback HTML AND the current Silver body for the same article;
+      diff is "current Silver-now → Wayback[0]". Makes every article
+      with ≥ 1 Wayback snapshot diffable, not only chainLength ≥ 2.
 
     Fail-silent per pair: any single pair that fails (snapshot fetch
-    error, trafilatura empty result) is logged and skipped; the sweep
-    continues with the next pair. The next tick re-attempts skipped
-    pairs (their `diff_paragraphs` is still empty).
+    error, trafilatura empty result, Silver miss) is logged and
+    skipped; the sweep continues with the next pair. Empty diffs are
+    written with the SENTINEL_IDENTICAL_OP marker (BUG-B) so the
+    next sweep does not re-process them.
     """
     # Imported here rather than at module top so the corpus module
     # boots without the wayback dependency (legacy compatibility for
@@ -927,17 +1057,42 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, max_pairs: int) -> int:
 
     rows_to_write: list[list[object]] = []
     for pair in pairs:
-        prev_result = snapshot_fetcher.fetch(pair["prev_archive_url"])
-        if prev_result.status != FETCH_OK:
-            continue
+        # Fetch the `curr` snapshot — required in both kinds.
         curr_result = snapshot_fetcher.fetch(pair["curr_archive_url"])
         if curr_result.status != FETCH_OK:
             continue
-        diff = compute_diff(prev_result.html, curr_result.html)
-        # Bump the ingestion_version to the current monotonic ns so
-        # ReplacingMergeTree collapses to this row on the next merge.
-        # No worker contention possible here — the diff sweep is the
-        # only writer that uses `time.time_ns()`-scale versions.
+
+        # Resolve the `prev` content — Wayback HTML for mid-chain,
+        # Silver body for chain-head.
+        if pair["kind"] == "mid_chain":
+            prev_result = snapshot_fetcher.fetch(pair["prev_archive_url"])
+            if prev_result.status != FETCH_OK:
+                continue
+            prev_html = prev_result.html
+        elif pair["kind"] == "chain_head":
+            silver_text = fetch_silver_body_for_article(
+                ch_pool, minio_client, bucket, pair["article_id"]
+            )
+            if not silver_text:
+                # Article has no Silver body (archived-only past the
+                # analytical window, MinIO miss, etc.). Skip this
+                # tick; next tick re-attempts. We do NOT write the
+                # sentinel here — the row is genuinely undiffed, not
+                # diffed-but-empty.
+                continue
+            prev_html = _silver_text_to_html(silver_text)
+        else:
+            continue
+
+        # Diff direction:
+        #   chain-head: prev = Silver-now, curr = Wayback[0]
+        #   so the diff says "what was changed FROM the current
+        #   Silver TO the older archive" — semantically equivalent
+        #   to "what has the publisher changed since archive[0]"
+        #   read in reverse. The L5 frontend labels the pair as
+        #   "current → archived" for clarity.
+        diff = compute_diff(prev_html, curr_result.html)
+
         new_version = max(int(pair["ingestion_version"]) + 1, time.time_ns())
         rows_to_write.append(
             [
@@ -973,10 +1128,17 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, max_pairs: int) -> int:
 async def revision_diff_extraction_loop(
     ch_pool,
     snapshot_fetcher,
+    minio_client,
+    bucket: str,
     config: RevisionDiffConfig,
     stop_event: asyncio.Event,
 ) -> None:
     """Background task: every ``interval_seconds`` invoke a diff sweep.
+
+    The minio client + bucket are forwarded to the sweep so the
+    chain-head pair (BUG-11, revision_index=0) can pull the current
+    Silver body for diffing against Wayback[0]. Mid-chain pairs
+    ignore them.
 
     Cleanly stops on ``stop_event``. Errors at the sweep level are
     contained and logged — the fail-silent posture of the Phase-122d
@@ -1007,6 +1169,8 @@ async def revision_diff_extraction_loop(
                 run_revision_diff_sweep,
                 ch_pool,
                 snapshot_fetcher,
+                minio_client,
+                bucket,
                 config.max_pairs_per_tick,
             )
             logger.info("revision_diff.sweep.complete", rows_written=rows_written)
