@@ -22,6 +22,14 @@
   } from '$lib/api/queries';
   import { urlState } from '$lib/state/url.svelte';
   import type { Resolution, Normalization } from '$lib/state/url-internals';
+  import {
+    fmtValue,
+    fmtTimestamp,
+    HIDDEN_READOUT,
+    type ReadoutRow,
+    type ReadoutState
+  } from '$lib/viewmodes/cell-readout';
+  import CellReadout from '$lib/components/viewmodes/CellReadout.svelte';
 
   interface Props {
     sourceNames: readonly string[];
@@ -137,6 +145,50 @@
     return out as unknown as (number | (number | null)[])[];
   }
 
+  // Phase 132 — exact-value hover readout via uPlot's native cursor. The
+  // chart is recreated on series-shape change; this mutable ref keeps the
+  // cursor hook reading the live series names/colours regardless.
+  let readout = $state<ReadoutState>(HIDDEN_READOUT);
+  const meta = { series: [] as { name: string; colour: string }[] };
+  $effect(() => {
+    meta.series = seriesData.map((s) => ({ name: s.name, colour: s.colour }));
+  });
+
+  interface UPlotCursorView {
+    cursor: { idx: number | null; left: number; top: number };
+    data: (number | null)[][];
+    over: HTMLElement;
+  }
+  function onCursor(u: UPlotCursorView): void {
+    const idx = u.cursor.idx;
+    if (idx == null || !u.data?.[0]) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
+    const rows: ReadoutRow[] = [];
+    for (let i = 0; i < meta.series.length; i++) {
+      const v = u.data[i + 1]?.[idx];
+      if (v == null) continue;
+      rows.push({
+        label: meta.series[i]!.name,
+        value: fmtValue(v),
+        swatch: meta.series[i]!.colour
+      });
+    }
+    if (rows.length === 0) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
+    const rect = u.over.getBoundingClientRect();
+    readout = {
+      visible: true,
+      x: rect.left + u.cursor.left,
+      y: rect.top + u.cursor.top,
+      title: fmtTimestamp(u.data[0][idx] as number),
+      rows
+    };
+  }
+
   function chartOpts(width: number) {
     return {
       width,
@@ -163,7 +215,8 @@
         }))
       ],
       legend: { show: false },
-      cursor: { drag: { x: true, y: false } }
+      cursor: { drag: { x: true, y: false } },
+      hooks: { setCursor: [(u: unknown) => onCursor(u as UPlotCursorView)] }
     };
   }
 
@@ -251,8 +304,10 @@
       class="chart"
       role="img"
       aria-label="{metricName} overlay across {sourceNames.length} sources"
+      onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
   {/if}
+  <CellReadout {readout} />
 </div>
 
 <style>

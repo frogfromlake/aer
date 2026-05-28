@@ -22,7 +22,14 @@
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import {
+    fmtValue,
+    markIndexFromEvent,
+    HIDDEN_READOUT,
+    type ReadoutState
+  } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
+  import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
 
   let {
@@ -180,6 +187,31 @@
     return Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(3);
   }
 
+  // Phase 132 — exact-value hover readout. The histogram's only <rect>
+  // marks are the bars (the median/quartile rules are <line>s), and
+  // `Plot.rectY` renders one rect per bin in input order, so the
+  // DOM-order index maps directly onto `activeDist.bins`.
+  let readout = $state<ReadoutState>(HIDDEN_READOUT);
+  function onPlotMove(ev: MouseEvent): void {
+    const bins = activeDist?.bins;
+    const idx = markIndexFromEvent(ev.target, 'rect');
+    if (idx === null || !bins || !bins[idx]) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
+    const b = bins[idx];
+    readout = {
+      visible: true,
+      x: ev.clientX,
+      y: ev.clientY,
+      title: exportMetricName,
+      rows: [
+        { label: 'range', value: `${fmtValue(b.lower)} – ${fmtValue(b.upper)}` },
+        { label: 'count', value: fmtValue(b.count) }
+      ]
+    };
+  }
+
   // Phase 131 — export + how-to-read.
   const exportRows = $derived<ExportRow[]>(
     (activeDist?.bins ?? []).map((b) => ({
@@ -260,7 +292,15 @@
         <strong>{note.headline}</strong> — {note.body}
       </MethodologyBanner>
     {/if}
-    <div class="plot-host" bind:this={host} role="img" aria-label="Histogram of {metricName}"></div>
+    <div
+      class="plot-host"
+      bind:this={host}
+      role="img"
+      aria-label="Histogram of {metricName}"
+      onmousemove={onPlotMove}
+      onmouseleave={() => (readout = HIDDEN_READOUT)}
+    ></div>
+    <CellReadout {readout} />
     <dl class="summary" aria-label="Quantile summary">
       <div>
         <dt>n</dt>

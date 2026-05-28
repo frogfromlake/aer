@@ -348,7 +348,12 @@
             `language: ${d.language}`,
             `articles: ${d.articleCount}`,
             `topic_id: ${d.topicId}${d.isOutlier ? ' (outlier)' : ''}`
-          ].join('\n')
+          ].join('\n'),
+        // Phase 132 — exact-value hover readout. Stacked + ordered (+ optional
+        // facet) marks reorder the DOM, so Plot's data-bound `tip` is the
+        // correct readout here (the index-mapped CellReadout is for marks in
+        // input order). No click handler to conflict with.
+        tip: true
       };
 
       const stackedMark = useStaticBars

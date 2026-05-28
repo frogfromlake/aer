@@ -200,7 +200,13 @@
                 d.isOutlier ? 'BERTopic outlier — no coherent cluster.' : null
               ]
                 .filter((s): s is string => s !== null)
-                .join('\n')
+                .join('\n'),
+            // Phase 132 — exact-value hover readout. This cell sorts +
+            // facets its bars, so the DOM order does not match input order;
+            // the shared index-mapped CellReadout would mislabel. Plot's own
+            // data-bound `tip` is correct here and safe (no click handler to
+            // conflict with).
+            tip: true
           }),
           Plot.text(keyed, {
             x: 'articleCount',

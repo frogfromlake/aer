@@ -17,7 +17,14 @@
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportRow, ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import {
+    fmtValue,
+    HIDDEN_READOUT,
+    type ReadoutRow,
+    type ReadoutState
+  } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
+  import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
 
   let {
@@ -102,6 +109,9 @@
     source: string | SimNode;
     target: string | SimNode;
     weight: number;
+    /** Co-occurrence article support (Phase 132 — surfaced in the edge
+     *  hover readout; 0 when the BFF did not return it). */
+    articleCount: number;
     /** Source names this edge appears in (Phase 131a — copied from
      *  `edge.presence`). Empty array when the BFF did not return per-
      *  edge presence (single-source scope). */
@@ -139,6 +149,7 @@
       source: e.a,
       target: e.b,
       weight: e.weight,
+      articleCount: e.articleCount ?? 0,
       presence: e.presence ?? []
     }));
     (async () => {
@@ -260,13 +271,18 @@
     if (e.button !== 0 || !svgEl) return;
     e.stopPropagation();
     panning = true;
+    readout = HIDDEN_READOUT;
     const r = svgEl.getBoundingClientRect();
     panOrigin = { cx: e.clientX, cy: e.clientY, tx, ty, rw: r.width, rh: r.height };
     (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
   }
 
   function onBgPointerMove(e: PointerEvent) {
-    if (!panning) return;
+    // Phase 132 — moving over empty background dismisses the hover readout.
+    if (!panning) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
     tx = panOrigin.tx + ((e.clientX - panOrigin.cx) / panOrigin.rw) * WIDTH;
     ty = panOrigin.ty + ((e.clientY - panOrigin.cy) / panOrigin.rh) * HEIGHT;
   }
@@ -285,6 +301,46 @@
   }
   let selectedEntity = $state<SelectedEntity | null>(null);
 
+  // Phase 132 — exact-value hover readout for nodes AND edges. Nodes had a
+  // native <title> (kept for accessibility); edges had no readout at all.
+  // The box is suppressed during pan / node-drag so it never competes with
+  // those gestures.
+  let readout = $state<ReadoutState>(HIDDEN_READOUT);
+  function showNodeReadout(e: PointerEvent, n: SimNode): void {
+    const rows: ReadoutRow[] = [
+      { label: 'weight', value: fmtValue(n.totalCount) },
+      { label: 'degree', value: fmtValue(n.degree) }
+    ];
+    if (n.presenceCount > 0) {
+      rows.push({ label: 'in sources', value: fmtValue(n.presenceCount) });
+    }
+    readout = {
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      title: `${n.id} · ${n.label}`,
+      rows,
+      hint: 'Click to see articles'
+    };
+  }
+  function onEdgeHover(e: PointerEvent, edge: SimEdge): void {
+    if (panning || draggingNode) return;
+    const rows: ReadoutRow[] = [{ label: 'weight', value: fmtValue(edge.weight) }];
+    if (edge.articleCount > 0) {
+      rows.push({ label: 'articles', value: fmtValue(edge.articleCount) });
+    }
+    if (isMergedScope && edge.presence.length > 0) {
+      rows.push({ label: 'sources', value: edge.presence.join(', ') });
+    }
+    readout = {
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      title: `${nodeId(edge.source)} — ${nodeId(edge.target)}`,
+      rows
+    };
+  }
+
   // Phase 118 / 121b: external Wikidata + Wikipedia links for entity nodes
   // whose Wikidata QID was resolved by the Phase-118 alias index. Helpers
   // live in cooccurrence-network-internals.ts so vitest can pin the URL
@@ -300,6 +356,7 @@
     e.stopPropagation(); // don't trigger pan
     draggingNode = n;
     dragMoved = false;
+    readout = HIDDEN_READOUT;
     dragDownClient = { x: e.clientX, y: e.clientY };
     n.fx = n.x ?? 0;
     n.fy = n.y ?? 0;
@@ -307,15 +364,21 @@
     (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
   }
 
-  function onNodePointerMove(e: PointerEvent) {
-    if (!draggingNode) return;
-    const dx = e.clientX - dragDownClient.x;
-    const dy = e.clientY - dragDownClient.y;
-    if (dx * dx + dy * dy > 25) dragMoved = true; // >5px = real drag
-    const { x: sx, y: sy } = clientToSvg(e.clientX, e.clientY);
-    const { x: simX, y: simY } = svgToSim(sx, sy);
-    draggingNode.fx = simX;
-    draggingNode.fy = simY;
+  function onNodePointerMove(e: PointerEvent, n: SimNode) {
+    // Dragging: update the captured node's fixed position (Phase 132 — the
+    // hover readout is suppressed while a drag is in flight).
+    if (draggingNode) {
+      const dx = e.clientX - dragDownClient.x;
+      const dy = e.clientY - dragDownClient.y;
+      if (dx * dx + dy * dy > 25) dragMoved = true; // >5px = real drag
+      const { x: sx, y: sy } = clientToSvg(e.clientX, e.clientY);
+      const { x: simX, y: simY } = svgToSim(sx, sy);
+      draggingNode.fx = simX;
+      draggingNode.fy = simY;
+      return;
+    }
+    if (panning) return;
+    showNodeReadout(e, n);
   }
 
   function onNodePointerUp(e: PointerEvent, n: SimNode) {
@@ -596,6 +659,7 @@
       <g transform="translate({tx},{ty}) scale({scale})">
         <g class="edges">
           {#each edges as e (edgeKey(e))}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <line
               x1={nodeX(e.source)}
               y1={nodeY(e.source)}
@@ -603,6 +667,8 @@
               y2={nodeY(e.target)}
               stroke={edgeStroke(e)}
               stroke-width={0.4 + 2.4 * (e.weight / maxEdgeWeight)}
+              onpointermove={(ev) => onEdgeHover(ev, e)}
+              onpointerleave={() => (readout = HIDDEN_READOUT)}
             />
           {/each}
         </g>
@@ -613,9 +679,10 @@
               transform="translate({n.x ?? 0},{n.y ?? 0})"
               class="node"
               onpointerdown={(e) => onNodePointerDown(e, n)}
-              onpointermove={onNodePointerMove}
+              onpointermove={(e) => onNodePointerMove(e, n)}
               onpointerup={(e) => onNodePointerUp(e, n)}
               onpointercancel={(e) => onNodePointerUp(e, n)}
+              onpointerleave={() => (readout = HIDDEN_READOUT)}
             >
               <circle
                 r={n.radius}
@@ -624,13 +691,6 @@
                 stroke={nodeStrokeColor(n, selectedEntity?.text === n.id)}
                 stroke-width={nodeStrokeWidth(n, selectedEntity?.text === n.id)}
               />
-              <title
-                >{n.id} · {n.label} — weight {n.totalCount}, {n.degree} neighbour{n.degree === 1
-                  ? ''
-                  : 's'}{n.presenceCount > 0
-                  ? `, in ${n.presenceCount} source${n.presenceCount === 1 ? '' : 's'}`
-                  : ''} · click to see articles</title
-              >
               <text
                 x={n.radius + 3}
                 y={3}
@@ -754,6 +814,7 @@
       </header>
     </div>
   {/if}
+  <CellReadout {readout} />
 </section>
 
 <!-- Phase 122d.1 refactor — the article list for a selected entity

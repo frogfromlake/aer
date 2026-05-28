@@ -19,7 +19,15 @@
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { type ExportPayload, type ExportRow } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import {
+    fmtValue,
+    fmtTimestamp,
+    markIndexFromEvent,
+    HIDDEN_READOUT,
+    type ReadoutState
+  } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
+  import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: ViewModeCellProps = $props();
@@ -160,6 +168,33 @@
     if (idx >= 0 && points[idx]) openPointDrilldown(idx);
   }
 
+  // Phase 132 — exact-value hover readout, sharing the host div with the
+  // delegated click above. `Plot.dot` renders one <circle> per `points`
+  // row in input order (the colour legend swatch lives in a separate
+  // <svg> inside the returned <figure>, so the hovered circle's
+  // `ownerSVGElement` scopes the lookup to the real data dots). No Plot
+  // `tip` is enabled here — the click path stays intact.
+  let readout = $state<ReadoutState>(HIDDEN_READOUT);
+  function onHostMove(ev: MouseEvent): void {
+    const idx = markIndexFromEvent(ev.target, 'circle');
+    if (idx === null || !points[idx]) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
+    const pt = points[idx];
+    readout = {
+      visible: true,
+      x: ev.clientX,
+      y: ev.clientY,
+      title: pt.source,
+      rows: [
+        { label: 'bucket', value: fmtTimestamp(pt.bucket.getTime() / 1000) },
+        { label: 'revisions', value: fmtValue(pt.revisions) }
+      ],
+      hint: 'Click to see articles in this bucket'
+    };
+  }
+
   onDestroy(() => {
     if (plotEl) plotEl.remove();
     plotEl = null;
@@ -229,7 +264,10 @@
       role="img"
       aria-label="Revisions over time per source. Click a point to view articles in that bucket."
       onclick={onHostClick}
+      onmousemove={onHostMove}
+      onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
+    <CellReadout {readout} />
     <HowToRead presentation="revision_timeline" facts={{}} />
   {/if}
 </section>

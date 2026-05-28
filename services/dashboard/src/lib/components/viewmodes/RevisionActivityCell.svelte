@@ -17,7 +17,14 @@
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { type ExportPayload, type ExportRow } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import {
+    fmtValue,
+    markIndexFromEvent,
+    HIDDEN_READOUT,
+    type ReadoutState
+  } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
+  import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
 
   let { ctx, scope, scopeId, windowStart, windowEnd }: ViewModeCellProps = $props();
@@ -126,6 +133,32 @@
     }
   }
 
+  // Phase 132 — exact-value hover readout, sharing the host div with the
+  // delegated click above. `barX` + `ruleX` produce exactly one <rect>
+  // per bar in input order, so the DOM index maps onto `entries`. No
+  // Observable Plot `tip` is enabled here — that is what swallowed the
+  // click in Phase 122d.1; this hover path is independent of it.
+  let readout = $state<ReadoutState>(HIDDEN_READOUT);
+  function onHostMove(ev: MouseEvent): void {
+    const idx = markIndexFromEvent(ev.target, 'rect');
+    if (idx === null || !entries[idx]) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
+    const e = entries[idx];
+    readout = {
+      visible: true,
+      x: ev.clientX,
+      y: ev.clientY,
+      title: e.source,
+      rows: [
+        { label: 'revisions', value: fmtValue(e.revisions) },
+        { label: 'articles', value: fmtValue(e.articlesAffected) }
+      ],
+      hint: 'Click to see articles'
+    };
+  }
+
   onDestroy(() => {
     if (plotEl) plotEl.remove();
     plotEl = null;
@@ -194,7 +227,10 @@
       role="img"
       aria-label="Revision counts per source. Click a bar to view its articles."
       onclick={onHostClick}
+      onmousemove={onHostMove}
+      onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
+    <CellReadout {readout} />
     <HowToRead presentation="revision_activity" facts={{}} />
   {/if}
 </section>
