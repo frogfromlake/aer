@@ -63,6 +63,12 @@
 
   let decision: 'pending' | 'engine' | 'fallback' = $state('pending');
   let shiftHeld = $state(false);
+  // Phase 123a — the last-clicked probe drives the engine's shader
+  // highlight + camera flyTo (tier-2 in-place selection). Distinct from
+  // `selectedProbes` (the banner set) and from `?probe=`/`?dossier=` (the
+  // overlay). A plain click sets the selection to just this probe; a
+  // SHIFT-click grows the set. Neither opens the overlay (tier 3 is explicit).
+  let activeProbeId = $state<string | null>(null);
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search);
@@ -117,6 +123,14 @@
       })
     }))
   );
+
+  // Phase 123a — flyTo target for the active probe (its first emission point).
+  const activeFlyTo = $derived.by<{ latitude: number; longitude: number } | null>(() => {
+    if (!activeProbeId) return null;
+    const p = probeDtos.find((d) => d.probeId === activeProbeId);
+    const ep = p?.emissionPoints[0];
+    return ep ? { latitude: ep.latitude, longitude: ep.longitude } : null;
+  });
 
   // --- Time window (URL-backed) ---------------------------------------
   const url = $derived(urlState());
@@ -187,22 +201,30 @@
   }
 
   function onProbeSelected(sel: ProbeSelection) {
+    // Phase 123a — pointer-click is in-place selection (tier 2): it
+    // highlights the probe + flies the camera to it + shows the banner.
+    // It NEVER opens the overlay (tier 3 is explicit, via the banner CTA
+    // or the SideRail Dossier button).
+    activeProbeId = sel.probeId;
     if (shiftHeld) {
-      // Phase 122k — SHIFT-click toggles probe membership in `selectedProbes`
-      // (the URL-state shopping-cart consumed by Dossier filter and the
-      // Workbench ScopeEditor seed). No navigation; the Atmos Selection-Bar
-      // surfaces the choice to the user.
+      // SHIFT-click grows the selection set (the banner shows 1…N).
       const current = url.selectedProbes;
       const next = current.includes(sel.probeId)
         ? current.filter((id) => id !== sel.probeId)
         : [...current, sel.probeId];
       setUrl({ selectedProbes: next });
-      return;
+    } else {
+      // Plain click selects just this probe, replacing any prior set.
+      setUrl({ selectedProbes: [sel.probeId] });
     }
-    // Phase 123a — open the Dossier mini-overlay in place (no navigation).
-    // The Dossier is a global overlay now, not a route. (Slice 3 refines
-    // plain-click further to in-place select + banner.)
-    setUrl({ probe: sel.probeId });
+  }
+
+  // Phase 123a — keyboard activation (sr-only probe list). Pointer-click
+  // shows the in-place banner; a keyboard user benefits from direct content
+  // access, so Enter opens the Dossier mini-overlay for that probe.
+  function onProbeActivate(probeId: string) {
+    activeProbeId = probeId;
+    setUrl({ probe: probeId });
   }
 
   function onProbeHovered(sel: ProbeSelection | null) {
@@ -290,9 +312,9 @@
       {onProbeHovered}
       {onSatelliteSelected}
       {onSatelliteHovered}
-      selection={null}
+      selection={activeProbeId ? { probeId: activeProbeId } : null}
       hover={hoveredProbe}
-      flyToOnSelection={null}
+      flyToOnSelection={activeFlyTo}
     />
 
     {#if hoveredProbe}
@@ -307,16 +329,12 @@
         <span class="tooltip-headline">{hoveredProbeDto?.probeId ?? hoveredProbe.probeId}</span>
         <span class="tooltip-meta">{(hoveredProbeDto?.language ?? '').toUpperCase()}</span>
         {#if inCompose}
-          <span class="tooltip-compose-badge">✓ in composition set</span>
-          <span class="tooltip-affordance">Shift+click to remove · click to open dossier</span>
+          <span class="tooltip-compose-badge">✓ in selection</span>
+          <span class="tooltip-affordance">Shift+click to remove · click to focus</span>
         {:else if url.selectedProbes.length > 0}
-          <span class="tooltip-affordance"
-            >Click to open dossier · Shift+click to add to composition</span
-          >
+          <span class="tooltip-affordance">Click to select · Shift+click to add</span>
         {:else}
-          <span class="tooltip-affordance"
-            >Click to open the Probe Dossier · Shift+click to compose</span
-          >
+          <span class="tooltip-affordance">Click to select · Shift+click to multi-select</span>
         {/if}
       </div>
     {:else if hoveredSatellite}
@@ -328,9 +346,7 @@
       >
         <span class="tooltip-headline">{hoveredSatellite.label}</span>
         <span class="tooltip-meta">source · {hoveredSatellite.sourceName}</span>
-        <span class="tooltip-affordance"
-          >Click to open the Dossier — narrowed to source {hoveredSatellite.sourceName}</span
-        >
+        <span class="tooltip-affordance">Click to open the Dossier for its probe</span>
       </div>
     {/if}
 
@@ -343,7 +359,7 @@
             aria-label="Probe {p.probeId}, {p.language}"
             onfocus={() => onProbeHovered({ probeId: p.probeId })}
             onblur={() => onProbeHovered(null)}
-            onclick={() => onProbeSelected({ probeId: p.probeId })}
+            onclick={() => onProbeActivate(p.probeId)}
           >
             {p.probeId}
           </button>
@@ -352,53 +368,50 @@
     </ul>
 
     {#if url.selectedProbes.length > 0}
-      <!-- Phase 122k Selection-Bar (early skeleton — K3 will refine).
-           Shape: "N probes selected · [View in Dossier] [Open Workbench →] [Clear]" -->
-      <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe selection">
-        <span class="compose-count"
-          >⊗ {url.selectedProbes.length} probe{url.selectedProbes.length === 1 ? '' : 's'} selected</span
-        >
-        <button
-          type="button"
-          class="compose-btn"
-          onclick={() => {
-            // Carry the selection across the navigation. setUrl writes
-            // via history.replaceState; goto('/dossier') would otherwise
-            // strip the query string. Pass selectedProbes explicitly.
-            const sel = url.selectedProbes.map(encodeURIComponent).join(',');
-            const target = sel ? `/dossier?selectedProbes=${sel}` : '/dossier';
-            descend(() => {
-              // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
-              void goto(target);
-            });
-          }}
-        >
-          View in Dossier
-        </button>
-        <button
-          type="button"
-          class="compose-btn"
-          onclick={() => {
-            // Seed the Workbench's pillar state from the current selection
-            // before navigating. The ScopeEditor on the resulting panel
-            // can refine sources / DF-lock; here we just produce a usable
-            // single-panel Aleph Workbench over the unioned probes.
-            const qs = buildFreeComposeUrl({
-              pillar: 'aleph',
-              probeIds: [...url.selectedProbes],
-              sourceIds: []
-            });
-            descend(() => {
-              // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
-              void goto(`/workbench${qs}`);
-            });
-          }}
-        >
-          Open Workbench →
-        </button>
-        <button type="button" class="compose-clear" onclick={() => setUrl({ selectedProbes: [] })}>
-          Clear
-        </button>
+      <!-- Phase 123a — top-center Selection Banner (tier 2). The zone is
+           click-through (pointer-events:none) so the globe stays clickable;
+           only the strip itself is interactive. It NEVER auto-opens the
+           large overlay — "Open Dossier" is an explicit CTA (tier 3). -->
+      <div class="banner-zone">
+        <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe selection">
+          <span class="compose-count"
+            >⊗ {url.selectedProbes.length} probe{url.selectedProbes.length === 1 ? '' : 's'} selected</span
+          >
+          <button type="button" class="compose-btn" onclick={() => setUrl({ dossier: 'open' })}>
+            Open Dossier
+          </button>
+          <button
+            type="button"
+            class="compose-btn"
+            onclick={() => {
+              // Seed the Workbench's pillar state from the current selection
+              // before navigating. The ScopeEditor on the resulting panel can
+              // refine sources / DF-lock; here we just produce a usable
+              // single-panel Aleph Workbench over the unioned probes.
+              const qs = buildFreeComposeUrl({
+                pillar: 'aleph',
+                probeIds: [...url.selectedProbes],
+                sourceIds: []
+              });
+              descend(() => {
+                // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
+                void goto(`/workbench${qs}`);
+              });
+            }}
+          >
+            Open Workbench →
+          </button>
+          <button
+            type="button"
+            class="compose-clear"
+            onclick={() => {
+              activeProbeId = null;
+              setUrl({ selectedProbes: [] });
+            }}
+          >
+            Clear
+          </button>
+        </div>
       </div>
     {/if}
   </div>
@@ -538,11 +551,20 @@
     z-index: 500;
   }
   /* Multi-probe Compose CTA — floats at bottom-right of the globe stage. */
-  .compose-cta {
+  .banner-zone {
     position: absolute;
-    bottom: calc(var(--space-6) + 5rem);
-    right: var(--space-5);
-    z-index: 450;
+    top: var(--space-4);
+    left: 0;
+    right: 0;
+    z-index: 300;
+    display: flex;
+    justify-content: center;
+    /* Click-through zone: the globe stays clickable everywhere except the
+       strip itself (.compose-cta), which re-enables pointer events. */
+    pointer-events: none;
+  }
+  .compose-cta {
+    pointer-events: auto;
     display: flex;
     align-items: center;
     gap: var(--space-2);
