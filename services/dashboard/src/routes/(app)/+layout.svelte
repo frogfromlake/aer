@@ -15,6 +15,7 @@
   import type { Snippet } from 'svelte';
   import { afterNavigate } from '$app/navigation';
   import { SideRail } from '$lib/components/chrome';
+  import DossierOverlay from '$lib/components/dossier/DossierOverlay.svelte';
   import { rehydrateUrlState } from '$lib/state/url.svelte';
 
   interface Props {
@@ -30,3 +31,4 @@
 
 <SideRail />
 {#if children}{@render children()}{/if}
+<DossierOverlay />

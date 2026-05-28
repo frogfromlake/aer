@@ -18,7 +18,6 @@
   // from the header), the scope-summary chip strip (scope lives entirely
   // in the Workbench's ScopeEditor now).
   import { createQuery } from '@tanstack/svelte-query';
-  import { goto } from '$app/navigation';
   import {
     contentQuery,
     probeDossierQuery,
@@ -34,7 +33,6 @@
     FUNCTION_DEFINITIONS,
     type DiscourseFunction
   } from '$lib/discourse-function';
-  import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
   import SourceCard from '$lib/components/lanes/SourceCard.svelte';
   import MetadataCoverageModal from './MetadataCoverageModal.svelte';
 
@@ -148,19 +146,6 @@
     dfExpanded = { ...dfExpanded, [fn]: !dfExpanded[fn] };
   }
 
-  function analyseProbe() {
-    // Phase 122k F3-adjacent — single-probe drill-flow. Bypasses the
-    // selectedProbes shopping-cart and seeds the Workbench's ScopeEditor
-    // with JUST this probe via a pre-built pillar URL.
-    const qs = buildFreeComposeUrl({
-      pillar: 'aleph',
-      probeIds: [probe.probeId],
-      sourceIds: []
-    });
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
-    void goto(`/workbench${qs}`);
-  }
-
   function openMetadataModal() {
     mdcOpen = true;
   }
@@ -196,9 +181,6 @@
     <div class="header-actions">
       <button type="button" class="metadata-btn" onclick={openMetadataModal}>
         Metadata coverage
-      </button>
-      <button type="button" class="analyse-btn" onclick={analyseProbe}>
-        → Analyse in Workbench
       </button>
     </div>
   </header>
@@ -395,8 +377,7 @@
     flex-shrink: 0;
   }
 
-  .metadata-btn,
-  .analyse-btn {
+  .metadata-btn {
     appearance: none;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
@@ -410,16 +391,6 @@
   .metadata-btn:focus-visible {
     color: var(--color-fg);
     border-color: var(--color-border-strong);
-  }
-  .analyse-btn {
-    background: var(--color-accent);
-    color: var(--color-bg);
-    border-color: var(--color-accent);
-    font-weight: 600;
-  }
-  .analyse-btn:hover,
-  .analyse-btn:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
   }
 
   .probe-body {

@@ -199,11 +199,10 @@
       setUrl({ selectedProbes: next });
       return;
     }
-    descend(() => {
-      // Single-click: descend to the Dossier with the picked probe expanded.
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
-      void goto(`/dossier?expand=${encodeURIComponent(sel.probeId)}`);
-    });
+    // Phase 123a — open the Dossier mini-overlay in place (no navigation).
+    // The Dossier is a global overlay now, not a route. (Slice 3 refines
+    // plain-click further to in-place select + banner.)
+    setUrl({ probe: sel.probeId });
   }
 
   function onProbeHovered(sel: ProbeSelection | null) {
@@ -225,10 +224,9 @@
     // probe expanded. The Phase-122h `url.sourceIds` narrowing was retired
     // alongside per-probe Free-Compose; source-level configuration now
     // lives exclusively in the ScopeEditor (K1).
-    descend(() => {
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Dossier route
-      void goto(`/dossier?expand=${encodeURIComponent(sel.probeId)}`);
-    });
+    // Phase 123a — satellite click opens the Dossier mini-overlay for the
+    // parent probe, in place (no navigation).
+    setUrl({ probe: sel.probeId });
   }
 
   function onPointerMove(e: PointerEvent) {

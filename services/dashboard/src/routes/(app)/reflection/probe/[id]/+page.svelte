@@ -183,7 +183,7 @@
 
       <footer class="probe-footer">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/dossier/{probeId}" class="footer-link"> Open Probe Dossier → </a>
+        <a href="/?probe={probeId}" class="footer-link"> Open Probe Dossier → </a>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
         <a href="/reflection" class="footer-link">← Back to Reflection</a>
       </footer>
