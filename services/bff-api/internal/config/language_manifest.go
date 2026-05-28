@@ -28,12 +28,47 @@ type LanguageManifest struct {
 	Languages       map[string]LanguageManifestEntry
 }
 
+// manifestSentimentTier mirrors the per-language sentiment_tier* blocks.
+// Only the fields the BFF surfaces in the Phase-123a capability matrix are
+// declared; yaml.v3 ignores the rest (negation config, features, etc.).
+type manifestSentimentTier struct {
+	MetricName string `yaml:"metric_name"`
+	Lexicon    string `yaml:"lexicon"`
+	Method     string `yaml:"method"`
+}
+
 // LanguageManifestEntry holds the subset of per-language capability data
-// the BFF currently surfaces. Field tags match the YAML keys so the
-// manifest can be unmarshalled directly into this type.
+// the BFF surfaces. Field tags match the YAML keys so the manifest can be
+// unmarshalled directly into this type.
 type LanguageManifestEntry struct {
-	IsoCode     string `yaml:"iso_code"`
-	DisplayName string `yaml:"display_name"`
+	IsoCode               string                `yaml:"iso_code"`
+	DisplayName           string                `yaml:"display_name"`
+	SentimentTier1        manifestSentimentTier `yaml:"sentiment_tier1"`
+	SentimentTier2Default manifestSentimentTier `yaml:"sentiment_tier2_default"`
+	SentimentTier2Refine  manifestSentimentTier `yaml:"sentiment_tier2_refinement"`
+}
+
+// SentimentBackbone returns the cross-language backbone metric for the
+// language (Tier-2 default), falling back to the Tier-1 lexicon label when
+// no Tier-2 model is declared. Empty string ⇒ no sentiment capability.
+func (e LanguageManifestEntry) SentimentBackbone() string {
+	if e.SentimentTier2Default.MetricName != "" {
+		return e.SentimentTier2Default.MetricName
+	}
+	if e.SentimentTier1.Lexicon != "" {
+		return "lexicon:" + e.SentimentTier1.Lexicon
+	}
+	return ""
+}
+
+// SentimentEnrichments returns the optional per-language refinements layered
+// on the backbone (Tier-2.5 news-domain models, etc.).
+func (e LanguageManifestEntry) SentimentEnrichments() []string {
+	out := []string{}
+	if e.SentimentTier2Refine.MetricName != "" {
+		out = append(out, e.SentimentTier2Refine.MetricName)
+	}
+	return out
 }
 
 // LanguageCodes returns the sorted list of language codes declared by the

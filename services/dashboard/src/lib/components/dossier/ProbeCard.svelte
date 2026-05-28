@@ -223,6 +223,38 @@
           </div>
         </dl>
 
+        <!-- Phase 123a — capability matrix. What AĒR CAN compute for this
+             probe (no result claim). Universal/structural — never a
+             cross-probe ranking. -->
+        {#if dossier.capabilities}
+          {@const caps = dossier.capabilities}
+          <section class="capabilities" aria-labelledby="cap-heading-{probe.probeId}">
+            <h3 id="cap-heading-{probe.probeId}" class="section-title">Capabilities</h3>
+            <dl class="meta">
+              <div>
+                <dt>Sentiment backbone</dt>
+                <dd>{caps.sentimentBackbone ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Sentiment enrichments</dt>
+                <dd>
+                  {caps.sentimentEnrichments.length > 0
+                    ? caps.sentimentEnrichments.join(' · ')
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt>Silent-edit observability</dt>
+                <dd>{caps.silentEditObservability ? 'Active' : 'Not active'}</dd>
+              </div>
+              <div>
+                <dt>Per-article discourse function</dt>
+                <dd>{caps.discourseFunctionClassifier}</dd>
+              </div>
+            </dl>
+          </section>
+        {/if}
+
         <!-- Discourse-Function Cards as containers. Each is collapsable;
              the body lists Source-Cards for sources whose primary
              function matches. Uncovered DFs render with an explicit

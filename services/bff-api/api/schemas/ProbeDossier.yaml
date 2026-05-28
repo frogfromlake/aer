@@ -62,6 +62,43 @@ properties:
         items:
           type: string
           enum: [epistemic_authority, power_legitimation, cohesion_identity, subversion_friction]
+  capabilities:
+    type: object
+    description: >
+      Phase 123a — per-probe analytical capability matrix. Describes what
+      AĒR CAN compute for this probe; it asserts no results and is never a
+      cross-probe ranking signal (WP-006 discovery-bias guard). Drives the
+      Dossier capability readout.
+    required:
+      - sentimentEnrichments
+      - silentEditObservability
+      - discourseFunctionClassifier
+    properties:
+      sentimentBackbone:
+        type: string
+        nullable: true
+        description: >
+          The cross-language sentiment backbone metric for the probe's
+          language (from the Language Capability Manifest). Null when the
+          language has no sentiment capability.
+        example: sentiment_score_bert_multilingual
+      sentimentEnrichments:
+        type: array
+        description: Optional per-language sentiment refinements layered on the backbone.
+        items:
+          type: string
+        example: [sentiment_score_bert_de_news]
+      silentEditObservability:
+        type: boolean
+        description: >
+          Whether silent-edit / revision observability (Phase 122d Wayback
+          CDX sidecar) is active for the probe's sources.
+      discourseFunctionClassifier:
+        type: string
+        description: >
+          Per-article discourse-function classifier status. Currently always
+          "deferred / source-level only" (Phase 122a deferred — see ADR-030).
+        example: deferred / source-level only
   sources:
     type: array
     description: One card per source in the probe, ordered by source name.

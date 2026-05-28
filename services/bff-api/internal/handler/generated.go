@@ -1222,6 +1222,21 @@ type Probe struct {
 // ProbeDossier Composite payload backing Surface II's Probe Dossier (Design Brief §4.2.1 in the Iteration 5 rewrite). The dossier answers a serious user's first question — *what is actually in this probe?* — by combining the probe's structural identity with the per-source counts and frequencies needed to drive the source cards on the Dossier landing.
 // The payload is composed server-side rather than fetched as separate resources because the Dossier is the canonical Surface II landing and the client must avoid request waterfalls on first paint.
 type ProbeDossier struct {
+	// Capabilities Phase 123a — per-probe analytical capability matrix. Describes what AĒR CAN compute for this probe; it asserts no results and is never a cross-probe ranking signal (WP-006 discovery-bias guard). Drives the Dossier capability readout.
+	Capabilities *struct {
+		// DiscourseFunctionClassifier Per-article discourse-function classifier status. Currently always "deferred / source-level only" (Phase 122a deferred — see ADR-030).
+		DiscourseFunctionClassifier string `json:"discourseFunctionClassifier"`
+
+		// SentimentBackbone The cross-language sentiment backbone metric for the probe's language (from the Language Capability Manifest). Null when the language has no sentiment capability.
+		SentimentBackbone *string `json:"sentimentBackbone,omitempty"`
+
+		// SentimentEnrichments Optional per-language sentiment refinements layered on the backbone.
+		SentimentEnrichments []string `json:"sentimentEnrichments"`
+
+		// SilentEditObservability Whether silent-edit / revision observability (Phase 122d Wayback CDX sidecar) is active for the probe's sources.
+		SilentEditObservability bool `json:"silentEditObservability"`
+	} `json:"capabilities,omitempty"`
+
 	// FunctionCoverage Probe-level WP-001 §5.1 function coverage — how many of the four discourse functions the probe's sources collectively address. A derived property; not a constraint on the probe.
 	FunctionCoverage struct {
 		// Covered Number of distinct primary functions present.

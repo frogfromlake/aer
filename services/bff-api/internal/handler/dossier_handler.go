@@ -142,6 +142,40 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 		resp.FunctionCoverage.Functions = append(resp.FunctionCoverage.Functions, ProbeDossierFunctionCoverageFunctions(f))
 	}
 
+	// Phase 123a — capability matrix. Describes what AĒR can compute for
+	// this probe; asserts no results. Silent-edit observability (Phase 122d
+	// Wayback CDX sidecar) is active when the probe has any web source.
+	// Sentiment backbone/enrichments come from the Language Capability
+	// Manifest, keyed by the probe's language. The per-article discourse-
+	// function classifier is deferred (ADR-030) → source-level only.
+	silentEdit := false
+	for _, r := range rows {
+		if r.Type == "web" {
+			silentEdit = true
+			break
+		}
+	}
+	caps := struct {
+		DiscourseFunctionClassifier string   `json:"discourseFunctionClassifier"`
+		SentimentBackbone           *string  `json:"sentimentBackbone,omitempty"`
+		SentimentEnrichments        []string `json:"sentimentEnrichments"`
+		SilentEditObservability     bool     `json:"silentEditObservability"`
+	}{
+		DiscourseFunctionClassifier: "deferred / source-level only",
+		SentimentEnrichments:        []string{},
+		SilentEditObservability:     silentEdit,
+	}
+	if s.languageManifest != nil {
+		if entry, ok := s.languageManifest.Languages[probe.Language]; ok {
+			if bb := entry.SentimentBackbone(); bb != "" {
+				b := bb
+				caps.SentimentBackbone = &b
+			}
+			caps.SentimentEnrichments = entry.SentimentEnrichments()
+		}
+	}
+	resp.Capabilities = &caps
+
 	return resp, nil
 }
 
@@ -316,11 +350,11 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 		observed := count
 		anchor := "WP-006#section-7"
 		return GetArticleDetail403JSONResponse{
-			Gate:                KAnonymity,
-			Message:             fmt.Sprintf("article aggregation group has %d documents on this date for metric %q; minimum required is %d", count, metricName, threshold),
-			Threshold:           &threshold,
-			Observed:            &observed,
-			WorkingPaperAnchor:  &anchor,
+			Gate:               KAnonymity,
+			Message:            fmt.Sprintf("article aggregation group has %d documents on this date for metric %q; minimum required is %d", count, metricName, threshold),
+			Threshold:          &threshold,
+			Observed:           &observed,
+			WorkingPaperAnchor: &anchor,
 		}, nil
 	}
 
@@ -412,4 +446,3 @@ func decodeCursor(token string) (int, error) {
 	}
 	return n, nil
 }
-
