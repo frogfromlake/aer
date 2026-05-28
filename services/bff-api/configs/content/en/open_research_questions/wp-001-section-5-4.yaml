@@ -3,7 +3,7 @@ entityType: open_research_question
 locale: en
 registers:
   semantic:
-    short: "Source-level vs. article-level discourse function — are they independent observations or two readings of the same act? Per-article classification (Phase 122a) is deferred behind source-level/taxonomy validation; when re-opened it privileges temporal drift within a source over a static snapshot."
+    short: "Source- vs. article-level discourse function — independent observations or two readings of the same act? The article level (Phase 122a) is deferred; when re-opened it privileges temporal drift within a source over a static snapshot."
     long: >
       Every article in AĒR carries two discourse-function classifications: the source-level
       tag (the institutional role of the publishing source — Tagesschau as
@@ -23,7 +23,7 @@ registers:
       interdisciplinary investment in Option A's pair-interpretation, or are they trivial
       enough to remain descriptive observations? See WP-001 §5.4.
   methodological:
-    short: "Open: pair-reading validity, classifier accuracy on subtle pragmatic categories, source-context's role in interpretation. Per-article (Phase 122a) is deferred behind source-level/taxonomy validation; validation is per-language, not per-probe. Hooks: discourse_function (source) + discourse_function_article columns; Phase 122a.2 gates on 122a.1 evidence."
+    short: "Open: pair-reading validity, classifier accuracy on subtle categories, source-context's role. Per-article (Phase 122a) is deferred; validation is per-language, not per-probe. Hooks: discourse_function (+ _article) columns; 122a.2 gates on 122a.1 evidence."
     long: >
       The methodological question §5.4 records has three concrete sub-questions: (1) Pair
       validity — for the 6–8 non-trivial source × article pairs (EA × CI, EA × SF, PL × SF,

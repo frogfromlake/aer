@@ -93,6 +93,12 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		}
 	}
 
+	// Phase 102 / mirrors production migration 000010: ReplacingMergeTree,
+	// not Memory. The articles-in-scope subquery in cooccurrence_query reads
+	// `FROM aer_gold.entities FINAL` to collapse re-sweep duplicates, which
+	// the Memory engine rejects ("Storage Memory doesn't support FINAL") on
+	// ClickHouse 26.x. `article_id` is Nullable and leads the ORDER BY (as in
+	// production), so allow_nullable_key is required.
 	err = store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.entities (
 			timestamp DateTime,
@@ -102,7 +108,9 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 			entity_label String,
 			start_char UInt32,
 			end_char UInt32
-		) ENGINE = Memory
+		) ENGINE = ReplacingMergeTree()
+		ORDER BY (article_id, entity_label, start_char, end_char)
+		SETTINGS allow_nullable_key = 1
 	`)
 	if err != nil {
 		t.Fatalf("failed to create entities table: %v", err)

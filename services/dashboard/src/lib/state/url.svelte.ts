@@ -1,12 +1,15 @@
 // URL-backed shared state for the Atmosphere (Design Brief §5.5 —
 // "deep-linkable state"). This module is the single write-path for the
-// five URL-governed parameters:
+// URL-governed parameters. The full set is the `UrlState` interface in
+// `url-internals.ts`; the load-bearing ones:
 //
-//   ?from=<ISO>         — start of the current time window
-//   ?to=<ISO>           — end of the current time window
-//   ?probe=<probeId>    — currently-selected probe (opens the side panel)
-//   ?resolution=<r>     — temporal aggregation resolution
-//   ?viewingMode=<m>    — Atmosphere viewing mode
+//   ?from=<ISO> / ?to=<ISO>   — current time window
+//   ?probe=<probeId>          — Dossier mini-overlay, single probe (Phase 123a)
+//   ?dossier=open             — Dossier large search/catalogue overlay (Phase 123a)
+//   ?selectedProbes=a,b,c     — cross-surface probe-selection cart
+//   ?resolution=<r>           — temporal aggregation resolution
+//   ?activePillar= & ?aleph=/?episteme=/?rhizome=  — Workbench pillar state
+//   ?negSpace=1 / ?normalization=<m>               — global overlays
 //
 // Two constraints:
 //   1. Reads must be cheap and reactive (stories and the time scrubber

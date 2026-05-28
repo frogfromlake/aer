@@ -2335,7 +2335,7 @@ many platform classes for a solo-dev project.
 
 ---
 
-## ADR-033: Four-Surface Dashboard Architecture — Atmosphere · Dossier · Workbench · Reflection
+## ADR-033: Three-Surface Dashboard Architecture — Atmosphere [+Dossier overlay] · Workbench · Reflection
 
 **Status:** Accepted
 **Date:** 2026-05-18 (Phase 122k baseline — supersedes prior 122h/122i amendments)
@@ -2343,30 +2343,31 @@ many platform classes for a solo-dev project.
 **Related WPs:** WP-001 (Discourse Function Taxonomy), WP-005 §6 (Pillars as Temporal Stances), WP-006 (Reflexive Architecture).
 **Authority:** The Working Papers define what the pillars *mean*; this ADR defines how the dashboard renders them.
 
+**Phase 123a amendment (2026-05-28):** the dashboard moves from **four** top-level surfaces to **three** — the Dossier is no longer a route/surface but a **global overlay** openable over any surface (`?dossier=open` = large search/catalogue; `?probe=<id>` = mini single-probe). This reconciles ADR-033 with the ADR-020 Phase-122h addendum, which already named a three-surface architecture. Atmosphere plain-click is now **in-place selection** (shader highlight + camera `flyTo` + a top-center Selection Banner), never a route jump; the overlay opens only on explicit action. The `ProbeFilterModal` is retired — its search/selection role merges into the Dossier search/catalogue overlay (universal-attribute facets incl. `country`). A per-probe **capability matrix** and a **time-window picker** (preset chips) live on the overlay. The four-surface prose below is the Phase-122k baseline, retained for history; where it conflicts, this amendment wins.
+
 ---
 
 ### Decision
 
-The dashboard exposes **four top-level surfaces** in the SideRail, each with a distinct purpose. No surface duplicates another's affordances.
+The dashboard exposes **three top-level surfaces** in the SideRail (Atmosphere · Workbench · Reflection), plus the **Dossier as a global overlay** (not a surface). No surface duplicates another's affordances. *(Phase 123a — see amendment above; the per-surface prose below is the Phase-122k baseline.)*
 
 #### Atmosphere (`/`)
 
 3D globe. Primary probe-discovery surface. Three interactions:
 
-* **Single-click on a probe glyph** → navigate to `/dossier?expand=<probeId>`. Probe-of-interest opens in the Dossier.
-* **SHIFT-click on a probe glyph** → toggle membership in `?selectedProbes=…`. Atmosphere stays on screen; a floating Selection-Bar at the bottom shows "N probes selected · [View in Dossier] [Open Workbench →] [Clear]".
+* **Single-click on a probe glyph** (Phase 123a) → in-place selection: shader highlight + camera `flyTo` + a top-center Selection Banner. No route jump; the Dossier overlay opens only via the banner's `[Open Dossier]` CTA or the SideRail Dossier button.
+* **SHIFT-click on a probe glyph** → grows membership in `?selectedProbes=…`. The top-center Selection Banner is a click-through zone (only the strip is interactive, so the globe stays clickable) showing "N probes selected · [Open Dossier] [Open Workbench →] [Clear]".
 * **Globe orientation + Negative-Space overlay** — pre-existing affordances; unchanged by Phase 122k.
 
-#### Dossier (`/dossier`)
+#### Dossier (global overlay — `?dossier=open` / `?probe=<id>`)
 
-The catalogue of probes AĒR observes. **Pure read surface** (Phase 122k retired all scope-building duties — those now live exclusively in the Workbench's ScopeEditor).
+Phase 123a: the Dossier is a **global overlay**, not a route — openable over any surface, fully usable without WebGL2 (`DossierOverlay.svelte`, mounted in the `(app)` layout). Two modes: **large** (`?dossier=open`) is the search/catalogue surface; **mini** (`?probe=<id>`) focuses one probe. The legacy `/dossier` route 308-redirects to the overlay grammar (`?expand=` → `?probe=`).
 
-* Top-banner: identity copy + `[Open Workbench →]` CTA (the only Workbench invitation from this page). The banner reads `url.selectedProbes` and announces "N probes selected — the Workbench will open with the ScopeEditor pre-seeded" when non-empty.
-* `ProbeCard` per probe — collapsable container. Header carries `[→ Analyse in Workbench]` (single-probe drill flow, bypasses the selection set) + `[Metadata coverage]` (opens `MetadataCoverageModal`).
-* Inside each ProbeCard: emic-frame paragraph, structural meta (sources / publication rate / function coverage), **DF-Cards as expandable containers** — each discourse function (Epistemic Authority / Power Legitimation / Cohesion & Identity / Subversion & Friction) is a collapsable card whose body holds the Source-Cards classified under that primary function.
-* `/dossier?expand=<probeId>` deep-links to a specific Probe Card.
-* `/dossier?selectedProbes=a,b,c` filters the catalogue to those probes and auto-expands them.
-* Metadata Coverage is rendered as a focused modal (the matrix is 22 fields × N sources — dense enough to warrant modal focus).
+* **Search/catalogue (large):** full-text search + facets over **universal attributes only** (probe / source / language / country — never capability/metric, per the WP-006 discovery-bias guard). A per-row select checkbox writes `?selectedProbes=` — this replaces the retired `ProbeFilterModal`.
+* `ProbeCard` per probe — collapsable container. Header carries `[Metadata coverage]` (opens `MetadataCoverageModal`). The Phase-122k `[→ Analyse in Workbench]` CTA is **removed**: Workbench access is from the Atmosphere banner / SideRail, not from inside the Dossier.
+* Inside each ProbeCard: emic-frame paragraph, structural meta (sources / publication rate / function coverage), a per-probe **capability matrix** (sentiment backbone + enrichments, silent-edit observability, DF-classifier status = "deferred / source-level only"), and **DF-Cards as expandable containers** grouping Source-Cards by primary function.
+* A **time-window picker** (preset chips Whole dataset / Last 7d / Last 30d / Custom) on the overlay header drives `?from`/`?to` (default whole-dataset).
+* Deep-links round-trip: `?probe=<id>` (mini) and `?dossier=open&selectedProbes=a,b,c` (large). Metadata Coverage is a focused nested modal.
 
 #### Workbench (`/workbench`)
 
@@ -2407,15 +2408,15 @@ Three entry paths into the ScopeEditor:
 
 `?selectedProbes=` is a cross-surface "shopping cart" populated by:
 
-* Atmosphere SHIFT-click
-* `ProbeFilterModal` (opened from the SideRail Probe-Filter affordance; visible on Atmosphere + Dossier only)
+* Atmosphere click — single-click replaces the set with one probe; SHIFT-click grows it.
+* the Dossier search/catalogue overlay's per-row select checkboxes (Phase 123a — replaces the retired `ProbeFilterModal`).
 
 Consumed by:
 
-* Dossier — filters the catalogue + auto-expands selected probes.
+* Dossier overlay — large mode shows the cart as checked rows; the Workbench seed reads it.
 * Workbench — seeds the ScopeEditor's first ScopeGroup on the next open.
 
-One state, two surfaces, three populate-paths. The user picks probes anywhere and the right surface picks them up.
+One state, populated on the Atmosphere and in the Dossier overlay. The user picks probes anywhere and the right surface picks them up.
 
 ---
 
@@ -2432,10 +2433,10 @@ Both surfaces always link into Reflection (`/reflection/wp/wp-XXX?section=Y`) so
 
 ### Chrome
 
-* `SideRail` — four surface anchors (◉ Atmosphere · ❒ Dossier · ⚙ Workbench · ¶ Reflection) + a Probe-Filter affordance (visible on Atmos + Dossier) + Negative-Space toggle. Active pillar surfaces as a sub-item under the Workbench anchor.
+* `SideRail` (Phase 123a) — **three** surface anchors (◉ Atmosphere · ⚙ Workbench · ¶ Reflection) + a **Dossier** button that opens the global overlay (shows the live selection count) + Negative-Space toggle. Active pillar surfaces as a sub-item under the Workbench anchor.
 * `PillarSwitch` — three tiles in the Workbench header; switches `url.activePillar` and seeds the target pillar from the focused panel when empty.
 * `WorkbenchScopeBar` — focused-Panel chip strip + Window-date inputs (per-Panel windows via `panel.windowStart` / `panel.windowEnd` — see ADR-034).
-* `ProbeFilterModal` — guided probe-selection surface (region-grouped, searchable, Apply / Cancel). Replaces the retired sidebar-embedded ProbePicker.
+* `DossierOverlay` (Phase 123a) — the global Dossier overlay: search/catalogue with universal-attribute facets (incl. `country`) + per-row selection + per-probe capability matrix + time-window picker. Replaces the retired `ProbeFilterModal`.
 
 ---
 
