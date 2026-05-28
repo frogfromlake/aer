@@ -142,6 +142,12 @@ export interface AtmosphereEngine {
    */
   setHover(selection: ProbeSelection | null): void;
   flyTo(target: FlyToTarget): void;
+  /**
+   * True when the camera is currently oriented within `toleranceDeg`
+   * (default 5°) of the given lat/lon. Phase 123a — lets the click handler
+   * choose re-center (flyTo) vs. deselect for an already-selected probe.
+   */
+  isCameraNear(latitude: number, longitude: number, toleranceDeg?: number): boolean;
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void;
   /** Tear down: stop the loop, dispose geometries/materials, release the GL context. */
   dispose(): void;

@@ -338,6 +338,19 @@ class Engine implements AtmosphereEngine {
     };
   }
 
+  isCameraNear(latitude: number, longitude: number, toleranceDeg = 5): boolean {
+    if (!this.camera) return false;
+    // Angular distance between the camera's current view direction and the
+    // target lat/lon direction (the camera always looks at the origin, so its
+    // normalized position is the point it faces). Phase 123a: lets the click
+    // handler choose re-center (flyTo) vs deselect.
+    const target = latLonToCartesian(latitude, longitude, 1).normalize();
+    const cam = this.camera.position.clone().normalize();
+    const dot = Math.min(1, Math.max(-1, cam.dot(target)));
+    const angleDeg = Math.acos(dot) / DEG;
+    return angleDeg <= toleranceDeg;
+  }
+
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void {
     return this.emitter.on(event, handler);
   }

@@ -65,7 +65,11 @@ function seedPillarFromCurrent(
         sourceIds: [...g.sourceIds]
       })
     ),
-    composition: 'merged',
+    // Phase 123a — split is the scientifically-honest default: per-scope
+    // small-multiples instead of pooling probes/sources onto one shared
+    // axis (which would imply a cross-frame commensurability the methodology
+    // refuses for scaled/intensive metrics). Merged stays an explicit opt-in.
+    composition: 'split',
     view: defaultViewModeForPillar(targetPillar),
     metric: sourcePanel.metric,
     layer: sourcePanel.layer

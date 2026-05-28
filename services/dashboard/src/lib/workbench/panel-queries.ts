@@ -348,7 +348,10 @@ function buildPillarUrl(opts: BuildPillarUrlOpts): string {
   };
   const panel: PanelType = {
     scopes: [scopeGroup],
-    composition: 'merged',
+    // Phase 123a — split default, consistent with buildPanelFromScopes and
+    // the pillar-switch seed: small-multiples over a pooled shared axis
+    // (merged is an explicit opt-in, gated to pure-count metrics).
+    composition: 'split',
     // Phase 130 — the default view follows the pillar (Aleph→distribution,
     // Episteme→time_series, Rhizome→cooccurrence_network) so a freshly
     // composed Workbench renders the pillar's identity cell, not a leaked

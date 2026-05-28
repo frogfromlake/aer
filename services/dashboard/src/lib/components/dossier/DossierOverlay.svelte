@@ -10,7 +10,7 @@
   // Hosts the unchanged `ProbeCard`. Pure DOM — fully usable in the
   // no-WebGL2 fallback (independent of the globe engine). Mounted once in
   // the (app) layout so it is available on Atmosphäre, Workbench, Reflexion.
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import {
     probesQuery,
@@ -158,8 +158,13 @@
     }
   });
 
-  onMount(() => window.addEventListener('keydown', onKeydown));
-  onDestroy(() => window.removeEventListener('keydown', onKeydown));
+  // Register on mount and tear down via the returned cleanup — both run
+  // client-only. (A bare `onDestroy` would also run during SSR, where
+  // `window` is undefined, because this overlay is mounted unconditionally.)
+  onMount(() => {
+    window.addEventListener('keydown', onKeydown);
+    return () => window.removeEventListener('keydown', onKeydown);
+  });
 </script>
 
 {#if isOpen}

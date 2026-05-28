@@ -32,6 +32,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { hasWebGL2 } from '@aer/engine-3d/capability';
   import type {
+    AtmosphereEngine,
     ProbeActivity,
     ProbeMarker,
     ProbeSelection,
@@ -69,6 +70,13 @@
   // overlay). A plain click sets the selection to just this probe; a
   // SHIFT-click grows the set. Neither opens the overlay (tier 3 is explicit).
   let activeProbeId = $state<string | null>(null);
+  // Bumped on every select-click so the camera re-centers (flyTo) even when
+  // the same probe is re-clicked from a rotated view (Phase 123a).
+  let flyToNonce = $state(0);
+  // Engine handle (captured via AtmosphereCanvas `onready`) — lets the click
+  // handler ask whether the camera is already on a probe, to choose
+  // re-center vs. deselect.
+  let engineHandle: AtmosphereEngine | null = $state(null);
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search);
@@ -124,8 +132,19 @@
     }))
   );
 
+  // Phase 123a — stable selection object for the engine (memoised: a new
+  // reference only when activeProbeId changes, so the canvas effect does not
+  // re-fire flyTo on unrelated re-renders like pointer-move).
+  const engineSelection = $derived<ProbeSelection | null>(
+    activeProbeId ? { probeId: activeProbeId } : null
+  );
+
   // Phase 123a — flyTo target for the active probe (its first emission point).
+  // Reading `flyToNonce` makes this recompute (fresh object) on every
+  // select-click, so the canvas effect re-fires flyTo to re-center even when
+  // the active probe is unchanged.
   const activeFlyTo = $derived.by<{ latitude: number; longitude: number } | null>(() => {
+    void flyToNonce;
     if (!activeProbeId) return null;
     const p = probeDtos.find((d) => d.probeId === activeProbeId);
     const ep = p?.emissionPoints[0];
@@ -201,21 +220,37 @@
   }
 
   function onProbeSelected(sel: ProbeSelection) {
-    // Phase 123a — pointer-click is in-place selection (tier 2): it
-    // highlights the probe + flies the camera to it + shows the banner.
-    // It NEVER opens the overlay (tier 3 is explicit, via the banner CTA
-    // or the SideRail Dossier button).
-    activeProbeId = sel.probeId;
+    // Phase 123a — pointer-click is in-place selection (tier 2): highlight +
+    // camera flyTo + banner. It NEVER opens the overlay (tier 3 is explicit).
+    const ep = probeDtos.find((d) => d.probeId === sel.probeId)?.emissionPoints[0];
     if (shiftHeld) {
-      // SHIFT-click grows the selection set (the banner shows 1…N).
+      // SHIFT-click grows/toggles the selection set (the banner shows 1…N).
       const current = url.selectedProbes;
-      const next = current.includes(sel.probeId)
-        ? current.filter((id) => id !== sel.probeId)
-        : [...current, sel.probeId];
-      setUrl({ selectedProbes: next });
+      const has = current.includes(sel.probeId);
+      setUrl({
+        selectedProbes: has ? current.filter((id) => id !== sel.probeId) : [...current, sel.probeId]
+      });
+      if (has) {
+        // Removed → drop the highlight if this was the focused probe.
+        if (activeProbeId === sel.probeId) activeProbeId = null;
+      } else {
+        activeProbeId = sel.probeId;
+        flyToNonce++;
+      }
+      return;
+    }
+    // Plain click — camera-aware toggle: re-center if the camera is pointed
+    // elsewhere; deselect only when it is already on this probe.
+    const cameraOnIt = ep
+      ? (engineHandle?.isCameraNear(ep.latitude, ep.longitude) ?? false)
+      : false;
+    if (activeProbeId === sel.probeId && cameraOnIt) {
+      activeProbeId = null;
+      setUrl({ selectedProbes: [] });
     } else {
-      // Plain click selects just this probe, replacing any prior set.
+      activeProbeId = sel.probeId;
       setUrl({ selectedProbes: [sel.probeId] });
+      flyToNonce++;
     }
   }
 
@@ -312,7 +347,8 @@
       {onProbeHovered}
       {onSatelliteSelected}
       {onSatelliteHovered}
-      selection={activeProbeId ? { probeId: activeProbeId } : null}
+      onready={(e) => (engineHandle = e)}
+      selection={engineSelection}
       hover={hoveredProbe}
       flyToOnSelection={activeFlyTo}
     />
@@ -553,7 +589,9 @@
   /* Multi-probe Compose CTA — floats at bottom-right of the globe stage. */
   .banner-zone {
     position: absolute;
-    top: var(--space-4);
+    /* Clear the fixed ScopeBar (44px, z-440) so the banner is not hidden
+       behind it — matches the .absence-banner offset. */
+    top: calc(var(--scope-bar-height) + var(--space-3));
     left: 0;
     right: 0;
     z-index: 300;
