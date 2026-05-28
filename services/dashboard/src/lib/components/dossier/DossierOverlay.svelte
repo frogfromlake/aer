@@ -1,11 +1,10 @@
 <script lang="ts">
   // Phase 123a — Dossier as a global overlay (ADR-033 amendment).
   //
-  // The Dossier is no longer a top-level route. It opens as a global
-  // overlay over ANY surface, driven entirely by URL state so it stays
-  // deep-linkable:
-  //   ?probe=<id>    → mini overlay: one probe, focused + expanded
-  //   ?dossier=open  → large catalogue overlay (search/facets land in Slice 2)
+  // The Dossier is no longer a top-level route. It opens as a single global
+  // search/catalogue overlay over ANY surface, driven by `?dossier=open`
+  // (deep-linkable). Single-probe focus rides on `?selectedProbes=` — the
+  // catalogue auto-expands selected probes; there is no separate mini mode.
   //
   // Hosts the unchanged `ProbeCard`. Pure DOM — fully usable in the
   // no-WebGL2 fallback (independent of the globe engine). Mounted once in
@@ -25,10 +24,7 @@
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
 
-  const mode = $derived<'large' | 'mini' | null>(
-    url.dossier === 'open' ? 'large' : url.probe ? 'mini' : null
-  );
-  const isOpen = $derived(mode !== null);
+  const isOpen = $derived(url.dossier === 'open');
 
   const probesQ = createQuery<QueryOutcome<ProbeDto[]>, Error, QueryOutcome<ProbeDto[]>>(() => {
     const o = probesQuery(ctx);
@@ -77,22 +73,23 @@
     return hay.includes(q);
   }
 
-  // Mini = the one focused probe; Large = the catalogue filtered by
-  // search + facets (NOT by the selection cart — selection is shown as
-  // checked state so the user can keep browsing while building it).
+  // The catalogue filtered by search + facets (NOT by the selection cart —
+  // selection is shown as checked state so the user can keep browsing while
+  // building it).
   const catalogue = $derived<ProbeDto[]>(
-    mode === 'mini'
-      ? probeList.filter((p) => p.probeId === url.probe)
-      : probeList.filter(
-          (p) =>
-            matchesSearch(p) &&
-            (!langFilter || p.language === langFilter) &&
-            (!countryFilter || p.country === countryFilter)
-        )
+    probeList.filter(
+      (p) =>
+        matchesSearch(p) &&
+        (!langFilter || p.language === langFilter) &&
+        (!countryFilter || p.country === countryFilter)
+    )
   );
 
-  function startCollapsedFor(): boolean {
-    return mode !== 'mini'; // the single focused probe is expanded; catalogue rows browse-collapsed
+  function startCollapsedFor(probeId: string): boolean {
+    // Probes carried in the selection (e.g. a deep-link
+    // `?dossier=open&selectedProbes=…`) start expanded; otherwise browse collapsed.
+    if (url.selectedProbes.length > 0) return !url.selectedProbes.includes(probeId);
+    return true;
   }
 
   function isSelected(probeId: string): boolean {
@@ -109,7 +106,7 @@
   }
 
   function close() {
-    setUrl({ probe: null, dossier: null });
+    setUrl({ dossier: null });
   }
 
   // ---- a11y: Esc + focus restore + Tab trap ----------------------------
@@ -172,17 +169,16 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
     <section
       class="dossier-overlay"
-      class:mini={mode === 'mini'}
       role="dialog"
       aria-modal="true"
-      aria-label={mode === 'mini' ? `Dossier · ${url.probe}` : 'Probe catalogue'}
+      aria-label="Probe catalogue"
       tabindex="-1"
       bind:this={dialogEl}
     >
       <header class="overlay-header">
         <div class="overlay-titles">
           <p class="eyebrow">Dossier</p>
-          <h2>{mode === 'mini' ? url.probe : 'Atmospheric record of AĒR’s probes'}</h2>
+          <h2>Atmospheric record of AĒR’s probes</h2>
         </div>
         <button type="button" class="close-btn" onclick={close} aria-label="Close dossier">×</button
         >
@@ -197,33 +193,31 @@
         />
       </div>
 
-      {#if mode === 'large'}
-        <div class="catalogue-controls">
-          <input
-            type="search"
-            class="catalogue-search"
-            bind:value={search}
-            placeholder="Search probe, source, language, country…"
-            aria-label="Search the probe catalogue"
-          />
-          {#if languages.length > 1}
-            <select bind:value={langFilter} aria-label="Filter by language">
-              <option value="">All languages</option>
-              {#each languages as l (l)}<option value={l}>{l.toUpperCase()}</option>{/each}
-            </select>
-          {/if}
-          {#if countries.length > 1}
-            <select bind:value={countryFilter} aria-label="Filter by country">
-              <option value="">All countries</option>
-              {#each countries as c (c)}<option value={c}>{c}</option>{/each}
-            </select>
-          {/if}
-          <span class="selection-count">{url.selectedProbes.length} selected</span>
-          {#if url.selectedProbes.length > 0}
-            <button type="button" class="clear-sel" onclick={clearSelection}>Clear</button>
-          {/if}
-        </div>
-      {/if}
+      <div class="catalogue-controls">
+        <input
+          type="search"
+          class="catalogue-search"
+          bind:value={search}
+          placeholder="Search probe, source, language, country…"
+          aria-label="Search the probe catalogue"
+        />
+        {#if languages.length > 1}
+          <select bind:value={langFilter} aria-label="Filter by language">
+            <option value="">All languages</option>
+            {#each languages as l (l)}<option value={l}>{l.toUpperCase()}</option>{/each}
+          </select>
+        {/if}
+        {#if countries.length > 1}
+          <select bind:value={countryFilter} aria-label="Filter by country">
+            <option value="">All countries</option>
+            {#each countries as c (c)}<option value={c}>{c}</option>{/each}
+          </select>
+        {/if}
+        <span class="selection-count">{url.selectedProbes.length} selected</span>
+        {#if url.selectedProbes.length > 0}
+          <button type="button" class="clear-sel" onclick={clearSelection}>Clear</button>
+        {/if}
+      </div>
 
       <div class="overlay-body">
         {#if probesQ.isPending}
@@ -235,34 +229,24 @@
         {:else}
           <div class="probe-cards">
             {#each catalogue as probe (probe.probeId)}
-              {#if mode === 'large'}
-                <div class="catalogue-entry" class:selected={isSelected(probe.probeId)}>
-                  <label class="select-toggle">
-                    <input
-                      type="checkbox"
-                      checked={isSelected(probe.probeId)}
-                      onchange={() => toggleSelect(probe.probeId)}
-                      aria-label="Add {probe.probeId} to selection"
-                    />
-                    <span>{isSelected(probe.probeId) ? 'Selected' : 'Select'}</span>
-                  </label>
-                  <ProbeCard
-                    {probe}
-                    {ctx}
-                    windowStart={windowMs.start}
-                    windowEnd={windowMs.end}
-                    startCollapsed={startCollapsedFor()}
+              <div class="catalogue-entry" class:selected={isSelected(probe.probeId)}>
+                <label class="select-toggle">
+                  <input
+                    type="checkbox"
+                    checked={isSelected(probe.probeId)}
+                    onchange={() => toggleSelect(probe.probeId)}
+                    aria-label="Add {probe.probeId} to selection"
                   />
-                </div>
-              {:else}
+                  <span>{isSelected(probe.probeId) ? 'Selected' : 'Select'}</span>
+                </label>
                 <ProbeCard
                   {probe}
                   {ctx}
                   windowStart={windowMs.start}
                   windowEnd={windowMs.end}
-                  startCollapsed={startCollapsedFor()}
+                  startCollapsed={startCollapsedFor(probe.probeId)}
                 />
-              {/if}
+              </div>
             {/each}
           </div>
         {/if}
@@ -298,9 +282,6 @@
     gap: var(--space-4);
     padding: var(--space-5);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  }
-  .dossier-overlay.mini {
-    width: min(60rem, 90%);
   }
 
   .overlay-header {

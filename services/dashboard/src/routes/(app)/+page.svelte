@@ -254,14 +254,6 @@
     }
   }
 
-  // Phase 123a — keyboard activation (sr-only probe list). Pointer-click
-  // shows the in-place banner; a keyboard user benefits from direct content
-  // access, so Enter opens the Dossier mini-overlay for that probe.
-  function onProbeActivate(probeId: string) {
-    activeProbeId = probeId;
-    setUrl({ probe: probeId });
-  }
-
   function onProbeHovered(sel: ProbeSelection | null) {
     hoveredProbe = sel;
     // Intent-based preload: once the user hovers a probe, warm the
@@ -277,13 +269,10 @@
   }
 
   function onSatelliteSelected(sel: SatelliteSelection) {
-    // Phase 122k — satellite click descends to the Dossier with the parent
-    // probe expanded. The Phase-122h `url.sourceIds` narrowing was retired
-    // alongside per-probe Free-Compose; source-level configuration now
-    // lives exclusively in the ScopeEditor (K1).
-    // Phase 123a — satellite click opens the Dossier mini-overlay for the
-    // parent probe, in place (no navigation).
-    setUrl({ probe: sel.probeId });
+    // Phase 123a — a source satellite belongs to its probe; clicking it
+    // performs the same in-place selection as clicking the probe glyph
+    // (select + flyTo + banner). Source-level scope lives in the ScopeEditor.
+    onProbeSelected({ probeId: sel.probeId });
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -395,7 +384,7 @@
             aria-label="Probe {p.probeId}, {p.language}"
             onfocus={() => onProbeHovered({ probeId: p.probeId })}
             onblur={() => onProbeHovered(null)}
-            onclick={() => onProbeActivate(p.probeId)}
+            onclick={() => onProbeSelected({ probeId: p.probeId })}
           >
             {p.probeId}
           </button>

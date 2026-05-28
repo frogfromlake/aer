@@ -208,12 +208,9 @@ export interface UrlState {
   // Serialised as `?selectedProbes=a,b,c`. Empty array = no selection.
   selectedProbes: string[];
   // Phase 123a — Dossier-as-overlay. The Dossier is no longer a top-level
-  // route; it opens as a global overlay over any surface:
-  //   `?probe=<probeId>` — mini overlay focused on one probe (supersedes
-  //                        the retired `/dossier?expand=` deep-link)
-  //   `?dossier=open`    — large catalogue/search overlay
-  // Both round-trip for deep-linking.
-  probe: string | null;
+  // route; it opens as a global search/catalogue overlay over any surface
+  // via `?dossier=open` (round-trips for deep-linking). Probe focus is
+  // carried by `?selectedProbes=`, not a separate param.
   dossier: 'open' | null;
 }
 
@@ -231,7 +228,6 @@ export const EMPTY_URL_STATE: UrlState = {
   activePillar: null,
   pillars: null,
   selectedProbes: [],
-  probe: null,
   dossier: null
 };
 
@@ -290,19 +286,8 @@ export function readFromSearch(search: string): UrlState {
     activePillar: parseEnum(p.get('activePillar'), VIEWING_MODES),
     pillars: hasPillars ? { aleph, episteme, rhizome } : null,
     selectedProbes: parseIdList(p.get('selectedProbes')),
-    probe: parseProbeId(p.get('probe')),
     dossier: p.get('dossier') === 'open' ? 'open' : null
   };
-}
-
-// A probe id is lowercase ascii + digits + hyphen/underscore (e.g.
-// `probe-0-de-institutional-web`). Validated on read so the overlay never
-// trusts an arbitrary string smuggled through `?probe=`.
-const PROBE_ID_RE = /^[a-z0-9_-]{1,64}$/i;
-function parseProbeId(v: string | null): string | null {
-  if (v === null) return null;
-  const t = v.trim();
-  return PROBE_ID_RE.test(t) ? t : null;
 }
 
 function parseIdList(v: string | null): string[] {
@@ -343,7 +328,6 @@ export function writeToSearch(state: UrlState): string {
     p.set('selectedProbes', state.selectedProbes.join(','));
   }
   // Phase 123a — Dossier overlay state.
-  if (state.probe) p.set('probe', state.probe);
   if (state.dossier === 'open') p.set('dossier', 'open');
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
