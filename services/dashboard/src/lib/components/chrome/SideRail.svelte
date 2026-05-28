@@ -10,12 +10,11 @@
   //                       so the user always sees both the surface AND the
   //                       analytical stance at a glance.
   //
-  //   2. Select Probe   — The ProbePicker as a prominent central control —
-  //                       inline expandable list (no popover). The dashboard
-  //                       is useless without a probe; the picker is foregrounded
-  //                       above the bottom toggles, not pushed to the floor.
-  //                       Highlighted state pulses the trigger when the user
-  //                       lands on the Workbench without a probe in scope.
+  //   2. Dossier        — Phase 123a: the Dossier is a global overlay
+  //                       (search/catalogue + probe selection), not a
+  //                       surface route. This button opens it over any
+  //                       surface and shows the current selection count.
+  //                       Replaces the Phase-122k Probe-Filter trigger.
   //
   //   3. View           — Persistent global toggles (Negative Space overlay).
   //
@@ -23,10 +22,9 @@
   // browser-default focus handling. `prefers-reduced-motion` suppresses
   // all transitions.
   import { page } from '$app/state';
-  import { urlState } from '$lib/state/url.svelte';
+  import { urlState, setUrl } from '$lib/state/url.svelte';
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
-  import ProbeFilterModal from './ProbeFilterModal.svelte';
   import { getPillar } from '$lib/viewmodes';
   import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
   import type { ViewingMode } from '$lib/state/url-internals';
@@ -36,29 +34,22 @@
   const activePillar = $derived(getPillar(activePillarId));
   const negSpace = $derived(negativeSpaceActive());
 
-  // Phase 122k K3 — Probe-Filter Modal trigger. Visible only on
-  // Atmosphere + Dossier (the selection-driven contexts); hidden on
-  // Workbench (the Workbench's own ScopeEditor owns scope) and on
-  // Reflection (no scope semantic). The Modal itself is mounted at the
-  // bottom of SideRail's template.
-  let probeFilterOpen = $state(false);
-  const showProbeFilter = $derived(
-    page.url.pathname === '/' || page.url.pathname.startsWith('/dossier')
-  );
+  // Phase 123a — the Dossier is a global overlay (ADR-033 amendment), not
+  // a surface route. The rail exposes it as a button that opens the
+  // search/catalogue overlay (`?dossier=open`) over any surface and
+  // surfaces the current selection count. Replaces the Phase-122k
+  // Probe-Filter Modal trigger; probe selection now lives in the overlay.
+  function openDossier() {
+    setUrl({ dossier: 'open' });
+  }
 
-  // Active probe — either from the route path param (Surface II legacy
-  // routes + the new /dossier/{probeId}) OR from the multi-probe scope
-  // state (when on /workbench with ?probeId=... selected). The Workbench
-  // rail anchor is only meaningful when at least one probe is in scope.
+  // Active probe — from the route path param (legacy per-probe routes) OR
+  // from the multi-probe selection cart. Drives the Workbench rail anchor's
+  // active-Pillar sub-item display.
   const activeProbe = $derived<string | null>(
     (page.params as Record<string, string | undefined>).probeId ??
       (url.selectedProbes.length > 0 ? url.selectedProbes[0]! : null)
   );
-
-  // Phase 122k K3: the inline ProbePicker is retired in favour of the
-  // ProbeFilterModal opened from the Probe-Filter button. The activeProbe
-  // derivation stays — it still drives the legacy `?probeId=` SideRail
-  // pillar-sub-item display.
 
   interface SurfaceEntry {
     href: string;
@@ -75,16 +66,6 @@
       label: 'Atmosphere',
       glyph: '◉',
       hint: '3D globe and probe selection',
-      disabled: false
-    },
-    {
-      // Phase 122i revision (R5). Dossier is a first-class top-level
-      // surface (ADR-033 amendment) hosting the probe catalogue + the
-      // General Free-Compose entry path.
-      href: '/dossier',
-      label: 'Dossier',
-      glyph: '❒',
-      hint: 'Probe catalogue · General Free-Compose · per-probe inspection',
       disabled: false
     },
     {
@@ -129,13 +110,6 @@
   function isActiveSurface(href: string): boolean {
     const p = page.url.pathname;
     if (href === '/') return p === '/';
-    if (href === '/dossier') {
-      // Phase 122i revision (R5). The Dossier anchor lights up for any
-      // /dossier* path. Legacy `/dossier/{id}` was retired but the
-      // 308-redirect from /lanes/{id}/dossier still passes through this
-      // namespace.
-      return p.startsWith('/dossier');
-    }
     if (href.startsWith('/workbench') || href.startsWith('/lanes')) {
       // /workbench and /lanes/* (legacy redirected) map to the Workbench anchor.
       return p.startsWith('/lanes') || p.startsWith('/workbench');
@@ -198,30 +172,27 @@
     </ul>
   </div>
 
-  <!-- Section 2: Phase 122k K3 — Probe-Filter affordance. Opens the
-       ProbeFilterModal with region-grouped probes + search. Selection
-       feeds the Dossier filter + the Workbench ScopeEditor seed. Visible
-       only on Atmosphere and Dossier surfaces (the Workbench owns its
-       own ScopeEditor; Reflection is read-only). -->
-  {#if showProbeFilter}
-    <div class="section section-probe">
-      <span class="section-eyebrow">Probes</span>
-      <button
-        type="button"
-        class="probe-filter-btn"
-        onclick={() => (probeFilterOpen = true)}
-        class:has-selection={url.selectedProbes.length > 0}
-        title="Filter the catalogue / seed the Workbench"
-      >
-        <span class="probe-filter-glyph" aria-hidden="true">▤</span>
-        <span class="probe-filter-label">
-          {url.selectedProbes.length > 0
-            ? `${url.selectedProbes.length} selected`
-            : 'Filter probes'}
-        </span>
-      </button>
-    </div>
-  {/if}
+  <!-- Section 2: Phase 123a — Dossier overlay trigger. The Dossier is a
+       global overlay (search/catalogue + probe selection), not a surface
+       route; this button opens it over any surface and shows the current
+       selection count. -->
+  <div class="section section-probe">
+    <span class="section-eyebrow">Dossier</span>
+    <button
+      type="button"
+      class="probe-filter-btn"
+      onclick={openDossier}
+      class:has-selection={url.selectedProbes.length > 0}
+      title="Open the Dossier — search the catalogue & build your probe selection"
+    >
+      <span class="probe-filter-glyph" aria-hidden="true">❒</span>
+      <span class="probe-filter-label">
+        {url.selectedProbes.length > 0
+          ? `Dossier · ${url.selectedProbes.length} selected`
+          : 'Open Dossier'}
+      </span>
+    </button>
+  </div>
 
   <div class="flex-spacer" aria-hidden="true"></div>
 
@@ -233,10 +204,6 @@
     </div>
   </div>
 </nav>
-
-{#if probeFilterOpen}
-  <ProbeFilterModal onClose={() => (probeFilterOpen = false)} />
-{/if}
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 

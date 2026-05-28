@@ -51,21 +51,60 @@
     };
   });
 
-  // Mini = the one focused probe; Large = the selection shopping-cart
-  // (or the whole catalogue when nothing is selected). Slice 2 adds the
-  // search/facet surface on top of the large mode.
-  const visibleProbes = $derived<ProbeDto[]>(
-    mode === 'mini'
-      ? probeList.filter((p) => p.probeId === url.probe)
-      : url.selectedProbes.length > 0
-        ? probeList.filter((p) => url.selectedProbes.includes(p.probeId))
-        : probeList
+  // Slice 2 — the large overlay IS the search/catalogue surface (it
+  // replaces the old ProbeFilterModal). The list is driven by full-text
+  // search + facets over UNIVERSAL attributes only (probe / source /
+  // language / country — never capability/metric, to avoid a data-rich
+  // discovery bias). Probe SELECTION (the `?selectedProbes=` cart) is a
+  // separate concern surfaced as a per-row checkbox; toggling writes the
+  // cart immediately (URL-native, no draft/Apply ceremony).
+  let search = $state('');
+  let langFilter = $state('');
+  let countryFilter = $state('');
+
+  const languages = $derived<string[]>([...new Set(probeList.map((p) => p.language))].sort());
+  const countries = $derived<string[]>(
+    [...new Set(probeList.map((p) => p.country).filter((c): c is string => !!c))].sort()
   );
 
-  function startCollapsedFor(probeId: string): boolean {
-    if (mode === 'mini') return false; // the single focused probe is expanded
-    if (url.selectedProbes.length > 0) return !url.selectedProbes.includes(probeId);
-    return true; // plain catalogue browsing starts collapsed
+  function matchesSearch(p: ProbeDto): boolean {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const hay = [p.probeId, p.language, p.country ?? '', ...(p.sources ?? [])]
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(q);
+  }
+
+  // Mini = the one focused probe; Large = the catalogue filtered by
+  // search + facets (NOT by the selection cart — selection is shown as
+  // checked state so the user can keep browsing while building it).
+  const catalogue = $derived<ProbeDto[]>(
+    mode === 'mini'
+      ? probeList.filter((p) => p.probeId === url.probe)
+      : probeList.filter(
+          (p) =>
+            matchesSearch(p) &&
+            (!langFilter || p.language === langFilter) &&
+            (!countryFilter || p.country === countryFilter)
+        )
+  );
+
+  function startCollapsedFor(): boolean {
+    return mode !== 'mini'; // the single focused probe is expanded; catalogue rows browse-collapsed
+  }
+
+  function isSelected(probeId: string): boolean {
+    return url.selectedProbes.includes(probeId);
+  }
+  function toggleSelect(probeId: string) {
+    const next = isSelected(probeId)
+      ? url.selectedProbes.filter((id) => id !== probeId)
+      : [...url.selectedProbes, probeId];
+    setUrl({ selectedProbes: next });
+  }
+  function clearSelection() {
+    setUrl({ selectedProbes: [] });
   }
 
   function close() {
@@ -143,23 +182,72 @@
         >
       </header>
 
+      {#if mode === 'large'}
+        <div class="catalogue-controls">
+          <input
+            type="search"
+            class="catalogue-search"
+            bind:value={search}
+            placeholder="Search probe, source, language, country…"
+            aria-label="Search the probe catalogue"
+          />
+          {#if languages.length > 1}
+            <select bind:value={langFilter} aria-label="Filter by language">
+              <option value="">All languages</option>
+              {#each languages as l (l)}<option value={l}>{l.toUpperCase()}</option>{/each}
+            </select>
+          {/if}
+          {#if countries.length > 1}
+            <select bind:value={countryFilter} aria-label="Filter by country">
+              <option value="">All countries</option>
+              {#each countries as c (c)}<option value={c}>{c}</option>{/each}
+            </select>
+          {/if}
+          <span class="selection-count">{url.selectedProbes.length} selected</span>
+          {#if url.selectedProbes.length > 0}
+            <button type="button" class="clear-sel" onclick={clearSelection}>Clear</button>
+          {/if}
+        </div>
+      {/if}
+
       <div class="overlay-body">
         {#if probesQ.isPending}
           <p class="muted" aria-busy="true">Loading probe catalogue…</p>
         {:else if probesQ.isError || probesQ.data?.kind === 'network-error'}
           <p class="error">Could not load the probe catalogue. Check network connectivity.</p>
-        {:else if visibleProbes.length === 0}
-          <p class="muted">No probes match the current selection.</p>
+        {:else if catalogue.length === 0}
+          <p class="muted">No probes match the current filter.</p>
         {:else}
           <div class="probe-cards">
-            {#each visibleProbes as probe (probe.probeId)}
-              <ProbeCard
-                {probe}
-                {ctx}
-                windowStart={windowMs.start}
-                windowEnd={windowMs.end}
-                startCollapsed={startCollapsedFor(probe.probeId)}
-              />
+            {#each catalogue as probe (probe.probeId)}
+              {#if mode === 'large'}
+                <div class="catalogue-entry" class:selected={isSelected(probe.probeId)}>
+                  <label class="select-toggle">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(probe.probeId)}
+                      onchange={() => toggleSelect(probe.probeId)}
+                      aria-label="Add {probe.probeId} to selection"
+                    />
+                    <span>{isSelected(probe.probeId) ? 'Selected' : 'Select'}</span>
+                  </label>
+                  <ProbeCard
+                    {probe}
+                    {ctx}
+                    windowStart={windowMs.start}
+                    windowEnd={windowMs.end}
+                    startCollapsed={startCollapsedFor()}
+                  />
+                </div>
+              {:else}
+                <ProbeCard
+                  {probe}
+                  {ctx}
+                  windowStart={windowMs.start}
+                  windowEnd={windowMs.end}
+                  startCollapsed={startCollapsedFor()}
+                />
+              {/if}
             {/each}
           </div>
         {/if}
@@ -250,6 +338,84 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+
+  .catalogue-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-3);
+  }
+  .catalogue-search {
+    flex: 1 1 18rem;
+    appearance: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+  .catalogue-search:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-color: var(--color-accent);
+  }
+  .catalogue-controls select {
+    appearance: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+  .selection-count {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+  }
+  .clear-sel {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+    padding: 4px var(--space-3);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+  .clear-sel:hover,
+  .clear-sel:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+  }
+
+  .catalogue-entry {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+  }
+  .catalogue-entry.selected {
+    border-color: var(--color-accent-muted);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  }
+  .select-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    cursor: pointer;
+    align-self: flex-start;
+  }
+
   .muted {
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
