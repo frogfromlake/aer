@@ -33,6 +33,16 @@ properties:
       client for content catalog locale fallback and for future
       language-scoped aggregations. Not a reach claim.
     example: de
+  country:
+    type: string
+    nullable: true
+    description: >
+      Operator-declared primary country of the probe's emission origin(s),
+      as an ISO 3166-1 alpha-2 code (e.g. `DE`, `FR`). This is an explicit,
+      auditable classification set when the probe is registered — NOT inferred
+      from language or coordinates. A universal facet for the Dossier search
+      overlay (probe / source / language / country); never a reach claim.
+    example: DE
   emissionPoints:
     type: array
     minItems: 1

@@ -25,6 +25,7 @@ type EmissionPoint struct {
 type ProbeEntry struct {
 	ProbeID        string          `yaml:"probeId"`
 	Language       string          `yaml:"language"`
+	Country        string          `yaml:"country"`
 	EmissionPoints []EmissionPoint `yaml:"emissionPoints"`
 	Sources        []string        `yaml:"sources"`
 }

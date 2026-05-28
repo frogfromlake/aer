@@ -817,6 +817,11 @@ export interface components {
              * @example de
              */
             language: string;
+            /**
+             * @description Operator-declared primary country of the probe's emission origin(s), as an ISO 3166-1 alpha-2 code (e.g. `DE`, `FR`). This is an explicit, auditable classification set when the probe is registered — NOT inferred from language or coordinates. A universal facet for the Dossier search overlay (probe / source / language / country); never a reach claim.
+             * @example DE
+             */
+            country?: string | null;
             /** @description Geographic origins of the probe's bound publishers. Each point is rendered as a glowing marker on the globe. Multiple points allow federated broadcasters or multi-publisher probes to render correctly without implying a reach region between them. */
             emissionPoints: components["schemas"]["EmissionPoint"][];
             /**

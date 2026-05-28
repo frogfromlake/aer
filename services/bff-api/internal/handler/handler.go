@@ -637,6 +637,10 @@ func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProb
 				Longitude: pt.Longitude,
 			})
 		}
+		if p.Country != "" {
+			c := p.Country
+			probe.Country = &c
+		}
 		response = append(response, probe)
 	}
 	return response, nil

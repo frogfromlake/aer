@@ -1194,6 +1194,9 @@ type MetricProvenanceValidationStatus string
 // This schema intentionally carries no `reach` field. A probe's reach — where its content is consumed and discursively effective — cannot be measured from emission data alone and is not claimed by AĒR. Only the emission origin(s) are asserted here.
 // Dual-Register content (emic designation, methodological register) is served separately via `/content/probe/{probeId}` and composed on the client. Keeping structural data and editorial content on different endpoints lets the content catalog evolve (versioning, locale switching) without perturbing the typed geometry feed.
 type Probe struct {
+	// Country Operator-declared primary country of the probe's emission origin(s), as an ISO 3166-1 alpha-2 code (e.g. `DE`, `FR`). This is an explicit, auditable classification set when the probe is registered — NOT inferred from language or coordinates. A universal facet for the Dossier search overlay (probe / source / language / country); never a reach claim.
+	Country *string `json:"country,omitempty"`
+
 	// EmissionPoints Geographic origins of the probe's bound publishers. Each point is rendered as a glowing marker on the globe. Multiple points allow federated broadcasters or multi-publisher probes to render correctly without implying a reach region between them.
 	EmissionPoints []struct {
 		// Label Human-readable label for this emission point (e.g., "Hamburg (Tagesschau / NDR)"). Rendered in hover tooltips and the L3 panel.
