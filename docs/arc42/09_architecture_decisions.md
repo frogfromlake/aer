@@ -1992,6 +1992,107 @@ schema-breaking change.
 
 ---
 
+## ADR-030: Per-Article Discourse Function Classification (Phase 122a — Deferred)
+
+**Date:** 2026-05-28
+**Status:** Proposed — Phase 122a deferred (re-open conditions below)
+**Related ADRs:** ADR-015 (Source Adapter Pattern — `BiasContext`/discourse context), ADR-024 (Language Capability Manifest), ADR-033 / ADR-034 / ADR-035 (surface & pillar architecture — where a DF cell lives)
+**Related Phases:** 122 (Probe 0 web-crawl — drops section-level URL filtering), 122a.0 (backend — deferred), 122a.1 (frontend — deferred), 122a.2 (Option A pair validation — deferred)
+**Related Working Papers:** WP-001 §5.4 (source-level vs. article-level DF; Options A/B/C), WP-003 §4.3 (editorial curation is itself a discourse signal, not an error), WP-006 §3.2 (reification of discourse categories)
+
+### Context
+
+AĒR assigns one discourse function (DF) per source (the institutional role —
+Tagesschau as `epistemic_authority`, bundesregierung.de as
+`power_legitimation`); every article inherits its source's tag. The
+web-crawled corpus (Phase 122) deliberately preserves section-level
+imprecision — it does **not** filter `/sport/`, because a source's editorial
+choice to publish a given article is itself a function-bearing discourse
+signal (WP-003 §4.3), not an error. A Tagesschau sports article inheriting
+`epistemic_authority` is therefore coarse, not wrong.
+
+Phase 122a proposed to **also** classify DF per article from the text itself,
+via a zero-shot NLI classifier (`mDeBERTa-v3-base-mnli-xnli`). The decision
+this ADR records is not *how* to compute the tag, but *what claim AĒR makes
+from the source/article relation*, and *whether the refinement is worth it at
+proof-of-concept stage*.
+
+### Decision
+
+1. **Option C only (WP-001 §5.4): both tags stored independently, no
+   synthesis.** Source-level `discourse_function` stays primary and unchanged;
+   a nullable `discourse_function_article` is observed beside it. No "effective
+   tag", no aggregate over the `(source, article)` pair. This is the WP-006
+   §3.2 reification guard made concrete (computed categories are never
+   presented as objective features of reality). Option B (continuous
+   weight-vector) is rejected — it contradicts the categorical taxonomy
+   (WP-001 §3). Option A (the pair as a first-class analytical unit) is
+   deferred to Phase 122a.2.
+
+2. **The feature is DEFERRED behind two foundations (WP-001 §5.4.4).** The
+   source-level tag is `provisional_engineering` (self-assigned, not
+   peer-reviewed) and the four-function taxonomy is unvalidated across
+   cultures. Refining article-level precision on an unvalidated foundation
+   sharpens a second decimal place while the first is a placeholder; validating
+   the source-level classification and stress-testing the taxonomy is the
+   higher-leverage work and comes first.
+
+3. **The valued signal is temporal drift (Episteme), not a static snapshot
+   (Aleph).** Drift within a source over time (e.g. an `epistemic_authority`
+   source publishing a rising share of `power_legitimation` content over
+   months) is the analytically meaningful reading and the one most robust to
+   taxonomy uncertainty — a *change* in the mix is real even if absolute labels
+   are later revised. The article-DF dimension must therefore flow into a
+   retained temporal aggregate (the resolution MVs, Phase 122c), and the
+   primary frontend cell is a time-series, not a distribution bar.
+
+4. **Validation is per-language, not per-probe.** The classifier and the four
+   functions are universal, so validation is recorded as a per-language
+   `validation_status` in the Language Capability Manifest (ADR-024), bounded
+   by the manifest's language list (~10) — feasible as AĒR scales to hundreds
+   of probes. Validation gates the *measurement claim*, never the
+   *observation*: an `unvalidated` language still runs the classifier, but its
+   output is flagged and never feeds an aggregate.
+
+5. **The taxonomy is quarantined in the interpretive layer.** DF lives in
+   `SilverMeta` (source-level context), never in the universal `SilverCore`
+   contract; ClickHouse stores DF as a free `String`, not an enum; the frontend
+   centralises it in one SoT (`discourse-function.ts`). A future taxonomy
+   revision (a fifth function, sub-functions, or a different model) is thus a
+   bounded, single-layer change that does not touch Bronze, the metric
+   extractors, or the medallion flow — and, because nothing is published,
+   carries no retraction cost.
+
+### Re-open conditions
+
+Both must hold: **(i)** the source-level classification is peer-reviewed past
+`provisional_engineering` **OR** the four-function taxonomy is stress-tested
+out-of-band; **AND (ii)** a concrete need for the drift signal (a probe or
+cross-probe set with enough temporal depth). The first step at re-open is a
+**throwaway offline classification probe** over a sample of existing Silver
+(no schema/worker/BFF changes) to confirm structured divergence exists before
+any production build.
+
+### Consequences
+
+- **Positive:** AĒR ships and discloses at provisional status without
+  overcommitting to an unvalidated refinement; the architecture absorbs a
+  taxonomy revision cheaply; the cross-cultural-comparison claim degrades
+  gracefully to within-culture observation if the taxonomy is ever rejected.
+- **Negative:** until re-opened, the dashboard cannot show article-level
+  function drift; source-level imprecision (sports-in-EA-source) stays visible
+  but unquantified. Accepted — the source-level tag is coarse, not wrong
+  (WP-003 §4.3).
+
+### Decision Record
+
+- **Drafted:** 2026-05-28 by Fabian Quist with AĒR (deferral + drift-as-primary
+  + per-language-validation decision).
+- **Status:** Proposed; Phase 122a deferred. Finalised when Phase 122a.0 is
+  re-opened and implemented.
+
+---
+
 ## ADR-031: DiscoveryProtocol Contract for Multi-Channel Source Discovery (Phase 122g)
 
 **Date:** 2026-05-12

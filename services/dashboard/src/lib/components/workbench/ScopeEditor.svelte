@@ -487,7 +487,7 @@
                                 <span
                                   class="source-df-tag"
                                   style:--tag-color={fnMeta?.color ?? 'var(--color-fg-subtle)'}
-                                  title="Primary discourse function (provisional — Phase 122a.1)"
+                                  title="Primary discourse function (provisional, source-level; per-article Phase 122a deferred)"
                                 >
                                   {(source.primaryFunction ?? '').replace('_', ' ')}
                                 </span>

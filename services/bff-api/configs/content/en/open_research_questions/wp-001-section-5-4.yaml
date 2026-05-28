@@ -3,12 +3,12 @@ entityType: open_research_question
 locale: en
 registers:
   semantic:
-    short: "Source-level vs. article-level discourse function — are they independent observations or two readings of the same act? Phase 122a.1 surfaces both; Phase 122a.2 would interpret the pair."
+    short: "Source-level vs. article-level discourse function — are they independent observations or two readings of the same act? Per-article classification (Phase 122a) is deferred behind source-level/taxonomy validation; when re-opened it privileges temporal drift within a source over a static snapshot."
     long: >
       Every article in AĒR carries two discourse-function classifications: the source-level
       tag (the institutional role of the publishing source — Tagesschau as
-      epistemic_authority, bundesregierung.de as power_legitimation) and, from Phase 122a.1
-      onwards, an article-level tag inferred from the text itself by a multilingual
+      epistemic_authority, bundesregierung.de as power_legitimation) and — from a currently
+      deferred Phase 122a — an article-level tag inferred from the text itself by a multilingual
       zero-shot NLI classifier. The two readings are not independent: a Tagesschau sports
       article is methodologically a different artefact from the same content on a sports
       newspaper, because the institutional context contextualises the textual content.
@@ -23,7 +23,7 @@ registers:
       interdisciplinary investment in Option A's pair-interpretation, or are they trivial
       enough to remain descriptive observations? See WP-001 §5.4.
   methodological:
-    short: "Open: pair-reading validity, classifier accuracy on subtle pragmatic categories, source-context's role in interpretation. Hooks: discourse_function (source) + discourse_function_article (Phase 122a.1) columns; Phase 122a.2 gates on Phase-122a.1 evidence."
+    short: "Open: pair-reading validity, classifier accuracy on subtle pragmatic categories, source-context's role in interpretation. Per-article (Phase 122a) is deferred behind source-level/taxonomy validation; validation is per-language, not per-probe. Hooks: discourse_function (source) + discourse_function_article columns; Phase 122a.2 gates on 122a.1 evidence."
     long: >
       The methodological question §5.4 records has three concrete sub-questions: (1) Pair
       validity — for the 6–8 non-trivial source × article pairs (EA × CI, EA × SF, PL × SF,
@@ -35,9 +35,10 @@ registers:
       ADR-024) is expected to score ~75–85% on textually clear cases and ~50–60% on subtle
       pragmatic cases (investigative pieces, opinion columns). NLI confidence scores are
       uncalibrated softmax outputs, not probabilities — a 0.85 score does not mean "85%
-      likely correct". A held-out hand-annotated validation set (~200–300 articles per
-      language, per probe) is the Phase 122a.1 deliverable that establishes per-function
-      accuracy on AĒR's corpus. (3) Source-context's role — the classifier sees pure text,
+      likely correct". A held-out hand-annotated validation set (~200–300 articles) is the
+      deliverable that establishes per-function accuracy — recorded **per language** in the
+      Language Capability Manifest, not per probe, so it stays feasible as AĒR scales to
+      hundreds of probes; validation gates the measurement claim, never the observation. (3) Source-context's role — the classifier sees pure text,
       no source metadata. This is deliberate (avoids leaking the source-level tag into the
       article-level prediction) but means the divergence is unavoidably noisy at the
       article level. Pipeline hooks for resolution: the two ClickHouse columns
@@ -47,9 +48,9 @@ registers:
       (discourseFunctionScope=pair) ship only when the trigger conditions in the Phase
       122a.2 roadmap entry fire. AĒR remains methodologically defensible whether 122a.2
       ships or not — Option C alone is a complete observation surface.
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-05-b"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-05-28"
 workingPaperAnchors:
   - "WP-001 §5.4"
   - "WP-001 §3"

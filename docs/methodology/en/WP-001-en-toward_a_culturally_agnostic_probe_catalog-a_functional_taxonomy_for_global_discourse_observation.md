@@ -269,7 +269,7 @@ The Coverage Map operates **within a uniform per-probe temporal horizon** (Phase
 
 ### 5.4 Source-Level vs. Article-Level Discourse Function — An Open Methodological Question
 
-§3 and §4 operationalise discourse function as a **source-level** classification: every article inherits its source's etic tag. This is an *intentional imprecision* (WP-006 §3): a Tagesschau sports report and a Tagesschau political report both currently inherit `epistemic_authority` because they originate from the same source. The taxonomic apparatus operates at the level of institutional discourse roles, not individual texts.
+§3 and §4 operationalise discourse function as a **source-level** classification: every article inherits its source's etic tag. This is an *intentional imprecision*: a Tagesschau sports report and a Tagesschau political report both currently inherit `epistemic_authority` because they originate from the same source — and the source's editorial choice to publish a given article is itself a function-bearing discourse signal, not an error (WP-003 §4.3). The taxonomic apparatus operates at the level of institutional discourse roles, not individual texts.
 
 Phase 122a proposes to add an **article-level** classification — a per-article tag, automatically assigned by a hybrid pipeline (URL heuristic → multilingual zero-shot NLI classifier → source-level fallback). The question §5.4 addresses is **not** the technical question of how to compute that tag. It is the methodological question of **how the source-level and article-level tags relate to each other**, and what scientific claim AĒR is willing to make from their joint reading.
 
@@ -298,13 +298,18 @@ Option A is methodologically defensible *if* the 16 pair-readings are interpreti
 
 Option C makes the smallest set of claims compatible with surfacing the article-level tag. It enables the analyst to **observe** divergence between source-level and article-level discourse function without **synthesising** it. The Probe Dossier and Workbench show both tags side by side; no aggregate operates on the pair.
 
-This is the canonical "make the imprecision visible, then measure it" pattern (WP-006 §3) applied to discourse function itself: source-level classification was a known imprecision; Phase 122a.1 surfaces the divergence without prematurely resolving it.
+This surfaces a known source-level imprecision without prematurely resolving it — and stays inside WP-006 §3.2's reification guard, which warns that computed discourse-function categories must *never* be presented as objective features of reality. The no-synthesis discipline (both tags side by side, no aggregate over the pair, source-level tag remains primary) is exactly that guard made concrete.
 
 #### 5.4.4 Phase 122a.2 — re-opening Option A
 
 The decision to defer Option A is **not** "Option A is wrong". It is "Option A is unjustified by current evidence". The pre-condition for re-opening Option A is empirical: Phase 122a.1 ships, data accumulates, and the analyst observes the divergence-rate patterns. If those patterns reveal interpretable structure — e.g. *"investigative-pieces-in-EA-sources correlate with election cycles"*, *"PL-source CI-content shifts around national holidays"*, *"SF-source EA-content rises during institutional crises"* — then the interdisciplinary work to validate the 16 pair-readings becomes warranted. If the patterns are trivial (*"sports sections produce CI tags, surprise"*), the work is not.
 
 Phase 122a.2 is reserved for that decision point. It is not on the immediate roadmap and is not a blocker for downstream phases (123, 124, 125), which operate on Option-C data unchanged.
+
+Two qualifications bound the analytical value of the article-level tag, and both are why per-article classification is sequenced *after* the foundations it rests on:
+
+1. **The meaningful signal is temporal, not synchronic.** A *static* snapshot of divergence ("Source X has 22% non-default-DF articles") is the weak form — it is largely re-describing the publisher's section structure (sports sections produce CI tags). The analytically interesting form is **drift within a source over time** — an `epistemic_authority` source that publishes a rising share of `power_legitimation` content over months is a politicisation/capture signal. Drift is also the form most robust to taxonomy uncertainty: a *change* in the distribution is a real signal even if the absolute labels are later revised. Any article-level surface should therefore privilege the diachronic (Episteme) reading over the synchronic (Aleph) one.
+2. **The foundation is itself provisional.** The source-level tag is assigned `provisional_engineering` (§4.4 — not yet peer-reviewed) and the four-function taxonomy is unvalidated across cultures (§3.5, §5.1). Refining precision at the article level on top of an unvalidated source-level tag and an unvalidated taxonomy sharpens a second decimal place while the first is a placeholder. The higher-leverage work is to validate the source-level classification and stress-test the four-function taxonomy *first*; per-article classification is warranted only once that foundation is firmer (a re-open pre-condition, not merely an empirical-pattern one).
 
 #### 5.4.5 The classifier itself
 
@@ -317,7 +322,7 @@ Realistic accuracy expectations:
 - NLI scores are softmax outputs, **not** calibrated probabilities. A score of 0.85 does not mean "85% likely correct". This is a known limitation of zero-shot NLI.
 - The classifier **cannot see** source context. It classifies pure text. This is part of why Option C is provisional: the divergence we observe in Phase 122a.1 is unavoidably noisy.
 
-A held-out hand-annotated validation set (~200–300 articles per language, per probe) is the Phase 122a.1 deliverable that establishes the classifier's actual per-function accuracy on AĒR's corpus. Without that set, the divergence numbers shown in the dashboard carry no statistical interpretation — they are operator-aided observations, not measurements.
+A held-out hand-annotated validation set (~200–300 articles) is the deliverable that establishes the classifier's actual per-function accuracy on AĒR's corpus. Crucially, the classifier and the four functions are universal, so this validation is **per language, not per probe**: it is recorded in the Language Capability Manifest (`language_capabilities.yaml`) and bounded by the manifest's language list (~10), not by the probe count — with cross-variety spot-checks where one language spans very different press systems (e.g. Modern Standard Arabic across ~20 states). This is what keeps validation feasible as AĒR scales to hundreds of probes. Validation gates the *measurement claim*, never the *observation*: a language not yet validated still runs the classifier, but its output is marked `unvalidated` and never feeds an aggregate. Without a validated set for a given language, the divergence numbers shown for it carry no statistical interpretation — they are operator-aided observations, not measurements.
 
 ---
 

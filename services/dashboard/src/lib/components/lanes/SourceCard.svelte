@@ -154,7 +154,7 @@
               {/if}
               <span
                 class="provisional-hint"
-                title="Source-level classification only — per-article discourse-function distribution (span) lands in Phase 122a.1"
+                title="Source-level classification only — per-article discourse function (Phase 122a) is deferred behind source-level/taxonomy validation; see WP-001 §5.4"
               >
                 (provisional)
               </span>

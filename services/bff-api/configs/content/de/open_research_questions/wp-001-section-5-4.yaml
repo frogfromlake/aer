@@ -3,13 +3,13 @@ entityType: open_research_question
 locale: de
 registers:
   semantic:
-    short: "Quellen-Ebene vs. Artikel-Ebene Diskursfunktion — unabhängige Beobachtungen oder zwei Lesarten desselben Akts? Phase 122a.1 zeigt beide; Phase 122a.2 würde das Paar interpretieren."
+    short: "Quellen-Ebene vs. Artikel-Ebene Diskursfunktion — unabhängige Beobachtungen oder zwei Lesarten desselben Akts? Die Artikel-Ebene-Klassifikation (Phase 122a) ist zurückgestellt hinter Quellen-/Taxonomie-Validierung; bei Wiederaufnahme bevorzugt sie zeitlichen Drift innerhalb einer Quelle gegenüber einem statischen Schnappschuss."
     long: >
       Jeder Artikel in AĒR trägt zwei Diskursfunktions-Klassifikationen: das Quellen-Tag
       (die institutionelle Rolle der publizierenden Quelle — Tagesschau als
-      epistemic_authority, bundesregierung.de als power_legitimation) und ab Phase 122a.1
-      ein Artikel-Tag, vom Text selbst abgeleitet durch einen mehrsprachigen Zero-Shot-NLI-
-      Classifier. Die beiden Lesarten sind nicht unabhängig: ein Tagesschau-Sportartikel ist
+      epistemic_authority, bundesregierung.de als power_legitimation) und — aus einer derzeit
+      zurückgestellten Phase 122a — ein Artikel-Tag, vom Text selbst abgeleitet durch einen
+      mehrsprachigen Zero-Shot-NLI-Classifier. Die beiden Lesarten sind nicht unabhängig: ein Tagesschau-Sportartikel ist
       methodologisch ein anderes Artefakt als derselbe Inhalt auf einer Sportzeitung, weil
       der institutionelle Kontext den textuellen Inhalt kontextualisiert. WP-001 §5.4
       dokumentiert drei Modellierungsoptionen für diese Beziehung. Option C (Phase 122a.1)
@@ -24,7 +24,7 @@ registers:
       Interpretation, oder sind sie trivial genug, um deskriptive Beobachtungen zu bleiben?
       Siehe WP-001 §5.4.
   methodological:
-    short: "Offen: Paar-Lesart-Gültigkeit, Classifier-Genauigkeit bei subtilen pragmatischen Kategorien, Rolle des Quellen-Kontexts. Hooks: discourse_function (source) + discourse_function_article (Phase 122a.1) Spalten; Phase 122a.2 gated auf Phase-122a.1-Evidenz."
+    short: "Offen: Paar-Lesart-Gültigkeit, Classifier-Genauigkeit bei subtilen pragmatischen Kategorien, Rolle des Quellen-Kontexts. Artikel-Ebene (Phase 122a) zurückgestellt hinter Quellen-/Taxonomie-Validierung; Validierung pro Sprache, nicht pro Sonde. Hooks: discourse_function (source) + discourse_function_article Spalten; Phase 122a.2 gated auf 122a.1-Evidenz."
     long: >
       Die methodologische Frage, die §5.4 dokumentiert, hat drei konkrete Unterfragen:
       (1) Paar-Gültigkeit — für die 6–8 nicht-trivialen Quelle × Artikel Paare
@@ -38,8 +38,10 @@ registers:
       subtilen pragmatischen Fällen (Investigativ-Recherchen, Meinungsstücke). NLI-
       Konfidenz-Scores sind unkalibrierte Softmax-Ausgaben, keine Wahrscheinlichkeiten —
       ein Score von 0.85 bedeutet nicht "85% richtig". Ein Hold-out-Set mit Hand-
-      Annotationen (~200–300 Artikel pro Sprache, pro Sonde) ist das Phase-122a.1-
-      Deliverable, das die Pro-Funktion-Genauigkeit am AĒR-Korpus etabliert. (3) Rolle
+      Annotationen (~200–300 Artikel) ist das Deliverable, das die Pro-Funktion-Genauigkeit
+      etabliert — erfasst **pro Sprache** im Language Capability Manifest, nicht pro Sonde,
+      damit es bei hunderten Sonden machbar bleibt; Validierung begrenzt den Mess-Anspruch,
+      nie die Beobachtung. (3) Rolle
       des Quellen-Kontexts — der Classifier sieht puren Text, keine Quellen-Metadaten. Das
       ist beabsichtigt (vermeidet, dass das Quellen-Tag in die Artikel-Tag-Vorhersage
       durchsickert), bedeutet aber, dass die Divergenz auf Artikel-Ebene unvermeidbar
@@ -51,9 +53,9 @@ registers:
       Bedingungen im Phase-122a.2-Roadmap-Eintrag feuern. AĒR bleibt methodologisch
       verteidigbar, ob 122a.2 ausgeliefert wird oder nicht — Option C allein ist eine
       vollständige Beobachtungs-Oberfläche.
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-05-b"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-05-28"
 workingPaperAnchors:
   - "WP-001 §5.4"
   - "WP-001 §3"

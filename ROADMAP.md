@@ -2824,7 +2824,7 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 # Iteration 7 — Data Collection Maturation
 
-*Iteration 7 matures AĒR's data-collection layer from RSS-snippet calibration to scientifically defensible full-article ingestion. Phase 122 retires the RSS pipeline in favour of polite, robots-respecting full-article web crawling — RSS snippets are too short for meaningful sentiment, NER, or topic modelling, and contaminate Gold-layer baselines with truncated text. Phases 122b, 122c, 122e, 122f, 122g are the **methodological hardening family** for Phase 122 — small, focused, and pre/post-crawl: 122b enforces uniform per-probe temporal horizons (newest-first, `time_window_days`-bounded) so cross-source comparisons are not contaminated by archive-depth bias; 122c activates Phase 66's deferred multi-resolution materialized views (WP-005 §5.4) so the 5-year-horizon corpus produces queryable Episteme-scale time-series data instead of silently truncating beyond the raw 365-day TTL; 122e closes the post-first-crawl forensic findings; 122f operationalises metadata-coverage as a first-class runtime signal; 122g hardens the discovery surface itself — replacing silent single-channel fallback with declarative per-source multi-channel configuration plus per-channel coverage telemetry, so a publisher's infrastructure change is observable within one run instead of silently degrading the corpus. Phase 122d adds Internet-Archive CDX revision-archaeology as a sidecar so silent edit cascades — one of the strongest signals of platform-mediated discourse manipulation per WP-003 §5 — become observable without participating in the AI-text-detection arms race; 122d depends on 122g because revision archaeology over a corpus with non-uniform per-source coverage is methodologically unsound. Phase 122a closes the per-article discourse-function imprecision Phase 122 deliberately preserves (no editorial filtering per WP-006 §3) by classifying discourse function at the article level rather than the source level. The iteration is positioned before Probe 1 (Phase 123) so the second probe inherits the mature pattern from day one rather than requiring a parallel migration later — 122g's `audit-source-discovery` workflow is what Probe 1's sources go through before they ship. The full WP-003 §5 non-human-actor detection machinery (account-level features, network-level coordination, AI-text detection) is deferred to a future iteration that lands the first social-media probe — the source class where those signals are deterministic, the methodology is established, and the arms-race problem is bounded. See the deferred-placeholder note after Iteration 7 in the Open Phases section.*
+*Iteration 7 matures AĒR's data-collection layer from RSS-snippet calibration to scientifically defensible full-article ingestion. Phase 122 retires the RSS pipeline in favour of polite, robots-respecting full-article web crawling — RSS snippets are too short for meaningful sentiment, NER, or topic modelling, and contaminate Gold-layer baselines with truncated text. Phases 122b, 122c, 122e, 122f, 122g are the **methodological hardening family** for Phase 122 — small, focused, and pre/post-crawl: 122b enforces uniform per-probe temporal horizons (newest-first, `time_window_days`-bounded) so cross-source comparisons are not contaminated by archive-depth bias; 122c activates Phase 66's deferred multi-resolution materialized views (WP-005 §5.4) so the 5-year-horizon corpus produces queryable Episteme-scale time-series data instead of silently truncating beyond the raw 365-day TTL; 122e closes the post-first-crawl forensic findings; 122f operationalises metadata-coverage as a first-class runtime signal; 122g hardens the discovery surface itself — replacing silent single-channel fallback with declarative per-source multi-channel configuration plus per-channel coverage telemetry, so a publisher's infrastructure change is observable within one run instead of silently degrading the corpus. Phase 122d adds Internet-Archive CDX revision-archaeology as a sidecar so silent edit cascades — one of the strongest signals of platform-mediated discourse manipulation per WP-003 §5 — become observable without participating in the AI-text-detection arms race; 122d depends on 122g because revision archaeology over a corpus with non-uniform per-source coverage is methodologically unsound. Phase 122a would close the per-article discourse-function imprecision Phase 122 deliberately preserves (no editorial filtering — the source is what it publishes, WP-003 §4.3) by classifying discourse function at the article level rather than the source level, but is **deferred** behind source-level/taxonomy validation (WP-001 §5.4.4). The iteration is positioned before Probe 1 (Phase 123) so the second probe inherits the mature pattern from day one rather than requiring a parallel migration later — 122g's `audit-source-discovery` workflow is what Probe 1's sources go through before they ship. The full WP-003 §5 non-human-actor detection machinery (account-level features, network-level coordination, AI-text detection) is deferred to a future iteration that lands the first social-media probe — the source class where those signals are deterministic, the methodology is established, and the arms-race problem is bounded. See the deferred-placeholder note after Iteration 7 in the Open Phases section.*
 
 ---
 
@@ -2963,7 +2963,7 @@ The supervised reset + recrawl exposed eleven latent bugs across the worker, BFF
 
 ### Phase ordering note
 
-This phase is the gating prerequisite for Phase 123 (Probe 1 inherits this pattern, never seeing the RSS-summary layer). Phase 122 must land before Phase 123; once it has, Phase 123 can proceed. The phase intentionally ships before any further dashboard polish — shipping web-crawled, properly-timestamped, richly-metadata'd data into the dashboard is more valuable than perfecting the rendering of RSS-summary-derived data that will be wiped on cutover. Per-article discourse-function classification (the methodological complement to dropping section-level URL filtering) is addressed in Phase 122a, immediately following this phase, so every downstream phase inherits per-article classification from day one. Tier-E custom-extractor rules are scaffolded in this phase (empty `custom_extractors:` slot in every source YAML) but no rules are populated until a specific scientific analysis demands a specific bespoke field — this avoids speculative custom-extraction code and keeps Phase 122 scope tight. The legacy RSS-adapter timestamp bug is **not** back-fixed in this phase per the user's deferred-bugfix decision; RSS data is wiped at cutover and the bug is moot post-migration.
+This phase is the gating prerequisite for Phase 123 (Probe 1 inherits this pattern, never seeing the RSS-summary layer). Phase 122 must land before Phase 123; once it has, Phase 123 can proceed. The phase intentionally ships before any further dashboard polish — shipping web-crawled, properly-timestamped, richly-metadata'd data into the dashboard is more valuable than perfecting the rendering of RSS-summary-derived data that will be wiped on cutover. Per-article discourse-function classification (the methodological complement to dropping section-level URL filtering) is specified in Phase 122a but **deferred** behind source-level/taxonomy validation (WP-001 §5.4.4); downstream phases inherit the source-level classification, and 122a's classifier is multilingual-by-construction so re-opening it needs no backfill. Tier-E custom-extractor rules are scaffolded in this phase (empty `custom_extractors:` slot in every source YAML) but no rules are populated until a specific scientific analysis demands a specific bespoke field — this avoids speculative custom-extraction code and keeps Phase 122 scope tight. The legacy RSS-adapter timestamp bug is **not** back-fixed in this phase per the user's deferred-bugfix decision; RSS data is wiped at cutover and the bug is moot post-migration.
 
 ---
 
@@ -4112,49 +4112,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 # Iteration 7 (continued) — Workbench Foundation & Pre-Probe-1 Hardening
 
-*Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, the full per-article lens, and the finalised three-surface architecture — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phases (122d.0, 122a.1) build on; the iteration closes with Phase 123a, which collapses the Dossier into a global overlay (four surfaces → three) so the second probe lands into the final surface, not a moving one.*
-
----
-
-## Phase 122a.0: Per-Article Discourse Function — Backend [P1] - [ ] TODO
-
-*Today every Gold row inherits a single source-level `discourse_function`. A tagesschau sports article is not "epistemic authority" — but inherits it. This sub-phase classifies discourse function per article (Option C per WP-001 §5.4: both tags stored independently, no synthesis) via a four-stage pipeline. Multilingual by construction (mDeBERTa covers 10 languages) so Probe 1 inherits it with no backfill.*
-
-**Grounding.** Read first: `internal/models/discourse.py` (current source-level model), the extractor registration in `main.py` + `internal/extractors/`, the ClickHouse `metrics`/`entities` schema, `internal/adapters/` Postgres usage, the BFF `/articles/{id}` + `/metrics` specs, `language_capabilities.yaml`. Preserve: the `MetricExtractor` protocol (`extract_all`), the language-detection-first ordering, graceful-degradation (missing model → no rows, not DLQ). Verify-first: confirm the exact metrics/entities columns + the manifest schema before migrating.
-
-### Schema
-* [ ] **ClickHouse** — add to `aer_gold.metrics` AND `aer_gold.entities`: `discourse_function_article LowCardinality(String) NULL`, `discourse_function_method LowCardinality(String) DEFAULT 'unclassified'`, `discourse_function_article_confidence Nullable(Float64)`. Source-level `discourse_function` unchanged — no "effective tag".
-* [ ] **Postgres** — `discourse_function_overrides(article_id PK, function, reviewer, review_date, rationale)`.
-
-### Worker
-* [ ] **`DiscourseFunctionClassifier`** — four stages (manual-override → URL-section heuristic → zero-shot `mDeBERTa-v3-base-mnli-xnli` → source-default). Pre-fetched, `TRANSFORMERS_OFFLINE=1`, determinism flags, synchronous in the main pipeline.
-* [ ] **`configs/discourse_function_rules.yaml`** (Probe 0; FR added in 123). **Capability Manifest** — `discourse_function_classification.languages: [de, fr, en, es, it, ru, zh, ja, ar, hi]`. **Config** — `DF_CLASSIFIER_CONFIDENCE_THRESHOLD` (0.6), `DF_CLASSIFIER_ENABLED` (true).
-
-### BFF
-* [ ] `?discourseFunctionScope=article|source` on `/metrics` (default `source`; `article` excludes nulls + returns `unclassified_share`). `/articles/{id}` gains `{source, article, method, confidence}`. New `/sources/{id}/discourse_function_distribution`. OpenAPI + `make codegen`.
-
-### Documentation
-* [ ] **ADR-030 — Per-Article Discourse Function Classification.** `metric_validity` scaffold rows (`unvalidated`). Operations Playbook: confidence histogram per source, abstain rate, manual-override workflow.
-
-### Validation
-* [ ] Freshly-classified Probe-0 shows non-trivial divergence (≥5% of tagesschau away from `epistemic_authority`); `discourseFunctionScope=article` returns `unclassified_share`.
-
----
-
-## Phase 122a.1: Per-Article Discourse Function — Frontend [P1] - [ ] TODO
-
-*Surfaces the per-article classification. Built before Probe 1 so the lens is in place when the second probe lands. Written mount-agnostic because Phase 123a later moves the ProbeCard from the Dossier page into the Dossier overlay.*
-
-**Grounding.** Read first: Phase-122a.0 BFF output, `L5EvidenceReader.svelte`, `src/lib/components/dossier/ProbeCard.svelte` + the DF-cards, `FunctionBadge` + `discourse-function.ts`, the Negative-Space toggle (`tray.svelte.ts`), the Phase-131 cell framework. Preserve: the `FunctionBadge` primitive as the single DF representation, the Negative-Space URL toggle. Verify-first: build the ProbeCard work **mount-agnostic** — 123a re-mounts ProbeCard into the Dossier overlay.
-
-### Frontend
-* [ ] **`discourse_function_spannweite` cell** — registered in the Cell registry (Aleph); per-source bar of article-level DF proportions vs the source default as a reference line. (A normal cell, not a "Sub-Stratum toggle".)
-* [ ] **L5EvidenceReader divergence indicator** — source vs article DF side by side with a diverging-arrow when they differ; MethodologyBanner hover cites WP-001 §5.4.
-* [ ] **ProbeCard DF-card** — sparkline histogram per source-card ("78% EA · 15% CI · 7% other"), mount-agnostic.
-* [ ] **Negative-Space overlay** — divergent articles annotated when the toggle is on.
-
-### Validation
-* [ ] Spannweite cell renders with the source-default reference line; a diverging article shows the indicator; the ProbeCard sparkline renders.
+*Everything that must be true before the second probe lands, so Probe 1 inherits clean pillars, the correct sentiment backbone, the full analytical pipeline, and the finalised three-surface architecture — with no backfill and no retrofit. Front-loaded deliberately (~7 weeks): the alternative is re-processing two probes' Gold data and re-building shallow cells later. Order is load-bearing: Pillar Sharpening and Configurable Cells form the Workbench foundation that the cell-building phase (122d.0) builds on; the iteration closes with Phase 123a, which collapses the Dossier into a global overlay (four surfaces → three) so the second probe lands into the final surface, not a moving one. **Per-article discourse-function classification (Phase 122a) is deferred** behind source-level/taxonomy validation (WP-001 §5.4.4); Probe 1 inherits the source-level DF lens, and 122a's classifier is multilingual-by-construction so re-opening it later needs no backfill.*
 
 ---
 
@@ -4162,7 +4120,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *The old "Coverage Map" phase, reframed. The engine-3d globe already has probe glyphs, source satellites, hover, selection, fly-to, multiselect, a compose-bar, and an absence-banner. Rather than a new map/overlay/endpoint, this phase evolves the Atmosphäre and **collapses the Dossier from a top-level surface into a global overlay modal** (four surfaces → three: Atmosphäre [+Dossier overlay] · Workbench · Reflexion).*
 
-*Position: the LAST dashboard-foundation phase of Iteration 7, before Probe 1 — this is dashboard-architecture restructuring, not probe expansion, so it lands with the rebuild and finalises the surface (3 surfaces, Dossier-as-overlay) before the second probe inherits it. It runs at N=1: single-probe coverage + the full selection UX are exercised here; the multi-probe coverage comparison in the banner activates when Probe 1 lands (validated in Phase 123). Placed after 122a.0/122d.0 so the capability matrix can show every flag (silent-edit, discourse-function); the ProbeCard re-mount from 122a.1 stays trivial (122a.1 is written mount-agnostic).*
+*Position: the LAST dashboard-foundation phase of Iteration 7, before Probe 1 — this is dashboard-architecture restructuring, not probe expansion, so it lands with the rebuild and finalises the surface (3 surfaces, Dossier-as-overlay) before the second probe inherits it. It runs at N=1: single-probe coverage + the full selection UX are exercised here; the multi-probe coverage comparison in the banner activates when Probe 1 lands (validated in Phase 123). Placed after 122d.0 so the capability matrix can show the silent-edit flag; the discourse-function classifier flag shows as `deferred / source-level only` (Phase 122a deferred); the ProbeCard re-mount stays trivial (122a.1, when re-opened, is written mount-agnostic).*
 
 **Grounding.** Read first: `services/dashboard/packages/engine-3d/` (public API: `setProbes`, `setSelection`, `flyTo`, `EngineEvents`), `src/routes/(app)/+page.svelte` (current click/SHIFT-click/compose-bar wiring), `src/lib/components/chrome/` (SideRail, ProbeFilterModal, PillarSwitch), `src/lib/components/dossier/` (ProbeCard, MetadataCoverageModal), `/probes/{id}/dossier` spec, ADR-033 (amended here). Preserve: the `?selectedProbes=` selection-state grammar, the engine's fallback path (no-WebGL2), deep-linkability. Verify-first: confirm `flyTo` exists and that ProbeCard (post-122a.1) is mount-agnostic before moving it.
 
@@ -4177,7 +4135,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [ ] **Workbench access via Dossier removed.** One **ProbeCard** shared by mini-banner + large overlay.
 
 ### Backend + capability data
-* [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data. Capability matrix: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier`. **Auto-generated `add-a-language.md`** from the manifest at MkDocs build.
+* [ ] **No new `/coverage/map`** — extend `/probes/{id}/dossier` with capability/coverage data. Capability matrix: `sentimentBackbone` (always) + `sentimentEnrichments[]` (optional) + `silentEditObservability` + `discourseFunctionClassifier` (shown as `deferred / source-level only` until Phase 122a re-opens). **Auto-generated `add-a-language.md`** from the manifest at MkDocs build.
 
 ### Time-window UX (Phase 131a follow-up)
 * [ ] **Date-range picker** on the Dossier overlay header — explicit `?from=&to=` URL grammar driving `windowStart` / `windowEnd` to the dossier endpoint. Pre-set chips: `Whole dataset` (default — passes `undefined` to BFF, `in_window == total`), `Last 7d`, `Last 30d`, `Custom…`. Selection persists via URL params so deep-links round-trip.
@@ -4516,6 +4474,55 @@ This phase enforces the following — every implementation choice must satisfy t
 # Deferred Phases
 
 *Recorded decisions, not committed work. Each carries explicit trigger conditions so the deferral is not silent.*
+
+---
+
+## Deferred: Phase 122a.0: Per-Article Discourse Function — Backend [P2]
+
+*Status: **DEFERRED** (decision 2026-05-28). Today every Gold row inherits a single source-level `discourse_function`. A tagesschau sports article is not "epistemic authority" at the text level — but inherits it. This sub-phase would classify discourse function per article (Option C per WP-001 §5.4: both tags stored independently, no synthesis; source-level tag stays primary) via a four-stage pipeline, multilingual by construction (mDeBERTa).*
+
+**Why deferred (per WP-001 §5.4.4).** Sequenced behind two foundations it rests on: **(1)** the source-level tag is `provisional_engineering` (self-assigned, not peer-reviewed) and the four-function taxonomy is unvalidated across cultures — refining article-level precision on an unvalidated foundation sharpens a second decimal while the first is a placeholder; **(2)** the analytically meaningful signal is *temporal drift within a source* (Episteme), which needs both time-depth and a retained temporal aggregate, neither of which exists at single-probe POC scale. The static-divergence snapshot the original validation gate measured ("≥5% away from `epistemic_authority`") is the weak form — it largely re-describes section structure. Nothing is published (provisional discipline), so deferral cost ≈ lost forward time-depth (small) against the risk of accruing DF history on a taxonomy that may be revised out-of-band.
+
+**Re-open triggers (BOTH must hold).** (i) the source-level classification is peer-reviewed / promoted past `provisional_engineering` **OR** the four-function taxonomy is stress-tested out-of-band; **AND** (ii) a concrete need for the *drift* signal — a probe (or cross-probe set) with enough temporal depth that source-function drift becomes observable. **First step at re-open = a throwaway offline probe**: run `mDeBERTa` over a sample of existing Silver, no schema/worker/BFF changes, to answer "is there structured divergence at all?" *before* any production build. If the offline probe shows only trivial section-structure divergence, the phase stays deferred.
+
+**Grounding (at re-open).** Read first: `internal/models/discourse.py` (current source-level model), the extractor registration in `main.py` + `internal/extractors/`, the ClickHouse `metrics`/`entities` schema + the resolution MVs (Phase 122c), `internal/adapters/` Postgres usage, the BFF `/articles/{id}` + `/metrics` specs, `language_capabilities.yaml`. Preserve: the `MetricExtractor` protocol (`extract_all`), the language-detection-first ordering, graceful-degradation (missing model → no rows, not DLQ). Verify-first: confirm the exact metrics/entities columns + the manifest schema before migrating.
+
+### Schema (at re-open)
+* [ ] **ClickHouse** — add to `aer_gold.metrics` AND `aer_gold.entities`: `discourse_function_article LowCardinality(String) NULL`, `discourse_function_method LowCardinality(String) DEFAULT 'unclassified'`, `discourse_function_article_confidence Nullable(Float64)`. Source-level `discourse_function` unchanged — no "effective tag". **Drift requirement:** the article-DF dimension MUST flow into a *retained* temporal aggregate (the daily/monthly MVs, Phase 122c — daily 1825 d, monthly indefinite), not only the 365 d raw `metrics` rows, so drift over the Episteme horizon is observable.
+* [ ] **Postgres** — `discourse_function_overrides(article_id PK, function, reviewer, review_date, rationale)`.
+
+### Worker
+* [ ] **`DiscourseFunctionClassifier`** — four stages (manual-override → URL-section heuristic → zero-shot `mDeBERTa-v3-base-mnli-xnli` → source-default). Pre-fetched, `TRANSFORMERS_OFFLINE=1`, determinism flags, synchronous in the main pipeline.
+* [ ] **`configs/discourse_function_rules.yaml`** (Probe 0; FR added in 123). **Capability Manifest** — `discourse_function_classification` carries a **per-language `validation_status`** (`unvalidated` until a held-out hand-annotated set exists for that language), not a flat language list. Validation is **per language, not per probe** (WP-001 §5.4.5), bounded by the manifest (~10 languages) — this is what keeps it feasible at hundreds of probes. Validation gates the *measurement claim*, never the *observation*: an `unvalidated` language still runs the classifier but its output is flagged and never feeds an aggregate. **Config** — `DF_CLASSIFIER_CONFIDENCE_THRESHOLD` (0.6), `DF_CLASSIFIER_ENABLED` (true).
+
+### BFF
+* [ ] `?discourseFunctionScope=article|source` on `/metrics` (default `source`; `article` excludes nulls + returns `unclassified_share` + per-language `validation_status`). The **time-series read path carries the article-DF dimension** so the drift cell can render off the MVs. `/articles/{id}` gains `{source, article, method, confidence}`. New `/sources/{id}/discourse_function_distribution`. OpenAPI + `make codegen`.
+
+### Documentation
+* [ ] **ADR-030 — Per-Article Discourse Function Classification** (drafted at deferral, see `docs/arc42/09_architecture_decisions.md`; finalised here). `metric_validity` scaffold rows (`unvalidated`). Operations Playbook: confidence histogram per source, abstain rate, manual-override workflow.
+
+### Validation (at re-open)
+* [ ] Offline probe run first (above). Then: the article-DF distribution is queryable as an **Episteme time-series (drift)** off the retained MVs; per-language `validation_status` surfaces on the API; source-level `discourse_function` is unchanged; `discourseFunctionScope=article` returns `unclassified_share`.
+
+---
+
+## Deferred: Phase 122a.1: Per-Article Discourse Function — Frontend [P2]
+
+*Status: **DEFERRED** (decision 2026-05-28), blocked by 122a.0. Surfaces the per-article classification. Written mount-agnostic because Phase 123a later moves the ProbeCard from the Dossier page into the Dossier overlay.*
+
+**Primary surface = drift, not static distribution (per WP-001 §5.4.4).** The valued reading is *temporal* — a source's article-DF mix drifting over time (Episteme: "this EA source publishes a rising share of PL content over six months" = a politicisation/capture signal), not a synchronic snapshot (Aleph). Drift is also the form most robust to taxonomy uncertainty: a *change* in the mix is a real signal even if the absolute labels are later revised. The first cell is therefore a **`discourse_function_drift` time-series** (Episteme); the static `discourse_function_spannweite` distribution (Aleph) is a *secondary, optional* companion, explicitly the weak form.
+
+**Grounding.** Read first: Phase-122a.0 BFF output, `L5EvidenceReader.svelte`, `src/lib/components/dossier/ProbeCard.svelte` + the DF-cards, `FunctionBadge` + `discourse-function.ts`, the Negative-Space toggle (`tray.svelte.ts`), the Phase-131 cell framework, the Episteme presentation set in `viewmodes/registry.ts`. Preserve: the `FunctionBadge` primitive as the single DF representation, the Negative-Space URL toggle. Verify-first: build the ProbeCard work **mount-agnostic** — 123a re-mounts ProbeCard into the Dossier overlay.
+
+### Frontend
+* [ ] **`discourse_function_drift` cell (PRIMARY)** — registered in the Cell registry (**Episteme**, `time_series`); per-source article-DF proportions over time, source default as a reference line. MethodologyBanner cites WP-001 §5.4 and surfaces the per-language `validation_status` (never present an `unvalidated` series as a measurement).
+* [ ] **`discourse_function_spannweite` cell (SECONDARY, optional)** — static per-source distribution bar (Aleph). Ships only if the drift cell reveals structure worth a synchronic companion.
+* [ ] **L5EvidenceReader divergence indicator** — source vs article DF side by side with a diverging-arrow when they differ; MethodologyBanner hover cites WP-001 §5.4.
+* [ ] **ProbeCard DF-card** — sparkline histogram per source-card ("78% EA · 15% CI · 7% other"), mount-agnostic, with a `(provisional / unvalidated)` marker until the language is validated.
+* [ ] **Negative-Space overlay** — divergent articles annotated when the toggle is on.
+
+### Validation
+* [ ] Drift cell renders the per-source article-DF series with the source-default reference line and the `validation_status` marker; a diverging article shows the L5 indicator; the ProbeCard sparkline renders.
 
 ---
 
