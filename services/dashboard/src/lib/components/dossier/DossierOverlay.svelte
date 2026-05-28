@@ -20,6 +20,7 @@
   } from '$lib/api/queries';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import ProbeCard from './ProbeCard.svelte';
+  import DateRangePicker from '$lib/components/base/DateRangePicker.svelte';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
@@ -182,6 +183,15 @@
         >
       </header>
 
+      <div class="window-row">
+        <span class="window-label">Window</span>
+        <DateRangePicker
+          from={url.from}
+          to={url.to}
+          onChange={(f, t) => setUrl({ from: f, to: t })}
+        />
+      </div>
+
       {#if mode === 'large'}
         <div class="catalogue-controls">
           <input
@@ -337,6 +347,20 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .window-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .window-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
   }
 
   .catalogue-controls {
