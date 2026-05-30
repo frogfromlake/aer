@@ -1,0 +1,48 @@
+entityId: probe-1-fr-institutional-web
+entityType: probe
+locale: en
+registers:
+  semantic:
+    short: "France's institutional probe — a public broadcaster (franceinfo) and the head-of-state channel (Élysée). Mirrors Probe 0's EA/PL coverage. Provisional, unvalidated."
+    long: >
+      Probe 1 is AĒR's first non-German cultural context. It mirrors Probe 0's
+      discourse-function coverage in a second polity so the two can later be
+      compared on the shared multilingual backbone. franceinfo (France
+      Télévisions public broadcaster, high publication volume) is classified
+      primarily as Epistemic Authority with a secondary Power Legitimation
+      function — the structural twin of tagesschau. Élysée (Présidence de la
+      République, event-driven bursts of communiqués, allocutions and discours)
+      is classified primarily as Power Legitimation with a secondary Epistemic
+      Authority function — the structural twin of bundesregierung. Cohesion &
+      Identity and Subversion & Friction are unrepresented on both probes by
+      construction. Every Probe-1 metric reports validation_status =
+      unvalidated; the classifications are provisional_engineering and have not
+      been peer-reviewed under WP-001 §4.4.
+  methodological:
+    short: "Source selection is collection-method-constrained: franceinfo replaces the redirected francetvinfo.fr; Élysée replaces the Cloudflare-walled government portal. Both disclosed, not inferred."
+    long: >
+      Two source choices are collection-method decisions that must be disclosed
+      (WP-006). (1) The ROADMAP named francetvinfo.fr; that domain
+      301-redirects to the publisher's canonical domain franceinfo.fr — same
+      publisher, no substantive change. (2) The ROADMAP named gouvernement.fr;
+      that domain 301-redirects to info.gouv.fr (the Premier-ministre / SIG
+      government portal), which sits behind an active Cloudflare JS
+      bot-challenge and is therefore not collectable by AĒR's polite,
+      JS-free crawler (ADR-028). Élysée (Présidence) was chosen instead: it is
+      freely collectable via its RSS feed, and is a first-rank
+      Power-Legitimation voice. Note the resulting cross-cultural asymmetry,
+      itself a finding (WP-004): the locus of executive Power-Legitimation
+      discourse is the head of STATE in France's semi-presidential system but
+      the head of GOVERNMENT in Germany. Publication volumes also differ
+      sharply (a continuous newsroom vs. event-driven presidential bursts) —
+      this reflects institutional communication cadence, not noise, and is why
+      cross-probe count comparisons require normalization or the refusal
+      surface. Full dossier: docs/probes/probe-1-fr-institutional-web/. Arc42
+      §13.11.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-29"
+workingPaperAnchors:
+  - "WP-001 §4.4"
+  - "WP-004 §3"
+  - "WP-006 §3.4"

@@ -331,6 +331,7 @@ export function contentQuery(
   entityType:
     | 'metric'
     | 'probe'
+    | 'source'
     | 'discourse_function'
     | 'refusal'
     | 'empty_lane'

@@ -24,10 +24,31 @@ type EmissionPoint struct {
 // through the content catalog.
 type ProbeEntry struct {
 	ProbeID        string          `yaml:"probeId"`
+	DisplayName    string          `yaml:"displayName"`
+	ShortName      string          `yaml:"shortName"`
 	Language       string          `yaml:"language"`
 	Country        string          `yaml:"country"`
 	EmissionPoints []EmissionPoint `yaml:"emissionPoints"`
 	Sources        []string        `yaml:"sources"`
+}
+
+// Display returns the human-friendly probe name, falling back to the machine
+// probeId when the config omits displayName. The /probes response always
+// carries a non-empty displayName so the UI never renders the raw id.
+func (e ProbeEntry) Display() string {
+	if e.DisplayName != "" {
+		return e.DisplayName
+	}
+	return e.ProbeID
+}
+
+// Short returns the compact label, falling back to the display name (and then
+// the machine probeId) when shortName is omitted.
+func (e ProbeEntry) Short() string {
+	if e.ShortName != "" {
+		return e.ShortName
+	}
+	return e.Display()
 }
 
 // ProbeRegistry is the in-memory registry keyed by probeId.

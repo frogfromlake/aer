@@ -1,0 +1,171 @@
+# AĒR Web-Crawler Probe Configuration — Probe 1 (French Institutional)
+#
+# Phase 123. AĒR's first non-German cultural context. Mirrors Probe 0's
+# discourse-function coverage (Epistemic Authority + Power Legitimation;
+# Cohesion/Identity and Subversion/Friction structurally unobserved on
+# BOTH probes — the symmetry the Phase-124 equivalence grant requires).
+#
+# Each `name` must match a source registered in PostgreSQL (see the Probe-1
+# seed migrations 000020/000021/000022). Adding a source = one entry here +
+# one PG seed migration. **No code changes** — the WebAdapter is
+# language-agnostic (it sets language="und"; the LanguageDetectionExtractor
+# patches `fr`), and the multilingual sentiment backbone already lists `fr`.
+#
+# Source selection (live-audited 2026-05-29, see the Probe-1 Dossier
+# `bias_assessment.md` "Source-selection rationale"):
+#
+#   * EA — `franceinfo` (France Télévisions / franceinfo, public broadcaster).
+#     The ROADMAP named `francetvinfo.fr`; that domain 301-redirects to the
+#     publisher's current canonical domain `franceinfo.fr` (same publisher,
+#     same editorial identity). franceinfo.fr exposes a dated news sitemap
+#     and an RSS feed and serves article HTML without a bot-challenge —
+#     multi-channel, like Probe-0's tagesschau.
+#
+#   * PL — `elysee` (Présidence de la République). The ROADMAP named
+#     `gouvernement.fr`; that domain 301-redirects to `info.gouv.fr` (the
+#     Premier-ministre / SIG government portal), which sits behind an active
+#     Cloudflare JS bot-challenge and is therefore NOT collectable by the
+#     ADR-028 polite Scrapy crawler (no JS execution; circumventing an active
+#     challenge would violate ROBOTSTXT_OBEY-spirit politeness and the
+#     Manifesto's non-adversarial posture). The Élysée is, in the French
+#     semi-presidential system, a first-rank Power-Legitimation voice
+#     (head-of-state institutional communication: communiqués, allocutions,
+#     discours), exposes a deep dated sitemap (back to 1998) + an RSS feed,
+#     and is freely collectable. The PL *locus* differs between the polities
+#     (head of state in FR vs. head of government in DE) — that asymmetry is
+#     a documented cross-cultural parameter (WP-004), not a defect; see the
+#     Dossier.
+#
+# Filtering is exclusively technical (asset URLs, search/index pages,
+# audio/TV-replay media, non-FR locale mirrors). Section-level editorial
+# filtering is rejected as researcher selection bias per WP-006 §3.
+
+# Probe-level configuration (Phase 122b). Applies uniformly to every source
+# below — never per-source, by design (the "archive-depth bias" guard). See
+# the Probe-0 sources.yaml for the full rationale of these two knobs; the
+# settings are identical so the two probes share one temporal horizon.
+probe:
+  # Rolling 7-day discovery watermark (continuous-monitoring lateness
+  # allowance; not backfill). Postgres `crawler_state` dedups across runs.
+  time_window_days: 7
+  # Drop sitemap entries with no <lastmod> in temporal-filter mode. Unlike
+  # Probe-0's bundesregierung (100 % undated sitemap), BOTH Probe-1 sources
+  # ship 100 %-dated sitemaps (audited: franceinfo 2349/2349, elysee
+  # 15313/15313), so strict mode is the correct continuous-monitoring setting
+  # with no coverage loss.
+  sitemap_strict_lastmod: true
+
+sources:
+  - name: franceinfo
+    # Phase 122g — operator-readable publisher homepage (consumed by the
+    # re-audit CLI, not the runtime crawler). francetvinfo.fr 301-redirects
+    # here; franceinfo.fr is the canonical domain where article HTML, the
+    # sitemaps, and the RSS feed all live.
+    homepage_url: https://www.franceinfo.fr
+    # franceinfo declares its sitemaps in robots.txt (a `sitemap_index.xml`
+    # of monthly `YYYY-MM-{article,audio,video,direct_tv}` sub-sitemaps, plus
+    # a flat `sitemap_news.xml` of the ~500 most-recent items) and serves a
+    # main RSS feed at `titres.rss`. For continuous monitoring we use the
+    # news sitemap + RSS (cheap: two fetches) rather than recursing the full
+    # monthly archive index — the rolling 7-day watermark plus cron-driven
+    # re-execution accumulates the corpus organically (add-a-source.md
+    # "discovery cost ladder": configure deep archive only when A/B lack the
+    # required depth; never as redundancy).
+    discovery:
+      sitemap_urls:
+        - https://www.franceinfo.fr/sitemap_news.xml
+      rss_hint_urls:
+        - https://www.franceinfo.fr/titres.rss
+      html_sitemap_urls: []
+      # ≈ 7 days of a high-volume national newsroom after dedup; set
+      # conservatively, refine from the first run's per-channel telemetry.
+      expected_floor_per_run: 150
+    politeness:
+      delay_seconds: 1.0
+      autothrottle: true
+      max_concurrent_per_domain: 2
+    url_filter:
+      exclude_extensions:
+        [jpg, png, gif, svg, webp, mp4, mp3, css, js, pdf, ico, woff, woff2]
+      # Technical filters only (WP-006 §3 — no editorial gating):
+      #   * stack-wide noise (search, auth, contact/legal boilerplate);
+      #   * audio / TV-replay media surfaces — `/replay-radio/` (podcasts)
+      #     and `/replay-jt/` (television news replay) are non-text-article
+      #     media pages from which trafilatura extracts no article body.
+      #     This is content-type filtering on media FORMAT, not topic
+      #     selection (articles that merely embed a video live under normal
+      #     editorial paths and are retained). content_filter below is the
+      #     defence-in-depth backstop.
+      exclude_path_prefixes:
+        - /api/
+        - /search/
+        - /recherche/
+        - /profile/
+        - /user/
+        - /auth/
+        - /webview/
+        - /shuffle-app/
+        - /replay-radio/
+        - /replay-jt/
+      require_html_content_type: true
+    content_filter:
+      min_word_count: 50
+      require_extraction_success: true
+    custom_extractors: {}
+
+  - name: elysee
+    # Phase 122g — see franceinfo note. gouvernement.fr 301-redirects to the
+    # Cloudflare-walled info.gouv.fr; elysee.fr is the collectable PL source.
+    homepage_url: https://www.elysee.fr
+    # elysee declares per-type sitemaps in robots.txt. `sitemap.publication.xml`
+    # is the article surface (≈ 15 300 communiqués / allocutions / discours /
+    # interventions / conférences de presse, back to 1998) — BUT it is unusable
+    # for the rolling-watermark crawl: every `<lastmod>` carries the nightly
+    # sitemap-REGENERATION time, not the article's publication date (audited
+    # 2026-05-30: all ≈ 15 300 entries stamped within a 3-second window). Under
+    # `sitemap_strict_lastmod` that makes the entire archive look "fresh" every
+    # run, so the crawler would back-fill 1998→today (≈ 4 h at the 1 s polite
+    # delay) and violate the probe-level uniform temporal horizon (the
+    # "archive-depth bias" the `probe:` block guards against). This is the same
+    # failure CLASS as Probe-0 bundesregierung (whose sitemap `lastmod` is also
+    # unreliable): the publisher-curated RSS feed is the only channel that
+    # surfaces actually-fresh items with real `pubDate`s, so it is the SOLE
+    # configured channel here. The publication sitemap is left unconfigured;
+    # reach for it only behind an explicit, separate backfill run.
+    # (`sitemap.president.xml` / `sitemap.dossier.xml` are index/landing pages,
+    # not articles, and are likewise not configured.)
+    discovery:
+      sitemap_urls: []
+      rss_hint_urls:
+        - https://www.elysee.fr/feed
+      html_sitemap_urls: []
+      # The Présidence publishes in event-driven bursts; the RSS feed carries
+      # the ≈ 50 most-recent publications, which the 7-day watermark trims to
+      # the genuinely fresh ones. Low floor is expected. Refine from telemetry.
+      expected_floor_per_run: 3
+    politeness:
+      delay_seconds: 1.0
+      autothrottle: true
+      max_concurrent_per_domain: 2
+    url_filter:
+      exclude_extensions:
+        [jpg, png, gif, svg, webp, mp4, mp3, css, js, pdf, ico, woff, woff2]
+      # Technical filters only:
+      #   * search endpoints;
+      #   * non-French locale mirrors — elysee partitions translated content
+      #     under `/en/`, `/es/`, `/de/` locale prefixes (same structure as
+      #     Probe-0 bundesregierung's `/breg-en/` etc.). Probe 1 is
+      #     French-institutional per the dossier, so the foreign mirrors are
+      #     by definition out-of-scope. Technical filtering on locale, not
+      #     editorial gating. The worker-side `probe_language_scope` guard
+      #     (elysee → [fr]) is the authoritative backstop.
+      exclude_path_prefixes:
+        - /recherche
+        - /en/
+        - /es/
+        - /de/
+      require_html_content_type: true
+    content_filter:
+      min_word_count: 50
+      require_extraction_success: true
+    custom_extractors: {}

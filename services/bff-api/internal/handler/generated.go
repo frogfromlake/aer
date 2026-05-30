@@ -188,6 +188,7 @@ const (
 	ContentResponseEntityTypePrimer               ContentResponseEntityType = "primer"
 	ContentResponseEntityTypeProbe                ContentResponseEntityType = "probe"
 	ContentResponseEntityTypeRefusal              ContentResponseEntityType = "refusal"
+	ContentResponseEntityTypeSource               ContentResponseEntityType = "source"
 	ContentResponseEntityTypeViewMode             ContentResponseEntityType = "view_mode"
 )
 
@@ -207,6 +208,8 @@ func (e ContentResponseEntityType) Valid() bool {
 	case ContentResponseEntityTypeProbe:
 		return true
 	case ContentResponseEntityTypeRefusal:
+		return true
+	case ContentResponseEntityTypeSource:
 		return true
 	case ContentResponseEntityTypeViewMode:
 		return true
@@ -449,6 +452,7 @@ const (
 	GetContentParamsEntityTypePrimer               GetContentParamsEntityType = "primer"
 	GetContentParamsEntityTypeProbe                GetContentParamsEntityType = "probe"
 	GetContentParamsEntityTypeRefusal              GetContentParamsEntityType = "refusal"
+	GetContentParamsEntityTypeSource               GetContentParamsEntityType = "source"
 	GetContentParamsEntityTypeViewMode             GetContentParamsEntityType = "view_mode"
 )
 
@@ -468,6 +472,8 @@ func (e GetContentParamsEntityType) Valid() bool {
 	case GetContentParamsEntityTypeProbe:
 		return true
 	case GetContentParamsEntityTypeRefusal:
+		return true
+	case GetContentParamsEntityTypeSource:
 		return true
 	case GetContentParamsEntityTypeViewMode:
 		return true
@@ -1197,6 +1203,9 @@ type Probe struct {
 	// Country Operator-declared primary country of the probe's emission origin(s), as an ISO 3166-1 alpha-2 code (e.g. `DE`, `FR`). This is an explicit, auditable classification set when the probe is registered — NOT inferred from language or coordinates. A universal facet for the Dossier search overlay (probe / source / language / country); never a reach claim.
 	Country *string `json:"country,omitempty"`
 
+	// DisplayName Human-friendly probe name for UI display (globe banner, dossier headers, comparison strip). Set in the probe config; the server falls back to `probeId` when it is omitted, so this field is always present.
+	DisplayName string `json:"displayName"`
+
 	// EmissionPoints Geographic origins of the probe's bound publishers. Each point is rendered as a glowing marker on the globe. Multiple points allow federated broadcasters or multi-publisher probes to render correctly without implying a reach region between them.
 	EmissionPoints []struct {
 		// Label Human-readable label for this emission point (e.g., "Hamburg (Tagesschau / NDR)"). Rendered in hover tooltips and the L3 panel.
@@ -1212,8 +1221,11 @@ type Probe struct {
 	// Language Primary publication language as an ISO 639-1 code. Used by the client for content catalog locale fallback and for future language-scoped aggregations. Not a reach claim.
 	Language string `json:"language"`
 
-	// ProbeId Canonical identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key.
+	// ProbeId Canonical machine identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key. Stable and load-bearing (URL state, content keys); follows the convention `probe-<n>-<iso2>-<corpus-class>`. Not intended for display — use `displayName` / `shortName` in the UI.
 	ProbeId string `json:"probeId"`
+
+	// ShortName Compact label for dense UI (globe markers, comparison chips). The server falls back to `displayName` (then `probeId`) when omitted.
+	ShortName string `json:"shortName"`
 
 	// Sources Canonical source names bound to this probe. Each entry corresponds to a row in the `sources` registry served by `/sources`. The client uses this to join per-source metrics back onto the probe marker (e.g., aggregating publication rates across `tagesschau` + `bundesregierung` into one pulse).
 	Sources []string `json:"sources"`
@@ -1237,6 +1249,9 @@ type ProbeDossier struct {
 		SilentEditObservability bool `json:"silentEditObservability"`
 	} `json:"capabilities,omitempty"`
 
+	// DisplayName Human-friendly probe name for UI display; server falls back to `probeId` when unset.
+	DisplayName string `json:"displayName"`
+
 	// FunctionCoverage Probe-level WP-001 §5.1 function coverage — how many of the four discourse functions the probe's sources collectively address. A derived property; not a constraint on the probe.
 	FunctionCoverage struct {
 		// Covered Number of distinct primary functions present.
@@ -1252,8 +1267,11 @@ type ProbeDossier struct {
 	// Language Primary publication language (ISO 639-1).
 	Language string `json:"language"`
 
-	// ProbeId Canonical probe identifier (matches `/probes` and `/content/probe/{probeId}`).
+	// ProbeId Canonical machine probe identifier (matches `/probes` and `/content/probe/{probeId}`). Not for display — use `displayName` / `shortName`.
 	ProbeId string `json:"probeId"`
+
+	// ShortName Compact probe label; server falls back to `displayName` (then `probeId`).
+	ShortName string `json:"shortName"`
 
 	// Sources One card per source in the probe, ordered by source name.
 	Sources []struct {

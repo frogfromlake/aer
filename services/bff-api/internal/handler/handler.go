@@ -617,9 +617,11 @@ func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProb
 		// positionally here rather than introducing a parallel named
 		// type that would have to be kept in sync with the generator.
 		probe := Probe{
-			ProbeId:  p.ProbeID,
-			Language: p.Language,
-			Sources:  append([]string(nil), p.Sources...),
+			ProbeId:     p.ProbeID,
+			DisplayName: p.Display(),
+			ShortName:   p.Short(),
+			Language:    p.Language,
+			Sources:     append([]string(nil), p.Sources...),
 			EmissionPoints: make([]struct {
 				Label     string  `json:"label"`
 				Latitude  float64 `json:"latitude"`

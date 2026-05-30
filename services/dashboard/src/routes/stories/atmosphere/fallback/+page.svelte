@@ -10,6 +10,8 @@
   const probes: ProbeDto[] = [
     {
       probeId: 'probe-0-de-institutional-web',
+      displayName: 'Germany — Institutional Web',
+      shortName: 'DE · Institutional',
       language: 'de',
       sources: ['tagesschau', 'zeit'],
       emissionPoints: [
@@ -19,12 +21,16 @@
     },
     {
       probeId: 'probe-fr-synthetic',
+      displayName: 'France — Synthetic',
+      shortName: 'FR · Synthetic',
       language: 'fr',
       sources: ['lemonde'],
       emissionPoints: [{ latitude: 48.8566, longitude: 2.3522, label: 'Paris' }]
     },
     {
       probeId: 'probe-en-synthetic',
+      displayName: 'England — Synthetic',
+      shortName: 'EN · Synthetic',
       language: 'en',
       sources: ['bbc'],
       emissionPoints: [{ latitude: 51.5074, longitude: -0.1278, label: 'London' }]

@@ -1,4 +1,8 @@
 probeId: probe-0-de-institutional-web
+# Human-friendly display layer (Phase 123). The probeId stays the stable
+# machine identifier; the UI renders these instead of the raw id.
+displayName: "Germany — Institutional Web"
+shortName: "DE · Institutional"
 language: de
 country: DE
 sources:

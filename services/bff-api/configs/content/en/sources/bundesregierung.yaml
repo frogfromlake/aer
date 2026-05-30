@@ -1,0 +1,39 @@
+entityId: bundesregierung
+entityType: source
+locale: en
+registers:
+  semantic:
+    short: "Bundesregierung (Federal Press Office, BPA) — official German government communication. Classified primarily Power Legitimation: structural agenda-setting. Secondary Epistemic Authority."
+    long: >
+      bundesregierung.de is the official communication channel of the German
+      federal government, authored or approved by the Federal Press and
+      Information Office (BPA, Berlin). Its primary discourse function is Power
+      Legitimation — it presents the government's framing of events and performs
+      institutional agenda-setting. Its secondary function is Epistemic
+      Authority: by institutional position it is an authoritative source. The
+      classification is provisional_engineering — assigned by the engineering
+      team from publicly known operator characteristics, not peer-reviewed under
+      WP-001 §4.4 (function_weights = NULL). Metrics here measure government
+      communication strategy, not independent reporting.
+  methodological:
+    short: "Full-article web crawl; very LOW, bursty volume (~5/day) → daily resolution. RSS-driven (sitemaps are service-only/undated → strict-lastmod). Non-German locale mirrors excluded. No engagement signals."
+    long: >
+      Collection is a polite full-article web crawl (ADR-028). The publisher's
+      XML sitemaps are service-only (archive/forms/CMS noise) and largely
+      undated, so under strict-lastmod filtering the publisher-curated RSS
+      catalogue (four feeds) is the channel that surfaces actual news. The
+      foreign locale mirrors (/breg-en/, /breg-fr/) are excluded as a technical
+      locale filter (Probe 0 is German-institutional). Publication volume is very
+      low and bursty (~5 articles/day, all-or-nothing on the Federal Press
+      Office schedule), so daily is the finest meaningful temporal resolution
+      (WP-005) — hourly buckets average well under one document. This LOW volume
+      relative to a 24/7 newsroom is institutional communication cadence, not a
+      defect: count comparisons against higher-volume sources require
+      normalization or the refusal surface (WP-003).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-005 §3.3"

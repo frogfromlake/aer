@@ -85,7 +85,8 @@
     {:else}
       <header class="probe-header">
         <p class="probe-eyebrow">Probe Dossier — Methodology View</p>
-        <h1 class="probe-title">{dossier.probeId}</h1>
+        <h1 class="probe-title">{dossier.displayName}</h1>
+        <code class="probe-id-sub">{dossier.probeId}</code>
         <p class="probe-sub">
           The methodological case study for this probe: why these sources, what discursive functions
           they serve, what they represent, and what they do not cover.
@@ -238,9 +239,17 @@
     font-weight: var(--font-weight-semibold);
     letter-spacing: var(--letter-spacing-tight);
     color: var(--color-fg);
-    margin: 0 0 var(--space-3);
+    margin: 0 0 var(--space-1);
     line-height: var(--line-height-tight);
+  }
+
+  /* Phase 123 — machine probeId as a muted subtitle under the display name. */
+  .probe-id-sub {
+    display: block;
     font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    margin: 0 0 var(--space-3);
   }
 
   .probe-sub {

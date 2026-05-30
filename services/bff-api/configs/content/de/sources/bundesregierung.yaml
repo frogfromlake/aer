@@ -1,0 +1,41 @@
+entityId: bundesregierung
+entityType: source
+locale: de
+registers:
+  semantic:
+    short: "Bundesregierung (Bundespresseamt, BPA) — offizielle Regierungskommunikation. Primär Machtlegitimation: strukturelles Agenda-Setting. Sekundär Epistemische Autorität."
+    long: >
+      bundesregierung.de ist der offizielle Kommunikationskanal der deutschen
+      Bundesregierung, verfasst oder freigegeben vom Bundespresseamt (BPA,
+      Berlin). Ihre primäre Diskursfunktion ist Machtlegitimation — sie
+      präsentiert das Framing der Regierung und betreibt institutionelles
+      Agenda-Setting. Sekundärfunktion ist Epistemische Autorität: durch ihre
+      institutionelle Position ist sie eine autoritative Quelle. Die
+      Klassifikation ist provisional_engineering — vom Engineering-Team aus
+      öffentlich bekannten Betreibereigenschaften zugewiesen, nicht nach WP-001
+      §4.4 peer-reviewed (function_weights = NULL). Metriken messen hier
+      Regierungs-Kommunikationsstrategie, nicht unabhängige Berichterstattung.
+  methodological:
+    short: "Voll-Artikel-Web-Crawl; sehr NIEDRIGES, schubweises Volumen (~5/Tag) → tägliche Auflösung. RSS-getrieben (Sitemaps nur Service/undatiert → strict-lastmod). Fremd-Locale-Spiegel ausgeschlossen. Keine Engagement-Signale."
+    long: >
+      Die Erhebung ist ein höflicher Voll-Artikel-Web-Crawl (ADR-028). Die
+      XML-Sitemaps des Publishers sind reine Service-Sitemaps
+      (Archiv/Formulare/CMS-Rauschen) und größtenteils undatiert, daher ist
+      unter strict-lastmod-Filterung der vom Publisher kuratierte RSS-Katalog
+      (vier Feeds) der Kanal, der tatsächliche Nachrichten liefert. Die
+      Fremd-Locale-Spiegel (/breg-en/, /breg-fr/) sind als technischer
+      Locale-Filter ausgeschlossen (Probe 0 ist deutsch-institutionell). Das
+      Publikationsvolumen ist sehr niedrig und schubweise (~5 Artikel/Tag, nach
+      dem Alles-oder-nichts-Rhythmus des Bundespresseamts), daher ist täglich
+      die feinste sinnvolle Auflösung (WP-005) — stündliche Buckets enthalten im
+      Schnitt deutlich unter einem Dokument. Dieses NIEDRIGE Volumen gegenüber
+      einem 24/7-Newsroom ist institutionelle Kommunikationskadenz, kein Defekt:
+      Mengenvergleiche mit volumenstärkeren Quellen verlangen Normalisierung oder
+      die Refusal-Surface (WP-003).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-005 §3.3"

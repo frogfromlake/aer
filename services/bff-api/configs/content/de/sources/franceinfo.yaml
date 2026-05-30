@@ -1,0 +1,44 @@
+entityId: franceinfo
+entityType: source
+locale: de
+registers:
+  semantic:
+    short: "franceinfo (France Télévisions) — öffentlich-rechtliche Nachrichten Frankreichs. Primär Epistemische Autorität: setzt die informationelle Grundlinie. Sekundär Machtlegitimation. Pendant zu tagesschau."
+    long: >
+      franceinfo ist der Nachrichtendienst von France Télévisions, dem
+      französischen öffentlich-rechtlichen Rundfunk (franceinfo.fr ist die
+      kanonische Domain; francetvinfo.fr leitet per 301 dorthin um). Als
+      öffentlich-rechtlicher Sender setzt sie eine informationelle Grundlinie,
+      daher ist ihre primäre Diskursfunktion die Epistemische Autorität;
+      Sekundärfunktion ist Machtlegitimation, da öffentlich-rechtliche Governance
+      das redaktionelle Framing strukturell prägt. Sie ist das strukturelle
+      Pendant zu tagesschau (Probe 0) und gibt beiden Sonden einen symmetrischen
+      Epistemische-Autorität-Anker. Die Klassifikation ist
+      provisional_engineering — vom Engineering-Team aus öffentlich bekannten
+      Betreibereigenschaften zugewiesen, nicht nach WP-001 §4.4 peer-reviewed
+      (function_weights = NULL); jede Metrik meldet validation_status =
+      unvalidated.
+  methodological:
+    short: "Voll-Artikel-Web-Crawl; hohes kontinuierliches Volumen → stündliche Auflösung. News-Sitemap + RSS. Audio/TV-Replay (/replay-radio/, /replay-jt/) als Nicht-Text gefiltert. Keine Engagement-/Account-Signale."
+    long: >
+      Die Erhebung ist ein höflicher Voll-Artikel-Web-Crawl (ADR-028). Die
+      ROADMAP nannte francetvinfo.fr; diese Domain leitet per 301 auf die
+      kanonische Domain franceinfo.fr um (selber Publisher, keine inhaltliche
+      Änderung). Die Discovery nutzt die datierte News-Sitemap plus den
+      Haupt-RSS-Feed; die Audio-Podcast- (/replay-radio/) und TV-Replay-
+      (/replay-jt/) Flächen des Publishers sind als technischer
+      Medienformat-Filter ausgeschlossen (kein Artikeltext), kein Themenfilter.
+      Als kontinuierlicher nationaler Newsroom hat franceinfo ein hohes Volumen,
+      daher ist stündlich eine sinnvolle Auflösung (WP-005). Strukturelle
+      Verzerrungen (WP-003): nur redaktionelle Kuratierung, keine
+      Engagement-Metriken, keine Account-Metadaten. Die hohe Kadenz gegenüber den
+      ereignisgetriebenen Schüben des Élysée bedeutet, dass Cross-Source-/
+      Cross-Probe-Mengenvergleiche Normalisierung oder die Refusal-Surface
+      verlangen.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-005 §3.3"

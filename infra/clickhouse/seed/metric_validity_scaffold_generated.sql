@@ -63,4 +63,24 @@
 --   error_taxonomy:
 --     {"reason":"engineering default; awaiting WP-002 annotation study"}
 
+-- ---------------------------------------------------------------------------
+-- entity_count — language=fr, tier=1.0
+-- ---------------------------------------------------------------------------
+--   metric_name : entity_count
+--   context_key : fr:*:*
+--   tier        : 1.0
+--   method      : spacy_ner
+--   error_taxonomy:
+--     {"reason":"engineering default; awaiting WP-002 annotation study"}
+
+-- ---------------------------------------------------------------------------
+-- sentiment_score_bert_multilingual — language=fr, tier=2.0
+-- ---------------------------------------------------------------------------
+--   metric_name : sentiment_score_bert_multilingual
+--   context_key : fr:*:*
+--   tier        : 2.0
+--   method      : multilingual_bert
+--   error_taxonomy:
+--     {"reason":"engineering default; awaiting WP-002 annotation study"}
+
 SELECT 'metric_validity_scaffold_generated: no-op — see file header for rationale' AS note;

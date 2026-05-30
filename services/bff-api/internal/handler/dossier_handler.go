@@ -65,8 +65,10 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 	}
 
 	resp := GetProbeDossier200JSONResponse{
-		ProbeId:  probe.ProbeID,
-		Language: probe.Language,
+		ProbeId:     probe.ProbeID,
+		DisplayName: probe.Display(),
+		ShortName:   probe.Short(),
+		Language:    probe.Language,
 	}
 	if winStart != nil {
 		t := *winStart

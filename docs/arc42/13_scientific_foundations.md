@@ -461,3 +461,24 @@ Additional quality press feeds may be added as the pipeline matures. Each additi
 ### Exit Criteria
 
 This probe is **superseded** — not retired — when a scientifically motivated probe selection is made through the research process (§13.5). The RSS crawler remains operational as one data source among many. The engineering calibration data it has collected retains its value for pipeline regression testing and baseline comparisons, even after scientifically selected probes are introduced.
+
+## 13.11 Probe 1: Cross-Cultural Calibration (French Institutional Web)
+
+> **Status:** Operational from Phase 123 (ADR-028 web crawl). Classified `provisional_engineering`. Every Probe-1 metric reports `validation_status = unvalidated`.
+> **Date:** 2026-05-29 (initial classification).
+
+Probe 1 is AĒR's **first non-German cultural context**. It mirrors Probe 0's discourse-function coverage in a second polity so the two can be compared on the shared multilingual Tier-2 backbone (the Phase-124 equivalence work builds directly on it). Like Probe 0 it is a **calibration** probe — source selection is engineering/pragmatic, not the outcome of the Manifesto's interdisciplinary Probe Principle dialogue.
+
+**Sources.** `franceinfo` (France Télévisions / franceinfo public broadcaster) — **Epistemic Authority** primary, the structural twin of tagesschau. `elysee` (Présidence de la République) — **Power Legitimation** primary, the structural twin of bundesregierung. Cohesion & Identity and Subversion & Friction are unrepresented on both probes by construction.
+
+**Source-selection rationale (disclosed, WP-006).** Two choices diverge from the ROADMAP's literal naming, both collection-method decisions: (1) `francetvinfo.fr` 301-redirects to the canonical `franceinfo.fr` (same publisher); (2) `gouvernement.fr` 301-redirects to `info.gouv.fr` (the Premier-ministre / SIG portal — the institutionally exact twin of bundesregierung's BPA), which sits behind an active Cloudflare JS bot-challenge and is therefore not collectable by the polite, JS-free ADR-028 crawler. `elysee.fr` (Présidence) was chosen instead — freely collectable via its RSS feed (its publication sitemap is unusable for rolling collection: every `<lastmod>` is the nightly regeneration time, not the article date, so it would back-fill the archive to 1998), and a first-rank Power-Legitimation voice.
+
+**PL-locus asymmetry (WP-004).** Following from the substitution and the French semi-presidential constitution, the locus of executive Power-Legitimation discourse is the head of **state** in France vs. the head of **government** in Germany. This is a recorded cross-cultural parameter — itself a statement about where power-legitimation discourse is produced — not measurement error.
+
+**Collection method.** Identical to Probe 0: the single configurable web crawler (ADR-028) stores raw HTML in Bronze; the `WebAdapter` extracts at the Silver boundary; the `LanguageDetectionExtractor` patches `detected_language = fr`. No code changes — the WebAdapter is language-agnostic and the multilingual sentiment backbone already supports `fr`.
+
+**NLP.** NER on `fr_core_news_lg`; sentiment on the shared multilingual backbone (`cardiffnlp/twitter-xlm-roberta-base-sentiment`). French Tier-1 (FEEL) and Tier-2.5 (CamemBERT) are deferred — within-frame only, never the cross-probe basis (ADR-023 amendment).
+
+**Dossier.** Full per-probe context in `docs/probes/probe-1-fr-institutional-web/` (README, classification, bias_assessment, temporal_profile, observer_effect). The per-source reflexive content (substantive classification justification + collection-method bias) is surfaced live in the Dossier overlay's source cards (Phase 123).
+
+**Exit criteria.** Graduates from `provisional_engineering` only when WP-001 §4.4 Steps 1–2 are completed and `function_weights` are populated.

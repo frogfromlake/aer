@@ -1,0 +1,40 @@
+entityId: tagesschau
+entityType: source
+locale: de
+registers:
+  semantic:
+    short: "Tagesschau (ARD) — öffentlich-rechtliche Nachrichten. Primär Epistemische Autorität: setzt die informationelle Grundlinie, auf die andere sich beziehen. Sekundär Machtlegitimation."
+    long: >
+      Tagesschau wird von ARD-aktuell (NDR, Hamburg) produziert. Als
+      gebührenfinanzierter Rundfunk mit gesetzlichem Ausgewogenheitsauftrag
+      (Rundfunkstaatsvertrag) ist ihre primäre Diskursfunktion die Epistemische
+      Autorität — sie setzt die informationelle Grundlinie, auf die sich andere
+      deutschsprachige Medien beziehen, die sie paraphrasieren oder
+      widerlegen. Sekundärfunktion ist Machtlegitimation: die redaktionelle
+      Unabhängigkeit ist durch ein parteienproportionales Governance-Modell
+      (Rundfunkrat / Verwaltungsrat) strukturell begrenzt. Die Klassifikation
+      ist provisional_engineering — vom Engineering-Team aus öffentlich bekannten
+      Betreibereigenschaften zugewiesen, nicht nach WP-001 §4.4 peer-reviewed
+      (function_weights = NULL).
+  methodological:
+    short: "Voll-Artikel-Web-Crawl (Phase 122) redaktioneller Inhalte; ~60 Artikel/Tag → stündliche Auflösung. Mehrkanalige Discovery (RSS + HTML-Sitemap + Datums-Archiv). Keine Engagement-/Account-Signale."
+    long: >
+      Die Erhebung ist ein höflicher Voll-Artikel-Web-Crawl (ADR-028): rohes
+      HTML wird verbatim in Bronze gespeichert, der Text an der Silver-Grenze
+      extrahiert. tagesschau publiziert keine Standard-XML-Sitemap, daher
+      umfasst die Discovery drei Kanäle (RSS-Feed, tägliche HTML-Sitemap,
+      datumsindiziertes Archiv). Empirische Rate ~60 Artikel/Tag, daher ist
+      stündlich die feinste sinnvolle Auflösung (WP-005). Strukturelle
+      Verzerrungen (WP-003): alle Inhalte sind redaktionell kuratiert — keine
+      nutzergenerierten Inhalte, keine Engagement-Metriken, keine
+      Account-Metadaten; das Korpus ist nur institutionelle/redaktionelle
+      Stimme, nicht "die deutsche öffentliche Meinung". Absolute Artikelzahlen
+      sind über Quellen unterschiedlicher Kadenz nicht vergleichbar — Raten oder
+      die Normalisierungs-/Refusal-Surface nutzen.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-005 §3.3"

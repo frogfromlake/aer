@@ -166,7 +166,8 @@
       aria-controls="pc-body-{probe.probeId}"
     >
       <span class="chevron" class:expanded aria-hidden="true">›</span>
-      <h2 id="pc-title-{probe.probeId}" class="probe-title">{probe.probeId}</h2>
+      <h2 id="pc-title-{probe.probeId}" class="probe-title">{probe.displayName}</h2>
+      <code class="probe-id" aria-label="Machine identifier">{probe.probeId}</code>
       <span class="lang-badge" aria-label="Primary language: {probe.language}">
         {probe.language}
       </span>
@@ -380,10 +381,17 @@
 
   .probe-title {
     margin: 0;
-    font-family: var(--font-mono);
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-semibold);
     color: var(--color-fg);
+  }
+
+  /* Phase 123 — the machine probeId as a muted, auditable subtitle next to
+     the human-friendly display name. */
+  .probe-id {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
   }
 
   .lang-badge {

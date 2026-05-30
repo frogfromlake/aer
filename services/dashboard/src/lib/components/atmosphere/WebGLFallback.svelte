@@ -54,6 +54,7 @@
           {@const rate = activityByProbe.get(probe.probeId)}
           <li>
             <div class="probe-head">
+              <span class="probe-name">{probe.displayName}</span>
               <code class="probe-id">{probe.probeId}</code>
               <span class="lang" aria-label="Language">{probe.language}</span>
             </div>
@@ -137,10 +138,15 @@
     gap: var(--space-3);
     margin-bottom: var(--space-3);
   }
+  .probe-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-fg);
+  }
   .probe-id {
     font-family: var(--font-family-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
   }
   .lang {
     font-size: var(--font-size-xs);

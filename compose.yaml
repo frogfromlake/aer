@@ -379,6 +379,26 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}
       - WORKER_COUNT=${WORKER_COUNT:-5}
+      # Phase 123 — JetStream consumer tuning (env-wired for scale). ack_wait
+      # must exceed the worst-case per-document processing time so a still-
+      # processing document is never redelivered (which spirals under backlog).
+      - NATS_ACK_WAIT_SECONDS=${NATS_ACK_WAIT_SECONDS:-300}
+      - NATS_MAX_DELIVER=${NATS_MAX_DELIVER:-5}
+      # Phase 123 hardening — CRITICAL for multi-worker scale. The HuggingFace
+      # `tokenizers` (Rust/rayon) library deadlocks when the BERT sentiment
+      # models are tokenised from several Python threads at once: with
+      # WORKER_COUNT>1 all worker threads enter inference concurrently and the
+      # rayon threadpool wedges on a futex (CPU idle, pipeline frozen — the
+      # exact stall observed at WORKER_COUNT=5). Disabling tokenizer-internal
+      # parallelism removes the deadlock; throughput comes from the worker
+      # pool, not from intra-tokeniser threads.
+      - TOKENIZERS_PARALLELISM=${TOKENIZERS_PARALLELISM:-false}
+      # Bound torch/OpenMP/MKL intra-op threads so N concurrent inferences do
+      # not each spawn (cpu-count) threads — that oversubscription explodes the
+      # process thread count and starves the scheduler. One math thread per
+      # inference; parallelism is across workers.
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
+      - MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
       - MINIO_ENDPOINT=minio:9000
       - WORKER_MINIO_ACCESS_KEY=${WORKER_MINIO_ACCESS_KEY}
       - WORKER_MINIO_SECRET_KEY=${WORKER_MINIO_SECRET_KEY}
@@ -429,6 +449,11 @@ services:
       - WAYBACK_CDX_TIMEOUT_SECONDS=${WAYBACK_CDX_TIMEOUT_SECONDS:-5.0}
       - WAYBACK_CDX_RATE_LIMIT_PER_SECOND=${WAYBACK_CDX_RATE_LIMIT_PER_SECOND:-5.0}
       - WAYBACK_CDX_CACHE_TTL_HOURS=${WAYBACK_CDX_CACHE_TTL_HOURS:-24}
+      # Phase 123 — circuit breaker so an unreachable Internet Archive cannot
+      # add a per-article HTTP timeout to the synchronous harmonisation path
+      # (open after N consecutive failures; short-circuit for the cooldown).
+      - WAYBACK_CDX_CIRCUIT_FAILURE_THRESHOLD=${WAYBACK_CDX_CIRCUIT_FAILURE_THRESHOLD:-5}
+      - WAYBACK_CDX_CIRCUIT_RESET_SECONDS=${WAYBACK_CDX_CIRCUIT_RESET_SECONDS:-60}
       - REPUBLICATION_TRIGGER_MIN_DELTA_DAYS=${REPUBLICATION_TRIGGER_MIN_DELTA_DAYS:-7}
       # Phase 122d.1 / ADR-032 amendment — Silent-Edit Diff Substance.
       # Separate enable-flag from CDX (122d.0); the snapshot fetcher
@@ -486,8 +511,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4096M
-          cpus: "2.00"
+          # Phase 123 — the worker runs the full heavy-NLP stack (2× BERT
+          # sentiment + 2× spaCy NER + per-doc topic + entity-linking) per
+          # document across WORKER_COUNT threads. At 2 CPUs the large
+          # franceinfo live-blog articles took minutes each and the backlog
+          # never drained. Raised to 6 CPUs (host has 24) so each of the 4
+          # workers gets >1 core. Memory 6G (host has ~8G free — 8G would risk
+          # OOM for the rest of the stack); the BERT/spaCy models are ~3-4G
+          # resident, leaving headroom for 4 concurrent inferences.
+          memory: 6144M
+          cpus: "6.00"
 
   # ----------------------------------------------------
   # 3.1d WEB CRAWLER (ONE-SHOT JOB) — Phase 122

@@ -1,0 +1,46 @@
+entityId: elysee
+entityType: source
+locale: en
+registers:
+  semantic:
+    short: "Élysée (Présidence de la République) — French head-of-state communication. Classified primarily Power Legitimation. Secondary Epistemic Authority. PL twin of bundesregierung — but a different locus (see below)."
+    long: >
+      elysee.fr is the official communication channel of the President of the
+      Republic. Its primary discourse function is Power Legitimation —
+      head-of-state agenda-setting and framing (communiqués, allocutions,
+      discours); its secondary function is Epistemic Authority by institutional
+      position. It is the Power-Legitimation twin of Probe 0's bundesregierung,
+      BUT note the cross-cultural asymmetry (WP-004): the locus of executive
+      Power-Legitimation discourse is the head of STATE in France's
+      semi-presidential system, whereas in Germany it is the head of GOVERNMENT
+      (the Federal Government / BPA). This is a documented comparative parameter,
+      not a defect. The classification is provisional_engineering — not
+      peer-reviewed under WP-001 §4.4 (function_weights = NULL).
+  methodological:
+    short: "Chosen over the Cloudflare-walled info.gouv.fr (collection constraint). Event-driven bursts → daily resolution. Collected via the RSS feed (the publication sitemap's lastmod is its regeneration time → unusable for the rolling window). No engagement signals."
+    long: >
+      Collection is a polite full-article web crawl (ADR-028). Source choice is a
+      collection-method decision disclosed per WP-006: the ROADMAP named
+      gouvernement.fr, which 301-redirects to info.gouv.fr (the Premier-ministre
+      / SIG government portal) — the institutionally exact twin of
+      bundesregierung's BPA, but it sits behind an active Cloudflare JS
+      bot-challenge and is therefore not collectable by AĒR's polite, JS-free
+      crawler (circumventing it would be adversarial and off-Manifesto).
+      elysee.fr was chosen instead: freely collectable via its RSS feed. (The
+      publisher's publication sitemap is NOT used for rolling collection — every
+      entry's lastmod is the nightly sitemap-regeneration time, not the article
+      date, so honouring it would back-fill the entire archive to 1998 and break
+      the probe's uniform temporal horizon; same failure class as Probe-0
+      bundesregierung.) The Présidence communicates in event-driven
+      bursts rather than continuously, so volume is low and irregular and daily
+      is the finest meaningful temporal resolution (WP-005). This low, bursty
+      cadence is itself a discourse signal; cross-probe count comparisons require
+      normalization or the refusal surface (WP-003).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-004 §3"
+  - "WP-006 §3.4"

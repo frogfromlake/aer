@@ -1,0 +1,46 @@
+entityId: elysee
+entityType: source
+locale: de
+registers:
+  semantic:
+    short: "Élysée (Présidence de la République) — Kommunikation des Staatschefs. Primär Machtlegitimation. Sekundär Epistemische Autorität. PL-Pendant zu bundesregierung — aber anderer Locus (siehe unten)."
+    long: >
+      elysee.fr ist der offizielle Kommunikationskanal des Präsidenten der
+      Republik. Primäre Diskursfunktion ist Machtlegitimation — Agenda-Setting
+      und Framing des Staatsoberhaupts (Communiqués, Allocutions, Discours);
+      Sekundärfunktion ist Epistemische Autorität durch die institutionelle
+      Position. Sie ist das Machtlegitimations-Pendant zu bundesregierung (Probe
+      0), ABER es gilt die kulturelle Asymmetrie (WP-004): der Ort exekutiver
+      Machtlegitimation ist im französischen semipräsidentiellen System das
+      STAATSoberhaupt, während es in Deutschland der REGIERUNGSchef ist (die
+      Bundesregierung / das BPA). Das ist ein dokumentierter Vergleichsparameter,
+      kein Defekt. Die Klassifikation ist provisional_engineering — nicht nach
+      WP-001 §4.4 peer-reviewed (function_weights = NULL).
+  methodological:
+    short: "Gewählt statt des Cloudflare-gesperrten info.gouv.fr. Ereignisgetriebene Schübe → tägliche Auflösung. Erhebung via RSS-Feed (Publication-Sitemap-lastmod = Regenerierungszeit → fürs Rolling-Fenster unbrauchbar). Keine Engagement-Signale."
+    long: >
+      Die Erhebung ist ein höflicher Voll-Artikel-Web-Crawl (ADR-028). Die
+      Quellenwahl ist eine erhebungsmethodische Entscheidung, offengelegt nach
+      WP-006: die ROADMAP nannte gouvernement.fr, das per 301 auf info.gouv.fr
+      umleitet (das Regierungsportal des Premier ministre / SIG) — das
+      institutionell exakte Pendant zum BPA der bundesregierung, das aber hinter
+      einer aktiven Cloudflare-JS-Bot-Schranke liegt und daher vom höflichen,
+      JS-freien Crawler nicht erhebbar ist (eine Umgehung wäre adversarial und
+      widerspräche dem Manifest). Stattdessen wurde elysee.fr gewählt: frei
+      erhebbar über ihren RSS-Feed. (Die Publication-Sitemap wird fürs
+      Rolling-Fenster NICHT genutzt — jedes lastmod ist die nächtliche
+      Regenerierungszeit, nicht das Artikeldatum, was das ganze Archiv bis 1998
+      backfillen würde; gleiche Fehlerklasse wie bundesregierung.) Die
+      Présidence kommuniziert ereignisgetrieben in Schüben statt kontinuierlich,
+      daher ist das Volumen niedrig und unregelmäßig und täglich die feinste
+      sinnvolle Auflösung (WP-005). Diese niedrige, schubweise Kadenz ist selbst
+      ein Diskurssignal; Cross-Probe-Mengenvergleiche verlangen Normalisierung
+      oder die Refusal-Surface (WP-003).
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-004 §3"
+  - "WP-006 §3.4"

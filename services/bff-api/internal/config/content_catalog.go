@@ -39,14 +39,15 @@ type ContentRecord struct {
 type ContentCatalog map[string]ContentRecord
 
 var validEntityTypes = map[string]bool{
-	"metric":                true,
-	"probe":                 true,
-	"discourse_function":    true,
-	"refusal":               true,
-	"view_mode":             true,
-	"empty_lane":            true,
+	"metric":                 true,
+	"probe":                  true,
+	"source":                 true,
+	"discourse_function":     true,
+	"refusal":                true,
+	"view_mode":              true,
+	"empty_lane":             true,
 	"open_research_question": true,
-	"primer":                true,
+	"primer":                 true,
 }
 
 var validLocales = map[string]bool{
@@ -111,7 +112,7 @@ func validateContentRecord(r ContentRecord, path string) error {
 		return loc("entityId is required")
 	}
 	if !validEntityTypes[r.EntityType] {
-		return loc(fmt.Sprintf("invalid entityType %q; must be one of metric, probe, discourse_function, refusal, view_mode, empty_lane, open_research_question, primer", r.EntityType))
+		return loc(fmt.Sprintf("invalid entityType %q; must be one of metric, probe, source, discourse_function, refusal, view_mode, empty_lane, open_research_question, primer", r.EntityType))
 	}
 	if !validLocales[r.Locale] {
 		return loc(fmt.Sprintf("invalid locale %q; must be one of en, de", r.Locale))

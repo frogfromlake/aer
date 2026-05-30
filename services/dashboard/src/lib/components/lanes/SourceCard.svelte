@@ -4,7 +4,14 @@
   // etic classification (WP-001), emic designation/context, Silver eligibility.
   // "View articles" expands the ArticlePreviewList inline.
   // "Narrow scope" sets URL sourceId so lane views filter by this source.
-  import type { ProbeDossierSourceDto, FetchContext } from '$lib/api/queries';
+  import { createQuery } from '@tanstack/svelte-query';
+  import {
+    contentQuery,
+    type ProbeDossierSourceDto,
+    type FetchContext,
+    type ContentResponseDto,
+    type QueryOutcome
+  } from '$lib/api/queries';
   import ArticlePreviewList from './ArticlePreviewList.svelte';
   import DiscoveryCoveragePanel from './DiscoveryCoveragePanel.svelte';
   // Phase 122k: url-state imports removed — SourceCard holds local state.
@@ -47,6 +54,25 @@
 
   let primaryMeta = $derived(getFunctionDef(source.primaryFunction));
   let secondaryMeta = $derived(getFunctionDef(source.secondaryFunction));
+
+  // Phase 123 — reflexive per-source content (entityType=source). Two
+  // registers: `semantic` = the substantive justification for this source's
+  // discourse-function classification; `methodological` = the
+  // collection-method reason / bias (publication cadence, source-selection
+  // constraints). Surfaced here so a reader knows WHAT they are comparing —
+  // critical once probes from different cultures are composed. Locale 'en'
+  // mirrors ProbeCard; both en/de catalogue entries exist.
+  const sourceContentQ = createQuery<
+    QueryOutcome<ContentResponseDto>,
+    Error,
+    QueryOutcome<ContentResponseDto>
+  >(() => {
+    const o = contentQuery(ctx, 'source', source.name, 'en');
+    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  });
+  const sourceContent = $derived(
+    sourceContentQ.data?.kind === 'success' ? sourceContentQ.data.data : null
+  );
 
   let freqDisplay = $derived(
     source.publicationFrequencyPerDay !== null && source.publicationFrequencyPerDay !== undefined
@@ -166,6 +192,18 @@
           {#if source.emicContext}
             <p class="emic-context">{source.emicContext}</p>
           {/if}
+        </section>
+      {/if}
+
+      <!-- Phase 123 — reflexive per-source registers. Rendered together and
+           independently of the classification block so both always appear (a
+           source pending classification still shows justification + bias). -->
+      {#if sourceContent}
+        <section class="reflexive-registers" aria-label="Source rationale and bias">
+          <span class="label-xs">Why this classification</span>
+          <p class="register-note">{sourceContent.registers.semantic.long}</p>
+          <span class="label-xs">Collection &amp; bias</span>
+          <p class="register-note">{sourceContent.registers.methodological.long}</p>
         </section>
       {/if}
 
@@ -427,6 +465,24 @@
     color: var(--color-fg-muted);
     line-height: var(--line-height-loose);
     margin: 0;
+  }
+
+  /* Phase 123 — reflexive register notes (justification + collection bias). */
+  .register-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+    margin: var(--space-1) 0 0;
+  }
+
+  .reflexive-registers {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-md);
+    border-left: 2px solid var(--color-border);
   }
 
   .card-footer {

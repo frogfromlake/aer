@@ -236,3 +236,42 @@ def test_processor_no_language_detection_insert_without_language_extractor(
 
     assert len(gold_insert_calls(mock_clickhouse)) == 1
     assert gold_insert_calls(mock_clickhouse)[0][0][0] == "aer_gold.metrics"
+
+
+# ---------------------------------------------------------------------------
+# Phase 123 — Probe 1 (French). The language-detection consensus is the
+# FR-critical step: it gates the sentiment/NER routing for Probe 1. The Silver
+# schema and downstream pipeline are source/language-agnostic (proven by the
+# tests above + the WebAdapter tests), so this asserts the one thing that is
+# genuinely new for the French probe — that real French institutional prose is
+# detected as `fr` (rank=1 consensus winner).
+# ---------------------------------------------------------------------------
+
+def test_language_extractor_french_text_detected_as_fr():
+    """Real French institutional prose → rank=1 consensus language is 'fr'."""
+    extractor = LanguageDetectionExtractor()
+    french = (
+        "Le Président de la République a présidé ce mercredi un Conseil des "
+        "ministres consacré à la transition écologique. Le Gouvernement a "
+        "présenté un plan visant à réduire les émissions de gaz à effet de "
+        "serre d'ici 2030, en coordination avec les collectivités territoriales "
+        "et les services de l'État."
+    )
+    core = SilverCore(
+        document_id="fr-article-1",
+        source="elysee",
+        source_type="web",
+        raw_text=french,
+        cleaned_text=french,
+        timestamp=datetime(2026, 5, 29, 10, 0, 0, tzinfo=timezone.utc),
+        word_count=len(french.split()),
+    )
+
+    result = extractor.extract_all(core, "fr-article-1")
+    detections = result.language_detections
+
+    assert len(detections) >= 1
+    assert detections[0].rank == 1
+    assert detections[0].detected_language == "fr"
+    assert 0.0 <= detections[0].confidence <= 1.0
+    assert detections[0].source == "elysee"

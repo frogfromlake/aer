@@ -117,7 +117,9 @@
     probeDtos.map((p) => ({
       id: p.probeId,
       language: p.language,
-      label: p.probeId,
+      // Phase 123 — render the human-friendly short name on the globe marker,
+      // never the raw machine probeId. `id` remains the probeId (selection key).
+      label: p.shortName,
       emissionPoints: p.emissionPoints.map((ep, i) => {
         const source = p.sources[i];
         return source !== undefined
@@ -283,10 +285,11 @@
   // --- Keyboard descent grammar ---------------------------------------
   interface FlatProbe {
     probeId: string;
+    displayName: string;
     language: string;
   }
   let flatProbes = $derived.by<FlatProbe[]>(() =>
-    probeDtos.map((p) => ({ probeId: p.probeId, language: p.language }))
+    probeDtos.map((p) => ({ probeId: p.probeId, displayName: p.displayName, language: p.language }))
   );
 
   // Pre-resolve the hovered probe DTO so the tooltip can render the
@@ -351,7 +354,7 @@
         style:left="{pointerX + 14}px"
         style:top="{pointerY + 14}px"
       >
-        <span class="tooltip-headline">{hoveredProbeDto?.probeId ?? hoveredProbe.probeId}</span>
+        <span class="tooltip-headline">{hoveredProbeDto?.displayName ?? hoveredProbe.probeId}</span>
         <span class="tooltip-meta">{(hoveredProbeDto?.language ?? '').toUpperCase()}</span>
         {#if inCompose}
           <span class="tooltip-compose-badge">✓ in selection</span>
@@ -381,12 +384,12 @@
           <button
             type="button"
             class="sr-only"
-            aria-label="Probe {p.probeId}, {p.language}"
+            aria-label="Probe {p.displayName}, {p.language}"
             onfocus={() => onProbeHovered({ probeId: p.probeId })}
             onblur={() => onProbeHovered(null)}
             onclick={() => onProbeSelected({ probeId: p.probeId })}
           >
-            {p.probeId}
+            {p.displayName}
           </button>
         </li>
       {/each}

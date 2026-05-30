@@ -139,6 +139,8 @@ class WaybackCDXClient:
         user_agent: str,
         cache: "Optional[WaybackCDXCache]" = None,
         session: Optional[requests.Session] = None,
+        circuit_failure_threshold: int = 5,
+        circuit_reset_seconds: float = 60.0,
     ) -> None:
         self._enabled = enabled
         self._base_url = base_url.rstrip("/")
@@ -150,6 +152,25 @@ class WaybackCDXClient:
         # handshakes on warm workers.
         self._session = session or requests.Session()
         self._session.headers.update({"User-Agent": user_agent})
+
+        # Circuit breaker (Phase 123 hardening). The CDX lookup is a
+        # SYNCHRONOUS call on the per-article harmonisation path. When the
+        # Internet Archive is unreachable, every document would otherwise pay
+        # the full `timeout_seconds` HTTP timeout — at high throughput this
+        # collapses worker drain (observed: a 1000+ doc backlog effectively
+        # stalls). After `circuit_failure_threshold` consecutive failures the
+        # breaker OPENS: `lookup()` returns STATUS_FAILED immediately (no
+        # network, no rate-limiter) for `circuit_reset_seconds`, so the corpus
+        # keeps flowing at full speed during an outage. After the cooldown a
+        # single half-open probe detects recovery and closes the breaker.
+        # State is shared across all worker threads (guarded by `_cb_lock`),
+        # so one open circuit backs off the whole pool — which is correct: if
+        # the endpoint is down for one thread it is down for all.
+        self._cb_threshold = max(1, int(circuit_failure_threshold))
+        self._cb_reset_seconds = max(1.0, float(circuit_reset_seconds))
+        self._cb_lock = threading.Lock()
+        self._cb_consecutive_failures = 0
+        self._cb_open_until = 0.0  # monotonic deadline; > now ⇒ circuit open
 
     # ------------------------------------------------------------------
     # Public API
@@ -177,11 +198,20 @@ class WaybackCDXClient:
             if cached is not None:
                 return cached
 
+        # Circuit breaker: while open, skip the network entirely so an IA
+        # outage costs ~0 per document instead of one full HTTP timeout each.
+        # Cache hits above are still served (they cost nothing and the cache
+        # only holds successful answers).
+        if not self._circuit_allows_request():
+            return CDXResult(status=STATUS_FAILED)
+
         if not self._bucket.acquire():
             logger.info(
                 "Wayback CDX rate-limited; collapsing to failed status.",
                 canonical_url=canonical_url,
             )
+            # Local backpressure, not an endpoint failure → do NOT advance the
+            # circuit breaker (the endpoint may be perfectly healthy).
             return CDXResult(status=STATUS_FAILED)
 
         try:
@@ -198,6 +228,10 @@ class WaybackCDXClient:
                 error_type=type(exc).__name__,
             )
             result = CDXResult(status=STATUS_FAILED)
+
+        # Advance the breaker on the real network outcome (ok/no_snapshots
+        # close it; failed advances toward / re-arms open).
+        self._record_circuit_outcome(result.status)
 
         # Only positive outcomes (ok / no_snapshots) are cached. A
         # `failed` row would otherwise persist a transient IA outage
@@ -221,6 +255,43 @@ class WaybackCDXClient:
                     error=str(exc),
                 )
         return result
+
+    # ------------------------------------------------------------------
+    # Circuit breaker
+    # ------------------------------------------------------------------
+    def _circuit_allows_request(self) -> bool:
+        """True if a network call may proceed; False while the breaker is open.
+
+        Once the cooldown deadline passes the breaker is half-open: this
+        returns True so a probe can run. `_record_circuit_outcome` then closes
+        the breaker on the first success or re-arms the cooldown on failure.
+        """
+        with self._cb_lock:
+            if self._cb_open_until == 0.0:
+                return True
+            return time.monotonic() >= self._cb_open_until
+
+    def _record_circuit_outcome(self, status: str) -> None:
+        """Update breaker state from a completed network attempt."""
+        with self._cb_lock:
+            if status == STATUS_FAILED:
+                self._cb_consecutive_failures += 1
+                if self._cb_consecutive_failures >= self._cb_threshold:
+                    already_open = self._cb_open_until > time.monotonic()
+                    self._cb_open_until = time.monotonic() + self._cb_reset_seconds
+                    if not already_open:
+                        logger.warning(
+                            "Wayback CDX circuit opened; skipping lookups during cooldown.",
+                            consecutive_failures=self._cb_consecutive_failures,
+                            cooldown_seconds=self._cb_reset_seconds,
+                        )
+            else:
+                # ok / no_snapshots ⇒ endpoint healthy. (skipped/disabled
+                # never reach here — they return before the network path.)
+                if self._cb_open_until != 0.0 or self._cb_consecutive_failures:
+                    logger.info("Wayback CDX circuit closed; endpoint healthy again.")
+                self._cb_consecutive_failures = 0
+                self._cb_open_until = 0.0
 
     # ------------------------------------------------------------------
     # Internal helpers

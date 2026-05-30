@@ -1,0 +1,21 @@
+probeId: probe-1-fr-institutional-web
+# Human-friendly display layer (Phase 123). probeId is the stable machine id;
+# the UI renders these.
+displayName: "France — Institutional Web"
+shortName: "FR · Institutional"
+language: fr
+country: FR
+sources:
+  - franceinfo
+  - elysee
+emissionPoints:
+  # franceinfo (France Télévisions / franceinfo) — Siège de France
+  # Télévisions, Esplanade Henri de France, Paris 15e. franceinfo.fr is the
+  # canonical domain (francetvinfo.fr 301-redirects here).
+  - latitude: 48.8389
+    longitude: 2.2766
+    label: "Paris (franceinfo / France Télévisions)"
+  # Élysée (Présidence de la République) — Palais de l'Élysée, Paris 8e.
+  - latitude: 48.8704
+    longitude: 2.3169
+    label: "Paris (Élysée / Présidence de la République)"

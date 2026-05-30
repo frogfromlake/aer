@@ -42,6 +42,9 @@ zstandard==0.25.0
 spacy==3.8.13
 langdetect==1.0.9
 https://github.com/explosion/spacy-models/releases/download/de_core_news_lg-3.8.0/de_core_news_lg-3.8.0-py3-none-any.whl
+# Phase 123: Probe 1 — French NER (fr_core_news_lg). Manifest-routed; the
+# NER extractor stays untouched.
+https://github.com/explosion/spacy-models/releases/download/fr_core_news_lg-3.8.0/fr_core_news_lg-3.8.0-py3-none-any.whl
 
 # --- Phase 116: Multilingual Foundation ---
 # Second-opinion language detector. langdetect retained for short-text

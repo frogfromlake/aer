@@ -386,3 +386,74 @@ def test_timestamp_source_falls_back_to_fetch_at_when_nothing_else() -> None:
         # fetch_at is set from the raw payload; falls back to event_time
         # if that is missing too.
         assert core.timestamp == meta.fetch_at
+
+
+# ---------------------------------------------------------------------------
+# Phase 123 — Probe 1 (French). Proves the WEB Bronze→Silver harmonisation
+# (trafilatura/extruct/htmldate) works on French institutional HTML exactly as
+# it does for German: title/author/section/date from JSON-LD, a non-empty
+# cleaned_text body, and source_type='web'. Runs in CI / inside the worker
+# container (the importorskip at the top skips it where the heavy deps are not
+# installed). The schema is identical to Probe 0; language='und' here is patched
+# to 'fr' downstream by the LanguageDetectionExtractor (see test_language_detection).
+# ---------------------------------------------------------------------------
+
+FRENCH_JSONLD_HTML = """\
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <title>Le Gouvernement présente son plan pour la transition écologique</title>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "NewsArticle",
+      "headline": "Le Gouvernement présente son plan pour la transition écologique",
+      "datePublished": "2026-05-29T10:00:00+02:00",
+      "dateModified": "2026-05-29T11:00:00+02:00",
+      "author": {"@type": "Person", "name": "Jean Dupont"},
+      "description": "Un plan pour réduire les émissions de gaz à effet de serre.",
+      "articleSection": "Politique",
+      "image": "https://www.elysee.fr/img/climat.jpg",
+      "keywords": "écologie, climat, gouvernement",
+      "isAccessibleForFree": true,
+      "contentLocation": "Paris"
+    }
+    </script>
+  </head>
+  <body>
+    <article>
+      <p>Le Président de la République a présidé ce mercredi un Conseil des
+         ministres consacré à la transition écologique. Le Gouvernement a
+         présenté un plan ambitieux visant à réduire les émissions de gaz à
+         effet de serre d'ici 2030, en coordination avec les collectivités
+         territoriales et les services de l'État.</p>
+      <p>Les détails seront précisés lors de la prochaine conférence de presse.
+         L'opposition a salué l'initiative tout en demandant des mesures plus
+         ambitieuses pour atteindre les objectifs fixés.</p>
+    </article>
+  </body>
+</html>
+"""
+
+
+def test_french_jsonld_path_harmonises() -> None:
+    """French institutional HTML harmonises to a valid SilverCore + WebMeta."""
+    adapter = WebAdapter()
+    core, meta = adapter.harmonize(
+        _bronze(FRENCH_JSONLD_HTML, source="elysee", original_url="https://www.elysee.fr/article"),
+        datetime.now(tz=timezone.utc),
+        "key",
+    )
+    assert isinstance(meta, WebMeta)
+    assert meta.title == "Le Gouvernement présente son plan pour la transition écologique"
+    assert meta.author == "Jean Dupont"
+    assert meta.section == "Politique"
+    assert meta.published_date is not None
+    assert meta.extraction_methods["title"] == "json_ld"
+    # Schema invariants identical to Probe 0: web source, language deferred to
+    # the downstream detector, non-empty body recovered by trafilatura.
+    assert core.source_type == "web"
+    assert core.source == "elysee"
+    assert core.language == "und"
+    assert core.cleaned_text
+    assert core.word_count > 0

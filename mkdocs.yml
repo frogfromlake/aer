@@ -234,6 +234,12 @@ nav:
           - "Bias Assessment (WP-003)": probes/probe-0-de-institutional-web/bias_assessment.md
           - "Temporal Profile (WP-005)": probes/probe-0-de-institutional-web/temporal_profile.md
           - "Observer Effect (WP-006)": probes/probe-0-de-institutional-web/observer_effect.md
+      - "Probe 1 — FR Institutional Web":
+          - "Overview": probes/probe-1-fr-institutional-web/README.md
+          - "Classification (WP-001)": probes/probe-1-fr-institutional-web/classification.md
+          - "Bias Assessment (WP-003)": probes/probe-1-fr-institutional-web/bias_assessment.md
+          - "Temporal Profile (WP-005)": probes/probe-1-fr-institutional-web/temporal_profile.md
+          - "Observer Effect (WP-006)": probes/probe-1-fr-institutional-web/observer_effect.md
 
   # ---------------------------------------------------------------------------
   # Extending — NEU EINFÜGEN

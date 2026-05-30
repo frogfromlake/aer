@@ -1,0 +1,40 @@
+entityId: franceinfo
+entityType: source
+locale: en
+registers:
+  semantic:
+    short: "franceinfo (France Télévisions) — France's public-broadcaster news. Classified primarily Epistemic Authority: it sets the informational baseline. Secondary Power Legitimation. Twin of tagesschau."
+    long: >
+      franceinfo is the news service of France Télévisions, the French public
+      broadcaster (franceinfo.fr is the canonical domain; francetvinfo.fr
+      301-redirects to it). As a public-service broadcaster it sets an
+      informational baseline, so its primary discourse function is Epistemic
+      Authority; its secondary function is Power Legitimation, since
+      public-service governance structurally shapes editorial framing. It is the
+      structural twin of Probe 0's tagesschau, giving the two probes a symmetric
+      Epistemic-Authority anchor. The classification is provisional_engineering —
+      assigned by the engineering team from publicly known operator
+      characteristics, not peer-reviewed under WP-001 §4.4 (function_weights =
+      NULL); every metric reports validation_status = unvalidated.
+  methodological:
+    short: "Full-article web crawl; high continuous volume → hourly resolution. News sitemap + RSS. Audio/TV-replay media (/replay-radio/, /replay-jt/) filtered as non-text. No engagement/account signals."
+    long: >
+      Collection is a polite full-article web crawl (ADR-028). The ROADMAP named
+      francetvinfo.fr; that domain 301-redirects to the publisher's canonical
+      domain franceinfo.fr (same publisher, no substantive change). Discovery
+      uses the dated news sitemap plus the main RSS feed; the publisher's
+      audio-podcast (/replay-radio/) and TV-replay (/replay-jt/) surfaces are
+      excluded as a technical media-format filter (no article body), not a topic
+      filter. As a continuous national newsroom franceinfo's volume is high, so
+      hourly is a meaningful temporal resolution (WP-005). Structural biases
+      (WP-003): editorial curation only, no engagement metrics, no account
+      metadata. Its high cadence relative to the Élysée's event-driven bursts
+      means cross-source / cross-probe count comparisons require normalization or
+      the refusal surface.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-005 §3.3"

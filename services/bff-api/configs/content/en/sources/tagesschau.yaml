@@ -1,0 +1,37 @@
+entityId: tagesschau
+entityType: source
+locale: en
+registers:
+  semantic:
+    short: "Tagesschau (ARD) — Germany's public-broadcaster news. Classified primarily Epistemic Authority: it sets the informational baseline other outlets reference. Secondary Power Legitimation."
+    long: >
+      Tagesschau is produced by ARD-aktuell (NDR, Hamburg). As a publicly funded
+      broadcaster with a legal balance mandate (Rundfunkstaatsvertrag), its
+      primary discourse function is Epistemic Authority — it sets the
+      informational baseline other German-language outlets reference,
+      paraphrase, or rebut. Its secondary function is Power Legitimation:
+      editorial independence is structurally bounded by an inter-party
+      proportional governance model (Rundfunkrat / Verwaltungsrat). The
+      classification is provisional_engineering — assigned by the engineering
+      team from publicly known operator characteristics, not peer-reviewed under
+      WP-001 §4.4 (function_weights = NULL).
+  methodological:
+    short: "Full-article web crawl (Phase 122) of editorial content; ~60 articles/day → hourly resolution. Multi-channel discovery (RSS + HTML sitemap + date archive). No engagement/account signals."
+    long: >
+      Collection is a polite full-article web crawl (ADR-028): raw HTML stored
+      verbatim in Bronze, text extracted at the Silver boundary. tagesschau
+      publishes no standard XML sitemap, so discovery spans three channels (RSS
+      feed, daily HTML sitemap, date-indexed archive). Empirical rate ~60
+      articles/day, so hourly is the finest meaningful temporal resolution
+      (WP-005). Structural biases (WP-003): all content is editorially curated —
+      no user-generated content, no engagement metrics, no account metadata; the
+      corpus is institutional/editorial voice only, not "German public opinion".
+      Absolute article counts are not comparable across sources of different
+      publication cadence — use rates or the normalization / refusal surface.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-30"
+workingPaperAnchors:
+  - "WP-001 §6"
+  - "WP-003"
+  - "WP-005 §3.3"

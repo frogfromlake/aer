@@ -23,5 +23,11 @@
 #     ISO-639-1 two-letter codes the source is allowed to publish.
 
 sources:
+  # Probe 0 — German institutional web.
   tagesschau: [de]
   bundesregierung: [de]
+  # Probe 1 — French institutional web (Phase 123). The worker quarantines
+  # any non-`fr` document from these sources before the Silver write
+  # (defence-in-depth behind the crawler's locale-prefix URL filter).
+  franceinfo: [fr]
+  elysee: [fr]

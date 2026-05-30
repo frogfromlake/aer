@@ -67,7 +67,14 @@
   function matchesSearch(p: ProbeDto): boolean {
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    const hay = [p.probeId, p.language, p.country ?? '', ...(p.sources ?? [])]
+    const hay = [
+      p.probeId,
+      p.displayName,
+      p.shortName,
+      p.language,
+      p.country ?? '',
+      ...(p.sources ?? [])
+    ]
       .join(' ')
       .toLowerCase();
     return hay.includes(q);
@@ -235,7 +242,7 @@
                     type="checkbox"
                     checked={isSelected(probe.probeId)}
                     onchange={() => toggleSelect(probe.probeId)}
-                    aria-label="Add {probe.probeId} to selection"
+                    aria-label="Add {probe.displayName} to selection"
                   />
                   <span>{isSelected(probe.probeId) ? 'Selected' : 'Select'}</span>
                 </label>
@@ -258,7 +265,13 @@
 <style>
   .dossier-overlay-backdrop {
     position: fixed;
-    inset: 0;
+    /* Phase 123 — start the backdrop AFTER the fixed SideRail (width
+       `--rail-width`) so `place-items: center` centres the panel in the
+       visible area to the rail's right, not across the whole viewport
+       (which pushed the panel's left edge behind the rail). Falls back to
+       the token's 184px if the var is unavailable. On narrow viewports the
+       rail var still applies; see the media query below. */
+    inset: 0 0 0 var(--rail-width, 184px);
     background: color-mix(in srgb, var(--color-bg) 70%, transparent);
     backdrop-filter: blur(3px);
     /* Below MetadataCoverageModal (z-index 50) so a ProbeCard's metadata

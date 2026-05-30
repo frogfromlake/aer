@@ -20,26 +20,23 @@ from internal.discovery.rss_hint import discover as discover_rss
 # ----- Sitemap filter ------------------------------------------------------
 
 
-def _fake_page(url: str, last_modified: Optional[datetime]) -> MagicMock:
-    page = MagicMock()
-    page.url = url
-    page.last_modified = last_modified
-    return page
-
-
-def _fake_tree(pages: list[MagicMock]) -> MagicMock:
-    tree = MagicMock()
-    tree.all_pages.return_value = pages
-    return tree
+# Phase 123 — `discover()` now parses the configured sitemap URL directly
+# (see internal.discovery.sitemap._iter_sitemap_entries) instead of walking the
+# publisher's whole sitemap tree via usp. These tests cover the temporal-filter
+# behaviour of `discover()`, so they patch the parse seam to yield
+# `(loc, lastmod)` tuples — the XML-parsing itself is covered by
+# test_sitemap_direct_parse.py.
+def _entries(*pairs: tuple[str, Optional[datetime]]) -> list[tuple[str, Optional[datetime]]]:
+    return list(pairs)
 
 
 def test_sitemap_drops_entry_strictly_before_since() -> None:
     now = datetime(2026, 5, 9, tzinfo=timezone.utc)
     since = now - timedelta(days=30)
 
-    pages = [_fake_page("https://x/old", now - timedelta(days=60))]
+    entries = _entries(("https://x/old", now - timedelta(days=60)))
     with patch(
-        "usp.tree.sitemap_tree_for_homepage", return_value=_fake_tree(pages)
+        "internal.discovery.sitemap._iter_sitemap_entries", return_value=entries
     ):
         result = list(discover_sitemap(["https://x/sitemap.xml"], since=since))
 
@@ -50,12 +47,12 @@ def test_sitemap_keeps_entry_at_or_after_since() -> None:
     now = datetime(2026, 5, 9, tzinfo=timezone.utc)
     since = now - timedelta(days=30)
 
-    pages = [
-        _fake_page("https://x/edge", since),  # exactly at cutoff — kept
-        _fake_page("https://x/new", now - timedelta(days=10)),  # newer — kept
-    ]
+    entries = _entries(
+        ("https://x/edge", since),  # exactly at cutoff — kept
+        ("https://x/new", now - timedelta(days=10)),  # newer — kept
+    )
     with patch(
-        "usp.tree.sitemap_tree_for_homepage", return_value=_fake_tree(pages)
+        "internal.discovery.sitemap._iter_sitemap_entries", return_value=entries
     ):
         urls = {entry.url for entry in discover_sitemap(["https://x"], since=since)}
 
@@ -70,12 +67,12 @@ def test_sitemap_strict_lastmod_drops_undated_entries_when_since_is_set() -> Non
     leaf — so the filter would be a no-op).
     """
     since = datetime(2026, 5, 1, tzinfo=timezone.utc)
-    pages = [
-        _fake_page("https://x/no-date", None),
-        _fake_page("https://x/recent", datetime(2026, 5, 5, tzinfo=timezone.utc)),
-    ]
+    entries = _entries(
+        ("https://x/no-date", None),
+        ("https://x/recent", datetime(2026, 5, 5, tzinfo=timezone.utc)),
+    )
     with patch(
-        "usp.tree.sitemap_tree_for_homepage", return_value=_fake_tree(pages)
+        "internal.discovery.sitemap._iter_sitemap_entries", return_value=entries
     ):
         urls = {entry.url for entry in discover_sitemap(["https://x"], since=since)}
 
@@ -87,9 +84,9 @@ def test_sitemap_strict_lastmod_false_falls_through_undated() -> None:
     the Phase-122b "preserve coverage on sparse sitemaps" behaviour.
     """
     since = datetime(2026, 5, 1, tzinfo=timezone.utc)
-    pages = [_fake_page("https://x/no-date", None)]
+    entries = _entries(("https://x/no-date", None))
     with patch(
-        "usp.tree.sitemap_tree_for_homepage", return_value=_fake_tree(pages)
+        "internal.discovery.sitemap._iter_sitemap_entries", return_value=entries
     ):
         result = list(
             discover_sitemap(["https://x"], since=since, strict_lastmod=False)
@@ -104,9 +101,9 @@ def test_sitemap_strict_lastmod_has_no_effect_when_since_is_none() -> None:
     """When no temporal cutoff is supplied, `strict_lastmod` is a no-op —
     every entry is yielded (matches the "no filter" expectation).
     """
-    pages = [_fake_page("https://x/no-date", None)]
+    entries = _entries(("https://x/no-date", None))
     with patch(
-        "usp.tree.sitemap_tree_for_homepage", return_value=_fake_tree(pages)
+        "internal.discovery.sitemap._iter_sitemap_entries", return_value=entries
     ):
         result_strict = list(discover_sitemap(["https://x"], strict_lastmod=True))
         result_loose = list(discover_sitemap(["https://x"], strict_lastmod=False))
@@ -116,12 +113,12 @@ def test_sitemap_strict_lastmod_has_no_effect_when_since_is_none() -> None:
 
 def test_sitemap_no_filter_when_since_is_none() -> None:
     """Backward-compatible: omitting `since` keeps every entry."""
-    pages = [
-        _fake_page("https://x/very-old", datetime(1995, 1, 1, tzinfo=timezone.utc)),
-        _fake_page("https://x/none", None),
-    ]
+    entries = _entries(
+        ("https://x/very-old", datetime(1995, 1, 1, tzinfo=timezone.utc)),
+        ("https://x/none", None),
+    )
     with patch(
-        "usp.tree.sitemap_tree_for_homepage", return_value=_fake_tree(pages)
+        "internal.discovery.sitemap._iter_sitemap_entries", return_value=entries
     ):
         urls = {entry.url for entry in discover_sitemap(["https://x"])}
 

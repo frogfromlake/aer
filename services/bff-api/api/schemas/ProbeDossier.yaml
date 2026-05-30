@@ -11,14 +11,24 @@ description: >
   client must avoid request waterfalls on first paint.
 required:
   - probeId
+  - displayName
+  - shortName
   - language
   - sources
   - functionCoverage
 properties:
   probeId:
     type: string
-    description: Canonical probe identifier (matches `/probes` and `/content/probe/{probeId}`).
+    description: Canonical machine probe identifier (matches `/probes` and `/content/probe/{probeId}`). Not for display — use `displayName` / `shortName`.
     example: probe-0-de-institutional-web
+  displayName:
+    type: string
+    description: Human-friendly probe name for UI display; server falls back to `probeId` when unset.
+    example: "Germany — Institutional Web"
+  shortName:
+    type: string
+    description: Compact probe label; server falls back to `displayName` (then `probeId`).
+    example: "DE · Institutional"
   language:
     type: string
     description: Primary publication language (ISO 639-1).

@@ -808,10 +808,20 @@ export interface components {
          */
         Probe: {
             /**
-             * @description Canonical identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key.
+             * @description Canonical machine identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key. Stable and load-bearing (URL state, content keys); follows the convention `probe-<n>-<iso2>-<corpus-class>`. Not intended for display — use `displayName` / `shortName` in the UI.
              * @example probe-0-de-institutional-web
              */
             probeId: string;
+            /**
+             * @description Human-friendly probe name for UI display (globe banner, dossier headers, comparison strip). Set in the probe config; the server falls back to `probeId` when it is omitted, so this field is always present.
+             * @example Germany — Institutional Web
+             */
+            displayName: string;
+            /**
+             * @description Compact label for dense UI (globe markers, comparison chips). The server falls back to `displayName` (then `probeId`) when omitted.
+             * @example DE · Institutional
+             */
+            shortName: string;
             /**
              * @description Primary publication language as an ISO 639-1 code. Used by the client for content catalog locale fallback and for future language-scoped aggregations. Not a reach claim.
              * @example de
@@ -880,7 +890,7 @@ export interface components {
              * @example metric
              * @enum {string}
              */
-            entityType: "metric" | "probe" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
+            entityType: "metric" | "probe" | "source" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
             /**
              * @description Language of the returned content.
              * @example en
@@ -918,10 +928,20 @@ export interface components {
          */
         ProbeDossier: {
             /**
-             * @description Canonical probe identifier (matches `/probes` and `/content/probe/{probeId}`).
+             * @description Canonical machine probe identifier (matches `/probes` and `/content/probe/{probeId}`). Not for display — use `displayName` / `shortName`.
              * @example probe-0-de-institutional-web
              */
             probeId: string;
+            /**
+             * @description Human-friendly probe name for UI display; server falls back to `probeId` when unset.
+             * @example Germany — Institutional Web
+             */
+            displayName: string;
+            /**
+             * @description Compact probe label; server falls back to `displayName` (then `probeId`).
+             * @example DE · Institutional
+             */
+            shortName: string;
             /**
              * @description Primary publication language (ISO 639-1).
              * @example de
@@ -4181,7 +4201,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description The category of the entity. */
-                entityType: "metric" | "probe" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
+                entityType: "metric" | "probe" | "source" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
                 /** @description The canonical identifier of the entity (e.g., "sentiment_score"). */
                 entityId: string;
             };

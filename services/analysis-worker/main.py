@@ -92,6 +92,17 @@ DEFAULT_EXTRACTOR_CLASSES = [
     NamedEntityExtractor,
 ]
 
+# Phase 123 hardening — the background extraction loops (corpus co-occurrence,
+# topic modelling, metric baselines, revision diffs) each hold a ClickHouse +
+# Postgres connection for the duration of their sweep. They MUST NOT draw from
+# the document-worker connection budget: when the pool was sized to
+# worker_count only, a large backlog let the 4 sweeps starve the doc-workers of
+# connections and wedge the per-document hot path. The pools are therefore
+# sized for workers + these loops + headroom, so the real-time path always has
+# its own connections. Keep in sync with the create_task(...extraction_loop...)
+# calls in main().
+BACKGROUND_LOOP_COUNT = 4
+
 
 def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
     """Construct the Wayback CDX client, or None when disabled.
@@ -115,6 +126,8 @@ def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
             "AerWebCrawler/0.1 (+https://aer.example/about)",
         )
         cache = WaybackCDXCache(pg_pool) if pg_pool is not None else None
+        cb_threshold = int(os.getenv("WAYBACK_CDX_CIRCUIT_FAILURE_THRESHOLD", "5"))
+        cb_reset = float(os.getenv("WAYBACK_CDX_CIRCUIT_RESET_SECONDS", "60"))
         client = WaybackCDXClient(
             enabled=True,
             base_url=base_url,
@@ -122,6 +135,8 @@ def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
             rate_limit_per_second=rate,
             user_agent=user_agent,
             cache=cache,
+            circuit_failure_threshold=cb_threshold,
+            circuit_reset_seconds=cb_reset,
         )
         logger.info(
             "Wayback CDX integration enabled",
@@ -248,8 +263,18 @@ class WorkerConfig:
     durable_name: str = "aer_analysis_worker"
     # Phase 83: JetStream consumer safety parameters. See `main.py` subscribe
     # call and ROADMAP §Phase 83 for rationale.
-    max_deliver: int = 5
-    ack_wait_seconds: float = 60.0
+    #
+    # Phase 123 hardening — both env-wired (were hardcoded, a scalability
+    # ceiling). `ack_wait` raised 60→300s: one document runs the full heavy-NLP
+    # stack (2× BERT sentiment + 2× spaCy NER + per-doc topic + entity-linking)
+    # and under a large backlog can exceed 60s. A too-tight ack_wait redelivers
+    # a still-processing document, compounding contention into a redelivery
+    # death-spiral that wedges the pipeline. 300s gives real head-room while
+    # still bounding poison-pill recovery.
+    max_deliver: int = field(default_factory=lambda: int(os.getenv("NATS_MAX_DELIVER", "5")))
+    ack_wait_seconds: float = field(
+        default_factory=lambda: float(os.getenv("NATS_ACK_WAIT_SECONDS", "300"))
+    )
 
 
 def init_telemetry(otel_endpoint: str, sample_rate: float = 1.0) -> trace.Tracer:
@@ -387,10 +412,13 @@ async def main(config: WorkerConfig | None = None):
     logger.info("Prometheus metrics server started", port=metrics_port)
 
     minio_client = init_minio()
-    ch_client = init_clickhouse(pool_size=config.worker_count)
-    # Phase 85: size the PG pool symmetrically with the CH pool so the
-    # worker does not starve on PG connections when WORKER_COUNT is raised.
-    pg_pool = init_postgres(maxconn=config.worker_count + PG_POOL_HEADROOM)
+    # Phase 123: pools serve the document workers AND the background sweep loops
+    # (BACKGROUND_LOOP_COUNT) so the batch sweeps can never starve the real-time
+    # document path of connections. Headroom covers transient overlap.
+    # (Phase 85: CH and PG sized symmetrically so PG never starves first.)
+    pool_budget = config.worker_count + BACKGROUND_LOOP_COUNT + PG_POOL_HEADROOM
+    ch_client = init_clickhouse(pool_size=pool_budget)
+    pg_pool = init_postgres(maxconn=pool_budget)
 
     # Phase 122d.0 — Silent-Edit Observability (ADR-032). The Wayback
     # CDX client is fail-silent by construction; the WebAdapter calls

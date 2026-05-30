@@ -128,6 +128,52 @@ languages:
     notes:
       - "Compound-split is German-specific (Phase 117); not applicable to non-agglutinating languages."
 
+  fr:
+    iso_code: fr
+    display_name: French
+
+    # Phase 123 (Probe 1). NER tier 1.5 = spaCy fr_core_news_lg. The NER
+    # extractor is manifest-routed (entities.py builds its language→model map
+    # from these blocks), so this entry plus the model wheel in
+    # requirements.txt is the entire change.
+    ner:
+      tier: 1.5
+      model: fr_core_news_lg
+      model_version: "3.8.0"
+      provenance: "spaCy French news-domain large model"
+
+    # Phase 123: French sentiment ships on the SHARED multilingual Tier-2
+    # backbone only. `fr` is already in shared.multilingual_bert.supported_languages,
+    # so this is a zero-model-addition reference. Per the ADR-023 amendment the
+    # cross-probe comparison basis is exactly this per-source-class multilingual
+    # backbone.
+    #
+    # DELIBERATELY ABSENT (deferred — see ROADMAP "Deferred Phases"):
+    #   * sentiment_tier1 — a French Tier-1 lexicon (FEEL) is within-frame only
+    #     and is not shipped in Phase 123.
+    #   * sentiment_tier2_refinement — a French news-domain fine-tune
+    #     (CamemBERT) is within-frame only and is not shipped in Phase 123.
+    # Neither may ever become the cross-probe basis (ADR-023 amendment).
+    sentiment_tier2_default:
+      tier: 2
+      method: multilingual_bert
+      provided_by: shared.multilingual_bert
+      metric_name: sentiment_score_bert_multilingual
+
+    # Phase 120b — per-language stopword filter for BERTopic's c-TF-IDF
+    # representation step. `source: spacy` resolves to French STOP_WORDS at
+    # fit time.
+    topic_modeling:
+      stopwords:
+        source: spacy
+
+    cultural_calendar:
+      region_default: fr
+      file: cultural_calendars/fr.yaml
+
+    notes:
+      - "Tier-1 (FEEL) and Tier-2.5 (CamemBERT) sentiment are deferred; French sentiment ships on the shared multilingual backbone only (Phase 123)."
+
 # Cross-language shared resources.
 #
 # Phase 119: `multilingual_bert` registers the Tier-2 default sentiment model

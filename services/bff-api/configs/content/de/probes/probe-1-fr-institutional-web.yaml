@@ -1,0 +1,50 @@
+entityId: probe-1-fr-institutional-web
+entityType: probe
+locale: de
+registers:
+  semantic:
+    short: "Frankreichs institutionelle Sonde — öffentlich-rechtlicher Rundfunk (franceinfo) + Staatschef-Kanal (Élysée). Spiegelt Probe 0s EA/PL-Abdeckung. Vorläufig, unvalidiert."
+    long: >
+      Probe 1 ist AĒRs erster nicht-deutscher Kulturkontext. Sie spiegelt die
+      Diskursfunktions-Abdeckung von Probe 0 in einem zweiten Gemeinwesen, damit
+      beide später auf dem gemeinsamen multilingualen Backbone verglichen werden
+      können. franceinfo (öffentlich-rechtlicher Rundfunk France Télévisions,
+      hohe Publikationsrate) ist primär als Epistemische Autorität mit
+      sekundärer Machtlegitimation klassifiziert — das strukturelle Pendant zu
+      tagesschau. Élysée (Présidence de la République, ereignisgetriebene Schübe
+      von Communiqués, Allocutions, Discours) ist primär als Machtlegitimation
+      mit sekundärer Epistemischer Autorität klassifiziert — das strukturelle
+      Pendant zu bundesregierung. Kohäsion & Identität sowie Subversion &
+      Friktion sind auf beiden Sonden konstruktionsbedingt unbesetzt. Jede
+      Probe-1-Metrik meldet validation_status = unvalidated; die Klassifikationen
+      sind provisional_engineering und wurden nicht nach WP-001 §4.4
+      peer-reviewed.
+  methodological:
+    short: "Quellenauswahl ist erhebungsmethodisch bedingt: franceinfo statt des umgeleiteten francetvinfo.fr; Élysée statt des Cloudflare-gesperrten Regierungsportals. Beides offengelegt, nicht inferiert."
+    long: >
+      Zwei Quellenentscheidungen sind erhebungsmethodisch und müssen offengelegt
+      werden (WP-006). (1) Die ROADMAP nannte francetvinfo.fr; diese Domain
+      leitet per 301 auf die kanonische Domain franceinfo.fr um — selber
+      Publisher, keine inhaltliche Änderung. (2) Die ROADMAP nannte
+      gouvernement.fr; diese Domain leitet per 301 auf info.gouv.fr um (das
+      Regierungsportal des Premier ministre / SIG), das hinter einer aktiven
+      Cloudflare-JS-Bot-Schranke liegt und daher vom höflichen, JS-freien
+      Crawler (ADR-028) nicht erhebbar ist. Stattdessen wurde Élysée
+      (Présidence) gewählt: frei erhebbar, mit tiefer datierter Sitemap, und
+      eine erstrangige Machtlegitimations-Quelle. Die daraus folgende
+      kulturelle Asymmetrie ist selbst ein Befund (WP-004): der Ort exekutiver
+      Machtlegitimation ist im französischen semipräsidentiellen System das
+      STAATSoberhaupt, in Deutschland der REGIERUNGSchef. Auch die
+      Publikationsvolumina unterscheiden sich stark (kontinuierlicher Newsroom
+      vs. ereignisgetriebene präsidiale Schübe) — das spiegelt institutionelle
+      Kommunikationskadenz, kein Rauschen, und ist der Grund, warum
+      Cross-Probe-Mengen­vergleiche Normalisierung oder die Refusal-Surface
+      verlangen. Vollständiges Dossier:
+      docs/probes/probe-1-fr-institutional-web/. Arc42 §13.11.
+contentVersion: "v2026-05-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-05-29"
+workingPaperAnchors:
+  - "WP-001 §4.4"
+  - "WP-004 §3"
+  - "WP-006 §3.4"

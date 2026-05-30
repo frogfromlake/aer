@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 audit-source audit-probe setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -183,7 +183,7 @@ reset-validate:
 	@./scripts/operations/reset_validate.sh
 
 reset: reset-state reset-validate
-	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)System is in canonical post-reset state. Run '$(BOLD)make crawl-probe0$(RESET)$(GREEN)' to repopulate.$(RESET)"
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)System is in canonical post-reset state. Run '$(BOLD)make crawl-probe<probe-id>$(RESET)$(GREEN)' to repopulate.$(RESET)"
 
 # ==========================================
 # 2. APPLICATION SERVICES (INDIVIDUAL)
@@ -360,6 +360,15 @@ crawl-probe0:
 	@docker compose --profile crawlers run --rm --build web-crawler --probe probe0
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Probe 0 crawl complete.$(RESET)"
 
+crawl-probe1:
+	@if [ ! -f .env ]; then \
+		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env file not found. Copy .env.example to .env and set INGESTION_API_KEY before running make crawl-probe1."; \
+		exit 1; \
+	fi
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running web-crawler for probe1 (containerized, on aer-backend network)...$(RESET)"
+	@docker compose --profile crawlers run --rm --build web-crawler --probe probe1
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Probe 1 crawl complete.$(RESET)"
+
 # ------------------------------------------------------------------
 # Phase 122g audit / re-audit targets. The audit CLI is operator-facing
 # (interactive y/N prompts), so it runs in a host-local venv rather
@@ -399,8 +408,9 @@ audit-probe: $(AUDIT_VENV)/.ready
 # Deprecated alias — retained for one release cycle then retired in
 # Phase 131. Forwards to the new probe-scoped target so existing muscle
 # memory keeps working.
-crawl: crawl-probe0
-	@echo -e "$(GRAY)NOTE: 'make crawl' is deprecated; use 'make crawl-probe0' (or 'make crawl-<probe-id>' for other probes).$(RESET)"
+crawl: crawl-probe1 crawl-probe0
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Successfully crawled all probes.$(RESET)"
+	@echo -e "$(GRAY)NOTE: Use 'make crawl-probe0' (or 'make crawl-<probe-id>' for single probe crawls).$(RESET)"
 
 # ==========================================
 # 5. TESTING & LINTING
@@ -722,7 +732,8 @@ help:
 	@echo -e ""
 	@echo -e "$(BOLD)Development & Utils:$(RESET)"
 	@echo -e "  $(CYAN)logs$(RESET)                $(GRAY)Tail live logs for all application services$(RESET)"
-	@echo -e "  $(GREEN)crawl-probe0$(RESET)        $(GRAY)Run the web-crawler for Probe 0 as a one-shot container on aer-backend$(RESET)"
+	@echo -e "  $(GREEN)crawl-probe0$(RESET)        $(GRAY)Run the web-crawler for Probe 0 (DE institutional) as a one-shot container on aer-backend$(RESET)"
+	@echo -e "  $(GREEN)crawl-probe1$(RESET)        $(GRAY)Run the web-crawler for Probe 1 (FR institutional) as a one-shot container on aer-backend$(RESET)"
 	@echo -e "  $(GRAY)crawl$(RESET)               $(GRAY)Deprecated alias for crawl-probe0 (retired in Phase 131)$(RESET)"
 	@echo -e "  $(CYAN)audit-source$(RESET)        $(GRAY)Phase 122g: audit a candidate publisher's discovery surfaces. Usage: make audit-source HOMEPAGE=https://...$(RESET)"
 	@echo -e "  $(CYAN)audit-probe$(RESET)         $(GRAY)Phase 122g: re-audit every source in a probe, diff vs. sources.yaml, prompt to apply. Args: PROBE=probe0 (default), ARGS='--dry-run|--yes'$(RESET)"

@@ -20,6 +20,7 @@ get:
         enum:
           - metric
           - probe
+          - source
           - discourse_function
           - refusal
           - view_mode

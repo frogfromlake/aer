@@ -1,0 +1,153 @@
+# AER Cultural Calendar — France (WP-005 §4.3)
+#
+# Static lookup of culturally significant dates whose presence is expected
+# to perturb discourse metrics. Used by analysts when interpreting metric
+# anomalies — not consumed by any service in the POC. Structurally parallel
+# to cultural_calendars/de.yaml; this structural parity is a precondition for
+# the Phase-124 cross-probe temporal equivalence grant (the grant is
+# conditional on both calendars being comparable, not merely present).
+#
+# Schema per entry:
+#   date                       ISO 8601 date (YYYY-MM-DD), or recurring rule
+#   name                       Human-readable name (French)
+#   type                       public_holiday | election | media_event | commemoration
+#   expected_discourse_effect  Qualitative note on the discourse signature
+#
+# Recurring entries use `recurrence` instead of a fixed date:
+#   recurrence: annual         Same calendar date every year
+#   recurrence: annual_month   Recurs within a given month each year
+#   recurrence: movable        Date computed per year (Easter-based, etc.)
+#
+# Presidential and legislative election dates are listed individually because
+# they are not regular (and legislatives can be dissolution-triggered).
+
+region: FR
+language: fr
+last_updated: "2026-05-29"
+
+entries:
+  # --- Public Holidays (national, recurring) ---
+  - date: "01-01"
+    recurrence: annual
+    name: "Jour de l'An"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; reflective/year-in-review framing; presidential vœux follow-up."
+
+  - date: "05-01"
+    recurrence: annual
+    name: "Fête du Travail"
+    type: public_holiday
+    expected_discourse_effect: "Concentration on labor, unions, social policy; protest/manifestation coverage."
+
+  - date: "05-08"
+    recurrence: annual
+    name: "Victoire 1945"
+    type: commemoration
+    expected_discourse_effect: "WWII memory discourse; official ceremonies; institutional speeches."
+
+  - date: "07-14"
+    recurrence: annual
+    name: "Fête nationale (14 Juillet)"
+    type: public_holiday
+    expected_discourse_effect: "National identity discourse; military parade; presidential interview/address; high institutional volume."
+
+  - date: "08-15"
+    recurrence: annual
+    name: "Assomption"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; mid-summer lull."
+
+  - date: "11-01"
+    recurrence: annual
+    name: "Toussaint"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; remembrance framing."
+
+  - date: "11-11"
+    recurrence: annual
+    name: "Armistice 1918"
+    type: commemoration
+    expected_discourse_effect: "WWI memory discourse; official ceremonies; institutional speeches."
+
+  - date: "12-25"
+    recurrence: annual
+    name: "Noël"
+    type: public_holiday
+    expected_discourse_effect: "Sharply reduced news volume; family/social-cohesion framing."
+
+  - recurrence: movable
+    rule: "easter_sunday + 1"
+    name: "Lundi de Pâques"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; religious and family framing."
+
+  - recurrence: movable
+    rule: "easter_sunday + 39"
+    name: "Ascension"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; long-weekend travel coverage."
+
+  - recurrence: movable
+    rule: "easter_sunday + 50"
+    name: "Lundi de Pentecôte"
+    type: public_holiday
+    expected_discourse_effect: "Reduced news volume; continuation of long-weekend framing."
+
+  # --- Elections (individual entries) ---
+  - date: "2022-04-10"
+    name: "Élection présidentielle 2022 (1er tour)"
+    type: election
+    expected_discourse_effect: "Sharp volume spike; concentration on power_legitimation; sentiment polarization."
+
+  - date: "2022-04-24"
+    name: "Élection présidentielle 2022 (2e tour)"
+    type: election
+    expected_discourse_effect: "Sharp volume spike; result framing; legitimation discourse."
+
+  - date: "2024-06-30"
+    name: "Élections législatives anticipées 2024 (1er tour)"
+    type: election
+    expected_discourse_effect: "Sharp volume spike after dissolution; coalition/bloc framing; high political_legitimation."
+
+  - date: "2024-07-07"
+    name: "Élections législatives anticipées 2024 (2e tour)"
+    type: election
+    expected_discourse_effect: "Sharp volume spike; hung-assembly framing; government-formation follow-up."
+
+  # --- Significant Recurring Media Events ---
+  - date: "05"
+    recurrence: annual_month
+    name: "Festival de Cannes"
+    type: media_event
+    expected_discourse_effect: "Concentration of cultural/film coverage; international entity mentions spike."
+
+  - date: "06"
+    recurrence: annual_month
+    name: "Roland-Garros"
+    type: media_event
+    expected_discourse_effect: "Sports-centric coverage spike; international athlete entity mentions."
+
+  - date: "06-21"
+    recurrence: annual
+    name: "Fête de la Musique"
+    type: media_event
+    expected_discourse_effect: "Cultural/music coverage; urban public-event framing."
+
+  - date: "09"
+    recurrence: annual_month
+    name: "Rentrée littéraire"
+    type: media_event
+    expected_discourse_effect: "Literary, publishing topics rise; book-prize season coverage."
+
+  # --- Commemorations ---
+  - date: "01-27"
+    recurrence: annual
+    name: "Journée de la mémoire de l'Holocauste et de la prévention des crimes contre l'humanité"
+    type: commemoration
+    expected_discourse_effect: "Historical memory discourse; sentiment shifts negative; institutional speeches."
+
+  - date: "05-10"
+    recurrence: annual
+    name: "Journée nationale des mémoires de la traite, de l'esclavage et de leurs abolitions"
+    type: commemoration
+    expected_discourse_effect: "Colonial-history memory discourse; institutional commemoration; reflective framing."

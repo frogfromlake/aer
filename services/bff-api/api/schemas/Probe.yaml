@@ -16,6 +16,8 @@ description: >
   switching) without perturbing the typed geometry feed.
 required:
   - probeId
+  - displayName
+  - shortName
   - language
   - emissionPoints
   - sources
@@ -23,9 +25,25 @@ properties:
   probeId:
     type: string
     description: >
-      Canonical identifier, matching the dossier directory under
-      `docs/probes/` and the `probe` content-catalog key.
+      Canonical machine identifier, matching the dossier directory under
+      `docs/probes/` and the `probe` content-catalog key. Stable and
+      load-bearing (URL state, content keys); follows the convention
+      `probe-<n>-<iso2>-<corpus-class>`. Not intended for display — use
+      `displayName` / `shortName` in the UI.
     example: probe-0-de-institutional-web
+  displayName:
+    type: string
+    description: >
+      Human-friendly probe name for UI display (globe banner, dossier
+      headers, comparison strip). Set in the probe config; the server falls
+      back to `probeId` when it is omitted, so this field is always present.
+    example: "Germany — Institutional Web"
+  shortName:
+    type: string
+    description: >
+      Compact label for dense UI (globe markers, comparison chips). The
+      server falls back to `displayName` (then `probeId`) when omitted.
+    example: "DE · Institutional"
   language:
     type: string
     description: >
