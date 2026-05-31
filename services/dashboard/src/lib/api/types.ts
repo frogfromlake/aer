@@ -151,6 +151,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/scope/available-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metrics available across a multi-source scope (per-source intersection)
+         * @description Returns, for the resolved scope, which metric names have data in Gold for **every** scoped source (`available`) versus only **some** of them (`partial`). Powers the Phase-123c cross-probe guard: PanelControls and the scatter axis/size/colour selectors offer only `available` metrics, so a panel spanning probes with asymmetric capability (e.g. a German SentiWS-only metric on a panel that also holds a French source) can never bind a metric that silently yields empty cells. `partial` carries the per-metric source list so the UI can explain *why* a metric was withheld.
+         *     Scope is resolved from the union of `scope`/`scopeId`, `probeIds`, and `sourceIds` — at least one must be present. Availability is computed over the `[windowStart, windowEnd]` window so it matches what a panel would actually render.
+         *     This is the "Ist" (observed-from-Gold) view. The complementary Manifest-based "expected-but-missing" silent-failure alarm is deferred (Phase 124).
+         */
+        get: operations["getScopeAvailableMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/entities": {
         parameters: {
             query?: never;
@@ -2400,6 +2422,108 @@ export interface operations {
                 };
             };
             /** @description Invalid scope, missing position metric, or malformed window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getScopeAvailableMetrics: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
+                /** @description Inclusive start of the query window (RFC 3339). */
+                start: string;
+                /** @description Exclusive end of the query window (RFC 3339). */
+                end: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available (all-source) and partial (some-source) metric sets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The resolved source names the availability was computed over. */
+                        scopedSources: string[];
+                        /** @description Metric names that have at least one Gold row for EVERY scoped source in the window. These are the only metrics safe to bind on a panel spanning the whole scope. */
+                        available: string[];
+                        /** @description Metrics present for SOME but not all scoped sources, with the subset of sources that carry them. Surfaced as an explanatory hint, never offered for binding. */
+                        partial: {
+                            metricName: string;
+                            /** @description The scoped sources that have data for this metric. */
+                            sources: string[];
+                        }[];
+                        /** Format: date-time */
+                        windowStart?: string;
+                        /** Format: date-time */
+                        windowEnd?: string;
+                    };
+                };
+            };
+            /** @description Invalid scope or malformed window. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -1,0 +1,58 @@
+get:
+  tags: [Metrics]
+  summary: Metrics available across a multi-source scope (per-source intersection)
+  description: >
+    Returns, for the resolved scope, which metric names have data in Gold for
+    **every** scoped source (`available`) versus only **some** of them
+    (`partial`). Powers the Phase-123c cross-probe guard: PanelControls and the
+    scatter axis/size/colour selectors offer only `available` metrics, so a
+    panel spanning probes with asymmetric capability (e.g. a German
+    SentiWS-only metric on a panel that also holds a French source) can never
+    bind a metric that silently yields empty cells. `partial` carries the
+    per-metric source list so the UI can explain *why* a metric was withheld.
+
+    Scope is resolved from the union of `scope`/`scopeId`, `probeIds`, and
+    `sourceIds` — at least one must be present. Availability is computed over
+    the `[windowStart, windowEnd]` window so it matches what a panel would
+    actually render.
+
+    This is the "Ist" (observed-from-Gold) view. The complementary
+    Manifest-based "expected-but-missing" silent-failure alarm is deferred
+    (Phase 124).
+  operationId: getScopeAvailableMetrics
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when
+        `probeIds` and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+  responses:
+    '200':
+      description: Available (all-source) and partial (some-source) metric sets.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ScopeAvailableMetrics.yaml'
+    '400':
+      description: Invalid scope or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

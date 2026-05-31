@@ -434,6 +434,54 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 	return resp, nil
 }
 
+// GetScopeAvailableMetrics returns, for the resolved scope and window, the
+// metrics present in Gold for every scoped source (available) versus only some
+// (partial). Backs the Phase-123c cross-probe metric guard: the dashboard
+// offers only `available` metrics for binding so a panel spanning probes with
+// asymmetric capability never selects a metric that yields silent empty cells.
+func (s *Server) GetScopeAvailableMetrics(ctx context.Context, request GetScopeAvailableMetricsRequestObject) (GetScopeAvailableMetricsResponseObject, error) {
+	rawScope := ""
+	if request.Params.Scope != nil {
+		rawScope = string(*request.Params.Scope)
+	}
+	_, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	if !ok {
+		if strings.HasPrefix(reason, "unknown probe") {
+			return GetScopeAvailableMetrics404JSONResponse{Message: reason}, nil
+		}
+		return GetScopeAvailableMetrics400JSONResponse{Message: reason}, nil
+	}
+	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+		return GetScopeAvailableMetrics400JSONResponse{Message: msg}, nil
+	}
+
+	avail, err := s.db.GetScopeAvailableMetrics(ctx, request.Params.Start, request.Params.End, sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetScopeAvailableMetrics", "error", err)
+		return GetScopeAvailableMetrics500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	ws := request.Params.Start
+	we := request.Params.End
+	resp := GetScopeAvailableMetrics200JSONResponse{
+		ScopedSources: avail.ScopedSources,
+		Available:     avail.Available,
+		WindowStart:   &ws,
+		WindowEnd:     &we,
+	}
+	resp.Partial = make([]struct {
+		MetricName string   `json:"metricName"`
+		Sources    []string `json:"sources"`
+	}, len(avail.Partial))
+	for i, p := range avail.Partial {
+		resp.Partial[i] = struct {
+			MetricName string   `json:"metricName"`
+			Sources    []string `json:"sources"`
+		}{MetricName: p.MetricName, Sources: p.Sources}
+	}
+	return resp, nil
+}
+
 // GetMetricHeatmap returns a 2D aggregation of a metric for the requested
 // xDimension / yDimension within a window. Backs the EDA x heatmap view-mode
 // cells; entityLabel and language dimensions trigger Gold-table joins.

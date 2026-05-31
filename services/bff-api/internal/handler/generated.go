@@ -770,6 +770,24 @@ func (e GetRevisionsArticlesParamsScope) Valid() bool {
 	}
 }
 
+// Defines values for GetScopeAvailableMetricsParamsScope.
+const (
+	GetScopeAvailableMetricsParamsScopeProbe  GetScopeAvailableMetricsParamsScope = "probe"
+	GetScopeAvailableMetricsParamsScopeSource GetScopeAvailableMetricsParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetScopeAvailableMetricsParamsScope enum.
+func (e GetScopeAvailableMetricsParamsScope) Valid() bool {
+	switch e {
+	case GetScopeAvailableMetricsParamsScopeProbe:
+		return true
+	case GetScopeAvailableMetricsParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetSilverAggregationParamsAggregationType.
 const (
 	CleanedTextLength            GetSilverAggregationParamsAggregationType = "cleaned_text_length"
@@ -1791,6 +1809,30 @@ type GetRevisionsArticlesParams struct {
 // GetRevisionsArticlesParamsScope defines parameters for GetRevisionsArticles.
 type GetRevisionsArticlesParamsScope string
 
+// GetScopeAvailableMetricsParams defines parameters for GetScopeAvailableMetrics.
+type GetScopeAvailableMetricsParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetScopeAvailableMetricsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339).
+	Start time.Time `form:"start" json:"start"`
+
+	// End Exclusive end of the query window (RFC 3339).
+	End time.Time `form:"end" json:"end"`
+}
+
+// GetScopeAvailableMetricsParamsScope defines parameters for GetScopeAvailableMetrics.
+type GetScopeAvailableMetricsParamsScope string
+
 // GetSilverAggregationParams defines parameters for GetSilverAggregation.
 type GetSilverAggregationParams struct {
 	// SourceId Source identifier — canonical name or integer id.
@@ -1971,6 +2013,9 @@ type ServerInterface interface {
 	// List articles with revisions for the Workbench drill-down
 	// (GET /revisions/articles)
 	GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams)
+	// Metrics available across a multi-source scope (per-source intersection)
+	// (GET /scope/available-metrics)
+	GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetricsParams)
 	// Silver-layer aggregations (distribution / heatmap / correlation)
 	// (GET /silver/aggregations/{aggregationType})
 	GetSilverAggregation(w http.ResponseWriter, r *http.Request, aggregationType GetSilverAggregationParamsAggregationType, params GetSilverAggregationParams)
@@ -2139,6 +2184,12 @@ func (_ Unimplemented) GetRevisionActivity(w http.ResponseWriter, r *http.Reques
 // List articles with revisions for the Workbench drill-down
 // (GET /revisions/articles)
 func (_ Unimplemented) GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Metrics available across a multi-source scope (per-source intersection)
+// (GET /scope/available-metrics)
+func (_ Unimplemented) GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetricsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3692,6 +3743,93 @@ func (siw *ServerInterfaceWrapper) GetRevisionsArticles(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetScopeAvailableMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetScopeAvailableMetricsParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "start" -------------
+
+	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "end" -------------
+
+	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetScopeAvailableMetrics(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSilverAggregation operation middleware
 func (siw *ServerInterfaceWrapper) GetSilverAggregation(w http.ResponseWriter, r *http.Request) {
 
@@ -4395,6 +4533,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/revisions/articles", wrapper.GetRevisionsArticles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scope/available-metrics", wrapper.GetScopeAvailableMetrics)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/silver/aggregations/{aggregationType}", wrapper.GetSilverAggregation)
@@ -6306,6 +6447,102 @@ func (response GetRevisionsArticles500JSONResponse) VisitGetRevisionsArticlesRes
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetScopeAvailableMetricsRequestObject struct {
+	Params GetScopeAvailableMetricsParams
+}
+
+type GetScopeAvailableMetricsResponseObject interface {
+	VisitGetScopeAvailableMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetScopeAvailableMetrics200JSONResponse struct {
+	// Available Metric names that have at least one Gold row for EVERY scoped source in the window. These are the only metrics safe to bind on a panel spanning the whole scope.
+	Available []string `json:"available"`
+
+	// Partial Metrics present for SOME but not all scoped sources, with the subset of sources that carry them. Surfaced as an explanatory hint, never offered for binding.
+	Partial []struct {
+		MetricName string `json:"metricName"`
+
+		// Sources The scoped sources that have data for this metric.
+		Sources []string `json:"sources"`
+	} `json:"partial"`
+
+	// ScopedSources The resolved source names the availability was computed over.
+	ScopedSources []string   `json:"scopedSources"`
+	WindowEnd     *time.Time `json:"windowEnd,omitempty"`
+	WindowStart   *time.Time `json:"windowStart,omitempty"`
+}
+
+func (response GetScopeAvailableMetrics200JSONResponse) VisitGetScopeAvailableMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetScopeAvailableMetrics400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetScopeAvailableMetrics400JSONResponse) VisitGetScopeAvailableMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetScopeAvailableMetrics404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetScopeAvailableMetrics404JSONResponse) VisitGetScopeAvailableMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetScopeAvailableMetrics500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetScopeAvailableMetrics500JSONResponse) VisitGetScopeAvailableMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSilverAggregationRequestObject struct {
 	AggregationType GetSilverAggregationParamsAggregationType `json:"aggregationType"`
 	Params          GetSilverAggregationParams
@@ -7131,6 +7368,9 @@ type StrictServerInterface interface {
 	// List articles with revisions for the Workbench drill-down
 	// (GET /revisions/articles)
 	GetRevisionsArticles(ctx context.Context, request GetRevisionsArticlesRequestObject) (GetRevisionsArticlesResponseObject, error)
+	// Metrics available across a multi-source scope (per-source intersection)
+	// (GET /scope/available-metrics)
+	GetScopeAvailableMetrics(ctx context.Context, request GetScopeAvailableMetricsRequestObject) (GetScopeAvailableMetricsResponseObject, error)
 	// Silver-layer aggregations (distribution / heatmap / correlation)
 	// (GET /silver/aggregations/{aggregationType})
 	GetSilverAggregation(ctx context.Context, request GetSilverAggregationRequestObject) (GetSilverAggregationResponseObject, error)
@@ -7786,6 +8026,32 @@ func (sh *strictHandler) GetRevisionsArticles(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRevisionsArticlesResponseObject); ok {
 		if err := validResponse.VisitGetRevisionsArticlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetScopeAvailableMetrics operation middleware
+func (sh *strictHandler) GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetricsParams) {
+	var request GetScopeAvailableMetricsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetScopeAvailableMetrics(ctx, request.(GetScopeAvailableMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetScopeAvailableMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetScopeAvailableMetricsResponseObject); ok {
+		if err := validResponse.VisitGetScopeAvailableMetricsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

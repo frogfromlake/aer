@@ -191,6 +191,10 @@ func (m *mockStore) GetAvailableMetrics(_ context.Context, _, _ time.Time) ([]st
 	return m.availableMetrics, m.availableMetricsErr
 }
 
+func (m *mockStore) GetScopeAvailableMetrics(_ context.Context, _, _ time.Time, _ []string) (storage.ScopeMetricAvailability, error) {
+	return storage.ScopeMetricAvailability{}, nil
+}
+
 func (m *mockStore) GetMetricValidationStatus(_ context.Context, _ string) (string, error) {
 	return m.validationStatus, m.validationStatusErr
 }

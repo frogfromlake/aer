@@ -90,6 +90,7 @@ type Store interface {
 	GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error)
 	GetLanguageDetections(ctx context.Context, start, end time.Time, sources []string, language *string, limit int) ([]storage.LanguageDetectionRow, error)
 	GetAvailableMetrics(ctx context.Context, start, end time.Time) ([]storage.AvailableMetricRow, error)
+	GetScopeAvailableMetrics(ctx context.Context, start, end time.Time, sources []string) (storage.ScopeMetricAvailability, error)
 	GetMetricValidationStatus(ctx context.Context, metricName string) (string, error)
 	GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error)
 	// Phase 102: view-mode query endpoints.

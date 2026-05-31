@@ -37,6 +37,8 @@ paths:
     $ref: './paths/metrics_heatmap.yaml'
   /metrics/scatter:
     $ref: './paths/metrics_scatter.yaml'
+  /scope/available-metrics:
+    $ref: './paths/scope_available_metrics.yaml'
   /entities:
     $ref: './paths/entities.yaml'
   /entities/cooccurrence:

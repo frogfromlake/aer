@@ -768,6 +768,85 @@ func (s *ClickHouseStorage) LanguagesForScope(ctx context.Context, start, end ti
 	return out, nil
 }
 
+// PartialMetric is a metric present for only a subset of the scoped sources.
+type PartialMetric struct {
+	MetricName string
+	Sources    []string
+}
+
+// ScopeMetricAvailability splits the metrics observed in a scope's window into
+// those present for every scoped source (Available) and those present for only
+// some (Partial). Powers the Phase-123c cross-probe metric guard so a panel
+// spanning probes with asymmetric capability never binds a metric that would
+// silently yield empty cells.
+type ScopeMetricAvailability struct {
+	ScopedSources []string
+	Available     []string
+	Partial       []PartialMetric
+}
+
+// GetScopeAvailableMetrics returns, for the given sources and window, which
+// metric names have Gold data for every source (the intersection) versus only
+// some. The intersection is the only set a panel spanning the whole scope may
+// safely bind. Source lists in Partial are returned in scope order.
+func (s *ClickHouseStorage) GetScopeAvailableMetrics(ctx context.Context, start, end time.Time, sources []string) (ScopeMetricAvailability, error) {
+	out := ScopeMetricAvailability{ScopedSources: sources, Available: []string{}, Partial: []PartialMetric{}}
+	if len(sources) == 0 {
+		return out, nil
+	}
+
+	query := `
+		SELECT DISTINCT source AS Source, metric_name AS MetricName
+		FROM aer_gold.metrics
+		WHERE timestamp >= $1 AND timestamp <= $2
+	`
+	args := []any{start, end}
+	placeholders := make([]string, len(sources))
+	for i, src := range sources {
+		placeholders[i] = fmt.Sprintf("$%d", i+3)
+		args = append(args, src)
+	}
+	query += " AND source IN (" + strings.Join(placeholders, ", ") + ")"
+	query += " ORDER BY MetricName, Source"
+
+	var rows []struct {
+		Source     string
+		MetricName string
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Error("Failed to query scope available metrics", "error", err)
+		return out, err
+	}
+
+	// Group scoped sources per metric, preserving first-seen metric order.
+	bySrc := map[string]map[string]bool{}
+	order := []string{}
+	for _, r := range rows {
+		if _, ok := bySrc[r.MetricName]; !ok {
+			bySrc[r.MetricName] = map[string]bool{}
+			order = append(order, r.MetricName)
+		}
+		bySrc[r.MetricName][r.Source] = true
+	}
+
+	total := len(sources)
+	for _, metric := range order {
+		srcSet := bySrc[metric]
+		if len(srcSet) == total {
+			out.Available = append(out.Available, metric)
+			continue
+		}
+		present := make([]string, 0, len(srcSet))
+		for _, src := range sources {
+			if srcSet[src] {
+				present = append(present, src)
+			}
+		}
+		out.Partial = append(out.Partial, PartialMetric{MetricName: metric, Sources: present})
+	}
+	return out, nil
+}
+
 // CheckEquivalenceForLanguages returns true if the metric has at least
 // one `aer_gold.metric_equivalence` row at deviation-or-absolute level
 // for every language in `languages`. Phase 115: the cross-frame gate

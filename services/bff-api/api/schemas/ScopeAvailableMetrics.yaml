@@ -1,0 +1,44 @@
+type: object
+required:
+  - scopedSources
+  - available
+  - partial
+properties:
+  scopedSources:
+    type: array
+    description: The resolved source names the availability was computed over.
+    items:
+      type: string
+  available:
+    type: array
+    description: >
+      Metric names that have at least one Gold row for EVERY scoped source in
+      the window. These are the only metrics safe to bind on a panel spanning
+      the whole scope.
+    items:
+      type: string
+  partial:
+    type: array
+    description: >
+      Metrics present for SOME but not all scoped sources, with the subset of
+      sources that carry them. Surfaced as an explanatory hint, never offered
+      for binding.
+    items:
+      type: object
+      required:
+        - metricName
+        - sources
+      properties:
+        metricName:
+          type: string
+        sources:
+          type: array
+          description: The scoped sources that have data for this metric.
+          items:
+            type: string
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
