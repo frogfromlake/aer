@@ -52,6 +52,12 @@ export interface CellRenderUnit {
   // render the per-group visual accent (number badge + tint). Absent for
   // merged renders and for split-by-source units (single-group case).
   groupIndex?: number;
+  // Phase 123c (B) — the originating probe of a per-(probe,source) split
+  // fan-out unit. Set by the host when a single-ScopeGroup split panel spans
+  // more than one probe, so each rendered Cell can be tagged with its probe
+  // (per-probe label + accent) and pass the correct `scopeProbeId`. Absent
+  // for single-probe fan-outs and for the multi-ScopeGroup paths above.
+  probeId?: string;
 }
 
 export interface CellRender {
@@ -201,6 +207,64 @@ function scopeGroupToUnit(key: string, g: ScopeGroup): CellRenderUnit {
     probeIds: g.probeIds,
     sourceIds: g.sourceIds
   };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 123c (B) — probe-scope split fan-out.
+//
+// A `split` panel with a SINGLE ScopeGroup that has no source narrowing
+// (`sourceIds: []`) renders one Cell per source. `selectCellRender` returns
+// `merged-single` for this shape because the pure mapper has no source list;
+// the host expands it once it has resolved each in-scope probe's sources.
+//
+// This function is the pure core of that expansion: it fans out one unit per
+// (probe, source) across EVERY probe in the group — not just the first — so a
+// cross-probe panel renders all probes' source cells. The host supplies the
+// per-probe source names (dossier + probe registry) via `sourceNamesByProbe`
+// and a `fallbackProbeId` for the legacy empty-probeIds case. Multi-probe
+// fan-outs tag each unit with its `probeId` so the host can label + tint it;
+// single-probe fan-outs keep the legacy untagged shape. Returns `null` when
+// the panel is not a probe-scope split fan-out (the host then uses
+// `selectCellRender(panel).units` unchanged).
+// ---------------------------------------------------------------------------
+
+export interface ProbeScopeFanout {
+  units: CellRenderUnit[];
+  /** Distinct in-scope probe ids in stable order — drives the per-probe tint. */
+  probeOrder: string[];
+}
+
+export function expandProbeScopeFanout(
+  panel: Panel,
+  cellRender: CellRender,
+  sourceNamesByProbe: (probeId: string) => readonly string[],
+  fallbackProbeId: string
+): ProbeScopeFanout | null {
+  if (
+    panel.composition !== 'split' ||
+    panel.scopes.length !== 1 ||
+    panel.scopes[0]!.sourceIds.length !== 0 ||
+    cellRender.strategy !== 'merged-single'
+  ) {
+    return null;
+  }
+  const g = panel.scopes[0]!;
+  const probeOrder = g.probeIds.length > 0 ? [...g.probeIds] : [fallbackProbeId];
+  const multi = probeOrder.length > 1;
+  const units: CellRenderUnit[] = [];
+  for (const probeId of probeOrder) {
+    sourceNamesByProbe(probeId).forEach((name, si) => {
+      units.push({
+        key: `${probeId}-${si}-${name}`,
+        scope: 'source',
+        scopeId: name,
+        probeIds: [],
+        sourceIds: [name],
+        ...(multi ? { probeId } : {})
+      });
+    });
+  }
+  return { units, probeOrder };
 }
 
 // ---------------------------------------------------------------------------

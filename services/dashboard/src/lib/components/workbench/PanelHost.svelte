@@ -14,14 +14,23 @@
   // resolves Source-name → SourceMeta via the Dossier so cells receive
   // the same `sources` shape they always have.
   import type { Component } from 'svelte';
+  import { createQuery } from '@tanstack/svelte-query';
   import {
     getPresentation,
     type PresentationDefinition,
     type ViewModeCellProps
   } from '$lib/viewmodes';
   import type { Panel, ViewingMode } from '$lib/state/url-internals';
-  import type { FetchContext, ProbeDossierDto, RefusalOutcome } from '$lib/api/queries';
   import {
+    probesQuery,
+    type FetchContext,
+    type ProbeDossierDto,
+    type ProbeDto,
+    type QueryOutcome,
+    type RefusalOutcome
+  } from '$lib/api/queries';
+  import {
+    expandProbeScopeFanout,
     selectCellRender,
     shouldRefuseMergedCrossProbe,
     type CellRenderUnit
@@ -117,6 +126,40 @@
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
   const cellRender = $derived(selectCellRender(panel));
 
+  // Phase 123c (B) — cross-probe source resolution. The threaded `dossier`
+  // covers only ONE probe (the pillar's active probe). A split panel whose
+  // ScopeGroup spans several probes must fan out EVERY probe's sources, so
+  // we read the app-wide probe registry (`/probes`, already cached) to
+  // enumerate each in-scope probe's source names + display label. The
+  // dossier still supplies the richer per-source meta (emicDesignation) for
+  // its own probe; other probes' sources resolve by name (emic null).
+  const probesQ = createQuery<QueryOutcome<ProbeDto[]>, Error, QueryOutcome<ProbeDto[]>>(() => {
+    const o = probesQuery(ctx);
+    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  });
+  const probesById = $derived.by<Record<string, ProbeDto>>(() => {
+    const map: Record<string, ProbeDto> = {};
+    if (probesQ.data?.kind === 'success') for (const p of probesQ.data.data) map[p.probeId] = p;
+    return map;
+  });
+  // Source NAMES for a probe: prefer the dossier (authoritative + ordered)
+  // for its own probe; fall back to the registry list for the others.
+  function sourceNamesForProbe(probeId: string): string[] {
+    if (probeId === dossier.probeId) return dossier.sources.map((s) => s.name);
+    return probesById[probeId]?.sources ?? [];
+  }
+  function probeLabelFor(probeId: string): string {
+    const p = probesById[probeId];
+    return p?.shortName ?? p?.displayName ?? probeId;
+  }
+  // The distinct in-scope probe ids of a single-ScopeGroup split fan-out,
+  // in stable scope order — drives the per-probe accent index (1-based tint
+  // cycles through the same four-tone palette as the ScopeGroup accent).
+  function probeTintIndex(probeId: string, order: readonly string[]): number {
+    const i = order.indexOf(probeId);
+    return i < 0 ? 0 : i;
+  }
+
   // Phase 130 / ADR-035 — merged-cross-probe guard (Brief §1.3). A merged
   // Cell that pools >1 probe for a scaled/intensive metric would render a
   // cross-context ranking; refuse it via the standard refusal surface.
@@ -134,28 +177,20 @@
   );
 
   // When `split + single group without source narrowing`, the panel-queries
-  // selector returns `merged-single` so this host can fan out across the
-  // dossier's sources at render time. That semantic check lives here, not
-  // in the pure mapper, because only the host has the Dossier.
-  const expandedUnits = $derived.by<readonly CellRenderUnit[]>(() => {
-    if (
-      panel.composition === 'split' &&
-      panel.scopes.length === 1 &&
-      panel.scopes[0]!.sourceIds.length === 0 &&
-      cellRender.strategy === 'merged-single'
-    ) {
-      // The dossier carries the resolved source list for the panel's
-      // probe; fan out one Cell per source.
-      return dossier.sources.map((s, i) => ({
-        key: `dossier-${i}`,
-        scope: 'source' as const,
-        scopeId: s.name,
-        probeIds: [],
-        sourceIds: [s.name]
-      }));
-    }
-    return cellRender.units;
-  });
+  // selector returns `merged-single` so this host can fan out per source at
+  // render time. That semantic check lives here, not in the pure mapper,
+  // because only the host has the source lists.
+  //
+  // Phase 123c (B) — the fan-out spans EVERY in-scope probe, not just the
+  // threaded dossier's probe. The pure `expandProbeScopeFanout` builds the
+  // per-(probe,source) units from the host-resolved source names; the
+  // distinct probe order drives the per-probe accent when >1 probe.
+  const fanout = $derived(
+    expandProbeScopeFanout(panel, cellRender, sourceNamesForProbe, dossier.probeId)
+  );
+  const expandedUnits = $derived<readonly CellRenderUnit[]>(fanout?.units ?? cellRender.units);
+  const fanoutProbeOrder = $derived<readonly string[]>(fanout?.probeOrder ?? []);
+  const isMultiProbeFanout = $derived(fanoutProbeOrder.length > 1);
 
   // Lazy-load the Cell component. Each presentation lives in its own
   // chunk; the same Component instance is reused across all units of a
@@ -353,7 +388,12 @@
       {@const Cell = CellComponent}
       {#each expandedUnits as unit (unit.key)}
         {@const groupNum = unit.groupIndex !== undefined ? unit.groupIndex + 1 : null}
-        <div class="panel-cell" class:has-group={groupNum !== null} data-group={groupNum}>
+        {@const probeNum =
+          unit.probeId !== undefined && isMultiProbeFanout
+            ? probeTintIndex(unit.probeId, fanoutProbeOrder) + 1
+            : null}
+        {@const accentNum = groupNum ?? probeNum}
+        <div class="panel-cell" class:has-group={accentNum !== null} data-group={accentNum}>
           {#if groupNum !== null}
             <header class="cell-group-eyebrow">
               <span class="cell-group-badge" aria-hidden="true">Group {groupNum}</span>
@@ -364,10 +404,18 @@
                 {/if}
               </span>
             </header>
+          {:else if probeNum !== null && unit.probeId}
+            <!-- Phase 123c (B) — per-probe accent for the cross-probe split
+                 fan-out. The badge carries the probe's display label so the
+                 reader knows which probe each source-cell belongs to. -->
+            <header class="cell-group-eyebrow">
+              <span class="cell-group-badge">{probeLabelFor(unit.probeId)}</span>
+              <span class="cell-group-summary">{unit.scopeId}</span>
+            </header>
           {/if}
           <Cell
             {ctx}
-            scopeProbeId={dossier.probeId}
+            scopeProbeId={unit.probeId ?? dossier.probeId}
             scope={unit.scope}
             scopeId={unit.scopeId}
             windowStart={effectiveWindowStart}

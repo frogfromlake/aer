@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   coOccurrencePostDescriptorForPanel,
+  expandProbeScopeFanout,
   selectCellRender,
   shouldRefuseMergedCrossProbe
 } from '../../src/lib/workbench/panel-queries';
@@ -255,5 +256,66 @@ describe('shouldRefuseMergedCrossProbe (Phase 130 / ADR-035 — Brief §1.3)', (
         })
       )
     ).toBe(false);
+  });
+});
+
+describe('expandProbeScopeFanout (Phase 123c B — cross-probe split fan-out)', () => {
+  const srcByProbe = (pid: string): readonly string[] =>
+    ({
+      'probe-0': ['tagesschau', 'bundesregierung'],
+      'probe-1': ['franceinfo', 'elysee']
+    })[pid] ?? [];
+
+  it('fans out one unit per (probe, source) across ALL in-scope probes', () => {
+    const p = panel({ composition: 'split', scopes: [group(['probe-0', 'probe-1'], [])] });
+    const r = expandProbeScopeFanout(p, selectCellRender(p), srcByProbe, 'probe-0');
+    expect(r).not.toBeNull();
+    expect(r!.probeOrder).toEqual(['probe-0', 'probe-1']);
+    expect(r!.units).toHaveLength(4);
+    expect(r!.units.map((u) => u.scopeId)).toEqual([
+      'tagesschau',
+      'bundesregierung',
+      'franceinfo',
+      'elysee'
+    ]);
+    expect(r!.units.every((u) => u.scope === 'source')).toBe(true);
+    // Multi-probe units are tagged with their originating probe (per-probe tint).
+    expect(r!.units[0]!.probeId).toBe('probe-0');
+    expect(r!.units[2]!.probeId).toBe('probe-1');
+    // Each unit key is stable + distinct.
+    expect(new Set(r!.units.map((u) => u.key)).size).toBe(4);
+  });
+
+  it('single-probe fan-out keeps the legacy untagged shape (no per-probe accent)', () => {
+    const p = panel({ composition: 'split', scopes: [group(['probe-0'], [])] });
+    const r = expandProbeScopeFanout(p, selectCellRender(p), srcByProbe, 'probe-0');
+    expect(r!.probeOrder).toEqual(['probe-0']);
+    expect(r!.units).toHaveLength(2);
+    expect(r!.units[0]!.probeId).toBeUndefined();
+  });
+
+  it('falls back to the host probe id when the group has no probes', () => {
+    const p = panel({ composition: 'split', scopes: [group([], [])] });
+    const r = expandProbeScopeFanout(p, selectCellRender(p), srcByProbe, 'probe-0');
+    expect(r!.probeOrder).toEqual(['probe-0']);
+    expect(r!.units.map((u) => u.scopeId)).toEqual(['tagesschau', 'bundesregierung']);
+  });
+
+  it('returns null for shapes that are not a probe-scope split fan-out', () => {
+    // merged composition
+    expect(
+      expandProbeScopeFanout(
+        panel({ composition: 'merged', scopes: [group(['probe-0', 'probe-1'], [])] }),
+        selectCellRender(panel({ composition: 'merged', scopes: [group(['probe-0', 'probe-1'])] })),
+        srcByProbe,
+        'probe-0'
+      )
+    ).toBeNull();
+    // split but with explicit source narrowing (strategy = 'split', not 'merged-single')
+    const sp = panel({ composition: 'split', scopes: [group(['probe-0'], ['tagesschau'])] });
+    expect(expandProbeScopeFanout(sp, selectCellRender(sp), srcByProbe, 'probe-0')).toBeNull();
+    // split but multiple scope groups
+    const mg = panel({ composition: 'split', scopes: [group(['probe-0']), group(['probe-1'])] });
+    expect(expandProbeScopeFanout(mg, selectCellRender(mg), srcByProbe, 'probe-0')).toBeNull();
   });
 });
