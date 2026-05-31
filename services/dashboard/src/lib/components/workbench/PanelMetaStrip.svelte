@@ -14,7 +14,9 @@
   // remove affordances. The strip itself is collapsible via header click
   // so vertical real estate stays tight inside narrow panels.
   import type { Panel } from '$lib/state/url-internals';
-  import type { ProbeDossierDto } from '$lib/api/queries';
+  import type { ProbeDossierDto, ProbeDto, FetchContext, QueryOutcome } from '$lib/api/queries';
+  import { probesQuery } from '$lib/api/queries';
+  import { createQuery } from '@tanstack/svelte-query';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { getFunctionDef } from '$lib/discourse-function';
   import FunctionBadge from '$lib/components/base/FunctionBadge.svelte';
@@ -23,11 +25,28 @@
     panel: Panel;
     dossier: ProbeDossierDto;
     panelPath: PanelPath;
+    /** TanStack fetch context — used to resolve probe display names so the
+     *  scope chips never show the raw machine id (Phase 123c). */
+    ctx: FetchContext;
   }
 
-  let { panel, dossier, panelPath }: Props = $props();
+  let { panel, dossier, panelPath, ctx }: Props = $props();
 
-  let expanded = $state(false);
+  // Phase 123c — expanded by default (TESTING.md Issue 4.2): a freshly composed
+  // panel should reveal its probes/sources scope chips, not hide them behind a
+  // collapsed strip. The user can still collapse it to reclaim vertical space.
+  let expanded = $state(true);
+
+  // Phase 123c — probe display-name resolution for the scope chips. Falls back
+  // to the raw id while the list loads or for an unknown probe.
+  const probesQ = createQuery<QueryOutcome<ProbeDto[]>, Error, QueryOutcome<ProbeDto[]>>(() => {
+    const o = probesQuery(ctx);
+    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  });
+  const probeList = $derived<ProbeDto[]>(probesQ.data?.kind === 'success' ? probesQ.data.data : []);
+  function probeLabel(probeId: string): string {
+    return probeList.find((p) => p.probeId === probeId)?.displayName ?? probeId;
+  }
 
   const shape = $derived.by(() => {
     const probeList: string[] = [];
@@ -157,10 +176,10 @@
                   type="button"
                   class="chip"
                   onclick={() => removeProbe(id)}
-                  aria-label="Remove probe {id}"
+                  aria-label="Remove probe {probeLabel(id)}"
                   title="Remove probe from this panel"
                 >
-                  {id}
+                  {probeLabel(id)}
                   <span class="chip-x" aria-hidden="true">×</span>
                 </button>
               </li>

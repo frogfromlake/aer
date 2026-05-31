@@ -4207,9 +4207,30 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
+## Phase 123c: Cross-Probe Workbench Hardening [P1] - [~] IN PROGRESS
+
+*Surfaced by the first real two-probe manual test (TESTING.md). Phase 123 landed Probe 1's data; 123c makes the Workbench actually usable **across** probes — the prerequisites Phase 124's comparison work assumes. Pulled out of 124 so the equivalence/lead-lag phase is not also carrying these UX/correctness fixes.*
+
+**Done so far:**
+* [x] **E1 — WebAdapter timestamp time-of-day upgrade.** Date-only article dates (elysee) now adopt the same-day RSS `pubDate` time (`rss_pubdate_time_upgrade`) so `publication_hour` is real instead of collapsing to 0. Different-day `sitemap_lastmod` (the republication-trigger signal) is untouched. Unit-tested; re-crawl elysee to populate.
+* [x] **A — ScopeEditor multi-probe source wiring.** Removed the "Phase 123 pending" placeholder; the editor now fetches each in-scope probe's dossier so Step-3 lists the sources of ALL selected probes. displayName everywhere in the editor.
+* [x] **D (part) — displayName in PanelMetaStrip scope chips.** Raw probe ids replaced by displayName.
+* [x] **E2 — PanelMetaStrip expanded by default** (was collapsed; confusing on a freshly composed panel).
+* [x] **F — Methodology nav link** from Dossier ProbeCard → `/reflection/probe/<id>` (previously URL-only).
+
+**Remaining:**
+* [ ] **C — Scope metric-availability discipline (BFF endpoint + frontend).** New `GET /scope/available-metrics?sourceIds=&probeIds=`: returns metrics present in Gold for **all** scoped sources (per-source intersection), PLUS `partial[]` (metric + which sources have it, so the user knows single-source analysis offers more) PLUS `expectedMissing[]` (in the Capability Manifest but no Gold data → **silent-failure alarm**, e.g. Wayback down → revision_count missing). PanelControls + Scatter axes consume `available`; render both hints. Hybrid Ist∩Soll, per-source. OpenAPI + `make codegen`.
+* [ ] **B — Cross-probe panel rendering.** A panel over N probes must render all source cells (2 probes × 2 sources = 4), not just the first probe's; per-probe soft background/border to distinguish sources visually.
+* [ ] **D (part) — globe multi-select highlight.** SHIFT-selecting multiple probes must highlight ALL of them on the globe, not only the last clicked (engine `setSelection` → multi-selection API).
+
+### Validation
+* [ ] Compose a panel over both probes → all 4 source cells render, per-probe distinguished; PanelControls offers only metrics common to all scoped sources, with a hint listing hidden/partial metrics and a ⚠ for expected-but-missing ones; SHIFT-select highlights both probes on the globe; elysee `publication_hour` is non-zero after re-crawl.
+
+---
+
 ## Phase 124: Cross-Probe & Cross-Cultural Operations [P1] - [ ] TODO
 
-*Cross-probe **composition** already works. This phase delivers cross-probe **comparison** discipline: the first non-empty equivalence-registry entry (temporal Level 1, always valid per WP-004 Appendix B), the lead-lag tooling, and the first Probe-1 baselines. No Level-2/3 (sentiment) grant — out of scope.*
+*Cross-probe **composition** + the cross-probe Workbench mechanics (rendering, metric-availability discipline, multi-select) are delivered in **Phase 123c** — 124 assumes them. This phase delivers cross-probe **comparison** discipline only: the first non-empty equivalence-registry entry (temporal Level 1, always valid per WP-004 Appendix B), the lead-lag tooling, and the first Probe-1 baselines. No Level-2/3 (sentiment) grant — out of scope.*
 
 **Grounding.** Read first: `scripts/operations/compute_baselines.py`, the ClickHouse `metric_equivalence` + `metric_baselines` schema, Postgres `equivalence_reviews`, the BFF `probe_equivalence.yaml` + correlation handler, `cultural_calendars/`, `RhizomeShell.svelte` (post-130: panels+cells, no entry-questions). Preserve: the Phase-115 refusal-surface behaviour, the empty-until-granted equivalence registry semantics. Verify-first: confirm Phase 130 removed the entry-questions — the lead-lag is now a **cell**, not an entry-question.
 

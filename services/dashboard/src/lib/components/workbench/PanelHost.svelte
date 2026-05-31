@@ -299,7 +299,7 @@
   </header>
 
   {#if path}
-    <PanelMetaStrip {panel} {dossier} panelPath={path} />
+    <PanelMetaStrip {panel} {dossier} panelPath={path} {ctx} />
   {/if}
 
   {#if focused && path}

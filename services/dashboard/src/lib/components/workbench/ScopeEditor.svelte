@@ -18,7 +18,7 @@
   // composition is explicit and discoverable.
   import type { Panel, ScopeGroup } from '$lib/state/url-internals';
   import type { ProbeDossierDto, ProbeDto, FetchContext, QueryOutcome } from '$lib/api/queries';
-  import { probesQuery } from '$lib/api/queries';
+  import { probesQuery, probeDossierQuery } from '$lib/api/queries';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import { loadDraft, saveDraft, clearDraft } from '$lib/workbench/scope-editor-draft';
   import { createQuery } from '@tanstack/svelte-query';
@@ -28,11 +28,9 @@
     /** When provided, the editor edits this Panel's scope (edit mode).
      *  When omitted, the editor opens in create mode. */
     panel?: Panel;
-    /** Primary dossier — the source list for the production probe.
-     *  Multi-probe support: when Phase 123 lands additional probes the
-     *  editor will fetch their dossiers internally; today only the
-     *  primary dossier is reachable, and non-primary probes surface a
-     *  "Phase 123 pending" hint. */
+    /** Seed dossier for the primary probe. Phase 123c: every other probe a
+     *  ScopeGroup selects has its dossier fetched internally (see
+     *  `dossierSourcesByProbe`), so cross-probe scopes list all sources. */
     dossier: ProbeDossierDto;
     /** TanStack fetch context for the internal probesQuery. */
     ctx: FetchContext;
@@ -146,12 +144,57 @@
     return source.primaryFunction === df;
   }
 
-  // Source-resolver: today only the primary dossier carries actual
-  // source data. For multi-probe, this returns a placeholder until
-  // Phase 123 wires per-probe dossier loading.
+  // Phase 123c — per-probe dossier source cache. The `dossier` prop seeds the
+  // primary probe; every other probe that enters any ScopeGroup has its
+  // dossier fetched imperatively into this map so Step-3 lists the sources of
+  // ALL selected probes (cross-probe scopes). Keyed by probeId.
+  // svelte-ignore state_referenced_locally
+  let dossierSourcesByProbe = $state<Record<string, ProbeDossierDto['sources']>>({
+    [dossier.probeId]: dossier.sources
+  });
+  // probeIds whose fetch is in flight, so the effect does not re-issue. Plain
+  // object (not reactive) — it is a dedup guard, never rendered.
+  const dossierFetchInFlight: Record<string, true> = {};
+
+  // Whenever a probe appears in any draft group and is not yet cached, fetch
+  // its dossier. Fail-silent: a failed fetch leaves the probe absent from the
+  // map (its source list renders empty with a retry-on-next-open semantics).
+  $effect(() => {
+    const wanted: string[] = [];
+    for (const g of draftScopes)
+      for (const p of g.probeIds) if (!wanted.includes(p)) wanted.push(p);
+    for (const probeId of wanted) {
+      if (probeId in dossierSourcesByProbe || dossierFetchInFlight[probeId]) continue;
+      dossierFetchInFlight[probeId] = true;
+      const o = probeDossierQuery(ctx, probeId);
+      Promise.resolve(o.queryFn())
+        .then((outcome) => {
+          if (outcome.kind === 'success') {
+            dossierSourcesByProbe = {
+              ...dossierSourcesByProbe,
+              [probeId]: outcome.data.sources
+            };
+          }
+          // Non-success (refusal/network) leaves the probe uncached → empty
+          // source list with retry-on-next-open; the editor stays usable.
+        })
+        .catch(() => {
+          // Defensive: queryFn is fail-typed, but never let a rejection throw.
+        })
+        .finally(() => {
+          delete dossierFetchInFlight[probeId];
+        });
+    }
+  });
+
+  // Source-resolver: returns the cached sources for a probe, or [] while its
+  // dossier is still loading (the UI shows a transient "loading sources" note).
   function sourcesForProbe(probeId: string): ProbeDossierDto['sources'] {
-    if (probeId === dossier.probeId) return dossier.sources;
-    return [];
+    return dossierSourcesByProbe[probeId] ?? [];
+  }
+
+  function sourcesLoading(probeId: string): boolean {
+    return !(probeId in dossierSourcesByProbe);
   }
 
   function toggleProbe(groupIndex: number, probeId: string) {
@@ -363,21 +406,15 @@
               {:else}
                 {#each probeList as probe (probe.probeId)}
                   {@const checked = group.probeIds.includes(probe.probeId)}
-                  {@const isPrimary = probe.probeId === dossier.probeId}
                   <label class="probe-chip" class:checked>
                     <input
                       type="checkbox"
                       {checked}
                       onchange={() => toggleProbe(groupIndex, probe.probeId)}
-                      aria-label="Include {probe.probeId}"
+                      aria-label="Include {probe.displayName}"
                     />
-                    <span class="probe-name">{probe.probeId}</span>
+                    <span class="probe-name">{probe.displayName}</span>
                     <span class="probe-lang">{probe.language.toUpperCase()}</span>
-                    {#if !isPrimary}
-                      <span class="probe-hint" title="Multi-probe source loading pends Phase 123">
-                        Phase 123
-                      </span>
-                    {/if}
                   </label>
                 {/each}
               {/if}
@@ -430,9 +467,11 @@
             {:else}
               {#each group.probeIds as probeId (probeId)}
                 {@const probeSources = sourcesForProbe(probeId)}
+                {@const probeLabel =
+                  probeList.find((p) => p.probeId === probeId)?.displayName ?? probeId}
                 <div class="source-section">
                   <header class="source-section-header">
-                    <span class="probe-section-label">{probeId}</span>
+                    <span class="probe-section-label">{probeLabel}</span>
                     {#if probeSources.length > 0}
                       <span class="source-actions">
                         <button
@@ -455,10 +494,11 @@
                     {/if}
                   </header>
                   {#if probeSources.length === 0}
-                    <p class="muted">
-                      Source list for <code>{probeId}</code> is not yet wired (Phase 123 will load multi-probe
-                      dossiers in the editor).
-                    </p>
+                    {#if sourcesLoading(probeId)}
+                      <p class="muted" aria-busy="true">Loading sources for {probeLabel}…</p>
+                    {:else}
+                      <p class="muted">No sources available for {probeLabel}.</p>
+                    {/if}
                   {:else}
                     <ul class="source-list" role="list">
                       {#each probeSources as source (source.name)}
@@ -789,13 +829,6 @@
     background: var(--color-bg);
     border-radius: var(--radius-sm);
     color: var(--color-fg-subtle);
-  }
-
-  .probe-hint {
-    font-size: 10px;
-    color: var(--color-fg-subtle);
-    font-style: italic;
-    cursor: help;
   }
 
   /* ---------- Step 2 — DF chips ---------- */

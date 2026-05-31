@@ -275,6 +275,23 @@ def _parse_iso_or_event_time(value: Any, event_time: datetime) -> datetime:
     return event_time
 
 
+def _is_date_only(dt: datetime) -> bool:
+    """True when a datetime carries no time-of-day (exact midnight).
+
+    Publishers that expose only a calendar date parse to 00:00:00; this is the
+    signal that `publication_hour`/`publication_weekday` would be meaningless
+    unless a more precise source (RSS pubDate via `sitemap_lastmod`) exists.
+    """
+    return dt.hour == 0 and dt.minute == 0 and dt.second == 0 and dt.microsecond == 0
+
+
+def _same_utc_date(a: datetime, b: datetime) -> bool:
+    """True when both datetimes fall on the same calendar day in UTC."""
+    ua = a.astimezone(timezone.utc) if a.tzinfo else a.replace(tzinfo=timezone.utc)
+    ub = b.astimezone(timezone.utc) if b.tzinfo else b.replace(tzinfo=timezone.utc)
+    return ua.date() == ub.date()
+
+
 def _resolve_timestamp(
     meta: WebMeta,
     http_last_modified: Optional[datetime],
@@ -294,6 +311,25 @@ def _resolve_timestamp(
         # (json_ld_published / open_graph_published / html_meta_published).
         if not meta.timestamp_source:
             meta.timestamp_source = "html_meta_published"
+
+        # Phase 123c — time-of-day upgrade. Some publishers expose only a
+        # DATE on the article page (e.g. elysee.fr → published_date at exact
+        # midnight) while the RSS feed that surfaced the URL carries the full
+        # timestamp (pubDate "Fri, 29 May 2026 18:15:00"), propagated here as
+        # `sitemap_lastmod`. A date-only published_date makes publication_hour
+        # collapse to 0 for every such article (TESTING.md Issue 4). When the
+        # RSS timestamp falls on the SAME calendar day and carries a real
+        # time-of-day, prefer it: the day authority is unchanged, only the hour
+        # is recovered. Different-day sitemap_lastmod is left untouched (that is
+        # the republication-trigger signal, not a more-precise publish time).
+        if (
+            _is_date_only(meta.published_date)
+            and meta.sitemap_lastmod is not None
+            and not _is_date_only(meta.sitemap_lastmod)
+            and _same_utc_date(meta.published_date, meta.sitemap_lastmod)
+        ):
+            meta.timestamp_source = "rss_pubdate_time_upgrade"
+            return meta.sitemap_lastmod
         return meta.published_date
 
     if meta.sitemap_lastmod is not None:

@@ -31,6 +31,12 @@ import {
   pickNearSideHit,
   probeCentroidLatLon
 } from './glow';
+import {
+  type SpiderSlot,
+  applySpiderSpread,
+  computeSpiderLayout,
+  worldFanForDistance
+} from './spiderfy';
 import { sunDirection } from './sun';
 import atmosphereFrag from './shaders/atmosphere.glsl?raw';
 import atmosphereVert from './shaders/atmosphere.vert.glsl?raw';
@@ -194,8 +200,21 @@ class Engine implements AtmosphereEngine {
     readonly probeId: string;
     readonly sourceName: string;
     readonly label: string;
+    // The TRUE geo position (publisher location). The geometry's `position`
+    // buffer holds the *rendered* position, which is the spiderfied (fanned)
+    // position for co-located satellites and equals this otherwise. Raycasting
+    // reads the buffer, so hover/click follow the fanned points.
     readonly position: Vector3;
   }> = [];
+  // Phase 123b — spiderfy layout, parallel to `satelliteSlots`: co-located
+  // satellites (same city) are fanned apart so each source is visible and
+  // hoverable. The fan magnitude is screen-space-constant (scales with camera
+  // distance, applied per tick in `updateSpiderFan`). Separated sources form no
+  // cluster and never move — same rule for every probe.
+  private satelliteSpiderLayout: SpiderSlot[] = [];
+  private hasSpiderClusters = false;
+  // Last applied fan magnitude; `< 0` forces the next tick to (re)apply.
+  private lastFanMag = -1;
   private pointerHoveredProbe = -1;
   private externalHoveredProbe = -1;
   private pointerHoveredSatellite = -1;
@@ -387,6 +406,7 @@ class Engine implements AtmosphereEngine {
     this.satelliteGeometry = null;
     this.satelliteMaterial = null;
     this.satelliteMesh = null;
+    this.satelliteSpiderLayout = [];
     this.probeSlots = [];
     this.satelliteSlots = [];
     this.sdfTexture?.dispose();
@@ -533,6 +553,8 @@ class Engine implements AtmosphereEngine {
       this.satelliteMaterial.uniforms.uTime.value = t;
     }
 
+    this.updateSpiderFan();
+
     if (this.pointerInsideCanvas) {
       this.updateHover();
     }
@@ -654,6 +676,25 @@ class Engine implements AtmosphereEngine {
     this.pointerHoveredSatellite = -1;
     this.selectedProbeIndex = -1;
 
+    // Phase 123b — spiderfy: co-located satellites (same city, sub-pixel apart
+    // at every globe zoom) are fanned apart so each source is visible/hoverable.
+    // The fan magnitude is screen-space-constant — it scales with camera
+    // distance (`updateSpiderFan`, per tick) so the markers stay separated at
+    // every zoom AND visibly unfold as the camera pulls back, while staying
+    // near the true city when zoomed in. The geometry below is seeded at the
+    // current camera distance; `lastFanMag = -1` forces the first tick to apply
+    // it. Separated sources (Probe 0: Hamburg↔Berlin) form no cluster and never
+    // move — same rule for every probe.
+    this.satelliteSpiderLayout = computeSpiderLayout(satelliteSlots.map((s) => s.position));
+    this.hasSpiderClusters = this.satelliteSpiderLayout.some((s) => s.clusterId >= 0);
+    this.lastFanMag = -1;
+    const seedFan = this.camera
+      ? worldFanForDistance(this.camera.position.length())
+      : worldFanForDistance(INITIAL_DISTANCE);
+    const fannedSatellitePositions = satelliteSlots.map((s, i) =>
+      applySpiderSpread(s.position, this.satelliteSpiderLayout[i]!, seedFan, SATELLITE_RADIUS)
+    );
+
     this.probeGlyphGeometry = this.replaceGlowGeometry(
       this.probeGlyphGeometry,
       this.probeGlyphMesh,
@@ -663,7 +704,7 @@ class Engine implements AtmosphereEngine {
     this.satelliteGeometry = this.replaceGlowGeometry(
       this.satelliteGeometry,
       this.satelliteMesh,
-      satelliteSlots.map((s) => s.position),
+      fannedSatellitePositions,
       false
     );
 
@@ -671,6 +712,28 @@ class Engine implements AtmosphereEngine {
     // does not wipe its pulse.
     this.applyActivityToBuffers();
     this.setSelection(this.currentSelection);
+  }
+
+  // Phase 123b — per tick: recompute the screen-space-constant fan magnitude
+  // from the current camera distance and, when it changed meaningfully, rewrite
+  // the clustered satellites' positions in the geometry buffer. The raycaster
+  // reads the same buffer, so hover/click follow the fanned positions. No-op
+  // when there are no co-located clusters (the common single-source case).
+  private updateSpiderFan(): void {
+    if (!this.hasSpiderClusters || !this.camera || !this.satelliteGeometry) return;
+    const mag = worldFanForDistance(this.camera.position.length());
+    if (Math.abs(mag - this.lastFanMag) < 1e-4) return;
+    this.lastFanMag = mag;
+
+    const posAttr = this.satelliteGeometry.getAttribute('position') as BufferAttribute | undefined;
+    if (!posAttr) return;
+    for (let i = 0; i < this.satelliteSlots.length; i++) {
+      const slot = this.satelliteSpiderLayout[i];
+      if (!slot || slot.clusterId < 0) continue; // singletons never move
+      const p = applySpiderSpread(this.satelliteSlots[i]!.position, slot, mag, SATELLITE_RADIUS);
+      posAttr.setXYZ(i, p.x, p.y, p.z);
+    }
+    posAttr.needsUpdate = true;
   }
 
   private replaceGlowGeometry(

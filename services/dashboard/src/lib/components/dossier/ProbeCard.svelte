@@ -180,6 +180,10 @@
     </button>
 
     <div class="header-actions">
+      <!-- Phase 123c (TESTING.md §3 Issue) — direct nav to the per-probe
+           methodology dossier, previously reachable only by hand-typed URL. -->
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal reflection route -->
+      <a class="methodology-link" href="/reflection/probe/{probe.probeId}">Methodology ↗</a>
       <button type="button" class="metadata-btn" onclick={openMetadataModal}>
         Metadata coverage
       </button>
@@ -417,7 +421,8 @@
     flex-shrink: 0;
   }
 
-  .metadata-btn {
+  .metadata-btn,
+  .methodology-link {
     appearance: none;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
@@ -426,9 +431,13 @@
     cursor: pointer;
     background: transparent;
     color: var(--color-fg-muted);
+    text-decoration: none;
+    white-space: nowrap;
   }
   .metadata-btn:hover,
-  .metadata-btn:focus-visible {
+  .metadata-btn:focus-visible,
+  .methodology-link:hover,
+  .methodology-link:focus-visible {
     color: var(--color-fg);
     border-color: var(--color-border-strong);
   }
