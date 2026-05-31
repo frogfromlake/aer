@@ -119,6 +119,10 @@ const GLOW_OUTER_RING_BRIGHTNESS = 0.35;
 // palette; cool enough not to scream — the palette target for 99b is a
 // calm, atmospheric surface, not a dashboard of alerts.
 const GLOW_COLOR = new Color('#d8c28a');
+// Phase 123c (Issue 2) — selection reticle colour: the AĒR turquoise accent
+// (`--color-accent` #7ddce5), so a selected probe reads as deliberately
+// marked rather than merely brighter.
+const SELECT_COLOR = new Color('#7ddce5');
 
 const MIN_DISTANCE = SPHERE_RADIUS * 1.2;
 const MAX_DISTANCE = SPHERE_RADIUS * 8;
@@ -618,7 +622,8 @@ class Engine implements AtmosphereEngine {
         uGlowColor: { value: GLOW_COLOR },
         uBrightnessScale: { value: GLOW_BRIGHTNESS_SCALE },
         uHaloBrightness: { value: GLOW_HALO_BRIGHTNESS },
-        uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS }
+        uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS },
+        uSelectColor: { value: SELECT_COLOR }
       }
     });
     this.probeGlyphMesh = new Points(this.probeGlyphGeometry, this.probeGlyphMaterial);
@@ -644,7 +649,10 @@ class Engine implements AtmosphereEngine {
         // Muted: probe glyph carries scope identity, satellites are read-only origins.
         uBrightnessScale: { value: GLOW_BRIGHTNESS_SCALE * SATELLITE_BRIGHTNESS_SCALE },
         uHaloBrightness: { value: GLOW_HALO_BRIGHTNESS * SATELLITE_BRIGHTNESS_SCALE },
-        uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS * SATELLITE_BRIGHTNESS_SCALE }
+        uOuterRingBrightness: { value: GLOW_OUTER_RING_BRIGHTNESS * SATELLITE_BRIGHTNESS_SCALE },
+        // Satellites never set vSelected, so the reticle never renders here;
+        // the uniform is still provided so the shared shader compiles.
+        uSelectColor: { value: SELECT_COLOR }
       }
     });
     this.satelliteMesh = new Points(this.satelliteGeometry, this.satelliteMaterial);

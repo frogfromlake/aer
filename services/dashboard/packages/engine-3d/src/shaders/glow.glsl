@@ -19,6 +19,8 @@ uniform vec3  uGlowColor;
 uniform float uBrightnessScale;
 uniform float uHaloBrightness;
 uniform float uOuterRingBrightness;
+// Phase 123c (Issue 2) — colour of the selection reticle (AĒR turquoise).
+uniform vec3  uSelectColor;
 
 varying float vBrightness;
 varying float vPulseRate;
@@ -73,5 +75,35 @@ void main() {
   // r=0.8, killing the region where the halo spread lives).
   float alpha = intensity * smoothstep(1.0, 0.3, r);
 
-  gl_FragColor = vec4(uGlowColor * intensity, clamp(alpha, 0.0, 1.0));
+  vec3  color = uGlowColor * intensity;
+
+  // Phase 123c (Issue 2) — selection reticle. Selected glyphs get a crisp
+  // turquoise target marker: two concentric rings plus four cardinal dots
+  // between them. Rendered with its own colour + alpha (independent of the
+  // glow taper) so multi-selected probes stand out at a glance. The existing
+  // hover/selection glow lift above is kept. Satellites never set vSelected,
+  // so they never show a reticle.
+  if (vSelected > 0.5) {
+    float ringPulseSel = 0.85 + 0.15 * sin(uTime * 1.6);
+    // Issue 2 (refinement) — crisp-edged rings + dots. A Gaussian fades and
+    // reads as blurry when the glyph is large at close zoom; a thin band with
+    // a minimal antialias edge (smoothstep) holds a sharp boundary at every
+    // size. `aa` is the only soft part (1–2 px of anti-aliasing).
+    float aa = 0.010;
+    float ringHW  = 0.009;  // ring half-width — very fine lines
+    float dotHW   = 0.020;  // dot radial half-width — minimally fine points
+    float ringInner = smoothstep(ringHW + aa, ringHW, abs(r - 0.60));
+    float ringOuter = smoothstep(ringHW + aa, ringHW, abs(r - 0.86));
+    // Four dots at the cardinal angles (0/90/180/270°): a crisp radial band
+    // gated by a tight angular window where |cos(2θ)| ≈ 1.
+    float ang  = atan(p.y, p.x);
+    float radialBand = smoothstep(dotHW + aa, dotHW, abs(r - 0.73));
+    float angularGate = smoothstep(0.986, 0.997, abs(cos(ang * 2.0)));
+    float dots = radialBand * angularGate;
+    float reticle = (ringInner + ringOuter + dots) * ringPulseSel;
+    color += uSelectColor * reticle;
+    alpha  = max(alpha, reticle);
+  }
+
+  gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
 }

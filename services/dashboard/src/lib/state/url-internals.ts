@@ -139,6 +139,12 @@ export interface Panel {
   // in the URL so a deep-link survives. Per-panel; only meaningful on
   // the focused panel of the active window.
   cellControlsCollapsed?: boolean;
+  // Phase 123c (Issue 6) — "show anyway". When true, the metric picker also
+  // offers metrics present for only SOME scoped sources (normally withheld),
+  // and the panel renders cells only for the sources that actually carry the
+  // chosen metric (PanelHost drops the data-less ones). Default false/absent
+  // = the strict cross-source-intersection behaviour.
+  showWithheld?: boolean;
   // Phase 122k F5 — per-Panel time window. When set, overrides the global
   // `url.from` / `url.to` for THIS panel only. ISO-date strings; when
   // absent the panel inherits the global default (current behaviour).
@@ -394,6 +400,7 @@ interface CompactPanel {
   // Phase 122i revision short keys.
   sd?: 'h' | 'v'; // splitDirection (D2)
   cc?: 1; // cellControlsCollapsed (C4)
+  sw?: 1; // showWithheld — offer partial (some-source) metrics anyway (Issue 6)
   // Phase 122k F5 — per-panel time window. ISO date strings; absent when
   // the panel inherits the global default. Encoded verbatim so URL-state
   // debugging is straightforward.
@@ -469,6 +476,7 @@ function compactPanel(p: Panel): CompactPanel {
   if (p.splitDirection === 'vertical') c.sd = 'v';
   else if (p.splitDirection === 'horizontal') c.sd = 'h';
   if (p.cellControlsCollapsed === true) c.cc = 1;
+  if (p.showWithheld === true) c.sw = 1;
   // Phase 122k F5 — per-panel window.
   if (p.windowStart !== undefined) c.ws = p.windowStart;
   if (p.windowEnd !== undefined) c.we = p.windowEnd;
@@ -522,6 +530,7 @@ function expandPanel(c: CompactPanel): Panel {
   if (c.sd === 'v') p.splitDirection = 'vertical';
   else if (c.sd === 'h') p.splitDirection = 'horizontal';
   if (c.cc === 1) p.cellControlsCollapsed = true;
+  if (c.sw === 1) p.showWithheld = true;
   // Phase 122k F5 — per-panel window.
   if (typeof c.ws === 'string') p.windowStart = c.ws;
   if (typeof c.we === 'string') p.windowEnd = c.we;
@@ -625,6 +634,7 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   // Phase 122i revision short keys.
   if (v.sd !== undefined && v.sd !== 'h' && v.sd !== 'v') return false;
   if (v.cc !== undefined && v.cc !== 1) return false;
+  if (v.sw !== undefined && v.sw !== 1) return false;
   // Phase 122k F5 — per-panel window keys.
   if (v.ws !== undefined && typeof v.ws !== 'string') return false;
   if (v.we !== undefined && typeof v.we !== 'string') return false;

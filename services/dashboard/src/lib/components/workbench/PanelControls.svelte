@@ -38,6 +38,7 @@
     type ViewingMode
   } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { defaultMetricForScopes } from '$lib/workbench/panel-queries';
 
   // Phase 131 — default per-cell config values. Mirrors the cell-side and
   // BFF-side defaults so a freshly-added Panel renders identically whether
@@ -180,13 +181,24 @@
   );
   // Metrics present for SOME but not all scoped sources — rendered as a hint.
   const partialMetrics = $derived<ScopeAvailableMetricsDto['partial']>(scopeAvail?.partial ?? []);
-  // Total scoped-source count — the denominator in the "(2/3 sources)" hint.
-  const scopedSourceCount = $derived(scopeAvail?.scopedSources.length ?? 0);
+  // The full resolved scoped-source list — denominator + "missing on" set.
+  const scopedSourceNames = $derived<readonly string[]>(scopeAvail?.scopedSources ?? []);
+  const scopedSourceCount = $derived(scopedSourceNames.length);
+  // Issue 6 — "show anyway": when on, the picker also offers partial metrics.
+  const activeShowWithheld = $derived(boundPanel?.showWithheld === true);
   // A metric is offerable when there is no scope constraint yet OR it is in
-  // the all-source intersection. Filters both the metric picker and the
-  // scatter selectors.
+  // the all-source intersection OR the user opted to "show anyway". Filters
+  // both the metric picker and the scatter selectors.
   function isScopeAvailable(name: string): boolean {
-    return scopeAvailableSet === null || scopeAvailableSet.has(name);
+    if (scopeAvailableSet === null || activeShowWithheld) return true;
+    return scopeAvailableSet.has(name);
+  }
+  // Issue 6 — the scoped sources that LACK a given partial metric (the "cause"
+  // of the withholding), so the hint can name them instead of leaving the
+  // user to trial-and-error.
+  function missingSourcesFor(have: readonly string[]): string[] {
+    const haveSet = new Set(have);
+    return scopedSourceNames.filter((s) => !haveSet.has(s));
   }
 
   const activeMetric = $derived(boundPanel ? boundPanel.metric : DEFAULT_METRIC_NAME);
@@ -316,8 +328,21 @@
       // both axes. Distinct x/y when the corpus offers >1 metric.
       if (id === 'metric_scatter' && (!next.channels?.x || !next.channels?.y)) {
         const opts = scalarMetricOptions;
-        const x = next.channels?.x ?? opts[0] ?? DEFAULT_METRIC_NAME;
-        const y = next.channels?.y ?? opts.find((m) => m !== x) ?? x;
+        // Issue 5 — a more interesting default than the alphabetical first
+        // two (entity_count × language_confidence): put a sentiment metric on
+        // X (prefer the multilingual backbone) and word_count on Y. Fall back
+        // gracefully to whatever the scope actually offers.
+        const sentiment =
+          opts.find((m) => m === 'sentiment_score_bert_multilingual') ??
+          opts.find((m) => m.startsWith('sentiment_score'));
+        const x = next.channels?.x ?? sentiment ?? opts[0] ?? DEFAULT_METRIC_NAME;
+        let y = next.channels?.y;
+        if (!y) {
+          y =
+            opts.includes('word_count') && x !== 'word_count'
+              ? 'word_count'
+              : (opts.find((m) => m !== x) ?? x);
+        }
         next.channels = { ...(next.channels ?? {}), x, y };
       }
       return next;
@@ -364,6 +389,42 @@
     if (!panelPath || !boundPanel) return;
     const next = !(boundPanel.cellControlsCollapsed === true);
     updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: next }));
+  }
+  // A scope-valid metric to snap back to when "show anyway" is turned off and
+  // the active metric is no longer offerable. Prefer the scope's default
+  // (multilingual backbone for cross-probe), else the first available metric
+  // the active view can render.
+  function resetMetricForScope(): string {
+    const view = activePresentation.id;
+    const fallback = defaultMetricForScopes(boundPanel?.scopes ?? []);
+    if (scopeAvailableSet?.has(fallback) && metricSupportsPresentation(fallback, view)) {
+      return fallback;
+    }
+    const firstOk = availableMetricNames.find(
+      (m) => (scopeAvailableSet?.has(m) ?? true) && metricSupportsPresentation(m, view)
+    );
+    return firstOk ?? fallback;
+  }
+  // Issue 6 — "show anyway": offer the withheld (partial) metrics in the
+  // picker. PanelHost still renders only the sources that carry the chosen
+  // metric, so the empty cells never appear. Turning it back OFF snaps a
+  // now-unofferable metric back to a scope-valid default so every source's
+  // cell reappears (instead of staying stuck on the withheld metric).
+  function toggleShowWithheld() {
+    if (!panelPath || !boundPanel) return;
+    const next = !(boundPanel.showWithheld === true);
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      if (next) {
+        o.showWithheld = true;
+      } else {
+        delete o.showWithheld;
+        if (scopeAvailableSet && !scopeAvailableSet.has(o.metric)) {
+          o.metric = resetMetricForScope();
+        }
+      }
+      return o;
+    });
   }
 
   // Phase 122k F5 — Window date handlers. Both write to the bound panel's
@@ -681,26 +742,48 @@
       </div>
     {/if}
 
-    <!-- Phase 123c (C1) — partial-metric hint. Surfaces metrics that have
-         data for only SOME scoped sources (and are therefore withheld from
-         the picker/scatter selectors above), so the user understands why a
-         metric they expected is absent rather than seeing a silent gap.
-         Shown for both the metric picker and the scatter selectors. -->
+    <!-- Phase 123c (C1 + Issue 6) — partial-metric hint. Surfaces metrics
+         that have data for only SOME scoped sources, and names the sources
+         that LACK each one (the "cause") so the user doesn't have to trial-
+         and-error. "Show anyway" offers them in the picker regardless; the
+         panel then renders only the sources that carry the chosen metric. -->
     {#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
       <div class="ctrl-row partial-hint" role="note">
         <span class="ctrl-eyebrow">Withheld</span>
-        <p class="partial-hint-body">
-          {partialMetrics.length} metric{partialMetrics.length === 1 ? '' : 's'} present for only some
-          of the {scopedSourceCount} scoped source{scopedSourceCount === 1 ? '' : 's'} — withheld so a
-          panel-wide binding cannot yield silently empty cells:
-          <span class="partial-hint-list">
+        <div class="partial-hint-body">
+          <p class="partial-hint-lead">
+            {partialMetrics.length} metric{partialMetrics.length === 1 ? '' : 's'} not present on every
+            one of the {scopedSourceCount} scoped source{scopedSourceCount === 1 ? '' : 's'} — withheld
+            so a panel-wide binding cannot yield silently empty cells:
+          </p>
+          <ul class="partial-hint-list" role="list">
             {#each partialMetrics as pm (pm.metricName)}
-              <code class="partial-metric" title="Has data for: {pm.sources.join(', ')}"
-                >{pm.metricName} ({pm.sources.length}/{scopedSourceCount})</code
-              >
+              {@const missing = missingSourcesFor(pm.sources)}
+              <li class="partial-metric-row">
+                <code class="partial-metric">{pm.metricName}</code>
+                <span class="partial-metric-detail">
+                  has {pm.sources.length}/{scopedSourceCount}{#if missing.length > 0}
+                    · missing on <strong>{missing.join(', ')}</strong>{/if}
+                </span>
+              </li>
             {/each}
-          </span>
-        </p>
+          </ul>
+          {#if isPanelBound}
+            <button
+              type="button"
+              class="ctrl-btn partial-toggle"
+              class:active={activeShowWithheld}
+              role="switch"
+              aria-checked={activeShowWithheld}
+              onclick={toggleShowWithheld}
+              title="Offer these metrics in the picker anyway. The panel renders only the sources that carry the chosen metric — no empty cells, no scope change needed."
+            >
+              {activeShowWithheld
+                ? '✓ Showing withheld (only sources with data render)'
+                : 'Show anyway'}
+            </button>
+          {/if}
+        </div>
       </div>
     {/if}
 
@@ -1336,12 +1419,28 @@
     font-size: var(--font-size-xs);
     line-height: var(--line-height-loose);
     color: var(--color-fg-muted);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .partial-hint-lead {
+    margin: 0;
   }
   .partial-hint-list {
-    display: inline-flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .partial-metric-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
     flex-wrap: wrap;
-    gap: var(--space-1);
-    margin-left: var(--space-1);
   }
   .partial-metric {
     font-family: var(--font-mono);
@@ -1352,6 +1451,22 @@
     border-radius: var(--radius-sm);
     padding: 0 4px;
     white-space: nowrap;
+  }
+  .partial-metric-detail {
+    color: var(--color-fg-subtle);
+  }
+  .partial-metric-detail strong {
+    color: var(--color-fg-muted);
+    font-weight: var(--font-weight-semibold);
+  }
+  .partial-toggle {
+    align-self: flex-start;
+    margin-top: var(--space-1);
+  }
+  .partial-toggle.active {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {

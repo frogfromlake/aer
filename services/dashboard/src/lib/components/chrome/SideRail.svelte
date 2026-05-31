@@ -26,7 +26,7 @@
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
   import { getPillar } from '$lib/viewmodes';
-  import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
+  import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import type { ViewingMode } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
@@ -69,17 +69,13 @@
       disabled: false
     },
     {
-      // Phase 122k — Workbench is always reachable. When the user has a
-      // Selection-State the anchor seeds a pillar Workbench from those
-      // probes; when not, it lands on /workbench plain (empty state, to
-      // be replaced by an auto-opening ScopeEditor in K3).
+      // Phase 122k — Workbench is always reachable. Issue 3 — when the user
+      // has a Selection-State the anchor carries ONLY `?selectedProbes=` (no
+      // pillar state), so the Workbench auto-opens the ScopeEditor seeded
+      // from the selection rather than silently seeding a whole-probe panel.
       href:
         url.selectedProbes.length > 0
-          ? `/workbench${buildFreeComposeUrl({
-              pillar: 'aleph',
-              probeIds: [...url.selectedProbes],
-              sourceIds: []
-            })}`
+          ? `/workbench${buildSelectionWorkbenchUrl(url.selectedProbes)}`
           : '/workbench',
       label: 'Workbench',
       glyph: '⚙',

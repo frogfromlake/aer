@@ -1,5 +1,6 @@
 export {
   cellContentId,
+  CROSS_PROBE_DEFAULT_METRIC,
   DEFAULT_METRIC_NAME,
   defaultViewModeForPillar,
   getPillar,

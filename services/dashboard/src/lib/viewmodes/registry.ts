@@ -329,6 +329,15 @@ export function cellContentId(presentation: ViewMode, metricName: string): strin
 // it via this default).
 export const DEFAULT_METRIC_NAME = 'sentiment_score_sentiws';
 
+// Phase 123c (Issue 4) — the default metric for a CROSS-PROBE scope. The
+// `DEFAULT_METRIC_NAME` (SentiWS) is German-only, so it yields empty cells on
+// a panel that also holds a French source. A panel spanning more than one
+// probe defaults instead to the multilingual sentiment backbone — the one
+// sentiment metric every probe carries (the cross-probe comparison basis per
+// the backbone strategy / ADR-016). Single-probe panels keep
+// `DEFAULT_METRIC_NAME`.
+export const CROSS_PROBE_DEFAULT_METRIC = 'sentiment_score_bert_multilingual';
+
 // -------------------------------------------------------------------------
 // Pillar mapping — Aleph / Episteme / Rhizome × Presentation
 //

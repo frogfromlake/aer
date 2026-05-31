@@ -15,7 +15,12 @@
 // endpoint.
 
 import type { Panel, ScopeGroup, ViewMode } from '$lib/state/url-internals';
-import { getPresentation, isPureCountMetric } from '../viewmodes';
+import {
+  CROSS_PROBE_DEFAULT_METRIC,
+  DEFAULT_METRIC_NAME,
+  getPresentation,
+  isPureCountMetric
+} from '../viewmodes';
 
 // ---------------------------------------------------------------------------
 // Cell-render strategy
@@ -300,67 +305,50 @@ export function coOccurrencePostDescriptorForPanel(
 }
 
 // ---------------------------------------------------------------------------
-// Phase 122i / ADR-034 — Workbench-URL builders for the two Probe-Dossier
-// entry paths (Slice 5).
+// Phase 123c (Issue 3) — Workbench entry from a probe selection.
 //
-// The Dossier surfaces two equally-prominent entry paths into the
-// Workbench:
-//   1. DF-tile (locked, deterministic) — `buildDfEntryUrl()` produces a
-//      single-pillar single-window single-panel URL with
-//      composition='merged', locked=true, lockedReason='df_entry'. The
-//      Workbench renders this in read-only mode; the user must navigate
-//      back to the Dossier to recombine scope.
-//   2. Free-Compose — `buildFreeComposeUrl()` produces a single-pillar
-//      single-window single-panel URL with composition='merged',
-//      locked=false. All controls editable; +Panel / +Compare adds
-//      richer state from there.
-//
-// Both helpers emit the new `?activePillar=&aleph=…` form because the
-// `locked` flag (for DF-tile) and the explicit Pillar choice (for
-// Free-Compose) require the richer state. Phase-122h legacy URLs are
-// untouched.
+// The pre-123c "Free-Compose" / "DF-tile" URL builders (which pre-seeded a
+// whole pillar panel and skipped the ScopeEditor) were retired: navigating
+// from a selection now carries only `?selectedProbes=` so the Workbench
+// auto-opens the ScopeEditor (the user picks sources before any panel exists).
 // ---------------------------------------------------------------------------
 
 import {
   EMPTY_URL_STATE,
   writeToSearch,
   type DataLayer,
-  type PillarState,
   type Panel as PanelType,
   type ScopeGroup as ScopeGroupType,
-  type ViewMode as ViewModeType,
-  type ViewingMode
+  type ViewMode as ViewModeType
 } from '../state/url-internals';
-import { defaultViewModeForPillar } from '../viewmodes';
 
-export interface BuildEntryUrlParams {
-  pillar: ViewingMode;
-  probeIds: readonly string[];
-  sourceIds: readonly string[];
-  view?: ViewModeType;
-  metric?: string;
-  layer?: DataLayer;
+/**
+ * Phase 123c (Issue 3) — Build a Workbench URL that carries ONLY the probe
+ * selection (`?selectedProbes=`), with no pillar state. The Workbench then
+ * auto-opens the ScopeEditor in create-mode (seeded from the selection) so
+ * the user chooses sources before any panel is built — instead of silently
+ * seeding a whole-probe panel over all sources and skipping the editor.
+ * Returns the search string (e.g. `?selectedProbes=a,b`); callers prepend
+ * the `/workbench` pathname.
+ */
+export function buildSelectionWorkbenchUrl(probeIds: readonly string[]): string {
+  return writeToSearch({ ...EMPTY_URL_STATE, selectedProbes: [...probeIds] });
 }
 
 /**
- * Build the DF-entry URL: locked single-panel state over the DF-covered
- * source set. The Workbench treats `locked=true` as read-only.
+ * Phase 123c (Issue 4) — pick the default metric for a scope. A panel that
+ * spans more than one probe defaults to the multilingual sentiment backbone
+ * (`CROSS_PROBE_DEFAULT_METRIC`) — the one sentiment metric every probe
+ * carries — because the global `DEFAULT_METRIC_NAME` (German-only SentiWS)
+ * would render empty cells for non-German sources. Single-probe scopes keep
+ * `DEFAULT_METRIC_NAME`. Pure (probeId-counting) so it is unit-testable.
  */
-export function buildDfEntryUrl(params: BuildEntryUrlParams & { lockedFunction: string }): string {
-  return buildPillarUrl({
-    ...params,
-    locked: true,
-    lockedReason: 'df_entry',
-    lockedFunction: params.lockedFunction
-  });
-}
-
-/**
- * Build the Free-Compose-entry URL: an editable single-panel state. The
- * user can mutate composition, scope, view, metric, etc. from there.
- */
-export function buildFreeComposeUrl(params: BuildEntryUrlParams): string {
-  return buildPillarUrl(params);
+export function defaultMetricForScopes(
+  scopes: ReadonlyArray<{ probeIds: readonly string[] }>
+): string {
+  const probes = new Set<string>();
+  for (const g of scopes) for (const p of g.probeIds) probes.add(p);
+  return probes.size > 1 ? CROSS_PROBE_DEFAULT_METRIC : DEFAULT_METRIC_NAME;
 }
 
 /**
@@ -388,7 +376,9 @@ export function buildPanelFromScopes(
     // (`defaultViewModeForPillar`); the literal fallback is the registry-
     // wide default `distribution`, never the diachronic `time_series`.
     view: opts.view ?? 'distribution',
-    metric: opts.metric ?? 'sentiment_score_sentiws',
+    // Phase 123c (Issue 4) — scope-aware default: cross-probe scopes get the
+    // multilingual backbone so FR cells aren't empty under the DE-only default.
+    metric: opts.metric ?? defaultMetricForScopes(scopes),
     layer: opts.layer ?? 'gold'
   };
   if (opts.lockedFunction) {
@@ -397,49 +387,4 @@ export function buildPanelFromScopes(
     panel.lockedFunction = opts.lockedFunction;
   }
   return panel;
-}
-
-interface BuildPillarUrlOpts extends BuildEntryUrlParams {
-  locked?: boolean;
-  lockedReason?: 'df_entry';
-  lockedFunction?: string;
-}
-
-function buildPillarUrl(opts: BuildPillarUrlOpts): string {
-  const scopeGroup: ScopeGroupType = {
-    probeIds: [...opts.probeIds],
-    sourceIds: [...opts.sourceIds]
-  };
-  const panel: PanelType = {
-    scopes: [scopeGroup],
-    // Phase 123a — split default, consistent with buildPanelFromScopes and
-    // the pillar-switch seed: small-multiples over a pooled shared axis
-    // (merged is an explicit opt-in, gated to pure-count metrics).
-    composition: 'split',
-    // Phase 130 — the default view follows the pillar (Aleph→distribution,
-    // Episteme→time_series, Rhizome→cooccurrence_network) so a freshly
-    // composed Workbench renders the pillar's identity cell, not a leaked
-    // time-series.
-    view: opts.view ?? defaultViewModeForPillar(opts.pillar),
-    metric: opts.metric ?? 'sentiment_score_sentiws',
-    layer: opts.layer ?? 'gold'
-  };
-  if (opts.locked) {
-    panel.locked = true;
-    if (opts.lockedReason) panel.lockedReason = opts.lockedReason;
-    if (opts.lockedFunction) panel.lockedFunction = opts.lockedFunction;
-  }
-  const pillarState: PillarState = {
-    windows: [{ panels: [panel], focusedPanelIndex: 0 }],
-    activeWindowIndex: 0
-  };
-  return writeToSearch({
-    ...EMPTY_URL_STATE,
-    activePillar: opts.pillar,
-    pillars: {
-      aleph: opts.pillar === 'aleph' ? pillarState : null,
-      episteme: opts.pillar === 'episteme' ? pillarState : null,
-      rhizome: opts.pillar === 'rhizome' ? pillarState : null
-    }
-  });
 }

@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   coOccurrencePostDescriptorForPanel,
+  defaultMetricForScopes,
   expandProbeScopeFanout,
   selectCellRender,
   shouldRefuseMergedCrossProbe
 } from '../../src/lib/workbench/panel-queries';
+import { CROSS_PROBE_DEFAULT_METRIC, DEFAULT_METRIC_NAME } from '../../src/lib/viewmodes';
 import type { Panel, ScopeGroup } from '../../src/lib/state/url-internals';
 
 function panel(overrides: Partial<Panel> = {}): Panel {
@@ -317,5 +319,27 @@ describe('expandProbeScopeFanout (Phase 123c B — cross-probe split fan-out)', 
     // split but multiple scope groups
     const mg = panel({ composition: 'split', scopes: [group(['probe-0']), group(['probe-1'])] });
     expect(expandProbeScopeFanout(mg, selectCellRender(mg), srcByProbe, 'probe-0')).toBeNull();
+  });
+});
+
+describe('defaultMetricForScopes (Phase 123c Issue 4)', () => {
+  it('single-probe scope → the German default (SentiWS)', () => {
+    expect(defaultMetricForScopes([group(['probe-0'], [])])).toBe(DEFAULT_METRIC_NAME);
+    // Multiple groups, same single probe → still single-probe.
+    expect(defaultMetricForScopes([group(['probe-0'], ['tagesschau'])])).toBe(DEFAULT_METRIC_NAME);
+  });
+
+  it('cross-probe scope → the multilingual backbone (so FR cells are not empty)', () => {
+    expect(defaultMetricForScopes([group(['probe-0', 'probe-1'], [])])).toBe(
+      CROSS_PROBE_DEFAULT_METRIC
+    );
+    // Distinct probes across two groups also count as cross-probe.
+    expect(defaultMetricForScopes([group(['probe-0']), group(['probe-1'])])).toBe(
+      CROSS_PROBE_DEFAULT_METRIC
+    );
+  });
+
+  it('empty scope → falls back to the single-probe default', () => {
+    expect(defaultMetricForScopes([])).toBe(DEFAULT_METRIC_NAME);
   });
 });

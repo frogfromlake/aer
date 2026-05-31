@@ -43,7 +43,7 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { urlState, setUrl } from '$lib/state/url.svelte';
-  import { buildFreeComposeUrl } from '$lib/workbench/panel-queries';
+  import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import {
@@ -413,15 +413,12 @@
             type="button"
             class="compose-btn"
             onclick={() => {
-              // Seed the Workbench's pillar state from the current selection
-              // before navigating. The ScopeEditor on the resulting panel can
-              // refine sources / DF-lock; here we just produce a usable
-              // single-panel Aleph Workbench over the unioned probes.
-              const qs = buildFreeComposeUrl({
-                pillar: 'aleph',
-                probeIds: [...url.selectedProbes],
-                sourceIds: []
-              });
+              // Issue 3 — carry ONLY the selection to the Workbench (no
+              // pre-built pillar state). The Workbench then auto-opens the
+              // ScopeEditor seeded from `?selectedProbes=`, so the user picks
+              // sources rather than landing on a whole-probe panel over all
+              // sources with the editor skipped.
+              const qs = buildSelectionWorkbenchUrl(url.selectedProbes);
               descend(() => {
                 // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
                 void goto(`/workbench${qs}`);
@@ -479,7 +476,11 @@
     color: var(--color-fg);
     font-size: var(--font-size-sm);
     pointer-events: none;
-    white-space: nowrap;
+    /* Issue 1 — long satellite labels (e.g. elysee) must wrap inside the
+       tooltip, not overflow it. `nowrap` defeated the max-width; allow
+       normal wrapping + break over-long unbroken tokens. */
+    white-space: normal;
+    overflow-wrap: anywhere;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
     display: flex;
     flex-direction: column;

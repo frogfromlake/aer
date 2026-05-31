@@ -23,11 +23,13 @@
   import type { Panel, ViewingMode } from '$lib/state/url-internals';
   import {
     probesQuery,
+    scopeAvailableMetricsQuery,
     type FetchContext,
     type ProbeDossierDto,
     type ProbeDto,
     type QueryOutcome,
-    type RefusalOutcome
+    type RefusalOutcome,
+    type ScopeAvailableMetricsDto
   } from '$lib/api/queries';
   import {
     expandProbeScopeFanout,
@@ -143,11 +145,75 @@
     return map;
   });
   // Source NAMES for a probe: prefer the dossier (authoritative + ordered)
-  // for its own probe; fall back to the registry list for the others.
+  // for its own probe; fall back to the registry list for the others. When a
+  // metric-source filter is active (Issue 6 — the panel's metric is present
+  // on only some sources), the list is narrowed to the sources that carry it
+  // so the fan-out never renders a known-empty cell.
   function sourceNamesForProbe(probeId: string): string[] {
-    if (probeId === dossier.probeId) return dossier.sources.map((s) => s.name);
-    return probesById[probeId]?.sources ?? [];
+    const all =
+      probeId === dossier.probeId
+        ? dossier.sources.map((s) => s.name)
+        : (probesById[probeId]?.sources ?? []);
+    const filter = metricSourceFilter;
+    return filter ? all.filter((n) => filter.has(n)) : all;
   }
+
+  // Phase 123c (Issue 6) — per-metric source availability over the panel's
+  // full scope, so the fan-out can drop sources that lack the active metric
+  // (the "show anyway" payoff: only data-carrying cells render, no scope
+  // change). Shares the `/scope/available-metrics` cache key with
+  // PanelControls. Window read from props/panel directly (not the
+  // `effectiveWindow*` consts, which are declared later) to avoid a TDZ on
+  // this query's initial synchronous evaluation.
+  const panelScopeUnion = $derived.by(() => {
+    const sp: Record<string, true> = {};
+    const ss: Record<string, true> = {};
+    const probeIds: string[] = [];
+    const sourceIds: string[] = [];
+    for (const g of panel.scopes) {
+      for (const p of g.probeIds)
+        if (!sp[p]) {
+          sp[p] = true;
+          probeIds.push(p);
+        }
+      for (const s of g.sourceIds)
+        if (!ss[s]) {
+          ss[s] = true;
+          sourceIds.push(s);
+        }
+    }
+    return { probeIds, sourceIds };
+  });
+  const panelHasScope = $derived(
+    panelScopeUnion.probeIds.length > 0 || panelScopeUnion.sourceIds.length > 0
+  );
+  const metricAvailQ = createQuery<
+    QueryOutcome<ScopeAvailableMetricsDto>,
+    Error,
+    QueryOutcome<ScopeAvailableMetricsDto>
+  >(() => {
+    const o = scopeAvailableMetricsQuery(ctx, {
+      probeIds: panelScopeUnion.probeIds,
+      sourceIds: panelScopeUnion.sourceIds,
+      start: panel.windowStart ?? windowStart,
+      end: panel.windowEnd ?? windowEnd
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: panelHasScope
+    };
+  });
+  // `null` = no narrowing (metric on every source, or data not loaded). A Set
+  // = render only these sources for the active metric.
+  const metricSourceFilter = $derived.by<Set<string> | null>(() => {
+    if (metricAvailQ.data?.kind !== 'success') return null;
+    const d = metricAvailQ.data.data;
+    if (d.available.includes(panel.metric)) return null;
+    const partial = d.partial.find((p) => p.metricName === panel.metric);
+    return partial ? new Set(partial.sources) : null;
+  });
   function probeLabelFor(probeId: string): string {
     const p = probesById[probeId];
     return p?.shortName ?? p?.displayName ?? probeId;
@@ -626,12 +692,31 @@
      making horizontal look identical to vertical. Flex with explicit
      row/column directions is unambiguous. */
   .panel-body.split[data-split-direction='horizontal'] {
-    display: flex;
-    flex-direction: row;
+    /* Issue 8 (revision) — cap the horizontal split at TWO cells per row and
+       wrap the rest beneath, instead of a single ever-narrowing row that
+       either crushes cells or scrolls the 4th out of view. Two columns keep
+       each cell wide enough that the cell title (e.g.
+       `sentiment_score_bert_multilingual — distribution · bundesregierung`)
+       fits on one line, while all four cross-probe cells stay visible at once
+       as a 2×2 grid. */
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-4);
   }
   .panel-body.split[data-split-direction='horizontal'] > .panel-cell {
-    flex: 1 1 0;
+    /* Grid track already bounds the width; allow the cell to shrink to it. */
+    min-width: 0;
+  }
+
+  /* Issue 8 (follow-up) — the cells' own header (title + CellExport export
+     buttons) was a non-wrapping flex row, so at the split's narrow width the
+     export controls overflowed the cell. Scoped to panel cells so the shells'
+     and reflection InlineChart `.cell-header`s elsewhere are untouched. */
+  .panel-cell :global(.cell-header) {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .panel-cell :global(.cell-title) {
     min-width: 0;
   }
 

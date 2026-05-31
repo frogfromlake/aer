@@ -166,6 +166,18 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded?.windows[0]?.panels[0]?.cellControlsCollapsed).toBeUndefined();
   });
 
+  it('round-trips showWithheld=true (Issue 6 — "show anyway")', () => {
+    const original = makePillarState([makeWindow([makePanel({ showWithheld: true })])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.showWithheld).toBe(true);
+  });
+
+  it('omits showWithheld when false/undefined (default)', () => {
+    const original = makePillarState([makeWindow([makePanel()])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.showWithheld).toBeUndefined();
+  });
+
   it('round-trips maximizedPanelIndex on a multi-panel window (C3)', () => {
     const win = makeWindow([makePanel(), makePanel()]);
     win.maximizedPanelIndex = 1;
