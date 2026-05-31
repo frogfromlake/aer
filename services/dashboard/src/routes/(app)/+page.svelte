@@ -341,6 +341,7 @@
       {onSatelliteHovered}
       onready={(e) => (engineHandle = e)}
       selection={engineSelection}
+      selectedProbeIds={url.selectedProbes}
       hover={hoveredProbe}
       flyToOnSelection={activeFlyTo}
     />

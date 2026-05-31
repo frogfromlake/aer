@@ -4155,7 +4155,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 123: Probe 1 — French Institutional Sources [P1] - [~] CODE-COMPLETE (committed `df73236`+`9cef823`); only the TESTING.md manual walkthrough is unrun
+## Phase 123: Probe 1 — French Institutional Sources [P1] - [x] IN TESTING
 
 *Lands `franceinfo.fr` (public broadcaster, EA primary — the ROADMAP-named `francetvinfo.fr` 301-redirects here) + `elysee.fr` (head of state, PL primary — chosen over the Cloudflare-walled `gouvernement.fr`/`info.gouv.fr`) — the first non-German cultural context, mirroring Probe 0's discourse-function coverage. Provisional engineering classification; every Probe-1 metric reports `validation_status=unvalidated`.*
 
@@ -4180,6 +4180,30 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [ ] `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; second luminous point on the globe; Probe 0 + Probe 1 compose as parallel EA/PL streams with CI/SF empty; cross-frame `?normalization=zscore` returns the refusal surface; all Probe-1 metrics `unvalidated`.
 * [ ] **Multi-probe coverage:** Probe 1 appears in the Dossier overlay + the Atmosphäre selection banner alongside Probe 0; SHIFT-click composes both; the per-region capability matrix shows DE and FR side by side with CI/SF unobserved on both.
 * See `TESTING.md` §C for the full step-by-step walkthrough (rewritten this session to match HEAD `9cef823`).
+
+---
+
+## Phase 123c: Cross-Probe Workbench Hardening [P1] - [x] IN TESTING
+
+*Surfaced by the first real two-probe manual test (TESTING.md). Phase 123 landed Probe 1's data; 123c makes the Workbench actually usable **across** probes — the prerequisites Phase 124's comparison work assumes. Pulled out of 124 so the equivalence/lead-lag phase is not also carrying these UX/correctness fixes.*
+
+**Done so far:**
+* [x] **E1 — WebAdapter timestamp time-of-day upgrade.** Date-only article dates (elysee) now adopt the same-day RSS `pubDate` time (`rss_pubdate_time_upgrade`) so `publication_hour` is real instead of collapsing to 0. Different-day `sitemap_lastmod` (the republication-trigger signal) is untouched. Unit-tested; re-crawl elysee to populate.
+* [x] **A — ScopeEditor multi-probe source wiring.** Removed the "Phase 123 pending" placeholder; the editor now fetches each in-scope probe's dossier so Step-3 lists the sources of ALL selected probes. displayName everywhere in the editor.
+* [x] **D (part) — displayName in PanelMetaStrip scope chips.** Raw probe ids replaced by displayName.
+* [x] **E2 — PanelMetaStrip expanded by default** (was collapsed; confusing on a freshly composed panel).
+* [x] **F — Methodology nav link** from Dossier ProbeCard → `/reflection/probe/<id>` (previously URL-only).
+
+**Done (second batch):**
+* [x] **C — Scope metric-availability discipline (BFF endpoint + frontend).** `GET /scope/available-metrics?scope=&scopeId=&probeIds=&sourceIds=&start=&end=`: returns metrics present in Gold for **all** scoped sources (per-source intersection) + `partial[]` (metric + which sources have it). PanelControls + Scatter axes consume `available`; render the `partial` hint.
+  * **C1 — BFF backend DONE (Ist: available + partial).** Endpoint live + green (committed `0dd382c`). Files: `api/paths/scope_available_metrics.yaml` (scopeId inline required:false; window = shared `start`/`end`), `api/schemas/ScopeAvailableMetrics.yaml`, `api/openapi.yaml`; storage `GetScopeAvailableMetrics` + `ScopeMetricAvailability`/`PartialMetric` in `internal/storage/metrics_query.go`; `Store` interface in `internal/handler/handler.go`; handler in `internal/handler/view_mode_handlers.go`; mock stub in `internal/handler/metrics_handler_test.go`.
+  * **C1-frontend — DONE.** `scopeAvailableMetricsQuery` in `services/dashboard/src/lib/api/queries.ts`; `PanelControls.svelte` filters the metric picker + scatter axis/size/colour selectors to the all-source intersection and renders a "withheld" `partial` hint. Re-ran `make fe-codegen` (fixed a stale `scopeId` in `types.ts`). Tests + lint + typecheck green. (TESTING.md §C.9.)
+  * **C2 — DEFERRED (Phase 124).** Manifest-based `expectedMissing[]` silent-failure alarm (the Soll half).
+* [x] **B — Cross-probe panel rendering.** A split panel over N probes renders all source cells (2 probes × 2 sources = 4), not just the first probe's; per-probe label + colour accent. Pure `expandProbeScopeFanout` in `panel-queries.ts`; `PanelHost.svelte` resolves every in-scope probe's sources via the `/probes` registry (not N dossier fetches). (TESTING.md §C.10.)
+* [x] **D (part) — globe multi-select highlight.** SHIFT-selecting multiple probes highlights ALL on the globe (engine `setSelectedProbes` multi-selection API; `AtmosphereCanvas` `selectedProbeIds` prop; `+page.svelte` passes `url.selectedProbes`). (TESTING.md §C.1.)
+
+### Validation — ⚠ UNRUN (manual TESTING.md walkthrough against a live stack)
+* [ ] Compose a panel over both probes → all 4 source cells render, per-probe distinguished; PanelControls offers only metrics common to all scoped sources, with a hint listing hidden/partial metrics; SHIFT-select highlights both probes on the globe; elysee `publication_hour` is non-zero after re-crawl. (C2's ⚠ expected-but-missing alarm is Phase 124, not tested here.) Full step-by-step in **TESTING.md §C**.
 
 ---
 
@@ -4209,30 +4233,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ### Validation
 * [ ] On a Probe-1 co-occurrence panel, toggling to `viewer=de` relabels `Russie`→`Russland`, `États-Unis`→`Vereinigte Staaten` for QID-linked nodes; unlinked nodes keep their French form; the linked/unlinked ratio is visible; topics are untouched; default view is unchanged (source form).
-
----
-
-## Phase 123c: Cross-Probe Workbench Hardening [P1] - [~] IN PROGRESS
-
-*Surfaced by the first real two-probe manual test (TESTING.md). Phase 123 landed Probe 1's data; 123c makes the Workbench actually usable **across** probes — the prerequisites Phase 124's comparison work assumes. Pulled out of 124 so the equivalence/lead-lag phase is not also carrying these UX/correctness fixes.*
-
-**Done so far:**
-* [x] **E1 — WebAdapter timestamp time-of-day upgrade.** Date-only article dates (elysee) now adopt the same-day RSS `pubDate` time (`rss_pubdate_time_upgrade`) so `publication_hour` is real instead of collapsing to 0. Different-day `sitemap_lastmod` (the republication-trigger signal) is untouched. Unit-tested; re-crawl elysee to populate.
-* [x] **A — ScopeEditor multi-probe source wiring.** Removed the "Phase 123 pending" placeholder; the editor now fetches each in-scope probe's dossier so Step-3 lists the sources of ALL selected probes. displayName everywhere in the editor.
-* [x] **D (part) — displayName in PanelMetaStrip scope chips.** Raw probe ids replaced by displayName.
-* [x] **E2 — PanelMetaStrip expanded by default** (was collapsed; confusing on a freshly composed panel).
-* [x] **F — Methodology nav link** from Dossier ProbeCard → `/reflection/probe/<id>` (previously URL-only).
-
-**Remaining:**
-* [~] **C — Scope metric-availability discipline (BFF endpoint + frontend).** New `GET /scope/available-metrics?scope=&scopeId=&probeIds=&sourceIds=&start=&end=`: returns metrics present in Gold for **all** scoped sources (per-source intersection), PLUS `partial[]` (metric + which sources have it, so the user knows single-source analysis offers more) PLUS `expectedMissing[]` (in the Capability Manifest but no Gold data → **silent-failure alarm**, e.g. Wayback down → revision_count missing). PanelControls + Scatter axes consume `available`; render both hints. Hybrid Ist∩Soll, per-source.
-  * **C1 — BFF backend DONE (Ist: available + partial).** Endpoint live + green (`go build`/`go vet`/test-compile pass, `make codegen` + `make fe-codegen` run). Files: `api/paths/scope_available_metrics.yaml` (scopeId inline required:false; window = shared `start`/`end`), `api/schemas/ScopeAvailableMetrics.yaml`, `api/openapi.yaml`; storage `GetScopeAvailableMetrics` + `ScopeMetricAvailability`/`PartialMetric` in `internal/storage/metrics_query.go`; `Store` interface in `internal/handler/handler.go`; handler in `internal/handler/view_mode_handlers.go`; mock stub in `internal/handler/metrics_handler_test.go`.
-  * **C1-frontend — TODO.** PanelControls (`PanelControls.svelte`) + Scatter axes consume `available`, render `partial` hint. TS query in `services/dashboard/src/lib/api/queries.ts` (pattern: `metricScatterQuery` + `fetchJson`; type via `paths['/scope/available-metrics']…`).
-  * **C2 — DEFERRED (Phase 124).** Manifest-based `expectedMissing[]` silent-failure alarm (the Soll half).
-* [ ] **B — Cross-probe panel rendering.** A panel over N probes must render all source cells (2 probes × 2 sources = 4), not just the first probe's; per-probe soft background/border to distinguish sources visually.
-* [ ] **D (part) — globe multi-select highlight.** SHIFT-selecting multiple probes must highlight ALL of them on the globe, not only the last clicked (engine `setSelection` → multi-selection API).
-
-### Validation
-* [ ] Compose a panel over both probes → all 4 source cells render, per-probe distinguished; PanelControls offers only metrics common to all scoped sources, with a hint listing hidden/partial metrics and a ⚠ for expected-but-missing ones; SHIFT-select highlights both probes on the globe; elysee `publication_hour` is non-zero after re-crawl.
 
 ---
 

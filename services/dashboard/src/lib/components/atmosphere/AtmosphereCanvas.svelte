@@ -35,8 +35,14 @@
     onSatelliteSelected?: (selection: SatelliteSelection) => void;
     /** Fired on pointer-hover over a source satellite (null when leaving). */
     onSatelliteHovered?: (selection: SatelliteSelection | null) => void;
-    /** The currently selected probe. Reactive: drives `setSelection` to keep the glyph highlighted. */
+    /** The active (last-clicked) probe. Reactive: drives the camera `flyTo`
+     *  re-center. The glyph highlight is driven by `selectedProbeIds` (the
+     *  full set), not this. */
     selection?: ProbeSelection | null;
+    /** Phase 123c (D2) — the full selection set to highlight on the globe.
+     *  SHIFT-click grows it; every member glyph stays lit. When omitted, the
+     *  highlight falls back to the single `selection` (legacy callers). */
+    selectedProbeIds?: readonly string[];
     /**
      * Forced hover highlight for a probe glyph (keyboard focus driver).
      * Pointer moves override this on the engine side. Null clears the
@@ -57,6 +63,7 @@
     onSatelliteSelected,
     onSatelliteHovered,
     selection = null,
+    selectedProbeIds,
     hover = null,
     flyToOnSelection = null
   }: Props = $props();
@@ -103,12 +110,23 @@
     engine?.setHover(hover ?? null);
   });
 
-  // Synchronize the selection state to the 3D engine and animate the camera
+  // Phase 123c (D2) — highlight the FULL selection set on the globe. Falls
+  // back to the single active `selection` when the host doesn't pass a set.
   $effect(() => {
     if (!engine) return;
+    const ids = selectedProbeIds ?? (selection ? [selection.probeId] : []);
+    engine.setSelectedProbes(ids);
+  });
 
-    engine.setSelection(selection ?? null);
-
+  // Animate the camera to the active probe. Kept separate from the highlight
+  // effect so a pure highlight-set change (e.g. `selectedProbeIds` synced
+  // from the URL, or a probe removed from the set) never moves the camera —
+  // only a fresh active `selection` + `flyToOnSelection` does. The page's
+  // SHIFT-add path deliberately sets a new active selection, so adding a
+  // probe still centres on it (an active-selection change, not a mere set
+  // change).
+  $effect(() => {
+    if (!engine) return;
     if (selection && flyToOnSelection) {
       engine.flyTo({
         latitude: flyToOnSelection.latitude,

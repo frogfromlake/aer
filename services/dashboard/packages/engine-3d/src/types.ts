@@ -134,6 +134,13 @@ export interface AtmosphereEngine {
   setSunPosition(unixMs: number | null): void;
   setSelection(selection: ProbeSelection | null): void;
   /**
+   * Phase 123c (D2) — highlight EVERY probe in the set on the globe (not
+   * just the last-clicked one). SHIFT-click selection grows this set; the
+   * surface passes the full `selectedProbes` here so all selected glyphs
+   * stay lit. `setSelection` is the single-probe convenience wrapper.
+   */
+  setSelectedProbes(probeIds: readonly string[]): void;
+  /**
    * Force-set the hover highlight on a probe glyph. Used by keyboard
    * navigation so a focused probe glows on the globe even though the
    * pointer is not over it. Pass `null` to clear. The pointer-driven

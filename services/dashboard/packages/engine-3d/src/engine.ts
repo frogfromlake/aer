@@ -218,8 +218,13 @@ class Engine implements AtmosphereEngine {
   private pointerHoveredProbe = -1;
   private externalHoveredProbe = -1;
   private pointerHoveredSatellite = -1;
-  private selectedProbeIndex = -1;
-  private currentSelection: ProbeSelection | null = null;
+  // Phase 123c (D2) — multi-selection. SHIFT-click on the globe grows the
+  // selection set; every selected probe glyph stays highlighted (the
+  // `aSelected` attribute is 1 for each). `currentSelectedProbeIds` is
+  // retained so a probe re-push (setProbes → rebuild) can re-apply the full
+  // highlight set, not just one glyph.
+  private selectedProbeIndices: number[] = [];
+  private currentSelectedProbeIds: readonly string[] = [];
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
   private pointerInsideCanvas = false;
@@ -320,24 +325,33 @@ class Engine implements AtmosphereEngine {
   }
 
   setSelection(selection: ProbeSelection | null): void {
-    this.currentSelection = selection;
+    // Single-probe convenience — the multi-selection path is the one source
+    // of truth, so a lone selection is just a one-element set.
+    this.setSelectedProbes(selection ? [selection.probeId] : []);
+  }
+
+  // Phase 123c (D2) — highlight EVERY probe in the set, not just the last
+  // one. Idempotent: clears the previously-highlighted glyphs, then sets the
+  // `aSelected` attribute to 1 for each currently-selected probe.
+  setSelectedProbes(probeIds: readonly string[]): void {
+    this.currentSelectedProbeIds = probeIds;
 
     if (!this.probeGlyphGeometry) return;
     const attr = this.probeGlyphGeometry.getAttribute('aSelected') as BufferAttribute | undefined;
     if (!attr) return;
 
-    // Clear previous selection
-    if (this.selectedProbeIndex !== -1 && this.selectedProbeIndex < this.probeSlots.length) {
-      attr.setX(this.selectedProbeIndex, 0);
+    // Clear the previously-highlighted glyphs.
+    for (const idx of this.selectedProbeIndices) {
+      if (idx >= 0 && idx < this.probeSlots.length) attr.setX(idx, 0);
     }
+    this.selectedProbeIndices = [];
 
-    this.selectedProbeIndex = -1;
-
-    // Apply new selection if provided
-    if (selection) {
-      const idx = this.probeSlots.findIndex((s) => s.probeId === selection.probeId);
+    // Apply the new set. Unknown / not-yet-rendered probe ids are skipped;
+    // the next rebuild re-applies from `currentSelectedProbeIds`.
+    for (const probeId of probeIds) {
+      const idx = this.probeSlots.findIndex((s) => s.probeId === probeId);
       if (idx !== -1) {
-        this.selectedProbeIndex = idx;
+        this.selectedProbeIndices.push(idx);
         attr.setX(idx, 1);
       }
     }
@@ -674,7 +688,7 @@ class Engine implements AtmosphereEngine {
     this.pointerHoveredProbe = -1;
     this.externalHoveredProbe = -1;
     this.pointerHoveredSatellite = -1;
-    this.selectedProbeIndex = -1;
+    this.selectedProbeIndices = [];
 
     // Phase 123b — spiderfy: co-located satellites (same city, sub-pixel apart
     // at every globe zoom) are fanned apart so each source is visible/hoverable.
@@ -711,7 +725,7 @@ class Engine implements AtmosphereEngine {
     // Re-apply any activity we already knew about so a probe re-push
     // does not wipe its pulse.
     this.applyActivityToBuffers();
-    this.setSelection(this.currentSelection);
+    this.setSelectedProbes(this.currentSelectedProbeIds);
   }
 
   // Phase 123b — per tick: recompute the screen-space-constant fan magnitude
