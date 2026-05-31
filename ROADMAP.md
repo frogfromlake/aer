@@ -4155,32 +4155,37 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 123: Probe 1 — French Institutional Sources [P1] - [ ] TODO
+## Phase 123: Probe 1 — French Institutional Sources [P1] - [~] CODE-COMPLETE (committed `df73236`+`9cef823`); only the TESTING.md manual walkthrough is unrun
 
-*Lands `francetvinfo.fr` (public broadcaster, EA primary) + `gouvernement.fr` (government, PL primary) — the first non-German cultural context, mirroring Probe 0's discourse-function coverage. Provisional engineering classification; every Probe-1 metric reports `validation_status=unvalidated`.*
+*Lands `franceinfo.fr` (public broadcaster, EA primary — the ROADMAP-named `francetvinfo.fr` 301-redirects here) + `elysee.fr` (head of state, PL primary — chosen over the Cloudflare-walled `gouvernement.fr`/`info.gouv.fr`) — the first non-German cultural context, mirroring Probe 0's discourse-function coverage. Provisional engineering classification; every Probe-1 metric reports `validation_status=unvalidated`.*
+
+> **Status note (2026-05-31).** Every deliverable below is on disk and committed. The boxes are ticked to reflect the code, NOT a passed manual test — the **TESTING.md walkthrough has not been run end-to-end against a live stack** (that is the one open action for this phase). Pipeline hardening discovered during onboarding (entity_linking accent-fold stall, Wayback circuit breaker, sitemap-scope fix) also shipped in `df73236`.
 
 **Grounding.** Read first: `crawlers/web-crawler/probes/probe0/sources.yaml` (the pattern to mirror), `infra/postgres/migrations/` (esp. `000011` silver_eligible + the Probe-0 seed migrations), `services/bff-api/configs/probes/` + `configs/content/{en,de}/probes/`, `language_capabilities.yaml`, `docs/probes/probe-0-de-institutional-web/` (dossier template), `docs/extending/add-a-source.md`. Preserve: ADR-028 single-configurable-binary crawler, the Capability-Manifest-driven NLP routing, the provisional-classification discipline. Verify-first: next free Postgres migration index; that the WebAdapter handles FR with no code change.
 
 ### Infrastructure
-* [ ] **No new crawler binary** — add `crawlers/web-crawler/probes/probe-1-fr-institutional-web/sources.yaml`; `make crawl-probe1`.
-* [ ] **Postgres seed migrations** — register both sources (`type='web'`, **`silver_eligible=true`** with the same WP-006 §7 source-class rationale as 000011); `source_classifications`; `documentation_url`.
-* [ ] **ProbeRegistry + content** — BFF probe config + content under `configs/content/{en,de}/probes/` (EN+DE only; FR UI out of scope). Existing `WebAdapter` handles FR transparently.
+* [x] **No new crawler binary** — `crawlers/web-crawler/probes/probe1/sources.yaml` (dir is `probe1`, not the long id); `make crawl-probe1`.
+* [x] **Postgres seed migrations** — `000020` registers both sources (`type='web'`); `000021` `source_classifications`; `000022` `silver_eligible=true` (same WP-006 §7 rationale as 000011). `documentation_url` set in 000020.
+* [x] **ProbeRegistry + content** — BFF probe config `configs/probes/probe-1-fr-institutional-web.yaml` + content under `configs/content/{en,de}/probes/` + per-source content `configs/content/{en,de}/sources/` (EN+DE; FR UI out of scope). Existing `WebAdapter` handles FR transparently.
 
 ### NLP
-* [ ] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); the current multilingual backbone (`cardiffnlp/twitter-xlm-roberta-base-sentiment`, status quo) covers FR for Probe 1 — the news-class backbone re-selection is deferred (see Deferred Phases), so Probe-1 sentiment ships on the same backbone Probe 0 already uses. **Tier-1 FEEL + Tier-2.5 CamemBERT deferred** (see Deferred Phases) — within-frame only, never the cross-probe basis.
-* [ ] **DF URL rules** for francetvinfo + gouvernement in `discourse_function_rules.yaml`.
-* [ ] **Cultural calendars** — ship BOTH `fr.yaml` (new, POC-minimum) AND `de.yaml` (retroactive — the manifest references it but the file is currently missing). Structural parity is the precondition for the Phase-124 grant.
+* [x] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); multilingual backbone (`cardiffnlp/twitter-xlm-roberta-base-sentiment`) covers FR. News-class backbone re-selection + Tier-1 FEEL + Tier-2.5 CamemBERT deferred (within-frame only, never the cross-probe basis).
+* [x] **DF classification** for franceinfo + elysee — **DB-driven via `source_classifications` (migration 000021)**, NOT a `discourse_function_rules.yaml` (no such file exists; per-article URL-rule DF is Phase 122a, deferred per ADR-030). Spec corrected here.
+* [x] **Cultural calendars** — `configs/cultural_calendars/fr.yaml` shipped (153 lines). *(Verify-first for any consumer: confirm whether a `de.yaml` companion exists / is referenced by the manifest — the original spec flagged it as missing; not re-checked this session.)*
 
 ### Documentation
-* [ ] Probe Dossier `docs/probes/probe-1-fr-institutional-web/` (5 files). Arc42 §13.11. CLAUDE.md ProbeRegistry update. MkDocs nav.
+* [x] Probe Dossier `docs/probes/probe-1-fr-institutional-web/` (5 files: README, bias_assessment, classification, observer_effect, temporal_profile). Arc42 §13 updated. CLAUDE.md ProbeRegistry updated. MkDocs nav updated.
 
-### Validation
+### Validation — ⚠ UNRUN (the one open action for Phase 123)
 * [ ] `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; second luminous point on the globe; Probe 0 + Probe 1 compose as parallel EA/PL streams with CI/SF empty; cross-frame `?normalization=zscore` returns the refusal surface; all Probe-1 metrics `unvalidated`.
-* [ ] **Multi-probe coverage (deferred from Phase 123a, which ran at N=1):** Probe 1 appears in the Dossier overlay + the Atmosphäre selection banner alongside Probe 0; SHIFT-click composes both into the comparison strip; the per-region capability matrix shows DE and FR side by side with CI/SF unobserved on both.
+* [ ] **Multi-probe coverage:** Probe 1 appears in the Dossier overlay + the Atmosphäre selection banner alongside Probe 0; SHIFT-click composes both; the per-region capability matrix shows DE and FR side by side with CI/SF unobserved on both.
+* See `TESTING.md` §C for the full step-by-step walkthrough (rewritten this session to match HEAD `9cef823`).
 
 ---
 
 ## Phase 123b: Cross-Lingual Readability of Relational Artefacts [P1] - [ ] TODO
+
+> **Status note (2026-05-31).** Code-verified: **nothing in this phase has been built.** No `viewer`/display-language toggle in `PanelControls`, no per-language QID→label rendering in the co-occurrence cell, no 123b commit. The `wikidata_qid` resolution in `cooccurrence_query.go` (`queryNodeWikidataQids`) is **Phase 118** infrastructure — the *precondition* this phase builds on, not 123b work. This phase is fully open. **Sequencing question for the operator: 123b vs. finishing 123c first** (see the cross-phase note at the top of Phase 123c).
 
 *Surfaced by Probe 1: entity and co-occurrence artefacts carry the **source-language surface form** (`Russie`, `États-Unis`, `Rassemblement national`). For a German-only or English-only reader a French — and later a Japanese or Arabic — co-occurrence map is unreadable, so a structurally-correct artefact becomes practically worthless across languages. This phase adds a **QID-backed display layer** so a reader can render linked relational artefacts in their own language. **Deliberately scoped down** (per the operator decision that opened this phase): **(a) Entities + Co-occurrence only** — NOT topics; **(b) no translation** of arbitrary text — we only swap in the per-language label Wikidata already publishes for a resolved QID; **(c) a per-Panel toggle** in PanelControls (source surface form ↔ viewer-language label), defaulting to source form so nothing changes silently. Inserted before Phase 124 so the first cross-probe comparison work is not also carrying the multilingual-presentation burden.*
 

@@ -14,9 +14,11 @@
   import { createQuery } from '@tanstack/svelte-query';
   import {
     metricsAvailableQuery,
+    scopeAvailableMetricsQuery,
     type AvailableMetricDto,
     type FetchContext,
-    type QueryOutcome
+    type QueryOutcome,
+    type ScopeAvailableMetricsDto
   } from '$lib/api/queries';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import {
@@ -76,7 +78,7 @@
   // bound panel's own windowStart/windowEnd when set; otherwise falls
   // back to the global url.from/url.to. The Window date inputs below
   // mutate panel.windowStart/windowEnd via updatePanel.
-  const dateWindow = $derived.by(() => {
+  const windowBounds = $derived.by(() => {
     const now = Date.now();
     const panelStart = boundPanel?.windowStart;
     const panelEnd = boundPanel?.windowEnd;
@@ -85,12 +87,23 @@
     const fromMs = fromSrc ? Date.parse(fromSrc) : now - DEFAULT_LOOKBACK_MS;
     const toMs = toSrc ? Date.parse(toSrc) : now;
     return {
-      startDate: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS)
-        .toISOString()
-        .slice(0, 10),
-      endDate: new Date(Number.isFinite(toMs) ? toMs : now).toISOString().slice(0, 10),
+      startMs: Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS,
+      endMs: Number.isFinite(toMs) ? toMs : now,
       isPanelOverride: panelStart !== undefined || panelEnd !== undefined
     };
+  });
+  // Date-only form for the `/metrics/available` window + the native date
+  // inputs (which take YYYY-MM-DD).
+  const dateWindow = $derived({
+    startDate: new Date(windowBounds.startMs).toISOString().slice(0, 10),
+    endDate: new Date(windowBounds.endMs).toISOString().slice(0, 10),
+    isPanelOverride: windowBounds.isPanelOverride
+  });
+  // Phase 123c (C1) — full RFC 3339 form for `/scope/available-metrics`,
+  // whose `start`/`end` parameters are `format: date-time`.
+  const windowIso = $derived({
+    start: new Date(windowBounds.startMs).toISOString(),
+    end: new Date(windowBounds.endMs).toISOString()
   });
 
   const availQ = createQuery<
@@ -101,6 +114,80 @@
     const o = metricsAvailableQuery(ctx, dateWindow);
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
+
+  // -----------------------------------------------------------------------
+  // Phase 123c (C1) — cross-probe metric-availability guard.
+  //
+  // The FULL panel scope is the union of every ScopeGroup's probes +
+  // sources. `/scope/available-metrics` reports which metrics have data for
+  // EVERY scoped source (`available`, the intersection) versus only SOME
+  // (`partial`). The metric picker and the scatter axis/size/colour
+  // selectors offer only `available` metrics so a panel spanning probes with
+  // asymmetric capability can never bind a metric that silently yields empty
+  // cells; `partial` is surfaced as an explanatory hint.
+  // -----------------------------------------------------------------------
+  const panelScope = $derived.by(() => {
+    const seenP: Record<string, true> = {};
+    const seenS: Record<string, true> = {};
+    const probeIds: string[] = [];
+    const sourceIds: string[] = [];
+    for (const g of boundPanel?.scopes ?? []) {
+      for (const p of g.probeIds)
+        if (!seenP[p]) {
+          seenP[p] = true;
+          probeIds.push(p);
+        }
+      for (const s of g.sourceIds)
+        if (!seenS[s]) {
+          seenS[s] = true;
+          sourceIds.push(s);
+        }
+    }
+    return { probeIds, sourceIds };
+  });
+  const hasScope = $derived(panelScope.probeIds.length > 0 || panelScope.sourceIds.length > 0);
+
+  const scopeAvailQ = createQuery<
+    QueryOutcome<ScopeAvailableMetricsDto>,
+    Error,
+    QueryOutcome<ScopeAvailableMetricsDto>
+  >(() => {
+    const o = scopeAvailableMetricsQuery(ctx, {
+      probeIds: panelScope.probeIds,
+      sourceIds: panelScope.sourceIds,
+      start: windowIso.start,
+      end: windowIso.end
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: hasScope
+    };
+  });
+
+  // The authoritative availability payload, or `null` whenever we have none
+  // (no scope, query pending, refused, or errored). Single guard so the
+  // three derivations below don't each re-assert the success shape.
+  const scopeAvail = $derived<ScopeAvailableMetricsDto | null>(
+    hasScope && scopeAvailQ.data?.kind === 'success' ? scopeAvailQ.data.data : null
+  );
+  // Set of metric names available across the WHOLE scope. `null` falls back
+  // to the unconstrained `/metrics/available` list so the picker is never
+  // wrongly emptied.
+  const scopeAvailableSet = $derived<Set<string> | null>(
+    scopeAvail ? new Set(scopeAvail.available) : null
+  );
+  // Metrics present for SOME but not all scoped sources — rendered as a hint.
+  const partialMetrics = $derived<ScopeAvailableMetricsDto['partial']>(scopeAvail?.partial ?? []);
+  // Total scoped-source count — the denominator in the "(2/3 sources)" hint.
+  const scopedSourceCount = $derived(scopeAvail?.scopedSources.length ?? 0);
+  // A metric is offerable when there is no scope constraint yet OR it is in
+  // the all-source intersection. Filters both the metric picker and the
+  // scatter selectors.
+  function isScopeAvailable(name: string): boolean {
+    return scopeAvailableSet === null || scopeAvailableSet.has(name);
+  }
 
   const activeMetric = $derived(boundPanel ? boundPanel.metric : DEFAULT_METRIC_NAME);
   const activeLayer = $derived<'gold' | 'silver'>(boundPanel ? boundPanel.layer : 'gold');
@@ -170,9 +257,14 @@
     for (const name of [DEFAULT_METRIC_NAME, ...availableMetricNames]) {
       if (!name || seen[name]) continue;
       if (!metricSupportsPresentation(name, view)) continue;
+      // Phase 123c (C1) — withhold metrics absent from any scoped source.
+      if (!isScopeAvailable(name)) continue;
       seen[name] = true;
       merged.push(name);
     }
+    // The active metric is always surfaced (even if it has since become
+    // partial across the scope) so the picker reflects the current
+    // selection rather than dropping it silently.
     if (activeMetric && !seen[activeMetric] && metricSupportsPresentation(activeMetric, view)) {
       merged.push(activeMetric);
     }
@@ -325,8 +417,25 @@
     const out: string[] = [];
     for (const name of [DEFAULT_METRIC_NAME, ...availableMetricNames]) {
       if (!name || seen[name]) continue;
+      // Phase 123c (C1) — same all-source intersection guard as the metric
+      // picker; the scatter axes must not bind a metric missing from a
+      // scoped source.
+      if (!isScopeAvailable(name)) continue;
       seen[name] = true;
       out.push(name);
+    }
+    // Keep any currently-bound channel metric visible even if it has since
+    // become partial across the scope, so the selects reflect the binding.
+    for (const bound of [
+      activeChannels.x,
+      activeChannels.y,
+      activeChannels.size,
+      activeChannels.color
+    ]) {
+      if (bound && !seen[bound]) {
+        seen[bound] = true;
+        out.push(bound);
+      }
     }
     return out;
   });
@@ -569,6 +678,29 @@
             </button>
           {/each}
         </div>
+      </div>
+    {/if}
+
+    <!-- Phase 123c (C1) — partial-metric hint. Surfaces metrics that have
+         data for only SOME scoped sources (and are therefore withheld from
+         the picker/scatter selectors above), so the user understands why a
+         metric they expected is absent rather than seeing a silent gap.
+         Shown for both the metric picker and the scatter selectors. -->
+    {#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
+      <div class="ctrl-row partial-hint" role="note">
+        <span class="ctrl-eyebrow">Withheld</span>
+        <p class="partial-hint-body">
+          {partialMetrics.length} metric{partialMetrics.length === 1 ? '' : 's'} present for only some
+          of the {scopedSourceCount} scoped source{scopedSourceCount === 1 ? '' : 's'} — withheld so a
+          panel-wide binding cannot yield silently empty cells:
+          <span class="partial-hint-list">
+            {#each partialMetrics as pm (pm.metricName)}
+              <code class="partial-metric" title="Has data for: {pm.sources.join(', ')}"
+                >{pm.metricName} ({pm.sources.length}/{scopedSourceCount})</code
+              >
+            {/each}
+          </span>
+        </p>
       </div>
     {/if}
 
@@ -1191,6 +1323,35 @@
   }
   .compare-help code {
     font-family: var(--font-mono);
+  }
+
+  /* Phase 123c (C1) — partial-metric (withheld) hint. A calm, low-emphasis
+     note in the warning hue; never an error — the withholding is a
+     deliberate honesty guard, not a failure. */
+  .partial-hint {
+    align-items: flex-start;
+  }
+  .partial-hint-body {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-loose);
+    color: var(--color-fg-muted);
+  }
+  .partial-hint-list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-left: var(--space-1);
+  }
+  .partial-metric {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+    background: color-mix(in srgb, var(--color-status-expired) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-status-expired) 24%, var(--color-border));
+    border-radius: var(--radius-sm);
+    padding: 0 4px;
+    white-space: nowrap;
   }
 
   @media (prefers-reduced-motion: reduce) {

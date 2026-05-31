@@ -37,6 +37,14 @@ export type ScatterResponseDto =
   paths['/metrics/scatter']['get']['responses'][200]['content']['application/json'];
 export type ScatterPointDto = ScatterResponseDto['points'][number];
 export type AvailableMetricDto = components['schemas']['AvailableMetric'];
+// Phase 123c (C1) — per-source metric availability across a multi-source
+// scope. `available` = metrics present in Gold for EVERY scoped source (the
+// intersection safe to bind on a cross-probe panel); `partial` = metrics on
+// only some sources, surfaced as an explanatory hint, never offered for
+// binding. Sourced from the path response (bundler-inlined, like Scatter).
+export type ScopeAvailableMetricsDto =
+  paths['/scope/available-metrics']['get']['responses'][200]['content']['application/json'];
+export type PartialMetricDto = ScopeAvailableMetricsDto['partial'][number];
 export type SilverAggregationResponseDto = components['schemas']['SilverAggregationResponse'];
 export type TopicDistributionResponseDto = components['schemas']['TopicDistributionResponse'];
 export type MetadataCoverageResponseDto = components['schemas']['MetadataCoverageResponse'];
@@ -563,6 +571,47 @@ export function metricsAvailableQuery(
     queryKey: ['aer', 'metrics-available', params] as const,
     queryFn: () =>
       fetchJson<AvailableMetricDto[]>(ctx, `/metrics/available?${qs.toString()}`, 'unspecified'),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 123c (C1) — metrics available across the full (multi-source) panel
+// scope. Powers the PanelControls cross-probe guard: only metrics present
+// for EVERY scoped source are offered for binding, so a panel spanning
+// probes with asymmetric capability (e.g. a German SentiWS-only metric on a
+// panel that also holds a French source) can never bind a metric that
+// silently yields empty cells. The scope is the union of `scope`/`scopeId`,
+// `probeIds`, and `sourceIds`; at least one must be present (the call-site
+// gates the query off when the panel has no resolvable scope).
+export interface ScopeAvailableMetricsParams {
+  scope?: ViewModeScope | undefined;
+  scopeId?: string | undefined;
+  probeIds?: readonly string[] | undefined;
+  sourceIds?: readonly string[] | undefined;
+  start: string;
+  end: string;
+}
+
+export function scopeAvailableMetricsQuery(
+  ctx: FetchContext,
+  params: ScopeAvailableMetricsParams
+): QueryOptions<ScopeAvailableMetricsDto> {
+  const qs = new URLSearchParams();
+  if (params.scope) qs.set('scope', params.scope);
+  if (params.scopeId) qs.set('scopeId', params.scopeId);
+  if (params.probeIds && params.probeIds.length > 0) qs.set('probeIds', params.probeIds.join(','));
+  if (params.sourceIds && params.sourceIds.length > 0)
+    qs.set('sourceIds', params.sourceIds.join(','));
+  qs.set('start', params.start);
+  qs.set('end', params.end);
+  return {
+    queryKey: ['aer', 'scope-available-metrics', params] as const,
+    queryFn: () =>
+      fetchJson<ScopeAvailableMetricsDto>(
+        ctx,
+        `/scope/available-metrics?${qs.toString()}`,
+        'unspecified'
+      ),
     staleTime: FIVE_MINUTES
   };
 }

@@ -6,6 +6,7 @@ import {
   metricDistributionQuery,
   metricsQuery,
   probesQuery,
+  scopeAvailableMetricsQuery,
   silverAggregationQuery,
   type FetchContext
 } from '../../src/lib/api/queries';
@@ -186,6 +187,61 @@ describe('view-mode queries (Phase 107)', () => {
     expect(capturedUrl).toContain('/entities/cooccurrence?');
     expect(capturedUrl).toContain('scope=probe');
     expect(capturedUrl).toContain('topN=25');
+  });
+});
+
+describe('scopeAvailableMetricsQuery (Phase 123c C1)', () => {
+  it('encodes the union scope (probeIds + sourceIds CSV) and the window', async () => {
+    let capturedUrl = '';
+    const spy: FetchFn = (async (url: RequestInfo | URL) => {
+      capturedUrl = typeof url === 'string' ? url : url.toString();
+      return new Response(JSON.stringify({ scopedSources: [], available: [], partial: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }) as unknown as FetchFn;
+
+    const q = scopeAvailableMetricsQuery(ctxWith(spy), {
+      probeIds: ['probe-0-de-institutional-web', 'probe-1-fr-institutional-web'],
+      sourceIds: ['tagesschau', 'franceinfo'],
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z'
+    });
+    const outcome = await q.queryFn();
+    expect(outcome.kind).toBe('success');
+    expect(capturedUrl).toContain('/scope/available-metrics?');
+    // URLSearchParams encodes the comma in the CSV join as %2C.
+    expect(capturedUrl).toContain(
+      'probeIds=probe-0-de-institutional-web%2Cprobe-1-fr-institutional-web'
+    );
+    expect(capturedUrl).toContain('sourceIds=tagesschau%2Cfranceinfo');
+    expect(capturedUrl).toContain('start=2026-04-01');
+    expect(capturedUrl).toContain('end=2026-04-22');
+  });
+
+  it('omits empty scope lists so a single-target scope is well-formed', async () => {
+    let capturedUrl = '';
+    const spy: FetchFn = (async (url: RequestInfo | URL) => {
+      capturedUrl = typeof url === 'string' ? url : url.toString();
+      return new Response(JSON.stringify({ scopedSources: [], available: [], partial: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }) as unknown as FetchFn;
+
+    const q = scopeAvailableMetricsQuery(ctxWith(spy), {
+      scope: 'source',
+      scopeId: 'tagesschau',
+      probeIds: [],
+      sourceIds: [],
+      start: '2026-04-01T00:00:00.000Z',
+      end: '2026-04-22T00:00:00.000Z'
+    });
+    await q.queryFn();
+    expect(capturedUrl).toContain('scope=source');
+    expect(capturedUrl).toContain('scopeId=tagesschau');
+    expect(capturedUrl).not.toContain('probeIds=');
+    expect(capturedUrl).not.toContain('sourceIds=');
   });
 });
 
