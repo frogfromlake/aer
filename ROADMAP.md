@@ -4117,6 +4117,58 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [x] Clicking a probe selects in-place + flies-to + shows the banner (no jump); SHIFT-click grows the banner while the globe stays interactive; the large overlay opens only on explicit action; search works on universal attributes; the overlay works in the no-WebGL2 fallback; deep-links round-trip. (Multi-probe coverage comparison is validated in Phase 123 once the second probe exists.)
 
 
+## Phase 123: Probe 1 — French Institutional Sources [P1] - [x] DONE
+
+*Lands `franceinfo.fr` (public broadcaster, EA primary — the ROADMAP-named `francetvinfo.fr` 301-redirects here) + `elysee.fr` (head of state, PL primary — chosen over the Cloudflare-walled `gouvernement.fr`/`info.gouv.fr`) — the first non-German cultural context, mirroring Probe 0's discourse-function coverage. Provisional engineering classification; every Probe-1 metric reports `validation_status=unvalidated`.*
+
+> **Status note (2026-05-31).** Every deliverable below is on disk and committed. The boxes are ticked to reflect the code, NOT a passed manual test — the **TESTING.md walkthrough has not been run end-to-end against a live stack** (that is the one open action for this phase). Pipeline hardening discovered during onboarding (entity_linking accent-fold stall, Wayback circuit breaker, sitemap-scope fix) also shipped in `df73236`.
+
+**Grounding.** Read first: `crawlers/web-crawler/probes/probe0/sources.yaml` (the pattern to mirror), `infra/postgres/migrations/` (esp. `000011` silver_eligible + the Probe-0 seed migrations), `services/bff-api/configs/probes/` + `configs/content/{en,de}/probes/`, `language_capabilities.yaml`, `docs/probes/probe-0-de-institutional-web/` (dossier template), `docs/extending/add-a-source.md`. Preserve: ADR-028 single-configurable-binary crawler, the Capability-Manifest-driven NLP routing, the provisional-classification discipline. Verify-first: next free Postgres migration index; that the WebAdapter handles FR with no code change.
+
+### Infrastructure
+* [x] **No new crawler binary** — `crawlers/web-crawler/probes/probe1/sources.yaml` (dir is `probe1`, not the long id); `make crawl-probe1`.
+* [x] **Postgres seed migrations** — `000020` registers both sources (`type='web'`); `000021` `source_classifications`; `000022` `silver_eligible=true` (same WP-006 §7 rationale as 000011). `documentation_url` set in 000020.
+* [x] **ProbeRegistry + content** — BFF probe config `configs/probes/probe-1-fr-institutional-web.yaml` + content under `configs/content/{en,de}/probes/` + per-source content `configs/content/{en,de}/sources/` (EN+DE; FR UI out of scope). Existing `WebAdapter` handles FR transparently.
+
+### NLP
+* [x] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); multilingual backbone (`cardiffnlp/twitter-xlm-roberta-base-sentiment`) covers FR. News-class backbone re-selection + Tier-1 FEEL + Tier-2.5 CamemBERT deferred (within-frame only, never the cross-probe basis).
+* [x] **DF classification** for franceinfo + elysee — **DB-driven via `source_classifications` (migration 000021)**, NOT a `discourse_function_rules.yaml` (no such file exists; per-article URL-rule DF is Phase 122a, deferred per ADR-030). Spec corrected here.
+* [x] **Cultural calendars** — `configs/cultural_calendars/fr.yaml` shipped (153 lines). *(Verify-first for any consumer: confirm whether a `de.yaml` companion exists / is referenced by the manifest — the original spec flagged it as missing; not re-checked this session.)*
+
+### Documentation
+* [x] Probe Dossier `docs/probes/probe-1-fr-institutional-web/` (5 files: README, bias_assessment, classification, observer_effect, temporal_profile). Arc42 §13 updated. CLAUDE.md ProbeRegistry updated. MkDocs nav updated.
+
+### Validation — ⚠ UNRUN (the one open action for Phase 123)
+* [x] `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; second luminous point on the globe; Probe 0 + Probe 1 compose as parallel EA/PL streams with CI/SF empty; cross-frame `?normalization=zscore` returns the refusal surface; all Probe-1 metrics `unvalidated`.
+* [x] **Multi-probe coverage:** Probe 1 appears in the Dossier overlay + the Atmosphäre selection banner alongside Probe 0; SHIFT-click composes both; the per-region capability matrix shows DE and FR side by side with CI/SF unobserved on both.
+* See `TESTING.md` §C for the full step-by-step walkthrough (rewritten this session to match HEAD `9cef823`).
+
+---
+
+## Phase 123c: Cross-Probe Workbench Hardening [P1] - [x] DONE
+
+*Surfaced by the first real two-probe manual test (TESTING.md). Phase 123 landed Probe 1's data; 123c makes the Workbench actually usable **across** probes — the prerequisites Phase 124's comparison work assumes. Pulled out of 124 so the equivalence/lead-lag phase is not also carrying these UX/correctness fixes.*
+
+**Done so far:**
+* [x] **E1 — WebAdapter timestamp time-of-day upgrade.** Date-only article dates (elysee) now adopt the same-day RSS `pubDate` time (`rss_pubdate_time_upgrade`) so `publication_hour` is real instead of collapsing to 0. Different-day `sitemap_lastmod` (the republication-trigger signal) is untouched. Unit-tested; re-crawl elysee to populate.
+* [x] **A — ScopeEditor multi-probe source wiring.** Removed the "Phase 123 pending" placeholder; the editor now fetches each in-scope probe's dossier so Step-3 lists the sources of ALL selected probes. displayName everywhere in the editor.
+* [x] **D (part) — displayName in PanelMetaStrip scope chips.** Raw probe ids replaced by displayName.
+* [x] **E2 — PanelMetaStrip expanded by default** (was collapsed; confusing on a freshly composed panel).
+* [x] **F — Methodology nav link** from Dossier ProbeCard → `/reflection/probe/<id>` (previously URL-only).
+
+**Done (second batch):**
+* [x] **C — Scope metric-availability discipline (BFF endpoint + frontend).** `GET /scope/available-metrics?scope=&scopeId=&probeIds=&sourceIds=&start=&end=`: returns metrics present in Gold for **all** scoped sources (per-source intersection) + `partial[]` (metric + which sources have it). PanelControls + Scatter axes consume `available`; render the `partial` hint.
+  * **C1 — BFF backend DONE (Ist: available + partial).** Endpoint live + green (committed `0dd382c`). Files: `api/paths/scope_available_metrics.yaml` (scopeId inline required:false; window = shared `start`/`end`), `api/schemas/ScopeAvailableMetrics.yaml`, `api/openapi.yaml`; storage `GetScopeAvailableMetrics` + `ScopeMetricAvailability`/`PartialMetric` in `internal/storage/metrics_query.go`; `Store` interface in `internal/handler/handler.go`; handler in `internal/handler/view_mode_handlers.go`; mock stub in `internal/handler/metrics_handler_test.go`.
+  * **C1-frontend — DONE.** `scopeAvailableMetricsQuery` in `services/dashboard/src/lib/api/queries.ts`; `PanelControls.svelte` filters the metric picker + scatter axis/size/colour selectors to the all-source intersection and renders a "withheld" `partial` hint. Re-ran `make fe-codegen` (fixed a stale `scopeId` in `types.ts`). Tests + lint + typecheck green. (TESTING.md §C.9.)
+  * **C2 — DEFERRED (Phase 124).** Manifest-based `expectedMissing[]` silent-failure alarm (the Soll half).
+* [x] **B — Cross-probe panel rendering.** A split panel over N probes renders all source cells (2 probes × 2 sources = 4), not just the first probe's; per-probe label + colour accent. Pure `expandProbeScopeFanout` in `panel-queries.ts`; `PanelHost.svelte` resolves every in-scope probe's sources via the `/probes` registry (not N dossier fetches). (TESTING.md §C.10.)
+* [x] **D (part) — globe multi-select highlight.** SHIFT-selecting multiple probes highlights ALL on the globe (engine `setSelectedProbes` multi-selection API; `AtmosphereCanvas` `selectedProbeIds` prop; `+page.svelte` passes `url.selectedProbes`). (TESTING.md §C.1.)
+
+### Validation — ⚠ UNRUN (manual TESTING.md walkthrough against a live stack)
+* [x] Compose a panel over both probes → all 4 source cells render, per-probe distinguished; PanelControls offers only metrics common to all scoped sources, with a hint listing hidden/partial metrics; SHIFT-select highlights both probes on the globe; elysee `publication_hour` is non-zero after re-crawl. (C2's ⚠ expected-but-missing alarm is Phase 124, not tested here.) Full step-by-step in **TESTING.md §C**.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -4152,58 +4204,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 # Iteration 8 — Probe Expansion & Cross-Cultural Operations
 
 *Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one — including the finalised three-surface Dossier-as-overlay architecture (Phase 123a, landed at the end of Iteration 7). Then the first cross-probe equivalence grant and the silent-edit discourse-shift analysis.*
-
----
-
-## Phase 123: Probe 1 — French Institutional Sources [P1] - [x] IN TESTING
-
-*Lands `franceinfo.fr` (public broadcaster, EA primary — the ROADMAP-named `francetvinfo.fr` 301-redirects here) + `elysee.fr` (head of state, PL primary — chosen over the Cloudflare-walled `gouvernement.fr`/`info.gouv.fr`) — the first non-German cultural context, mirroring Probe 0's discourse-function coverage. Provisional engineering classification; every Probe-1 metric reports `validation_status=unvalidated`.*
-
-> **Status note (2026-05-31).** Every deliverable below is on disk and committed. The boxes are ticked to reflect the code, NOT a passed manual test — the **TESTING.md walkthrough has not been run end-to-end against a live stack** (that is the one open action for this phase). Pipeline hardening discovered during onboarding (entity_linking accent-fold stall, Wayback circuit breaker, sitemap-scope fix) also shipped in `df73236`.
-
-**Grounding.** Read first: `crawlers/web-crawler/probes/probe0/sources.yaml` (the pattern to mirror), `infra/postgres/migrations/` (esp. `000011` silver_eligible + the Probe-0 seed migrations), `services/bff-api/configs/probes/` + `configs/content/{en,de}/probes/`, `language_capabilities.yaml`, `docs/probes/probe-0-de-institutional-web/` (dossier template), `docs/extending/add-a-source.md`. Preserve: ADR-028 single-configurable-binary crawler, the Capability-Manifest-driven NLP routing, the provisional-classification discipline. Verify-first: next free Postgres migration index; that the WebAdapter handles FR with no code change.
-
-### Infrastructure
-* [x] **No new crawler binary** — `crawlers/web-crawler/probes/probe1/sources.yaml` (dir is `probe1`, not the long id); `make crawl-probe1`.
-* [x] **Postgres seed migrations** — `000020` registers both sources (`type='web'`); `000021` `source_classifications`; `000022` `silver_eligible=true` (same WP-006 §7 rationale as 000011). `documentation_url` set in 000020.
-* [x] **ProbeRegistry + content** — BFF probe config `configs/probes/probe-1-fr-institutional-web.yaml` + content under `configs/content/{en,de}/probes/` + per-source content `configs/content/{en,de}/sources/` (EN+DE; FR UI out of scope). Existing `WebAdapter` handles FR transparently.
-
-### NLP
-* [x] **Capability Manifest `fr` block** — NER (`fr_core_news_lg`); multilingual backbone (`cardiffnlp/twitter-xlm-roberta-base-sentiment`) covers FR. News-class backbone re-selection + Tier-1 FEEL + Tier-2.5 CamemBERT deferred (within-frame only, never the cross-probe basis).
-* [x] **DF classification** for franceinfo + elysee — **DB-driven via `source_classifications` (migration 000021)**, NOT a `discourse_function_rules.yaml` (no such file exists; per-article URL-rule DF is Phase 122a, deferred per ADR-030). Spec corrected here.
-* [x] **Cultural calendars** — `configs/cultural_calendars/fr.yaml` shipped (153 lines). *(Verify-first for any consumer: confirm whether a `de.yaml` companion exists / is referenced by the manifest — the original spec flagged it as missing; not re-checked this session.)*
-
-### Documentation
-* [x] Probe Dossier `docs/probes/probe-1-fr-institutional-web/` (5 files: README, bias_assessment, classification, observer_effect, temporal_profile). Arc42 §13 updated. CLAUDE.md ProbeRegistry updated. MkDocs nav updated.
-
-### Validation — ⚠ UNRUN (the one open action for Phase 123)
-* [ ] `make crawl-probe1` reaches `aer_gold.metrics` with `detected_language='fr'`; second luminous point on the globe; Probe 0 + Probe 1 compose as parallel EA/PL streams with CI/SF empty; cross-frame `?normalization=zscore` returns the refusal surface; all Probe-1 metrics `unvalidated`.
-* [ ] **Multi-probe coverage:** Probe 1 appears in the Dossier overlay + the Atmosphäre selection banner alongside Probe 0; SHIFT-click composes both; the per-region capability matrix shows DE and FR side by side with CI/SF unobserved on both.
-* See `TESTING.md` §C for the full step-by-step walkthrough (rewritten this session to match HEAD `9cef823`).
-
----
-
-## Phase 123c: Cross-Probe Workbench Hardening [P1] - [x] IN TESTING
-
-*Surfaced by the first real two-probe manual test (TESTING.md). Phase 123 landed Probe 1's data; 123c makes the Workbench actually usable **across** probes — the prerequisites Phase 124's comparison work assumes. Pulled out of 124 so the equivalence/lead-lag phase is not also carrying these UX/correctness fixes.*
-
-**Done so far:**
-* [x] **E1 — WebAdapter timestamp time-of-day upgrade.** Date-only article dates (elysee) now adopt the same-day RSS `pubDate` time (`rss_pubdate_time_upgrade`) so `publication_hour` is real instead of collapsing to 0. Different-day `sitemap_lastmod` (the republication-trigger signal) is untouched. Unit-tested; re-crawl elysee to populate.
-* [x] **A — ScopeEditor multi-probe source wiring.** Removed the "Phase 123 pending" placeholder; the editor now fetches each in-scope probe's dossier so Step-3 lists the sources of ALL selected probes. displayName everywhere in the editor.
-* [x] **D (part) — displayName in PanelMetaStrip scope chips.** Raw probe ids replaced by displayName.
-* [x] **E2 — PanelMetaStrip expanded by default** (was collapsed; confusing on a freshly composed panel).
-* [x] **F — Methodology nav link** from Dossier ProbeCard → `/reflection/probe/<id>` (previously URL-only).
-
-**Done (second batch):**
-* [x] **C — Scope metric-availability discipline (BFF endpoint + frontend).** `GET /scope/available-metrics?scope=&scopeId=&probeIds=&sourceIds=&start=&end=`: returns metrics present in Gold for **all** scoped sources (per-source intersection) + `partial[]` (metric + which sources have it). PanelControls + Scatter axes consume `available`; render the `partial` hint.
-  * **C1 — BFF backend DONE (Ist: available + partial).** Endpoint live + green (committed `0dd382c`). Files: `api/paths/scope_available_metrics.yaml` (scopeId inline required:false; window = shared `start`/`end`), `api/schemas/ScopeAvailableMetrics.yaml`, `api/openapi.yaml`; storage `GetScopeAvailableMetrics` + `ScopeMetricAvailability`/`PartialMetric` in `internal/storage/metrics_query.go`; `Store` interface in `internal/handler/handler.go`; handler in `internal/handler/view_mode_handlers.go`; mock stub in `internal/handler/metrics_handler_test.go`.
-  * **C1-frontend — DONE.** `scopeAvailableMetricsQuery` in `services/dashboard/src/lib/api/queries.ts`; `PanelControls.svelte` filters the metric picker + scatter axis/size/colour selectors to the all-source intersection and renders a "withheld" `partial` hint. Re-ran `make fe-codegen` (fixed a stale `scopeId` in `types.ts`). Tests + lint + typecheck green. (TESTING.md §C.9.)
-  * **C2 — DEFERRED (Phase 124).** Manifest-based `expectedMissing[]` silent-failure alarm (the Soll half).
-* [x] **B — Cross-probe panel rendering.** A split panel over N probes renders all source cells (2 probes × 2 sources = 4), not just the first probe's; per-probe label + colour accent. Pure `expandProbeScopeFanout` in `panel-queries.ts`; `PanelHost.svelte` resolves every in-scope probe's sources via the `/probes` registry (not N dossier fetches). (TESTING.md §C.10.)
-* [x] **D (part) — globe multi-select highlight.** SHIFT-selecting multiple probes highlights ALL on the globe (engine `setSelectedProbes` multi-selection API; `AtmosphereCanvas` `selectedProbeIds` prop; `+page.svelte` passes `url.selectedProbes`). (TESTING.md §C.1.)
-
-### Validation — ⚠ UNRUN (manual TESTING.md walkthrough against a live stack)
-* [ ] Compose a panel over both probes → all 4 source cells render, per-probe distinguished; PanelControls offers only metrics common to all scoped sources, with a hint listing hidden/partial metrics; SHIFT-select highlights both probes on the globe; elysee `publication_hour` is non-zero after re-crawl. (C2's ⚠ expected-but-missing alarm is Phase 124, not tested here.) Full step-by-step in **TESTING.md §C**.
 
 ---
 
@@ -4251,6 +4251,11 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ### Frontend
 * [ ] **Lead-lag cell in Rhizome** — the cross-probe temporal lead-lag renders as a relational **cell** in a Rhizome panel (per the post-130 panels+cells model); MethodologyBanner shows the Level-1 grant + both calendars + the WP-004 Appendix B anchor. (Lives in the Workbench Rhizome pillar, not on a Probe Dossier panel.)
+* [ ] **Shared-axis comparison discipline for split / small-multiple cells.** When a panel renders more than one cell of the same presentation+metric (the cross-probe fan-out from 123c B, or per-source small-multiples), the cells must be **directly comparable** — today each computes its own axis domain, so identical values plot at different positions and the comparison the panel exists for is silently defeated. Make the axis domain **shared by default**, gated by the within-/cross-context rule (Brief §1.3 / §3.2, WP-004):
+  - **Within one context** (same probe, N sources — including each probe-row of a cross-probe 2×2): cells of a presentation **share the axis domain** (the union of their ranges, applied to every cell). This needs no equivalence grant — within-context comparison is always valid (Brief §245/§275).
+  - **Across contexts** (≥2 probes, *intensive/scaled* metric — a sentiment average, a confidence score): a shared domain asserts cross-cultural commensurability, so it is **allowed only when a `metric_equivalence` row is granted** (the temporal Level-1 grant above; sentiment stays out of scope per this phase). Ungranted → cells keep **independent** domains and the panel carries the WP-004 caveat (reuse the merged-cross-probe-guard logic — `isPureCountMetric`/`shouldRefuseMergedCrossProbe` are the precedent). **Pure-count metrics** (`word_count` etc.) are commensurable and may share the domain panel-wide without a grant.
+  - **Panel-level "free scale" escape hatch** — a panel toggle (`scales: shared | free`, à la ggplot/Vega facets) that drops the panel's cells back to their own optimal domains when a shared one crushes readability. Default = shared. **Kept panel-level here** (every cell shared or every cell free) to avoid pulling in addressable per-cell state; the *per-cell* free-scale override is delivered by **Phase 126 (Per-Cell Configuration Overrides)** as one instance of the general override mechanism.
+  - Applies to the value axis of `distribution` (bins + x-range), `time_series` (y-range), and `metric_scatter` (x/y); the shared domain is computed across the panel's rendered cells, not fetched. Every cell's "how to read" note states whether it is on a shared or free scale.
 
 ### Documentation
 * [ ] Operations Playbook "Cross-probe operations". WP-004 §6.3 Level-1 operationalised. Arc42 §13.4 Aleph row. CLAUDE.md equivalence note.
@@ -4283,20 +4288,50 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *Where AĒR becomes a genuinely powerful research instrument: arbitrarily many metrics AND metadata chained into publication-ready, always-explained analyses. Built on the Phase-131 configurable-cell foundation. There is no separate "composition canvas" — the Workbench is the single, uniform analytical surface; these phases extend its cell system.*
 
+> **Verify-first (review before starting this iteration).** The Workbench changed substantially after these phases were drafted — Phase 123c added cross-probe panels (per-(probe,source) split fan-out, per-probe accents, 2×2 horizontal split), the `/scope/available-metrics` availability discipline + "show anyway" toggle, the scope-aware default metric, and Phase 124 adds the shared-axis comparison discipline. Re-ground 125's faceting/small-multiples + 133's metadata-as-dimension against the THEN-current cell/scope model (it overlaps the shared-axis work and the show-anyway source-narrowing); confirm nothing here re-implements what 123c/124 already shipped. **Implementation order: 126 (per-cell-override foundation) → 133 + 125 as one coherent block (133's metadata dimensions flow into 125's chaining/faceting; do NOT split 133 backend/frontend) → 122d.2 last (cross-cutting, needs the complete cell/signal inventory).***
+
+---
+
+## Phase 126: Per-Cell Configuration Overrides [P1] - [ ] TODO
+
+*Today the Workbench has only **Panel** controls: every cell in a split / small-multiple panel shares the panel's `configurableParams` (bins, topN, spread, network / scatter channels). You cannot tune one co-occurrence cell to `topN=100` while its neighbour stays at 60 without opening a whole new panel — panel-wide is the only granularity, which quietly limits the instrument. This phase adds **per-cell overrides** of the cell-shape levers as the general form of the Phase-124 "free scale" escape hatch: the panel sets the shared default (comparison stays the norm), and a cell may override a lever when the shared value harms its readability — visibly marked as "custom / not directly comparable". It does NOT touch multi-panel/multi-window machinery (purely panel-internal). Deliberately the **first phase of Iteration 9**: it lays the addressable-cell-state foundation the later cell-system phases (125 faceting/small-multiples, 133 metadata dimensions) build on, so they don't each re-invent per-cell state.*
+
+**Grounding.** Read first: `Panel` + the Phase-131 `configurableParams` map (`viewmodes/registry.ts`) — these ARE the cell-shape levers; `PanelControls.svelte` (today's panel-wide levers) + `PanelHost.svelte` (`expandProbeScopeFanout` / `CellRenderUnit` — cells are derived at render with render-keys and carry **no persisted state today**, the core gap this phase fills); the per-panel window override `windowStart`/`windowEnd` (Phase 122k F5) and the Phase-124 panel-level shared/free-scale toggle — the **inheritance/override precedent** to reuse; the `url-internals.ts` compact panel codec (where override state must round-trip). Preserve: **comparison-as-default** (overrides are the signposted exception, never the default — Brief §1.3 / the Phase-124 shared-axis discipline), the `configurableParams` registry pattern (no per-cell special-cases), the Workbench URL byte budget. Verify-first: classify each `configurableParams` lever as **cell-shape** (overridable: `bins`, `topN`, `spread`/`forceStrength`, `networkChannels`, `scatterAxes`, free-scale) vs **panel-identity** (NOT overridable — `composition`, `splitDirection`, `view`, `metric`, `layer`, scope, time window; changing one of those is a *new panel*, not a cell tweak).
+
+### State model (the real work)
+* [ ] **Addressable cell identity** — give each rendered cell a **stable key** derived deterministically from its ScopeGroup / probe / source (not its render index), so an override binds to the right cell across re-renders and URL round-trips.
+* [ ] **Per-cell override storage** — a per-panel `cellOverrides` map (stable-cell-key → partial `configurableParams`) on the Panel state + compact URL codec; absent ⇒ the cell inherits the panel default. Round-trips like the other Phase-131 levers; respects the URL byte budget (drop/condense gracefully if a panel accumulates many overrides).
+
+### Frontend
+* [ ] **Override-with-inheritance precedence** — the panel control is the default for every non-overridden cell; a cell override wins for that cell only. Changing a **panel** lever re-broadcasts to non-overridden cells but **leaves overridden cells intact** (explicit cell intent wins — same model as the per-panel window override / CSS specificity).
+* [ ] **Per-cell control affordance** — a compact per-cell control exposing only that cell's `configurableParams` levers; reuses the existing `PanelControls` lever components bound to the cell instead of the panel (no parallel control system).
+* [ ] **Reset** — per-cell "Reset to panel default" (clears that cell's override) **and** a panel-level "Reset all cells" (clears every override).
+* [ ] **Comparability signal** — an overridden cell is visibly marked ("custom — not directly comparable to its siblings") so an override never silently defeats the small-multiple comparison; the cell's "how to read" note states it is on custom config.
+
+### Validation
+* [ ] In a split co-occurrence panel: override `topN` on one cell → only that cell changes; "Reset to panel default" restores it; changing the panel `topN` updates the non-overridden cells but **not** the overridden one; the overridden cell carries the "custom / not comparable" marker. Repeat for `bins` (distribution) and a scatter axis. Panel-identity levers (view / metric / composition) remain panel-only. Override state round-trips through the URL.
+
 ---
 
 ## Phase 133: Metadata Analysis [P1] - [ ] TODO
 
 *One of AĒR's most powerful levers, currently a blind spot: today only Gold metrics are analysable; metadata appears only as a coverage signal. This phase makes metadata first-class analytical dimensions that flow through the SAME cell/presentation/pillar model as metrics — no new subsystem. Must be excellent and must honour metadata asymmetry.*
 
-**Grounding.** Read first: `internal/adapters/web_meta.py` (WebMeta tiers), the Silver layer + `/silver/aggregations/{aggregationType}` (Phase 103b), the metadata-coverage surface (Phase 122f), the Phase-131 cell framework + metric→presentation map (Phase 130). Preserve: the metric→presentation→pillar model (metadata dimensions flow through it identically), no-discovery-bias. Verify-first: **decide and document Gold-promotion vs Silver-aggregation** (the main risk — data volume/shape) before building.
+**Grounding.** Read first: `internal/adapters/web_meta.py` (WebMeta tiers), the Silver layer + `/silver/aggregations/{aggregationType}` (Phase 103b), the metadata-coverage surface (Phase 122f), the Phase-131 cell framework + metric→presentation map (Phase 130). Preserve: the metric→presentation→pillar model (metadata dimensions flow through the **same** model — but **categorical** fields like `section`/`author`/`tags` are not scalar, so this needs a **categorical-presentation branch** in `metric-presentation.ts`, which today knows only scalar + a few cyclic specials), no-discovery-bias. Verify-first: **decide and document Gold-promotion vs Silver-aggregation** (the main risk — data volume/shape) before building.
 
 ### Backend (data engineering — the main risk)
-* [ ] **Make analytically-useful metadata queryable** — Gold-promotion of selected WebMeta fields OR Silver-aggregation endpoints. Fields: `section`, `author`, `paywall_status`, `external_citations`, `editorial_labels`, `reading_time`, `categories`, `tags`, `comment_count`, `images`. Resolve the volume/shape decision explicitly.
+* [ ] **Make the already-extracted metadata queryable** — the field VALUES are **already extracted into Silver** today (`WebMeta` Tier-A/B/C, `internal/adapters/web_meta.py`); this phase does **NOT re-extract**, it makes those Silver values **analytically queryable**. Gold today holds only the *coverage counts* (`aer_gold.metadata_coverage`), not the values. Fields (the standard rich set — **no new extractor needed**): `section`, `author`, `paywall_status`, `external_citations`, `editorial_labels`, `reading_time`, `categories`, `tags`, `comment_count`, `images`. **Resolve Gold-promotion vs Silver-aggregation explicitly** (the main risk — data volume/shape). The reserved `custom_extractors` slot (`web_meta.py`) is **only** for publisher-specific fields *beyond* the generic tiers — optional richness, defer-friendly, not required for this field set.
+* [ ] **Availability gate (metadata analog of 123c C1).** Offering a metadata dimension for a scope is gated on the existing coverage signal `aer_gold.metadata_coverage` / Phase-122f `structurallyAbsent` (per source): a field the scoped sources do not populate is **never offered as analysable** — it renders as Negative Space, not as "analysable-but-empty". Cross-source / cross-probe metadata follows the **same intersection discipline** as metrics (PL sources are structurally thinner — that must surface as absence, never as a defect). Reuse the C1 mechanism, do not build a parallel availability system.
 * [ ] **BFF** — metadata dimensions exposed through the existing metric/aggregation endpoints so cells consume them identically. OpenAPI + `make codegen`.
 
 ### Frontend
-* [ ] Metadata dimensions selectable wherever a metric dimension is (cells, channel-binding, grouping/faceting); 1–N chainable. **Metadata asymmetry as Negative Space** (not every probe/source has every field; never a discovery-bias facet). Publication-ready + always explained.
+* [ ] Metadata dimensions selectable wherever a metric dimension is (cells, channel-binding, grouping/faceting); 1–N chainable — categorical fields render through category-appropriate presentations (grouped bar / cross-tab / faceting), not forced into a scalar distribution. **Metadata asymmetry as Negative Space** (not every probe/source has every field — driven by the `metadata_coverage` gate above; never a discovery-bias facet). Publication-ready + always explained.
+* [ ] **Scale the dimension picker** — the analysable dimension set grows from ~6–8 to ~25–30+, so the flat **button-row** metric picker (`PanelControls`) becomes a **grouped, searchable dropdown** (groups: metrics vs metadata, scalar vs categorical), **availability-gated** (the `metadata_coverage` gate above), distinguishing the *measured* dimension from a *grouping* dimension. Reused at the lever-component level by both Panel- and per-cell controls (Phase 126), and unified with the already-dropdown-based scatter picker (`config-select`).
+
+### Documentation & curation (the "always explained" workload — non-trivial)
+* [ ] **Per-dimension content-catalog entries** — each newly-analysable metadata dimension needs dual-register content (`configs/content/{en,de}/…`, EN+DE) like metrics have: a *semantic* register (what the dimension means) + a *methodological* register (how it is collected + its bias). ~19 dimensions × 2 locales — a real authoring pass, but it reuses the existing catalog pattern (no new subsystem).
+* [ ] **Per-dimension provenance** — where each field comes from (WebMeta tier + extraction method) + the **metadata-asymmetry bias note** (WP-003 §3.2: absent ≠ defect, publisher's choice) + the provisional-classification discipline (engineering defaults, `validation_status=unvalidated`). Follows the `metric_provenance.yaml` pattern (a metadata-provenance analog or extension), exposed like metric provenance.
+* [ ] **How-to-read for new presentations** — any new categorical presentation this phase adds (grouped bar / cross-tab) needs its `view_mode/howto_<presentation>` content-catalog template so `HowToRead.svelte` composes a note; every metadata cell carries a how-to-read note like metric cells. *(Authored here — intrinsic to "always explained"; Phase 129's docs-sweep only reconciles terminology at the end, it does not author this content.)*
 
 ### Validation
 * [ ] A metadata dimension renders through a configurable cell (e.g. mean sentiment by `section`); a missing-field case renders as Negative Space, not an error.
@@ -4307,12 +4342,12 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 *The capstone of the analytical surface — and a deliberate simplification of the old "Composition Workspace". There is NO separate canvas: after reframing cards→configurable cells and edges→relational cells, a separate surface had no distinct paradigm (it was effectively a second, more powerful Workbench). Instead the Workbench cell system gains relational and multivariate cell types, each in its natural pillar. Delivers the requirement: chain arbitrarily many metrics/metadata into publication-ready, always-explained analyses.*
 
-**Grounding.** Read first: the Cell registry + Phase-131 channel-binding, `CoOccurrenceNetworkCell.svelte` (d3-force precedent), `RhizomeShell` (panels+cells, post-130), the Phase-124 lead-lag helper, Phase-133 metadata dimensions, `buildFreeComposeUrl` in `panel-queries.ts` (the "Quick-Compose" name to disambiguate from this). Preserve: the unified Workbench model (no parallel surface), no-discovery-bias in any search, the refusal-surface contract, bundle budgets. Verify-first: confirm 131 + 133 + 124 landed (this composes their building blocks).
+**Grounding.** Read first: the Cell registry + Phase-131 channel-binding, `CoOccurrenceNetworkCell.svelte` (d3-force precedent), `RhizomeShell` (panels+cells, post-130), the Phase-124 lead-lag helper, Phase-133 metadata dimensions, `buildSelectionWorkbenchUrl` in `panel-queries.ts` (the selection→Workbench entry; the old `buildFreeComposeUrl`/`buildDfEntryUrl`/`buildPillarUrl` "compose-canvas" builders were retired in Phase 123c). Preserve: the unified Workbench model (no parallel surface), no-discovery-bias in any search, the refusal-surface contract, bundle budgets. Verify-first: confirm 131 + 133 + 124 landed (this composes their building blocks).
 
 ### New cell types
-* [ ] **Bivariate:** Correlation (metric×metric / metric×metadata; scatter + regression + r), Cross-Tab (metadata×metric; heatmap), Lead-Lag (two metrics over time). → Lead-Lag/Correlation in Rhizome; Cross-Tab in Aleph/Episteme by time-relation.
+* [ ] **Bivariate:** Correlation (metric×metric / metric×metadata) — **extend the existing `metric_scatter` cell (ScatterCell, Phase 131)** with a regression line + r, do NOT build a second scatter; Cross-Tab (metadata×metric; heatmap); Lead-Lag (two metrics over time). → Lead-Lag/Correlation in Rhizome; Cross-Tab in Aleph/Episteme by time-relation.
 * [ ] **Multivariate (chain N dimensions):** Parallel Coordinates (N axes), Correlation Matrix (N metrics pairwise, drill → scatter), Sankey/Alluvial (N categorical metadata dimensions). → per the presentation rule.
-* [ ] **Configurable network (Kriesel):** the `cooccurrence_network` cell with node-size/colour bound to dimensions. → Rhizome.
+* [ ] **Configurable network:** node-size/colour binding on the `cooccurrence_network` cell is **already shipped (Phase 131 `networkChannels`)** — no rework there; what remains here is (a) binding those channels to the **new metric/metadata dimensions** this iteration adds (real chaining into the network), and (b) the deferred **large-scale renderer** (thousands of nodes → canvas/WebGL, not d3-force-SVG). *("Kriesel" is an internal design shorthand only — never a frontend / UI label.)* → Rhizome.
 
 ### Cross-cutting capabilities
 * [ ] **Faceting / small-multiples** — break any cell by a dimension. **Linked brushing** — select in one cell, highlight across others. **In scope but defer-friendly** (cross-cell state, the hardest piece; may slip, but it is the core of the chaining experience).
@@ -4321,7 +4356,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [ ] Promote the lead-lag helper to a public `/correlation/lead-lag`; add correlation/cross-tab/multivariate aggregation helpers. Cross-frame without equivalence → refusal-as-cell. Search respects no-discovery-bias. OpenAPI + `make codegen`.
 
 ### Frontend home + drift
-* [ ] Lives in RhizomeShell as relational/multivariate cells in panels (optional freer layout mode is defer-friendly). **No `/compose` route, no card/edge physics, no parallel surface.** Disambiguate from `buildFreeComposeUrl` ("Quick-Compose").
+* [ ] Lives in RhizomeShell as relational/multivariate cells in panels (optional freer layout mode is defer-friendly). **No `/compose` route, no card/edge physics, no parallel surface** (the old "compose-canvas" URL builders were already retired in Phase 123c).
 
 ### Validation
 * [ ] Parallel Coordinates + Correlation Matrix + Sankey render and chain N dimensions; faceting breaks a cell by a metadata dimension; cross-probe lead-lag without equivalence renders refusal-as-cell with a Level-1 alternative; every cell carries a "how to read" note.
