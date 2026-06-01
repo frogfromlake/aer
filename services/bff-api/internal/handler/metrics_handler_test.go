@@ -346,20 +346,22 @@ func TestGetReadyz_Returns503WhenPingFails(t *testing.T) {
 
 // --- GetMetrics ---
 
-// TestGetMetrics_Returns400WhenMissingDates verifies that the generated router
-// enforces startDate and endDate as required query parameters. This is an
-// HTTP-level test because the requirement is enforced by the generated routing
-// code before the handler is called.
-func TestGetMetrics_Returns400WhenMissingDates(t *testing.T) {
+// TestGetMetrics_WindowOptional pins the unbounded-default contract: each bound
+// is independently optional — omitting both returns the whole dataset (200),
+// and supplying just one is a valid open-ended window (200, the other side is
+// opened to the dataset extent). Time-limiting is an optional feature, not the
+// default.
+func TestGetMetrics_WindowOptional(t *testing.T) {
 	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil, nil))
 
 	cases := []struct {
 		name  string
 		query string
+		want  int
 	}{
-		{"no params", ""},
-		{"only startDate", "?startDate=2025-01-01T00:00:00Z"},
-		{"only endDate", "?endDate=2025-01-02T00:00:00Z"},
+		{"no params → whole dataset", "", http.StatusOK},
+		{"only startDate → open-ended", "?startDate=2025-01-01T00:00:00Z", http.StatusOK},
+		{"only endDate → open-ended", "?endDate=2025-01-02T00:00:00Z", http.StatusOK},
 	}
 
 	for _, tc := range cases {
@@ -367,10 +369,33 @@ func TestGetMetrics_Returns400WhenMissingDates(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/metrics"+tc.query, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected 400, got %d", w.Code)
+			if w.Code != tc.want {
+				t.Errorf("expected %d, got %d: %s", tc.want, w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+// TestGetMetrics_UnboundedResolvesToSentinel pins that an absent window
+// actually reaches the storage layer as the whole-dataset sentinel
+// [wholeDatasetStart, now] — not a zero time.Time (which would WHERE-filter to
+// nothing) and not a 7-day lookback. This is the storage-contract half of the
+// unbounded-default behaviour that the HTTP-level WindowOptional test does not
+// observe.
+func TestGetMetrics_UnboundedResolvesToSentinel(t *testing.T) {
+	store := &mockStore{}
+	s := NewServer(store, nil, nil, nil, nil)
+
+	before := time.Now().UTC()
+	_, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{Params: GetMetricsParams{}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !store.capturedStart.Equal(wholeDatasetStart) {
+		t.Errorf("unbounded start: want sentinel %v, got %v", wholeDatasetStart, store.capturedStart)
+	}
+	if store.capturedEnd.Before(before) {
+		t.Errorf("unbounded end: want ~now (>= %v), got %v", before, store.capturedEnd)
 	}
 }
 
@@ -383,8 +408,8 @@ func TestGetMetrics_UsesProvidedDates(t *testing.T) {
 
 	req := GetMetricsRequestObject{
 		Params: GetMetricsParams{
-			StartDate: start,
-			EndDate:   end,
+			StartDate: &start,
+			EndDate:   &end,
 		},
 	}
 	_, err := s.GetMetrics(context.Background(), req)
@@ -408,7 +433,7 @@ func TestGetMetrics_Returns500OnStorageError(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
@@ -430,7 +455,7 @@ func TestGetMetrics_ReturnsEmptySliceOnNoData(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -460,7 +485,7 @@ func TestGetMetrics_MapsStorageRowsToResponse(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -488,16 +513,17 @@ func TestGetMetrics_MapsStorageRowsToResponse(t *testing.T) {
 
 // --- GetMetricsAvailable ---
 
-func TestGetMetricsAvailable_Returns400WhenMissingDates(t *testing.T) {
+func TestGetMetricsAvailable_WindowOptional(t *testing.T) {
 	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil, nil))
 
 	cases := []struct {
 		name  string
 		query string
+		want  int
 	}{
-		{"no params", ""},
-		{"only startDate", "?startDate=2025-01-01T00:00:00Z"},
-		{"only endDate", "?endDate=2025-01-02T00:00:00Z"},
+		{"no params → whole dataset", "", http.StatusOK},
+		{"only startDate → open-ended", "?startDate=2025-01-01T00:00:00Z", http.StatusOK},
+		{"only endDate → open-ended", "?endDate=2025-01-02T00:00:00Z", http.StatusOK},
 	}
 
 	for _, tc := range cases {
@@ -505,8 +531,8 @@ func TestGetMetricsAvailable_Returns400WhenMissingDates(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/metrics/available"+tc.query, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected 400, got %d", w.Code)
+			if w.Code != tc.want {
+				t.Errorf("expected %d, got %d: %s", tc.want, w.Code, w.Body.String())
 			}
 		})
 	}
@@ -526,7 +552,7 @@ func TestGetMetricsAvailable_ReturnsNames(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
-		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+		Params: GetMetricsAvailableParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -563,7 +589,7 @@ func TestGetMetrics_ZscoreRequiresMetricName(t *testing.T) {
 	norm := Zscore
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end, Normalization: &norm},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -583,7 +609,7 @@ func TestGetMetrics_ZscoreReturns400WhenNoBaseline(t *testing.T) {
 	metric := "sentiment_score"
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm, MetricName: &metric},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end, Normalization: &norm, MetricName: &metric},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -607,7 +633,7 @@ func TestGetMetrics_ZscoreReturns400WhenNoEquivalence(t *testing.T) {
 	metric := "sentiment_score"
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm, MetricName: &metric},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end, Normalization: &norm, MetricName: &metric},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -638,7 +664,7 @@ func TestGetMetrics_ZscoreReturnsDataWhenGatePasses(t *testing.T) {
 	metric := "sentiment_score"
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end, Normalization: &norm, MetricName: &metric},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end, Normalization: &norm, MetricName: &metric},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -664,7 +690,7 @@ func TestGetMetrics_ResolutionParamPropagatesToStore(t *testing.T) {
 	hourly := GetMetricsParamsResolutionHourly
 
 	if _, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end, Resolution: &hourly},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end, Resolution: &hourly},
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -703,7 +729,7 @@ func TestGetMetrics_DefaultResolutionIsFiveMinute(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	if _, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -725,7 +751,7 @@ func TestGetMetricsAvailable_IncludesMinMeaningfulResolution(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
-		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+		Params: GetMetricsAvailableParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -754,7 +780,7 @@ func TestGetMetrics_RawNormalizationIsDefault(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -785,7 +811,7 @@ func TestGetMetricsAvailable_IncludesEquivalenceMetadata(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
-		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+		Params: GetMetricsAvailableParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -831,7 +857,7 @@ func TestGetMetricsAvailable_FiltersAliasKeys(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
-		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+		Params: GetMetricsAvailableParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -868,7 +894,7 @@ func TestGetMetricsAvailable_Returns500OnError(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
-		Params: GetMetricsAvailableParams{StartDate: start, EndDate: end},
+		Params: GetMetricsAvailableParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
@@ -898,7 +924,7 @@ func TestGetMetrics_IncludeStddevAttachesSpread(t *testing.T) {
 	yes := true
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end, IncludeStddev: &yes},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end, IncludeStddev: &yes},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -928,7 +954,7 @@ func TestGetMetrics_NoStddevByDefault(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
-		Params: GetMetricsParams{StartDate: start, EndDate: end},
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -968,8 +994,8 @@ func TestGetMetricScatter_MapsPointsAndChannels(t *testing.T) {
 			YMetric:    "sentiment_score_sentiws",
 			SizeMetric: &sizeMetric,
 			SourceIds:  &sourceIds,
-			Start:      start,
-			End:        end,
+			Start:      &start,
+			End:        &end,
 		},
 	})
 	if err != nil {
@@ -1010,7 +1036,7 @@ func TestGetMetricScatter_RequiresScope(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetMetricScatter(context.Background(), GetMetricScatterRequestObject{
-		Params: GetMetricScatterParams{XMetric: "word_count", YMetric: "sentiment_score_sentiws", Start: start, End: end},
+		Params: GetMetricScatterParams{XMetric: "word_count", YMetric: "sentiment_score_sentiws", Start: &start, End: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

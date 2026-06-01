@@ -57,11 +57,19 @@ type RevisionActivityQuerier interface {
 // is scoped, never global, so the BFF cannot accidentally return the
 // entire corpus.
 //
-// The CDX cache plus the `ReplacingMergeTree(ingestion_version)` engine
-// guarantee idempotency: re-running the worker on the same Bronze
-// payload converges on identical rows. No `FINAL` is needed at read
-// time because the (source, bucket) grouping collapses duplicates
-// naturally.
+// `FINAL` is REQUIRED. `aer_gold.article_revisions` is a
+// `ReplacingMergeTree(ingestion_version)`, and the ADR-036 enrichment
+// re-attempt loop re-writes an article's revision rows with a fresh
+// `ingestion_version` whenever it heals an incomplete Wayback lookup.
+// Between that INSERT and the next background merge, the old and new
+// versions of a `(article_id, snapshot_at, content_hash)` tuple coexist
+// as physical rows. `count()` counts physical rows, and grouping by
+// (source, bucket) does NOT collapse those PK duplicates — so without
+// `FINAL` the revision total transiently over-counts and then drops as
+// merges settle (observed as revision counts that rise then fall). The
+// table is small (hundreds–thousands of rows per scope), so the
+// merge-on-read cost is negligible, matching `GetArticleRevisions` and
+// the revision-diff query which already apply `FINAL`.
 func (s *ClickHouseStorage) GetRevisionActivity(
 	ctx context.Context,
 	sources []string,
@@ -72,7 +80,7 @@ func (s *ClickHouseStorage) GetRevisionActivity(
 		return nil, nil
 	}
 
-	bucketExpr, err := revisionBucketExpr(resolution, start)
+	bucketExpr, err := revisionBucketExpr(resolution, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +101,7 @@ func (s *ClickHouseStorage) GetRevisionActivity(
 			toUInt64(countIf(revision_trigger = 'cdx_snapshot'))                                 AS cdx_snapshot_count,
 			toUInt64(countIf(revision_trigger = 'republication_trigger'))                        AS republication_count,
 			toUInt64(countIf(revision_trigger NOT IN ('cdx_snapshot', 'republication_trigger'))) AS unknown_trigger_count
-		FROM aer_gold.article_revisions
+		FROM aer_gold.article_revisions FINAL
 		WHERE snapshot_at >= ?
 		  AND snapshot_at <  ?
 		  AND source IN (%s)
@@ -143,14 +151,16 @@ func (s *ClickHouseStorage) GetArticleRevisions(
 // revisionBucketExpr returns the ClickHouse SQL expression that maps
 // `snapshot_at` to the requested aggregation bucket.
 //
-// For the synchronic `snapshot` resolution we project every row to a
-// constant bucket pinned at the analysis-window start — the dashboard
-// then renders one bar per source for the whole window without a per-
-// bucket timeline.
-func revisionBucketExpr(resolution RevisionActivityResolution, start time.Time) (string, error) {
+// For the synchronic `snapshot` resolution we project every row to a constant
+// bucket pinned at the analysis-window END (the "as-of" instant) — the
+// dashboard then renders one bar per source for the whole window without a
+// per-bucket timeline. Pinning to the end rather than the start keeps the
+// bucket label meaningful under an unbounded window, whose lower bound is the
+// epoch sentinel (a start-pinned bucket would surface a nonsensical 1970 date).
+func revisionBucketExpr(resolution RevisionActivityResolution, start, end time.Time) (string, error) {
 	switch resolution {
 	case "", RevisionResolutionSnapshot:
-		return fmt.Sprintf("toDateTime('%s')", start.UTC().Format("2006-01-02 15:04:05")), nil
+		return fmt.Sprintf("toDateTime('%s')", end.UTC().Format("2006-01-02 15:04:05")), nil
 	case RevisionResolutionDaily:
 		return "toStartOfDay(snapshot_at)", nil
 	case RevisionResolutionWeekly:

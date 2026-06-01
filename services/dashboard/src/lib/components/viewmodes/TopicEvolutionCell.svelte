@@ -70,8 +70,12 @@
     midpoint: string;
   }
   let buckets = $derived.by<Bucket[]>(() => {
-    const t0 = new Date(windowStart).getTime();
-    const t1 = new Date(windowEnd).getTime();
+    // Topic evolution needs an explicit span to slice into buckets. When the
+    // panel is unbounded (whole dataset), fall back to the last 30 days — the
+    // BERTopic sweep window — so the diachronic view still renders.
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const t1 = windowEnd ? new Date(windowEnd).getTime() : Date.now();
+    const t0 = windowStart ? new Date(windowStart).getTime() : t1 - THIRTY_DAYS;
     if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return [];
     const spanMs = t1 - t0;
     // Target ~1 bucket per 12h, clamped.

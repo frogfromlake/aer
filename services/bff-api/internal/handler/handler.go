@@ -283,8 +283,9 @@ func crossFrameRefusal() GetMetrics400JSONResponse {
 }
 
 // GetMetrics handles the GET /metrics request and fetches time-series data.
-// startDate and endDate are required — the framework returns 400 before this handler
-// is called if either is absent.
+// startDate and endDate are OPTIONAL: omit both for the whole dataset (time
+// limiting is an optional feature, not the default); supplying one without the
+// other is rejected.
 //
 // When normalization=zscore (Phase 65) or normalization=percentile (Phase 115),
 // a validation gate enforces:
@@ -313,6 +314,11 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	canonicalMetricNamePtr(request.Params.MetricName)
 
 	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
+
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetMetrics400JSONResponse{Message: msg}, nil
+	}
 
 	if useNormalization {
 		if request.Params.MetricName == nil {
@@ -344,13 +350,13 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 		}
 
 		// Phase 115 cross-frame equivalence gate.
-		nLangs, err := s.db.CountLanguagesForSources(ctx, request.Params.StartDate, request.Params.EndDate, sources)
+		nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
 		if err != nil {
 			slog.Error("handler failure", "op", "GetMetrics.CountLanguagesForSources", "error", err)
 			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 		}
 		if nLangs > 1 {
-			languages, err := s.collectLanguagesForScope(ctx, request.Params.StartDate, request.Params.EndDate, sources)
+			languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
 			if err != nil {
 				slog.Error("handler failure", "op", "GetMetrics.collectLanguagesForScope", "error", err)
 				return GetMetrics500JSONResponse{Message: genericInternalError}, nil
@@ -379,14 +385,14 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	var err error
 	switch mode {
 	case Zscore:
-		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
 	case Percentile:
-		data, excludedCount, err = s.db.GetPercentileNormalizedMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+		data, excludedCount, err = s.db.GetPercentileNormalizedMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
 	default:
 		if includeStddev {
-			data, err = s.db.GetMetricsWithSpread(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+			data, err = s.db.GetMetricsWithSpread(ctx, start, end, sources, request.Params.MetricName, resolution)
 		} else {
-			data, err = s.db.GetMetrics(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.MetricName, resolution)
+			data, err = s.db.GetMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
 		}
 	}
 	if err != nil {
@@ -435,8 +441,8 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 }
 
 // GetEntities handles GET /entities — returns aggregated named entities.
-// startDate and endDate are required — the framework returns 400 before this handler
-// is called if either is absent.
+// startDate and endDate are OPTIONAL: omit both for the whole dataset;
+// supplying one without the other is rejected.
 func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error) {
 	limit := 100
 	if request.Params.Limit != nil {
@@ -447,7 +453,11 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 	}
 
 	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
-	data, err := s.db.GetEntities(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.Label, limit)
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetEntities400JSONResponse{Message: msg}, nil
+	}
+	data, err := s.db.GetEntities(ctx, start, end, sources, request.Params.Label, limit)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntities", "error", err)
 		return GetEntities500JSONResponse{Message: genericInternalError}, nil
@@ -484,8 +494,8 @@ func (s *Server) GetEntities(ctx context.Context, request GetEntitiesRequestObje
 }
 
 // GetLanguages handles GET /languages — returns aggregated language detections.
-// startDate and endDate are required — the framework returns 400 before this handler
-// is called if either is absent.
+// startDate and endDate are OPTIONAL: omit both for the whole dataset, or supply
+// one for an open-ended window (resolveWindow opens the other side).
 func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error) {
 	limit := 100
 	if request.Params.Limit != nil {
@@ -507,7 +517,11 @@ func (s *Server) GetLanguages(ctx context.Context, request GetLanguagesRequestOb
 	}
 
 	sources := unionSourceParams(request.Params.Source, request.Params.SourceIds)
-	data, err := s.db.GetLanguageDetections(ctx, request.Params.StartDate, request.Params.EndDate, sources, request.Params.Language, limit)
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetLanguages400JSONResponse{Message: msg}, nil
+	}
+	data, err := s.db.GetLanguageDetections(ctx, start, end, sources, request.Params.Language, limit)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetLanguages", "error", err)
 		return GetLanguages500JSONResponse{Message: genericInternalError}, nil
@@ -651,10 +665,14 @@ func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProb
 
 // GetMetricsAvailable handles GET /metrics/available — returns distinct metric names
 // with validation status for a time range.
-// startDate and endDate are required — the framework returns 400 before this handler
-// is called if either is absent.
+// startDate and endDate are OPTIONAL: omit both for the whole dataset;
+// supplying one without the other is rejected.
 func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvailableRequestObject) (GetMetricsAvailableResponseObject, error) {
-	rows, err := s.db.GetAvailableMetrics(ctx, request.Params.StartDate, request.Params.EndDate)
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetMetricsAvailable400JSONResponse{Message: msg}, nil
+	}
+	rows, err := s.db.GetAvailableMetrics(ctx, start, end)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricsAvailable", "error", err)
 		return GetMetricsAvailable500JSONResponse{Message: genericInternalError}, nil

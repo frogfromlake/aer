@@ -12,6 +12,11 @@ import (
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
+// timePtr returns a pointer to t. The window params are now optional
+// (*time.Time) so absent bounds mean "whole dataset"; test fixtures wrap
+// concrete instants with this helper.
+func timePtr(t time.Time) *time.Time { return &t }
+
 // Phase 115 — BFF coverage for percentile normalization, the cross-frame
 // equivalence gate, the structured equivalenceStatus on /metrics/available,
 // and the new /probes/{probeId}/equivalence endpoint.
@@ -35,8 +40,8 @@ func TestGetMetrics_PercentileDispatchesToPercentileQuery(t *testing.T) {
 	metric := "word_count"
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
 		Params: GetMetricsParams{
-			StartDate:     time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:       time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+			StartDate:     timePtr(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)),
+			EndDate:       timePtr(time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC)),
 			Normalization: &mode,
 			MetricName:    &metric,
 		},
@@ -83,8 +88,8 @@ func TestGetMetrics_CrossFrameRefusalReturnsStructured400(t *testing.T) {
 	metric := "sentiment_score_sentiws"
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
 		Params: GetMetricsParams{
-			StartDate:     time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:       time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+			StartDate:     timePtr(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)),
+			EndDate:       timePtr(time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC)),
 			Normalization: &mode,
 			MetricName:    &metric,
 		},
@@ -125,8 +130,8 @@ func TestGetMetrics_CrossFrameWithEquivalenceLetsRequestThrough(t *testing.T) {
 	metric := "sentiment"
 	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
 		Params: GetMetricsParams{
-			StartDate:     time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:       time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+			StartDate:     timePtr(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)),
+			EndDate:       timePtr(time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC)),
 			Normalization: &mode,
 			MetricName:    &metric,
 		},
@@ -164,8 +169,8 @@ func TestGetMetricsAvailable_IncludesEquivalenceStatusWithNotes(t *testing.T) {
 	s := NewServer(store, nil, nil, nil, nil)
 	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
 		Params: GetMetricsAvailableParams{
-			StartDate: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:   time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+			StartDate: timePtr(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)),
+			EndDate:   timePtr(time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC)),
 		},
 	})
 	if err != nil {

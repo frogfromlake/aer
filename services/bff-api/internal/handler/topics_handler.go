@@ -41,21 +41,21 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 		return GetTopicDistribution400JSONResponse{Message: reason}, nil
 	}
 
-	// Window is optional on this endpoint — when absent we fall back to
-	// the last 30 days (the default BERTopic sweep window in
-	// `internal.corpus.TopicConfig`). This keeps the dashboard's first
-	// render trivial while preserving exact-window queries for the
-	// Phase 121 evolution view.
-	end := time.Now().UTC()
-	if request.Params.End != nil && !request.Params.End.IsZero() {
-		end = *request.Params.End
-	}
-	start := end.Add(-30 * 24 * time.Hour)
-	if request.Params.Start != nil && !request.Params.Start.IsZero() {
-		start = *request.Params.Start
-	}
-	if msg := validateWindow(start, end); msg != "" {
-		return GetTopicDistribution400JSONResponse{Message: msg}, nil
+	// topic_distribution is synchronic: with NO window it shows the single
+	// newest BERTopic sweep (one coherent model — BERTopic topic_ids are unique
+	// only within a sweep, so aggregating across sweeps would conflate distinct
+	// topics; see WP-004 §3.4). A supplied window keeps the diachronic overlap
+	// behaviour the evolution view relies on (it passes explicit per-bucket
+	// windows). Each bound is independently optional; resolveWindow opens the
+	// missing side.
+	latestSweep := request.Params.Start == nil && request.Params.End == nil
+	var start, end time.Time
+	if !latestSweep {
+		var msg string
+		start, end, msg = resolveWindow(request.Params.Start, request.Params.End)
+		if msg != "" {
+			return GetTopicDistribution400JSONResponse{Message: msg}, nil
+		}
 	}
 
 	if errBody, ok := s.validateLanguageQueryParam(request.Params.Language); !ok {
@@ -84,6 +84,7 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 		Language:       request.Params.Language,
 		Start:          start,
 		End:            end,
+		LatestSweep:    latestSweep,
 		MinConfidence:  minConfidence,
 		IncludeOutlier: includeOutlier,
 		Limit:          50,
@@ -93,11 +94,18 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 		return GetTopicDistribution500JSONResponse{Message: genericInternalError}, nil
 	}
 
+	// In latest-sweep mode the echoed window reflects the actual sweep the rows
+	// came from (so the UI can label "topics over <start>–<end>"); in windowed
+	// mode it echoes the requested window.
+	windowStart, windowEnd := start, end
+	if latestSweep && len(rows) > 0 {
+		windowStart, windowEnd = rows[0].WindowStart, rows[0].WindowEnd
+	}
 	resp := GetTopicDistribution200JSONResponse{
 		Scope:       strPtr(string(kind)),
 		ScopeId:     request.Params.ScopeId,
-		WindowStart: start,
-		WindowEnd:   end,
+		WindowStart: windowStart,
+		WindowEnd:   windowEnd,
 	}
 	if request.Params.Language != nil {
 		lang := *request.Params.Language

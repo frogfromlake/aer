@@ -21,7 +21,6 @@
   } from '$lib/api/queries';
   import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
-  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
@@ -41,13 +40,19 @@
     return fromPillar ?? '';
   });
 
-  const windowMs = $derived.by(() => {
-    const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = url.to ? Date.parse(url.to) : now;
+  // Default window = the WHOLE dataset: undefined bounds ⇒ no time filter (the
+  // BFF treats absent start/end as unbounded). Time-limiting is an optional
+  // feature, engaged only when the URL carries from/to. Mirrors DossierOverlay.
+  const windowMs = $derived.by<{ start: string | undefined; end: string | undefined }>(() => {
+    const fromMs = url.from ? Date.parse(url.from) : NaN;
+    const toMs = url.to ? Date.parse(url.to) : NaN;
     return {
-      start: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS).toISOString(),
-      end: new Date(Number.isFinite(toMs) ? toMs : now).toISOString()
+      start: Number.isFinite(fromMs) ? new Date(fromMs).toISOString() : undefined,
+      end: Number.isFinite(toMs)
+        ? new Date(toMs).toISOString()
+        : url.from
+          ? new Date().toISOString()
+          : undefined
     };
   });
 

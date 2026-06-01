@@ -22,13 +22,13 @@
   } from '$lib/api/queries';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import {
+    CROSS_PROBE_DEFAULT_METRIC,
     DEFAULT_METRIC_NAME,
     metricSupportsPresentation,
     presentationsForPillar,
     resolvePresentation
   } from '$lib/viewmodes';
   import {
-    DEFAULT_LOOKBACK_MS,
     type CellChannelBinding,
     type Normalization,
     type NetworkColorChannel,
@@ -80,31 +80,40 @@
   // back to the global url.from/url.to. The Window date inputs below
   // mutate panel.windowStart/windowEnd via updatePanel.
   const windowBounds = $derived.by(() => {
-    const now = Date.now();
     const panelStart = boundPanel?.windowStart;
     const panelEnd = boundPanel?.windowEnd;
     const fromSrc = panelStart ?? url.from;
     const toSrc = panelEnd ?? url.to;
-    const fromMs = fromSrc ? Date.parse(fromSrc) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = toSrc ? Date.parse(toSrc) : now;
+    const fromMs = fromSrc ? Date.parse(fromSrc) : NaN;
+    const toMs = toSrc ? Date.parse(toSrc) : NaN;
+    // undefined on a side ⇒ no bound there ⇒ whole dataset (time-limiting is
+    // an OPTIONAL feature; the BFF treats absent bounds as unbounded).
     return {
-      startMs: Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS,
-      endMs: Number.isFinite(toMs) ? toMs : now,
+      startMs: Number.isFinite(fromMs) ? fromMs : undefined,
+      endMs: Number.isFinite(toMs) ? toMs : undefined,
       isPanelOverride: panelStart !== undefined || panelEnd !== undefined
     };
   });
   // Date-only form for the `/metrics/available` window + the native date
-  // inputs (which take YYYY-MM-DD).
+  // inputs (YYYY-MM-DD). Undefined when that side is unbounded — the input
+  // renders empty and the query omits the bound.
   const dateWindow = $derived({
-    startDate: new Date(windowBounds.startMs).toISOString().slice(0, 10),
-    endDate: new Date(windowBounds.endMs).toISOString().slice(0, 10),
+    startDate:
+      windowBounds.startMs !== undefined
+        ? new Date(windowBounds.startMs).toISOString().slice(0, 10)
+        : undefined,
+    endDate:
+      windowBounds.endMs !== undefined
+        ? new Date(windowBounds.endMs).toISOString().slice(0, 10)
+        : undefined,
     isPanelOverride: windowBounds.isPanelOverride
   });
   // Phase 123c (C1) — full RFC 3339 form for `/scope/available-metrics`,
-  // whose `start`/`end` parameters are `format: date-time`.
+  // whose `start`/`end` parameters are `format: date-time` (both optional).
   const windowIso = $derived({
-    start: new Date(windowBounds.startMs).toISOString(),
-    end: new Date(windowBounds.endMs).toISOString()
+    start:
+      windowBounds.startMs !== undefined ? new Date(windowBounds.startMs).toISOString() : undefined,
+    end: windowBounds.endMs !== undefined ? new Date(windowBounds.endMs).toISOString() : undefined
   });
 
   const availQ = createQuery<
@@ -390,20 +399,29 @@
     const next = !(boundPanel.cellControlsCollapsed === true);
     updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: next }));
   }
-  // A scope-valid metric to snap back to when "show anyway" is turned off and
-  // the active metric is no longer offerable. Prefer the scope's default
-  // (multilingual backbone for cross-probe), else the first available metric
-  // the active view can render.
+  // A scope-valid metric to snap to when the active metric is not offerable
+  // for the scope (e.g. the German-only SentiWS default on a French single-
+  // probe panel, or after "show anyway" is turned off). Preference order:
+  //   1. the scope's canonical default — SentiWS for a German single-probe
+  //      panel — when the scope actually carries it (keeps Probe 0's tuned
+  //      lexicon as its default);
+  //   2. the multilingual sentiment backbone, the one sentiment EVERY probe
+  //      carries, so a probe without a probe/language-specific model (e.g.
+  //      Probe 1, French) defaults to backbone sentiment — not an arbitrary
+  //      first metric;
+  //   3. any available sentiment metric, then any available metric.
   function resetMetricForScope(): string {
     const view = activePresentation.id;
-    const fallback = defaultMetricForScopes(boundPanel?.scopes ?? []);
-    if (scopeAvailableSet?.has(fallback) && metricSupportsPresentation(fallback, view)) {
-      return fallback;
-    }
-    const firstOk = availableMetricNames.find(
-      (m) => (scopeAvailableSet?.has(m) ?? true) && metricSupportsPresentation(m, view)
+    const ok = (m: string) =>
+      (scopeAvailableSet?.has(m) ?? true) && metricSupportsPresentation(m, view);
+    const canonical = defaultMetricForScopes(boundPanel?.scopes ?? []);
+    if (ok(canonical)) return canonical;
+    if (ok(CROSS_PROBE_DEFAULT_METRIC)) return CROSS_PROBE_DEFAULT_METRIC;
+    const firstSentiment = availableMetricNames.find(
+      (m) => m.startsWith('sentiment_score') && ok(m)
     );
-    return firstOk ?? fallback;
+    if (firstSentiment) return firstSentiment;
+    return availableMetricNames.find(ok) ?? canonical;
   }
   // Issue 6 — "show anyway": offer the withheld (partial) metrics in the
   // picker. PanelHost still renders only the sources that carry the chosen
@@ -426,6 +444,27 @@
       return o;
     });
   }
+
+  // Capability-driven default reconcile: when the active SCALAR metric is not
+  // available for the panel's scope — e.g. the build-time SentiWS default on a
+  // French single-probe panel (Probe 1 carries only the multilingual sentiment
+  // backbone) — snap it to a scope-valid metric. This makes the *default*
+  // probe-specific without `defaultMetricForScopes` needing async capability
+  // data. Guards: only for views that consume the scalar metric (scatter /
+  // cooccurrence drive their own binding); only for real /metrics/available
+  // scalar metrics, never the cooccurrence pair pseudo-metric (absent from the
+  // scope set by design); skipped while "show anyway" is on. Converges because
+  // the reset target is always scope-available, so the next run early-returns.
+  $effect(() => {
+    if (!panelPath || !boundPanel || !viewUsesMetric) return;
+    if (scopeAvailableSet === null || activeShowWithheld) return;
+    if (scopeAvailableSet.has(activeMetric)) return;
+    if (!availableMetricNames.includes(activeMetric)) return;
+    const next = resetMetricForScope();
+    if (next && next !== activeMetric) {
+      updatePanel(panelPath, (p) => ({ ...p, metric: next }));
+    }
+  });
 
   // Phase 122k F5 — Window date handlers. Both write to the bound panel's
   // own windowStart/windowEnd; when the panel has no override yet the

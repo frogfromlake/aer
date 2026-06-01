@@ -255,5 +255,56 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create silver documents table: %v", err)
 	}
 
+	// Phase 120 topic assignments. Mirrors migration 000018 —
+	// ReplacingMergeTree, queried with FINAL; topic_id is unique only within a
+	// (window_start, language) sweep, which the latest-sweep query relies on.
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.topic_assignments (
+			window_start      DateTime,
+			window_end        DateTime,
+			source            String,
+			article_id        String,
+			language          String,
+			topic_id          Int32,
+			topic_label       String,
+			topic_confidence  Float32,
+			model_hash        String,
+			ingestion_version UInt64 DEFAULT 0
+		) ENGINE = ReplacingMergeTree(ingestion_version)
+		ORDER BY (window_start, source, article_id, language, topic_id)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create topic_assignments table: %v", err)
+	}
+
+	// ADR-032 / ADR-036: revision chain. Mirrors migration 000023/000024 —
+	// ReplacingMergeTree(ingestion_version) keyed on
+	// (article_id, snapshot_at, content_hash). MUST be a MergeTree (not
+	// Memory) so GetRevisionActivity's `FINAL` collapses the duplicate
+	// versions the re-attempt loop writes when it re-heals an article.
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.article_revisions (
+			article_id String,
+			source LowCardinality(String),
+			discourse_function LowCardinality(String) DEFAULT '',
+			snapshot_at DateTime,
+			content_hash String,
+			prev_content_hash String DEFAULT '',
+			revision_index UInt32 DEFAULT 0,
+			time_since_prev_hours Float64 DEFAULT 0,
+			revision_trigger LowCardinality(String) DEFAULT 'unknown',
+			ingestion_version UInt64,
+			archive_url String DEFAULT '',
+			diff_paragraphs Array(String) DEFAULT [],
+			headline_changed Bool DEFAULT false,
+			headline_before String DEFAULT '',
+			headline_after String DEFAULT ''
+		) ENGINE = ReplacingMergeTree(ingestion_version)
+		ORDER BY (article_id, snapshot_at, content_hash)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create article_revisions table: %v", err)
+	}
+
 	return store, ctx
 }

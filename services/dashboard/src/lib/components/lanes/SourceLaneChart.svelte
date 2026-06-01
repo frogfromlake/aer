@@ -24,8 +24,11 @@
     sourceNames?: readonly string[];
     emicDesignation: string | null | undefined;
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
+    /** RFC 3339 bounds, or `undefined` for the whole dataset (no time filter).
+     *  The x-axis derives its domain from the returned data, so an absent
+     *  window renders the full observed range rather than an empty axis. */
+    windowStart?: string | undefined;
+    windowEnd?: string | undefined;
     metricName: string;
     /** Phase 131 — render the ±1σ uncertainty band (default true). When set,
      *  the metrics query requests `includeStddev` and the chart draws a band
@@ -76,8 +79,8 @@
     QueryOutcome<MetricsResponseDto>
   >(() => {
     const o = metricsQuery(ctx, {
-      startDate: windowStart,
-      endDate: windowEnd,
+      ...(windowStart ? { startDate: windowStart } : {}),
+      ...(windowEnd ? { endDate: windowEnd } : {}),
       // For single-source (split or legacy), pass `source`. For multi-
       // source merge, pass `sourceIds` so the BFF unions server-side.
       ...(isMergedMulti

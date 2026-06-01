@@ -38,8 +38,8 @@
     pillarState: PillarState;
     dossier: ProbeDossierDto;
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
+    windowStart: string | undefined;
+    windowEnd: string | undefined;
   }
 
   let { pillar, pillarState, dossier, ctx, windowStart, windowEnd }: Props = $props();

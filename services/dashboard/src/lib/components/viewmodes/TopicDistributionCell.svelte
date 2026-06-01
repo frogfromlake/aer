@@ -73,6 +73,18 @@
     topicQ.data?.kind === 'success' ? topicQ.data.data : null
   );
 
+  // When no window is set (the whole-dataset default), topic_distribution is
+  // synchronic: the BFF returns the single NEWEST BERTopic sweep (one coherent
+  // model — topic_ids are sweep-local, so it cannot aggregate across sweeps).
+  // We surface the sweep's own coverage window so the reader knows these topics
+  // describe that span, not the whole 365-day corpus.
+  let isLatestSweep = $derived(windowStart === undefined && windowEnd === undefined);
+  let sweepRange = $derived(
+    payload && payload.windowStart && payload.windowEnd
+      ? `${payload.windowStart.slice(0, 10)} – ${payload.windowEnd.slice(0, 10)}`
+      : null
+  );
+
   let rows = $derived<NormalisedTopic[]>(payload ? normaliseTopics(payload.topics) : []);
   let languages = $derived(languagesOf(rows));
   let multiLang = $derived(languages.length > 1);
@@ -265,6 +277,15 @@
     {/if}
   </header>
 
+  {#if isLatestSweep && sweepRange && rows.length > 0}
+    <p
+      class="sweep-caption"
+      title="Topics are computed per background sweep; this cell shows the single latest sweep."
+    >
+      Latest topic sweep · {sweepRange}
+    </p>
+  {/if}
+
   {#if isPending}
     <p class="muted" aria-busy="true">Loading topic distribution…</p>
   {:else if refusalData}
@@ -442,6 +463,13 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .sweep-caption {
+    margin: calc(-1 * var(--space-2)) 0 0;
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-fg-subtle);
   }
 
   .scope-name {

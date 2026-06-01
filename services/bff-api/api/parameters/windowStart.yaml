@@ -1,7 +1,7 @@
 name: start
 in: query
-description: Inclusive start of the query window (RFC 3339).
-required: true
+description: Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+required: false
 schema:
   type: string
   format: date-time

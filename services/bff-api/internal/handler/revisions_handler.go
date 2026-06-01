@@ -38,16 +38,17 @@ func (s *Server) GetRevisionActivity(ctx context.Context, request GetRevisionAct
 		return GetRevisionActivity500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	if !request.Params.EndDate.After(request.Params.StartDate) {
-		return GetRevisionActivity400JSONResponse{Message: "endDate must be strictly after startDate"}, nil
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetRevisionActivity400JSONResponse{Message: msg}, nil
 	}
 	resolution := revisionResolutionFromParam(request.Params.Resolution)
 
 	cells, err := s.db.GetRevisionActivity(
 		ctx,
 		sources,
-		request.Params.StartDate,
-		request.Params.EndDate,
+		start,
+		end,
 		resolution,
 	)
 	if err != nil {
@@ -60,10 +61,8 @@ func (s *Server) GetRevisionActivity(ctx context.Context, request GetRevisionAct
 		ScopeId:    request.Params.ScopeId,
 		Resolution: revisionResolutionToResponse(resolution),
 	}
-	ws := request.Params.StartDate
-	we := request.Params.EndDate
-	resp.WindowStart = &ws
-	resp.WindowEnd = &we
+	resp.WindowStart = request.Params.StartDate
+	resp.WindowEnd = request.Params.EndDate
 
 	entries := make([]struct {
 		ArticlesAffected int             `json:"articlesAffected"`

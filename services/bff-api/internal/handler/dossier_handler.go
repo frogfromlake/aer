@@ -408,17 +408,30 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 
 // normaliseWindow validates a (start, end) pair. Both must be present
 // together or both absent; if present, start must be <= end.
+//
+// Each bound is INDEPENDENTLY optional. Both absent ⇒ (nil, nil) = whole
+// dataset (no time filter). A single supplied bound opens the other side to the
+// dataset extent (lower → wholeDatasetStart, upper → now) so the article-count
+// window stays well-formed instead of 400-ing. Only an inverted window is
+// rejected.
 func normaliseWindow(start, end *time.Time) (*time.Time, *time.Time, error) {
 	if start == nil && end == nil {
 		return nil, nil, nil
 	}
-	if start == nil || end == nil {
-		return nil, nil, errors.New("windowStart and windowEnd must be supplied together")
+	s := start
+	if s == nil {
+		floor := wholeDatasetStart
+		s = &floor
 	}
-	if end.Before(*start) {
+	e := end
+	if e == nil {
+		now := time.Now().UTC()
+		e = &now
+	}
+	if e.Before(*s) {
 		return nil, nil, errors.New("windowEnd must be >= windowStart")
 	}
-	return start, end, nil
+	return s, e, nil
 }
 
 // encodeCursor wraps an integer offset in an opaque base64 token. The

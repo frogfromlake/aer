@@ -1153,10 +1153,16 @@ export interface components {
             scope?: string;
             /** @description The resolved scope identifier. */
             scopeId?: string;
-            /** Format: date-time */
-            windowStart: string;
-            /** Format: date-time */
-            windowEnd: string;
+            /**
+             * Format: date-time
+             * @description Resolved lower window bound; null when the query was unbounded (whole dataset).
+             */
+            windowStart?: string | null;
+            /**
+             * Format: date-time
+             * @description Resolved upper window bound; null when unbounded.
+             */
+            windowEnd?: string | null;
             /** @description Histogram bins ordered ascending by `lower`. */
             bins: {
                 /**
@@ -1239,10 +1245,16 @@ export interface components {
             yDimension: string;
             scope?: string;
             scopeId?: string;
-            /** Format: date-time */
-            windowStart: string;
-            /** Format: date-time */
-            windowEnd: string;
+            /**
+             * Format: date-time
+             * @description Resolved lower window bound; null when the query was unbounded (whole dataset).
+             */
+            windowStart?: string | null;
+            /**
+             * Format: date-time
+             * @description Resolved upper window bound; null when unbounded.
+             */
+            windowEnd?: string | null;
             /** @description One row per non-empty (x, y) cell. */
             cells: {
                 /** @description The x-axis bucket label (string-encoded so int / category fit one shape). */
@@ -1293,19 +1305,31 @@ export interface components {
             resolution: string;
             scope?: string;
             scopeId?: string;
-            /** Format: date-time */
-            windowStart: string;
-            /** Format: date-time */
-            windowEnd: string;
+            /**
+             * Format: date-time
+             * @description Resolved lower window bound; null when the query was unbounded (whole dataset).
+             */
+            windowStart?: string | null;
+            /**
+             * Format: date-time
+             * @description Resolved upper window bound; null when unbounded.
+             */
+            windowEnd?: string | null;
         };
         /** @description Aggregated entity-pair co-occurrence graph for the Network Science x force-directed-graph view mode. Edges are the top-N pairs by summed cooccurrence_count over the window; nodes are the union of incident entities, sized by their per-window total mention count. */
         CoOccurrenceGraph: {
             scope?: string;
             scopeId?: string;
-            /** Format: date-time */
-            windowStart: string;
-            /** Format: date-time */
-            windowEnd: string;
+            /**
+             * Format: date-time
+             * @description Resolved lower window bound; null when the query was unbounded (whole dataset).
+             */
+            windowStart?: string | null;
+            /**
+             * Format: date-time
+             * @description Resolved upper window bound; null when unbounded.
+             */
+            windowEnd?: string | null;
             /**
              * Format: int64
              * @description The effective top-N applied (post-clamp).
@@ -1828,11 +1852,11 @@ export type $defs = Record<string, never>;
 export interface operations {
     getMetrics: {
         parameters: {
-            query: {
-                /** @description Start date for the metrics time range (ISO 8601) */
-                startDate: string;
-                /** @description End date for the metrics time range (ISO 8601) */
-                endDate: string;
+            query?: {
+                /** @description Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                startDate?: string;
+                /** @description End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                endDate?: string;
                 /** @description Filter metrics by data source (e.g., "wikipedia") */
                 source?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
@@ -1934,11 +1958,11 @@ export interface operations {
     };
     getMetricsAvailable: {
         parameters: {
-            query: {
-                /** @description Start date for the metrics time range (ISO 8601) */
-                startDate: string;
-                /** @description End date for the metrics time range (ISO 8601) */
-                endDate: string;
+            query?: {
+                /** @description Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                startDate?: string;
+                /** @description End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                endDate?: string;
             };
             header?: never;
             path?: never;
@@ -2006,10 +2030,10 @@ export interface operations {
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
-                /** @description Inclusive start of the query window (RFC 3339). */
-                start: string;
-                /** @description Exclusive end of the query window (RFC 3339). */
-                end: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
             };
             header?: never;
             path?: never;
@@ -2143,7 +2167,7 @@ export interface operations {
     };
     getMetricDistribution: {
         parameters: {
-            query: {
+            query?: {
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
@@ -2154,10 +2178,10 @@ export interface operations {
                 sourceIds?: string;
                 /** @description When set, the response additionally contains a `streams` array where each element carries the per-segment payload (same fields as the aggregate response). The aggregate fields (`bins`, `summary`, `cells`) are always included and reflect the full union scope. `source` produces one stream per resolved source; `probe` produces one stream per probe in `probeIds` (returns 400 when no probe IDs are resolved). Omitting this parameter preserves the current single-payload shape. */
                 segmentBy?: "source" | "probe";
-                /** @description Inclusive start of the query window (RFC 3339). */
-                start: string;
-                /** @description Exclusive end of the query window (RFC 3339). */
-                end: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
                 /** @description Number of histogram bins to request for the distribution. Server clamps values outside [1, 200] to the nearest bound. */
                 bins?: number;
             };
@@ -2252,10 +2276,10 @@ export interface operations {
                 xDimension: "dayOfWeek" | "hour" | "source" | "entityLabel" | "language";
                 /** @description Y-axis dimension for the heatmap. Same enum as xDimension. */
                 yDimension: "dayOfWeek" | "hour" | "source" | "entityLabel" | "language";
-                /** @description Inclusive start of the query window (RFC 3339). */
-                start: string;
-                /** @description Exclusive end of the query window (RFC 3339). */
-                end: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
             };
             header?: never;
             path: {
@@ -2349,10 +2373,10 @@ export interface operations {
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
-                /** @description Inclusive start of the query window (RFC 3339). */
-                start: string;
-                /** @description Exclusive end of the query window (RFC 3339). */
-                end: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
                 /** @description Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive. */
                 maxPoints?: number;
             };
@@ -2414,10 +2438,16 @@ export interface operations {
                         }[];
                         /** @description True when the in-window article set exceeded `maxPoints` and the point list was capped. The dashboard surfaces a "showing N of more" note. */
                         truncated: boolean;
-                        /** Format: date-time */
-                        windowStart: string;
-                        /** Format: date-time */
-                        windowEnd: string;
+                        /**
+                         * Format: date-time
+                         * @description Resolved lower window bound; null when the query was unbounded (whole dataset).
+                         */
+                        windowStart?: string | null;
+                        /**
+                         * Format: date-time
+                         * @description Resolved upper window bound; null when unbounded.
+                         */
+                        windowEnd?: string | null;
                     };
                 };
             };
@@ -2479,7 +2509,7 @@ export interface operations {
     };
     getScopeAvailableMetrics: {
         parameters: {
-            query: {
+            query?: {
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
@@ -2488,10 +2518,10 @@ export interface operations {
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
-                /** @description Inclusive start of the query window (RFC 3339). */
-                start: string;
-                /** @description Exclusive end of the query window (RFC 3339). */
-                end: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
             };
             header?: never;
             path?: never;
@@ -2581,11 +2611,11 @@ export interface operations {
     };
     getEntities: {
         parameters: {
-            query: {
-                /** @description Start date for the metrics time range (ISO 8601) */
-                startDate: string;
-                /** @description End date for the metrics time range (ISO 8601) */
-                endDate: string;
+            query?: {
+                /** @description Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                startDate?: string;
+                /** @description End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                endDate?: string;
                 /** @description Filter metrics by data source (e.g., "wikipedia") */
                 source?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
@@ -2669,7 +2699,7 @@ export interface operations {
     };
     getEntityCoOccurrence: {
         parameters: {
-            query: {
+            query?: {
                 /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
                 scope?: "probe" | "source";
                 /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
@@ -2678,10 +2708,10 @@ export interface operations {
                 probeIds?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
                 sourceIds?: string;
-                /** @description Inclusive start of the query window (RFC 3339). */
-                start: string;
-                /** @description Exclusive end of the query window (RFC 3339). */
-                end: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
                 /** @description Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound. */
                 topN?: number;
             };
@@ -2774,14 +2804,14 @@ export interface operations {
                     }[];
                     /**
                      * Format: date-time
-                     * @description Inclusive start of the query window (RFC 3339).
+                     * @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH windowStart and windowEnd for the whole dataset (no time filter); supplying one without the other is rejected.
                      */
-                    windowStart: string;
+                    windowStart?: string;
                     /**
                      * Format: date-time
-                     * @description Exclusive end of the query window (RFC 3339).
+                     * @description Exclusive end of the query window (RFC 3339). Optional — see windowStart.
                      */
-                    windowEnd: string;
+                    windowEnd?: string;
                     /**
                      * @description Maximum number of co-occurrence edges to return. Server clamps values outside [1, 500] to the nearest bound.
                      * @default 50
@@ -2987,11 +3017,11 @@ export interface operations {
     };
     getLanguages: {
         parameters: {
-            query: {
-                /** @description Start date for the metrics time range (ISO 8601) */
-                startDate: string;
-                /** @description End date for the metrics time range (ISO 8601) */
-                endDate: string;
+            query?: {
+                /** @description Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                startDate?: string;
+                /** @description End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                endDate?: string;
                 /** @description Filter metrics by data source (e.g., "wikipedia") */
                 source?: string;
                 /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
@@ -4093,9 +4123,9 @@ export interface operations {
                 /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
                 scopeId: string;
                 /** @description Inclusive start of the analysis window (RFC 3339). */
-                startDate: string;
+                startDate?: string;
                 /** @description Exclusive end of the analysis window (RFC 3339). */
-                endDate: string;
+                endDate?: string;
                 /** @description Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window (Aleph cell); `daily` / `weekly` / `monthly` bucket the window on that grain (Episteme cell). */
                 resolution?: "snapshot" | "daily" | "weekly" | "monthly";
             };

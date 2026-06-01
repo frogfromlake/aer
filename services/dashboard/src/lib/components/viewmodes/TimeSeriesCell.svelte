@@ -68,8 +68,8 @@
     QueryOutcome<MetricsResponseDto>
   >(() => {
     const o = metricsQuery(ctx, {
-      startDate: windowStart,
-      endDate: windowEnd,
+      ...(windowStart ? { startDate: windowStart } : {}),
+      ...(windowEnd ? { endDate: windowEnd } : {}),
       sourceIds: sourceNames.join(','),
       metricName,
       resolution: effectiveResolution,

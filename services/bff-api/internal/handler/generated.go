@@ -1476,11 +1476,11 @@ type GetContentParamsEntityType string
 
 // GetEntitiesParams defines parameters for GetEntities.
 type GetEntitiesParams struct {
-	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate time.Time `form:"startDate" json:"startDate"`
+	// StartDate Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
 
-	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate time.Time `form:"endDate" json:"endDate"`
+	// EndDate End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
@@ -1509,11 +1509,11 @@ type GetEntityCoOccurrenceParams struct {
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
 	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
-	// Start Inclusive start of the query window (RFC 3339).
-	Start time.Time `form:"start" json:"start"`
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
 
-	// End Exclusive end of the query window (RFC 3339).
-	End time.Time `form:"end" json:"end"`
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 
 	// TopN Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound.
 	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
@@ -1535,20 +1535,20 @@ type PostEntityCoOccurrenceQueryJSONBody struct {
 	// TopN Maximum number of co-occurrence edges to return. Server clamps values outside [1, 500] to the nearest bound.
 	TopN *int `json:"topN,omitempty"`
 
-	// WindowEnd Exclusive end of the query window (RFC 3339).
-	WindowEnd time.Time `json:"windowEnd"`
+	// WindowEnd Exclusive end of the query window (RFC 3339). Optional — see windowStart.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
 
-	// WindowStart Inclusive start of the query window (RFC 3339).
-	WindowStart time.Time `json:"windowStart"`
+	// WindowStart Inclusive start of the query window (RFC 3339). Optional — omit BOTH windowStart and windowEnd for the whole dataset (no time filter); supplying one without the other is rejected.
+	WindowStart *time.Time `json:"windowStart,omitempty"`
 }
 
 // GetLanguagesParams defines parameters for GetLanguages.
 type GetLanguagesParams struct {
-	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate time.Time `form:"startDate" json:"startDate"`
+	// StartDate Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
 
-	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate time.Time `form:"endDate" json:"endDate"`
+	// EndDate End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
@@ -1565,11 +1565,11 @@ type GetLanguagesParams struct {
 
 // GetMetricsParams defines parameters for GetMetrics.
 type GetMetricsParams struct {
-	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate time.Time `form:"startDate" json:"startDate"`
+	// StartDate Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
 
-	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate time.Time `form:"endDate" json:"endDate"`
+	// EndDate End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
 
 	// Source Filter metrics by data source (e.g., "wikipedia")
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
@@ -1598,11 +1598,11 @@ type GetMetricsParamsResolution string
 
 // GetMetricsAvailableParams defines parameters for GetMetricsAvailable.
 type GetMetricsAvailableParams struct {
-	// StartDate Start date for the metrics time range (ISO 8601)
-	StartDate time.Time `form:"startDate" json:"startDate"`
+	// StartDate Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
 
-	// EndDate End date for the metrics time range (ISO 8601)
-	EndDate time.Time `form:"endDate" json:"endDate"`
+	// EndDate End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
 }
 
 // GetMetricCorrelationParams defines parameters for GetMetricCorrelation.
@@ -1622,11 +1622,11 @@ type GetMetricCorrelationParams struct {
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
 	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
-	// Start Inclusive start of the query window (RFC 3339).
-	Start time.Time `form:"start" json:"start"`
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
 
-	// End Exclusive end of the query window (RFC 3339).
-	End time.Time `form:"end" json:"end"`
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 }
 
 // GetMetricCorrelationParamsScope defines parameters for GetMetricCorrelation.
@@ -1658,11 +1658,11 @@ type GetMetricScatterParams struct {
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
 	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
-	// Start Inclusive start of the query window (RFC 3339).
-	Start time.Time `form:"start" json:"start"`
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
 
-	// End Exclusive end of the query window (RFC 3339).
-	End time.Time `form:"end" json:"end"`
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 
 	// MaxPoints Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive.
 	MaxPoints *int `form:"maxPoints,omitempty" json:"maxPoints,omitempty"`
@@ -1688,11 +1688,11 @@ type GetMetricDistributionParams struct {
 	// SegmentBy When set, the response additionally contains a `streams` array where each element carries the per-segment payload (same fields as the aggregate response). The aggregate fields (`bins`, `summary`, `cells`) are always included and reflect the full union scope. `source` produces one stream per resolved source; `probe` produces one stream per probe in `probeIds` (returns 400 when no probe IDs are resolved). Omitting this parameter preserves the current single-payload shape.
 	SegmentBy *GetMetricDistributionParamsSegmentBy `form:"segmentBy,omitempty" json:"segmentBy,omitempty"`
 
-	// Start Inclusive start of the query window (RFC 3339).
-	Start time.Time `form:"start" json:"start"`
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
 
-	// End Exclusive end of the query window (RFC 3339).
-	End time.Time `form:"end" json:"end"`
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 
 	// Bins Number of histogram bins to request for the distribution. Server clamps values outside [1, 200] to the nearest bound.
 	Bins *int `form:"bins,omitempty" json:"bins,omitempty"`
@@ -1727,11 +1727,11 @@ type GetMetricHeatmapParams struct {
 	// YDimension Y-axis dimension for the heatmap. Same enum as xDimension.
 	YDimension GetMetricHeatmapParamsYDimension `form:"yDimension" json:"yDimension"`
 
-	// Start Inclusive start of the query window (RFC 3339).
-	Start time.Time `form:"start" json:"start"`
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
 
-	// End Exclusive end of the query window (RFC 3339).
-	End time.Time `form:"end" json:"end"`
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 }
 
 // GetMetricHeatmapParamsScope defines parameters for GetMetricHeatmap.
@@ -1764,10 +1764,10 @@ type GetRevisionActivityParams struct {
 	ScopeId string `form:"scopeId" json:"scopeId"`
 
 	// StartDate Inclusive start of the analysis window (RFC 3339).
-	StartDate time.Time `form:"startDate" json:"startDate"`
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
 
 	// EndDate Exclusive end of the analysis window (RFC 3339).
-	EndDate time.Time `form:"endDate" json:"endDate"`
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
 
 	// Resolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window (Aleph cell); `daily` / `weekly` / `monthly` bucket the window on that grain (Episteme cell).
 	Resolution *GetRevisionActivityParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
@@ -1823,11 +1823,11 @@ type GetScopeAvailableMetricsParams struct {
 	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
 	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
 
-	// Start Inclusive start of the query window (RFC 3339).
-	Start time.Time `form:"start" json:"start"`
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
 
-	// End Exclusive end of the query window (RFC 3339).
-	End time.Time `form:"end" json:"end"`
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 }
 
 // GetScopeAvailableMetricsParamsScope defines parameters for GetScopeAvailableMetrics.
@@ -2434,31 +2434,17 @@ func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Re
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetEntitiesParams
 
-	// ------------- Required query parameter "startDate" -------------
+	// ------------- Optional query parameter "startDate" -------------
 
-	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "endDate" -------------
+	// ------------- Optional query parameter "endDate" -------------
 
-	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -2553,31 +2539,17 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 		return
 	}
 
-	// ------------- Required query parameter "start" -------------
+	// ------------- Optional query parameter "start" -------------
 
-	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "end" -------------
+	// ------------- Optional query parameter "end" -------------
 
-	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
 		return
@@ -2650,31 +2622,17 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetLanguagesParams
 
-	// ------------- Required query parameter "startDate" -------------
+	// ------------- Optional query parameter "startDate" -------------
 
-	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "endDate" -------------
+	// ------------- Optional query parameter "endDate" -------------
 
-	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -2737,31 +2695,17 @@ func (siw *ServerInterfaceWrapper) GetMetrics(w http.ResponseWriter, r *http.Req
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetMetricsParams
 
-	// ------------- Required query parameter "startDate" -------------
+	// ------------- Optional query parameter "startDate" -------------
 
-	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "endDate" -------------
+	// ------------- Optional query parameter "endDate" -------------
 
-	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -2840,31 +2784,17 @@ func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetMetricsAvailableParams
 
-	// ------------- Required query parameter "startDate" -------------
+	// ------------- Optional query parameter "startDate" -------------
 
-	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "endDate" -------------
+	// ------------- Optional query parameter "endDate" -------------
 
-	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -2942,31 +2872,17 @@ func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r
 		return
 	}
 
-	// ------------- Required query parameter "start" -------------
+	// ------------- Optional query parameter "start" -------------
 
-	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "end" -------------
+	// ------------- Optional query parameter "end" -------------
 
-	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
 		return
@@ -3075,31 +2991,17 @@ func (siw *ServerInterfaceWrapper) GetMetricScatter(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// ------------- Required query parameter "start" -------------
+	// ------------- Optional query parameter "start" -------------
 
-	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "end" -------------
+	// ------------- Optional query parameter "end" -------------
 
-	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
 		return
@@ -3187,31 +3089,17 @@ func (siw *ServerInterfaceWrapper) GetMetricDistribution(w http.ResponseWriter, 
 		return
 	}
 
-	// ------------- Required query parameter "start" -------------
+	// ------------- Optional query parameter "start" -------------
 
-	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "end" -------------
+	// ------------- Optional query parameter "end" -------------
 
-	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
 		return
@@ -3329,31 +3217,17 @@ func (siw *ServerInterfaceWrapper) GetMetricHeatmap(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// ------------- Required query parameter "start" -------------
+	// ------------- Optional query parameter "start" -------------
 
-	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "end" -------------
+	// ------------- Optional query parameter "end" -------------
 
-	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
 		return
@@ -3584,31 +3458,17 @@ func (siw *ServerInterfaceWrapper) GetRevisionActivity(w http.ResponseWriter, r 
 		return
 	}
 
-	// ------------- Required query parameter "startDate" -------------
+	// ------------- Optional query parameter "startDate" -------------
 
-	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "endDate" -------------
+	// ------------- Optional query parameter "endDate" -------------
 
-	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return
@@ -3789,31 +3649,17 @@ func (siw *ServerInterfaceWrapper) GetScopeAvailableMetrics(w http.ResponseWrite
 		return
 	}
 
-	// ------------- Required query parameter "start" -------------
+	// ------------- Optional query parameter "start" -------------
 
-	if paramValue := r.URL.Query().Get("start"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "start"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "end" -------------
+	// ------------- Optional query parameter "end" -------------
 
-	if paramValue := r.URL.Query().Get("end"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "end"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
 		return
@@ -4979,9 +4825,13 @@ type GetEntityCoOccurrence200JSONResponse struct {
 	ScopeId *string `json:"scopeId,omitempty"`
 
 	// TopN The effective top-N applied (post-clamp).
-	TopN        int64     `json:"topN"`
-	WindowEnd   time.Time `json:"windowEnd"`
-	WindowStart time.Time `json:"windowStart"`
+	TopN int64 `json:"topN"`
+
+	// WindowEnd Resolved upper window bound; null when unbounded.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Resolved lower window bound; null when the query was unbounded (whole dataset).
+	WindowStart *time.Time `json:"windowStart,omitempty"`
 }
 
 func (response GetEntityCoOccurrence200JSONResponse) VisitGetEntityCoOccurrenceResponse(w http.ResponseWriter) error {
@@ -5100,9 +4950,13 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 	ScopeId *string `json:"scopeId,omitempty"`
 
 	// TopN The effective top-N applied (post-clamp).
-	TopN        int64     `json:"topN"`
-	WindowEnd   time.Time `json:"windowEnd"`
-	WindowStart time.Time `json:"windowStart"`
+	TopN int64 `json:"topN"`
+
+	// WindowEnd Resolved upper window bound; null when unbounded.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Resolved lower window bound; null when the query was unbounded (whole dataset).
+	WindowStart *time.Time `json:"windowStart,omitempty"`
 }
 
 func (response PostEntityCoOccurrenceQuery200JSONResponse) VisitPostEntityCoOccurrenceQueryResponse(w http.ResponseWriter) error {
@@ -5463,11 +5317,15 @@ type GetMetricCorrelation200JSONResponse struct {
 	Metrics []string     `json:"metrics"`
 
 	// Resolution Bucket resolution used (e.g. `5m`).
-	Resolution  string    `json:"resolution"`
-	Scope       *string   `json:"scope,omitempty"`
-	ScopeId     *string   `json:"scopeId,omitempty"`
-	WindowEnd   time.Time `json:"windowEnd"`
-	WindowStart time.Time `json:"windowStart"`
+	Resolution string  `json:"resolution"`
+	Scope      *string `json:"scope,omitempty"`
+	ScopeId    *string `json:"scopeId,omitempty"`
+
+	// WindowEnd Resolved upper window bound; null when unbounded.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Resolved lower window bound; null when the query was unbounded (whole dataset).
+	WindowStart *time.Time `json:"windowStart,omitempty"`
 }
 
 func (response GetMetricCorrelation200JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
@@ -5584,9 +5442,13 @@ type GetMetricScatter200JSONResponse struct {
 	SizeMetric *string `json:"sizeMetric,omitempty"`
 
 	// Truncated True when the in-window article set exceeded `maxPoints` and the point list was capped. The dashboard surfaces a "showing N of more" note.
-	Truncated   bool      `json:"truncated"`
-	WindowEnd   time.Time `json:"windowEnd"`
-	WindowStart time.Time `json:"windowStart"`
+	Truncated bool `json:"truncated"`
+
+	// WindowEnd Resolved upper window bound; null when unbounded.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Resolved lower window bound; null when the query was unbounded (whole dataset).
+	WindowStart *time.Time `json:"windowStart,omitempty"`
 
 	// XMetric Echo of the requested X-position metric.
 	XMetric string `json:"xMetric"`
@@ -5737,8 +5599,12 @@ type GetMetricDistribution200JSONResponse struct {
 		P75    float64 `json:"p75"`
 		P95    float64 `json:"p95"`
 	} `json:"summary"`
-	WindowEnd   time.Time `json:"windowEnd"`
-	WindowStart time.Time `json:"windowStart"`
+
+	// WindowEnd Resolved upper window bound; null when unbounded.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Resolved lower window bound; null when the query was unbounded (whole dataset).
+	WindowStart *time.Time `json:"windowStart,omitempty"`
 }
 
 func (response GetMetricDistribution200JSONResponse) VisitGetMetricDistributionResponse(w http.ResponseWriter) error {
@@ -5858,10 +5724,14 @@ type GetMetricHeatmap200JSONResponse struct {
 		// ScopeKind Segment kind: `source` or `probe`.
 		ScopeKind string `json:"scopeKind"`
 	} `json:"streams,omitempty"`
-	WindowEnd   time.Time `json:"windowEnd"`
-	WindowStart time.Time `json:"windowStart"`
-	XDimension  string    `json:"xDimension"`
-	YDimension  string    `json:"yDimension"`
+
+	// WindowEnd Resolved upper window bound; null when unbounded.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Resolved lower window bound; null when the query was unbounded (whole dataset).
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+	XDimension  string     `json:"xDimension"`
+	YDimension  string     `json:"yDimension"`
 }
 
 func (response GetMetricHeatmap200JSONResponse) VisitGetMetricHeatmapResponse(w http.ResponseWriter) error {

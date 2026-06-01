@@ -279,11 +279,11 @@ export function probesQuery(ctx: FetchContext): QueryOptions<ProbeDto[]> {
 
 export function metricsQuery(
   ctx: FetchContext,
-  params: MetricsParams
+  params: NonNullable<MetricsParams> = {}
 ): QueryOptions<MetricsResponseDto> {
   const qs = new URLSearchParams();
-  qs.set('startDate', params.startDate);
-  qs.set('endDate', params.endDate);
+  if (params.startDate) qs.set('startDate', params.startDate);
+  if (params.endDate) qs.set('endDate', params.endDate);
   if (params.source) qs.set('source', params.source);
   // Phase 122i revision (D1): the BFF `/metrics` endpoint unions
   // `source` (singular) and `sourceIds` (CSV). Multi-source merged Cells
@@ -479,8 +479,8 @@ export function sourceDiscoveryCoverageQuery(
 }
 
 export interface ArticleListParams {
-  start?: string;
-  end?: string;
+  start?: string | undefined;
+  end?: string | undefined;
   language?: string;
   entityMatch?: string;
   sentimentBand?: 'negative' | 'neutral' | 'positive';
@@ -551,13 +551,13 @@ export type ViewModeScope = 'probe' | 'source';
 export interface ViewModeQueryParams {
   scope: ViewModeScope;
   scopeId: string;
-  start: string;
-  end: string;
+  start?: string | undefined;
+  end?: string | undefined;
 }
 
 export interface MetricsAvailableParams {
-  startDate: string;
-  endDate: string;
+  startDate?: string | undefined;
+  endDate?: string | undefined;
 }
 
 export function metricsAvailableQuery(
@@ -565,8 +565,8 @@ export function metricsAvailableQuery(
   params: MetricsAvailableParams
 ): QueryOptions<AvailableMetricDto[]> {
   const qs = new URLSearchParams();
-  qs.set('startDate', params.startDate);
-  qs.set('endDate', params.endDate);
+  if (params.startDate) qs.set('startDate', params.startDate);
+  if (params.endDate) qs.set('endDate', params.endDate);
   return {
     queryKey: ['aer', 'metrics-available', params] as const,
     queryFn: () =>
@@ -588,8 +588,8 @@ export interface ScopeAvailableMetricsParams {
   scopeId?: string | undefined;
   probeIds?: readonly string[] | undefined;
   sourceIds?: readonly string[] | undefined;
-  start: string;
-  end: string;
+  start?: string | undefined;
+  end?: string | undefined;
 }
 
 export function scopeAvailableMetricsQuery(
@@ -602,8 +602,8 @@ export function scopeAvailableMetricsQuery(
   if (params.probeIds && params.probeIds.length > 0) qs.set('probeIds', params.probeIds.join(','));
   if (params.sourceIds && params.sourceIds.length > 0)
     qs.set('sourceIds', params.sourceIds.join(','));
-  qs.set('start', params.start);
-  qs.set('end', params.end);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
   return {
     queryKey: ['aer', 'scope-available-metrics', params] as const,
     queryFn: () =>
@@ -624,8 +624,8 @@ export function metricDistributionQuery(
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
   qs.set('scopeId', params.scopeId);
-  qs.set('start', params.start);
-  qs.set('end', params.end);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
   if (params.bins) qs.set('bins', String(params.bins));
   return {
     queryKey: ['aer', 'metric-distribution', metricName, params] as const,
@@ -655,8 +655,8 @@ export function metricScatterQuery(
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
   qs.set('scopeId', params.scopeId);
-  qs.set('start', params.start);
-  qs.set('end', params.end);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
   qs.set('xMetric', params.xMetric);
   qs.set('yMetric', params.yMetric);
   if (params.sizeMetric) qs.set('sizeMetric', params.sizeMetric);
@@ -677,8 +677,8 @@ export function entityCoOccurrenceQuery(
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
   qs.set('scopeId', params.scopeId);
-  qs.set('start', params.start);
-  qs.set('end', params.end);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
   if (params.topN) qs.set('topN', String(params.topN));
   return {
     queryKey: ['aer', 'entity-cooccurrence', params] as const,
@@ -711,8 +711,8 @@ export interface CoOccurrenceMultiScopeGroup {
 
 export interface CoOccurrenceMultiParams {
   scopes: readonly CoOccurrenceMultiScopeGroup[];
-  start: string;
-  end: string;
+  start?: string | undefined;
+  end?: string | undefined;
   topN?: number;
 }
 
@@ -805,8 +805,8 @@ export function topicDistributionQuery(
 
 export interface SilverAggregationParams {
   sourceId: string;
-  start: string;
-  end: string;
+  start?: string | undefined;
+  end?: string | undefined;
   bins?: number;
 }
 
@@ -817,8 +817,8 @@ export function silverAggregationQuery(
 ): QueryOptions<SilverAggregationResponseDto> {
   const qs = new URLSearchParams();
   qs.set('sourceId', params.sourceId);
-  qs.set('start', params.start);
-  qs.set('end', params.end);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
   if (params.bins) qs.set('bins', String(params.bins));
   return {
     queryKey: ['aer', 'silver-aggregation', aggregationType, params] as const,
@@ -847,8 +847,8 @@ export function silverAggregationQuery(
 export interface RevisionActivityParams {
   scope: ViewModeScope;
   scopeId: string;
-  start: string;
-  end: string;
+  start?: string | undefined;
+  end?: string | undefined;
   resolution: RevisionActivityResolution;
 }
 
@@ -859,8 +859,8 @@ export function revisionActivityQuery(
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
   qs.set('scopeId', params.scopeId);
-  qs.set('startDate', params.start);
-  qs.set('endDate', params.end);
+  if (params.start) qs.set('startDate', params.start);
+  if (params.end) qs.set('endDate', params.end);
   qs.set('resolution', params.resolution);
   return {
     queryKey: ['aer', 'revision-activity', params] as const,
@@ -893,8 +893,8 @@ export function articleRevisionsQuery(
 export interface RevisionsArticlesParams {
   scope: 'probe' | 'source';
   scopeId: string;
-  start: string;
-  end: string;
+  start?: string | undefined;
+  end?: string | undefined;
   hasHeadlineChange?: boolean;
   minChainLength?: number;
   limit?: number;
@@ -908,8 +908,8 @@ export function revisionsArticlesQuery(
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
   qs.set('scopeId', params.scopeId);
-  qs.set('startDate', params.start);
-  qs.set('endDate', params.end);
+  if (params.start) qs.set('startDate', params.start);
+  if (params.end) qs.set('endDate', params.end);
   if (params.hasHeadlineChange) qs.set('hasHeadlineChange', 'true');
   if (params.minChainLength && params.minChainLength > 1)
     qs.set('minChainLength', String(params.minChainLength));

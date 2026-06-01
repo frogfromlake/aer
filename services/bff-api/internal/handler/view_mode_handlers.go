@@ -104,7 +104,40 @@ func (s *Server) resolveScopeMulti(
 	return resolvedKind, sources, probeSegs, "", true
 }
 
+// wholeDatasetStart is the lower sentinel for an unbounded query window. It
+// predates any retained Gold row (data is TTL-bounded), so a
+// [wholeDatasetStart, now] range returned for absent bounds yields the whole
+// retained corpus — letting the storage layer keep its closed-[start,end]
+// filters unchanged while time-limiting becomes an OPTIONAL request feature
+// rather than a required default.
+var wholeDatasetStart = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// resolveWindow turns an optional request window into the concrete [start,end]
+// the storage layer queries. Each bound is INDEPENDENTLY optional: an absent
+// bound opens that side to the dataset extent (lower → wholeDatasetStart,
+// upper → now). So both absent ⇒ the whole dataset, and supplying exactly one
+// bound is a valid open-ended window (e.g. "everything up to X") — never a 400.
+// Only an inverted window (end not after start) is rejected. An empty msg means
+// OK.
+func resolveWindow(start, end *time.Time) (time.Time, time.Time, string) {
+	s := wholeDatasetStart
+	if start != nil {
+		s = *start
+	}
+	e := time.Now().UTC()
+	if end != nil {
+		e = *end
+	}
+	if !e.After(s) {
+		return time.Time{}, time.Time{}, "end must be strictly after start"
+	}
+	return s, e, ""
+}
+
 // validateWindow rejects malformed time windows before reaching ClickHouse.
+// Used by endpoints whose window stays REQUIRED (e.g. the eligibility-gated
+// Silver-aggregation surface); the analytical view-mode cells use the
+// optional-aware resolveWindow above.
 func validateWindow(start, end time.Time) string {
 	if start.IsZero() || end.IsZero() {
 		return "start and end are required"
@@ -132,7 +165,8 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 		}
 		return GetMetricDistribution400JSONResponse{Message: reason}, nil
 	}
-	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
 		return GetMetricDistribution400JSONResponse{Message: msg}, nil
 	}
 	if request.MetricName == "" {
@@ -146,7 +180,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 		bins = *request.Params.Bins
 	}
 
-	res, err := s.db.GetMetricDistribution(ctx, request.MetricName, sources, request.Params.Start, request.Params.End, bins)
+	res, err := s.db.GetMetricDistribution(ctx, request.MetricName, sources, start, end, bins)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricDistribution", "error", err)
 		return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -207,7 +241,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 				} `json:"summary"`
 			}, 0, len(sources))
 			for _, src := range sources {
-				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, []string{src}, request.Params.Start, request.Params.End, bins)
+				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, []string{src}, start, end, bins)
 				if serr != nil {
 					slog.Error("handler failure", "op", "GetMetricDistribution.stream", "source", src, "error", serr)
 					return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -283,7 +317,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 				} `json:"summary"`
 			}, 0, len(probeSegs))
 			for _, seg := range probeSegs {
-				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, seg.sources, request.Params.Start, request.Params.End, bins)
+				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, seg.sources, start, end, bins)
 				if serr != nil {
 					slog.Error("handler failure", "op", "GetMetricDistribution.stream", "probe", seg.id, "error", serr)
 					return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -356,7 +390,8 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 		}
 		return GetMetricScatter400JSONResponse{Message: reason}, nil
 	}
-	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
 		return GetMetricScatter400JSONResponse{Message: msg}, nil
 	}
 
@@ -382,7 +417,7 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 		maxPoints = *request.Params.MaxPoints
 	}
 
-	res, err := s.db.GetMetricScatter(ctx, xMetric, yMetric, sizeMetric, colorMetric, sources, request.Params.Start, request.Params.End, maxPoints)
+	res, err := s.db.GetMetricScatter(ctx, xMetric, yMetric, sizeMetric, colorMetric, sources, start, end, maxPoints)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricScatter", "error", err)
 		return GetMetricScatter500JSONResponse{Message: genericInternalError}, nil
@@ -451,23 +486,22 @@ func (s *Server) GetScopeAvailableMetrics(ctx context.Context, request GetScopeA
 		}
 		return GetScopeAvailableMetrics400JSONResponse{Message: reason}, nil
 	}
-	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
 		return GetScopeAvailableMetrics400JSONResponse{Message: msg}, nil
 	}
 
-	avail, err := s.db.GetScopeAvailableMetrics(ctx, request.Params.Start, request.Params.End, sources)
+	avail, err := s.db.GetScopeAvailableMetrics(ctx, start, end, sources)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetScopeAvailableMetrics", "error", err)
 		return GetScopeAvailableMetrics500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	ws := request.Params.Start
-	we := request.Params.End
 	resp := GetScopeAvailableMetrics200JSONResponse{
 		ScopedSources: avail.ScopedSources,
 		Available:     avail.Available,
-		WindowStart:   &ws,
-		WindowEnd:     &we,
+		WindowStart:   request.Params.Start,
+		WindowEnd:     request.Params.End,
 	}
 	resp.Partial = make([]struct {
 		MetricName string   `json:"metricName"`
@@ -497,7 +531,8 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 		}
 		return GetMetricHeatmap400JSONResponse{Message: reason}, nil
 	}
-	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
 		return GetMetricHeatmap400JSONResponse{Message: msg}, nil
 	}
 	if !request.Params.XDimension.Valid() || !request.Params.YDimension.Valid() {
@@ -512,8 +547,8 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 		sources,
 		storage.HeatmapDimension(request.Params.XDimension),
 		storage.HeatmapDimension(request.Params.YDimension),
-		request.Params.Start,
-		request.Params.End,
+		start,
+		end,
 	)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricHeatmap", "error", err)
@@ -563,7 +598,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 				sc, serr := s.db.GetMetricHeatmap(ctx, request.MetricName, []string{src},
 					storage.HeatmapDimension(request.Params.XDimension),
 					storage.HeatmapDimension(request.Params.YDimension),
-					request.Params.Start, request.Params.End)
+					start, end)
 				if serr != nil {
 					slog.Error("handler failure", "op", "GetMetricHeatmap.stream", "source", src, "error", serr)
 					return GetMetricHeatmap500JSONResponse{Message: genericInternalError}, nil
@@ -615,7 +650,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 				sc, serr := s.db.GetMetricHeatmap(ctx, request.MetricName, seg.sources,
 					storage.HeatmapDimension(request.Params.XDimension),
 					storage.HeatmapDimension(request.Params.YDimension),
-					request.Params.Start, request.Params.End)
+					start, end)
 				if serr != nil {
 					slog.Error("handler failure", "op", "GetMetricHeatmap.stream", "probe", seg.id, "error", serr)
 					return GetMetricHeatmap500JSONResponse{Message: genericInternalError}, nil
@@ -668,7 +703,8 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 		}
 		return GetMetricCorrelation400JSONResponse{Message: reason}, nil
 	}
-	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
 		return GetMetricCorrelation400JSONResponse{Message: msg}, nil
 	}
 
@@ -682,7 +718,7 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 	// Phase 117 read-side alias.
 	metrics = canonicalMetricNames(metrics)
 
-	res, err := s.db.GetMetricCorrelation(ctx, metrics, sources, request.Params.Start, request.Params.End)
+	res, err := s.db.GetMetricCorrelation(ctx, metrics, sources, start, end)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricCorrelation", "error", err)
 		return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
@@ -714,7 +750,8 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		}
 		return GetEntityCoOccurrence400JSONResponse{Message: reason}, nil
 	}
-	if msg := validateWindow(request.Params.Start, request.Params.End); msg != "" {
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
 		return GetEntityCoOccurrence400JSONResponse{Message: msg}, nil
 	}
 
@@ -723,7 +760,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		topN = *request.Params.TopN
 	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, request.Params.Start, request.Params.End, topN)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -863,7 +900,8 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	}
 	body := *request.Body
 
-	if msg := validateWindow(body.WindowStart, body.WindowEnd); msg != "" {
+	start, end, msg := resolveWindow(body.WindowStart, body.WindowEnd)
+	if msg != "" {
 		return PostEntityCoOccurrenceQuery400JSONResponse{Message: msg}, nil
 	}
 
@@ -978,7 +1016,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		topN = 500
 	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, body.WindowStart, body.WindowEnd, topN)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN)
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil

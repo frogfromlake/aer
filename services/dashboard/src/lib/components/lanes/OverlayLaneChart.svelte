@@ -34,8 +34,10 @@
   interface Props {
     sourceNames: readonly string[];
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
+    /** RFC 3339 bounds, or `undefined` for the whole dataset (no time filter);
+     *  the x-axis derives its domain from the returned data. */
+    windowStart?: string | undefined;
+    windowEnd?: string | undefined;
     metricName: string;
     height?: number;
     /** Phase 131 (BUG4) — per-panel resolution / Compare; fall back to URL. */
@@ -74,8 +76,8 @@
   const queries = createQueries(() => ({
     queries: sourceNames.map((name) => {
       const o = metricsQuery(ctx, {
-        startDate: windowStart,
-        endDate: windowEnd,
+        ...(windowStart ? { startDate: windowStart } : {}),
+        ...(windowEnd ? { endDate: windowEnd } : {}),
         source: name,
         metricName,
         resolution: activeResolution,

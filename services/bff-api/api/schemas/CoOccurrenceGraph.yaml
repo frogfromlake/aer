@@ -5,8 +5,6 @@ description: >
   cooccurrence_count over the window; nodes are the union of incident
   entities, sized by their per-window total mention count.
 required:
-  - windowStart
-  - windowEnd
   - topN
   - nodes
   - edges
@@ -18,9 +16,13 @@ properties:
   windowStart:
     type: string
     format: date-time
+    nullable: true
+    description: Resolved lower window bound; null when the query was unbounded (whole dataset).
   windowEnd:
     type: string
     format: date-time
+    nullable: true
+    description: Resolved upper window bound; null when unbounded.
   topN:
     type: integer
     format: int64

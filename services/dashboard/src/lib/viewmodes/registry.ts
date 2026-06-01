@@ -110,8 +110,12 @@ export interface ViewModeCellProps {
   /** Resolved scope: probe id or single source name. */
   scopeId: string;
   scope: 'probe' | 'source';
-  windowStart: string;
-  windowEnd: string;
+  /** RFC 3339 window bounds, or `undefined` for the whole dataset (no time
+   *  filter — time-limiting is an optional feature, not the default). Cells
+   *  that render a time axis must derive their domain from the returned data
+   *  when these are absent. */
+  windowStart: string | undefined;
+  windowEnd: string | undefined;
   metricName: string;
   /** Concrete sources within the active scope — used by per-source cells
    *  (time-series renders one panel per source). */

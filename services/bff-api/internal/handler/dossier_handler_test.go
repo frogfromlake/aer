@@ -142,8 +142,10 @@ func TestGetProbeDossier_BadWindow_400(t *testing.T) {
 	})
 	router := newTestRouter(srv)
 	rec := httptest.NewRecorder()
+	// Inverted window (end before start) is the genuinely-malformed case that
+	// stays a 400; a single bound is now valid (it opens the other side).
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/probes/probe-0-de-institutional-web/dossier?windowStart=2026-04-25T00:00:00Z", nil))
+		"/probes/probe-0-de-institutional-web/dossier?windowStart=2026-04-25T00:00:00Z&windowEnd=2026-04-20T00:00:00Z", nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}

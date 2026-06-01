@@ -42,8 +42,8 @@ func TestGetLanguages_RejectsUnknownLanguageWithRefusalPayload(t *testing.T) {
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
 		Params: GetLanguagesParams{
-			StartDate: start,
-			EndDate:   end,
+			StartDate: &start,
+			EndDate:   &end,
 			Language:  &bogus,
 		},
 	})
@@ -84,8 +84,8 @@ func TestGetLanguages_AcceptsKnownLanguage(t *testing.T) {
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
 		Params: GetLanguagesParams{
-			StartDate: start,
-			EndDate:   end,
+			StartDate: &start,
+			EndDate:   &end,
 			Language:  &known,
 		},
 	})
@@ -114,8 +114,8 @@ func TestGetLanguages_NilManifestPermitsLegacyCallers(t *testing.T) {
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
 		Params: GetLanguagesParams{
-			StartDate: start,
-			EndDate:   end,
+			StartDate: &start,
+			EndDate:   &end,
 			Language:  &bogus,
 		},
 	})

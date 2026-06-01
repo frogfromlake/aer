@@ -123,17 +123,37 @@ func TestGetTopicDistribution_StorageError500(t *testing.T) {
 	}
 }
 
-func TestGetTopicDistribution_DefaultWindow30Days(t *testing.T) {
+// TestGetTopicDistribution_NoWindowUsesLatestSweep pins the synchronic default:
+// with no window the handler asks storage for the single NEWEST sweep
+// (LatestSweep=true), not a time-windowed aggregate — so sweep-local topic_ids
+// are never conflated across model re-fits.
+func TestGetTopicDistribution_NoWindowUsesLatestSweep(t *testing.T) {
 	store := &mockStore{}
 	router := newTestRouter(newTopicsServer(store))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
 		"/topics/distribution?scope=source&scopeId=tagesschau", nil))
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 with default window, got %d %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200, got %d %s", rec.Code, rec.Body.String())
 	}
-	span := store.capturedTopicParams.End.Sub(store.capturedTopicParams.Start)
-	if span <= 29*24*60*60*1e9 || span >= 31*24*60*60*1e9 {
-		t.Fatalf("expected ~30d default window, got %v", span)
+	if !store.capturedTopicParams.LatestSweep {
+		t.Fatalf("no window must select the latest sweep (LatestSweep=true)")
+	}
+}
+
+// TestGetTopicDistribution_ExplicitWindowUsesOverlap pins the diachronic path
+// (the evolution view): an explicit window keeps the sweep-overlap aggregation
+// (LatestSweep=false) over the requested [start, end].
+func TestGetTopicDistribution_ExplicitWindowUsesOverlap(t *testing.T) {
+	store := &mockStore{}
+	router := newTestRouter(newTopicsServer(store))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/topics/distribution?scope=source&scopeId=tagesschau&start=2026-01-01T00:00:00Z&end=2026-02-01T00:00:00Z", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d %s", rec.Code, rec.Body.String())
+	}
+	if store.capturedTopicParams.LatestSweep {
+		t.Fatalf("an explicit window must use overlap aggregation (LatestSweep=false)")
 	}
 }

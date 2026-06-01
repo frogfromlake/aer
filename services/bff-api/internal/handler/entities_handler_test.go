@@ -13,18 +13,20 @@ import (
 
 // --- GetEntities ---
 
-// TestGetEntities_Returns400WhenMissingDates verifies that the generated router
-// enforces startDate and endDate as required query parameters.
-func TestGetEntities_Returns400WhenMissingDates(t *testing.T) {
+// TestGetEntities_WindowOptional pins the unbounded-default contract: omitting
+// BOTH dates returns the whole dataset (200); supplying one bound opens the
+// other side (still 200). Inverted windows are rejected elsewhere.
+func TestGetEntities_WindowOptional(t *testing.T) {
 	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil, nil))
 
 	cases := []struct {
 		name  string
 		query string
+		want  int
 	}{
-		{"no params", ""},
-		{"only startDate", "?startDate=2025-01-01T00:00:00Z"},
-		{"only endDate", "?endDate=2025-01-02T00:00:00Z"},
+		{"no params → whole dataset", "", http.StatusOK},
+		{"only startDate → open-ended", "?startDate=2025-01-01T00:00:00Z", http.StatusOK},
+		{"only endDate → open-ended", "?endDate=2025-01-02T00:00:00Z", http.StatusOK},
 	}
 
 	for _, tc := range cases {
@@ -32,8 +34,8 @@ func TestGetEntities_Returns400WhenMissingDates(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/entities"+tc.query, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected 400, got %d", w.Code)
+			if w.Code != tc.want {
+				t.Errorf("expected %d, got %d: %s", tc.want, w.Code, w.Body.String())
 			}
 		})
 	}
@@ -47,7 +49,7 @@ func TestGetEntities_Returns400WhenLimitTooLow(t *testing.T) {
 	limit := 0
 
 	resp, err := s.GetEntities(context.Background(), GetEntitiesRequestObject{
-		Params: GetEntitiesParams{StartDate: start, EndDate: end, Limit: &limit},
+		Params: GetEntitiesParams{StartDate: &start, EndDate: &end, Limit: &limit},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -65,7 +67,7 @@ func TestGetEntities_Returns400WhenLimitTooHigh(t *testing.T) {
 	limit := 5000
 
 	resp, err := s.GetEntities(context.Background(), GetEntitiesRequestObject{
-		Params: GetEntitiesParams{StartDate: start, EndDate: end, Limit: &limit},
+		Params: GetEntitiesParams{StartDate: &start, EndDate: &end, Limit: &limit},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -90,8 +92,8 @@ func TestGetEntities_ReturnsEntities(t *testing.T) {
 
 	resp, err := s.GetEntities(context.Background(), GetEntitiesRequestObject{
 		Params: GetEntitiesParams{
-			StartDate: start,
-			EndDate:   end,
+			StartDate: &start,
+			EndDate:   &end,
 			Label:     &label,
 		},
 	})
@@ -127,7 +129,7 @@ func TestGetEntities_Returns500OnStorageError(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetEntities(context.Background(), GetEntitiesRequestObject{
-		Params: GetEntitiesParams{StartDate: start, EndDate: end},
+		Params: GetEntitiesParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
@@ -150,7 +152,7 @@ func TestGetEntities_RespectsCustomLimit(t *testing.T) {
 	limit := 50
 
 	_, err := s.GetEntities(context.Background(), GetEntitiesRequestObject{
-		Params: GetEntitiesParams{StartDate: start, EndDate: end, Limit: &limit},
+		Params: GetEntitiesParams{StartDate: &start, EndDate: &end, Limit: &limit},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -162,18 +164,20 @@ func TestGetEntities_RespectsCustomLimit(t *testing.T) {
 
 // --- GetLanguages ---
 
-// TestGetLanguages_Returns400WhenMissingDates verifies that the generated router
-// enforces startDate and endDate as required query parameters.
-func TestGetLanguages_Returns400WhenMissingDates(t *testing.T) {
+// TestGetLanguages_WindowOptional pins the unbounded-default contract: omitting
+// BOTH dates returns the whole dataset (200); supplying one bound opens the
+// other side (still 200). Inverted windows are rejected elsewhere.
+func TestGetLanguages_WindowOptional(t *testing.T) {
 	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil, nil))
 
 	cases := []struct {
 		name  string
 		query string
+		want  int
 	}{
-		{"no params", ""},
-		{"only startDate", "?startDate=2025-01-01T00:00:00Z"},
-		{"only endDate", "?endDate=2025-01-02T00:00:00Z"},
+		{"no params → whole dataset", "", http.StatusOK},
+		{"only startDate → open-ended", "?startDate=2025-01-01T00:00:00Z", http.StatusOK},
+		{"only endDate → open-ended", "?endDate=2025-01-02T00:00:00Z", http.StatusOK},
 	}
 
 	for _, tc := range cases {
@@ -181,8 +185,8 @@ func TestGetLanguages_Returns400WhenMissingDates(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/languages"+tc.query, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected 400, got %d", w.Code)
+			if w.Code != tc.want {
+				t.Errorf("expected %d, got %d: %s", tc.want, w.Code, w.Body.String())
 			}
 		})
 	}
@@ -196,7 +200,7 @@ func TestGetLanguages_Returns400WhenLimitTooLow(t *testing.T) {
 	limit := 0
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
-		Params: GetLanguagesParams{StartDate: start, EndDate: end, Limit: &limit},
+		Params: GetLanguagesParams{StartDate: &start, EndDate: &end, Limit: &limit},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -214,7 +218,7 @@ func TestGetLanguages_Returns400WhenLimitTooHigh(t *testing.T) {
 	limit := 5000
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
-		Params: GetLanguagesParams{StartDate: start, EndDate: end, Limit: &limit},
+		Params: GetLanguagesParams{StartDate: &start, EndDate: &end, Limit: &limit},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -239,8 +243,8 @@ func TestGetLanguages_ReturnsDetections(t *testing.T) {
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
 		Params: GetLanguagesParams{
-			StartDate: start,
-			EndDate:   end,
+			StartDate: &start,
+			EndDate:   &end,
 			Language:  &lang,
 		},
 	})
@@ -279,7 +283,7 @@ func TestGetLanguages_Returns500OnStorageError(t *testing.T) {
 	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	resp, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
-		Params: GetLanguagesParams{StartDate: start, EndDate: end},
+		Params: GetLanguagesParams{StartDate: &start, EndDate: &end},
 	})
 	if err != nil {
 		t.Fatalf("unexpected Go error: %v", err)
@@ -302,7 +306,7 @@ func TestGetLanguages_RespectsCustomLimit(t *testing.T) {
 	limit := 25
 
 	_, err := s.GetLanguages(context.Background(), GetLanguagesRequestObject{
-		Params: GetLanguagesParams{StartDate: start, EndDate: end, Limit: &limit},
+		Params: GetLanguagesParams{StartDate: &start, EndDate: &end, Limit: &limit},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

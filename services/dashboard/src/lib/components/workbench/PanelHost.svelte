@@ -55,8 +55,8 @@
     panel: Panel;
     dossier: ProbeDossierDto;
     ctx: FetchContext;
-    windowStart: string;
-    windowEnd: string;
+    windowStart: string | undefined;
+    windowEnd: string | undefined;
     /** Phase 122i — when set, the host enables interactive editing
      *  (focus on click, PanelControls, +Compare, ×Remove). Absent for
      *  legacy/preview rendering paths. */

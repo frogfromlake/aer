@@ -10,8 +10,6 @@ required:
   - matrix
   - bucketCount
   - resolution
-  - windowStart
-  - windowEnd
 properties:
   metrics:
     type: array
@@ -41,6 +39,10 @@ properties:
   windowStart:
     type: string
     format: date-time
+    nullable: true
+    description: Resolved lower window bound; null when the query was unbounded (whole dataset).
   windowEnd:
     type: string
     format: date-time
+    nullable: true
+    description: Resolved upper window bound; null when unbounded.
