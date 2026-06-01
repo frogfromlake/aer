@@ -46,6 +46,8 @@ from internal.corpus import (
     revision_diff_extraction_loop,
     topic_extraction_loop,
 )
+from internal.reattempt import ReAttemptConfig, enrichment_reattempt_loop
+from internal.wayback_reattempt import WaybackReAttemptTask
 from internal.models.probe_scope import ProbeLanguageScope
 from internal.wayback import WaybackSnapshotFetcher
 
@@ -93,33 +95,39 @@ DEFAULT_EXTRACTOR_CLASSES = [
 ]
 
 # Phase 123 hardening — the background extraction loops (corpus co-occurrence,
-# topic modelling, metric baselines, revision diffs) each hold a ClickHouse +
-# Postgres connection for the duration of their sweep. They MUST NOT draw from
-# the document-worker connection budget: when the pool was sized to
-# worker_count only, a large backlog let the 4 sweeps starve the doc-workers of
-# connections and wedge the per-document hot path. The pools are therefore
-# sized for workers + these loops + headroom, so the real-time path always has
-# its own connections. Keep in sync with the create_task(...extraction_loop...)
-# calls in main().
-BACKGROUND_LOOP_COUNT = 4
+# topic modelling, metric baselines, revision diffs, and the ADR-036 enrichment
+# re-attempt loop) each hold a ClickHouse + Postgres connection for the duration
+# of their sweep. They MUST NOT draw from the document-worker connection budget:
+# when the pool was sized to worker_count only, a large backlog let the sweeps
+# starve the doc-workers of connections and wedge the per-document hot path. The
+# pools are therefore sized for workers + these loops + headroom, so the
+# real-time path always has its own connections. Keep in sync with the
+# create_task(...loop...) calls in main() — currently 5 background loops.
+BACKGROUND_LOOP_COUNT = 5
 
 
-def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
-    """Construct the Wayback CDX client, or None when disabled.
+def _init_wayback_clients(pg_pool) -> tuple[WaybackCDXClient | None, WaybackCDXClient | None]:
+    """Construct the (inline, sweep) Wayback CDX clients, or (None, None) when
+    disabled (ADR-036).
 
-    `WAYBACK_CDX_ENABLED=false` (or unset) returns None — the
-    WebAdapter then leaves `wayback_lookup_status=""` so the Gold
-    writer skips this article. Any construction error degrades to None
-    with a warning log; we never abort worker boot for a CDX-side
-    configuration issue (the lookup is augmentative provenance, not a
-    blocking dependency).
+    Two clients, one shared Postgres cache:
+      * **inline** — used by the WebAdapter on the per-article ingest path.
+        Fail-fast: short timeout + a SINGLE retry (absorbs a transient blip so
+        the breaker does not over-trip on jitter, but never adds a long retry
+        chain to queue-drain). The circuit breaker bounds the blast radius.
+      * **sweep** — used by the ADR-036 re-attempt loop. Patient: longer
+        timeout + more retries, because background latency is irrelevant and we
+        want each retry-tick to succeed if IA is merely slow.
+
+    `WAYBACK_CDX_ENABLED=false` returns (None, None) — the WebAdapter then
+    leaves `wayback_lookup_status=""`. Any construction error degrades to
+    (None, None); we never abort worker boot for a CDX-side config issue.
     """
     if os.getenv("WAYBACK_CDX_ENABLED", "false").strip().lower() not in {"1", "true", "yes", "on"}:
         logger.info("Wayback CDX integration disabled (WAYBACK_CDX_ENABLED is off).")
-        return None
+        return None, None
     try:
         base_url = os.getenv("WAYBACK_CDX_BASE_URL", "https://web.archive.org/cdx/search/cdx").strip()
-        timeout = float(os.getenv("WAYBACK_CDX_TIMEOUT_SECONDS", "5.0"))
         rate = float(os.getenv("WAYBACK_CDX_RATE_LIMIT_PER_SECOND", "5.0"))
         user_agent = os.getenv(
             "WEB_CRAWLER_USER_AGENT",
@@ -128,29 +136,52 @@ def _init_wayback_client(pg_pool) -> WaybackCDXClient | None:
         cache = WaybackCDXCache(pg_pool) if pg_pool is not None else None
         cb_threshold = int(os.getenv("WAYBACK_CDX_CIRCUIT_FAILURE_THRESHOLD", "5"))
         cb_reset = float(os.getenv("WAYBACK_CDX_CIRCUIT_RESET_SECONDS", "60"))
-        client = WaybackCDXClient(
+
+        # Inline (ingest hot path): fail-fast — 5s + 1 retry.
+        inline_timeout = float(os.getenv("WAYBACK_CDX_TIMEOUT_SECONDS", "5.0"))
+        inline_retries = int(os.getenv("WAYBACK_CDX_INLINE_MAX_RETRIES", "1"))
+        # Sweep (background re-attempt): patient — 30s + 3 retries.
+        sweep_timeout = float(os.getenv("WAYBACK_CDX_REATTEMPT_TIMEOUT_SECONDS", "30.0"))
+        sweep_retries = int(os.getenv("WAYBACK_CDX_REATTEMPT_MAX_RETRIES", "3"))
+
+        inline = WaybackCDXClient(
             enabled=True,
             base_url=base_url,
-            timeout_seconds=timeout,
+            timeout_seconds=inline_timeout,
             rate_limit_per_second=rate,
             user_agent=user_agent,
             cache=cache,
+            max_retries=inline_retries,
+            circuit_failure_threshold=cb_threshold,
+            circuit_reset_seconds=cb_reset,
+        )
+        sweep = WaybackCDXClient(
+            enabled=True,
+            base_url=base_url,
+            timeout_seconds=sweep_timeout,
+            rate_limit_per_second=rate,
+            user_agent=user_agent,
+            cache=cache,
+            max_retries=sweep_retries,
             circuit_failure_threshold=cb_threshold,
             circuit_reset_seconds=cb_reset,
         )
         logger.info(
             "Wayback CDX integration enabled",
             base_url=base_url,
-            rate_limit_per_second=rate,
+            inline_timeout_seconds=inline_timeout,
+            inline_max_retries=inline_retries,
+            sweep_timeout_seconds=sweep_timeout,
+            sweep_max_retries=sweep_retries,
             cache_enabled=cache is not None,
         )
-        return client
+        return inline, sweep
     except Exception as exc:
         logger.warning(
             "Wayback CDX client init failed; continuing without silent-edit observability.",
             error=str(exc),
         )
-        return None
+        return None, None
 
 
 def _init_snapshot_fetcher() -> WaybackSnapshotFetcher | None:
@@ -424,13 +455,15 @@ async def main(config: WorkerConfig | None = None):
     # CDX client is fail-silent by construction; the WebAdapter calls
     # it as the last step of harmonisation, and `None` disables the
     # lookup entirely without changing the rest of the pipeline.
-    wayback_client = _init_wayback_client(pg_pool)
+    # ADR-036: two clients — `wayback_inline` (fail-fast, used inline by the
+    # WebAdapter) and `wayback_sweep` (patient, used by the re-attempt loop).
+    wayback_inline, wayback_sweep = _init_wayback_clients(pg_pool)
 
     adapter_registry = AdapterRegistry(
         {
             "legacy": LegacyAdapter(),
             "rss": RssAdapter(pg_pool=pg_pool),
-            "web": WebAdapter(pg_pool=pg_pool, wayback_client=wayback_client),
+            "web": WebAdapter(pg_pool=pg_pool, wayback_client=wayback_inline),
         }
     )
     alias_index = _load_wikidata_index()
@@ -573,6 +606,18 @@ async def main(config: WorkerConfig | None = None):
         )
     )
 
+    # ADR-036: general enrichment re-attempt loop — runs at boot + every
+    # interval, re-attempting per-article enrichments whose ingest-time lookup
+    # was incomplete (the "no silent permanent gaps" guardrail). Wayback is the
+    # first registered task; future external/degradable enrichments register
+    # here. Gated on the Wayback client existing (the only task today).
+    reattempt_tasks = (
+        [WaybackReAttemptTask(ch_client, wayback_sweep)] if wayback_sweep is not None else []
+    )
+    reattempt_task = asyncio.create_task(
+        enrichment_reattempt_loop(reattempt_tasks, stop_event, ReAttemptConfig())
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -602,6 +647,9 @@ async def main(config: WorkerConfig | None = None):
 
         logger.info("Waiting for revision-diff loop to drain...")
         await revision_diff_task
+
+        logger.info("Waiting for enrichment re-attempt loop to drain...")
+        await reattempt_task
 
         await nc.close()
 

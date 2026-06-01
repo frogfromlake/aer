@@ -30,6 +30,7 @@ from internal import silver as _silver_module
 from internal import silver_projection as _silver_projection_module
 from internal import metadata_coverage as _metadata_coverage_module
 from internal import article_revisions as _article_revisions_module
+from internal import wayback_lookups as _wayback_lookups_module
 from internal.models.probe_scope import ProbeLanguageScope
 
 logger = structlog.get_logger()
@@ -373,6 +374,15 @@ class DataProcessor:
         # dashboard's field-level Negative-Space rendering (Brief §7.7).
         # No-op for non-web meta — only WebMeta carries `extraction_methods`.
         _metadata_coverage_module.upload_metadata_coverage(
+            self.ch, working_core, meta, ingestion_version, event_time
+        )
+
+        # Silent-failure guard (migration 000025): record THIS article's
+        # Wayback CDX lookup outcome unconditionally, so an incomplete lookup
+        # (IA unreachable / circuit open / rate-limited) is observable per
+        # source instead of being indistinguishable from "no edits". No-op for
+        # non-web meta.
+        _wayback_lookups_module.upload_wayback_lookup(
             self.ch, working_core, meta, ingestion_version, event_time
         )
 

@@ -2687,3 +2687,63 @@ There is also a Phase-131a UX/conceptual artefact that this phase reconciles in-
 * A republication-detection contract test: a synthetic `WebMeta` with `published_date=2024-01-01` and `sitemap_lastmod=2024-06-01` produces one `republication_trigger` row.
 * OpenAPI bundle round-trips (`make codegen` clean diff).
 
+---
+
+## ADR-036: Enrichment Completeness & Periodic Re-Attempt — no silent permanent gaps
+
+**Status:** Accepted (Phase 123c hardening).
+**Related ADRs:** ADR-032 (Silent-Edit Observability — the Wayback CDX path + `aer_gold.article_revisions`), ADR-028 (single configurable crawler; Bronze stores raw HTML verbatim so extraction replays without re-crawl), ADR-019 (NATS JetStream — at-least-once redelivery, the *only* current retry, and only on NAK/crash).
+**Related Phases:** 122d.0 (Wayback lookup), 123c (this hardening + `aer_gold.wayback_lookups`, migration 025), 133 (Metadata Analysis — the `custom_extractors` re-extract task registers here), 122d.2 (Negative Space — consumes the completeness statuses).
+**Related Working Papers:** WP-003 §5.3 ("Document, Don't Filter") / §5.3.1 (Wayback CDX as authoritative ground truth), WP-005 §3.1 ("a gap in observation is not a gap in discourse"), WP-006 §4.2 ("what AĒR does not observe is as important as what it does").
+
+### Context
+
+Per-article enrichments run **synchronously on the ingest/harmonisation path** (when an article is crawled and processed). They can leave a per-article gap for three distinct reasons:
+
+1. **Transient external failure** — the enrichment calls a flaky external service. **Today the *only* such enrichment is the Wayback CDX lookup** (Internet Archive); models are baked into the worker image and entity-linking uses a local baked alias index, so nothing else makes a per-article external network call.
+2. **Capability missing at processing time** — an extractor degraded gracefully because its model was unavailable then (e.g. FR NER before `fr_core_news_lg` was baked) → no rows, recoverable once the capability exists.
+3. **Extraction logic improved later** — a field the page exposes only as visible HTML becomes extractable after a `custom_extractors` rule lands (Phase 133), or a trafilatura upgrade extracts more from the same Bronze.
+
+The acute incident: after Probe 1 landed, a flapping Wayback circuit breaker dropped **100%** of the lookups for the two low-volume PL sources (bundesregierung, elysee) — and because the failure wrote **no row at all**, "we could not look" was indistinguishable from "no edits". The only recovery was a manual re-crawl. NATS redelivery does not help (the lookup is deliberately fail-silent — it never NAKs, so the corpus keeps flowing). The existing periodic loops (`corpus.py`: co-occurrence / topics / baselines) re-compute *aggregates over Gold*; none re-attempts a failed *per-article* enrichment. `scripts/operations/reextract_silver.py` can replay Bronze but is manual.
+
+→ Transient/incomplete enrichment becomes **permanent, silent, source-skewed data loss**. That violates "disclose, never coerce" and the data-quality maxim.
+
+### Decision
+
+1. **Invariant — no silent permanent gaps.** Every per-article enrichment that can fail or be incomplete MUST (a) record a **queryable completeness status** that distinguishes "we know" (a real answer, incl. a real *negative*) from "we do NOT know" (not attempted / failed), and (b) be **eligible for an idempotent periodic re-attempt**. A non-answer may never be stored in a way that reads as a real answer (e.g. Wayback `circuit_open`/`failed` is never `no_snapshots`; a missing metric is Negative Space, never `0`).
+
+2. **A single, general Re-Attempt framework — not per-enrichment one-offs.** It **reuses the existing periodic-background-loop pattern** (`corpus.py`): one `EnrichmentReAttemptConfig` (`enabled`, `interval_seconds`, `batch_limit`), one `enrichment_reattempt_loop` started in `main.py` that runs **at worker boot and every interval thereafter**, draining cleanly on SIGTERM. It iterates a **registry of `ReAttemptTask`s**; each task: *find-incomplete* (a bounded batch, read from its completeness signal) → *re-attempt one* → *idempotent write + status update* (ReplacingMergeTree(ingestion_version) makes overlap/repeat harmless). It runs in-process and therefore works in local-only deployments exactly as in production.
+
+3. **Two re-attempt flavours, both first-class:**
+   - **re-call-external** — re-issue the external request from stored state (Wayback: needs only the stored `canonical_url`; no Bronze read).
+   - **re-extract-from-Bronze** — replay the archived Bronze HTML through the extractor pipeline (metadata / model-missing / logic-improvement). Bounded by the Bronze 90-day TTL; this is the programmatic form of `reextract_silver.py`.
+
+4. **Wayback is the FIRST registered task** (driven by `aer_gold.wayback_lookups` — incomplete = status ∉ {`ok`, `no_snapshots`}). **Two clients, one shared cache, split by latency budget so the ingest hot path is never slowed by a flaky dependency:**
+   - **inline** (WebAdapter, per-article): **fail-fast** — short timeout (5s) + a SINGLE retry. The single retry absorbs a transient blip so the breaker does not over-trip on jitter, but never adds a long retry chain to queue-drain. Worst case ≈ 2×5s per article; the circuit breaker (5 consecutive failures → 60s open) bounds the blast radius. With `WORKER_COUNT` threads draining a queue, this keeps the old "workers keep up with ingestion" throughput; a 4×15s retry chain (the rejected first cut) would have made a sustained outage ~12× slower per article.
+   - **sweep** (re-attempt loop, background): **patient** — longer timeout (30s) + 3 retries, because background latency is irrelevant and we want each tick to succeed if IA is merely slow.
+   The **sweep is the completeness guarantee** — the 2nd/3rd/Nth attempt over hours/days until the Archive is reachable; the inline path is only a best-effort first pass.
+
+5. **Registration is MANDATORY for future enrichments.** Any new external, degradable, or later-improvable per-article enrichment MUST register a `ReAttemptTask` and expose a completeness status — otherwise it silently reintroduces the gap this ADR closes. This is a standing requirement on Phases 133 (metadata `custom_extractors` → a Bronze re-extract task) and any future platform/source class.
+
+### Consequences
+
+* **Ingest stays fast** — enrichment failures never block the corpus; reliability moves off the hot path into the background sweep.
+* **Transient gaps self-heal** — a Wayback/IA outage is recovered automatically on a later tick, not on a manual re-crawl.
+* **Gaps are observable** — the completeness statuses feed operational monitoring and the Phase-122d.2 Negative-Space surface; an unrecovered gap is loud, never silent.
+* **Cost** — one bounded ClickHouse scan per task per interval; idempotency via ReplacingMergeTree. Re-extract-from-Bronze is heavier and is gated to the articles whose status warrants it.
+
+### Validation
+
+* With Wayback forced-unreachable during a crawl, every affected article has a `wayback_lookups` row with a non-completed status; after the Archive becomes reachable, a subsequent sweep tick fills `article_revisions` and flips the status to `ok`/`no_snapshots` — **no re-crawl required**.
+* A second sweep over an already-complete corpus is a no-op (idempotent; ReplacingMergeTree collapses re-writes).
+* A new enrichment added without a registered `ReAttemptTask` is caught in review against this ADR.
+
+### Scaling considerations (known levers — not premature-optimised at POC scale)
+
+**Re-attempt loop — re-attempts only the incomplete set, but the *discovery* is O(corpus).** Each task re-attempts only rows the completeness signal marks incomplete, capped by `batch_limit` per tick — it never re-touches completed work. The cost is in *finding* them: the Wayback task's discovery query is `SELECT … FROM aer_gold.wayback_lookups FINAL WHERE status NOT IN ('ok','no_snapshots') LIMIT N`. `status` is not in the sort key `(source, article_id)`, and `FINAL` merges on read, so this is a full-table merge-scan **every tick, even when nothing is incomplete**. At POC scale (10³–10⁴ rows) this is negligible; at 10⁶+ rows a recurring 30-min full scan is wasteful. Mitigations, in increasing order of effort, to apply *when corpus size warrants it* (not before):
+  1. **Skip-index on `status`** (`set`/`bloom_filter`) — prunes granules that hold only completed rows (the common case). Cheapest; FINAL-interaction is ClickHouse-version-dependent.
+  2. **Time-bounded discovery** (`looked_up_at >= now() - Xd`) — bounds the scan to recent rows; needs a rarer deep-sweep so old gaps are not forgotten.
+  3. **Pending-work table** (the scalable target) — a small table holding only the incomplete `article_id`s, maintained on write; the discovery query then reads a tiny table instead of the whole corpus. Cleanest at scale; adds write-side bookkeeping.
+
+**The broader periodic-loop family (`corpus.py`) shares the recurring-scan property.** The aggregate sweeps recompute over a *fixed window*, so they scale with window-density rather than total-ever-corpus — but the windows differ sharply: topic (30 d, weekly) and baseline (90 d, daily) are modest, while the **co-occurrence sweep reads the full 365-day entities retention per source, hourly** (Phase 131a chose the full window for PK stability) — the heaviest recurring read in the system and the first to feel scale. The same levers apply there (incremental windows / cadence tuning / pre-aggregation). None is a problem at POC scale; all are documented here so the scaling work is a deliberate, enumerated step, not a surprise.
+

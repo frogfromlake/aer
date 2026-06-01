@@ -66,6 +66,8 @@ logger = logging.getLogger("reextract_silver")
 def _probe_sources(probe: str) -> list[str]:
     if probe == "probe0":
         return ["tagesschau", "bundesregierung"]
+    if probe == "probe1":
+        return ["franceinfo", "elysee"]
     raise SystemExit(
         f"unknown probe id {probe!r}; extend _probe_sources() when a new probe lands"
     )

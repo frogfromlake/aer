@@ -26,9 +26,44 @@ from typing import TYPE_CHECKING, Optional
 
 import requests
 import structlog
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 if TYPE_CHECKING:
     from .cache import WaybackCDXCache
+
+
+def _build_session(user_agent: str, max_retries: int) -> requests.Session:
+    """Build the CDX HTTP session.
+
+    `max_retries == 0` → a **fail-fast** session (no retry adapter): one attempt,
+    then raise. This is the INLINE/ingest config — a flaky IA must NOT add
+    multiple timeouts to the per-article path (with `WORKER_COUNT` threads a
+    long retry chain crushes queue-drain throughput); the circuit breaker bounds
+    the blast radius and the ADR-036 re-attempt loop recovers the misses later.
+
+    `max_retries > 0` → retries connect/read/5xx/429 with exponential backoff.
+    This is the SWEEP/background config, where latency is irrelevant and we want
+    each call to succeed if the endpoint is merely slow.
+    """
+    session = requests.Session()
+    if max_retries > 0:
+        retry = Retry(
+            total=max_retries,
+            connect=max_retries,
+            read=max_retries,
+            status=max_retries,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET"}),
+            respect_retry_after_header=True,
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+    session.headers.update({"User-Agent": user_agent})
+    return session
 
 logger = structlog.get_logger()
 
@@ -43,7 +78,16 @@ STATUS_NO_SNAPSHOTS: str = "no_snapshots"
 """CDX returned 0 snapshots — the URL is not yet archived."""
 
 STATUS_FAILED: str = "failed"
-"""CDX call raised (timeout, network error, non-2xx HTTP, malformed body)."""
+"""CDX call was ATTEMPTED but raised (timeout, network error, non-2xx HTTP, malformed body)."""
+
+STATUS_CIRCUIT_OPEN: str = "circuit_open"
+"""Breaker open — the call was NOT attempted (corpus-throughput protection).
+Distinct from `failed` so monitoring separates an external IA outage from our
+own short-circuiting. Means "we do not know", never "no edits"."""
+
+STATUS_RATE_LIMITED: str = "rate_limited"
+"""Local token bucket denied the call — NOT attempted. Self-throttling, not an
+endpoint failure. Means "we do not know", never "no edits"."""
 
 STATUS_SKIPPED: str = "skipped"
 """Caller declined to call CDX (e.g. missing canonical_url) — distinct from `disabled`."""
@@ -139,6 +183,7 @@ class WaybackCDXClient:
         user_agent: str,
         cache: "Optional[WaybackCDXCache]" = None,
         session: Optional[requests.Session] = None,
+        max_retries: int = 1,
         circuit_failure_threshold: int = 5,
         circuit_reset_seconds: float = 60.0,
     ) -> None:
@@ -149,8 +194,12 @@ class WaybackCDXClient:
         self._user_agent = user_agent
         self._cache = cache
         # Reuse the connection pool; CDX is one host so this halves TLS
-        # handshakes on warm workers.
-        self._session = session or requests.Session()
+        # handshakes on warm workers. `max_retries` is the inline-vs-sweep
+        # lever (ADR-036): the inline/ingest client uses a small budget (1) so a
+        # flaky IA adds ~1 short retry at most before the breaker bounds it; the
+        # background re-attempt client uses a larger budget. An injected session
+        # (tests) is used verbatim.
+        self._session = session or _build_session(user_agent, max_retries)
         self._session.headers.update({"User-Agent": user_agent})
 
         # Circuit breaker (Phase 123 hardening). The CDX lookup is a
@@ -182,8 +231,9 @@ class WaybackCDXClient:
           1. Disabled deployment → `STATUS_DISABLED` immediately.
           2. Missing URL → `STATUS_SKIPPED`.
           3. Cache hit within TTL → return cached result (no network).
-          4. Rate-limit denial → `STATUS_FAILED`.
-          5. Network call → parse → optionally write cache → return.
+          4. Circuit open → `STATUS_CIRCUIT_OPEN` (not attempted).
+          5. Rate-limit denial → `STATUS_RATE_LIMITED` (not attempted).
+          6. Network call → parse → optionally write cache → return.
 
         Never raises. Every exception path is logged and collapsed to
         `STATUS_FAILED`.
@@ -203,16 +253,20 @@ class WaybackCDXClient:
         # Cache hits above are still served (they cost nothing and the cache
         # only holds successful answers).
         if not self._circuit_allows_request():
-            return CDXResult(status=STATUS_FAILED)
+            # Breaker open: NOT attempted. A distinct status (not `failed`) so
+            # the observability table can tell self-protection from a real IA
+            # outage — and never read as "no edits".
+            return CDXResult(status=STATUS_CIRCUIT_OPEN)
 
         if not self._bucket.acquire():
             logger.info(
-                "Wayback CDX rate-limited; collapsing to failed status.",
+                "Wayback CDX rate-limited; lookup not attempted.",
                 canonical_url=canonical_url,
             )
             # Local backpressure, not an endpoint failure → do NOT advance the
-            # circuit breaker (the endpoint may be perfectly healthy).
-            return CDXResult(status=STATUS_FAILED)
+            # circuit breaker (the endpoint may be perfectly healthy). Distinct
+            # status so this self-throttle is never mistaken for "no edits".
+            return CDXResult(status=STATUS_RATE_LIMITED)
 
         try:
             result = self._fetch_remote(canonical_url)
