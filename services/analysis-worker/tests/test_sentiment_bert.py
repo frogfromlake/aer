@@ -1,4 +1,4 @@
-"""Phase 119 — Tier-2 / Tier-2.5 BERT sentiment extractors (ADR-023).
+"""Tier-2 / Tier-2.5 BERT sentiment extractors (ADR-023).
 
 The two production deps (`torch`, `transformers`) are heavy; running real
 inference here would require the multi-gigabyte model weights plus a pinned
@@ -267,7 +267,7 @@ def test_de_news_metric_name_constant():
 # ---------------------------------------------------------------------------
 
 
-def test_bundled_manifest_exposes_phase119_metrics():
+def test_bundled_manifest_exposes_bert_sentiment_metrics():
     manifest = load_manifest()
     assert manifest.shared.multilingual_bert is not None
     assert manifest.shared.multilingual_bert.model.startswith("cardiffnlp/")

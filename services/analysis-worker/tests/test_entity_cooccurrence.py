@@ -171,8 +171,8 @@ def test_window_metadata_falls_back_to_sweep_window_when_record_has_no_timestamp
     assert rows[0].source == "bundesregierung"
 
 
-def test_phase131a_per_article_window_start_is_article_timestamp():
-    """Phase 131a (BUG 1.5): rows stamp the article's ``published_date``
+def test_per_article_window_start_is_article_timestamp():
+    """Rows stamp the article's ``published_date``
     so the PK ``(window_start, source, article_id, A, B)`` is stable
     across overlapping sweeps and ReplacingMergeTree collapses re-runs.
     """

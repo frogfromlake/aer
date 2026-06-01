@@ -1,4 +1,4 @@
-"""Phase 117 — Sentiment Tier 1 hardening tests.
+"""Sentiment Tier-1 hardening tests (negation scope, compound splitting, custom lexicon).
 
 Six regression cases mandated by ROADMAP Phase 117:
   (a) `Das ist nicht gut.`               → negation inverts the positive `gut`

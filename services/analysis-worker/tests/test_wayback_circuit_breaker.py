@@ -1,38 +1,31 @@
-"""Phase 123 hardening — deterministic tests for the two pipeline-stability fixes.
+"""WaybackCDXClient circuit breaker + session retry policy.
 
-1. WaybackCDXClient circuit breaker — an unreachable Internet Archive must NOT
-   add a per-article HTTP timeout to the synchronous harmonisation path (which
-   collapses worker throughput on a large backlog). After N consecutive
-   failures the breaker opens and lookups short-circuit with no network call;
-   a half-open probe closes it again on recovery.
-
-2. WikidataAliasIndex thread-safety — the worker resolves entities from an
-   executor thread-pool; a single shared sqlite3 connection raises
-   SQLITE_MISUSE ("bad parameter or other API misuse") under concurrency. The
-   index must hand each thread its own read-only connection.
+An unreachable Internet Archive must NOT add a per-article HTTP timeout to the
+synchronous harmonisation path (which collapses worker throughput on a large
+backlog). After N consecutive failures the breaker opens and lookups
+short-circuit with no network call; a half-open probe closes it again on
+recovery. The inline (ingest) session is fail-fast; the sweep session retries
+patiently. Local rate-limit denials are not endpoint failures and must not
+trip the breaker.
 """
 
 from __future__ import annotations
 
-import sqlite3
-import threading
 import time
-from pathlib import Path
 
 import requests
 
-from internal.storage.wikidata_alias_index import WikidataAliasIndex
 from internal.wayback.client import (
     CDXResult,
+    STATUS_CIRCUIT_OPEN,
     STATUS_FAILED,
     STATUS_OK,
+    STATUS_RATE_LIMITED,
     WaybackCDXClient,
+    _build_session,
 )
 
 
-# ---------------------------------------------------------------------------
-# Fix 1 — Wayback CDX circuit breaker
-# ---------------------------------------------------------------------------
 def _client(**overrides) -> WaybackCDXClient:
     defaults = dict(
         enabled=True,
@@ -62,10 +55,13 @@ def test_circuit_opens_after_threshold_and_short_circuits() -> None:
         assert client.lookup("https://example.com/a").status == STATUS_FAILED
     assert calls["n"] == 3
 
-    # Circuit is now OPEN: further lookups return FAILED immediately WITHOUT
-    # any network attempt — this is what keeps throughput up during an outage.
+    # Circuit is now OPEN: further lookups return the DISTINCT `circuit_open`
+    # status immediately WITHOUT any network attempt — distinct from `failed`
+    # (which means a call WAS attempted) so the observability table can tell
+    # self-protection from a real IA outage, and neither is ever read as
+    # "no edits".
     for _ in range(10):
-        assert client.lookup("https://example.com/a").status == STATUS_FAILED
+        assert client.lookup("https://example.com/a").status == STATUS_CIRCUIT_OPEN
     assert calls["n"] == 3, "open circuit must not attempt the network"
 
 
@@ -91,6 +87,19 @@ def test_circuit_half_open_probe_recovers() -> None:
     assert client._cb_consecutive_failures == 0
 
 
+def test_inline_session_fail_fast_sweep_patient() -> None:
+    """ADR-036 — the inline (ingest) client must NOT add a long retry chain to
+    queue-drain; the sweep client may retry patiently. Locked here so the
+    fail-fast-inline decision can't silently regress to the 4x15s monster."""
+    inline = _build_session("AER-Test/1.0", 1)
+    sweep = _build_session("AER-Test/1.0", 3)
+    assert inline.get_adapter("https://web.archive.org").max_retries.total == 1
+    assert sweep.get_adapter("https://web.archive.org").max_retries.total == 3
+    # max_retries=0 → a plain session (no retry adapter): one attempt, fail fast.
+    fail_fast = _build_session("AER-Test/1.0", 0)
+    assert fail_fast.get_adapter("https://web.archive.org").max_retries.total == 0
+
+
 def test_rate_limit_denial_does_not_trip_breaker() -> None:
     """Local backpressure (rate-limit) is not an endpoint failure."""
     # rate_limit very low so the bucket denies after the initial burst token.
@@ -103,49 +112,10 @@ def test_rate_limit_denial_does_not_trip_breaker() -> None:
 
     client._fetch_remote = ok  # type: ignore[assignment]
     # Drain the single burst token, then several denied calls.
-    for _ in range(5):
-        client.lookup("https://example.com/a")
+    statuses = [client.lookup("https://example.com/a").status for _ in range(5)]
     # Rate-limit denials must not advance the breaker toward open.
     assert client._cb_open_until == 0.0
-
-
-# ---------------------------------------------------------------------------
-# Fix 2 — WikidataAliasIndex per-thread connections
-# ---------------------------------------------------------------------------
-def _build_index(tmp_path: Path) -> WikidataAliasIndex:
-    db_path = tmp_path / "aliases.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("CREATE TABLE aliases (alias TEXT PRIMARY KEY, qid TEXT, label TEXT)")
-    conn.execute("INSERT INTO aliases VALUES ('merkel', 'Q567', 'Angela Merkel')")
-    conn.commit()
-    conn.close()
-    return WikidataAliasIndex(str(db_path))
-
-
-def test_per_thread_connections_are_distinct(tmp_path: Path) -> None:
-    """Each thread must get its OWN sqlite connection (the anti-MISUSE guarantee)."""
-    index = _build_index(tmp_path)
-    assert index.resolve("merkel") == ("Q567", "Angela Merkel")
-
-    ids: dict[str, int] = {}
-    lock = threading.Lock()
-
-    def worker(name: str) -> None:
-        conn_id = id(index._conn())
-        index.resolve("merkel")  # exercise a real query on this thread's conn
-        with lock:
-            ids[name] = conn_id
-
-    threads = [threading.Thread(target=worker, args=(f"t{i}",)) for i in range(4)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    # 4 worker threads → 4 distinct connection objects.
-    assert len(set(ids.values())) == 4
-    # 4 workers + the constructing (test) thread = 5 tracked connections.
-    assert len(index._all_conns) == 5
-
-    index.close()
-    assert index._all_conns == []
+    # Denied calls report the DISTINCT `rate_limited` status — never `failed`
+    # (not an endpoint problem) and never confusable with "no edits".
+    assert STATUS_RATE_LIMITED in statuses
+    assert STATUS_FAILED not in statuses

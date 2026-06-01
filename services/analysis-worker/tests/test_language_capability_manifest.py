@@ -1,4 +1,4 @@
-"""Phase 118a — Language Capability Manifest tests (ADR-024).
+"""Language Capability Manifest tests (ADR-024).
 
 Covers:
   * Manifest schema loading (valid + invalid + version + collisions).

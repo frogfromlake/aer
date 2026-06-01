@@ -157,7 +157,7 @@ def test_extract_topics_returns_rows_when_partition_succeeds(monkeypatch):
 
     # Stub the third-party heavy imports inside _fit_partition. Use
     # monkeypatch.setitem so an earlier test that genuinely loaded
-    # sentence_transformers (e.g. test_phase119_sentiment_bert) does
+    # sentence_transformers (e.g. test_sentiment_bert) does
     # not leak through — sys.modules.setdefault would silently no-op
     # there and the real SentenceTransformer would try to fetch the
     # placeholder model "m" from HuggingFace.

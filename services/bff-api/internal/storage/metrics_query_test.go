@@ -856,7 +856,7 @@ func TestResolutionQueryShape(t *testing.T) {
 	}
 }
 
-// TestGetMetrics_Phase122cRouting verifies that GetMetrics actually
+// TestGetMetrics_ResolutionRouting verifies that GetMetrics actually
 // reads from the right physical table per resolution and combines the
 // AggregatingMergeTree state columns correctly. The fixture inserts a
 // known set of pre-aggregated rows directly into each MV-backing table
@@ -864,8 +864,9 @@ func TestResolutionQueryShape(t *testing.T) {
 // GetMetrics and asserts the values round-trip via avgMerge / countMerge.
 //
 // 5-minute resolution is verified separately via TestGetMetrics
-// (existing): it reads raw aer_gold.metrics and is unchanged by 122c.
-func TestGetMetrics_Phase122cRouting(t *testing.T) {
+// (existing): it reads raw aer_gold.metrics and is unchanged by the
+// resolution materialized views.
+func TestGetMetrics_ResolutionRouting(t *testing.T) {
 	store, ctx := setupTestStore(t)
 
 	// One bucket per MV table. Use distinct (source, metric) tuples so
@@ -960,12 +961,12 @@ func TestGetMetrics_Phase122cRouting(t *testing.T) {
 	}
 }
 
-// TestGetMetrics_Phase122cWeeklyRebucket verifies that weekly resolution
+// TestGetMetrics_WeeklyRebucket verifies that weekly resolution
 // reads from metrics_daily and rebuckets via toStartOfWeek at query time.
 // The fixture inserts two daily buckets in the same week; the weekly
 // query should fold them into a single week bucket whose value is the
 // average of the daily averages and whose count is the sum.
-func TestGetMetrics_Phase122cWeeklyRebucket(t *testing.T) {
+func TestGetMetrics_WeeklyRebucket(t *testing.T) {
 	store, ctx := setupTestStore(t)
 
 	// Two adjacent days in the same ISO week.

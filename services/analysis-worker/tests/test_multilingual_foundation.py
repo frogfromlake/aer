@@ -1,4 +1,4 @@
-"""Phase 116 — Multilingual foundation tests.
+"""Multilingual foundation tests.
 
 Five regression cases mandated by ROADMAP Phase 116:
   (a) short German text → consensus agrees on `de`
