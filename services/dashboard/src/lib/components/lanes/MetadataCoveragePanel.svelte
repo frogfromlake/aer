@@ -187,13 +187,17 @@
     <ul class="mc-source-grid" role="list">
       {#each query.data.data.sources as src (src.name)}
         {@const ordered = orderFields(src.fields)}
+        {@const populatedCount = ordered.filter((f) => (f.populationRate ?? 0) > 0).length}
         <li class="mc-source-card">
           <details class="mc-source-details">
             <summary class="mc-source-summary">
               <span class="mc-summary-glyph" aria-hidden="true">›</span>
               <h3 class="mc-source-name">{src.name}</h3>
-              <span class="mc-summary-meta" aria-hidden="true">
-                {ordered.length} field{ordered.length === 1 ? '' : 's'}
+              <span
+                class="mc-summary-meta"
+                title="Fields this source actually populates (≥1 article) out of the full Tier-B/C set"
+              >
+                {populatedCount} / {ordered.length} field{ordered.length === 1 ? '' : 's'} populated
               </span>
             </summary>
             {#if ordered.length === 0}
