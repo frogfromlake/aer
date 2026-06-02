@@ -15,11 +15,7 @@
 // endpoint.
 
 import type { Panel, ScopeGroup, ViewMode } from '$lib/state/url-internals';
-import {
-  CROSS_PROBE_DEFAULT_METRIC,
-  getPresentation,
-  isPureCountMetric
-} from '../viewmodes';
+import { CROSS_PROBE_DEFAULT_METRIC, getPresentation, isPureCountMetric } from '../viewmodes';
 
 // ---------------------------------------------------------------------------
 // Cell-render strategy

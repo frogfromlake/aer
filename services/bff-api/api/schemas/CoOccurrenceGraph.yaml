@@ -64,6 +64,17 @@ properties:
             step, or null when the node could not be linked. Lets the frontend
             surface Wikipedia/Wikidata external links on graph nodes without a
             follow-up call.
+        viewerLabel:
+          type: string
+          nullable: true
+          description: >
+            Phase 123b cross-lingual relabel. The QID's display label in the
+            requested `viewerLanguage`, or null when no viewer language was
+            requested, the node has no QID, or no label exists for that
+            language. The frontend relabels a node only when this is present;
+            otherwise it keeps the source surface form (`text`). This is the
+            per-language rdfs:label Wikidata publishes — never a machine
+            translation.
   edges:
     type: array
     items:
@@ -110,3 +121,21 @@ properties:
       empty, the dashboard surfaces a "pipeline gap" hint instead of
       "sparse corpus" — distinguishing missing data from a missing
       sweep. Always populated.
+  linkedNodeCount:
+    type: integer
+    format: int64
+    minimum: 0
+    description: >
+      Phase 123b — how many returned nodes carry a Wikidata QID (the subset
+      the cross-lingual relabel toggle can act on). The dashboard shows the
+      linked-vs-unlinked coverage ratio against `len(nodes)` so a reader knows
+      how much of a foreign-language graph the toggle can relabel (WP-006
+      no-silent-gaps). Always populated.
+  labeledNodeCount:
+    type: integer
+    format: int64
+    minimum: 0
+    description: >
+      Phase 123b — how many nodes received a `viewerLabel` in the requested
+      `viewerLanguage` (always ≤ `linkedNodeCount`; a linked QID may lack a
+      label in that language). Zero when no viewer language was requested.

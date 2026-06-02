@@ -40,6 +40,10 @@ LABEL org.opencontainers.image.title="AĒR Wikidata Alias Index" \
 WORKDIR /index
 COPY --chown=aer:aer data/wikidata_aliases.db .
 COPY --chown=aer:aer data/wikidata_aliases.db.sha256 .
+# Phase 123b: QID→display-label TSV loaded into aer_gold.wikidata_labels by the
+# wikidata-labels-load init. Emitted next to the .db by the build script; an
+# empty placeholder ships until the next index rebuild populates it.
+COPY --chown=aer:aer data/wikidata_labels.tsv .
 
 USER aer
 

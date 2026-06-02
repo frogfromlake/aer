@@ -29,6 +29,11 @@ export interface HowToReadFacts {
   netColor?: string | undefined;
   /** Number of nodes / points / sources actually rendered, when known. */
   renderedCount?: number | undefined;
+  /** Phase 123b — cross-lingual relabel state for the co-occurrence cell. */
+  displayLanguage?: 'source' | 'viewer' | undefined;
+  viewerLanguage?: string | undefined;
+  linkedNodeCount?: number | undefined;
+  labeledNodeCount?: number | undefined;
 }
 
 /** Built-in per-presentation template lines — the fallback when the content
@@ -103,6 +108,17 @@ export function composeHowToRead(
       out.push(channelLine('Dot size', facts.netSize, networkSizeLabel));
       out.push(channelLine('Dot colour', facts.netColor, networkColorLabel));
       out.push('Crowded into one blob? Raise the Spread slider to push the dots apart.');
+      // Phase 123b — cross-lingual relabel state.
+      if (facts.displayLanguage === 'viewer' && facts.viewerLanguage) {
+        const labeled = facts.labeledNodeCount ?? 0;
+        out.push(
+          `Labels: ${labeled} Wikidata-linked ${labeled === 1 ? 'dot is' : 'dots are'} shown in the app language (${facts.viewerLanguage}); ↺ marks those whose label differs from the source form. The rest keep their source-language form. Unlinked entities are never translated.`
+        );
+      } else if ((facts.linkedNodeCount ?? 0) > 0) {
+        out.push(
+          `Labels are in each entity's source language. ${facts.linkedNodeCount} ${facts.linkedNodeCount === 1 ? 'dot is' : 'dots are'} Wikidata-linked — switch Labels to the app language to relabel that subset.`
+        );
+      }
       break;
     case 'metric_scatter':
       out.push(

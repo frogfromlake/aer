@@ -1,0 +1,47 @@
+entityId: phase-123b-cross-lingual-topics
+entityType: open_research_question
+locale: de
+registers:
+  semantic:
+    short: "Phase 123b benennt QID-verknüpfte Entitäten in die Sprache des Lesers um. Themen entziehen sich demselben Schritt: ein BERTopic-Label wie `roland_garros_tour_match` ist ein quellsprachlicher Wort-Beutel ohne sprachneutralen Anker. Wie sähe eine cross-linguale Themen-Darstellung aus?"
+    long: >
+      Phase 123b machte relationale Artefakte (Entitäten + Ko-Okkurrenz) sprachübergreifend
+      lesbar, indem für jede aufgelöste QID das sprachspezifische Wikidata-Label eingesetzt
+      wird — ein Label-Tausch auf einem sprachneutralen Bezeichner, niemals eine Übersetzung.
+      Themen haben keinen solchen Anker. Ein BERTopic-Thema wird durch seine wichtigsten
+      c-TF-IDF-Begriffe zusammengefasst (z. B. `roland_garros_tour_match`), ein Wort-Beutel in
+      der Korpussprache; Themen werden pro Sprachpartition gefittet (ADR-024), sodass selbst
+      die Themen-*IDs* sprachübergreifend nicht vergleichbar sind. Ein französisches Thema für
+      einen nur Deutsch lesenden Leser lesbar zu machen, ist mit dem Phase-123b-Mechanismus
+      also nicht möglich. Die offene Frage: Was ist die richtige cross-linguale Themen-
+      Darstellung? Kandidaten — (a) die repräsentativen Begriffe übersetzen (führt eine
+      Übersetzungsabhängigkeit ein, die AĒR bisher vermieden hat, und Begriffsübersetzung
+      verliert das im Wort-Beutel kodierte Framing); (b) Themen an QID/Wikipedia-Kategorien
+      verankern, wo die repräsentativen Dokumente entitätsdicht sind (partiell, entitäts-
+      verzerrt); (c) ein echtes cross-linguales Themenmodell (mehrsprachige Embeddings), das
+      einen Themenraum über Sprachen hinweg fittet — was auch den Themenvergleich selbst gültig
+      machen würde, eine weit größere Änderung mit eigenen Validitätsfragen. Erfordert
+      Computerlinguistik- und Topic-Modelling-Expertise; in Phase 123b bewusst NICHT versucht.
+  methodological:
+    short: "Offen: cross-linguale Themen-Darstellung (Begriffe übersetzen vs. QID-Anker vs. mehrsprachiges Themenmodell). Hooks: aer_gold.topic_assignments (Fit pro Sprache), BERTopic-Pipeline, die Phase-123b-QID-Label-Schicht. Siehe ADR-037, ADR-024."
+    long: >
+      Von ADR-037 festgehaltene Geltungsgrenze: Die QID-gestützte Anzeigeschicht deckt nur
+      Entitäten und Ko-Okkurrenz ab. Pipeline-Hooks, an denen eine künftige cross-linguale
+      Themen-Arbeit ansetzen würde: (1) Themen werden pro Sprachpartition vom BERTopic-Extraktor
+      (Phase 120/121) in aer_gold.topic_assignments erzeugt — jede cross-linguale Darstellung
+      muss diese Labels entweder nachverarbeiten oder den Fit-pro-Sprache durch einen
+      mehrsprachigen ersetzen; (2) die Phase-123b-QID→Label-Tabelle (aer_gold.wikidata_labels)
+      ist das Vorbild für eine "sprachneutrale ID → sprachspezifische Oberfläche"-Abbildung,
+      aber Themen fehlt die ID; (3) der sprachübergreifende topic_id-Vergleich wird heute auf
+      der Rendering-Ebene ausdrücklich verweigert (CLAUDE.md / Phase 121) — ein mehrsprachiges
+      Themenmodell wäre das, was ihn gültig machen würde, weshalb diese Frage mit der Arbeit zur
+      cross-kulturellen Vergleichbarkeit (WP-004) verflochten ist. Bis dahin ist die ehrliche
+      Position die aktuelle: Themen bleiben in ihrer Quellsprache, und der sprachübergreifende
+      Themenvergleich wird verweigert, nicht still approximiert.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-02"
+workingPaperAnchors:
+  - "ADR-037"
+  - "ADR-024"
+  - "WP-004 §7"

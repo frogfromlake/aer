@@ -176,6 +176,10 @@ jobs:
         run: |
           mkdir -p infra/wikidata-index/data
           cp /tmp/wikidata_aliases.db infra/wikidata-index/data/
+          # Phase 123b: the QID→display-label TSV is emitted next to the .db by
+          # the build script and baked into the same image; the
+          # wikidata-labels-load init loads it into aer_gold.wikidata_labels.
+          cp /tmp/wikidata_labels.tsv infra/wikidata-index/data/
           # Standard sha256sum format ("<hash>  <basename>") so the image's
           # `sha256sum -c` consumes the sidecar directly. The build script
           # already writes this format; we re-derive here so the workflow is

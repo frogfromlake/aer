@@ -2747,3 +2747,51 @@ The acute incident: after Probe 1 landed, a flapping Wayback circuit breaker dro
 
 **The broader periodic-loop family (`corpus.py`) shares the recurring-scan property.** The aggregate sweeps recompute over a *fixed window*, so they scale with window-density rather than total-ever-corpus — but the windows differ sharply: topic (30 d, weekly) and baseline (90 d, daily) are modest, while the **co-occurrence sweep reads the full 365-day entities retention per source, hourly** (Phase 131a chose the full window for PK stability) — the heaviest recurring read in the system and the first to feel scale. The same levers apply there (incremental windows / cadence tuning / pre-aggregation). None is a problem at POC scale; all are documented here so the scaling work is a deliberate, enumerated step, not a surprise.
 
+---
+
+## ADR-037: QID-Backed Cross-Lingual Display Layer for Relational Artefacts (Phase 123b)
+
+**Status:** Accepted (Phase 123b).
+**Related ADRs:** ADR-016 (Tier-1.5 NER alias resolution — the QID backbone), ADR-024 (Language Capability Manifest — per-language analytical routing), ADR-034/035 (Workbench panels & pillar identity — where the toggle lives), ADR-018 (API-key auth — the BFF stays the sole internet-facing surface, unchanged here).
+**Related Phases:** 118/118b (Wikidata alias index build + distribution — the precondition), 131 (configurable cells / `configurableParams` — the lever surface), 123 (Probe 1 — the first non-German probe that surfaced the need), 124 (first cross-probe comparison — kept free of the multilingual-presentation burden by landing this first).
+**Related Working Papers:** WP-002 §4.2 (entity-linking provenance — the QID is load-bearing, the confidence is provisional), WP-006 §4.2 / §6.2 (no silent gaps — the linked/unlinked ratio is disclosed), Manifesto §II / Brief §1.3 (no discovery bias — the toggle relabels a *universal* attribute, the QID, not a capability-rich subset).
+
+### Context
+
+Probe 1 (French institutional web) made entity and co-occurrence artefacts carry the **source-language surface form** — `Russie`, `États-Unis`, `Rassemblement national`. For a German- or English-only reader a French (and later Japanese, Arabic) co-occurrence map is **structurally correct but practically unreadable**: a real analytical artefact becomes worthless across languages. The QID backbone already resolves a language-neutral identity for a subset of nodes (`Russie`→Q159, `Frankreich`→Q142), and Wikidata publishes a per-language `rdfs:label` for every QID — so the readable label already exists; it is simply not surfaced.
+
+Two constraints shaped the design. (1) **The baked alias index (`wikidata_aliases.db`) stores only LOWERCASED match forms** (`russland`) for entity linking — useless as a display label, and especially wrong for German nouns. (2) **The BFF is the sole internet-facing service and reads exclusively from ClickHouse**; mounting a 128 MB SQLite + a SQLite driver onto it has no precedent and widens its attack surface.
+
+### Decision
+
+1. **Label-swap, not translation; linked subset only.** The toggle swaps in the **per-language Wikidata `rdfs:label` for a resolved QID** — never machine translation of arbitrary text. A node with no QID (an unlinked NER span like `Moïse Kouame`), or a QID with no label in the viewer language, **always keeps its source surface form**. Only Entities + Co-occurrence are covered; **topics are explicitly out of scope** (BERTopic c-TF-IDF labels are source-language word-bags with no QID anchor — recorded as an open research question, not attempted here).
+
+2. **A dedicated ClickHouse reference table `aer_gold.wikidata_labels(wikidata_qid, language, label)`** (migration 000026, ReplacingMergeTree, no TTL — stable reference data keyed on the QID, not article-derived Gold). The BFF resolves labels with the **same query-time LEFT-JOIN-on-QID pattern it already uses** for `wikidataQid` (`queryNodeWikidataQids` → `queryNodeLabels`), keeping the internet-facing service on its single established data dependency (ClickHouse) — **no new SQLite driver, no volume mount, no new attack surface**.
+
+3. **Display labels are produced by the existing index build + distribution path, not a new mechanism.** `build_wikidata_index.py` captures the **original-case `rdfs:label`** per (QID, language) it already parses (the alias table lowercases it away) into a SQLite `labels` table **and** a sibling `wikidata_labels.tsv`. `wikidata-index-init` copies the TSV into the `wikidata_data` volume; a new `wikidata-labels-load` init (ClickHouse image, mirrors `clickhouse-init`) loads it into the table. **No live Wikidata calls at request time.** An empty placeholder TSV is a graceful no-op until the next index rebuild populates display labels — so production never errors, every node simply stays on its source form until coverage lands.
+
+4. **Relabel target = the app content language, clamped to the index's label languages** (de/en/fr today, mirroring the build's `LANGUAGES`). The dashboard is currently localized to a single language (English — content fetches default to `en`), with no per-user locale selector. The relabel therefore follows the **app language**, not the reader's browser locale (relabelling an English UI's entities into a browser's German would be inconsistent). `APP_CONTENT_LANGUAGE` in `viewer-language.ts` is the single seam: a future locale selector points it (and the content-fetch `locale` default) at the chosen language and the relabel follows automatically. An unsupported language falls back to English rather than relabelling to nothing.
+
+5. **A per-Panel toggle (`displayLanguage`: `source` ↔ `viewer`), defaulting to `source`** so nothing relabels silently. It persists in Panel state + the compact URL key `dl` exactly like the other Phase-131 levers, and is a `configurableParams` entry on `cooccurrence_network` so `PanelControls` renders it only where the cell consumes it.
+
+6. **The linked-vs-unlinked coverage is always disclosed** (`linkedNodeCount` / `labeledNodeCount` on the response; a caption + the composed "how to read" note). A reader sees exactly how much of a foreign-language graph the toggle can relabel — a structurally-correct artefact never *pretends* to be fully readable (WP-006 no-silent-gaps).
+
+### Consequences
+
+* **Foreign-language relational artefacts become readable** for the linked subset without translating anything — a German reader sees `Russland`/`Vereinigte Staaten` where the French corpus said `Russie`/`États-Unis`, with unlinked French spans honestly untouched.
+* **The internet-facing BFF is unchanged in shape** — one more ClickHouse JOIN, no new dependency or mount.
+* **Scales per-language by config, not code.** A new display language = add it to the build's `LANGUAGES` + the frontend's `SUPPORTED_LABEL_LANGUAGES` + one index rebuild; the BFF and cell are language-agnostic (`WHERE language = ?`). The recurring index rebuild already runs quarterly, so display labels ride it at zero new operational cost.
+* **Coverage is bounded by entity-linking, not by this layer.** Today ~12% of co-occurrence nodes carry a QID, so the toggle relabels a minority — surfaced, not hidden. Coverage rises as the alias index and linker improve (WP-002 §4.2), with no change here.
+* **Cost** — `wikidata_labels` is small even at full label coverage (~660k rows, a few MB); the per-request label JOIN is keyed on the handful of QIDs in the returned graph.
+
+### Validation
+
+* On a Probe-1 co-occurrence panel, toggling `Labels` to the app language relabels QID-linked French nodes to their app-language Wikidata label (e.g. with the app in German, `Russie`→`Russland`, `États-Unis`→`Vereinigte Staaten`; in English, `Russie`→`Russia`); unlinked nodes keep their French form; the linked/unlinked ratio is visible; topics are untouched; the default view is unchanged (source form).
+* A node linked to a QID that has no label in the viewer language keeps its source form and is counted in `linkedNodeCount` but not `labeledNodeCount` (no silent blank).
+* Reloading an identical `wikidata_labels.tsv` is a content no-op (ReplacingMergeTree + FINAL).
+
+### Out of scope / open questions
+
+* **Cross-lingual topic representation** — relabelling BERTopic topics across languages requires either translation or a cross-lingual topic model; it is a separate, harder open research question (recorded under `docs/methodology/`), not addressed by a QID label-swap.
+* **Machine translation of any free text** — deliberately excluded everywhere in this layer.
+

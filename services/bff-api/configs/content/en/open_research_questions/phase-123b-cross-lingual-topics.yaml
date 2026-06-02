@@ -1,0 +1,45 @@
+entityId: phase-123b-cross-lingual-topics
+entityType: open_research_question
+locale: en
+registers:
+  semantic:
+    short: "Phase 123b relabels QID-linked entities into the reader's language. Topics resist the same move: a BERTopic label like `roland_garros_tour_match` is a source-language word-bag with no language-neutral anchor. How should a cross-lingual topic representation work?"
+    long: >
+      Phase 123b made relational artefacts (entities + co-occurrence) cross-lingually
+      readable by swapping in the per-language Wikidata label for each resolved QID — a
+      label-swap on a language-neutral identifier, never a translation. Topics have no such
+      anchor. A BERTopic topic is summarised by its top c-TF-IDF terms (e.g.
+      `roland_garros_tour_match`), a bag of words in the corpus language; topics are fit
+      per language partition (ADR-024), so even the topic *ids* are not comparable across
+      languages. Making a French topic readable to a German-only reader therefore cannot be
+      done by the Phase-123b mechanism. The open question: what is the right cross-lingual
+      topic representation? Candidate directions — (a) translate the representative terms
+      (introduces a translation dependency AĒR has so far avoided, and term-level translation
+      loses the framing that the word-bag encodes); (b) anchor topics to QID/Wikipedia
+      categories where the representative documents are entity-dense (partial, entity-biased);
+      (c) a genuinely cross-lingual topic model (multilingual embeddings) that fits one topic
+      space across languages — which would also let topic comparison itself become valid, a
+      far larger change with its own validity questions. This needs computational-linguistics
+      and topic-modelling expertise; it is deliberately NOT attempted in Phase 123b.
+  methodological:
+    short: "Open: cross-lingual topic representation (translate terms vs. QID-anchor vs. multilingual topic model). Hooks: aer_gold.topic_assignments (per-language fit), BERTopic pipeline, the Phase-123b QID label layer. See ADR-037, ADR-024."
+    long: >
+      Scope boundary recorded by ADR-037: the QID-backed display layer covers entities and
+      co-occurrence only. Pipeline hooks where a future cross-lingual topic effort would land:
+      (1) topics are produced per language partition into aer_gold.topic_assignments by the
+      BERTopic extractor (Phase 120/121) — any cross-lingual representation must either
+      post-process these labels or replace the per-language fit with a multilingual one;
+      (2) the Phase-123b QID→label table (aer_gold.wikidata_labels) is the precedent for a
+      "language-neutral id → per-language surface" mapping, but topics lack the id;
+      (3) cross-language topic_id comparison is explicitly refused at the rendering layer
+      today (CLAUDE.md / Phase 121) — a multilingual topic model would be what makes it valid,
+      so this question is entangled with the cross-cultural-comparability work (WP-004). Until
+      then the honest position is the current one: topics stay in their source language and
+      cross-language topic comparison is refused, not silently approximated.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-02"
+workingPaperAnchors:
+  - "ADR-037"
+  - "ADR-024"
+  - "WP-004 §7"

@@ -672,7 +672,7 @@ export function metricScatterQuery(
 
 export function entityCoOccurrenceQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & { topN?: number }
+  params: ViewModeQueryParams & { topN?: number; viewerLanguage?: string }
 ): QueryOptions<CoOccurrenceGraphDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -680,6 +680,9 @@ export function entityCoOccurrenceQuery(
   if (params.start) qs.set('start', params.start);
   if (params.end) qs.set('end', params.end);
   if (params.topN) qs.set('topN', String(params.topN));
+  // Phase 123b — cross-lingual relabel: when set, the BFF attaches a
+  // viewer-language label per QID-linked node.
+  if (params.viewerLanguage) qs.set('viewerLanguage', params.viewerLanguage);
   return {
     queryKey: ['aer', 'entity-cooccurrence', params] as const,
     queryFn: () =>
@@ -714,6 +717,8 @@ export interface CoOccurrenceMultiParams {
   start?: string | undefined;
   end?: string | undefined;
   topN?: number;
+  // Phase 123b — cross-lingual relabel viewer language (omit to keep source form).
+  viewerLanguage?: string | undefined;
 }
 
 export function entityCoOccurrenceQueryMulti(
@@ -733,7 +738,8 @@ export function entityCoOccurrenceQueryMulti(
           })),
           windowStart: params.start,
           windowEnd: params.end,
-          ...(params.topN !== undefined ? { topN: params.topN } : {})
+          ...(params.topN !== undefined ? { topN: params.topN } : {}),
+          ...(params.viewerLanguage ? { viewerLanguage: params.viewerLanguage } : {})
         })
       }),
     staleTime: FIVE_MINUTES

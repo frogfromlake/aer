@@ -498,6 +498,7 @@
             resolution={panel.resolution}
             normalization={panel.normalization}
             forceStrength={panel.forceStrength}
+            displayLanguage={panel.displayLanguage}
           />
         </div>
       {/each}

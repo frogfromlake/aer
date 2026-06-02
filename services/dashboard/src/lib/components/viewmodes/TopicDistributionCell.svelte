@@ -165,7 +165,10 @@
       // the full label preserved in the hover tip.
       const prettyLabel = (d: NormalisedTopic): string => {
         if (d.isOutlier) return 'uncategorised';
-        const words = d.label.replace(/^-?\d+_/, '').split('_').filter(Boolean);
+        const words = d.label
+          .replace(/^-?\d+_/, '')
+          .split('_')
+          .filter(Boolean);
         const joined = words.join(' · ');
         return joined.length > 32 ? `${joined.slice(0, 31)}…` : joined || d.label;
       };

@@ -1517,6 +1517,9 @@ type GetEntityCoOccurrenceParams struct {
 
 	// TopN Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound.
 	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+
+	// ViewerLanguage Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation.
+	ViewerLanguage *string `form:"viewerLanguage,omitempty" json:"viewerLanguage,omitempty"`
 }
 
 // GetEntityCoOccurrenceParamsScope defines parameters for GetEntityCoOccurrence.
@@ -1534,6 +1537,9 @@ type PostEntityCoOccurrenceQueryJSONBody struct {
 
 	// TopN Maximum number of co-occurrence edges to return. Server clamps values outside [1, 500] to the nearest bound.
 	TopN *int `json:"topN,omitempty"`
+
+	// ViewerLanguage Optional viewer-language code (e.g. `de`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`; unlinked nodes (and QIDs lacking a label in this language) keep their source surface form. Absent = no relabelling. Swaps in the per-language Wikidata label, never a machine translation.
+	ViewerLanguage *string `json:"viewerLanguage,omitempty"`
 
 	// WindowEnd Exclusive end of the query window (RFC 3339). Optional — see windowStart.
 	WindowEnd *time.Time `json:"windowEnd,omitempty"`
@@ -2560,6 +2566,14 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "viewerLanguage" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "viewerLanguage", r.URL.Query(), &params.ViewerLanguage, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "viewerLanguage", Err: err})
 		return
 	}
 
@@ -4792,7 +4806,13 @@ type GetEntityCoOccurrence200JSONResponse struct {
 		// Weight Sum of cooccurrence_count over articles in the window.
 		Weight int64 `json:"weight"`
 	} `json:"edges"`
-	Nodes []struct {
+
+	// LabeledNodeCount Phase 123b — how many nodes received a `viewerLabel` in the requested `viewerLanguage` (always ≤ `linkedNodeCount`; a linked QID may lack a label in that language). Zero when no viewer language was requested.
+	LabeledNodeCount *int64 `json:"labeledNodeCount,omitempty"`
+
+	// LinkedNodeCount Phase 123b — how many returned nodes carry a Wikidata QID (the subset the cross-lingual relabel toggle can act on). The dashboard shows the linked-vs-unlinked coverage ratio against `len(nodes)` so a reader knows how much of a foreign-language graph the toggle can relabel (WP-006 no-silent-gaps). Always populated.
+	LinkedNodeCount *int64 `json:"linkedNodeCount,omitempty"`
+	Nodes           []struct {
 		// Degree Number of distinct neighbours in the returned edge set.
 		Degree int64  `json:"degree"`
 		Label  string `json:"label"`
@@ -4803,6 +4823,9 @@ type GetEntityCoOccurrence200JSONResponse struct {
 
 		// TotalCount Sum of edge weights incident on this node.
 		TotalCount int64 `json:"totalCount"`
+
+		// ViewerLabel Phase 123b cross-lingual relabel. The QID's display label in the requested `viewerLanguage`, or null when no viewer language was requested, the node has no QID, or no label exists for that language. The frontend relabels a node only when this is present; otherwise it keeps the source surface form (`text`). This is the per-language rdfs:label Wikidata publishes — never a machine translation.
+		ViewerLabel *string `json:"viewerLabel,omitempty"`
 
 		// WikidataQid Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call.
 		WikidataQid *string `json:"wikidataQid,omitempty"`
@@ -4917,7 +4940,13 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 		// Weight Sum of cooccurrence_count over articles in the window.
 		Weight int64 `json:"weight"`
 	} `json:"edges"`
-	Nodes []struct {
+
+	// LabeledNodeCount Phase 123b — how many nodes received a `viewerLabel` in the requested `viewerLanguage` (always ≤ `linkedNodeCount`; a linked QID may lack a label in that language). Zero when no viewer language was requested.
+	LabeledNodeCount *int64 `json:"labeledNodeCount,omitempty"`
+
+	// LinkedNodeCount Phase 123b — how many returned nodes carry a Wikidata QID (the subset the cross-lingual relabel toggle can act on). The dashboard shows the linked-vs-unlinked coverage ratio against `len(nodes)` so a reader knows how much of a foreign-language graph the toggle can relabel (WP-006 no-silent-gaps). Always populated.
+	LinkedNodeCount *int64 `json:"linkedNodeCount,omitempty"`
+	Nodes           []struct {
 		// Degree Number of distinct neighbours in the returned edge set.
 		Degree int64  `json:"degree"`
 		Label  string `json:"label"`
@@ -4928,6 +4957,9 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 
 		// TotalCount Sum of edge weights incident on this node.
 		TotalCount int64 `json:"totalCount"`
+
+		// ViewerLabel Phase 123b cross-lingual relabel. The QID's display label in the requested `viewerLanguage`, or null when no viewer language was requested, the node has no QID, or no label exists for that language. The frontend relabels a node only when this is present; otherwise it keeps the source surface form (`text`). This is the per-language rdfs:label Wikidata publishes — never a machine translation.
+		ViewerLabel *string `json:"viewerLabel,omitempty"`
 
 		// WikidataQid Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call.
 		WikidataQid *string `json:"wikidataQid,omitempty"`

@@ -14,6 +14,7 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
+  import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportRow, ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
@@ -37,8 +38,15 @@
     dataLayer = 'gold',
     topN,
     channels,
-    forceStrength
+    forceStrength,
+    displayLanguage
   }: ViewModeCellProps = $props();
+
+  // Phase 123b — cross-lingual relabel. When the panel toggle is on 'viewer',
+  // request the app-language label per QID-linked node; 'source' (default)
+  // sends nothing and every node keeps its source surface form. The language is
+  // the app content language clamped to the index's label languages.
+  const viewerLang = $derived(displayLanguage === 'viewer' ? viewerLabelLanguage() : undefined);
 
   // Phase 131 — configurable top-edge cap (default 60, BFF-clamped to [1,500])
   // and visual-channel binding (node size, node colour).
@@ -80,7 +88,8 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
-      topN: TOP_N
+      topN: TOP_N,
+      ...(viewerLang ? { viewerLanguage: viewerLang } : {})
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
@@ -88,6 +97,16 @@
   interface SimNode {
     id: string;
     label: string;
+    /** Source-language surface form (the node's original text). */
+    sourceText: string;
+    /** Phase 123b — viewer-language Wikidata label, or null when the node is
+     *  unlinked / has no label in the viewer language. */
+    viewerLabel: string | null;
+    /** The name actually rendered: viewerLabel when relabelling is on and one
+     *  exists, otherwise the source surface form. */
+    displayName: string;
+    /** True when displayName differs from the source form (relabelled). */
+    relabeled: boolean;
     radius: number;
     /** Raw channel values for the tooltip. */
     totalCount: number;
@@ -133,18 +152,29 @@
     const sizeOf = (n: (typeof data.nodes)[number]) =>
       netSize === 'degree' ? (n.degree ?? 0) : n.totalCount;
     const maxSize = data.nodes.reduce((m, n) => Math.max(m, sizeOf(n)), 1);
-    const seedNodes: SimNode[] = data.nodes.map((n) => ({
-      id: n.text,
-      label: n.label,
-      // Phase 131 (BUG2.2) — wider radius range (4..26) so the Size channel
-      // (weight vs degree) produces a visibly different node sizing.
-      radius: 4 + 22 * Math.sqrt(sizeOf(n) / maxSize),
-      totalCount: n.totalCount,
-      degree: n.degree ?? 0,
-      presenceCount: n.presence?.length ?? 0,
-      presence: n.presence ?? [],
-      wikidataQid: n.wikidataQid ?? null
-    }));
+    const seedNodes: SimNode[] = data.nodes.map((n) => {
+      // Phase 123b — relabel to the viewer language only when one was returned
+      // for this node's QID; unlinked nodes (and linked-but-unlabelled ones)
+      // keep their source surface form.
+      const viewerLabel = n.viewerLabel ?? null;
+      const relabeled = !!viewerLabel && viewerLabel !== n.text;
+      return {
+        id: n.text,
+        label: n.label,
+        sourceText: n.text,
+        viewerLabel,
+        displayName: relabeled ? (viewerLabel as string) : n.text,
+        relabeled,
+        // Phase 131 (BUG2.2) — wider radius range (4..26) so the Size channel
+        // (weight vs degree) produces a visibly different node sizing.
+        radius: 4 + 22 * Math.sqrt(sizeOf(n) / maxSize),
+        totalCount: n.totalCount,
+        degree: n.degree ?? 0,
+        presenceCount: n.presence?.length ?? 0,
+        presence: n.presence ?? [],
+        wikidataQid: n.wikidataQid ?? null
+      };
+    });
     const seedEdges: SimEdge[] = data.edges.map((e) => ({
       source: e.a,
       target: e.b,
@@ -532,11 +562,24 @@
       sources: (e.presence ?? []).join('|')
     }))
   );
+  // Phase 123b — cross-lingual coverage. linkedNodeCount = nodes carrying a
+  // QID (the relabel-eligible subset); labeledNodeCount = those that actually
+  // got a viewer-language label. Surfaced so the reader sees how much of a
+  // foreign-language graph the toggle can relabel (no silent gaps, WP-006).
+  const graphData = $derived(graphQ.data?.kind === 'success' ? graphQ.data.data : null);
+  const totalNodeCount = $derived(graphData?.nodes.length ?? 0);
+  const linkedNodeCount = $derived(graphData?.linkedNodeCount ?? 0);
+  const labeledNodeCount = $derived(graphData?.labeledNodeCount ?? 0);
+  const relabelActive = $derived(displayLanguage === 'viewer' && !!viewerLang);
   const howToReadFacts = $derived({
     topN: TOP_N,
     netSize,
     netColor,
-    renderedCount: nodes.length
+    renderedCount: nodes.length,
+    displayLanguage: displayLanguage ?? 'source',
+    viewerLanguage: viewerLang,
+    linkedNodeCount,
+    labeledNodeCount
   });
   const exportPayload = $derived<ExportPayload>({
     meta: {
@@ -697,7 +740,10 @@
                 font-size={n.radius > 8 ? '10' : '8'}
                 fill="var(--color-fg)"
                 fill-opacity={n.radius > 8 ? '1' : '0.7'}
-                font-family="var(--font-mono)">{n.id}</text
+                font-family="var(--font-mono)"
+                >{n.displayName}{#if n.relabeled}<tspan class="relabel-mark" dx="3"
+                    >↺<title>Relabelled from “{n.sourceText}” ({viewerLang})</title></tspan
+                  >{/if}</text
               >
             </g>
           {/each}
@@ -708,6 +754,23 @@
       Ctrl/⌘ + scroll to zoom · drag background to pan · drag nodes to reposition · click node for
       articles
     </p>
+    {#if totalNodeCount > 0}
+      <p class="link-coverage" role="status">
+        {#if relabelActive}
+          <strong>{labeledNodeCount}</strong> of {linkedNodeCount} Wikidata-linked
+          {linkedNodeCount === 1 ? 'node' : 'nodes'} shown in the app language (<strong
+            >{viewerLang}</strong
+          >); ↺ marks those whose label differs from the source form. The remaining {totalNodeCount -
+            labeledNodeCount} keep their source form
+          {#if linkedNodeCount > labeledNodeCount}(incl. {linkedNodeCount - labeledNodeCount} linked with
+            no {viewerLang} label){/if}.
+        {:else}
+          {linkedNodeCount} of {totalNodeCount}
+          {totalNodeCount === 1 ? 'node' : 'nodes'} link to Wikidata — switch <em>Labels</em> to the app
+          language to relabel that subset; unlinked nodes stay on their source form.
+        {/if}
+      </p>
+    {/if}
     {#if isMergedScope}
       <!-- Phase 131a — source-coloured overlay legend.
            Shown whenever the scope is merged, regardless of the active
@@ -913,6 +976,22 @@
     margin: 0;
     text-align: center;
     letter-spacing: 0.02em;
+  }
+
+  /* Phase 123b — cross-lingual relabel coverage caption + per-node marker. */
+  .link-coverage {
+    font-size: 11px;
+    color: var(--color-fg-muted);
+    margin: 0.25rem 0 0;
+    text-align: center;
+  }
+  .link-coverage strong {
+    color: var(--color-fg);
+  }
+  .relabel-mark {
+    fill: var(--color-accent, var(--color-fg-subtle));
+    font-size: 9px;
+    cursor: help;
   }
 
   .muted {

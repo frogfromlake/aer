@@ -4167,6 +4167,36 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 ### Validation — ⚠ UNRUN (manual TESTING.md walkthrough against a live stack)
 * [x] Compose a panel over both probes → all 4 source cells render, per-probe distinguished; PanelControls offers only metrics common to all scoped sources, with a hint listing hidden/partial metrics; SHIFT-select highlights both probes on the globe; elysee `publication_hour` is non-zero after re-crawl. (C2's ⚠ expected-but-missing alarm is Phase 124, not tested here.) Full step-by-step in **TESTING.md §C**.
 
+
+## Phase 123b: Cross-Lingual Readability of Relational Artefacts [P1] - [x] DONE
+
+> **Status note (2026-05-31).** Code-verified: **nothing in this phase has been built.** No `viewer`/display-language toggle in `PanelControls`, no per-language QID→label rendering in the co-occurrence cell, no 123b commit. The `wikidata_qid` resolution in `cooccurrence_query.go` (`queryNodeWikidataQids`) is **Phase 118** infrastructure — the *precondition* this phase builds on, not 123b work. This phase is fully open. **Sequencing question for the operator: 123b vs. finishing 123c first** (see the cross-phase note at the top of Phase 123c).
+>
+> **Landed (2026-06-02).** Built per **ADR-037**. Display labels: `build_wikidata_index.py` now emits a display-cased `labels` table + `wikidata_labels.tsv` (schema_version 2); `wikidata-index-init` distributes the TSV, the new `wikidata-labels-load` init loads it into `aer_gold.wikidata_labels` (migration 000026). BFF: optional `viewerLanguage` on GET `/entities/cooccurrence` + POST `/entities/cooccurrence/query` LEFT-JOINs the labels table on the already-resolved QID (`queryNodeLabels`), returning `viewerLabel` per node + `linkedNodeCount`/`labeledNodeCount` — the BFF stays ClickHouse-only. Frontend: per-Panel `displayLanguage` toggle (`source`↔`viewer`, default `source`, compact key `dl`) on `cooccurrence_network`; relabel target = the app content language clamped to de/en/fr (`viewer-language.ts`, `APP_CONTENT_LANGUAGE`; app is English-only for now — toggle reads "App language (en)", the seam a future locale selector replaces); the cell relabels QID-linked nodes (↺ marker), keeps unlinked nodes on source form, and discloses the linked/unlinked ratio. Topics deliberately out of scope (open research question recorded). **Coverage caveat:** correct production labels require one index rebuild (`workflow_dispatch`) — until then an empty placeholder TSV keeps everything on source form (graceful). At time of landing ~12% of co-occurrence nodes are QID-linked (verified against live ClickHouse).
+
+*Surfaced by Probe 1: entity and co-occurrence artefacts carry the **source-language surface form** (`Russie`, `États-Unis`, `Rassemblement national`). For a German-only or English-only reader a French — and later a Japanese or Arabic — co-occurrence map is unreadable, so a structurally-correct artefact becomes practically worthless across languages. This phase adds a **QID-backed display layer** so a reader can render linked relational artefacts in their own language. **Deliberately scoped down** (per the operator decision that opened this phase): **(a) Entities + Co-occurrence only** — NOT topics; **(b) no translation** of arbitrary text — we only swap in the per-language label Wikidata already publishes for a resolved QID; **(c) a per-Panel toggle** in PanelControls (source surface form ↔ viewer-language label), defaulting to source form so nothing changes silently. Inserted before Phase 124 so the first cross-probe comparison work is not also carrying the multilingual-presentation burden.*
+
+**Grounding.** Read first: `aer_gold.entity_links` (the `wikidata_qid` backbone — already populated, language-neutral: `Frankreich`→Q142, `France`→Q142), `aer_gold.entity_cooccurrences` (currently keyed on `entity_a_text`/`entity_b_text` surface forms), `internal/extractors/entity_linking.py` (QID resolution + confidence tiers), the `cooccurrence_network` presentation + its BFF endpoint (`GET /metrics/cooccurrence`), `PanelControls` + `configurableParams`/`networkChannels` (Phase 131), CLAUDE.md viewmode/registry SoT. Preserve: the QID-as-load-bearing-id principle, no-discovery-bias, the provisional-NLP discipline. Verify-first: how much of the co-occurrence node set is actually QID-linked vs. unlinked NER spans (determines coverage of the toggle); whether Wikidata labels are available offline in the baked alias index or need a separate per-language label source.
+
+### Backend / Data
+* [x] **QID join for co-occurrence nodes** — expose the resolved `wikidata_qid` (when present) alongside each co-occurrence node so the client can map node → viewer-language label. Decide and document: extend the co-occurrence Gold rows with the QID, OR join `entity_links` at query time in the BFF (volume/shape decision, mirror the Phase-133 metadata pattern).
+* [x] **Per-language label source** — a QID→label lookup in the viewer's language. Prefer the already-baked Wikidata alias index if it carries multi-language labels; otherwise add a minimal QID→label-per-language table to the index build. **No live Wikidata calls at request time.**
+* [x] **Unlinked spans fall back to source surface form** — a node with no QID (e.g. `Moïse Kouame`) always renders its source-language text; the toggle only relabels the linked subset. Surface the linked-vs-unlinked ratio so the reader knows the coverage (no silent gaps — WP-006).
+
+### Frontend
+* [x] **Per-Panel display-language toggle** in `PanelControls` (a `configurableParams` lever on `cooccurrence_network` + the entity surfaces): `source` (default) ↔ `viewer`. Persists in panel state + compact URL key, like the other Phase-131 levers.
+* [x] **Render viewer-language labels** on co-occurrence nodes/edges + entity lists when the toggle is `viewer` and a QID label exists; otherwise the source form. A small badge/affordance marks relabeled vs. original nodes.
+
+### Out of scope (explicit)
+* [x] **Topics are NOT covered.** BERTopic c-TF-IDF labels (`roland_garros_tour_match`) are source-language word-bags with no QID anchor; a cross-lingual topic representation is a separate, harder open question (translation or cross-lingual topic model). Record it as an open research question; do not attempt it here.
+* [x] **No machine translation** of free text anywhere in this phase.
+
+### Documentation
+* [x] ADR for the QID-backed display layer (why label-swap not translation; linked-subset-only). Arc42 §8 cross-lingual presentation note. CLAUDE.md viewmode note. Open-research-question entry for cross-lingual topics.
+
+### Validation
+* [x] On a Probe-1 co-occurrence panel, toggling to `viewer=de` relabels `Russie`→`Russland`, `États-Unis`→`Vereinigte Staaten` for QID-linked nodes; unlinked nodes keep their French form; the linked/unlinked ratio is visible; topics are untouched; default view is unchanged (source form).
+
 ---
 
 # Open Phases
@@ -4205,35 +4235,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 # Iteration 8 — Probe Expansion & Cross-Cultural Operations
 
 *Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one — including the finalised three-surface Dossier-as-overlay architecture (Phase 123a, landed at the end of Iteration 7). Then the first cross-probe equivalence grant and the silent-edit discourse-shift analysis.*
-
----
-
-## Phase 123b: Cross-Lingual Readability of Relational Artefacts [P1] - [ ] TODO
-
-> **Status note (2026-05-31).** Code-verified: **nothing in this phase has been built.** No `viewer`/display-language toggle in `PanelControls`, no per-language QID→label rendering in the co-occurrence cell, no 123b commit. The `wikidata_qid` resolution in `cooccurrence_query.go` (`queryNodeWikidataQids`) is **Phase 118** infrastructure — the *precondition* this phase builds on, not 123b work. This phase is fully open. **Sequencing question for the operator: 123b vs. finishing 123c first** (see the cross-phase note at the top of Phase 123c).
-
-*Surfaced by Probe 1: entity and co-occurrence artefacts carry the **source-language surface form** (`Russie`, `États-Unis`, `Rassemblement national`). For a German-only or English-only reader a French — and later a Japanese or Arabic — co-occurrence map is unreadable, so a structurally-correct artefact becomes practically worthless across languages. This phase adds a **QID-backed display layer** so a reader can render linked relational artefacts in their own language. **Deliberately scoped down** (per the operator decision that opened this phase): **(a) Entities + Co-occurrence only** — NOT topics; **(b) no translation** of arbitrary text — we only swap in the per-language label Wikidata already publishes for a resolved QID; **(c) a per-Panel toggle** in PanelControls (source surface form ↔ viewer-language label), defaulting to source form so nothing changes silently. Inserted before Phase 124 so the first cross-probe comparison work is not also carrying the multilingual-presentation burden.*
-
-**Grounding.** Read first: `aer_gold.entity_links` (the `wikidata_qid` backbone — already populated, language-neutral: `Frankreich`→Q142, `France`→Q142), `aer_gold.entity_cooccurrences` (currently keyed on `entity_a_text`/`entity_b_text` surface forms), `internal/extractors/entity_linking.py` (QID resolution + confidence tiers), the `cooccurrence_network` presentation + its BFF endpoint (`GET /metrics/cooccurrence`), `PanelControls` + `configurableParams`/`networkChannels` (Phase 131), CLAUDE.md viewmode/registry SoT. Preserve: the QID-as-load-bearing-id principle, no-discovery-bias, the provisional-NLP discipline. Verify-first: how much of the co-occurrence node set is actually QID-linked vs. unlinked NER spans (determines coverage of the toggle); whether Wikidata labels are available offline in the baked alias index or need a separate per-language label source.
-
-### Backend / Data
-* [ ] **QID join for co-occurrence nodes** — expose the resolved `wikidata_qid` (when present) alongside each co-occurrence node so the client can map node → viewer-language label. Decide and document: extend the co-occurrence Gold rows with the QID, OR join `entity_links` at query time in the BFF (volume/shape decision, mirror the Phase-133 metadata pattern).
-* [ ] **Per-language label source** — a QID→label lookup in the viewer's language. Prefer the already-baked Wikidata alias index if it carries multi-language labels; otherwise add a minimal QID→label-per-language table to the index build. **No live Wikidata calls at request time.**
-* [ ] **Unlinked spans fall back to source surface form** — a node with no QID (e.g. `Moïse Kouame`) always renders its source-language text; the toggle only relabels the linked subset. Surface the linked-vs-unlinked ratio so the reader knows the coverage (no silent gaps — WP-006).
-
-### Frontend
-* [ ] **Per-Panel display-language toggle** in `PanelControls` (a `configurableParams` lever on `cooccurrence_network` + the entity surfaces): `source` (default) ↔ `viewer`. Persists in panel state + compact URL key, like the other Phase-131 levers.
-* [ ] **Render viewer-language labels** on co-occurrence nodes/edges + entity lists when the toggle is `viewer` and a QID label exists; otherwise the source form. A small badge/affordance marks relabeled vs. original nodes.
-
-### Out of scope (explicit)
-* [ ] **Topics are NOT covered.** BERTopic c-TF-IDF labels (`roland_garros_tour_match`) are source-language word-bags with no QID anchor; a cross-lingual topic representation is a separate, harder open question (translation or cross-lingual topic model). Record it as an open research question; do not attempt it here.
-* [ ] **No machine translation** of free text anywhere in this phase.
-
-### Documentation
-* [ ] ADR for the QID-backed display layer (why label-swap not translation; linked-subset-only). Arc42 §8 cross-lingual presentation note. CLAUDE.md viewmode note. Open-research-question entry for cross-lingual topics.
-
-### Validation
-* [ ] On a Probe-1 co-occurrence panel, toggling to `viewer=de` relabels `Russie`→`Russland`, `États-Unis`→`Vereinigte Staaten` for QID-linked nodes; unlinked nodes keep their French form; the linked/unlinked ratio is visible; topics are untouched; default view is unchanged (source form).
 
 ---
 

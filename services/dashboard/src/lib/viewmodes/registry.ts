@@ -42,13 +42,17 @@ export type AnalyticalDiscipline =
 //   topN             — co-occurrence network top-edge cap.
 //   networkChannels  — co-occurrence node size/colour channel binding.
 //   scatterAxes      — scatter x/y/size/colour metric-dimension binding.
+//   displayLanguage  — co-occurrence cross-lingual relabel (source ↔ viewer,
+//                      Phase 123b): swap QID-linked node labels to the viewer's
+//                      language; unlinked nodes keep their source surface form.
 export type CellParamKind =
   | 'bins'
   | 'band'
   | 'topN'
   | 'networkChannels'
   | 'scatterAxes'
-  | 'forceStrength';
+  | 'forceStrength'
+  | 'displayLanguage';
 
 /** One presentation-form axis entry. The matrix-cell id is composed at
  *  call-sites as `<id>_<metricName>` to match content-catalog yaml keys. */
@@ -158,6 +162,10 @@ export interface ViewModeCellProps {
   /** Co-occurrence force-layout spread (0..100; default 50). Higher = stronger
    *  repulsion = more spread-out graph. Network cell only. */
   forceStrength?: number | undefined;
+  /** Phase 123b — co-occurrence cross-lingual relabel. 'viewer' relabels
+   *  QID-linked nodes to the reader's language; 'source' / undefined keeps the
+   *  source surface form. Network cell only. */
+  displayLanguage?: 'source' | 'viewer' | undefined;
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [
@@ -199,7 +207,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     // metric is not consumed.
     usesMetric: false,
     usesResolution: false,
-    configurableParams: ['topN', 'networkChannels', 'forceStrength'],
+    configurableParams: ['topN', 'networkChannels', 'forceStrength', 'displayLanguage'],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CoOccurrenceNetworkCell.svelte')).default
   },

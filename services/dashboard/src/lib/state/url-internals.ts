@@ -123,6 +123,11 @@ export interface Panel {
   // stronger node repulsion = more spread-out graph (less single-cluster
   // crowding). Layout-only, not a metric. Default 50.
   forceStrength?: number;
+  // Phase 123b — co-occurrence cross-lingual relabel. 'source' (default) keeps
+  // each node on its source-language surface form; 'viewer' swaps QID-linked
+  // nodes to the viewer-language Wikidata label (unlinked nodes stay on source
+  // form). undefined = 'source' so nothing relabels silently.
+  displayLanguage?: 'source' | 'viewer';
   // Phase 122i revision (B1). When `locked` is true the Panel's scope is
   // frozen (the ScopeEditor refuses scope mutations); everything else —
   // view, metric, layer, composition, splitDirection, cellControlsCollapsed
@@ -358,7 +363,8 @@ export function writeToSearch(state: UrlState): string {
 //   l  → layer ("g"|"s")        r   → resolution          n  → normalization
 //   tN → topN                   L   → locked (1)          lr → lockedReason
 //   lf → lockedFunction         fi  → focusedPanelIndex
-//   aw → activeWindowIndex
+//   aw → activeWindowIndex      bn  → bins                ch → channels
+//   sb → showBand=false (0)     fs  → forceStrength       dl → displayLanguage=viewer (1)
 //
 // `c` and `l` get a one-letter alphabet because they're the only
 // well-bounded enums where one-letter keys aid compression; `v`/`r`/`n`
@@ -397,6 +403,7 @@ interface CompactPanel {
   ch?: CompactChannelBinding; // visual-channel binding
   sb?: 0; // showBand=false (default true → omitted)
   fs?: number; // forceStrength (network spread)
+  dl?: 1; // displayLanguage='viewer' (default 'source' → omitted)
   // Phase 122i revision short keys.
   sd?: 'h' | 'v'; // splitDirection (D2)
   cc?: 1; // cellControlsCollapsed (C4)
@@ -495,6 +502,7 @@ function compactPanel(p: Panel): CompactPanel {
   }
   if (p.showBand === false) c.sb = 0;
   if (p.forceStrength !== undefined) c.fs = p.forceStrength;
+  if (p.displayLanguage === 'viewer') c.dl = 1;
   return c;
 }
 
@@ -554,6 +562,7 @@ function expandPanel(c: CompactPanel): Panel {
   }
   if (c.sb === 0) p.showBand = false;
   if (typeof c.fs === 'number') p.forceStrength = c.fs;
+  if (c.dl === 1) p.displayLanguage = 'viewer';
   return p;
 }
 

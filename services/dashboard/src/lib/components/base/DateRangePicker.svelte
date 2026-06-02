@@ -56,9 +56,7 @@
     }
     const start = new Date(`${v}T00:00:00.000Z`).toISOString();
     const end =
-      to && Date.parse(to) <= Date.parse(start)
-        ? new Date(`${v}T23:59:59.999Z`).toISOString()
-        : to;
+      to && Date.parse(to) <= Date.parse(start) ? new Date(`${v}T23:59:59.999Z`).toISOString() : to;
     onChange(start, end);
   }
   function pickTo(v: string) {

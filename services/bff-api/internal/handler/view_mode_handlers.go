@@ -760,7 +760,12 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		topN = *request.Params.TopN
 	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN)
+	viewerLanguage := ""
+	if request.Params.ViewerLanguage != nil {
+		viewerLanguage = *request.Params.ViewerLanguage
+	}
+
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -781,13 +786,17 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	)
 
 	articlesInScope := res.ArticlesInScope
+	linkedNodeCount := res.LinkedNodeCount
+	labeledNodeCount := res.LabeledNodeCount
 	resp := GetEntityCoOccurrence200JSONResponse{
-		TopN:            res.TopN,
-		Scope:           strPtr(string(kind)),
-		ScopeId:         request.Params.ScopeId,
-		WindowStart:     request.Params.Start,
-		WindowEnd:       request.Params.End,
-		ArticlesInScope: &articlesInScope,
+		TopN:             res.TopN,
+		Scope:            strPtr(string(kind)),
+		ScopeId:          request.Params.ScopeId,
+		WindowStart:      request.Params.Start,
+		WindowEnd:        request.Params.End,
+		ArticlesInScope:  &articlesInScope,
+		LinkedNodeCount:  &linkedNodeCount,
+		LabeledNodeCount: &labeledNodeCount,
 	}
 	resp.Edges = make([]struct {
 		A            string  `json:"a"`
@@ -829,6 +838,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		Presence    *[]string `json:"presence,omitempty"`
 		Text        string    `json:"text"`
 		TotalCount  int64     `json:"totalCount"`
+		ViewerLabel *string   `json:"viewerLabel,omitempty"`
 		WikidataQid *string   `json:"wikidataQid,omitempty"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
@@ -842,14 +852,20 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 			q := n.WikidataQid
 			qid = &q
 		}
+		var viewerLabel *string
+		if n.ViewerLabel != "" {
+			vl := n.ViewerLabel
+			viewerLabel = &vl
+		}
 		resp.Nodes[i] = struct {
 			Degree      int64     `json:"degree"`
 			Label       string    `json:"label"`
 			Presence    *[]string `json:"presence,omitempty"`
 			Text        string    `json:"text"`
 			TotalCount  int64     `json:"totalCount"`
+			ViewerLabel *string   `json:"viewerLabel,omitempty"`
 			WikidataQid *string   `json:"wikidataQid,omitempty"`
-		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, WikidataQid: qid}
+		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
 	}
 	return resp, nil
 }
@@ -1016,7 +1032,12 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		topN = 500
 	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN)
+	viewerLanguage := ""
+	if body.ViewerLanguage != nil {
+		viewerLanguage = *body.ViewerLanguage
+	}
+
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage)
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
@@ -1035,11 +1056,15 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	)
 
 	articlesInScope := res.ArticlesInScope
+	linkedNodeCount := res.LinkedNodeCount
+	labeledNodeCount := res.LabeledNodeCount
 	resp := PostEntityCoOccurrenceQuery200JSONResponse{
-		TopN:            res.TopN,
-		WindowStart:     body.WindowStart,
-		WindowEnd:       body.WindowEnd,
-		ArticlesInScope: &articlesInScope,
+		TopN:             res.TopN,
+		WindowStart:      body.WindowStart,
+		WindowEnd:        body.WindowEnd,
+		ArticlesInScope:  &articlesInScope,
+		LinkedNodeCount:  &linkedNodeCount,
+		LabeledNodeCount: &labeledNodeCount,
 	}
 	resp.Edges = make([]struct {
 		A            string  `json:"a"`
@@ -1081,6 +1106,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		Presence    *[]string `json:"presence,omitempty"`
 		Text        string    `json:"text"`
 		TotalCount  int64     `json:"totalCount"`
+		ViewerLabel *string   `json:"viewerLabel,omitempty"`
 		WikidataQid *string   `json:"wikidataQid,omitempty"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
@@ -1094,14 +1120,20 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 			q := n.WikidataQid
 			qid = &q
 		}
+		var viewerLabel *string
+		if n.ViewerLabel != "" {
+			vl := n.ViewerLabel
+			viewerLabel = &vl
+		}
 		resp.Nodes[i] = struct {
 			Degree      int64     `json:"degree"`
 			Label       string    `json:"label"`
 			Presence    *[]string `json:"presence,omitempty"`
 			Text        string    `json:"text"`
 			TotalCount  int64     `json:"totalCount"`
+			ViewerLabel *string   `json:"viewerLabel,omitempty"`
 			WikidataQid *string   `json:"wikidataQid,omitempty"`
-		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, WikidataQid: qid}
+		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
 	}
 	return resp, nil
 }

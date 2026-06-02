@@ -352,10 +352,22 @@ cd /home/nelix/projects/aer
 mkdir -p infra/wikidata-index/data
 cp /home/nelix/wikidata-build/wikidata_aliases.db        infra/wikidata-index/data/
 cp /home/nelix/wikidata-build/wikidata_aliases.db.sha256 infra/wikidata-index/data/
+# Phase 123b: das QID→Display-Label-TSV (vom Build neben der .db emittiert) wird
+# ins selbe Image gebacken und vom `wikidata-labels-load` init in
+# aer_gold.wikidata_labels geladen. Ohne diese Datei schlägt der Docker-Build fehl.
+cp /home/nelix/wikidata-build/wikidata_labels.tsv        infra/wikidata-index/data/
 
 # Sanity-Check: Hash muss matchen
 cd infra/wikidata-index/data && sha256sum -c wikidata_aliases.db.sha256 && cd /home/nelix/projects/aer
 ```
+
+> **Phase 123b artefacts.** The build now also produces a `labels` table inside the
+> `.db` (schema_version 2) and a sibling `wikidata_labels.tsv` (QID · language ·
+> display-cased label, sorted, deterministic). The TSV is the ClickHouse load
+> artefact; an empty file is a valid no-op (the relabel toggle then finds no
+> viewer-language label and every node keeps its source form). On a fresh checkout
+> with no rebuild yet, an **empty placeholder** `wikidata_labels.tsv` keeps the
+> local image build working until the next rebuild populates it.
 
 **Pre-flight check:** Stelle sicher dass `infra/wikidata-index/data/` in `.gitignore` ist.
 

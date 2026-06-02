@@ -1352,6 +1352,8 @@ export interface components {
                 presence?: string[];
                 /** @description Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call. */
                 wikidataQid?: string | null;
+                /** @description Phase 123b cross-lingual relabel. The QID's display label in the requested `viewerLanguage`, or null when no viewer language was requested, the node has no QID, or no label exists for that language. The frontend relabels a node only when this is present; otherwise it keeps the source surface form (`text`). This is the per-language rdfs:label Wikidata publishes — never a machine translation. */
+                viewerLabel?: string | null;
             }[];
             edges: {
                 /** @description Lexicographically smaller entity text in the pair. */
@@ -1377,6 +1379,16 @@ export interface components {
              * @description Count of distinct articles in the window whose `aer_gold.entities` contain ≥2 entities for the resolved scope. The Phase 131a pipeline-gap diagnostic: when `articlesInScope > 0` but `edges` is empty, the dashboard surfaces a "pipeline gap" hint instead of "sparse corpus" — distinguishing missing data from a missing sweep. Always populated.
              */
             articlesInScope?: number;
+            /**
+             * Format: int64
+             * @description Phase 123b — how many returned nodes carry a Wikidata QID (the subset the cross-lingual relabel toggle can act on). The dashboard shows the linked-vs-unlinked coverage ratio against `len(nodes)` so a reader knows how much of a foreign-language graph the toggle can relabel (WP-006 no-silent-gaps). Always populated.
+             */
+            linkedNodeCount?: number;
+            /**
+             * Format: int64
+             * @description Phase 123b — how many nodes received a `viewerLabel` in the requested `viewerLanguage` (always ≤ `linkedNodeCount`; a linked QID may lack a label in that language). Zero when no viewer language was requested.
+             */
+            labeledNodeCount?: number;
         };
         /** @description A single source record carrying the fields from the Source schema plus the Silver-layer eligibility state and the WP-006 §5.2 review metadata recorded at the time `silverEligible` was flipped. Fields beyond `silverEligible` are present only on eligible sources (and may be empty on auto-eligible Probe 0 sources where the metadata is a stub). */
         SourceDetail: {
@@ -2714,6 +2726,8 @@ export interface operations {
                 end?: string;
                 /** @description Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound. */
                 topN?: number;
+                /** @description Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation. */
+                viewerLanguage?: string;
             };
             header?: never;
             path?: never;
@@ -2817,6 +2831,8 @@ export interface operations {
                      * @default 50
                      */
                     topN?: number;
+                    /** @description Optional viewer-language code (e.g. `de`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`; unlinked nodes (and QIDs lacking a label in this language) keep their source surface form. Absent = no relabelling. Swaps in the per-language Wikidata label, never a machine translation. */
+                    viewerLanguage?: string;
                 };
             };
         };

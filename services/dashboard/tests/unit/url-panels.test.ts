@@ -80,6 +80,20 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded?.windows[0]?.panels[0]?.showBand).toBeUndefined();
   });
 
+  it('round-trips Phase-123b displayLanguage=viewer (and omits the source default)', () => {
+    const viewer = makePillarState([
+      makeWindow([makePanel({ view: 'cooccurrence_network', displayLanguage: 'viewer' })])
+    ]);
+    expect(decodePillarState(encodePillarState(viewer))).toEqual(viewer);
+
+    // 'source' is the default — dropped on the round-trip so the URL stays clean.
+    const source = makePillarState([
+      makeWindow([makePanel({ view: 'cooccurrence_network', displayLanguage: 'source' })])
+    ]);
+    const decoded = decodePillarState(encodePillarState(source));
+    expect(decoded?.windows[0]?.panels[0]?.displayLanguage).toBeUndefined();
+  });
+
   it('drops an empty channels object rather than serialising it', () => {
     const original = makePillarState([makeWindow([makePanel({ channels: {} })])]);
     const decoded = decodePillarState(encodePillarState(original));

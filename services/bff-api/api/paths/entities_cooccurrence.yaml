@@ -29,6 +29,7 @@ get:
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/topN.yaml'
+    - $ref: '../parameters/viewerLanguage.yaml'
   responses:
     '200':
       description: Top-N co-occurrence subgraph.

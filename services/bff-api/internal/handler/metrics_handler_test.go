@@ -230,7 +230,7 @@ func (m *mockStore) GetMetricCorrelation(_ context.Context, metricNames []string
 	return m.correlation, m.correlationErr
 }
 
-func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int) (storage.CoOccurrenceResult, error) {
+func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int, _ string) (storage.CoOccurrenceResult, error) {
 	m.capturedSources = sources
 	m.capturedStart = start
 	m.capturedEnd = end

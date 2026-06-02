@@ -1,0 +1,15 @@
+name: viewerLanguage
+in: query
+description: >
+  Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual
+  relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID
+  is looked up in `aer_gold.wikidata_labels` and the display label in that
+  language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a
+  label in this language, keep their source surface form. Absent (the default)
+  disables relabelling — nothing changes silently. This swaps in the per-language
+  label Wikidata publishes for a QID; it is never a machine translation.
+required: false
+schema:
+  type: string
+  minLength: 2
+  maxLength: 8

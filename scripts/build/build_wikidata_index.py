@@ -705,6 +705,7 @@ def _evaluate_candidates(
     dict[tuple[str, str, str], tuple[int, str]],
     dict[str, set[str]],
     dict[str, int],
+    dict[tuple[str, str], str],
 ]:
     """Run the full bucket DSL over hydrated candidates and emit alias rows.
 
@@ -712,10 +713,21 @@ def _evaluate_candidates(
     sitelink count fails `min_sitelinks` are dropped here; this is where
     the Phase-118b architecture-fix bites (the old code applied the
     threshold against zeroes from the truthy dump).
+
+    Phase 123b also accumulates `label_display` — the ORIGINAL-CASE
+    ``rdfs:label`` per (qid, language) for matched entities. The `aliases`
+    table stores only the lowercased match form (good for linking, wrong for
+    a German display label like "Russland"); the QID→display-label map is the
+    source for the cross-lingual relabelling toggle. Only `label`-source
+    values feed it (never `altLabel` — an alternate name is not the canonical
+    display label). When an entity carries several rdfs:label values for one
+    language the lexicographically-smallest wins, keeping the build
+    deterministic.
     """
     alias_rows: dict[tuple[str, str, str], tuple[int, str]] = {}
     entity_buckets: dict[str, set[str]] = {}
     entity_sitelinks: dict[str, int] = {}
+    label_display: dict[tuple[str, str], str] = {}
     matched = 0
 
     for qid, cand in candidates.items():
@@ -756,22 +768,31 @@ def _evaluate_candidates(
 
         for value, lang in cand.labels:
             _record(value, lang, "label")
+            if lang in languages:
+                display = value.strip()
+                if display:
+                    dkey = (qid, lang)
+                    prev = label_display.get(dkey)
+                    if prev is None or display < prev:
+                        label_display[dkey] = display
         for value, lang in cand.altlabels:
             _record(value, lang, "altLabel")
 
     log.info(
-        "Final evaluation: candidates=%d matched=%d alias_rows=%d entities=%d",
+        "Final evaluation: candidates=%d matched=%d alias_rows=%d "
+        "entities=%d display_labels=%d",
         len(candidates),
         matched,
         len(alias_rows),
         len(entity_buckets),
+        len(label_display),
     )
     if matched == 0:
         log.warning(
             "No candidates matched after Pass C. The min_sitelinks thresholds "
             "may be too strict, or sitelink hydration may have failed."
         )
-    return alias_rows, entity_buckets, entity_sitelinks
+    return alias_rows, entity_buckets, entity_sitelinks, label_display
 
 # ---------------------------------------------------------------------------
 # Pass C — Sitelink hydration via Wikidata SPARQL
@@ -994,7 +1015,9 @@ def _hydrate_sitelinks_via_sparql(
     return sitelinks
 
 # ---------------------------------------------------------------------------
-# SQLite assembly (unchanged shape from Phase 118)
+# SQLite assembly. Phase 118 shape (aliases / entities / build_metadata) plus
+# the Phase 123b `labels` table (QID → original-case display label per
+# language) and a sibling wikidata_labels.tsv for the ClickHouse loader.
 # ---------------------------------------------------------------------------
 
 
@@ -1019,6 +1042,12 @@ def _open_staging(path: Path) -> sqlite3.Connection:
             sitelink_count INTEGER NOT NULL,
             type_buckets TEXT NOT NULL
         );
+        CREATE TABLE labels (
+            wikidata_qid TEXT NOT NULL,
+            language TEXT NOT NULL,
+            label TEXT NOT NULL,
+            PRIMARY KEY (wikidata_qid, language)
+        );
         CREATE TABLE build_metadata (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -1028,6 +1057,31 @@ def _open_staging(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _sanitise_tsv_field(value: str) -> str:
+    """Strip tab/newline/CR so a label never breaks the TSV row/column framing.
+
+    ClickHouse's TabSeparated parser treats raw tabs and newlines as delimiters.
+    rdfs:label values practically never contain them, but a single stray one
+    would shift every following column — so we collapse them to a space rather
+    than relying on escape sequences the loader would have to opt into.
+    """
+    return value.replace("\t", " ").replace("\n", " ").replace("\r", " ")
+
+
+def _write_labels_tsv(
+    tsv_path: Path,
+    label_display: dict[tuple[str, str], str],
+) -> None:
+    """Emit the QID→display-label-per-language TSV consumed by the
+    wikidata-labels-load init (Phase 123b). Sorted by (qid, language) so the
+    output is byte-stable across runs over the same dump."""
+    rows = sorted(label_display.items())
+    with tsv_path.open("w", encoding="utf-8") as fh:
+        for (qid, lang), label in rows:
+            fh.write(f"{qid}\t{lang}\t{_sanitise_tsv_field(label)}\n")
+    log.info("wrote labels TSV path=%s rows=%d", tsv_path, len(rows))
+
+
 def _write_sqlite(
     output_path: Path,
     snapshot_date: str,
@@ -1035,13 +1089,16 @@ def _write_sqlite(
     alias_rows: dict[tuple[str, str, str], tuple[int, str]],
     entity_buckets: dict[str, set[str]],
     entity_sitelinks: dict[str, int],
+    label_display: dict[tuple[str, str], str],
 ) -> None:
     sorted_aliases = sorted(alias_rows.items(), key=lambda kv: kv[0])
     sorted_entities = sorted(entity_sitelinks.items())
+    sorted_labels = sorted(label_display.items())
     log.info(
-        "writing SQLite: alias_rows=%d entities=%d",
+        "writing SQLite: alias_rows=%d entities=%d labels=%d",
         len(sorted_aliases),
         len(sorted_entities),
+        len(sorted_labels),
     )
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -1070,15 +1127,21 @@ def _write_sqlite(
                 ],
             )
             conn.executemany(
+                "INSERT INTO labels (wikidata_qid, language, label) "
+                "VALUES (?, ?, ?)",
+                [(qid, lang, label) for (qid, lang), label in sorted_labels],
+            )
+            conn.executemany(
                 "INSERT INTO build_metadata (key, value) VALUES (?, ?)",
                 sorted(
                     [
                         ("snapshot_date", snapshot_date),
                         ("languages", ",".join(sorted(languages))),
-                        ("schema_version", "1"),
+                        ("schema_version", "2"),
                         ("build_method", "dump-stream"),
                         ("alias_row_count", str(len(sorted_aliases))),
                         ("entity_row_count", str(len(sorted_entities))),
+                        ("label_row_count", str(len(sorted_labels))),
                     ]
                 ),
             )
@@ -1121,6 +1184,13 @@ def _write_sqlite(
     sidecar = output_path.with_suffix(output_path.suffix + ".sha256")
     sidecar.write_text(f"{digest}  {output_path.name}\n")
     log.info("Sidecar hash written to %s", sidecar)
+
+    # Phase 123b — emit the QID→display-label TSV alongside the .db. The
+    # ClickHouse `wikidata_labels` reference table is loaded from this file by
+    # the wikidata-labels-load init; it carries the original-case label the
+    # `aliases` table deliberately lowercases away.
+    labels_tsv = output_path.with_name("wikidata_labels.tsv")
+    _write_labels_tsv(labels_tsv, label_display)
 
 
 # ---------------------------------------------------------------------------
@@ -1184,7 +1254,7 @@ def _build(
 
     # Final evaluation: now that sitelinks are real, decide bucket
     # membership and emit alias rows.
-    alias_rows, entity_buckets, entity_sitelinks = _evaluate_candidates(
+    alias_rows, entity_buckets, entity_sitelinks, label_display = _evaluate_candidates(
         candidates=candidates,
         sitelinks=sitelinks,
         rules=rules,
@@ -1198,6 +1268,7 @@ def _build(
         alias_rows=alias_rows,
         entity_buckets=entity_buckets,
         entity_sitelinks=entity_sitelinks,
+        label_display=label_display,
     )
 
     # Cache is intentionally retained on successful completion. Code

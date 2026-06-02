@@ -40,6 +40,7 @@
   } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { defaultMetricForScopes } from '$lib/workbench/panel-queries';
+  import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
 
   // Phase 131 — default per-cell config values. Mirrors the cell-side and
   // BFF-side defaults so a freshly-added Panel renders identically whether
@@ -95,7 +96,11 @@
     const epistemeDefault = pillar === 'episteme';
     const now = Date.now();
     return {
-      startMs: Number.isFinite(fromMs) ? fromMs : epistemeDefault ? now - DEFAULT_LOOKBACK_MS : undefined,
+      startMs: Number.isFinite(fromMs)
+        ? fromMs
+        : epistemeDefault
+          ? now - DEFAULT_LOOKBACK_MS
+          : undefined,
       endMs: Number.isFinite(toMs) ? toMs : epistemeDefault ? now : undefined,
       isPanelOverride: panelStart !== undefined || panelEnd !== undefined
     };
@@ -630,6 +635,24 @@
       return o;
     });
   }
+  // Phase 123b — co-occurrence cross-lingual relabel toggle. 'source' (default)
+  // keeps each node on its source surface form; 'viewer' swaps QID-linked nodes
+  // to the app-language label. Default omitted from URL.
+  const activeDisplayLanguage = $derived<'source' | 'viewer'>(
+    boundPanel?.displayLanguage ?? 'source'
+  );
+  // The app content language (clamped to the index's label languages). Shown on
+  // the toggle so the reader knows which language the relabel resolves to.
+  const viewerLanguage = viewerLabelLanguage();
+  function setDisplayLanguage(next: 'source' | 'viewer') {
+    if (!panelPath || next === activeDisplayLanguage) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      if (next === 'viewer') o.displayLanguage = 'viewer';
+      else delete o.displayLanguage; // 'source' is the default
+      return o;
+    });
+  }
   // Mutate one visual channel; empty string clears (unbinds) the channel.
   function setChannel(key: keyof CellChannelBinding, value: string) {
     if (!panelPath || (activeChannels[key] ?? '') === value) return;
@@ -1002,6 +1025,26 @@
               <option value={c.id}>{c.label}</option>
             {/each}
           </select>
+        </div>
+      {/if}
+
+      {#if configParams.includes('displayLanguage')}
+        <div class="ctrl-row config-row" role="group" aria-label="Display language">
+          <span class="ctrl-eyebrow">Labels</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={activeDisplayLanguage === 'viewer'}
+            class="ctrl-btn"
+            class:active={activeDisplayLanguage === 'viewer'}
+            onclick={() =>
+              setDisplayLanguage(activeDisplayLanguage === 'viewer' ? 'source' : 'viewer')}
+            title="Source form keeps each entity in its original language; App language relabels Wikidata-linked nodes to the app language ({viewerLanguage}). Unlinked nodes always keep their source form."
+          >
+            {activeDisplayLanguage === 'viewer'
+              ? `App language (${viewerLanguage})`
+              : 'Source form'}
+          </button>
         </div>
       {/if}
 

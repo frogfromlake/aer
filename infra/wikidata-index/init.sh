@@ -14,10 +14,15 @@ set -ex
 
 cp /index/wikidata_aliases.db /data/wikidata/
 cp /index/wikidata_aliases.db.sha256 /data/wikidata/
+# Phase 123b: the QID→display-label TSV rides the same image. It may be an
+# empty placeholder until the next index rebuild populates it; the
+# wikidata-labels-load init treats an empty file as "nothing to load yet".
+cp /index/wikidata_labels.tsv /data/wikidata/
 chmod 0644 \
     /data/wikidata/wikidata_aliases.db \
-    /data/wikidata/wikidata_aliases.db.sha256
+    /data/wikidata/wikidata_aliases.db.sha256 \
+    /data/wikidata/wikidata_labels.tsv
 cd /data/wikidata
 sha256sum -c wikidata_aliases.db.sha256
-echo "wikidata-index-init: copy + checksum verified"
+echo "wikidata-index-init: copy + checksum verified (labels TSV: $(wc -l < wikidata_labels.tsv) rows)"
 cat wikidata_aliases.db.sha256

@@ -214,6 +214,7 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -272,6 +273,7 @@ func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -323,6 +325,7 @@ func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -332,6 +335,146 @@ func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
 	}
 	if len(res.Edges) != 0 {
 		t.Fatalf("expected 0 edges (no co-occurrence rows seeded), got %d", len(res.Edges))
+	}
+}
+
+// Phase 123b — viewerLanguage relabels the QID-linked subset to the viewer's
+// display label, leaves unlinked nodes on their source surface form, and
+// surfaces the linked / labeled coverage counts.
+func TestGetEntityCoOccurrence_ViewerLanguageRelabel(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	w0 := mustParse(t, "2026-04-24T10:00:00Z")
+	w1 := mustParse(t, "2026-04-24T11:00:00Z")
+	// French co-occurrence edge: Russie–Macron (both linkable) plus an
+	// unlinked span "Moïse Kouame" paired with Russie.
+	coocRows := [][]any{
+		{w0, w1, "franceinfo", "art-1", "Macron", "PER", "Russie", "LOC", uint32(3), uint64(1000)},
+		{w0, w1, "franceinfo", "art-2", "Moïse Kouame", "PER", "Russie", "LOC", uint32(1), uint64(1000)},
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.entity_cooccurrences",
+		[]string{
+			"window_start", "window_end", "source", "article_id",
+			"entity_a_text", "entity_a_label", "entity_b_text", "entity_b_label",
+			"cooccurrence_count", "ingestion_version",
+		}, coocRows); err != nil {
+		t.Fatalf("seed cooccurrences: %v", err)
+	}
+	// entity_links resolves the two linkable spans to QIDs.
+	linkRows := [][]any{
+		{w0, "art-1", "Russie", "LOC", "Q159", float32(1.0), "exact_match", uint64(1000)},
+		{w0, "art-1", "Macron", "PER", "Q3052772", float32(1.0), "exact_match", uint64(1000)},
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.entity_links",
+		[]string{
+			"timestamp", "article_id", "entity_text", "entity_label",
+			"wikidata_qid", "link_confidence", "link_method", "ingestion_version",
+		}, linkRows); err != nil {
+		t.Fatalf("seed entity_links: %v", err)
+	}
+	// wikidata_labels carries the German display label for Q159 but NOT for
+	// Q3052772 — so Macron is linked-but-unlabeled in de.
+	labelRows := [][]any{
+		{"Q159", "de", "Russland", w0},
+		{"Q159", "fr", "Russie", w0},
+		{"Q3052772", "fr", "Emmanuel Macron", w0},
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.wikidata_labels",
+		[]string{"wikidata_qid", "language", "label", "updated_at"}, labelRows); err != nil {
+		t.Fatalf("seed wikidata_labels: %v", err)
+	}
+
+	res, err := s.GetEntityCoOccurrence(
+		ctx,
+		[]string{"franceinfo"},
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		10,
+		"de",
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+
+	nodeBy := map[string]CoOccurrenceNode{}
+	for _, n := range res.Nodes {
+		nodeBy[n.Text] = n
+	}
+	// Russie (Q159) relabels to Russland in de.
+	if got := nodeBy["Russie"].ViewerLabel; got != "Russland" {
+		t.Fatalf("Russie should relabel to Russland in de, got %q", got)
+	}
+	// Macron is linked (Q3052772) but has no de label → no ViewerLabel.
+	if nodeBy["Macron"].WikidataQid == "" {
+		t.Fatalf("Macron should be linked")
+	}
+	if got := nodeBy["Macron"].ViewerLabel; got != "" {
+		t.Fatalf("Macron has no de label, expected empty ViewerLabel, got %q", got)
+	}
+	// Unlinked span keeps its source surface form, no QID, no ViewerLabel.
+	if nodeBy["Moïse Kouame"].WikidataQid != "" || nodeBy["Moïse Kouame"].ViewerLabel != "" {
+		t.Fatalf("unlinked node must stay on source form: %+v", nodeBy["Moïse Kouame"])
+	}
+	// Coverage counts: 2 linked (Russie, Macron), 1 labeled (Russie) in de.
+	if res.LinkedNodeCount != 2 {
+		t.Fatalf("expected LinkedNodeCount=2, got %d", res.LinkedNodeCount)
+	}
+	if res.LabeledNodeCount != 1 {
+		t.Fatalf("expected LabeledNodeCount=1, got %d", res.LabeledNodeCount)
+	}
+}
+
+// Phase 123b — without a viewer language nothing relabels, but the linked
+// coverage count is still surfaced (and labeled count is zero).
+func TestGetEntityCoOccurrence_NoViewerLanguageNoRelabel(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	w0 := mustParse(t, "2026-04-24T10:00:00Z")
+	w1 := mustParse(t, "2026-04-24T11:00:00Z")
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.entity_cooccurrences",
+		[]string{
+			"window_start", "window_end", "source", "article_id",
+			"entity_a_text", "entity_a_label", "entity_b_text", "entity_b_label",
+			"cooccurrence_count", "ingestion_version",
+		}, [][]any{
+			{w0, w1, "franceinfo", "art-1", "Macron", "PER", "Russie", "LOC", uint32(3), uint64(1000)},
+		}); err != nil {
+		t.Fatalf("seed cooccurrences: %v", err)
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.entity_links",
+		[]string{
+			"timestamp", "article_id", "entity_text", "entity_label",
+			"wikidata_qid", "link_confidence", "link_method", "ingestion_version",
+		}, [][]any{
+			{w0, "art-1", "Russie", "LOC", "Q159", float32(1.0), "exact_match", uint64(1000)},
+		}); err != nil {
+		t.Fatalf("seed entity_links: %v", err)
+	}
+	if err := bulkInsert(contextWrap{ctx}.Ctx(), s, "aer_gold.wikidata_labels",
+		[]string{"wikidata_qid", "language", "label", "updated_at"},
+		[][]any{{"Q159", "de", "Russland", w0}}); err != nil {
+		t.Fatalf("seed wikidata_labels: %v", err)
+	}
+
+	res, err := s.GetEntityCoOccurrence(
+		ctx,
+		[]string{"franceinfo"},
+		mustParse(t, "2026-04-24T00:00:00Z"),
+		mustParse(t, "2026-04-25T00:00:00Z"),
+		10,
+		"", // no viewer language
+	)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	for _, n := range res.Nodes {
+		if n.ViewerLabel != "" {
+			t.Fatalf("no viewer language → no ViewerLabel, got %q on %q", n.ViewerLabel, n.Text)
+		}
+	}
+	if res.LinkedNodeCount != 1 {
+		t.Fatalf("expected LinkedNodeCount=1, got %d", res.LinkedNodeCount)
+	}
+	if res.LabeledNodeCount != 0 {
+		t.Fatalf("expected LabeledNodeCount=0 without viewer language, got %d", res.LabeledNodeCount)
 	}
 }
 

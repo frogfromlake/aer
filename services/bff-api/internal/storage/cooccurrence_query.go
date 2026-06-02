@@ -38,6 +38,13 @@ type CoOccurrenceNode struct {
 	// WikidataQid is the canonical Wikidata identifier resolved by the Phase
 	// 118 entity-linking step, or "" when no link exists for the node's text.
 	WikidataQid string
+	// ViewerLabel is the QID's display label in the requested viewer language
+	// (Phase 123b), or "" when the node has no QID, no label exists for that
+	// language, or no viewer language was requested. The client relabels a
+	// node only when this is non-empty; otherwise it keeps the source surface
+	// form. This is the per-language rdfs:label Wikidata publishes — never a
+	// machine translation.
+	ViewerLabel string
 }
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
@@ -52,6 +59,17 @@ type CoOccurrenceResult struct {
 	Edges           []CoOccurrenceEdge
 	TopN            int64
 	ArticlesInScope int64
+	// LinkedNodeCount is how many returned nodes carry a Wikidata QID — the
+	// subset the cross-lingual relabel toggle can act on. Surfaced so the
+	// client can show the linked-vs-unlinked coverage ratio (Phase 123b /
+	// WP-006 no-silent-gaps), independent of whether a viewer language was
+	// requested.
+	LinkedNodeCount int64
+	// LabeledNodeCount is how many nodes received a ViewerLabel in the
+	// requested viewer language — always <= LinkedNodeCount (a linked QID may
+	// lack a label in that language). Zero when no viewer language was
+	// requested.
+	LabeledNodeCount int64
 }
 
 // nodeAccumulator tracks per-entity degree and total weight while building
@@ -66,11 +84,17 @@ type nodeAccumulator struct {
 // window restricted to the provided source set, returns the top-N edges by
 // summed cooccurrence_count, and derives the incident node set with degrees
 // and total weights.
+// viewerLanguage (Phase 123b) is the optional viewer-language code (e.g. "de")
+// for the cross-lingual relabel toggle. When non-empty, each node's resolved
+// QID is looked up in aer_gold.wikidata_labels and the display label in that
+// language is attached as ViewerLabel. Empty disables relabelling (default —
+// nothing changes silently).
 func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	ctx context.Context,
 	sources []string,
 	start, end time.Time,
 	topN int,
+	viewerLanguage string,
 ) (CoOccurrenceResult, error) {
 	if topN < 1 {
 		topN = 1
@@ -180,6 +204,16 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		qidMap, _ = s.queryNodeWikidataQids(ctx, acc)
 	}
 
+	// Phase 123b: resolve the per-language display label for each linked QID
+	// when a viewer language is requested. Best-effort, mirroring the QID
+	// lookup — a failure leaves nodes without a ViewerLabel (every node then
+	// keeps its source surface form), never a 5xx. labelMap is keyed by QID.
+	var labelMap map[string]string
+	if viewerLanguage != "" && qidMap != nil && len(qidMap) > 0 {
+		labelMap, _ = s.queryNodeLabels(ctx, qidMap, viewerLanguage)
+	}
+
+	var linkedNodeCount, labeledNodeCount int64
 	nodes := make([]CoOccurrenceNode, 0, len(acc))
 	for text, a := range acc {
 		n := CoOccurrenceNode{
@@ -194,6 +228,15 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		if qidMap != nil {
 			n.WikidataQid = qidMap[text]
 		}
+		if n.WikidataQid != "" {
+			linkedNodeCount++
+			if labelMap != nil {
+				if lbl, ok := labelMap[n.WikidataQid]; ok && lbl != "" {
+					n.ViewerLabel = lbl
+					labeledNodeCount++
+				}
+			}
+		}
 		nodes = append(nodes, n)
 	}
 
@@ -205,10 +248,12 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	articlesInScope, _ := s.queryArticlesInScopeForCoOccurrence(ctx, sources, start, end)
 
 	return CoOccurrenceResult{
-		Nodes:           nodes,
-		Edges:           edges,
-		TopN:            int64(topN),
-		ArticlesInScope: articlesInScope,
+		Nodes:            nodes,
+		Edges:            edges,
+		TopN:             int64(topN),
+		ArticlesInScope:  articlesInScope,
+		LinkedNodeCount:  linkedNodeCount,
+		LabeledNodeCount: labeledNodeCount,
 	}, nil
 }
 
@@ -430,6 +475,59 @@ func (s *ClickHouseStorage) queryNodeWikidataQids(
 	for _, r := range rows {
 		if r.WikidataQid != "" {
 			result[r.EntityText] = r.WikidataQid
+		}
+	}
+	return result, nil
+}
+
+// queryNodeLabels resolves the display label per QID in the given viewer
+// language from aer_gold.wikidata_labels (Phase 123b). qidMap is the
+// entity-text → QID map already resolved by queryNodeWikidataQids; the lookup
+// is keyed and returned by QID. FINAL collapses the ReplacingMergeTree so a
+// reloaded reference table never yields duplicate rows. Best-effort: a failure
+// returns nil and the caller leaves nodes on their source surface form.
+func (s *ClickHouseStorage) queryNodeLabels(
+	ctx context.Context,
+	qidMap map[string]string,
+	language string,
+) (map[string]string, error) {
+	// Distinct QIDs (several entity texts can map to the same QID).
+	qidSet := make(map[string]struct{}, len(qidMap))
+	for _, qid := range qidMap {
+		if qid != "" {
+			qidSet[qid] = struct{}{}
+		}
+	}
+	if len(qidSet) == 0 {
+		return nil, nil //nolint:nilnil // empty input → empty result
+	}
+	args := make([]any, 0, len(qidSet)+1)
+	args = append(args, language)
+	placeholders := make([]string, 0, len(qidSet))
+	i := 0
+	for qid := range qidSet {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
+		args = append(args, qid)
+		i++
+	}
+	query := fmt.Sprintf(`
+		SELECT wikidata_qid, label
+		FROM aer_gold.wikidata_labels FINAL
+		WHERE language = $1 AND wikidata_qid IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	var rows []struct {
+		WikidataQid string `ch:"wikidata_qid"`
+		Label       string `ch:"label"`
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Warn("Failed to query node display labels (non-fatal)", "error", err)
+		return nil, err //nolint:wrapcheck // caller treats this as optional
+	}
+	result := make(map[string]string, len(rows))
+	for _, r := range rows {
+		if r.Label != "" {
+			result[r.WikidataQid] = r.Label
 		}
 	}
 	return result, nil

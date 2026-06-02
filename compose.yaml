@@ -366,6 +366,38 @@ services:
       - aer-backend
 
   # ----------------------------------------------------
+  # 3.1b'' WIKIDATA DISPLAY LABELS → CLICKHOUSE (PHASE 123b)
+  # ----------------------------------------------------
+  # One-shot init that loads the QID→display-label TSV (distributed into the
+  # wikidata_data volume by wikidata-index-init) into aer_gold.wikidata_labels.
+  # Backs the cross-lingual relabelling toggle on the cooccurrence_network
+  # presentation: the BFF LEFT JOINs this table on the QID it already resolves
+  # from entity_links. Uses the ClickHouse client image (mirrors clickhouse-init,
+  # Hard Rule 5). An empty placeholder TSV is a no-op until the next index
+  # rebuild populates display labels — see infra/clickhouse/load_wikidata_labels.sh.
+  wikidata-labels-load:
+    image: clickhouse/clickhouse-server:26.3.3-alpine
+    container_name: aer_wikidata_labels_load
+    restart: "no"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
+      wikidata-index-init:
+        condition: service_completed_successfully
+    volumes:
+      - wikidata_data:/data/wikidata:ro
+      - ./infra/clickhouse/load_wikidata_labels.sh:/load_wikidata_labels.sh:ro
+    entrypoint: ["/bin/sh", "/load_wikidata_labels.sh"]
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+    networks:
+      - aer-backend
+
+  # ----------------------------------------------------
   # 3.1c ANALYSIS WORKER (BRONZE → SILVER → GOLD)
   # ----------------------------------------------------
   analysis-worker:

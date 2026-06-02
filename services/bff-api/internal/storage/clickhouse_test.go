@@ -135,6 +135,22 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 		t.Fatalf("failed to create entity_links table: %v", err)
 	}
 
+	// Phase 123b: wikidata_labels backs the cross-lingual relabel join in the
+	// cooccurrence handler. Mirrors migration 000026 (ReplacingMergeTree so the
+	// query's FINAL collapses duplicates).
+	err = store.conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS aer_gold.wikidata_labels (
+			wikidata_qid String,
+			language LowCardinality(String),
+			label String,
+			updated_at DateTime DEFAULT now()
+		) ENGINE = ReplacingMergeTree(updated_at)
+		ORDER BY (wikidata_qid, language)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create wikidata_labels table: %v", err)
+	}
+
 	err = store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.language_detections (
 			timestamp DateTime,
