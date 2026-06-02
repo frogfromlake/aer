@@ -178,14 +178,16 @@
   // --- revisions-articles mode query -------------------------------------
   const revisionsArticlesParams = $derived.by<RevisionsArticlesParams | null>(() => {
     if (config.mode !== 'revisions-articles') return null;
-    if (!windowStart || !windowEnd) return null;
+    // Window is optional: an absent window (whole-dataset Aleph drilldown) must
+    // still load — the BFF resolves absent bounds to the whole dataset. Only
+    // omit the bound that is actually missing.
     const p: RevisionsArticlesParams = {
       scope: config.scope,
       scopeId: config.scopeId,
-      start: windowStart,
-      end: windowEnd,
       limit: PAGE_SIZE
     };
+    if (windowStart) p.start = windowStart;
+    if (windowEnd) p.end = windowEnd;
     if (config.hasHeadlineChange) p.hasHeadlineChange = true;
     if (config.minChainLength && config.minChainLength > 1)
       p.minChainLength = config.minChainLength;

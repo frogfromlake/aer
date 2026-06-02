@@ -1788,10 +1788,10 @@ type GetRevisionsArticlesParams struct {
 	ScopeId string `form:"scopeId" json:"scopeId"`
 
 	// StartDate Inclusive start of the analysis window (RFC 3339).
-	StartDate time.Time `form:"startDate" json:"startDate"`
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
 
 	// EndDate Exclusive end of the analysis window (RFC 3339).
-	EndDate time.Time `form:"endDate" json:"endDate"`
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
 
 	// HasHeadlineChange When `true`, only return articles whose chain contains at least one revision with `headline_changed=true`. The default (unset / `false`) returns every article with ≥ 1 revision.
 	HasHeadlineChange *bool `form:"hasHeadlineChange,omitempty" json:"hasHeadlineChange,omitempty"`
@@ -3530,31 +3530,17 @@ func (siw *ServerInterfaceWrapper) GetRevisionsArticles(w http.ResponseWriter, r
 		return
 	}
 
-	// ------------- Required query parameter "startDate" -------------
+	// ------------- Optional query parameter "startDate" -------------
 
-	if paramValue := r.URL.Query().Get("startDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "startDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
 		return
 	}
 
-	// ------------- Required query parameter "endDate" -------------
+	// ------------- Optional query parameter "endDate" -------------
 
-	if paramValue := r.URL.Query().Get("endDate"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
 		return

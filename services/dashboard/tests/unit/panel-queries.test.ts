@@ -7,7 +7,7 @@ import {
   selectCellRender,
   shouldRefuseMergedCrossProbe
 } from '../../src/lib/workbench/panel-queries';
-import { CROSS_PROBE_DEFAULT_METRIC, DEFAULT_METRIC_NAME } from '../../src/lib/viewmodes';
+import { CROSS_PROBE_DEFAULT_METRIC } from '../../src/lib/viewmodes';
 import type { Panel, ScopeGroup } from '../../src/lib/state/url-internals';
 
 function panel(overrides: Partial<Panel> = {}): Panel {
@@ -322,24 +322,29 @@ describe('expandProbeScopeFanout (Phase 123c B — cross-probe split fan-out)', 
   });
 });
 
-describe('defaultMetricForScopes (Phase 123c Issue 4)', () => {
-  it('single-probe scope → the German default (SentiWS)', () => {
-    expect(defaultMetricForScopes([group(['probe-0'], [])])).toBe(DEFAULT_METRIC_NAME);
-    // Multiple groups, same single probe → still single-probe.
-    expect(defaultMetricForScopes([group(['probe-0'], ['tagesschau'])])).toBe(DEFAULT_METRIC_NAME);
+describe('defaultMetricForScopes', () => {
+  // The default is ALWAYS the multilingual backbone — for single- and
+  // cross-probe alike — so no probe (e.g. Probe 1, French) ever opens on a
+  // German-only metric that renders an empty cell, and a single probe never
+  // needs a runtime metric-reconcile to correct its default.
+  it('single-probe scope → the multilingual backbone (never German-only SentiWS)', () => {
+    expect(defaultMetricForScopes([group(['probe-0'], [])])).toBe(CROSS_PROBE_DEFAULT_METRIC);
+    expect(defaultMetricForScopes([group(['probe-1'], [])])).toBe(CROSS_PROBE_DEFAULT_METRIC);
+    expect(defaultMetricForScopes([group(['probe-0'], ['tagesschau'])])).toBe(
+      CROSS_PROBE_DEFAULT_METRIC
+    );
   });
 
   it('cross-probe scope → the multilingual backbone (so FR cells are not empty)', () => {
     expect(defaultMetricForScopes([group(['probe-0', 'probe-1'], [])])).toBe(
       CROSS_PROBE_DEFAULT_METRIC
     );
-    // Distinct probes across two groups also count as cross-probe.
     expect(defaultMetricForScopes([group(['probe-0']), group(['probe-1'])])).toBe(
       CROSS_PROBE_DEFAULT_METRIC
     );
   });
 
-  it('empty scope → falls back to the single-probe default', () => {
-    expect(defaultMetricForScopes([])).toBe(DEFAULT_METRIC_NAME);
+  it('empty scope → the multilingual backbone', () => {
+    expect(defaultMetricForScopes([])).toBe(CROSS_PROBE_DEFAULT_METRIC);
   });
 });

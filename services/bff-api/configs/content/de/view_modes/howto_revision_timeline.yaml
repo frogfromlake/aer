@@ -1,0 +1,25 @@
+entityId: howto_revision_timeline
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Die Edit-Historie jedes Artikels auf einer gemeinsamen Zeitachse — wann veröffentlichte Texte still geändert wurden."
+    long: >
+      Das diachrone Gegenstück zur Revisions-Aktivität: statt Zählungen je Quelle wird jeder erkannte Edit an
+      dem Zeitpunkt platziert, an dem er erfasst wurde. Lies das Muster — eine Häufung kurz nach
+      Veröffentlichung ist gewöhnlicher redaktioneller Feinschliff, eine isolierte Änderung Wochen später ist
+      die Art stiller Revision, die einen zweiten Blick wert ist. Artikel ohne erfasste Edits haben schlicht
+      keine Punkte; diese Abwesenheit ist beobachtet, nicht erschlossen (ein fehlgeschlagener Lookup wird
+      separat verfolgt, ADR-036).
+  methodological:
+    short: "Revisionspunkte je Artikel (snapshot_at) aus aer_gold.article_revisions über das Fenster."
+    long: >
+      Dieselbe Quelle wie die Revisions-Aktivität (Internet-Archive-CDX-Snapshots, Digest-kollabiert), aber
+      un-aggregiert: ein Punkt je (Artikel, Snapshot). Verankert auf snapshot_at — dem Erfassungszeitpunkt, nicht
+      dem Publikationsdatum — und mit FINAL gelesen, sodass re-ingestierte Duplikate kollabieren. Das Fenster
+      bestimmt, welche Captures gezeigt werden; zieh es auf, um die volle beobachtete Edit-Historie eines Artikels zu sehen.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-02"
+workingPaperAnchors:
+  - "WP-003 §5.3"

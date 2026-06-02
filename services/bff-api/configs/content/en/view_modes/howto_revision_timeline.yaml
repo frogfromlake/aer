@@ -1,0 +1,24 @@
+entityId: howto_revision_timeline
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Each article's edit history on a shared time axis — when published pieces were silently changed."
+    long: >
+      The diachronic companion to revision activity: instead of counts per source, every detected
+      edit is placed at the moment it was captured. Read the pattern — a burst of edits right after
+      publication is ordinary editorial polishing, while an isolated change weeks later is the kind of
+      quiet revision worth a second look. Articles with no captured edits simply have no points; that
+      absence is observed, not inferred (a lookup that failed is tracked separately, ADR-036).
+  methodological:
+    short: "Per-article revision points (snapshot_at) from aer_gold.article_revisions over the window."
+    long: >
+      Same source as revision activity (Internet Archive CDX snapshots, digest-collapsed) but
+      un-aggregated: one point per (article, snapshot). Anchored on snapshot_at — the capture time,
+      not the article's publish date — and read with FINAL so re-ingested duplicates collapse. The
+      window bounds which captures are shown; widen it to see an article's full observed edit history.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-02"
+workingPaperAnchors:
+  - "WP-003 §5.3"

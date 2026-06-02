@@ -10,17 +10,24 @@ registers:
       Nischenthemen. Es gibt hier keine Zeitachse — dies ist die synchrone Momentaufnahme (Aleph).
       Themen sind nach Sprache partitioniert, weil die Embeddings sprachspezifisch sind; lies nicht
       über Sprachpartitionen hinweg, als wären die Themen-IDs ausgerichtet.
+      Ein Label wie „0_prozent_menschen_deutschland_iran" liest sich so: die führende Zahl ist die
+      Themen-ID (0, 1, 2, …), KEIN Prozentwert — nur ein willkürlicher Index. Die Wörter danach sind
+      die vier kennzeichnendsten Wörter des Clusters (c-TF-IDF), ein Fingerabdruck des Themas, kein
+      Titel. Thema „-1" ist die Ausreißerklasse: Artikel, die in kein kohärentes Cluster passen, als
+      ausgegrautes „uncategorised" gezeigt statt versteckt — denn ein Ausreißer ist eine Beobachtung.
   methodological:
     short: "BERTopic-Zuordnungszahlen je Thema im Fenster, je Sprachpartition. Tier-2 (gepinntes Modell + geseedetes UMAP/HDBSCAN)."
     long: >
       Die Notiz wird aus einer Vorlage je Darstellung komponiert. Volumina sind distinkte
-      Artikelzahlen je Thema innerhalb des Fensters; Themenlabels sind die c-TF-IDF-/KeyBERT-
-      Repräsentation. Der Modell-Hash steht in der Provenienz-Fußzeile — mehr als ein Hash in einem
-      Fenster bedeutet, dass die Themenidentitäten rotiert sein können und nicht als eine stabile
-      Basis gelesen werden sollten.
-contentVersion: "v2026-05-a"
+      Artikelzahlen je Thema innerhalb des Fensters. Ein Themenlabel ist „<id>_<wort>_<wort>_<wort>_<wort>":
+      die c-TF-IDF-Repräsentation (die im Cluster gegenüber dem Rest am stärksten überrepräsentierten
+      Wörter), vorangestellt die numerische Themen-ID; ID -1 ist die Ausreißerklasse. Dokumente werden
+      mit E5-„passage:"-Eingaben eingebettet und per geseedetem UMAP + HDBSCAN geclustert. Der
+      Modell-Hash steht in der Provenienz-Fußzeile — mehr als ein Hash in einem Fenster bedeutet, dass
+      die Themenidentitäten rotiert sein können und nicht als eine stabile Basis gelesen werden sollten.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-02"
 workingPaperAnchors:
   - "WP-002 §8.1"
   - "WP-004 §3.4"

@@ -21,6 +21,7 @@
   } from '$lib/api/queries';
   import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
   import { urlState } from '$lib/state/url.svelte';
+  import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
@@ -40,21 +41,25 @@
     return fromPillar ?? '';
   });
 
-  // Default window = the WHOLE dataset: undefined bounds ⇒ no time filter (the
-  // BFF treats absent start/end as unbounded). Time-limiting is an optional
-  // feature, engaged only when the URL carries from/to. Mirrors DossierOverlay.
-  const windowMs = $derived.by<{ start: string | undefined; end: string | undefined }>(() => {
-    const fromMs = url.from ? Date.parse(url.from) : NaN;
-    const toMs = url.to ? Date.parse(url.to) : NaN;
+  // Episteme is the DIACHRONIC pillar — the time axis IS its subject. Unlike the
+  // synchronic Aleph/Rhizome (whole dataset), it defaults to a FIXED, disclosed
+  // recent window (the crawler's 7-day discovery horizon) so a single
+  // recently-edited old article's true publish_date can't blow out the shared
+  // time axis. The window is explicit + reversible — set a panel window (or
+  // global from/to) to widen toward the full history. This is a declared
+  // analysis window, not hidden filtering: every article stays queryable.
+  const windowMs = $derived.by<{ start: string; end: string }>(() => {
+    const now = Date.now();
+    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
+    const toMs = url.to ? Date.parse(url.to) : now;
     return {
-      start: Number.isFinite(fromMs) ? new Date(fromMs).toISOString() : undefined,
-      end: Number.isFinite(toMs)
-        ? new Date(toMs).toISOString()
-        : url.from
-          ? new Date().toISOString()
-          : undefined
+      start: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS).toISOString(),
+      end: new Date(Number.isFinite(toMs) ? toMs : now).toISOString()
     };
   });
+  // Whether the active window is the default 7-day horizon (no explicit
+  // from/to) — drives the disclosed caption below.
+  const isDefaultWindow = $derived(!url.from && !url.to);
 
   const dossierQ = createQuery<QueryOutcome<ProbeDossierDto>, Error, QueryOutcome<ProbeDossierDto>>(
     () => {
@@ -120,6 +125,14 @@
 </script>
 
 <section class="episteme-shell" aria-label="Episteme — change over time">
+  {#if isDefaultWindow}
+    <p
+      class="window-note"
+      title="Episteme is the diachronic pillar — it defaults to a fixed recent window so a rare recently-edited older article can't distort the shared time axis. Set a panel's window (or the global range) to widen toward the full history; no data is dropped."
+    >
+      Showing the last 7 days · widen a panel's window for the full history
+    </p>
+  {/if}
   {#if dossierQ.isPending}
     <p class="muted" aria-busy="true">Loading dataset…</p>
   {:else if pillarState && dossier}
@@ -264,5 +277,13 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .window-note {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--color-fg-subtle);
+    cursor: help;
   }
 </style>

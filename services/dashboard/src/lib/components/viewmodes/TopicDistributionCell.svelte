@@ -154,10 +154,21 @@
       // Bar length = articleCount. The visual is a horizontal ridge
       // stack (ridgeline-as-bar) — keeps the mark inventory consistent
       // with the existing DistributionCell (Plot.rectY → Plot.barX).
+      // Raw label, lightly capped — only for building a unique y-domain key.
       const labelOf = (d: NormalisedTopic): string =>
-        // Truncate long c-TF-IDF labels so the y-axis stays legible.
-        // The full label is in the tip mark.
         d.label.length > 64 ? `${d.label.slice(0, 61)}…` : d.label;
+      // Human-readable axis label: BERTopic labels arrive as
+      // "<id>_word_word_word_word" (a c-TF-IDF fingerprint, not a title).
+      // Strip the leading numeric id (it is not a percentage — see the
+      // "how to read" note) and join the words with middots so the axis
+      // reads "word · word · word"; truncate to fit the left margin with
+      // the full label preserved in the hover tip.
+      const prettyLabel = (d: NormalisedTopic): string => {
+        if (d.isOutlier) return 'uncategorised';
+        const words = d.label.replace(/^-?\d+_/, '').split('_').filter(Boolean);
+        const joined = words.join(' · ');
+        return joined.length > 32 ? `${joined.slice(0, 31)}…` : joined || d.label;
+      };
       // Prepare row keys; pad short labels with zero-width chars per
       // ridge index so identically-labeled topics across languages
       // sort deterministically inside Plot's domain inference.
@@ -165,6 +176,11 @@
         ...d,
         key: `${d.language}::${d.ridge}::${labelOf(d)}`
       }));
+      // Map each composite y-domain key to its human topic label. Read by
+      // the y-axis `tickFormat` below so the axis shows the readable label,
+      // not the composite sort key. Built before plot() on purpose.
+      const labelMap: Record<string, string> = Object.create(null);
+      for (const r of keyed) labelMap[r.key] = prettyLabel(r);
 
       const baseHeight = 28; // px per ridge
       const partitions: Record<string, number> = Object.create(null);
@@ -183,7 +199,11 @@
         marginTop: multiLang ? 20 : 8,
         marginBottom: 36,
         x: { label: 'articles', grid: true, nice: true },
-        y: { label: null, axis: 'left' },
+        // `tickFormat` maps the composite sort key back to the human topic
+        // label. Doing it here (not via a post-render DOM patch) means Plot
+        // measures the real label for fit, so a lone long-labelled topic
+        // (N=1) still renders its tick instead of dropping it.
+        y: { label: null, axis: 'left', tickFormat: (k: string) => labelMap[k] ?? k },
         ...(multiLang
           ? {
               fy: {
@@ -233,19 +253,6 @@
           Plot.ruleX([0])
         ]
       });
-      // Replace the y-axis tick labels with the human topic label.
-      // Plot's default `text` mark on the categorical y axis prints the
-      // composed `key` string — we override after render using the
-      // canonical pattern `tickFormat` does not support.
-      const labelMap: Record<string, string> = Object.create(null);
-      for (const r of keyed) labelMap[r.key] = labelOf(r);
-      const ticks = (next as HTMLElement).querySelectorAll('[aria-label="y-axis tick label"]');
-      ticks.forEach((t) => {
-        const raw = t.textContent ?? '';
-        const human = labelMap[raw];
-        if (human) t.textContent = human;
-      });
-
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
       host.appendChild(next as unknown as HTMLElement);

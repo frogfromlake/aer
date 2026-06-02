@@ -17,7 +17,6 @@
 import type { Panel, ScopeGroup, ViewMode } from '$lib/state/url-internals';
 import {
   CROSS_PROBE_DEFAULT_METRIC,
-  DEFAULT_METRIC_NAME,
   getPresentation,
   isPureCountMetric
 } from '../viewmodes';
@@ -336,19 +335,19 @@ export function buildSelectionWorkbenchUrl(probeIds: readonly string[]): string 
 }
 
 /**
- * Phase 123c (Issue 4) — pick the default metric for a scope. A panel that
- * spans more than one probe defaults to the multilingual sentiment backbone
- * (`CROSS_PROBE_DEFAULT_METRIC`) — the one sentiment metric every probe
- * carries — because the global `DEFAULT_METRIC_NAME` (German-only SentiWS)
- * would render empty cells for non-German sources. Single-probe scopes keep
- * `DEFAULT_METRIC_NAME`. Pure (probeId-counting) so it is unit-testable.
+ * The default metric for ANY new panel is the multilingual sentiment backbone
+ * (`CROSS_PROBE_DEFAULT_METRIC`) — the one sentiment every probe carries.
+ * The global `DEFAULT_METRIC_NAME` (German-only SentiWS) would render empty
+ * cells for non-German probes (e.g. Probe 1, French), so it is never the
+ * default; it stays freely selectable in the picker for German scopes.
+ * Choosing the backbone unconditionally (not just cross-probe) means a single
+ * probe never needs a runtime metric-reconcile — its default is already a
+ * metric every source can serve. Pure so it is unit-testable.
  */
 export function defaultMetricForScopes(
-  scopes: ReadonlyArray<{ probeIds: readonly string[] }>
+  _scopes: ReadonlyArray<{ probeIds: readonly string[] }>
 ): string {
-  const probes = new Set<string>();
-  for (const g of scopes) for (const p of g.probeIds) probes.add(p);
-  return probes.size > 1 ? CROSS_PROBE_DEFAULT_METRIC : DEFAULT_METRIC_NAME;
+  return CROSS_PROBE_DEFAULT_METRIC;
 }
 
 /**

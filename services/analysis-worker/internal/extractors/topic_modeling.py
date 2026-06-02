@@ -14,9 +14,19 @@ Reproducibility commitments (Tier 2 per WP-002 §8.1 Option C):
     ``intfloat/multilingual-e5-large``).
   * UMAP and HDBSCAN seeded; ``random_state=42`` is the canonical seed.
   * ``model_hash`` recorded per row composes the BERTopic version, the
-    sentence-transformer model id + revision, both random seeds, and the
+    sentence-transformer model id + revision, both random seeds, the
+    embedding input-format tag, the clustering hyperparameters
+    (``n_neighbors``/``min_cluster_size``/``min_samples``), and the
     language partition. Any change in any of those bumps the hash and
     therefore the topic identity space.
+
+Embedding input format: ``multilingual-e5-large`` (like all E5 models)
+is trained with an input-type prefix. Documents fed to the clustering
+step are therefore prefixed with ``"passage: "`` and L2-normalised
+before UMAP — without this the embeddings sit off-distribution and
+collapse into a couple of undifferentiated blobs (the symptom that
+motivated this). The c-TF-IDF *labelling* step still sees the RAW text
+(no prefix), so the prefix never leaks into topic labels.
 
 The extractor itself is pure: ``extract_topics`` consumes a list of
 ``DocumentRecord`` and returns a list of ``TopicAssignmentRow``. The
@@ -53,6 +63,29 @@ _DEFAULT_UMAP_SEED = 42
 _DEFAULT_HDBSCAN_SEED = 42
 _BERTOPIC_OUTLIER_TOPIC_ID = -1
 _MIN_DOCS_PER_LANGUAGE = 10  # BERTopic / HDBSCAN underflow guard.
+
+# Clustering hyperparameters. These are the standard BERTopic/HDBSCAN
+# values, kept after an empirical check on the real corpus: the German
+# "2 topics" symptom was NOT these params — it was an early sweep over a
+# partially-loaded corpus (230 docs). On the full corpus these defaults
+# already yield ~13 coherent de topics AND ~6 coherent fr topics once the
+# E5 "passage:" embedding fix is in place. A tuning trial (n_neighbors=10,
+# min_cluster_size=8) gave no de gain and SHATTERED the coherent French
+# sport topic into ~5 redundant "psg/roland-garros" fragments — so it was
+# reverted (the live topic labels, not the order-sensitive offline sweep,
+# were the arbiter). The knobs stay constructor-overridable + enter
+# ``model_hash``; revisit only with label-level evidence on real data.
+_DEFAULT_N_NEIGHBORS = 15  # UMAP: lower = more local structure = more topics.
+_DEFAULT_N_COMPONENTS = 5  # UMAP target dimensionality.
+_DEFAULT_MIN_CLUSTER_SIZE = 10  # HDBSCAN: smallest admissible topic.
+_DEFAULT_MIN_SAMPLES = None  # HDBSCAN: None → defaults to min_cluster_size.
+_CLUSTER_SELECTION_METHOD = "eom"  # stable over the granular "leaf".
+
+# E5 input-type prefix for documents (see module docstring). The tag is a
+# coarse version marker folded into ``model_hash``; bump it whenever the
+# embedding-input convention changes.
+_EMBEDDING_INPUT_FORMAT = "e5-passage-norm-v1"
+_E5_PASSAGE_PREFIX = "passage: "
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +141,9 @@ class TopicModelingExtractor:
         embedding_revision: str | None = None,
         umap_seed: int = _DEFAULT_UMAP_SEED,
         hdbscan_seed: int = _DEFAULT_HDBSCAN_SEED,
+        n_neighbors: int = _DEFAULT_N_NEIGHBORS,
+        min_cluster_size: int = _DEFAULT_MIN_CLUSTER_SIZE,
+        min_samples: int | None = _DEFAULT_MIN_SAMPLES,
         manifest_path: str | None = None,
     ) -> None:
         resolved_path = self._resolve_manifest_path(manifest_path)
@@ -120,6 +156,9 @@ class TopicModelingExtractor:
         self.embedding_revision = resolved_revision
         self.umap_seed = umap_seed
         self.hdbscan_seed = hdbscan_seed
+        self.n_neighbors = n_neighbors
+        self.min_cluster_size = min_cluster_size
+        self.min_samples = min_samples
         self._manifest_path = resolved_path
 
     @property
@@ -227,18 +266,24 @@ class TopicModelingExtractor:
         """Composite reproducibility hash, written per row.
 
         Captures every input that influences topic identity: the BERTopic
-        version, the embedding model id + revision, both seeds, and the
-        language partition. Bumping any one of them rotates the hash and
-        signals to downstream consumers that ``topic_id`` no longer
+        version, the embedding model id + revision, the embedding
+        input-format tag, both seeds, the clustering hyperparameters, and
+        the language partition. Bumping any one of them rotates the hash
+        and signals to downstream consumers that ``topic_id`` no longer
         corresponds to the prior topic-identity space.
         """
         material = ":".join(
             [
                 self.embedding_model,
                 self.embedding_revision,
+                _EMBEDDING_INPUT_FORMAT,
                 bertopic_version,
                 str(self.umap_seed),
                 str(self.hdbscan_seed),
+                str(self.n_neighbors),
+                str(self.min_cluster_size),
+                str(self.min_samples),
+                _CLUSTER_SELECTION_METHOD,
                 language_partition,
             ]
         ).encode("utf-8")
@@ -355,18 +400,21 @@ class TopicModelingExtractor:
         )
 
         umap_model = UMAP(
-            n_neighbors=15,
-            n_components=5,
+            n_neighbors=self.n_neighbors,
+            n_components=_DEFAULT_N_COMPONENTS,
             min_dist=0.0,
             metric="cosine",
             random_state=self.umap_seed,
         )
-        hdbscan_model = HDBSCAN(
-            min_cluster_size=10,
-            metric="euclidean",
-            cluster_selection_method="eom",
-            prediction_data=True,
-        )
+        hdbscan_kwargs = {
+            "min_cluster_size": self.min_cluster_size,
+            "metric": "euclidean",
+            "cluster_selection_method": _CLUSTER_SELECTION_METHOD,
+            "prediction_data": True,
+        }
+        if self.min_samples is not None:
+            hdbscan_kwargs["min_samples"] = self.min_samples
+        hdbscan_model = HDBSCAN(**hdbscan_kwargs)
 
         # Per-language stopword filter for the c-TF-IDF representation
         # step. Without this, labels degenerate to the most frequent
@@ -386,8 +434,17 @@ class TopicModelingExtractor:
             verbose=False,
         )
 
+        # RAW text drives c-TF-IDF labelling (no prefix → labels stay clean).
         texts = [rec.cleaned_text for rec in docs]
-        topics, _ = topic_model.fit_transform(texts)
+        # Clustering runs on E5 "passage: "-prefixed, L2-normalised embeddings
+        # computed here and handed to BERTopic, so the prefix shapes the
+        # vector space without polluting the labels. See module docstring.
+        embeddings = embedder.encode(
+            [_E5_PASSAGE_PREFIX + t for t in texts],
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        topics, _ = topic_model.fit_transform(texts, embeddings=embeddings)
 
         topic_info = topic_model.get_topic_info()
         label_by_topic_id: dict[int, str] = {}

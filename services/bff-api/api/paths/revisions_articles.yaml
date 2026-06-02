@@ -15,14 +15,14 @@ get:
     - $ref: '../parameters/scopeId.yaml'
     - name: startDate
       in: query
-      required: true
+      required: false
       description: Inclusive start of the analysis window (RFC 3339).
       schema:
         type: string
         format: date-time
     - name: endDate
       in: query
-      required: true
+      required: false
       description: Exclusive end of the analysis window (RFC 3339).
       schema:
         type: string

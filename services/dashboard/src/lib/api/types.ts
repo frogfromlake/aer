@@ -4208,9 +4208,9 @@ export interface operations {
                 /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
                 scopeId: string;
                 /** @description Inclusive start of the analysis window (RFC 3339). */
-                startDate: string;
+                startDate?: string;
                 /** @description Exclusive end of the analysis window (RFC 3339). */
-                endDate: string;
+                endDate?: string;
                 /** @description When `true`, only return articles whose chain contains at least one revision with `headline_changed=true`. The default (unset / `false`) returns every article with ≥ 1 revision. */
                 hasHeadlineChange?: boolean;
                 /** @description Minimum chain length per article. Defaults to 1 (any article with at least one revision); raise to filter for articles edited multiple times. */

@@ -1,0 +1,27 @@
+entityId: howto_revision_activity
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "One bar per source: how often published articles were silently re-edited, observed via Internet Archive snapshots."
+    long: >
+      Silent-edit observability. Each counted revision is a captured change to an already-published
+      article — a Wayback (CDX) snapshot whose content differs from the previous capture. A tall bar
+      means that source revises heavily after publication; a short one means edits are rare. An empty
+      bar is NOT automatically "no edits": a lookup that could not complete (Internet Archive
+      unreachable, rate-limited, circuit open) is recorded separately so the gap stays visible rather
+      than being read as silence (ADR-036). Read the relative heights across sources, not absolute
+      counts — capture frequency varies by how aggressively each site is archived.
+  methodological:
+    short: "Count of distinct content-changing snapshots in aer_gold.article_revisions over the window, grouped by source."
+    long: >
+      Revisions come from Internet Archive CDX snapshots, collapsed by content digest so only
+      genuine content changes count. The aggregate groups aer_gold.article_revisions by (source,
+      bucket) and is read with FINAL so re-ingested duplicates collapse to one. A failed or skipped
+      lookup never produces a revision row; its outcome lives in the separate wayback-lookup
+      completeness signal, so "0 revisions" and "we could not look" are distinguishable.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-02"
+workingPaperAnchors:
+  - "WP-003 §5.3"

@@ -96,6 +96,23 @@ def test_model_hash_changes_with_inputs():
     assert h_de != h_de_v2  # bertopic version bump changes the hash
     assert h_de == extractor.model_hash("de", "0.17.0")  # deterministic
 
+    # Clustering hyperparameters are part of topic identity: changing any of
+    # them must rotate the hash so a downstream consumer never mistakes two
+    # differently-tuned sweeps for the same topic-identity space.
+    for kwargs in (
+        {"n_neighbors": 99},
+        {"min_cluster_size": 99},
+        {"min_samples": 99},
+    ):
+        tuned = TopicModelingExtractor(
+            embedding_model="m",
+            embedding_revision="r",
+            umap_seed=1,
+            hdbscan_seed=2,
+            **kwargs,
+        )
+        assert tuned.model_hash("de", "0.17.0") != h_de, kwargs
+
 
 def test_topic_assignment_row_is_frozen():
     row = TopicAssignmentRow(

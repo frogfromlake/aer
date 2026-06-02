@@ -45,11 +45,33 @@
   function setCustom() {
     mode = 'custom';
   }
+  // Start anchors at 00:00, end at 23:59:59.999 — a single day is a valid
+  // window. The pair never inverts: a pick that would put end on/before start
+  // snaps the other bound to the same day (single-day window) instead of
+  // emitting an inverted range the BFF would reject.
   function pickFrom(v: string) {
-    onChange(v ? new Date(`${v}T00:00:00.000Z`).toISOString() : null, to);
+    if (!v) {
+      onChange(null, to);
+      return;
+    }
+    const start = new Date(`${v}T00:00:00.000Z`).toISOString();
+    const end =
+      to && Date.parse(to) <= Date.parse(start)
+        ? new Date(`${v}T23:59:59.999Z`).toISOString()
+        : to;
+    onChange(start, end);
   }
   function pickTo(v: string) {
-    onChange(from, v ? new Date(`${v}T23:59:59.999Z`).toISOString() : null);
+    if (!v) {
+      onChange(from, null);
+      return;
+    }
+    const end = new Date(`${v}T23:59:59.999Z`).toISOString();
+    const start =
+      from && Date.parse(from) >= Date.parse(end)
+        ? new Date(`${v}T00:00:00.000Z`).toISOString()
+        : from;
+    onChange(start, end);
   }
 </script>
 

@@ -29,6 +29,7 @@
     resolvePresentation
   } from '$lib/viewmodes';
   import {
+    DEFAULT_LOOKBACK_MS,
     type CellChannelBinding,
     type Normalization,
     type NetworkColorChannel,
@@ -86,11 +87,16 @@
     const toSrc = panelEnd ?? url.to;
     const fromMs = fromSrc ? Date.parse(fromSrc) : NaN;
     const toMs = toSrc ? Date.parse(toSrc) : NaN;
-    // undefined on a side ⇒ no bound there ⇒ whole dataset (time-limiting is
-    // an OPTIONAL feature; the BFF treats absent bounds as unbounded).
+    // Episteme (diachronic) defaults to a disclosed recent window (mirrors
+    // EpistemeShell) so the date inputs + availability query reflect the same
+    // effective window the cells use — otherwise the window is invisible.
+    // Aleph/Rhizome stay unbounded (undefined ⇒ whole dataset, the optional
+    // time-limit is off by default there).
+    const epistemeDefault = pillar === 'episteme';
+    const now = Date.now();
     return {
-      startMs: Number.isFinite(fromMs) ? fromMs : undefined,
-      endMs: Number.isFinite(toMs) ? toMs : undefined,
+      startMs: Number.isFinite(fromMs) ? fromMs : epistemeDefault ? now - DEFAULT_LOOKBACK_MS : undefined,
+      endMs: Number.isFinite(toMs) ? toMs : epistemeDefault ? now : undefined,
       isPanelOverride: panelStart !== undefined || panelEnd !== undefined
     };
   });
@@ -115,6 +121,9 @@
       windowBounds.startMs !== undefined ? new Date(windowBounds.startMs).toISOString() : undefined,
     end: windowBounds.endMs !== undefined ? new Date(windowBounds.endMs).toISOString() : undefined
   });
+  // Today (YYYY-MM-DD) — the native date inputs use it to forbid future dates
+  // and to keep TO ≥ FROM (no inverted/future windows can be picked at all).
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const availQ = createQuery<
     QueryOutcome<AvailableMetricDto[]>,
@@ -156,6 +165,13 @@
     return { probeIds, sourceIds };
   });
   const hasScope = $derived(panelScope.probeIds.length > 0 || panelScope.sourceIds.length > 0);
+  // The metric-availability WITHHOLDING is a CROSS-PROBE discipline only
+  // (backbone strategy: cross-probe runs on the shared multilingual backbone;
+  // within a single frame all tiers are allowed). Within one probe — even with
+  // several sources — we never withhold: a metric missing on one source simply
+  // renders an empty cell there, which is honest absence-as-data, not a reason
+  // to hide the metric from the picker.
+  const isCrossProbe = $derived(panelScope.probeIds.length > 1);
 
   const scopeAvailQ = createQuery<
     QueryOutcome<ScopeAvailableMetricsDto>,
@@ -199,7 +215,9 @@
   // the all-source intersection OR the user opted to "show anyway". Filters
   // both the metric picker and the scatter selectors.
   function isScopeAvailable(name: string): boolean {
-    if (scopeAvailableSet === null || activeShowWithheld) return true;
+    // Within a single probe, never withhold (show all; missing-on-a-source
+    // renders an empty cell). Withholding is a cross-probe-only discipline.
+    if (scopeAvailableSet === null || activeShowWithheld || !isCrossProbe) return true;
     return scopeAvailableSet.has(name);
   }
   // Issue 6 — the scoped sources that LACK a given partial metric (the "cause"
@@ -457,7 +475,10 @@
   // the reset target is always scope-available, so the next run early-returns.
   $effect(() => {
     if (!panelPath || !boundPanel || !viewUsesMetric) return;
-    if (scopeAvailableSet === null || activeShowWithheld) return;
+    // Only cross-probe panels reconcile away an unavailable metric — within a
+    // single probe nothing is withheld, so a metric stays selected even if a
+    // source lacks it (the cell renders empty there).
+    if (scopeAvailableSet === null || activeShowWithheld || !isCrossProbe) return;
     if (scopeAvailableSet.has(activeMetric)) return;
     if (!availableMetricNames.includes(activeMetric)) return;
     const next = resetMetricForScope();
@@ -470,17 +491,35 @@
   // own windowStart/windowEnd; when the panel has no override yet the
   // write installs one. Clearing the override (returning to global
   // default) is exposed via the "Reset to default window" button.
+  // The native date input gives YYYY-MM-DD. Start anchors at the day's 00:00,
+  // end at the day's 23:59:59.999 — so a single day (start==end picked) is a
+  // valid non-empty window, never start==end (which the BFF rejects). And the
+  // pair can never invert: if a pick would put end on/before start (e.g. a TO
+  // in the past), the OTHER bound snaps to the same chosen day, collapsing to a
+  // valid single-day window instead of erroring.
   function pickWindowStart(value: string) {
     if (!panelPath || !value) return;
-    const iso = new Date(value).toISOString();
-    if (Number.isNaN(Date.parse(iso))) return;
-    updatePanel(panelPath, (p) => ({ ...p, windowStart: iso }));
+    const start = new Date(`${value}T00:00:00.000Z`).toISOString();
+    if (Number.isNaN(Date.parse(start))) return;
+    updatePanel(panelPath, (p) => {
+      const next = { ...p, windowStart: start };
+      if (next.windowEnd && Date.parse(next.windowEnd) <= Date.parse(start)) {
+        next.windowEnd = new Date(`${value}T23:59:59.999Z`).toISOString();
+      }
+      return next;
+    });
   }
   function pickWindowEnd(value: string) {
     if (!panelPath || !value) return;
-    const iso = new Date(value).toISOString();
-    if (Number.isNaN(Date.parse(iso))) return;
-    updatePanel(panelPath, (p) => ({ ...p, windowEnd: iso }));
+    const end = new Date(`${value}T23:59:59.999Z`).toISOString();
+    if (Number.isNaN(Date.parse(end))) return;
+    updatePanel(panelPath, (p) => {
+      const next = { ...p, windowEnd: end };
+      if (next.windowStart && Date.parse(next.windowStart) >= Date.parse(end)) {
+        next.windowStart = new Date(`${value}T00:00:00.000Z`).toISOString();
+      }
+      return next;
+    });
   }
   function resetWindowToGlobal() {
     if (!panelPath) return;
@@ -786,7 +825,7 @@
          that LACK each one (the "cause") so the user doesn't have to trial-
          and-error. "Show anyway" offers them in the picker regardless; the
          panel then renders only the sources that carry the chosen metric. -->
-    {#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
+    {#if isCrossProbe && partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
       <div class="ctrl-row partial-hint" role="note">
         <span class="ctrl-eyebrow">Withheld</span>
         <div class="partial-hint-body">
@@ -1035,6 +1074,7 @@
           <input
             type="date"
             value={dateWindow.startDate}
+            max={dateWindow.endDate ?? todayStr}
             onchange={(e) => pickWindowStart((e.currentTarget as HTMLInputElement).value)}
             onclick={(e) => e.stopPropagation()}
             aria-label="Window start"
@@ -1043,6 +1083,8 @@
           <input
             type="date"
             value={dateWindow.endDate}
+            min={dateWindow.startDate}
+            max={todayStr}
             onchange={(e) => pickWindowEnd((e.currentTarget as HTMLInputElement).value)}
             onclick={(e) => e.stopPropagation()}
             aria-label="Window end"

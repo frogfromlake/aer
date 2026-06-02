@@ -170,8 +170,9 @@ func (s *Server) GetRevisionsArticles(
 		return GetRevisionsArticles500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	if !request.Params.EndDate.After(request.Params.StartDate) {
-		return GetRevisionsArticles400JSONResponse{Message: "endDate must be strictly after startDate"}, nil
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetRevisionsArticles400JSONResponse{Message: msg}, nil
 	}
 
 	limit := 50
@@ -192,8 +193,8 @@ func (s *Server) GetRevisionsArticles(
 
 	filter := storage.RevisionsArticlesFilter{
 		Sources: sources,
-		Start:   request.Params.StartDate,
-		End:     request.Params.EndDate,
+		Start:   start,
+		End:     end,
 		Limit:   limit + 1, // fetch one extra to detect hasMore
 		Offset:  offset,
 	}

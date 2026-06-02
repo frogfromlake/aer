@@ -338,7 +338,7 @@
       const labelFor = (row: PlotRow): string =>
         row.label.length > 32 ? `${row.label.slice(0, 29)}…` : row.label;
 
-      const height = facetMulti ? Math.max(180 * languages.length, 360) : 360;
+      const height = facetMulti ? Math.max(160 * languages.length, 300) : 300;
 
       const commonChannels = {
         x: 'bucket' as const,
@@ -377,13 +377,18 @@
       const next = Plot.plot({
         width: host.clientWidth,
         height,
-        marginLeft: 56,
+        marginLeft: 64,
         marginRight: 16,
         marginBottom: 36,
         marginTop: facetMulti ? 24 : 12,
         x: { type: 'time', label: 'time', grid: false, nice: true },
         y: {
-          label: useStaticBars ? 'articles per bucket' : 'stream volume (silhouette)',
+          // `labelAnchor: 'center'` rotates the y-label vertically along the
+          // axis instead of Plot's default top-left horizontal placement,
+          // which overlapped the plot/facet header. A shorter label + wider
+          // left margin keep it clear of the tick numbers.
+          label: useStaticBars ? 'articles/bucket' : 'stream volume',
+          labelAnchor: 'center',
           grid: true
         },
         ...(facetMulti

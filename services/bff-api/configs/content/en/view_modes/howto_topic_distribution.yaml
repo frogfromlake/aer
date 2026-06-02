@@ -10,16 +10,24 @@ registers:
       There is no time axis here — this is the synchronic snapshot (Aleph). Topics are
       partitioned by language because the embeddings are language-specific; do not read across
       language partitions as if the topic ids aligned.
+      Reading a label like "0_percent_people_germany_iran": the leading number is the topic's
+      ID (0, 1, 2, …), NOT a percentage — it is just an arbitrary index. The words after it are
+      the four most distinctive words of that cluster (c-TF-IDF), a fingerprint of the theme, not
+      a title. Topic "-1" is the outlier class: articles that fit no coherent cluster, shown as a
+      greyed "uncategorised" ridge rather than hidden, because an outlier is an observation.
   methodological:
     short: "BERTopic assignment counts per topic in the window, per language partition. Tier-2 (pinned model + seeded UMAP/HDBSCAN)."
     long: >
       The note is composed from a per-presentation template. Volumes are distinct-article counts
-      per topic within the window; topic labels are the c-TF-IDF / KeyBERT representation. The
-      model hash is surfaced in the provenance footer — more than one hash in a window means the
-      topic identities may have rotated and should not be read as a single stable basis.
-contentVersion: "v2026-05-a"
+      per topic within the window. A topic label is "<id>_<word>_<word>_<word>_<word>": the c-TF-IDF
+      representation (the words most over-represented in the cluster relative to the rest), prefixed
+      by the numeric topic id; id -1 is the outlier class. Documents are embedded with E5
+      "passage:" inputs and clustered by seeded UMAP + HDBSCAN. The model hash is surfaced in the
+      provenance footer — more than one hash in a window means the topic identities may have
+      rotated and should not be read as a single stable basis.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-02"
 workingPaperAnchors:
   - "WP-002 §8.1"
   - "WP-004 §3.4"

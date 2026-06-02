@@ -1,0 +1,27 @@
+entityId: howto_revision_activity
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Ein Balken je Quelle: wie oft veröffentlichte Artikel still nachträglich editiert wurden, beobachtet über Internet-Archive-Snapshots."
+    long: >
+      Beobachtung stiller Edits. Jede gezählte Revision ist eine erfasste Änderung an einem bereits
+      veröffentlichten Artikel — ein Wayback-(CDX-)Snapshot, dessen Inhalt sich vom vorigen unterscheidet.
+      Ein hoher Balken heißt: die Quelle überarbeitet nach Veröffentlichung viel; ein niedriger: Edits sind
+      selten. Ein leerer Balken bedeutet NICHT automatisch „keine Edits": ein Lookup, der nicht abschließen
+      konnte (Internet Archive nicht erreichbar, Rate-Limit, Circuit offen), wird separat festgehalten, damit
+      die Lücke sichtbar bleibt und nicht als Stille missgedeutet wird (ADR-036). Lies die relativen Höhen
+      zwischen Quellen, nicht die absoluten Zahlen — wie intensiv eine Seite archiviert wird, variiert.
+  methodological:
+    short: "Anzahl distinkter inhaltsändernder Snapshots in aer_gold.article_revisions über das Fenster, gruppiert nach Quelle."
+    long: >
+      Revisionen stammen aus Internet-Archive-CDX-Snapshots, per Inhalts-Digest kollabiert, sodass nur echte
+      Inhaltsänderungen zählen. Die Aggregation gruppiert aer_gold.article_revisions nach (source, bucket) und
+      liest mit FINAL, sodass re-ingestierte Duplikate auf eines kollabieren. Ein fehlgeschlagener oder
+      übersprungener Lookup erzeugt nie eine Revisionszeile; sein Ausgang liegt im separaten
+      Wayback-Lookup-Completeness-Signal, sodass „0 Revisionen" und „wir konnten nicht nachsehen" unterscheidbar bleiben.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-02"
+workingPaperAnchors:
+  - "WP-003 §5.3"

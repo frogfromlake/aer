@@ -74,10 +74,36 @@ class WaybackReAttemptTask:
             """,
             parameters={"limit": int(limit)},
         )
-        return [
+        items = [
             {"source": r[0], "article_id": r[1], "canonical_url": r[2], "prev_status": r[3]}
             for r in result.result_rows
         ]
+        if not items:
+            return items
+        # The per-article `revision_count` metric (written by
+        # upload_article_revisions → _upload_revision_count_metric) is anchored
+        # on the article's published date. The re-attempt path has no
+        # SilverCore, so resolve published_at for THIS batch from the article's
+        # existing Gold metric rows (every processed article carries at least
+        # one). Bounded by the batch's ids — never a full metrics scan — so it
+        # stays cheap as the corpus grows. Articles with no metric row fall back
+        # to the lookup time at the use-site.
+        published_at = self._resolve_published_at(client, [it["article_id"] for it in items])
+        for it in items:
+            it["published_at"] = published_at.get(it["article_id"])
+        return items
+
+    def _resolve_published_at(self, client, article_ids: list[str]) -> dict[str, object]:
+        result = client.query(
+            """
+            SELECT article_id, max(timestamp)
+            FROM aer_gold.metrics
+            WHERE article_id IN {ids:Array(String)}
+            GROUP BY article_id
+            """,
+            parameters={"ids": article_ids},
+        )
+        return {r[0]: r[1] for r in result.result_rows}
 
     def _reattempt_one(self, item: dict) -> str:
         url = item["canonical_url"]
@@ -87,7 +113,14 @@ class WaybackReAttemptTask:
         # ReplacingMergeTree rows replace correctly.
         version = time.time_ns()
         now = datetime.now(timezone.utc)
-        core = SimpleNamespace(source=item["source"], document_id=item["article_id"])
+        # `timestamp` is required by _upload_revision_count_metric (the metric
+        # is anchored on the article's published date). Fall back to the
+        # re-attempt time only when the article has no other Gold metric row.
+        core = SimpleNamespace(
+            source=item["source"],
+            document_id=item["article_id"],
+            timestamp=item.get("published_at") or now,
+        )
         meta = WebMeta(
             source_type="web",
             canonical_url=url,
