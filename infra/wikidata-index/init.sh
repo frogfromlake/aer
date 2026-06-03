@@ -14,10 +14,19 @@ set -ex
 
 cp /index/wikidata_aliases.db /data/wikidata/
 cp /index/wikidata_aliases.db.sha256 /data/wikidata/
-# Phase 123b: the QID→display-label TSV rides the same image. It may be an
-# empty placeholder until the next index rebuild populates it; the
-# wikidata-labels-load init treats an empty file as "nothing to load yet".
-cp /index/wikidata_labels.tsv /data/wikidata/
+# The QID→display-label TSV rides the same image. Index images
+# built before Phase 123b do not carry it at all, and a post-123b image may
+# ship an empty placeholder until the next rebuild populates display labels.
+# Both cases collapse to "write an empty TSV into the volume" — the
+# wikidata-labels-load init treats an empty/absent file as "nothing to load
+# yet", so a pre-123b pinned image must not abort the whole boot here.
+if [ -f /index/wikidata_labels.tsv ]; then
+    cp /index/wikidata_labels.tsv /data/wikidata/
+else
+    echo "wikidata-index-init: /index/wikidata_labels.tsv absent in image" \
+         "— writing empty placeholder (awaiting next index rebuild)"
+    : > /data/wikidata/wikidata_labels.tsv
+fi
 chmod 0644 \
     /data/wikidata/wikidata_aliases.db \
     /data/wikidata/wikidata_aliases.db.sha256 \
