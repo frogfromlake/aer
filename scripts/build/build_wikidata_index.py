@@ -194,9 +194,10 @@ def _open_dump(
 
     For .bz2 files, prefers `lbzip2` (parallel multi-core decompression)
     when available — typically 3-5× faster than Python's bz2 module on
-    modern multi-core systems. Falls back to bz2.open if lbzip2 is not
-    installed (e.g. on the GitHub-Actions workflow path where lbzip2
-    is not pre-installed).
+    modern multi-core systems. The `wikidata_index_rebuild.yml` workflow
+    installs lbzip2 so the CI path takes this fast branch; the code still
+    falls back to bz2.open when lbzip2 is absent (ad-hoc / local runs that
+    have not installed it).
 
     For plain N-Triples files, opens directly.
 

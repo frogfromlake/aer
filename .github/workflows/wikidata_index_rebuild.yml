@@ -80,6 +80,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_wikidata_build.txt
 
+      - name: Install lbzip2 (parallel bz2 decompression)
+        # The build's bottleneck is decompressing the ~43 GB truthy dump,
+        # streamed TWICE (Pass A + Pass B). `build_wikidata_index.py._open_dump`
+        # auto-detects `lbzip2` via `shutil.which` and switches to parallel
+        # multi-core decompression (3-5× faster than Python's single-thread
+        # `bz2`); its presence ALSO enables the `lbzip2 -dc | grep -E` predicate
+        # pre-filter (grep is pre-installed on the runner), cutting Pass A ~6×
+        # and Pass B ~2.5×. Without it the job risks the 6 h runner cap; with
+        # it the standard `ubuntu-latest` runner clears the build comfortably.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lbzip2
+
       - name: Show available disk
         run: df -h /tmp /home
 
