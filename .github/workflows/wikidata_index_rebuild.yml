@@ -165,7 +165,13 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: wikidata-aliases-${{ steps.snapshot.outputs.date }}
-          path: /tmp/wikidata_aliases.db
+          # Phase 123b: the QID→display-label TSV is artifacted alongside the
+          # .db so a push-only failure (e.g. a GHCR 403) is fully recoverable
+          # without re-running the ~3 h dump build — both files can be
+          # restaged and the image rebuilt/pushed in a couple of minutes.
+          path: |
+            /tmp/wikidata_aliases.db
+            /tmp/wikidata_labels.tsv
           retention-days: 90
         # Artifact retention covers one quarterly cycle plus margin —
         # if the next quarterly build fails, the previous artifact is
