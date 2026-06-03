@@ -257,7 +257,19 @@ def compute_diff(prev_html: str, curr_html: str) -> DiffResult:
     curr_paragraphs = extract_paragraphs(curr_html)
 
     ops = _paragraph_diff(prev_paragraphs, curr_paragraphs)
-    headline_changed = prev_headline != curr_headline and bool(curr_headline)
+    # A headline change can only be asserted when BOTH sides yield a real
+    # title. An empty `prev_headline` means "unknown headline" — extraction
+    # recovered nothing, or (for chain-head pairs, revision_index=0) the
+    # Silver-now side is the title-less `_silver_text_to_html` wrapper —
+    # NOT "the headline was empty and then gained text". Claiming a change
+    # from an unknown baseline produced a spurious "− (empty) + <title>" on
+    # EVERY chain-head pair, where `prev` is always the title-less wrapper.
+    # Requiring both sides non-empty removes that false positive without
+    # suppressing any genuine change: every real mid-chain headline edit
+    # carries a non-empty `before`.
+    headline_changed = (
+        bool(prev_headline) and bool(curr_headline) and prev_headline != curr_headline
+    )
 
     # BUG-B sentinel — empty ops AND no headline change = genuinely
     # identical-after-extraction. Mark it so the sweep does not re-

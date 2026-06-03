@@ -473,6 +473,13 @@
                         </span>
                       </p>
                     </div>
+                  {:else}
+                    <!-- Defence-in-depth: an op outside the add/del/mod
+                         vocabulary (e.g. a sentinel leaking through a
+                         writer/reader mismatch) must never render as a
+                         blank row — surface it explicitly instead. -->
+                    <span class="op-mark">·</span>
+                    <span class="diff-text muted">Unrecognised change (<code>{op.op}</code>).</span>
                   {/if}
                 </li>
               {/each}

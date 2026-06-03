@@ -1018,8 +1018,11 @@ def _silver_text_to_html(cleaned_text: str) -> str:
     paths, we wrap it as `<html><body>` with paragraphs. The
     headline-extractor returns nothing for this wrapper (no
     `<title>`), which is correct — we have no canonical title for
-    "current Silver" so `headline_changed` stays false for
-    chain-head pairs even if the title actually drifted.
+    "current Silver". `compute_diff` only asserts a headline change
+    when BOTH sides carry a real title, so a chain-head pair (whose
+    `prev` is this title-less wrapper) never reports a headline
+    change even if the title actually drifted. This is the structural
+    guarantee behind the headline rule in `article_revisions_diff.compute_diff`.
     """
     paragraphs = cleaned_text.split("\n\n")
     body = "".join(f"<p>{p.strip()}</p>" for p in paragraphs if p.strip())

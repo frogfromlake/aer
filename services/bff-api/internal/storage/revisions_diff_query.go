@@ -18,12 +18,16 @@ var ErrRevisionDiffPending = errors.New("revision diff pending; worker has not y
 // now a legal pair anchored on (Silver-now → Wayback[0]). The
 // handler no longer 404s on revisionIndex=0.
 
-// sentinelIdentityMarker is the JSON-encoded sentinel the worker
-// writes when the two snapshots parse to identical paragraph content
-// (BUG-B). Used by `GetArticleRevisionDiff` to detect "computed but
-// empty" and return a distinct status (BUG-10) rather than the
-// confusing "pending" message.
-const sentinelIdentityMarker = `{"op":"identical"}`
+// sentinelIdentityOp is the `op` discriminator the worker writes when
+// the two snapshots parse to identical paragraph content (BUG-B). The
+// worker serialises it with Python's `json.dumps` default separators
+// (`{"op": "identical"}` — note the space after the colon), so the
+// sentinel MUST be detected by decoding the op and comparing the `Op`
+// field, NOT by matching a hand-written byte-for-byte JSON string: a
+// raw-string compare against `{"op":"identical"}` (no space) never
+// matched the stored value, leaking the sentinel through as a malformed
+// diff op the frontend rendered as a blank row.
+const sentinelIdentityOp = "identical"
 
 // ArticleRevisionDiffRow is the ClickHouse-side projection of one
 // `aer_gold.article_revisions` row plus the prior row's
@@ -124,10 +128,19 @@ func (s *ClickHouseStorage) GetArticleRevisionDiff(
 }
 
 // IsIdentical returns true when the row's `DiffParagraphs` contains
-// ONLY the BUG-B sentinel marker — "snapshots parsed to identical
+// ONLY the BUG-B sentinel op — "snapshots parsed to identical
 // content". Used by the BFF handler to render a distinct user message.
+// Decodes the single op and compares its `Op` field so the check is
+// independent of the writer's JSON whitespace (see `sentinelIdentityOp`).
 func (r *ArticleRevisionDiffRow) IsIdentical() bool {
-	return len(r.DiffParagraphs) == 1 && r.DiffParagraphs[0] == sentinelIdentityMarker
+	if len(r.DiffParagraphs) != 1 {
+		return false
+	}
+	var op DiffOp
+	if err := json.Unmarshal([]byte(r.DiffParagraphs[0]), &op); err != nil {
+		return false
+	}
+	return op.Op == sentinelIdentityOp
 }
 
 // ----------------------------------------------------------------------
