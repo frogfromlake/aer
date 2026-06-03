@@ -34,7 +34,11 @@ export type ViewMode =
   // into Aleph and Episteme respectively without breaking the strict 1-1
   // pillar→presentation mapping.
   | 'revision_activity'
-  | 'revision_timeline';
+  | 'revision_timeline'
+  // Phase 124 — cross-probe temporal lead-lag (Rhizome, relational). The
+  // lagged cross-correlation of two probes' hourly publication activity;
+  // metric-less (usesMetric:false) and inherently a probe-pair artefact.
+  | 'cross_probe_lead_lag';
 // Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
@@ -65,6 +69,13 @@ export type Composition = 'merged' | 'split' | 'overlay';
 // side-by-side (default); vertical = stacked. Ignored when composition
 // is 'merged'.
 export type SplitDirection = 'horizontal' | 'vertical';
+
+// Phase 124 — shared-axis comparison discipline. When a panel renders more
+// than one cell of a value-axis presentation (distribution / time_series /
+// metric_scatter), 'shared' (the default) puts every cell on the union axis
+// domain so identical values plot at identical positions; 'free' drops each
+// cell back to its own optimal domain (the ggplot/Vega facet escape hatch).
+export type ScaleMode = 'shared' | 'free';
 
 export interface ScopeGroup {
   // 1..K probe ids. Multi-probe entries are valid even though the
@@ -156,6 +167,11 @@ export interface Panel {
   // Encoded as `ws` / `we` in the compact pillar payload.
   windowStart?: string;
   windowEnd?: string;
+  // Phase 124 — per-panel axis-scale mode for multi-cell value-axis panels.
+  // 'shared' (default, omitted) puts every cell on the union domain;
+  // 'free' restores per-cell optimal domains. Encoded as `sc` in the compact
+  // payload (emitted only when 'free').
+  scales?: ScaleMode;
 }
 
 export interface WorkbenchWindow {
@@ -252,7 +268,8 @@ const VIEW_MODES: readonly ViewMode[] = [
   'topic_evolution',
   'metric_scatter',
   'revision_activity',
-  'revision_timeline'
+  'revision_timeline',
+  'cross_probe_lead_lag'
 ];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
@@ -408,6 +425,7 @@ interface CompactPanel {
   sd?: 'h' | 'v'; // splitDirection (D2)
   cc?: 1; // cellControlsCollapsed (C4)
   sw?: 1; // showWithheld — offer partial (some-source) metrics anyway (Issue 6)
+  sc?: 1; // scales='free' (Phase 124; default 'shared' → omitted)
   // Phase 122k F5 — per-panel time window. ISO date strings; absent when
   // the panel inherits the global default. Encoded verbatim so URL-state
   // debugging is straightforward.
@@ -484,6 +502,7 @@ function compactPanel(p: Panel): CompactPanel {
   else if (p.splitDirection === 'horizontal') c.sd = 'h';
   if (p.cellControlsCollapsed === true) c.cc = 1;
   if (p.showWithheld === true) c.sw = 1;
+  if (p.scales === 'free') c.sc = 1;
   // Phase 122k F5 — per-panel window.
   if (p.windowStart !== undefined) c.ws = p.windowStart;
   if (p.windowEnd !== undefined) c.we = p.windowEnd;
@@ -539,6 +558,7 @@ function expandPanel(c: CompactPanel): Panel {
   else if (c.sd === 'h') p.splitDirection = 'horizontal';
   if (c.cc === 1) p.cellControlsCollapsed = true;
   if (c.sw === 1) p.showWithheld = true;
+  if (c.sc === 1) p.scales = 'free';
   // Phase 122k F5 — per-panel window.
   if (typeof c.ws === 'string') p.windowStart = c.ws;
   if (typeof c.we === 'string') p.windowEnd = c.we;
@@ -644,6 +664,7 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   if (v.sd !== undefined && v.sd !== 'h' && v.sd !== 'v') return false;
   if (v.cc !== undefined && v.cc !== 1) return false;
   if (v.sw !== undefined && v.sw !== 1) return false;
+  if (v.sc !== undefined && v.sc !== 1) return false;
   // Phase 122k F5 — per-panel window keys.
   if (v.ws !== undefined && typeof v.ws !== 'string') return false;
   if (v.we !== undefined && typeof v.we !== 'string') return false;

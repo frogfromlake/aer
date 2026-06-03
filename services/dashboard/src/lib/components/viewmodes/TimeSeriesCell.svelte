@@ -30,7 +30,10 @@
     composition,
     showBand,
     resolution,
-    normalization
+    normalization,
+    reportExtent,
+    sharedDomains,
+    axisScaleState
   }: ViewModeCellProps = $props();
 
   // Phase 131 — ±1σ uncertainty band toggle (default shown).
@@ -94,6 +97,28 @@
         }))
       : []
   );
+
+  // Phase 124 — shared y-axis. Report this cell's y extent (spanning the
+  // ±1σ band when shown) so PanelHost can union it across the panel's cells;
+  // apply the returned union domain to every SourceLaneChart this cell renders.
+  $effect(() => {
+    if (!reportExtent) return;
+    const rows = exportRows;
+    if (rows.length === 0) {
+      reportExtent('value', null);
+      return;
+    }
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const r of rows) {
+      if (typeof r.value !== 'number') continue;
+      const s = bandShown && typeof r.stddev === 'number' ? r.stddev : 0;
+      if (r.value - s < lo) lo = r.value - s;
+      if (r.value + s > hi) hi = r.value + s;
+    }
+    reportExtent('value', lo <= hi ? [lo, hi] : null);
+  });
+  const sharedY = $derived<readonly [number, number] | null>(sharedDomains?.value ?? null);
   const exportPayload = $derived<ExportPayload>({
     meta: {
       viewMode: 'time_series',
@@ -106,7 +131,7 @@
       windowStart,
       windowEnd
     },
-    howToRead: composeHowToRead('time_series', { showBand: bandShown }),
+    howToRead: composeHowToRead('time_series', { showBand: bandShown, scales: axisScaleState }),
     rows: exportRows,
     columns: ['timestamp', 'source', 'value', 'stddev', 'count']
   });
@@ -150,8 +175,9 @@
       showBand={bandShown}
       resolution={effectiveResolution}
       {normalization}
+      yDomain={sharedY}
     />
-    <HowToRead presentation="time_series" facts={{ showBand: bandShown }} />
+    <HowToRead presentation="time_series" facts={{ showBand: bandShown, scales: axisScaleState }} />
   {:else if composition === 'overlay'}
     <!-- Phase 122k §14c finding 2 — Overlay: per-source independent
          queries, plotted as N viridis-coloured lines on a SHARED canvas.
@@ -180,9 +206,10 @@
         showBand={bandShown}
         resolution={effectiveResolution}
         {normalization}
+        yDomain={sharedY}
       />
     {/each}
-    <HowToRead presentation="time_series" facts={{ showBand: bandShown }} />
+    <HowToRead presentation="time_series" facts={{ showBand: bandShown, scales: axisScaleState }} />
   {/if}
 </div>
 

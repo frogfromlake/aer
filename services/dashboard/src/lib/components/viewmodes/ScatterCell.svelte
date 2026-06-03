@@ -25,7 +25,10 @@
     windowStart,
     windowEnd,
     dataLayer = 'gold',
-    channels
+    channels,
+    reportExtent,
+    sharedDomains,
+    axisScaleState
   }: ViewModeCellProps = $props();
 
   // Resolve the bound channels with sensible defaults so the cell renders even
@@ -70,12 +73,39 @@
   const hasSize = $derived(!!sizeMetric);
   const hasColor = $derived(!!colorMetric);
 
+  // Phase 124 — report the x and y (value) extents so PanelHost can union them
+  // into the shared domains for a multi-cell scatter panel.
+  $effect(() => {
+    if (!reportExtent) return;
+    const rows = points;
+    if (rows.length === 0) {
+      reportExtent('x', null);
+      reportExtent('value', null);
+      return;
+    }
+    let xlo = Infinity;
+    let xhi = -Infinity;
+    let ylo = Infinity;
+    let yhi = -Infinity;
+    for (const p of rows) {
+      if (p.x < xlo) xlo = p.x;
+      if (p.x > xhi) xhi = p.x;
+      if (p.y < ylo) ylo = p.y;
+      if (p.y > yhi) yhi = p.y;
+    }
+    reportExtent('x', [xlo, xhi]);
+    reportExtent('value', [ylo, yhi]);
+  });
+
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
   let renderToken = 0;
 
   $effect(() => {
     const rows = points;
+    // Phase 124 — shared x / y domains when the panel is on a shared axis.
+    const sharedX = sharedDomains?.x;
+    const sharedY = sharedDomains?.value;
     if (!host || rows.length === 0) return;
     const token = ++renderToken;
     (async () => {
@@ -87,8 +117,16 @@
         marginLeft: 60,
         marginBottom: 44,
         grid: true,
-        x: { label: `${xMetric} →`, labelAnchor: 'center' },
-        y: { label: `↑ ${yMetric}`, labelAnchor: 'center' },
+        x: {
+          label: `${xMetric} →`,
+          labelAnchor: 'center',
+          ...(sharedX ? { domain: [...sharedX] } : {})
+        },
+        y: {
+          label: `↑ ${yMetric}`,
+          labelAnchor: 'center',
+          ...(sharedY ? { domain: [...sharedY] } : {})
+        },
         ...(hasSize ? { r: { range: [2, 16] } } : {}),
         ...(hasColor
           ? { color: { scheme: 'viridis', legend: true, label: colorMetric ?? null } }
@@ -136,7 +174,8 @@
     y: yMetric,
     size: sizeMetric,
     color: colorMetric,
-    renderedCount: points.length
+    renderedCount: points.length,
+    scales: axisScaleState
   });
   const exportPayload = $derived<ExportPayload>({
     meta: {

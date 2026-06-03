@@ -180,7 +180,7 @@ The following table maps each philosophical pillar (Chapter 1, Section 1.2) to c
 
 | Pillar | Concept | Operationalization | Methods | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **A — Aleph** | The single point containing all other points | Aggregation of fragmented global data streams into a unified view | Multi-source crawlers, source-agnostic ingestion contract, ClickHouse OLAP aggregation | Architecture complete. Crawler expansion pending. |
+| **A — Aleph** | The single point containing all other points | Aggregation of fragmented global data streams into a unified view | Multi-source crawlers, source-agnostic ingestion contract, ClickHouse OLAP aggregation, cross-cultural equivalence registry | Two cultural probes operational (DE, FR). First cross-cultural equivalence grant landed (Phase 124 — temporal Level-1, Probe 0 × Probe 1; WP-004 §6.3, Appendix B). Crawler expansion pending. |
 | **E — Episteme** | The rules defining what can be thought and said | Measuring shifts in the boundaries of expressible discourse over time | Temporal topic modeling, semantic shift detection, narrative frame tracking, keyword co-occurrence evolution | Research phase. Tier 1/2 methods identified. |
 | **R — Rhizome** | Non-linear, decentralized information spread | Modeling how cultural patterns propagate through networks | Discourse network analysis, entity co-occurrence graphs, cross-source narrative diffusion | Research phase. Requires multi-source data. |
 

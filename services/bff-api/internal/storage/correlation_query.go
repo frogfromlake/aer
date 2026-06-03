@@ -74,7 +74,7 @@ func (s *ClickHouseStorage) GetMetricCorrelation(
 	`, strings.Join(clauses, " AND "), s.rowLimit)
 
 	var rows []struct {
-		Bucket    time.Time
+		Bucket     time.Time
 		MetricName string
 		MeanValue  float64
 	}
@@ -130,8 +130,16 @@ func pearson(buckets []map[string]float64, a, b string) *float64 {
 		xs = append(xs, xv)
 		ys = append(ys, yv)
 	}
+	return pearsonXY(xs, ys)
+}
+
+// pearsonXY computes the Pearson correlation of two equal-length, index-aligned
+// samples. Returns nil when the slices differ in length, fewer than two paired
+// samples exist, or either side has zero variance. Shared by the metric
+// correlation matrix and the lead-lag cross-correlation (Phase 124).
+func pearsonXY(xs, ys []float64) *float64 {
 	n := len(xs)
-	if n < 2 {
+	if n != len(ys) || n < 2 {
 		return nil
 	}
 	var sumX, sumY float64

@@ -2,11 +2,11 @@ get:
   tags: [Metrics]
   summary: Per-probe equivalence summary
   description: >
-    Returns per-metric Level-1 / Level-2 / Level-3 availability for the
-    probe's resolved source set (Phase 115). Drives the Probe Dossier
-    "what comparisons are valid here" panel. Phase 126 will extend this
-    endpoint with an optional `comparedTo=<otherProbeId>` query parameter
-    for the multi-probe case.
+    Returns per-metric Level-1 / Level-2 / Level-3 availability (Phase 115).
+    Drives the Probe Dossier "what comparisons are valid here" panel. With the
+    optional `comparedTo=<otherProbeId>` parameter (Phase 124) the scope is the
+    UNION of both probes' sources, so the matrix reports what is valid for the
+    cross-probe pair — e.g. the temporal Level-1 grant reports `validated`.
   operationId: getProbeEquivalence
   parameters:
     - name: probeId
@@ -16,6 +16,16 @@ get:
         Probe identifier — the canonical string registered in the probe
         registry (e.g. `probe-0-de-institutional-web`), matching the
         `probeId` shape used by `/probes` and `/probes/{id}/dossier`.
+      schema:
+        type: string
+        minLength: 1
+    - name: comparedTo
+      in: query
+      required: false
+      description: >
+        Optional second probe id (Phase 124). When present, equivalence is
+        evaluated over the union of both probes' source sets, giving the
+        cross-probe pair's valid-comparison matrix.
       schema:
         type: string
         minLength: 1

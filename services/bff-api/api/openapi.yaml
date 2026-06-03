@@ -65,6 +65,8 @@ paths:
     $ref: './paths/probe_dossier.yaml'
   /probes/{probeId}/equivalence:
     $ref: './paths/probe_equivalence.yaml'
+  /probes/{probeId}/lead-lag:
+    $ref: './paths/probe_lead_lag.yaml'
   /probes/{probeId}/metadata-coverage:
     $ref: './paths/probe_metadata_coverage.yaml'
   /sources/{id}/articles:

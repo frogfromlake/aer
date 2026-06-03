@@ -389,6 +389,50 @@ export function probeEquivalenceQuery(
   };
 }
 
+// Phase 124 — cross-probe temporal lead-lag. The reference probe is the path
+// id; `comparedTo` is the second probe. An ungranted pair returns a 400 whose
+// `gate=metric_equivalence` maps to the cross-frame refusal kind, so the cell
+// renders it through RefusalSurface like every other equivalence refusal.
+export type ProbeLeadLagDto =
+  paths['/probes/{probeId}/lead-lag']['get']['responses']['200']['content']['application/json'];
+
+export interface LeadLagParams {
+  comparedTo: string;
+  start?: string | undefined;
+  end?: string | undefined;
+  maxLagHours?: number | undefined;
+}
+
+export function probeLeadLagQuery(
+  ctx: FetchContext,
+  probeId: string,
+  params: LeadLagParams
+): QueryOptions<ProbeLeadLagDto> {
+  const sp = new URLSearchParams();
+  sp.set('comparedTo', params.comparedTo);
+  if (params.start) sp.set('start', params.start);
+  if (params.end) sp.set('end', params.end);
+  if (params.maxLagHours !== undefined) sp.set('maxLagHours', String(params.maxLagHours));
+  return {
+    queryKey: [
+      'aer',
+      'probe-lead-lag',
+      probeId,
+      params.comparedTo,
+      params.start ?? null,
+      params.end ?? null,
+      params.maxLagHours ?? null
+    ] as const,
+    queryFn: () =>
+      fetchJson<ProbeLeadLagDto>(
+        ctx,
+        `/probes/${encodeURIComponent(probeId)}/lead-lag?${sp.toString()}`,
+        'cross_frame_equivalence_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
 export interface DossierParams {
   // Phase 131a — explicit `| undefined` so callers can pass the
   // window-less mode (`{windowStart: undefined, windowEnd: undefined}`)

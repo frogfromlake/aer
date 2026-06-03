@@ -39,6 +39,9 @@
     resolution?: Resolution | undefined;
     /** Phase 131 (BUG4) — Compare/normalization mode threaded into the query. */
     normalization?: Normalization | undefined;
+    /** Phase 124 — shared y-axis domain for multi-cell time-series panels.
+     *  Forwarded to TimeSeriesChart; null/absent = free (auto) scale. */
+    yDomain?: readonly [number, number] | null;
   }
 
   let {
@@ -51,7 +54,8 @@
     metricName,
     showBand = true,
     resolution,
-    normalization
+    normalization,
+    yDomain = null
   }: Props = $props();
 
   // Resolve effective scope: prefer multi-source list when present.
@@ -158,6 +162,7 @@
       yLabel={metricName}
       ariaLabel="{metricName} for {displayName}"
       height={180}
+      {yDomain}
     />
   {:else}
     <div class="chart-placeholder">

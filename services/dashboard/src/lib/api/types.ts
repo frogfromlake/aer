@@ -444,9 +444,30 @@ export interface paths {
         };
         /**
          * Per-probe equivalence summary
-         * @description Returns per-metric Level-1 / Level-2 / Level-3 availability for the probe's resolved source set (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel. Phase 126 will extend this endpoint with an optional `comparedTo=<otherProbeId>` query parameter for the multi-probe case.
+         * @description Returns per-metric Level-1 / Level-2 / Level-3 availability (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel. With the optional `comparedTo=<otherProbeId>` parameter (Phase 124) the scope is the UNION of both probes' sources, so the matrix reports what is valid for the cross-probe pair — e.g. the temporal Level-1 grant reports `validated`.
          */
         get: operations["getProbeEquivalence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/probes/{probeId}/lead-lag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-probe temporal lead-lag
+         * @description Returns the lagged cross-correlation of hourly publication activity between `probeId` (reference) and `comparedTo` (compared), over ±`maxLagHours`. A relational, cross-cultural artefact authorised ONLY by a temporal Level-1 equivalence grant covering both probes' languages (WP-004 §6.3, Appendix B); otherwise the response is 400 with the RefusalPayload fields (gate=`metric_equivalence`).
+         *     Phase 124 minimal form: the signal is publication activity and the gate is the temporal grant. Phase 125 generalises this to arbitrary metric series and a fully-parameterised public endpoint — build on this endpoint, do NOT re-implement it.
+         */
+        get: operations["getProbeLeadLag"];
         put?: never;
         post?: never;
         delete?: never;
@@ -758,11 +779,13 @@ export interface components {
             /** @description The finest temporal resolution at which this (metric, source) pair yields statistically meaningful aggregates. Derived from a static BFF config map seeded by Probe 0 publication rates. Null if no heuristic has been recorded for the metric-source pair. */
             minMeaningfulResolution?: components["schemas"]["Resolution"] | null;
         };
-        /** @description Per-metric equivalence availability for one probe (Phase 115). Drives the Probe Dossier "what comparisons are valid here" panel — making the methodological boundary of the probe legible up front, before the user has to encounter a refusal in a function lane. Phase 126 will extend this endpoint with an optional `comparedTo=<otherProbeId>` parameter for the multi-probe case; this phase only ships the single-probe form. */
+        /** @description Per-metric equivalence availability for one probe, or for a probe pair when `comparedTo` is set (Phase 124). Drives the Probe Dossier "what comparisons are valid here" panel — making the methodological boundary legible up front, before the user encounters a refusal. With `comparedTo`, the evaluated scope is the union of both probes' sources, so the matrix reflects the cross-probe pair (e.g. the temporal Level-1 grant reports as validated). */
         ProbeEquivalenceSummary: {
-            /** @description The probe whose source set was evaluated. */
+            /** @description The probe whose source set was evaluated (the reference probe). */
             probeId: string;
-            /** @description The resolved source set the probe expanded to. */
+            /** @description The second probe id when the summary was evaluated over a probe pair (Phase 124); absent for the single-probe form. */
+            comparedTo?: string | null;
+            /** @description The resolved source set evaluated (union of both probes when paired). */
             sources?: string[];
             /** @description One entry per metric currently visible in the probe's data. */
             metrics: components["schemas"]["ProbeEquivalenceSummaryMetric"][];
@@ -3594,7 +3617,10 @@ export interface operations {
     };
     getProbeEquivalence: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional second probe id (Phase 124). When present, equivalence is evaluated over the union of both probes' source sets, giving the cross-probe pair's valid-comparison matrix. */
+                comparedTo?: string;
+            };
             header?: never;
             path: {
                 /** @description Probe identifier — the canonical string registered in the probe registry (e.g. `probe-0-de-institutional-web`), matching the `probeId` shape used by `/probes` and `/probes/{id}/dossier`. */
@@ -3614,6 +3640,136 @@ export interface operations {
                 };
             };
             /** @description No probe with that id is registered. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getProbeLeadLag: {
+        parameters: {
+            query: {
+                /** @description Compared probe id (e.g. `probe-1-fr-institutional-web`). */
+                comparedTo: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
+                /** @description Symmetric lag bound in hours (default 168 = ±7 days). */
+                maxLagHours?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Reference probe id (e.g. `probe-0-de-institutional-web`). */
+                probeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lead-lag cross-correlation for the probe pair. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The reference probe (the path `probeId`). */
+                        referenceProbe: string;
+                        /** @description The compared probe (`comparedTo`). */
+                        comparedProbe: string;
+                        /**
+                         * @description The compared signal. Phase 124 ships `publication_activity` only.
+                         * @example publication_activity
+                         */
+                        signal: string;
+                        /** @description Symmetric lag bound; `points` span -maxLagHours..+maxLagHours. */
+                        maxLagHours: number;
+                        /**
+                         * Format: int64
+                         * @description Overlapping hourly buckets at lag 0 (a sample-size proxy).
+                         */
+                        bucketCountAtZero?: number;
+                        /** @description The equivalence grant authorising this comparison, for the methodology banner. Server-authoritative so the UI never asserts an ungranted claim. */
+                        grant: {
+                            /** @example temporal */
+                            level: string;
+                            /** @example WP-004 Appendix B */
+                            workingPaperAnchor: string;
+                            /** @description Concise grant rationale (from metric_equivalence.notes). */
+                            notes?: string;
+                            /** @description equivalence_reviews.id of the full review record. */
+                            validatedBy?: string | null;
+                        };
+                        /** @description One entry per integer lag in [-maxLagHours, +maxLagHours]. */
+                        points: {
+                            lagHours: number;
+                            /**
+                             * Format: double
+                             * @description Pearson correlation at this lag; null when too few overlapping buckets or zero variance.
+                             */
+                            correlation: number | null;
+                        }[];
+                        /** @description Lag of maximum correlation; null when no lag has a defined correlation. */
+                        peakLagHours?: number | null;
+                        /**
+                         * Format: double
+                         * @description The maximum correlation across all lags.
+                         */
+                        peakCorrelation?: number | null;
+                    };
+                };
+            };
+            /** @description Invalid parameters, identical probes, or a methodological refusal — the probe pair lacks a temporal-level equivalence grant across both languages. A refusal carries the `gate`, `workingPaperAnchor`, and `alternatives` fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description The reference or compared probe id is not registered. */
             404: {
                 headers: {
                     [name: string]: unknown;

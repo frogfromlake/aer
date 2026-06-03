@@ -4357,7 +4357,7 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [ ] **Faceting / small-multiples** — break any cell by a dimension. **Linked brushing** — select in one cell, highlight across others. **In scope but defer-friendly** (cross-cell state, the hardest piece; may slip, but it is the core of the chaining experience).
 
 ### Backend
-* [ ] Promote the lead-lag helper to a public `/correlation/lead-lag`; add correlation/cross-tab/multivariate aggregation helpers. Cross-frame without equivalence → refusal-as-cell. Search respects no-discovery-bias. OpenAPI + `make codegen`.
+* [ ] **Generalise the Phase-124 lead-lag — do NOT re-implement it.** Phase 124 already shipped a **minimal public** `GET /probes/{probeId}/lead-lag` (temporal-grant-gated, signal = hourly publication activity) on top of `storage.GetTemporalLeadLag` + the pure `computeLeadLag` core (`leadlag_query.go`) and the shared `pearsonXY` (`correlation_query.go`). Phase 125 **builds on those**: generalise to arbitrary **metric series** (not just activity) and the broader `/correlation/lead-lag` form, reusing `computeLeadLag`/`pearsonXY`; keep the metric-class-aware equivalence gate (`CheckNormalizationEquivalenceForLanguages`). Add correlation/cross-tab/multivariate aggregation helpers. Cross-frame without equivalence → refusal-as-cell. Search respects no-discovery-bias. OpenAPI + `make codegen`.
 
 ### Frontend home + drift
 * [ ] Lives in RhizomeShell as relational/multivariate cells in panels (optional freer layout mode is defer-friendly). **No `/compose` route, no card/edge physics, no parallel surface** (the old "compose-canvas" URL builders were already retired in Phase 123c).

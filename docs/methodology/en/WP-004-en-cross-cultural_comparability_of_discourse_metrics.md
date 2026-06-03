@@ -287,6 +287,29 @@ The dashboard must never silently place non-equivalent metrics on the same chart
 
 3. **Gate Level 3 (absolute values) behind validation status.** Only display absolute cross-cultural metric comparisons for metric pairs that have entries in the Metric Equivalence Registry with `validation_status = 'validated'`. For unvalidated pairs, show a warning and offer the deviation view instead.
 
+**Phase 124 — Level 1 operationalised.** The first non-empty grant in the
+Metric Equivalence Registry is the temporal Level-1 grant for the Probe-0 (DE) ×
+Probe-1 (FR) institutional-web corpora (`publication_hour`,
+`publication_weekday`; see Appendix B). Three mechanisms now realise §6.3 point 1
+end-to-end:
+
+- **A metric-class-aware normalization gate.** Because temporal-axis metrics are
+  measured on clock/calendar time — a culture-independent axis — z-score
+  normalization of them reads as a *rhythm/shape* comparison, not a
+  cross-cultural intensity claim. The BFF gate therefore admits a `temporal`
+  grant for these metrics, while intensive/scaled metrics (sentiment) still
+  require a `deviation` (Level-2) grant. This is the engineering expression of
+  the temporal/deviation boundary in §5.
+- **The grant is conditional on calendar parity** (the "cultural calendar
+  knowledge" requirement in Appendix B): the DE and FR cultural calendars are
+  maintained as structurally comparable (public holidays, parliamentary recess,
+  media events) in `configs/cultural_calendars/{de,fr}.yaml`. The grant is void
+  if that parity lapses.
+- **A relational Level-1 artefact:** cross-probe temporal **lead-lag** (the
+  lagged cross-correlation of hourly publication activity), itself gated on the
+  same grant — a Level-1 comparison of *when* discourse happens, never of how
+  much or how positive.
+
 ---
 
 ## 7. Open Questions for Interdisciplinary Collaborators
@@ -390,3 +413,31 @@ The fundamental ethical commitment is: **AĒR compares to understand, not to ran
 | "Is German discourse more polarized than Japanese?" | Level 3 (absolute) | Instrument harmonization | Validated scalar equivalence, expert review |
 | "What topics dominate in each culture?" | Intra-cultural only | N/A | Per-language topic models, human alignment |
 | "Do the same entities appear across cultures?" | Level 1 (co-occurrence) | Entity linking to shared KB | Multilingual entity linking, ontology alignment |
+
+### B.1 First granted entry (Phase 124) — temporal Level-1, Probe 0 × Probe 1
+
+The first concrete grant operationalising the matrix above. It answers the
+Level-1 question *"When does discourse peak across cultures?"* for the DE × FR
+institutional-web pair.
+
+| Field | Value |
+| :--- | :--- |
+| Etic construct | `temporal_rhythm` |
+| Metrics | `publication_hour`, `publication_weekday` |
+| Languages / source type | `de`, `fr` / `web` |
+| Level | Level 1 (temporal) |
+| Confidence | 1.0 (valid by construction) |
+| Review records | Postgres `equivalence_reviews` ids 1–4 (Phase-124 migration 000023) |
+
+**Rationale.** Publication timing is measured on clock and calendar time — a
+culture-independent axis. Comparing the temporal rhythm of two cultures, and
+z-scoring it as a rhythm/shape comparison, asserts no cross-cultural intensity
+claim, so it is admissible the moment the two calendars are structurally
+comparable. The grant is therefore **conditional on calendar parity**: the DE
+and FR cultural calendars (`configs/cultural_calendars/{de,fr}.yaml`) carry the
+same structural categories — public holidays, elections, media events,
+commemorations, and a `parliamentary_recess` (Bundestag Sommerpause ↔ Assemblée
+intersession) whose institutional publication-cadence dip is itself part of the
+rhythm being compared. The grant explicitly does **not** extend to
+intensive/scaled metrics (e.g. sentiment), whose measurement axis is
+culture-laden and which require a separate deviation-level (Level-2) review.

@@ -33,18 +33,27 @@ type mockStore struct {
 	countLanguagesForSourcesErr       error
 	checkEquivalenceForLanguagesValue bool
 	checkEquivalenceForLanguagesErr   error
-	probeEquivalenceRows              []storage.ProbeEquivalenceMetric
-	probeEquivalenceErr               error
-	entities                          []storage.EntityRow
-	entitiesErr                       error
-	languageDetections                []storage.LanguageDetectionRow
-	languageDetectionsErr             error
-	availableMetrics                  []storage.AvailableMetricRow
-	availableMetricsErr               error
-	validationStatus                  string
-	validationStatusErr               error
-	culturalContextNotes              string
-	culturalContextNotesErr           error
+	// Phase 124: metric-class-aware normalization gate (separate from the
+	// strict deviation/absolute reporting check above).
+	checkNormalizationEquivForLanguagesValue bool
+	checkNormalizationEquivForLanguagesErr   error
+	probeEquivalenceRows                     []storage.ProbeEquivalenceMetric
+	probeEquivalenceErr                      error
+	// Phase 124: lead-lag + grant status.
+	leadLag                 storage.LeadLagResult
+	leadLagErr              error
+	equivalenceStatus       *storage.EquivalenceStatusRow
+	equivalenceStatusErr    error
+	entities                []storage.EntityRow
+	entitiesErr             error
+	languageDetections      []storage.LanguageDetectionRow
+	languageDetectionsErr   error
+	availableMetrics        []storage.AvailableMetricRow
+	availableMetricsErr     error
+	validationStatus        string
+	validationStatusErr     error
+	culturalContextNotes    string
+	culturalContextNotesErr error
 	// Phase 102 view-mode mocks.
 	distribution    storage.DistributionResult
 	distributionErr error
@@ -165,8 +174,20 @@ func (m *mockStore) CheckEquivalenceForLanguages(_ context.Context, _ string, _ 
 	return m.checkEquivalenceForLanguagesValue, m.checkEquivalenceForLanguagesErr
 }
 
+func (m *mockStore) CheckNormalizationEquivalenceForLanguages(_ context.Context, _ string, _ []string) (bool, error) {
+	return m.checkNormalizationEquivForLanguagesValue, m.checkNormalizationEquivForLanguagesErr
+}
+
 func (m *mockStore) GetProbeEquivalence(_ context.Context, _, _ time.Time, _ []string) ([]storage.ProbeEquivalenceMetric, error) {
 	return m.probeEquivalenceRows, m.probeEquivalenceErr
+}
+
+func (m *mockStore) GetTemporalLeadLag(_ context.Context, _, _ []string, _, _ time.Time, _ int) (storage.LeadLagResult, error) {
+	return m.leadLag, m.leadLagErr
+}
+
+func (m *mockStore) GetEquivalenceStatus(_ context.Context, _ string) (*storage.EquivalenceStatusRow, error) {
+	return m.equivalenceStatus, m.equivalenceStatusErr
 }
 
 func (m *mockStore) GetEntities(_ context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error) {

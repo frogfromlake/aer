@@ -396,6 +396,60 @@ func TestCheckEquivalenceExists(t *testing.T) {
 	}
 }
 
+// Phase 124: the normalization gate is metric-class-aware. A temporal-axis
+// metric (publication_hour) is satisfied by a temporal Level-1 grant, whereas
+// an intensive metric still needs deviation-or-absolute. The strict reporting
+// check (CheckEquivalenceForLanguages) must NOT be relaxed by the same grant.
+func TestNormalizationGate_TemporalMetricAcceptsTemporalGrant(t *testing.T) {
+	store, ctx := setupTestStore(t)
+
+	// A temporal-only grant for publication_hour across de + fr.
+	for _, lang := range []string{"de", "fr"} {
+		if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
+			(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
+			VALUES ('temporal_rhythm', 'publication_hour', ?, 'web', 'temporal', '1', now(), 1.0)`, lang); err != nil {
+			t.Fatalf("failed to insert temporal grant: %v", err)
+		}
+	}
+
+	// Single-frame gate: temporal grant is admissible for a temporal metric.
+	ok, err := store.CheckEquivalenceExists(ctx, "publication_hour")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("temporal metric should accept a temporal grant in the single-frame gate")
+	}
+
+	// Cross-frame normalization gate: temporal grant covers both de + fr.
+	ok, err = store.CheckNormalizationEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("temporal grant should satisfy the cross-frame normalization gate for de+fr")
+	}
+
+	// The strict reporting check must stay strict: a temporal-only grant is
+	// NOT deviation-comparable, so the Dossier Level-2 path reports false.
+	ok, err = store.CheckEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("strict deviation/absolute reporting check must not be satisfied by a temporal grant")
+	}
+
+	// An intensive metric with no grant is refused by the normalization gate.
+	ok, err = store.CheckNormalizationEquivalenceForLanguages(ctx, "sentiment_score_sentiws", []string{"de", "fr"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("intensive metric without a grant must be refused by the normalization gate")
+	}
+}
+
 func TestGetNormalizedMetrics(t *testing.T) {
 	store, ctx := setupTestStore(t)
 

@@ -1,21 +1,27 @@
 type: object
 description: >
-  Per-metric equivalence availability for one probe (Phase 115). Drives
-  the Probe Dossier "what comparisons are valid here" panel — making the
-  methodological boundary of the probe legible up front, before the user
-  has to encounter a refusal in a function lane. Phase 126 will extend
-  this endpoint with an optional `comparedTo=<otherProbeId>` parameter
-  for the multi-probe case; this phase only ships the single-probe form.
+  Per-metric equivalence availability for one probe, or for a probe pair when
+  `comparedTo` is set (Phase 124). Drives the Probe Dossier "what comparisons
+  are valid here" panel — making the methodological boundary legible up front,
+  before the user encounters a refusal. With `comparedTo`, the evaluated scope
+  is the union of both probes' sources, so the matrix reflects the cross-probe
+  pair (e.g. the temporal Level-1 grant reports as validated).
 required:
   - probeId
   - metrics
 properties:
   probeId:
     type: string
-    description: The probe whose source set was evaluated.
+    description: The probe whose source set was evaluated (the reference probe).
+  comparedTo:
+    type: string
+    nullable: true
+    description: >
+      The second probe id when the summary was evaluated over a probe pair
+      (Phase 124); absent for the single-probe form.
   sources:
     type: array
-    description: The resolved source set the probe expanded to.
+    description: The resolved source set evaluated (union of both probes when paired).
     items:
       type: string
   metrics:

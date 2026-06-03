@@ -40,6 +40,12 @@ const WP_005_62: Pick<MethodologyNote, 'anchorHref' | 'anchorLabel'> = {
   anchorLabel: 'WP-005 §6.2'
 };
 
+// Phase 124 — temporal Level-1 equivalence grant (cross-probe lead-lag).
+const WP_004_APPB: Pick<MethodologyNote, 'anchorHref' | 'anchorLabel'> = {
+  anchorHref: '/reflection/wp/wp-004?section=appendix-b',
+  anchorLabel: 'WP-004 Appendix B'
+};
+
 export const methodologyNotes = {
   // Aleph — merged time-series over multiple sources.
   alephMergedTimeSeries: (sourceCount: number): MethodologyNote => ({
@@ -74,6 +80,15 @@ export const methodologyNotes = {
     headline: `Small corpus (${articleCount} articles, < ${threshold})`,
     body: 'BERTopic rarely converges on a coherent topic set below this threshold. Interpret topics cautiously.',
     ...WP_005_62
+  }),
+
+  // Rhizome — cross-probe temporal lead-lag (Phase 124). The grant level
+  // comes from the BFF response; the note states why this comparison is
+  // admissible and where its boundary lies.
+  rhizomeLeadLagGrant: (level: string): MethodologyNote => ({
+    headline: `Temporal ${level === 'temporal' ? 'Level-1' : level} grant`,
+    body: 'publication timing is measured on clock/calendar time — a culture-independent axis — so comparing the two probes’ rhythm is valid given verified DE/FR calendar parity. This is a when-comparison only; it asserts nothing about how much or how positive.',
+    ...WP_004_APPB
   })
 } as const;
 

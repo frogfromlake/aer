@@ -635,6 +635,20 @@
       return o;
     });
   }
+  // Phase 124 — shared-axis scale mode. 'shared' (default) puts every cell of
+  // the panel on one axis domain so values are directly comparable; 'free'
+  // restores per-cell optimal domains.
+  const activeScaleMode = $derived<'shared' | 'free'>(boundPanel?.scales ?? 'shared');
+  function setScaleMode(next: 'shared' | 'free') {
+    if (!panelPath || next === activeScaleMode) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      // Shared is the default — omit to keep the URL clean.
+      if (next === 'shared') delete o.scales;
+      else o.scales = 'free';
+      return o;
+    });
+  }
   // Phase 123b — co-occurrence cross-lingual relabel toggle. 'source' (default)
   // keeps each node on its source surface form; 'viewer' swaps QID-linked nodes
   // to the app-language label. Default omitted from URL.
@@ -995,6 +1009,23 @@
             title="Toggle the ±1σ uncertainty band around each series"
           >
             {activeShowBand ? '±1σ shown' : '±1σ hidden'}
+          </button>
+        </div>
+      {/if}
+
+      {#if configParams.includes('scales')}
+        <div class="ctrl-row config-row" role="group" aria-label="Axis scale">
+          <span class="ctrl-eyebrow">Scale</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={activeScaleMode === 'shared'}
+            class="ctrl-btn"
+            class:active={activeScaleMode === 'shared'}
+            onclick={() => setScaleMode(activeScaleMode === 'shared' ? 'free' : 'shared')}
+            title="Shared: every cell in this panel uses one axis domain, so identical values plot at identical positions (directly comparable). Free: each cell scales to its own data."
+          >
+            {activeScaleMode === 'shared' ? 'Shared axis' : 'Free axis'}
           </button>
         </div>
       {/if}

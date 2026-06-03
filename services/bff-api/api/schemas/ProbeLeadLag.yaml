@@ -1,0 +1,82 @@
+type: object
+description: >
+  Cross-probe temporal lead-lag (Phase 124). The lagged cross-correlation of
+  hourly publication activity between a reference probe and a compared probe,
+  over a symmetric lag range. A point at lag τ correlates reference activity at
+  hour h with compared activity at hour h+τ, so a peak at τ>0 means the compared
+  probe LAGS the reference. The comparison is authorised by the temporal Level-1
+  equivalence grant (WP-004 §6.3, Appendix B); the BFF refuses with a 400
+  carrying RefusalPayload fields when no admissible grant covers both probes'
+  languages. Phase 125 generalises this to arbitrary metric series.
+required:
+  - referenceProbe
+  - comparedProbe
+  - signal
+  - maxLagHours
+  - points
+  - grant
+properties:
+  referenceProbe:
+    type: string
+    description: The reference probe (the path `probeId`).
+  comparedProbe:
+    type: string
+    description: The compared probe (`comparedTo`).
+  signal:
+    type: string
+    description: The compared signal. Phase 124 ships `publication_activity` only.
+    example: publication_activity
+  maxLagHours:
+    type: integer
+    description: Symmetric lag bound; `points` span -maxLagHours..+maxLagHours.
+  bucketCountAtZero:
+    type: integer
+    format: int64
+    description: Overlapping hourly buckets at lag 0 (a sample-size proxy).
+  grant:
+    type: object
+    description: >
+      The equivalence grant authorising this comparison, for the methodology
+      banner. Server-authoritative so the UI never asserts an ungranted claim.
+    required:
+      - level
+      - workingPaperAnchor
+    properties:
+      level:
+        type: string
+        example: temporal
+      workingPaperAnchor:
+        type: string
+        example: WP-004 Appendix B
+      notes:
+        type: string
+        description: Concise grant rationale (from metric_equivalence.notes).
+      validatedBy:
+        type: string
+        nullable: true
+        description: equivalence_reviews.id of the full review record.
+  points:
+    type: array
+    description: One entry per integer lag in [-maxLagHours, +maxLagHours].
+    items:
+      type: object
+      required:
+        - lagHours
+        - correlation
+      properties:
+        lagHours:
+          type: integer
+        correlation:
+          type: number
+          format: double
+          nullable: true
+          description: Pearson correlation at this lag; null when too few overlapping buckets or zero variance.
+  peakLagHours:
+    type: integer
+    nullable: true
+    description: Lag of maximum correlation; null when no lag has a defined correlation.
+  peakCorrelation:
+    type: number
+    format: double
+    nullable: true
+    description: The maximum correlation across all lags.

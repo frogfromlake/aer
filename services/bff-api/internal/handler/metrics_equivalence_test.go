@@ -76,11 +76,11 @@ func TestGetMetrics_RejectsUnknownNormalization(t *testing.T) {
 
 func TestGetMetrics_CrossFrameRefusalReturnsStructured400(t *testing.T) {
 	store := &mockStore{
-		baselineExists:                    true,
-		equivalenceExists:                 true,
-		countLanguagesForSourcesValue:     2,
-		languagesForScopeRows:             []string{"de", "en"},
-		checkEquivalenceForLanguagesValue: false, // gate fires
+		baselineExists:                           true,
+		equivalenceExists:                        true,
+		countLanguagesForSourcesValue:            2,
+		languagesForScopeRows:                    []string{"de", "en"},
+		checkNormalizationEquivForLanguagesValue: false, // gate fires
 	}
 	s := NewServer(store, nil, nil, nil, nil)
 
@@ -115,11 +115,11 @@ func TestGetMetrics_CrossFrameRefusalReturnsStructured400(t *testing.T) {
 func TestGetMetrics_CrossFrameWithEquivalenceLetsRequestThrough(t *testing.T) {
 	ts := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 	store := &mockStore{
-		baselineExists:                    true,
-		equivalenceExists:                 true,
-		countLanguagesForSourcesValue:     2,
-		languagesForScopeRows:             []string{"de", "en"},
-		checkEquivalenceForLanguagesValue: true, // grant exists
+		baselineExists:                           true,
+		equivalenceExists:                        true,
+		countLanguagesForSourcesValue:            2,
+		languagesForScopeRows:                    []string{"de", "en"},
+		checkNormalizationEquivForLanguagesValue: true, // grant exists
 		normalizedMetrics: []storage.MetricRow{
 			{TS: ts, Value: -0.42, Source: "tagesschau", MetricName: "sentiment"},
 		},
@@ -246,7 +246,7 @@ func TestGetProbeEquivalence_ReturnsLevel1OnlyForEmptyRegistry(t *testing.T) {
 		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	var body struct {
-		ProbeId string `json:"probeId"`
+		ProbeId string   `json:"probeId"`
 		Sources []string `json:"sources"`
 		Metrics []struct {
 			MetricName      string `json:"metricName"`

@@ -1761,6 +1761,27 @@ type GetProbeDossierParams struct {
 	WindowEnd *time.Time `form:"windowEnd,omitempty" json:"windowEnd,omitempty"`
 }
 
+// GetProbeEquivalenceParams defines parameters for GetProbeEquivalence.
+type GetProbeEquivalenceParams struct {
+	// ComparedTo Optional second probe id (Phase 124). When present, equivalence is evaluated over the union of both probes' source sets, giving the cross-probe pair's valid-comparison matrix.
+	ComparedTo *string `form:"comparedTo,omitempty" json:"comparedTo,omitempty"`
+}
+
+// GetProbeLeadLagParams defines parameters for GetProbeLeadLag.
+type GetProbeLeadLagParams struct {
+	// ComparedTo Compared probe id (e.g. `probe-1-fr-institutional-web`).
+	ComparedTo string `form:"comparedTo" json:"comparedTo"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// MaxLagHours Symmetric lag bound in hours (default 168 = ±7 days).
+	MaxLagHours *int `form:"maxLagHours,omitempty" json:"maxLagHours,omitempty"`
+}
+
 // GetRevisionActivityParams defines parameters for GetRevisionActivity.
 type GetRevisionActivityParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
@@ -2006,7 +2027,10 @@ type ServerInterface interface {
 	GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams)
 	// Per-probe equivalence summary
 	// (GET /probes/{probeId}/equivalence)
-	GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string)
+	GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeEquivalenceParams)
+	// Cross-probe temporal lead-lag
+	// (GET /probes/{probeId}/lead-lag)
+	GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeLeadLagParams)
 	// Per-source-per-field metadata coverage for a probe
 	// (GET /probes/{probeId}/metadata-coverage)
 	GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string)
@@ -2165,7 +2189,13 @@ func (_ Unimplemented) GetProbeDossier(w http.ResponseWriter, r *http.Request, i
 
 // Per-probe equivalence summary
 // (GET /probes/{probeId}/equivalence)
-func (_ Unimplemented) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string) {
+func (_ Unimplemented) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeEquivalenceParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Cross-probe temporal lead-lag
+// (GET /probes/{probeId}/lead-lag)
+func (_ Unimplemented) GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeLeadLagParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3379,8 +3409,92 @@ func (siw *ServerInterfaceWrapper) GetProbeEquivalence(w http.ResponseWriter, r 
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProbeEquivalenceParams
+
+	// ------------- Optional query parameter "comparedTo" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "comparedTo", r.URL.Query(), &params.ComparedTo, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comparedTo", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProbeEquivalence(w, r, probeId)
+		siw.Handler.GetProbeEquivalence(w, r, probeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProbeLeadLag operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeLeadLag(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "probeId" -------------
+	var probeId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProbeLeadLagParams
+
+	// ------------- Required query parameter "comparedTo" -------------
+
+	if paramValue := r.URL.Query().Get("comparedTo"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "comparedTo"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "comparedTo", r.URL.Query(), &params.ComparedTo, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comparedTo", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "maxLagHours" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxLagHours", r.URL.Query(), &params.MaxLagHours, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxLagHours", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeLeadLag(w, r, probeId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4367,6 +4481,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/probes/{probeId}/equivalence", wrapper.GetProbeEquivalence)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/probes/{probeId}/lead-lag", wrapper.GetProbeLeadLag)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/probes/{probeId}/metadata-coverage", wrapper.GetProbeMetadataCoverage)
@@ -6001,6 +6118,7 @@ func (response GetProbeDossier500JSONResponse) VisitGetProbeDossierResponse(w ht
 
 type GetProbeEquivalenceRequestObject struct {
 	ProbeId string `json:"probeId"`
+	Params  GetProbeEquivalenceParams
 }
 
 type GetProbeEquivalenceResponseObject interface {
@@ -6008,6 +6126,9 @@ type GetProbeEquivalenceResponseObject interface {
 }
 
 type GetProbeEquivalence200JSONResponse struct {
+	// ComparedTo The second probe id when the summary was evaluated over a probe pair (Phase 124); absent for the single-probe form.
+	ComparedTo *string `json:"comparedTo,omitempty"`
+
 	// Metrics One entry per metric currently visible in the probe's data.
 	Metrics []struct {
 		EquivalenceStatus *struct {
@@ -6035,10 +6156,10 @@ type GetProbeEquivalence200JSONResponse struct {
 		MetricName      string `json:"metricName"`
 	} `json:"metrics"`
 
-	// ProbeId The probe whose source set was evaluated.
+	// ProbeId The probe whose source set was evaluated (the reference probe).
 	ProbeId string `json:"probeId"`
 
-	// Sources The resolved source set the probe expanded to.
+	// Sources The resolved source set evaluated (union of both probes when paired).
 	Sources *[]string `json:"sources,omitempty"`
 }
 
@@ -6085,6 +6206,127 @@ type GetProbeEquivalence500JSONResponse struct {
 }
 
 func (response GetProbeEquivalence500JSONResponse) VisitGetProbeEquivalenceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeLeadLagRequestObject struct {
+	ProbeId string `json:"probeId"`
+	Params  GetProbeLeadLagParams
+}
+
+type GetProbeLeadLagResponseObject interface {
+	VisitGetProbeLeadLagResponse(w http.ResponseWriter) error
+}
+
+type GetProbeLeadLag200JSONResponse struct {
+	// BucketCountAtZero Overlapping hourly buckets at lag 0 (a sample-size proxy).
+	BucketCountAtZero *int64 `json:"bucketCountAtZero,omitempty"`
+
+	// ComparedProbe The compared probe (`comparedTo`).
+	ComparedProbe string `json:"comparedProbe"`
+
+	// Grant The equivalence grant authorising this comparison, for the methodology banner. Server-authoritative so the UI never asserts an ungranted claim.
+	Grant struct {
+		Level string `json:"level"`
+
+		// Notes Concise grant rationale (from metric_equivalence.notes).
+		Notes *string `json:"notes,omitempty"`
+
+		// ValidatedBy equivalence_reviews.id of the full review record.
+		ValidatedBy        *string `json:"validatedBy,omitempty"`
+		WorkingPaperAnchor string  `json:"workingPaperAnchor"`
+	} `json:"grant"`
+
+	// MaxLagHours Symmetric lag bound; `points` span -maxLagHours..+maxLagHours.
+	MaxLagHours int `json:"maxLagHours"`
+
+	// PeakCorrelation The maximum correlation across all lags.
+	PeakCorrelation *float64 `json:"peakCorrelation,omitempty"`
+
+	// PeakLagHours Lag of maximum correlation; null when no lag has a defined correlation.
+	PeakLagHours *int `json:"peakLagHours,omitempty"`
+
+	// Points One entry per integer lag in [-maxLagHours, +maxLagHours].
+	Points []struct {
+		// Correlation Pearson correlation at this lag; null when too few overlapping buckets or zero variance.
+		Correlation *float64 `json:"correlation"`
+		LagHours    int      `json:"lagHours"`
+	} `json:"points"`
+
+	// ReferenceProbe The reference probe (the path `probeId`).
+	ReferenceProbe string `json:"referenceProbe"`
+
+	// Signal The compared signal. Phase 124 ships `publication_activity` only.
+	Signal string `json:"signal"`
+}
+
+func (response GetProbeLeadLag200JSONResponse) VisitGetProbeLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeLeadLag400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeLeadLag400JSONResponse) VisitGetProbeLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeLeadLag404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeLeadLag404JSONResponse) VisitGetProbeLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProbeLeadLag500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetProbeLeadLag500JSONResponse) VisitGetProbeLeadLagResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -7244,6 +7486,9 @@ type StrictServerInterface interface {
 	// Per-probe equivalence summary
 	// (GET /probes/{probeId}/equivalence)
 	GetProbeEquivalence(ctx context.Context, request GetProbeEquivalenceRequestObject) (GetProbeEquivalenceResponseObject, error)
+	// Cross-probe temporal lead-lag
+	// (GET /probes/{probeId}/lead-lag)
+	GetProbeLeadLag(ctx context.Context, request GetProbeLeadLagRequestObject) (GetProbeLeadLagResponseObject, error)
 	// Per-source-per-field metadata coverage for a probe
 	// (GET /probes/{probeId}/metadata-coverage)
 	GetProbeMetadataCoverage(ctx context.Context, request GetProbeMetadataCoverageRequestObject) (GetProbeMetadataCoverageResponseObject, error)
@@ -7794,10 +8039,11 @@ func (sh *strictHandler) GetProbeDossier(w http.ResponseWriter, r *http.Request,
 }
 
 // GetProbeEquivalence operation middleware
-func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string) {
+func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeEquivalenceParams) {
 	var request GetProbeEquivalenceRequestObject
 
 	request.ProbeId = probeId
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetProbeEquivalence(ctx, request.(GetProbeEquivalenceRequestObject))
@@ -7812,6 +8058,33 @@ func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProbeEquivalenceResponseObject); ok {
 		if err := validResponse.VisitGetProbeEquivalenceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbeLeadLag operation middleware
+func (sh *strictHandler) GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeLeadLagParams) {
+	var request GetProbeLeadLagRequestObject
+
+	request.ProbeId = probeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeLeadLag(ctx, request.(GetProbeLeadLagRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeLeadLag")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeLeadLagResponseObject); ok {
+		if err := validResponse.VisitGetProbeLeadLagResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

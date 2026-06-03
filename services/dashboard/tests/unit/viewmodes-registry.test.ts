@@ -24,7 +24,8 @@ describe('view-mode registry', () => {
       'topic_distribution',
       'topic_evolution',
       'revision_activity',
-      'revision_timeline'
+      'revision_timeline',
+      'cross_probe_lead_lag'
     ]);
   });
 
@@ -132,7 +133,10 @@ describe('pillar mapping', () => {
       'revision_timeline'
     ]);
     // Rhizome (relational): cooccurrence_network
-    expect(getPillar('rhizome').presentations).toEqual(['cooccurrence_network']);
+    expect(getPillar('rhizome').presentations).toEqual([
+      'cooccurrence_network',
+      'cross_probe_lead_lag'
+    ]);
   });
 
   it('falls back to Aleph for unknown/null pillar', () => {
@@ -152,7 +156,7 @@ describe('pillar mapping', () => {
     expect(epistemIds).toEqual(['time_series', 'topic_evolution', 'revision_timeline']);
 
     const rhizIds = presentationsForPillar('rhizome').map((p) => p.id);
-    expect(rhizIds).toEqual(['cooccurrence_network']);
+    expect(rhizIds).toEqual(['cooccurrence_network', 'cross_probe_lead_lag']);
 
     // null → Aleph default
     expect(presentationsForPillar(null).map((p) => p.id)).toEqual([

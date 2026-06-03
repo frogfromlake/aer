@@ -32,6 +32,11 @@
     ariaLabel: string;
     /** Plot height in px. Defaults to 200 to keep the 99b footprint. */
     height?: number;
+    /** Phase 124 — fixed y-axis domain for shared-axis comparison across a
+     *  panel's cells. `null`/absent = auto-range from this chart's own data
+     *  (free scale). Applied via a live-ref range function so toggling
+     *  shared↔free never recreates the chart. */
+    yDomain?: readonly [number, number] | null;
   }
 
   let {
@@ -42,8 +47,15 @@
     yLabel,
     weight = 1,
     ariaLabel,
-    height = 200
+    height = 200,
+    yDomain = null
   }: Props = $props();
+
+  // Live ref so uPlot's y range function reads the latest shared domain
+  // without a chart rebuild (the function is invoked on every setData). Seeded
+  // to null and kept in sync by the $effect below — avoids capturing the prop's
+  // initial value in a non-reactive context.
+  const yDomainRef: { current: readonly [number, number] | null } = { current: null };
 
   // uPlot ships as CJS `export = uPlot` with an ambient namespace; in
   // ESM/bundler resolution it arrives as `{ default: Ctor }`. We keep
@@ -53,6 +65,7 @@
     setData(data: unknown): void;
     destroy(): void;
   }
+  type YRangeFn = (self: unknown, dataMin: number, dataMax: number) => [number, number];
   type UPlotCtor = new (opts: unknown, data: unknown, target: HTMLElement) => UPlotChart;
 
   let host: HTMLDivElement | undefined = $state();
@@ -115,10 +128,17 @@
       const w = Math.max(0.3, Math.min(1, weight));
       const stroke = `rgba(82, 131, 184, ${w})`;
       const bandFill = `rgba(82, 131, 184, ${Math.max(0.08, w * 0.18)})`;
+      // Phase 124 — y scale honours the shared domain via a live-ref range
+      // function: returns the panel's union domain when set, else the chart's
+      // own data range (free scale).
+      const yRange: YRangeFn = (_self, dataMin, dataMax) => {
+        const d = yDomainRef.current;
+        return d ? [d[0], d[1]] : [dataMin, dataMax];
+      };
       const opts = {
         width: host.clientWidth,
         height,
-        scales: { x: { time: true } },
+        scales: { x: { time: true }, y: { range: yRange } },
         axes: [
           { stroke: '#888', grid: { stroke: 'rgba(255,255,255,0.06)' } },
           { stroke: '#888', grid: { stroke: 'rgba(255,255,255,0.06)' }, label: yLabel }
@@ -143,6 +163,10 @@
   });
 
   $effect(() => {
+    // Update the live y-domain ref and redraw; uPlot re-invokes the y range
+    // function on setData, so a changed shared domain takes effect without a
+    // chart rebuild.
+    yDomainRef.current = yDomain;
     if (chart) chart.setData(currentData());
   });
 

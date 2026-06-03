@@ -52,7 +52,11 @@ export type CellParamKind =
   | 'networkChannels'
   | 'scatterAxes'
   | 'forceStrength'
-  | 'displayLanguage';
+  | 'displayLanguage'
+  // Phase 124 — axis-scale mode (shared vs free) for multi-cell value-axis
+  // panels. PanelControls renders the toggle for the presentations that carry
+  // a comparable value axis (distribution, time_series, metric_scatter).
+  | 'scales';
 
 /** One presentation-form axis entry. The matrix-cell id is composed at
  *  call-sites as `<id>_<metricName>` to match content-catalog yaml keys. */
@@ -166,6 +170,29 @@ export interface ViewModeCellProps {
    *  QID-linked nodes to the reader's language; 'source' / undefined keeps the
    *  source surface form. Network cell only. */
   displayLanguage?: 'source' | 'viewer' | undefined;
+  // Phase 124 — shared-axis coordination across the cells of one panel.
+  /** Stable per-rendered-cell key, assigned by PanelHost. Identifies this
+   *  cell when it reports its extent so the host can union extents per axis. */
+  cellKey?: string | undefined;
+  /** Report this cell's own data extent on an axis (`value` = the metric axis,
+   *  whatever its orientation; `x` = scatter's x-metric axis). Pass `null`
+   *  when the cell has no data. PanelHost unions reported extents into
+   *  `sharedDomains`. No-op when absent (legacy / non-coordinated render). */
+  reportExtent?:
+    | ((axis: 'value' | 'x', extent: readonly [number, number] | null) => void)
+    | undefined;
+  /** The union axis domains for the panel, supplied only in 'shared' scale
+   *  mode. A value-axis cell applies `value` to its metric axis; the scatter
+   *  cell additionally applies `x`. Absent = free scale (the cell auto-scales
+   *  to its own data). */
+  sharedDomains?:
+    | { readonly value?: readonly [number, number]; readonly x?: readonly [number, number] }
+    | undefined;
+  /** Phase 124 — the panel's effective axis-scale state for this cell, used
+   *  only for the "how to read" disclosure: 'shared' (on the union axis),
+   *  'free' (multi-cell but independent — by user choice or the cross-context
+   *  guard), or undefined (single-cell / not a value-axis panel — no note). */
+  axisScaleState?: 'shared' | 'free' | undefined;
 }
 
 const PRESENTATIONS: readonly PresentationDefinition[] = [
@@ -178,7 +205,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: true,
     usesResolution: true,
     usesNormalization: true,
-    configurableParams: ['band'],
+    configurableParams: ['band', 'scales'],
     // Overlay (N per-source viridis lines on one canvas) is implemented only
     // here — the per-scope cells render one artefact and ignore it.
     supportsOverlay: true,
@@ -193,7 +220,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     layout: 'per-scope',
     usesMetric: true,
     usesResolution: false,
-    configurableParams: ['bins'],
+    configurableParams: ['bins', 'scales'],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/DistributionCell.svelte')).default
   },
@@ -224,7 +251,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     layout: 'per-scope',
     usesMetric: false,
     usesResolution: false,
-    configurableParams: ['scatterAxes'],
+    configurableParams: ['scatterAxes', 'scales'],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/ScatterCell.svelte')).default
   },
@@ -300,6 +327,25 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     configurableParams: [],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/RevisionTimelineCell.svelte')).default
+  },
+  // Phase 124 — Rhizome cross-probe temporal lead-lag. A relational artefact
+  // over a probe PAIR: the lagged cross-correlation of the two probes' hourly
+  // publication activity. Metric-less (the signal is publication activity, not
+  // a chosen Gold metric), so the single-metric picker is hidden. Gated
+  // server-side on the temporal Level-1 equivalence grant; an ungranted pair
+  // renders the refusal surface.
+  {
+    id: 'cross_probe_lead_lag',
+    label: 'Lead-lag',
+    discipline: 'network_science',
+    description:
+      'Cross-probe temporal lead-lag — does one culture lead the other in publication rhythm?',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: [],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/LeadLagCell.svelte')).default
   }
 ];
 
@@ -424,7 +470,7 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     description:
       'How frames move. Entity co-occurrence, lead-lag, cross-probe diffusion — the relational substrate of the discourse.',
     color: '#9a8fb8',
-    presentations: ['cooccurrence_network']
+    presentations: ['cooccurrence_network', 'cross_probe_lead_lag']
   }
 ];
 

@@ -1,0 +1,67 @@
+get:
+  tags: [Analysis]
+  summary: Cross-probe temporal lead-lag
+  description: >
+    Returns the lagged cross-correlation of hourly publication activity between
+    `probeId` (reference) and `comparedTo` (compared), over ±`maxLagHours`. A
+    relational, cross-cultural artefact authorised ONLY by a temporal Level-1
+    equivalence grant covering both probes' languages (WP-004 §6.3, Appendix B);
+    otherwise the response is 400 with the RefusalPayload fields
+    (gate=`metric_equivalence`).
+
+    Phase 124 minimal form: the signal is publication activity and the gate is
+    the temporal grant. Phase 125 generalises this to arbitrary metric series
+    and a fully-parameterised public endpoint — build on this endpoint, do NOT
+    re-implement it.
+  operationId: getProbeLeadLag
+  parameters:
+    - name: probeId
+      in: path
+      required: true
+      description: Reference probe id (e.g. `probe-0-de-institutional-web`).
+      schema:
+        type: string
+        minLength: 1
+    - name: comparedTo
+      in: query
+      required: true
+      description: Compared probe id (e.g. `probe-1-fr-institutional-web`).
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - name: maxLagHours
+      in: query
+      required: false
+      description: Symmetric lag bound in hours (default 168 = ±7 days).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 720
+        default: 168
+  responses:
+    '200':
+      description: Lead-lag cross-correlation for the probe pair.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ProbeLeadLag.yaml'
+    '400':
+      description: >
+        Invalid parameters, identical probes, or a methodological refusal —
+        the probe pair lacks a temporal-level equivalence grant across both
+        languages. A refusal carries the `gate`, `workingPaperAnchor`, and
+        `alternatives` fields.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: The reference or compared probe id is not registered.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

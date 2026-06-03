@@ -84,7 +84,10 @@ type Store interface {
 	CountLanguagesForSources(ctx context.Context, start, end time.Time, sources []string) (int, error)
 	LanguagesForScope(ctx context.Context, start, end time.Time, sources []string) ([]string, error)
 	CheckEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error)
+	CheckNormalizationEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error)
 	GetProbeEquivalence(ctx context.Context, start, end time.Time, sources []string) ([]storage.ProbeEquivalenceMetric, error)
+	GetEquivalenceStatus(ctx context.Context, metricName string) (*storage.EquivalenceStatusRow, error)
+	GetTemporalLeadLag(ctx context.Context, referenceSources, comparedSources []string, start, end time.Time, maxLagHours int) (storage.LeadLagResult, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error)
@@ -290,12 +293,14 @@ func crossFrameRefusal() GetMetrics400JSONResponse {
 // When normalization=zscore (Phase 65) or normalization=percentile (Phase 115),
 // a validation gate enforces:
 // (a) baselines must exist for the requested (metricName, source) pair;
-// (b) at least deviation-level equivalence must be confirmed in
-// `metric_equivalence`;
+// (b) an admissible equivalence level must be confirmed in `metric_equivalence`.
+// The admissible level is metric-class-aware (Phase 124): a temporal-axis
+// metric (publication_hour/weekday) is satisfied by a temporal Level-1 grant;
+// every other metric requires deviation-or-absolute;
 // (c) Phase 115 cross-frame gate — when the resolved scope spans more than one
-// language, equivalence must additionally be validated across every language
-// in the scope. Otherwise the response is 400 with a structured RefusalPayload
-// (gate=metric_equivalence, anchor=WP-004#section-5.2).
+// language, that admissible equivalence must additionally be granted across
+// every language in the scope. Otherwise the response is 400 with a structured
+// RefusalPayload (gate=metric_equivalence, anchor=WP-004#section-5.2).
 func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error) {
 	if request.Params.Normalization != nil && !request.Params.Normalization.Valid() {
 		return GetMetrics400JSONResponse{Message: "invalid normalization; must be one of raw, zscore, percentile"}, nil
@@ -346,7 +351,7 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 			return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 		}
 		if !equivExists {
-			return GetMetrics400JSONResponse{Message: "no equivalence entry with at least deviation-level equivalence exists for this metric; cross-cultural comparability has not been validated"}, nil
+			return GetMetrics400JSONResponse{Message: "no validated equivalence entry exists for this metric at a level admissible for normalization; cross-cultural comparability has not been validated"}, nil
 		}
 
 		// Phase 115 cross-frame equivalence gate.
@@ -361,9 +366,9 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 				slog.Error("handler failure", "op", "GetMetrics.collectLanguagesForScope", "error", err)
 				return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 			}
-			ok, err := s.db.CheckEquivalenceForLanguages(ctx, *request.Params.MetricName, languages)
+			ok, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, *request.Params.MetricName, languages)
 			if err != nil {
-				slog.Error("handler failure", "op", "GetMetrics.CheckEquivalenceForLanguages", "error", err)
+				slog.Error("handler failure", "op", "GetMetrics.CheckNormalizationEquivalenceForLanguages", "error", err)
 				return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 			}
 			if !ok {
@@ -748,20 +753,36 @@ func (s *Server) GetProbeEquivalence(ctx context.Context, request GetProbeEquiva
 		return GetProbeEquivalence404JSONResponse{Message: "probe not found"}, nil
 	}
 
+	// Phase 124: with comparedTo the scope is the UNION of both probes'
+	// sources, so the matrix reports what is valid for the cross-probe pair.
+	scopeSources := append([]string(nil), probe.Sources...)
+	var comparedTo *string
+	if request.Params.ComparedTo != nil && *request.Params.ComparedTo != "" {
+		other, ok := s.probes[*request.Params.ComparedTo]
+		if !ok {
+			return GetProbeEquivalence404JSONResponse{Message: "comparedTo probe not found"}, nil
+		}
+		scopeSources = append(scopeSources, other.Sources...)
+		scopeSources = uniqueNonEmpty(scopeSources...)
+		id := other.ProbeID
+		comparedTo = &id
+	}
+
 	end := time.Now().UTC()
 	start := end.Add(-90 * 24 * time.Hour)
 
-	rows, err := s.db.GetProbeEquivalence(ctx, start, end, probe.Sources)
+	rows, err := s.db.GetProbeEquivalence(ctx, start, end, scopeSources)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetProbeEquivalence", "error", err)
 		return GetProbeEquivalence500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	resp := GetProbeEquivalence200JSONResponse{
-		ProbeId: probe.ProbeID,
+		ProbeId:    probe.ProbeID,
+		ComparedTo: comparedTo,
 	}
-	if len(probe.Sources) > 0 {
-		sources := append([]string(nil), probe.Sources...)
+	if len(scopeSources) > 0 {
+		sources := append([]string(nil), scopeSources...)
 		resp.Sources = &sources
 	}
 	for _, r := range rows {
@@ -807,6 +828,151 @@ func (s *Server) GetProbeEquivalence(ctx context.Context, request GetProbeEquiva
 		resp.Metrics = append(resp.Metrics, entry)
 	}
 	return resp, nil
+}
+
+const (
+	// leadLagDefaultMaxLagHours is ±7 days of hourly lags.
+	leadLagDefaultMaxLagHours = 168
+	leadLagMaxAllowedLagHours = 720
+	// leadLagSignal names the Phase-124 lead-lag signal: hourly publication
+	// activity (distinct-article count). Phase 125 generalises to metric series.
+	leadLagSignal = "publication_activity"
+	// leadLagGateMetric is the temporal-rhythm metric whose grant authorises
+	// the cross-probe temporal lead-lag comparison.
+	leadLagGateMetric = "publication_hour"
+	// leadLagAnchor is the methodological anchor for the temporal Level-1 grant.
+	leadLagAnchor = "WP-004 Appendix B"
+)
+
+// GetProbeLeadLag handles GET /probes/{probeId}/lead-lag — Phase 124. The
+// lagged cross-correlation of hourly publication activity between the reference
+// probe (`probeId`) and the compared probe (`comparedTo`). A cross-cultural
+// relational artefact, so it is gated on a temporal-level equivalence grant
+// covering both probes' languages; an ungranted pair returns a RefusalPayload-
+// shaped 400. Phase 125 generalises this to arbitrary metric series.
+func (s *Server) GetProbeLeadLag(ctx context.Context, request GetProbeLeadLagRequestObject) (GetProbeLeadLagResponseObject, error) {
+	ref, ok := s.probes[request.ProbeId]
+	if !ok {
+		return GetProbeLeadLag404JSONResponse{Message: "probe not found"}, nil
+	}
+	compared, ok := s.probes[request.Params.ComparedTo]
+	if !ok {
+		return GetProbeLeadLag404JSONResponse{Message: "comparedTo probe not found"}, nil
+	}
+	if request.ProbeId == request.Params.ComparedTo {
+		return GetProbeLeadLag400JSONResponse{Message: "comparedTo must differ from probeId"}, nil
+	}
+
+	// Window: explicit range when given, else the last 90 days (the same
+	// horizon GetProbeEquivalence and the baseline run use).
+	end := time.Now().UTC()
+	start := end.Add(-90 * 24 * time.Hour)
+	if request.Params.Start != nil {
+		start = *request.Params.Start
+	}
+	if request.Params.End != nil {
+		end = *request.Params.End
+	}
+	if !end.After(start) {
+		return GetProbeLeadLag400JSONResponse{Message: "end must be strictly after start"}, nil
+	}
+
+	maxLag := leadLagDefaultMaxLagHours
+	if request.Params.MaxLagHours != nil {
+		maxLag = *request.Params.MaxLagHours
+	}
+	if maxLag < 1 || maxLag > leadLagMaxAllowedLagHours {
+		return GetProbeLeadLag400JSONResponse{Message: "maxLagHours must be between 1 and 720"}, nil
+	}
+
+	// Gate: the cross-cultural temporal comparison is authorised only by a
+	// temporal-level grant covering both probes' languages.
+	languages := uniqueNonEmpty(ref.Language, compared.Language)
+	granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, leadLagGateMetric, languages)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetProbeLeadLag.CheckNormalizationEquivalenceForLanguages", "error", err)
+		return GetProbeLeadLag500JSONResponse{Message: genericInternalError}, nil
+	}
+	if !granted {
+		gate := crossFrameGateID
+		anchor := leadLagAnchor
+		alternatives := []string{
+			"compare the two probes within a single cultural frame",
+			"view each probe's temporal rhythm without a cross-cultural claim",
+		}
+		return GetProbeLeadLag400JSONResponse{
+			Message:            "cross-probe lead-lag requires a temporal-level equivalence grant across both probes' languages; granted out-of-band via WP-004 §6.3",
+			Gate:               &gate,
+			WorkingPaperAnchor: &anchor,
+			Alternatives:       &alternatives,
+		}, nil
+	}
+
+	res, err := s.db.GetTemporalLeadLag(ctx, ref.Sources, compared.Sources, start, end, maxLag)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetProbeLeadLag.GetTemporalLeadLag", "error", err)
+		return GetProbeLeadLag500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	bucketAtZero := res.BucketCountAtZero
+	resp := GetProbeLeadLag200JSONResponse{
+		ReferenceProbe:    ref.ProbeID,
+		ComparedProbe:     compared.ProbeID,
+		Signal:            leadLagSignal,
+		MaxLagHours:       res.MaxLagHours,
+		BucketCountAtZero: &bucketAtZero,
+		PeakLagHours:      res.PeakLagHours,
+		PeakCorrelation:   res.PeakCorrelation,
+	}
+
+	// Grant block for the methodology banner (server-authoritative).
+	resp.Grant.Level = "temporal"
+	resp.Grant.WorkingPaperAnchor = leadLagAnchor
+	status, err := s.db.GetEquivalenceStatus(ctx, leadLagGateMetric)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetProbeLeadLag.GetEquivalenceStatus", "error", err)
+		return GetProbeLeadLag500JSONResponse{Message: genericInternalError}, nil
+	}
+	if status != nil {
+		if status.Level != nil {
+			resp.Grant.Level = *status.Level
+		}
+		if status.Notes != "" {
+			notes := status.Notes
+			resp.Grant.Notes = &notes
+		}
+		if status.ValidatedBy != nil {
+			vb := *status.ValidatedBy
+			resp.Grant.ValidatedBy = &vb
+		}
+	}
+
+	for _, p := range res.Points {
+		resp.Points = append(resp.Points, struct {
+			Correlation *float64 `json:"correlation"`
+			LagHours    int      `json:"lagHours"`
+		}{Correlation: p.Correlation, LagHours: p.LagHours})
+	}
+	return resp, nil
+}
+
+// uniqueNonEmpty returns the distinct, non-empty values among its arguments,
+// preserving first-seen order. Used to collapse a probe pair's languages into
+// the set the equivalence gate must cover.
+func uniqueNonEmpty(values ...string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }
 
 // GetContent handles GET /content/{entityType}/{entityId} — returns Dual-Register content

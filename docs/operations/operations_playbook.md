@@ -448,7 +448,7 @@ VALUES
      0.00);                        -- confidence score from the equivalence study
 ```
 
-**Probe 0 note:** A single probe cannot establish cross-cultural equivalence — it requires at least two probes from different cultural contexts. `?normalization=zscore` against Probe 0 sources returns HTTP 400 by design until a second probe enables meaningful comparison. This is not a bug — it is the validation gate (WP-004 §7.3) functioning as intended.
+**Single-probe note:** A single probe cannot establish *cross-cultural* equivalence — it requires at least two probes from different cultural contexts. Cross-frame `?normalization=zscore` returns HTTP 400 until an admissible grant exists. Since Phase 124 the first grant is in place (temporal Level-1 for Probe 0 × Probe 1 — see [Cross-probe operations](#cross-probe-operations-phase-124) below), so cross-probe z-score on a *temporal* metric now succeeds while intensive metrics (e.g. sentiment) still refuse by design. This is the validation gate (WP-004 §6.3) functioning as intended.
 
 #### Granting metric equivalence (WP-004 §5.2) — Phase 115
 
@@ -508,6 +508,51 @@ dashboard methodology tray. It is not authoritative; the Postgres
 string is valid (e.g. the temporal-Level grant for Probe 0 × Probe 1
 in Phase 124, whose rationale is fully captured in WP-004 Appendix B
 and needs no additional paraphrase).
+
+#### Cross-probe operations (Phase 124)
+
+Phase 124 ships the **first non-empty equivalence grant** and the cross-probe
+comparison surface. Operationally relevant facts:
+
+- **The grant is seeded by migrations, not by hand.** Unlike the generic manual
+  workflow above, the first temporal Level-1 grant is reproducible
+  infrastructure so it survives `make reset`:
+  - ClickHouse `infra/clickhouse/migrations/000028_seed_temporal_equivalence_grant.sql`
+    — four `metric_equivalence` rows (`publication_hour`, `publication_weekday` ×
+    `de`, `fr`), `equivalence_level='temporal'`, `etic_construct='temporal_rhythm'`.
+  - Postgres `infra/postgres/migrations/000023_seed_temporal_equivalence_grant.up.sql`
+    — the four full `equivalence_reviews` records (ids 1–4), anchored to
+    WP-004 Appendix B.
+  - Baselines themselves are NOT seeded — the worker's `MetricBaselineExtractor`
+    maintains them for every source/probe automatically (see *Automated baseline
+    maintenance* below), so both probes already have `publication_hour` /
+    `publication_weekday` baselines.
+
+- **Metric-class-aware gate.** The z-score / percentile gate accepts a
+  `temporal` grant only for temporal-axis metrics (`publication_hour`,
+  `publication_weekday` — clock/calendar time is a culture-independent axis, so
+  z-score reads as a *rhythm* comparison). Intensive/scaled metrics (sentiment)
+  still require a `deviation` (Level-2) grant. The Dossier Level-2 *reporting*
+  column stays strict — a temporal grant never reports as deviation-comparable.
+
+  ```bash
+  # Cross-probe temporal z-score — succeeds (200):
+  curl -H "X-API-Key: $BFF_API_KEY" \
+    "$BFF/metrics?metricName=publication_hour&normalization=zscore&sourceIds=tagesschau,franceinfo&start=...&end=..."
+  # Cross-probe sentiment z-score — refuses (400, gate=metric_equivalence):
+  curl -H "X-API-Key: $BFF_API_KEY" \
+    "$BFF/metrics?metricName=sentiment_score_bert_multilingual&normalization=zscore&sourceIds=tagesschau,franceinfo&start=...&end=..."
+  ```
+
+- **Cross-probe equivalence matrix.** `GET /probes/{probeId}/equivalence?comparedTo=<otherProbeId>`
+  evaluates over the union of both probes' sources, reporting what is valid for
+  the pair (the temporal metrics show `equivalenceStatus.level=temporal`).
+
+- **Temporal lead-lag.** `GET /probes/{probeId}/lead-lag?comparedTo=<otherProbeId>&maxLagHours=168`
+  returns the lagged cross-correlation of hourly publication activity between the
+  two probes. It is gated on the same temporal grant; an ungranted pair returns a
+  RefusalPayload-shaped 400 (`gate=metric_equivalence`). `bucketCountAtZero`
+  discloses the overlapping-sample size — read peaks cautiously when it is small.
 
 #### Automated baseline maintenance (Phase 115)
 

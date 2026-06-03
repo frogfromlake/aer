@@ -42,7 +42,10 @@
     dataLayer = 'gold',
     sources = [],
     composition,
-    bins
+    bins,
+    reportExtent,
+    sharedDomains,
+    axisScaleState
   }: ViewModeCellProps = $props();
 
   // Phase 131 — configurable histogram bin count (default 30, BFF-clamped to
@@ -128,12 +131,24 @@
       : distQ.isError || distQ.data?.kind === 'network-error'
   );
 
+  // Phase 124 — report the value-axis extent so PanelHost can union it into
+  // the shared domain. The summary min/max IS this cell's metric-axis extent.
+  $effect(() => {
+    if (!reportExtent) return;
+    const d = activeDist;
+    if (d && d.summary.count > 0) reportExtent('value', [d.summary.min, d.summary.max]);
+    else reportExtent('value', null);
+  });
+
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
   let renderToken = 0;
 
   $effect(() => {
     const data = activeDist;
+    // Phase 124 — when the panel is on a shared axis, apply the union domain
+    // to x so identical values plot at identical positions across cells.
+    const sharedX = sharedDomains?.value;
     if (!host || !data) return;
     const token = ++renderToken;
     (async () => {
@@ -149,7 +164,7 @@
         height: 220,
         marginLeft: 56,
         marginBottom: 36,
-        x: { label: metricName, grid: false },
+        x: { label: metricName, grid: false, ...(sharedX ? { domain: [...sharedX] } : {}) },
         y: { label: 'count', grid: true },
         marks: [
           Plot.rectY(rows, {
@@ -245,7 +260,7 @@
           max: activeDist.summary.max
         }
       : undefined,
-    howToRead: composeHowToRead('distribution', { bins: activeBins }),
+    howToRead: composeHowToRead('distribution', { bins: activeBins, scales: axisScaleState }),
     rows: exportRows,
     columns: ['lower', 'upper', 'count']
   });
@@ -339,7 +354,7 @@
         <dd>{fmt(s.max)}</dd>
       </div>
     </dl>
-    <HowToRead presentation="distribution" facts={{ bins: activeBins }} />
+    <HowToRead presentation="distribution" facts={{ bins: activeBins, scales: axisScaleState }} />
   {/if}
 </section>
 

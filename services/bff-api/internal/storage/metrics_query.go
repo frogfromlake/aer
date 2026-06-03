@@ -498,21 +498,83 @@ func (s *ClickHouseStorage) CheckBaselineExists(ctx context.Context, metricName 
 	return len(result) > 0 && result[0].Cnt > 0, nil
 }
 
-// CheckEquivalenceExists returns true if at least one equivalence entry with
-// at least "deviation"-level equivalence exists for the given metricName.
+// temporalNormalizableMetrics are scalar metrics measured on a culture-
+// INDEPENDENT axis (clock and calendar time). For these, z-score / percentile
+// normalization expresses a temporal-pattern (rhythm) comparison, which a
+// temporal Level-1 equivalence grant authorises — normalizing against a
+// per-culture mean/std on a culture-independent axis asserts no cross-cultural
+// intensity claim. Intensive/scaled metrics (e.g. sentiment) live on a
+// culture-laden axis and still require a deviation-level (Level-2) grant.
+// WP-004 §6.3 / Appendix B; mirrors the frontend isPureCountMetric split
+// (Phase 124).
+var temporalNormalizableMetrics = map[string]bool{
+	"publication_hour":    true,
+	"publication_weekday": true,
+}
+
+// normalizationEquivalenceLevels returns the equivalence_level values that
+// satisfy the cross-cultural normalization gate for metricName. A temporal-
+// axis metric accepts a temporal grant or stronger; every other metric
+// requires deviation-or-absolute. This governs the normalization GATE only —
+// the Level-2 *reporting* path (CheckEquivalenceForLanguages) stays strict so
+// the Dossier never overstates the granted level.
+func normalizationEquivalenceLevels(metricName string) []string {
+	if temporalNormalizableMetrics[metricName] {
+		return []string{"temporal", "deviation", "absolute"}
+	}
+	return []string{"deviation", "absolute"}
+}
+
+// CheckEquivalenceExists returns true if at least one equivalence entry at an
+// admissible normalization level exists for the given metricName. The
+// admissible level set is metric-class-aware (Phase 124): a temporal-axis
+// metric is satisfied by a temporal Level-1 grant; every other metric requires
+// deviation-or-absolute. Used by the single-frame normalization gate.
 func (s *ClickHouseStorage) CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error) {
-	var result []struct{ Cnt uint64 }
-	err := s.conn.Select(ctx, &result, `
+	levels := normalizationEquivalenceLevels(metricName)
+	placeholders := make([]string, len(levels))
+	args := []any{metricName}
+	for i, lv := range levels {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, lv)
+	}
+	query := fmt.Sprintf(`
 		SELECT count() AS Cnt
 		FROM aer_gold.metric_equivalence
 		WHERE metric_name = $1
-		  AND equivalence_level IN ('deviation', 'absolute')
-	`, metricName)
-	if err != nil {
+		  AND equivalence_level IN (%s)
+	`, strings.Join(placeholders, ", "))
+	var result []struct{ Cnt uint64 }
+	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
 		slog.Error("Failed to check equivalence existence", "error", err)
 		return false, err
 	}
 	return len(result) > 0 && result[0].Cnt > 0, nil
+}
+
+// GetEquivalenceStatus returns the strongest equivalence grant on record for
+// metricName, or nil when none exists. Used to populate the server-authoritative
+// methodology banner of the cross-probe lead-lag cell (Phase 124).
+func (s *ClickHouseStorage) GetEquivalenceStatus(ctx context.Context, metricName string) (*EquivalenceStatusRow, error) {
+	equivMap, err := s.fetchEquivalenceByMetric(ctx)
+	if err != nil {
+		return nil, err
+	}
+	eq, ok := equivMap[metricName]
+	if !ok {
+		return nil, nil
+	}
+	level := eq.Level
+	status := &EquivalenceStatusRow{Level: &level, Notes: eq.Notes}
+	if eq.ValidatedBy != "" {
+		vb := eq.ValidatedBy
+		status.ValidatedBy = &vb
+	}
+	if !eq.ValidationDate.IsZero() {
+		vd := eq.ValidationDate
+		status.ValidationDate = &vd
+	}
+	return status, nil
 }
 
 // GetNormalizedMetrics retrieves z-score normalized time-series data and the
@@ -872,6 +934,51 @@ func (s *ClickHouseStorage) CheckEquivalenceForLanguages(ctx context.Context, me
 	var result []struct{ N uint64 }
 	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
 		slog.Error("Failed to check cross-frame equivalence", "error", err)
+		return false, err
+	}
+	if len(result) == 0 {
+		return false, nil
+	}
+	return int(result[0].N) >= len(languages), nil //nolint:gosec // bounded; distinct languages
+}
+
+// CheckNormalizationEquivalenceForLanguages is the cross-frame normalization
+// gate (Phase 124). It returns true when metricName has a granted
+// metric_equivalence row at an admissible normalization level for EVERY
+// language in `languages`. The admissible level set is metric-class-aware
+// (normalizationEquivalenceLevels): a temporal-axis metric is satisfied by a
+// temporal Level-1 grant; every other metric requires deviation-or-absolute.
+//
+// This deliberately differs from CheckEquivalenceForLanguages, which stays
+// strict (deviation/absolute) for the Level-2 *reporting* path so the Dossier
+// equivalence matrix never reports a metric as deviation-comparable on the
+// strength of a temporal-only grant.
+func (s *ClickHouseStorage) CheckNormalizationEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error) {
+	if len(languages) == 0 {
+		return true, nil
+	}
+	levels := normalizationEquivalenceLevels(metricName)
+	args := []any{metricName}
+	levelPlaceholders := make([]string, len(levels))
+	for i, lv := range levels {
+		levelPlaceholders[i] = fmt.Sprintf("$%d", len(args)+1)
+		args = append(args, lv)
+	}
+	langPlaceholders := make([]string, len(languages))
+	for i, lang := range languages {
+		langPlaceholders[i] = fmt.Sprintf("$%d", len(args)+1)
+		args = append(args, lang)
+	}
+	query := fmt.Sprintf(`
+		SELECT countDistinct(language) AS N
+		FROM aer_gold.metric_equivalence FINAL
+		WHERE metric_name = $1
+		  AND equivalence_level IN (%s)
+		  AND language IN (%s)
+	`, strings.Join(levelPlaceholders, ", "), strings.Join(langPlaceholders, ", "))
+	var result []struct{ N uint64 }
+	if err := s.conn.Select(ctx, &result, query, args...); err != nil {
+		slog.Error("Failed to check cross-frame normalization equivalence", "error", err)
 		return false, err
 	}
 	if len(result) == 0 {

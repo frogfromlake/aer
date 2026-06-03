@@ -10,20 +10,28 @@
 # Schema per entry:
 #   date                       ISO 8601 date (YYYY-MM-DD), or recurring rule
 #   name                       Human-readable name (French)
-#   type                       public_holiday | election | media_event | commemoration
+#   type                       public_holiday | election | media_event |
+#                              commemoration | parliamentary_recess
 #   expected_discourse_effect  Qualitative note on the discourse signature
 #
 # Recurring entries use `recurrence` instead of a fixed date:
 #   recurrence: annual         Same calendar date every year
 #   recurrence: annual_month   Recurs within a given month each year
 #   recurrence: movable        Date computed per year (Easter-based, etc.)
+#   recurrence: annual_range   Inclusive MM-DD..MM-DD window each year
+#                              (uses `start` and `end` instead of `date`)
 #
 # Presidential and legislative election dates are listed individually because
 # they are not regular (and legislatives can be dissolution-triggered).
+#
+# `parliamentary_recess` is structurally parallel to the Bundestag recess in
+# cultural_calendars/de.yaml — both legislatures' summer breaks slow the
+# institutional publication cadence, which is exactly the temporal-rhythm
+# signal the Phase-124 equivalence grant compares (WP-004 §6.3, Appendix B).
 
 region: FR
 language: fr
-last_updated: "2026-05-29"
+last_updated: "2026-06-03"
 
 entries:
   # --- Public Holidays (national, recurring) ---
@@ -133,11 +141,25 @@ entries:
     type: media_event
     expected_discourse_effect: "Cultural/music coverage; urban public-event framing."
 
+  - date: "07"
+    recurrence: annual_month
+    name: "Tour de France"
+    type: media_event
+    expected_discourse_effect: "Sustained sports coverage across July; regional/stage geography entity mentions; international athlete mentions."
+
   - date: "09"
     recurrence: annual_month
     name: "Rentrée littéraire"
     type: media_event
     expected_discourse_effect: "Literary, publishing topics rise; book-prize season coverage."
+
+  # --- Parliamentary Recess (institutional publication cadence) ---
+  - recurrence: annual_range
+    start: "08-01"
+    end: "09-30"
+    name: "Intersession estivale (Assemblée nationale, hors session ordinaire)"
+    type: parliamentary_recess
+    expected_discourse_effect: "Reduced legislative output; lower institutional publication cadence. Session ordinaire resumes the first working day of October (Constitution Art. 28); July may carry an extraordinary session."
 
   # --- Commemorations ---
   - date: "01-27"

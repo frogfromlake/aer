@@ -7,20 +7,29 @@
 # Schema per entry:
 #   date                       ISO 8601 date (YYYY-MM-DD), or recurring rule
 #   name                       Human-readable name (German)
-#   type                       public_holiday | election | media_event | commemoration
+#   type                       public_holiday | election | media_event |
+#                              commemoration | parliamentary_recess
 #   expected_discourse_effect  Qualitative note on the discourse signature
 #                              (volume shift, topic concentration, etc.)
 #
 # Recurring entries use `recurrence` instead of a fixed date:
 #   recurrence: annual         Same calendar date every year
+#   recurrence: annual_month   Recurs within a given month each year
 #   recurrence: movable        Date computed per year (Easter-based, etc.)
+#   recurrence: annual_range   Inclusive MM-DD..MM-DD window each year
+#                              (uses `start` and `end` instead of `date`)
 #
 # Federal election dates are listed individually because they are not
 # regular. Add new entries when the Bundeswahlleiter announces a new date.
+#
+# `parliamentary_recess` is structurally parallel to the Assemblée recess in
+# cultural_calendars/fr.yaml — both legislatures' summer breaks slow the
+# institutional publication cadence, which is exactly the temporal-rhythm
+# signal the Phase-124 equivalence grant compares (WP-004 §6.3, Appendix B).
 
 region: DE
 language: de
-last_updated: "2026-04-12"
+last_updated: "2026-06-03"
 
 entries:
   # --- Public Holidays (federal, recurring) ---
@@ -101,6 +110,14 @@ entries:
     name: "Oktoberfest (München)"
     type: media_event
     expected_discourse_effect: "Bavaria-centric coverage; tourism, public-safety, and economic framing."
+
+  # --- Parliamentary Recess (institutional publication cadence) ---
+  - recurrence: annual_range
+    start: "07-07"
+    end: "09-05"
+    name: "Parlamentarische Sommerpause (Bundestag, sitzungsfreie Zeit)"
+    type: parliamentary_recess
+    expected_discourse_effect: "Reduced legislative/government output; lower institutional publication cadence; 'Sommerloch' framing. Approximate window — exact sitting calendar set yearly by the Ältestenrat."
 
   # --- Commemorations ---
   - date: "01-27"

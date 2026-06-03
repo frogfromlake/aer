@@ -17,6 +17,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import {
     getPresentation,
+    DEFAULT_METRIC_NAME,
     type PresentationDefinition,
     type ViewModeCellProps
   } from '$lib/viewmodes';
@@ -37,7 +38,9 @@
     shouldRefuseMergedCrossProbe,
     type CellRenderUnit
   } from '$lib/workbench/panel-queries';
+  import { isPureCountMetric } from '$lib/viewmodes/metric-presentation';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import {
     focusPanel,
     removePanel,
@@ -316,6 +319,123 @@
   // so per-scope split cells always stacked vertically and the direction
   // toggle appeared dead. Drive it off the composition + rendered-cell count.
   const isSplitLayout = $derived(panel.composition === 'split' && expandedUnits.length > 1);
+
+  // ---------------------------------------------------------------------------
+  // Phase 124 — shared-axis comparison discipline.
+  //
+  // When a panel renders >1 cell of a value-axis presentation, the cells must
+  // be directly comparable: identical values must plot at identical positions.
+  // Each cell reports its own data extent; PanelHost unions the extents and
+  // hands the union back as `sharedDomains`, which the cell applies to its
+  // value (and, for scatter, x) axis instead of auto-scaling.
+  //
+  // Gating (Brief §1.3 / §3.2, WP-004):
+  //   - within one context (same probe, N sources) → always share.
+  //   - pure-count metrics (commensurable) → always share, even cross-probe.
+  //   - cross-context + intensive/scaled metric → share asserts cross-cultural
+  //     commensurability, which needs a metric_equivalence grant. No intensive
+  //     grant exists in Phase 124, so these keep INDEPENDENT axes + a caveat
+  //     (the grant-aware relaxation is a Phase-125 refinement, mirroring the
+  //     merged-cross-probe guard precedent).
+  //   - panel-level 'free' escape hatch overrides shared for readability.
+  // ---------------------------------------------------------------------------
+  const SHARED_AXIS_VIEWS: ReadonlySet<string> = new Set([
+    'distribution',
+    'time_series',
+    'metric_scatter'
+  ]);
+  const sharedAxisApplies = $derived(SHARED_AXIS_VIEWS.has(panel.view) && expandedUnits.length > 1);
+  const scaleMode = $derived<'shared' | 'free'>(panel.scales ?? 'shared');
+  const renderedProbeCount = $derived.by(() => {
+    // Plain Record dedup (not Set) per the codebase's prefer-svelte-reactivity
+    // convention for transient reactive computations.
+    const seen: Record<string, true> = {};
+    for (const u of expandedUnits) {
+      if (u.probeId) seen[u.probeId] = true;
+      for (const pid of u.probeIds) seen[pid] = true;
+    }
+    return Object.keys(seen).length;
+  });
+  // Intensiveness for the cross-context guard. Most presentations carry the
+  // axis metric in `panel.metric`; metric_scatter (usesMetric:false) instead
+  // binds its axes to channel metrics (`panel.channels` x/y, defaulting exactly
+  // as ScatterCell does), so the guard must inspect those — otherwise a
+  // cross-probe scatter of intensive metrics would silently share axes with no
+  // equivalence grant (the very cross-cultural commensurability claim the guard
+  // exists to forbid).
+  const isIntensiveMetric = $derived.by(() => {
+    if (panel.view === 'metric_scatter') {
+      const x = panel.channels?.x ?? 'word_count';
+      const y = panel.channels?.y ?? DEFAULT_METRIC_NAME;
+      return !isPureCountMetric(x) || !isPureCountMetric(y);
+    }
+    return presentation.usesMetric !== false && !isPureCountMetric(panel.metric);
+  });
+  const shareForbidden = $derived(sharedAxisApplies && renderedProbeCount > 1 && isIntensiveMetric);
+  const computeShared = $derived(sharedAxisApplies && scaleMode === 'shared' && !shareForbidden);
+
+  // Per-rendered-cell extents, keyed `${cellKey}|${axis}`. A plain Record
+  // (reassigned on each update) drives reactivity without a mutable Map, per
+  // the codebase's prefer-svelte-reactivity convention.
+  let reportedExtents = $state<Record<string, readonly [number, number]>>({});
+  function reportExtentFor(cellKey: string) {
+    return (axis: 'value' | 'x', extent: readonly [number, number] | null) => {
+      const k = `${cellKey}|${axis}`;
+      if (extent === null) {
+        if (!(k in reportedExtents)) return;
+        const next = { ...reportedExtents };
+        delete next[k];
+        reportedExtents = next;
+        return;
+      }
+      const prev = reportedExtents[k];
+      if (prev && prev[0] === extent[0] && prev[1] === extent[1]) return;
+      reportedExtents = { ...reportedExtents, [k]: [extent[0], extent[1]] };
+    };
+  }
+  function unionExtent(axis: 'value' | 'x'): readonly [number, number] | undefined {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const [k, v] of Object.entries(reportedExtents)) {
+      if (!k.endsWith(`|${axis}`)) continue;
+      if (v[0] < lo) lo = v[0];
+      if (v[1] > hi) hi = v[1];
+    }
+    return lo <= hi ? [lo, hi] : undefined;
+  }
+  const sharedDomains = $derived.by<
+    { value?: readonly [number, number]; x?: readonly [number, number] } | undefined
+  >(() => {
+    if (!computeShared) return undefined;
+    const value = unionExtent('value');
+    const x = unionExtent('x');
+    const out: { value?: readonly [number, number]; x?: readonly [number, number] } = {};
+    if (value) out.value = value;
+    if (x) out.x = x;
+    return value || x ? out : undefined;
+  });
+
+  // Prune extents for cells no longer rendered (split→merged toggle, scope
+  // narrowing, fan-out change). Without this a removed cell's extent lingers in
+  // the union and widens the shared axis past the live data. Guarded so it only
+  // reassigns when something is actually stale (no reactive loop).
+  $effect(() => {
+    const liveKeys: Record<string, true> = {};
+    for (const u of expandedUnits) liveKeys[u.key] = true;
+    let stale = false;
+    for (const k of Object.keys(reportedExtents)) {
+      if (!(k.slice(0, k.lastIndexOf('|')) in liveKeys)) {
+        stale = true;
+        break;
+      }
+    }
+    if (!stale) return;
+    const next: Record<string, readonly [number, number]> = {};
+    for (const [k, v] of Object.entries(reportedExtents)) {
+      if (k.slice(0, k.lastIndexOf('|')) in liveKeys) next[k] = v;
+    }
+    reportedExtents = next;
+  });
 </script>
 
 <!--
@@ -437,6 +557,15 @@
     </ul>
   {/if}
 
+  {#if shareForbidden}
+    <MethodologyBanner anchorHref="/reflection/wp/wp-004?section=6.3" anchorLabel="WP-004 §6.3">
+      <strong>Independent axes.</strong> Putting “{panel.metric}” on one shared axis across cultural
+      contexts would assert cross-cultural commensurability, which requires a validated equivalence
+      grant — none exists yet for this metric. Each cell keeps its own optimal scale; read positions
+      within a cell, not across.
+    </MethodologyBanner>
+  {/if}
+
   <div
     class="panel-body"
     class:split={isSplitLayout}
@@ -499,6 +628,10 @@
             normalization={panel.normalization}
             forceStrength={panel.forceStrength}
             displayLanguage={panel.displayLanguage}
+            cellKey={unit.key}
+            reportExtent={sharedAxisApplies ? reportExtentFor(unit.key) : undefined}
+            {sharedDomains}
+            axisScaleState={sharedAxisApplies ? (computeShared ? 'shared' : 'free') : undefined}
           />
         </div>
       {/each}

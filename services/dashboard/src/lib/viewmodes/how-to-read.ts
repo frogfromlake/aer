@@ -29,6 +29,10 @@ export interface HowToReadFacts {
   netColor?: string | undefined;
   /** Number of nodes / points / sources actually rendered, when known. */
   renderedCount?: number | undefined;
+  /** Phase 124 — multi-cell axis-scale state for value-axis presentations:
+   *  'shared' (this cell is on the panel's union axis, directly comparable),
+   *  'free' (independent axis). Absent for single-cell panels — no note. */
+  scales?: 'shared' | 'free' | undefined;
   /** Phase 123b — cross-lingual relabel state for the co-occurrence cell. */
   displayLanguage?: 'source' | 'viewer' | undefined;
   viewerLanguage?: string | undefined;
@@ -55,7 +59,9 @@ const FALLBACK_TEMPLATES: Record<ViewMode, string> = {
   revision_activity:
     'One bar per source — how many silent edits we observed in the active window. Wayback CDX captures third-party-witnessed edits; sitemap-lastmod jumps capture publisher-side re-listings (republication trigger).',
   revision_timeline:
-    'Edit activity over time. Each point is a per-source bucket count: rising = the source is editing more often; falling = it has settled.'
+    'Edit activity over time. Each point is a per-source bucket count: rising = the source is editing more often; falling = it has settled.',
+  cross_probe_lead_lag:
+    'Each point is one time-shift (lag) between the two probes; the height is how strongly their hourly publication rhythms line up at that shift. The tallest point is the lead-lag: a shift to the right means the compared probe follows the reference.'
 };
 
 /** Compose the "how to read" note as an ordered list of sentences: the
@@ -135,12 +141,37 @@ export function composeHowToRead(
         );
       }
       break;
+    case 'cross_probe_lead_lag':
+      out.push(
+        'A peak at lag 0 means the two cultures publish in step; a peak left or right means one consistently runs ahead. This is a Level-1 (temporal) comparison only — it reads when discourse happens, never how much or how positive.'
+      );
+      if (facts.renderedCount !== undefined) {
+        out.push(
+          `${facts.renderedCount} overlapping hour${facts.renderedCount === 1 ? '' : 's'} fed the correlation at lag 0 — a small overlap makes the peak noisy, so read it cautiously.`
+        );
+      }
+      break;
     case 'topic_distribution':
     case 'topic_evolution':
     case 'revision_activity':
     case 'revision_timeline':
       // No extra config levers yet; the template line stands alone.
       break;
+  }
+
+  // Phase 124 — shared-axis disclosure for value-axis presentations rendered
+  // as >1 cell. Absent `scales` (single-cell or non-value-axis) → no line.
+  if (
+    facts.scales &&
+    (presentation === 'distribution' ||
+      presentation === 'time_series' ||
+      presentation === 'metric_scatter')
+  ) {
+    out.push(
+      facts.scales === 'shared'
+        ? 'Scale: shared across this panel’s cells — identical values sit at identical positions, so you can compare cells directly.'
+        : 'Scale: independent (free) — each cell is scaled to its own data, so read shapes within a cell, not positions across cells.'
+    );
   }
   return out.filter((s) => s.length > 0);
 }
