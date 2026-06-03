@@ -125,6 +125,13 @@ def test_find_incomplete_maps_rows_and_filters_in_sql() -> None:
             "article_id": "abc123",
             "canonical_url": "https://www.bundesregierung.de/x-1",
             "prev_status": "circuit_open",
+            # `_find_incomplete` enriches each item with `published_at`
+            # resolved from `aer_gold.metrics`. The fake client returns the
+            # same single row for that second query, so its `max(timestamp)`
+            # is keyed on "bundesregierung" (the row's first column) and the
+            # lookup by article_id "abc123" misses → None. That is the real
+            # fallback path (`_reattempt_one` then uses the lookup time).
+            "published_at": None,
         }
     ]
     # The SQL excludes the completed statuses and requires a usable URL.
