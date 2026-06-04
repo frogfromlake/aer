@@ -4197,6 +4197,33 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 ### Validation
 * [x] On a Probe-1 co-occurrence panel, toggling to `viewer=de` relabels `Russie`→`Russland`, `États-Unis`→`Vereinigte Staaten` for QID-linked nodes; unlinked nodes keep their French form; the linked/unlinked ratio is visible; topics are untouched; default view is unchanged (source form).
 
+## Phase 124: Cross-Probe & Cross-Cultural Operations [P1] - [x] DONE
+
+*Cross-probe **composition** + the cross-probe Workbench mechanics (rendering, metric-availability discipline, multi-select) are delivered in **Phase 123c** — 124 assumes them. This phase delivers cross-probe **comparison** discipline only: the first non-empty equivalence-registry entry (temporal Level 1, always valid per WP-004 Appendix B), the lead-lag tooling, and the first Probe-1 baselines. No Level-2/3 (sentiment) grant — out of scope.*
+
+**Grounding.** Read first: `scripts/operations/compute_baselines.py`, the ClickHouse `metric_equivalence` + `metric_baselines` schema, Postgres `equivalence_reviews`, the BFF `probe_equivalence.yaml` + correlation handler, `cultural_calendars/`, `RhizomeShell.svelte` (post-130: panels+cells, no entry-questions). Preserve: the Phase-115 refusal-surface behaviour, the empty-until-granted equivalence registry semantics. Verify-first: confirm Phase 130 removed the entry-questions — the lead-lag is now a **cell**, not an entry-question.
+
+### Operations + Backend
+* [x] **First Probe-1 baselines** — `compute_baselines.py --probe probe-1-fr-institutional-web`.
+* [x] **First equivalence grant** — `metric_equivalence` rows for `temporal_distribution`, `publication_hour`, `publication_weekday` at `level='temporal'`, plus an `equivalence_reviews` record documenting **calendar parity** (grant conditional on both calendars being structurally comparable, not merely present).
+* [x] **Cultural calendar FR extension** — media-events + Assemblée recess; verify DE parity.
+* [x] **Lead-lag query path** — internal helper on the correlation handler (Pearson at ±168h), exercised via a Probe-0×Probe-1 fixture (promoted to a public endpoint in Phase 125).
+* [x] **`/probes/{probeId}/equivalence?comparedTo=`** — probe-pair scope; reports Level-1 temporal as `validated`. OpenAPI + `make codegen`.
+
+### Frontend
+* [x] **Lead-lag cell in Rhizome** — the cross-probe temporal lead-lag renders as a relational **cell** in a Rhizome panel (per the post-130 panels+cells model); MethodologyBanner shows the Level-1 grant + both calendars + the WP-004 Appendix B anchor. (Lives in the Workbench Rhizome pillar, not on a Probe Dossier panel.)
+* [x] **Shared-axis comparison discipline for split / small-multiple cells.** When a panel renders more than one cell of the same presentation+metric (the cross-probe fan-out from 123c B, or per-source small-multiples), the cells must be **directly comparable** — today each computes its own axis domain, so identical values plot at different positions and the comparison the panel exists for is silently defeated. Make the axis domain **shared by default**, gated by the within-/cross-context rule (Brief §1.3 / §3.2, WP-004):
+  - **Within one context** (same probe, N sources — including each probe-row of a cross-probe 2×2): cells of a presentation **share the axis domain** (the union of their ranges, applied to every cell). This needs no equivalence grant — within-context comparison is always valid (Brief §245/§275).
+  - **Across contexts** (≥2 probes, *intensive/scaled* metric — a sentiment average, a confidence score): a shared domain asserts cross-cultural commensurability, so it is **allowed only when a `metric_equivalence` row is granted** (the temporal Level-1 grant above; sentiment stays out of scope per this phase). Ungranted → cells keep **independent** domains and the panel carries the WP-004 caveat (reuse the merged-cross-probe-guard logic — `isPureCountMetric`/`shouldRefuseMergedCrossProbe` are the precedent). **Pure-count metrics** (`word_count` etc.) are commensurable and may share the domain panel-wide without a grant.
+  - **Panel-level "free scale" escape hatch** — a panel toggle (`scales: shared | free`, à la ggplot/Vega facets) that drops the panel's cells back to their own optimal domains when a shared one crushes readability. Default = shared. **Kept panel-level here** (every cell shared or every cell free) to avoid pulling in addressable per-cell state; the *per-cell* free-scale override is delivered by **Phase 126 (Per-Cell Configuration Overrides)** as one instance of the general override mechanism.
+  - Applies to the value axis of `distribution` (bins + x-range), `time_series` (y-range), and `metric_scatter` (x/y); the shared domain is computed across the panel's rendered cells, not fetched. Every cell's "how to read" note states whether it is on a shared or free scale.
+
+### Documentation
+* [x] Operations Playbook "Cross-probe operations". WP-004 §6.3 Level-1 operationalised. Arc42 §13.4 Aleph row. CLAUDE.md equivalence note.
+
+### Validation
+* [x] `?normalization=zscore` on a temporal metric across both probes succeeds; on sentiment still refuses; the lead-lag cell renders in Rhizome. *(Per-function baselines deliberately not populated — at ~hundreds of articles per function the statistics are not yet meaningful.)*
+
 ---
 
 # Open Phases
@@ -4235,35 +4262,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 # Iteration 8 — Probe Expansion & Cross-Cultural Operations
 
 *Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one — including the finalised three-surface Dossier-as-overlay architecture (Phase 123a, landed at the end of Iteration 7). Then the first cross-probe equivalence grant and the silent-edit discourse-shift analysis.*
-
----
-
-## Phase 124: Cross-Probe & Cross-Cultural Operations [P1] - [ ] TODO
-
-*Cross-probe **composition** + the cross-probe Workbench mechanics (rendering, metric-availability discipline, multi-select) are delivered in **Phase 123c** — 124 assumes them. This phase delivers cross-probe **comparison** discipline only: the first non-empty equivalence-registry entry (temporal Level 1, always valid per WP-004 Appendix B), the lead-lag tooling, and the first Probe-1 baselines. No Level-2/3 (sentiment) grant — out of scope.*
-
-**Grounding.** Read first: `scripts/operations/compute_baselines.py`, the ClickHouse `metric_equivalence` + `metric_baselines` schema, Postgres `equivalence_reviews`, the BFF `probe_equivalence.yaml` + correlation handler, `cultural_calendars/`, `RhizomeShell.svelte` (post-130: panels+cells, no entry-questions). Preserve: the Phase-115 refusal-surface behaviour, the empty-until-granted equivalence registry semantics. Verify-first: confirm Phase 130 removed the entry-questions — the lead-lag is now a **cell**, not an entry-question.
-
-### Operations + Backend
-* [ ] **First Probe-1 baselines** — `compute_baselines.py --probe probe-1-fr-institutional-web`.
-* [ ] **First equivalence grant** — `metric_equivalence` rows for `temporal_distribution`, `publication_hour`, `publication_weekday` at `level='temporal'`, plus an `equivalence_reviews` record documenting **calendar parity** (grant conditional on both calendars being structurally comparable, not merely present).
-* [ ] **Cultural calendar FR extension** — media-events + Assemblée recess; verify DE parity.
-* [ ] **Lead-lag query path** — internal helper on the correlation handler (Pearson at ±168h), exercised via a Probe-0×Probe-1 fixture (promoted to a public endpoint in Phase 125).
-* [ ] **`/probes/{probeId}/equivalence?comparedTo=`** — probe-pair scope; reports Level-1 temporal as `validated`. OpenAPI + `make codegen`.
-
-### Frontend
-* [ ] **Lead-lag cell in Rhizome** — the cross-probe temporal lead-lag renders as a relational **cell** in a Rhizome panel (per the post-130 panels+cells model); MethodologyBanner shows the Level-1 grant + both calendars + the WP-004 Appendix B anchor. (Lives in the Workbench Rhizome pillar, not on a Probe Dossier panel.)
-* [ ] **Shared-axis comparison discipline for split / small-multiple cells.** When a panel renders more than one cell of the same presentation+metric (the cross-probe fan-out from 123c B, or per-source small-multiples), the cells must be **directly comparable** — today each computes its own axis domain, so identical values plot at different positions and the comparison the panel exists for is silently defeated. Make the axis domain **shared by default**, gated by the within-/cross-context rule (Brief §1.3 / §3.2, WP-004):
-  - **Within one context** (same probe, N sources — including each probe-row of a cross-probe 2×2): cells of a presentation **share the axis domain** (the union of their ranges, applied to every cell). This needs no equivalence grant — within-context comparison is always valid (Brief §245/§275).
-  - **Across contexts** (≥2 probes, *intensive/scaled* metric — a sentiment average, a confidence score): a shared domain asserts cross-cultural commensurability, so it is **allowed only when a `metric_equivalence` row is granted** (the temporal Level-1 grant above; sentiment stays out of scope per this phase). Ungranted → cells keep **independent** domains and the panel carries the WP-004 caveat (reuse the merged-cross-probe-guard logic — `isPureCountMetric`/`shouldRefuseMergedCrossProbe` are the precedent). **Pure-count metrics** (`word_count` etc.) are commensurable and may share the domain panel-wide without a grant.
-  - **Panel-level "free scale" escape hatch** — a panel toggle (`scales: shared | free`, à la ggplot/Vega facets) that drops the panel's cells back to their own optimal domains when a shared one crushes readability. Default = shared. **Kept panel-level here** (every cell shared or every cell free) to avoid pulling in addressable per-cell state; the *per-cell* free-scale override is delivered by **Phase 126 (Per-Cell Configuration Overrides)** as one instance of the general override mechanism.
-  - Applies to the value axis of `distribution` (bins + x-range), `time_series` (y-range), and `metric_scatter` (x/y); the shared domain is computed across the panel's rendered cells, not fetched. Every cell's "how to read" note states whether it is on a shared or free scale.
-
-### Documentation
-* [ ] Operations Playbook "Cross-probe operations". WP-004 §6.3 Level-1 operationalised. Arc42 §13.4 Aleph row. CLAUDE.md equivalence note.
-
-### Validation
-* [ ] `?normalization=zscore` on a temporal metric across both probes succeeds; on sentiment still refuses; the lead-lag cell renders in Rhizome. *(Per-function baselines deliberately not populated — at ~hundreds of articles per function the statistics are not yet meaningful.)*
 
 ---
 
