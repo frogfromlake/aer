@@ -27,12 +27,7 @@
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { type ExportPayload, type ExportRow } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
-  import {
-    fmtValue,
-    markIndexFromEvent,
-    HIDDEN_READOUT,
-    type ReadoutState
-  } from '$lib/viewmodes/cell-readout';
+  import { fmtValue, HIDDEN_READOUT, type ReadoutState } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
@@ -112,6 +107,10 @@
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
   let renderToken = 0;
+  // Live ref to the Plot x-scale's pixel→lag inverse, so the hover handler can
+  // snap to the nearest lag across the whole column width (generous targeting)
+  // instead of requiring an exact hit on a small dot. Updated on each render.
+  const xInvertRef: { current: ((px: number) => number) | null } = { current: null };
 
   $effect(() => {
     const pts = definedPoints;
@@ -164,30 +163,45 @@
       // eslint-disable-next-line svelte/no-dom-manipulating
       host.appendChild(next as unknown as HTMLElement);
       plotEl = next as unknown as HTMLElement;
+      // Capture the x-scale inverse (pixel → lag) for the nearest-lag hover.
+      const xScale = (
+        next as unknown as { scale: (n: string) => { invert?: (v: number) => number } | undefined }
+      ).scale('x');
+      xInvertRef.current = xScale?.invert ?? null;
     })();
   });
 
-  // Hover readout — dots are circles in data order (the small dots precede the
-  // peak dot), so an index within `definedPoints` maps onto a data row; the
-  // trailing peak-dot index is out of range and simply yields no readout.
+  // Hover readout — snap to the nearest lag by inverting the mouse x through the
+  // Plot x-scale. The whole column width is a hit target (generous, no need to
+  // land exactly on a 2px dot), and the gold peak marker no longer blocks the
+  // underlying point's readout.
   let readout = $state<ReadoutState>(HIDDEN_READOUT);
   function onHostMove(ev: MouseEvent): void {
-    const idx = markIndexFromEvent(ev.target, 'circle');
-    if (idx === null || !definedPoints[idx]) {
+    const invert = xInvertRef.current;
+    if (!host || !invert || definedPoints.length === 0) {
       readout = HIDDEN_READOUT;
       return;
     }
-    const p = definedPoints[idx];
+    const svg = host.querySelector('svg');
+    if (!svg) {
+      readout = HIDDEN_READOUT;
+      return;
+    }
+    const lag = invert(ev.clientX - svg.getBoundingClientRect().left);
+    let best = definedPoints[0]!;
+    for (const p of definedPoints) {
+      if (Math.abs(p.lagHours - lag) < Math.abs(best.lagHours - lag)) best = p;
+    }
     readout = {
       visible: true,
       x: ev.clientX,
       y: ev.clientY,
-      title: `lag ${p.lagHours >= 0 ? '+' : ''}${p.lagHours} h`,
-      rows: [{ label: 'correlation', value: fmtValue(p.correlation) }],
+      title: `lag ${best.lagHours >= 0 ? '+' : ''}${best.lagHours} h`,
+      rows: [{ label: 'correlation', value: fmtValue(best.correlation) }],
       hint:
-        p.lagHours > 0
+        best.lagHours > 0
           ? 'compared follows reference'
-          : p.lagHours < 0
+          : best.lagHours < 0
             ? 'compared leads'
             : 'in step'
     };
