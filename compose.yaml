@@ -662,6 +662,13 @@ services:
         condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
+      # The BFF serves ?viewerLanguage= from aer_gold.wikidata_labels,
+      # which this one-shot init populates. The dependency is also what makes
+      # `docker compose up --wait` tolerate the loader's clean exit — without a
+      # service_completed_successfully consumer, --wait treats its exit(0) as an
+      # unexpected stop and aborts `make backend-up`.
+      wikidata-labels-load:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v1/healthz"]
       interval: 10s
