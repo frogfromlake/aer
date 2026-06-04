@@ -99,6 +99,7 @@
     wordCount?: number | null | undefined;
     sentimentScore?: number | null | undefined;
     chainLength?: number | null | undefined;
+    editorialChangeCount?: number | null | undefined;
     hasHeadlineChange?: boolean | null | undefined;
     latestRevisionAt?: string | null | undefined;
   };
@@ -279,6 +280,7 @@
       wordCount: item.wordCount,
       sentimentScore: 'sentimentScore' in item ? item.sentimentScore : null,
       chainLength: item.chainLength,
+      editorialChangeCount: 'editorialChangeCount' in item ? item.editorialChangeCount : null,
       hasHeadlineChange: item.hasHeadlineChange,
       latestRevisionAt:
         'latestRevisionAt' in item && item.latestRevisionAt ? item.latestRevisionAt : null

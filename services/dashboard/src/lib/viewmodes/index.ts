@@ -18,6 +18,7 @@ export {
 } from './registry';
 
 export {
+  isIntegerMetric,
   isPureCountMetric,
   metricSupportsPresentation,
   presentationsForMetric

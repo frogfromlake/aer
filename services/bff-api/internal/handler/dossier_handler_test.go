@@ -152,10 +152,13 @@ func TestGetProbeDossier_BadWindow_400(t *testing.T) {
 }
 
 func TestGetArticleDetail_KAnonymityGateRefuses(t *testing.T) {
+	// `anon_forum` is NOT a member of any probe in testProbeRegistry, so the
+	// corpus-class exemption (Phase 133) does not apply and the gate stays
+	// enforced — the fail-safe path for non-public corpora.
 	silver := &fakeSilver{envelope: &storage.SilverEnvelope{
 		Core: storage.SilverCore{
 			DocumentID:    "abc",
-			Source:        "tagesschau",
+			Source:        "anon_forum",
 			Timestamp:     "2026-04-25T12:00:00Z",
 			CleanedText:   "...",
 			SchemaVersion: 1,
@@ -164,7 +167,7 @@ func TestGetArticleDetail_KAnonymityGateRefuses(t *testing.T) {
 	}}
 	srv := NewServerWithOptions(&mockStore{}, nil, nil, nil, testProbeRegistry(), ServerOptions{
 		Dossier: &fakeDossier{
-			article: &storage.ArticleResolution{BronzeObjectKey: "any.json", SourceName: "tagesschau"},
+			article: &storage.ArticleResolution{BronzeObjectKey: "any.json", SourceName: "anon_forum"},
 		},
 		Articles:            &fakeArticles{count: 3},
 		Silver:              silver,
@@ -190,6 +193,48 @@ func TestGetArticleDetail_KAnonymityGateRefuses(t *testing.T) {
 	}
 	if refusal.Observed == nil || *refusal.Observed != 3 {
 		t.Errorf("expected observed=3, got %+v", refusal.Observed)
+	}
+}
+
+// Phase 133 — a PUBLIC institutional source (corpus class institutional-web)
+// is exempt from the k-anonymity gate: the article text is already public and
+// the "author" is an institution, not a re-identifiable individual. A count
+// below the configured threshold must NOT refuse for such a source.
+func TestGetArticleDetail_KAnonymityExemptForPublicInstitutional(t *testing.T) {
+	silver := &fakeSilver{envelope: &storage.SilverEnvelope{
+		Core: storage.SilverCore{
+			DocumentID:    "abc",
+			Source:        "tagesschau",
+			Timestamp:     "2026-04-25T12:00:00Z",
+			CleanedText:   "Hamburg (ARD) — ...",
+			SchemaVersion: 1,
+			WordCount:     100,
+		},
+	}}
+	srv := NewServerWithOptions(&mockStore{}, nil, nil, nil, testProbeRegistry(), ServerOptions{
+		Dossier: &fakeDossier{
+			article: &storage.ArticleResolution{BronzeObjectKey: "any.json", SourceName: "tagesschau"},
+		},
+		// count 3 < threshold 10 would refuse for a non-public source, but
+		// tagesschau is in an institutional-web probe → exempt.
+		Articles:            &fakeArticles{count: 3},
+		Silver:              silver,
+		KAnonymityThreshold: 10,
+	})
+	router := newTestRouter(srv)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/articles/abc", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 (public institutional source exempt), got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got ArticleDetail
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.CleanedText == "" {
+		t.Error("expected cleaned text in body for exempt public source")
 	}
 }
 

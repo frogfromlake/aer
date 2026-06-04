@@ -80,14 +80,14 @@ class WaybackReAttemptTask:
         ]
         if not items:
             return items
-        # The per-article `revision_count` metric (written by
-        # upload_article_revisions → _upload_revision_count_metric) is anchored
-        # on the article's published date. The re-attempt path has no
-        # SilverCore, so resolve published_at for THIS batch from the article's
-        # existing Gold metric rows (every processed article carries at least
-        # one). Bounded by the batch's ids — never a full metrics scan — so it
-        # stays cheap as the corpus grows. Articles with no metric row fall back
-        # to the lookup time at the use-site.
+        # The re-attempt path has no SilverCore, so resolve each article's
+        # published date for THIS batch from its existing Gold metric rows
+        # (every processed article carries at least one) to populate the
+        # SilverCore stand-in passed to the downstream upload writers. Bounded
+        # by the batch's ids — never a full metrics scan — so it stays cheap as
+        # the corpus grows. Articles with no metric row fall back to the lookup
+        # time at the use-site. (Phase 133: `revision_count` itself is the
+        # editorial-edit count written by the diff sweep, not here.)
         published_at = self._resolve_published_at(client, [it["article_id"] for it in items])
         for it in items:
             it["published_at"] = published_at.get(it["article_id"])
@@ -113,9 +113,10 @@ class WaybackReAttemptTask:
         # ReplacingMergeTree rows replace correctly.
         version = time.time_ns()
         now = datetime.now(timezone.utc)
-        # `timestamp` is required by _upload_revision_count_metric (the metric
-        # is anchored on the article's published date). Fall back to the
-        # re-attempt time only when the article has no other Gold metric row.
+        # `timestamp` populates the SilverCore stand-in's published date for
+        # the downstream upload writers (e.g. upload_wayback_lookup). Fall back
+        # to the re-attempt time only when the article has no other Gold
+        # metric row.
         core = SimpleNamespace(
             source=item["source"],
             document_id=item["article_id"],

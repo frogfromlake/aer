@@ -225,67 +225,6 @@ def build_revision_rows(
     return rows
 
 
-def _upload_revision_count_metric(
-    ch_client,
-    core,
-    discourse_function: str,
-    ingestion_version: int,
-    chain_length: int,
-) -> None:
-    """Emit a Gold-metrics row carrying the per-article ``revision_count``.
-
-    Phase 122d.1: the per-article chain length lifts from a hidden
-    `aer_gold.article_revisions` aggregate to a first-class Gold metric.
-    Once present in `aer_gold.metrics`, the value is consumed unchanged
-    by `/metrics/available`, by Phase-131 cell channel bindings
-    (Scatter / Distribution / Cooccurrence overlays), and by the
-    `metric_provenance.yaml`-anchored `/metrics/{name}/provenance`
-    endpoint (entry registered in BFF configs/metric_provenance.yaml).
-
-    Fail-silent: an insert failure logs and continues — the row already
-    exists in `aer_gold.article_revisions`, so the chain itself is
-    observable; only the metric-binding surface degrades.
-    """
-    if chain_length <= 0:
-        return
-    try:
-        row = [
-            core.timestamp,
-            float(chain_length),
-            core.source,
-            "revision_count",
-            core.document_id,
-            discourse_function or "",
-            ingestion_version,
-            # Use the same `timestamp_source` as the article — the
-            # revision_count is per-article and carries the article's
-            # provenance, not a per-revision one.
-            "",
-        ]
-        ch_client.insert(
-            "aer_gold.metrics",
-            [row],
-            column_names=[
-                "timestamp",
-                "value",
-                "source",
-                "metric_name",
-                "article_id",
-                "discourse_function",
-                "ingestion_version",
-                "timestamp_source",
-            ],
-            deduplication_token=f"aer_gold.metrics:revision_count:{core.document_id}:{ingestion_version}",
-        )
-    except Exception as exc:
-        logger.info(
-            "revision_count metric insert failed; continuing.",
-            source=core.source,
-            article_id=core.document_id,
-            error=str(exc),
-        )
-
-
 def upload_article_revisions(
     ch_client,
     core,
@@ -338,21 +277,21 @@ def upload_article_revisions(
             deduplication_token=f"{ARTICLE_REVISIONS_TABLE}:{core.document_id}:{ingestion_version}",
         )
         logger.info(
-            "Article revisions updated",
+            "Article revisions captured",
             source=core.source,
             article_id=core.document_id,
-            revision_count=len(rows),
+            capture_count=len(rows),
             wayback_status=getattr(meta, "wayback_lookup_status", ""),
         )
-        # Phase 122d.1: also write the per-article chain length to
-        # aer_gold.metrics so it is bindable as a Phase-131 cell channel.
-        _upload_revision_count_metric(
-            ch_client,
-            core,
-            discourse_function,
-            ingestion_version,
-            chain_length=len(rows),
-        )
+        # Phase 133: the `revision_count` Gold metric is NO LONGER the chain
+        # length (captures). It is now the count of EDITORIAL edits, written
+        # by the revision-diff sweep (`corpus.run_revision_diff_sweep` →
+        # `write_editorial_revision_counts`) once it has classified each
+        # pair's diff. Writing the capture count here would re-introduce the
+        # Wayback-archival-frequency artefact the metric was redefined to
+        # exclude. This function now ONLY persists the raw capture chain to
+        # `aer_gold.article_revisions` (the observation/evidence record); the
+        # editorial metric is derived from it downstream.
     except Exception as exc:
         logger.error(
             "Article revisions insert failed; silent-edit panel will be missing this article.",

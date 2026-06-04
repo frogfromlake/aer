@@ -1106,8 +1106,10 @@ export interface components {
             wordCount?: number | null;
             /** @description Sentiment score from `aer_gold.metrics` (provisional, WP-002). */
             sentimentScore?: number | null;
-            /** @description Phase 122d.1 — number of revisions detected for this article (sum of CDX snapshots + republication-trigger rows). Only present when the request opts in via `?includeRevisions=true`. Null when the article has no revisions in `aer_gold.article_revisions`. */
+            /** @description Number of archived CAPTURES detected for this article (Wayback CDX snapshots + republication triggers) — a coverage/tooling count, NOT a revision count (most captures are identical re-archivals). Only present when the request opts in via `?includeRevisions=true`. For "how often the article was actually edited", use `editorialChangeCount`. */
             chainLength?: number | null;
+            /** @description Phase 133 — number of CONFIRMED editorial changes for this article (content/headline changed between consecutive observed states, incl. newest-snapshot → current). This is the only count surfaced as "revisions". 0 = observed but never edited. Only present when the request opts in via `?includeRevisions=true`. */
+            editorialChangeCount?: number | null;
             /** @description Phase 122d.1 — true iff at least one revision in this article's chain reports `headline_changed=true`. Only present when the request opts in via `?includeRevisions=true`. */
             hasHeadlineChange?: boolean | null;
             /**
@@ -1186,7 +1188,17 @@ export interface components {
              * @description Resolved upper window bound; null when unbounded.
              */
             windowEnd?: string | null;
-            /** @description Histogram bins ordered ascending by `lower`. */
+            /**
+             * Format: double
+             * @description Upper bound of the histogram bin domain. Equals `summary.max` when no outliers were detected; otherwise the Tukey upper fence (p75 + 1.5·IQR), with values above it diverted into `overflowCount` so a single extreme value cannot collapse the visible distribution into one bar (Phase 133 B). The `summary` still reports the true max.
+             */
+            clampedUpper: number;
+            /**
+             * Format: int64
+             * @description Number of articles whose value exceeds `clampedUpper`. Zero when the distribution was not clamped. Disclosed so the robust clamp is never a silent truncation.
+             */
+            overflowCount: number;
+            /** @description Histogram bins ordered ascending by `lower`, spanning `[summary.min, clampedUpper]`. Values above `clampedUpper` are NOT in these bins — see `overflowCount`. */
             bins: {
                 /**
                  * Format: double
@@ -1795,6 +1807,11 @@ export interface components {
                 trigger: "cdx_snapshot" | "republication_trigger" | "unknown";
                 /** @description Internet Archive playback URL for CDX snapshots. Empty string for republication-trigger rows (no archive page exists yet). */
                 archiveUrl?: string;
+                /**
+                 * @description Editorial status of the diff for the pair ending at THIS revision (revisionIndex-1 → revisionIndex; for the chain head, current article body → this snapshot). `changed` = paragraph-level or headline edits were detected; `identical` = both snapshots parse to the same article body after extraction (a re-archival without an editorial change); `pending` = the background diff sweep has not yet computed this pair. Lets the L5 reader step the slider over only the editorial versions and disclose how many captures were identical re-archivals (Phase 133 — derived from `aer_gold.article_revisions.diff_paragraphs`, no extra query).
+                 * @enum {string}
+                 */
+                diffStatus: "changed" | "identical" | "pending";
             }[];
         };
         /**
@@ -1862,8 +1879,10 @@ export interface components {
                 timestamp: string;
                 language?: string | null;
                 wordCount?: number | null;
-                /** @description Total revisions detected for this article in the window. */
+                /** @description Total archived CAPTURES detected for this article in the window (Wayback CDX snapshots + republication triggers). This is a tooling/coverage count — most captures are identical re-archivals, NOT source edits. For "how often was the article actually changed", use `editorialChangeCount`. */
                 chainLength: number;
+                /** @description Number of captures whose content differs editorially from the previous one (paragraph/headline change after extraction) — i.e. how many times the source actually revised the article, as witnessed. Excludes identical re-archivals. A lower bound while some pairs are still being diffed (Phase 133). */
+                editorialChangeCount: number;
                 /** @description True iff at least one revision in the chain reports `headline_changed=true`. */
                 hasHeadlineChange: boolean;
                 /**

@@ -36,10 +36,20 @@ properties:
     type: integer
     nullable: true
     description: >
-      Phase 122d.1 — number of revisions detected for this article
-      (sum of CDX snapshots + republication-trigger rows). Only present
-      when the request opts in via `?includeRevisions=true`. Null
-      when the article has no revisions in `aer_gold.article_revisions`.
+      Number of archived CAPTURES detected for this article (Wayback CDX
+      snapshots + republication triggers) — a coverage/tooling count, NOT a
+      revision count (most captures are identical re-archivals). Only present
+      when the request opts in via `?includeRevisions=true`. For "how often
+      the article was actually edited", use `editorialChangeCount`.
+  editorialChangeCount:
+    type: integer
+    nullable: true
+    description: >
+      Phase 133 — number of CONFIRMED editorial changes for this article
+      (content/headline changed between consecutive observed states, incl.
+      newest-snapshot → current). This is the only count surfaced as
+      "revisions". 0 = observed but never edited. Only present when the
+      request opts in via `?includeRevisions=true`.
   hasHeadlineChange:
     type: boolean
     nullable: true

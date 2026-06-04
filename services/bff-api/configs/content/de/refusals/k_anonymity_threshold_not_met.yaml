@@ -3,35 +3,38 @@ entityType: refusal
 locale: de
 registers:
   semantic:
-    short: "Layer-5-Zugang zu quellenspezifischen Details erfordert eine Mindestanzahl von Beobachtungen zum Schutz vor Re-Identifikation und Beobachtereffekt-Verzerrung."
+    short: "Den Volltext dieses Artikels zu lesen erfordert genug Artikel derselben Quelle am selben Tag, damit eine Einzelperson nicht identifizierbar bleibt. Das Gate gilt nur für Korpora, in denen eine Person re-identifizierbar wäre — öffentliche institutionelle Publisher sind ausgenommen."
     long: >
-      Sie haben eine Ansicht angefordert, die quellenspezifische Details in einer Auflösung
-      exponiert, die AĒRs Datenschutz- und Reflexivitätsschwellen überschreitet. Das ist
-      keine technische Einschränkung — es ist eine prinzipielle. Wenn ein Beobachtungskontext
-      zu wenige Quellen oder Artikel enthält, schafft die Anzeige von quellspezifischen
-      Aufschlüsselungen zwei Probleme: Erstens werden einzelne Autoren oder Quellen faktisch
-      re-identifizierbar, was AĒRs Beobachtereffekt-Verpflichtungen (WP-006) verbieten.
-      Zweitens werden aggregierte Metriken von einzelnen Ausreißern dominiert und sind
-      statistisch nicht mehr verlässlich. Das System schützt Sie davor, Schlüsse aus Daten
-      zu ziehen, die diese nicht stützen können. Um Layer-5-Zugang freizuschalten, erweitern
-      Sie den Zeitraum oder warten Sie, bis mehr Quellen im Sondenkontext aktiv sind.
+      Sie haben den Volltext eines einzelnen Artikels angefordert. Für Korpora, in denen ein
+      Autor re-identifizierbar wäre, hält AĒR ihn zurück, bis der Artikel in einer ausreichend
+      großen Gruppe von Artikeln derselben Quelle am selben Tag liegt — eine zu kleine Gruppe
+      könnte einem Angreifer mit Außenwissen erlauben, einen bestimmten Autor zu isolieren. Das
+      ist eine prinzipielle, keine technische Grenze (WP-006 §7). Sie greift nur dort, wo sie
+      zählt: ein ÖFFENTLICHER institutioneller Publisher — eine Regierungs-Pressestelle, eine
+      Redaktion mit öffentlicher Artikel-URL — ist ausgenommen, weil der Text bereits öffentlich
+      ist und der „Autor" eine Institution ist, keine Privatperson. Für betroffene Korpora:
+      erweitern Sie den Zeitraum, um mehr Artikel desselben Tages zu sammeln, oder nutzen Sie
+      die stets verfügbaren Aggregatansichten.
   methodological:
-    short: "HTTP 403: k-Anonymitätsschwelle für diesen Abfragebereich nicht erfüllt. WP-006 §7 Gate. Zeitraum oder Quellenanzahl erhöhen. Keine Einzelartikel-Daten exponiert."
+    short: "HTTP 403: k-Anonymitäts-Gate (WP-006 §7). Zählt Artikel in der (Quelle, Metrik, Tag)-Aggregationsgruppe, nicht eindeutige Quellen. Corpus-Class-skopiert — öffentliche institutionelle Quellen sind ausgenommen. Keine Einzelartikel-Daten exponiert."
     long: >
-      Diese Verweigerung wird ausgelöst, wenn eine Layer-5-Abstiegsanfrage (quellenspezifische
-      Details) für einen Abfragebereich gestellt wird, in dem die Anzahl der beitragenden Quellen
-      k < k_min ist, wie in WP-006 §7 (Beobachtereffekt & Reflexivität) definiert. Der Schwellenwert
-      ist ein konfigurierbarer Systemparameter (Standard: k_min = 5 eindeutige Quellen pro
-      Kontextfenster). Das Gate existiert, weil AĒRs Beobachtereffekt-Verpflichtungen die Exposition
-      von Einzelquellen-Auflösung verbieten, wenn die Anonymisierungsmenge zu klein ist — ein
-      Angreifer mit Außenwissen könnte spezifische Autoren, Redakteure oder institutionelle Akteure
-      re-identifizieren. Der Schwellenwert dient auch einem statistischen Zweck: Bei niedrigem k
-      werden aggregierte Metriken von Einzelquellen-Varianz dominiert und sind keine sinnvollen
-      Populationsschätzungen. Das Gate wird serverseitig vom BFF durchgesetzt. Auflösung: Zeitraum
-      erweitern, auf weitere ingestierte Quellen warten oder Layer-3–4-Aggregatansichten akzeptieren,
-      die immer verfügbar sind. WP-006 §7 dokumentiert die genaue Schwellenwertformel.
-contentVersion: "v2026-04-a"
+      Diese Verweigerung greift bei einem Layer-5-Lesezugriff (Einzelartikel-Detail), wenn die
+      Aggregationsgruppe des Artikels — die eindeutigen Artikel mit demselben (Quelle, Metrik,
+      UTC-Tag)-Schlüssel in `aer_gold.metrics` — weniger als k_min Dokumente enthält
+      (konfigurierbar; Standard 10). Gezählt werden ARTIKEL in dieser Gruppe, nicht eindeutige
+      Quellen. Das Gate existiert, weil die Exposition von Einzelartikel-Text aus einer zu
+      kleinen Gruppe einem Angreifer mit Außenwissen erlauben könnte, einen bestimmten Autor zu
+      re-identifizieren. Seit Phase 133 ist das Gate CORPUS-CLASS-SKOPIERT: Quellen einer
+      öffentlich-institutionellen Klasse (`institutional-web` — Regierungs-Pressestellen,
+      Redaktionen mit öffentlichen kanonischen URLs) sind ausgenommen (effektiv k_min = 1), da
+      ihr Text bereits öffentlich und die Autorschaft institutionell statt individuell ist. Für
+      Klassen, in denen Einzelpersonen deanonymisiert werden könnten (soziale Medien,
+      nutzergenerierte Inhalte, später ergänzt), bleibt das Gate voll aktiv. Es wird serverseitig
+      vom BFF durchgesetzt. Auflösung für betroffene Korpora: Zeitraum erweitern oder die stets
+      verfügbaren Layer-3–4-Aggregatansichten nutzen. WP-006 §7 dokumentiert die Begründung und
+      die Corpus-Class-Skopierung.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-19"
+lastReviewedDate: "2026-06-04"
 workingPaperAnchors:
   - "WP-006 §7"

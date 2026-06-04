@@ -19,6 +19,7 @@ properties:
         - source
         - timestamp
         - chainLength
+        - editorialChangeCount
         - hasHeadlineChange
       properties:
         articleId:
@@ -38,7 +39,21 @@ properties:
         chainLength:
           type: integer
           minimum: 1
-          description: Total revisions detected for this article in the window.
+          description: >
+            Total archived CAPTURES detected for this article in the window
+            (Wayback CDX snapshots + republication triggers). This is a
+            tooling/coverage count — most captures are identical
+            re-archivals, NOT source edits. For "how often was the article
+            actually changed", use `editorialChangeCount`.
+        editorialChangeCount:
+          type: integer
+          minimum: 0
+          description: >
+            Number of captures whose content differs editorially from the
+            previous one (paragraph/headline change after extraction) — i.e.
+            how many times the source actually revised the article, as
+            witnessed. Excludes identical re-archivals. A lower bound while
+            some pairs are still being diffed (Phase 133).
         hasHeadlineChange:
           type: boolean
           description: >

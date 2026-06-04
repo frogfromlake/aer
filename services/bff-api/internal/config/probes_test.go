@@ -120,3 +120,30 @@ func TestProbeRegistry_OrderedIsStable(t *testing.T) {
 		t.Errorf("not sorted: %+v", ordered)
 	}
 }
+
+func TestProbeEntry_CorpusClass(t *testing.T) {
+	cases := map[string]string{
+		"probe-0-de-institutional-web": "institutional-web",
+		"probe-1-fr-institutional-web": "institutional-web",
+		"probe-12-en-social-twitter":   "social-twitter",
+		"malformed":                    "",
+		"probe-0-de":                   "",
+	}
+	for id, want := range cases {
+		if got := (ProbeEntry{ProbeID: id}).CorpusClass(); got != want {
+			t.Errorf("CorpusClass(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+func TestIsPublicCorpusClass(t *testing.T) {
+	if !IsPublicCorpusClass("institutional-web") {
+		t.Error("institutional-web must be a public corpus class (k-anon exempt)")
+	}
+	if IsPublicCorpusClass("social-twitter") {
+		t.Error("social-twitter must NOT be public — k-anon gate stays enforced")
+	}
+	if IsPublicCorpusClass("") {
+		t.Error("empty corpus class must NOT be treated as public (fail safe)")
+	}
+}

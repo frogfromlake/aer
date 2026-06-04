@@ -152,14 +152,15 @@ func (r *ArticleRevisionDiffRow) IsIdentical() bool {
 // `chainLength`, `hasHeadlineChange`, `latestRevisionAt`). Used by
 // `GetRevisionsArticles` to back the Workbench drill-down list.
 type RevisionArticleRow struct {
-	ArticleID         string    `ch:"article_id"`
-	Source            string    `ch:"source"`
-	Timestamp         time.Time `ch:"timestamp"`
-	Language          string    `ch:"language"`
-	WordCount         uint64    `ch:"word_count"`
-	ChainLength       uint32    `ch:"chain_length"`
-	HasHeadlineChange bool      `ch:"has_headline_change"`
-	LatestRevisionAt  time.Time `ch:"latest_revision_at"`
+	ArticleID            string    `ch:"article_id"`
+	Source               string    `ch:"source"`
+	Timestamp            time.Time `ch:"timestamp"`
+	Language             string    `ch:"language"`
+	WordCount            uint64    `ch:"word_count"`
+	ChainLength          uint32    `ch:"chain_length"`
+	EditorialChangeCount uint32    `ch:"editorial_change_count"`
+	HasHeadlineChange    bool      `ch:"has_headline_change"`
+	LatestRevisionAt     time.Time `ch:"latest_revision_at"`
 }
 
 // RevisionsArticlesFilter captures the query parameters.
@@ -203,9 +204,17 @@ func (s *ClickHouseStorage) GetRevisionsArticles(
 		args = append(args, src)
 	}
 
-	// `hasHeadlineChange` and `minChainLength` are post-aggregation
-	// filters — applied via HAVING after the per-article reduction.
-	havingClauses := []string{}
+	// Post-aggregation filters (HAVING, after the per-article reduction).
+	//
+	// Phase 133 — the revisions / "edited articles" drill-down is EDITS-ONLY:
+	// an article belongs here only if it has ≥ 1 CONFIRMED editorial change
+	// (`editorial_change_count >= 1`). Articles whose Wayback chain is purely
+	// identical re-archivals (captures with no body change) are NOT revisions
+	// and must not appear — this keeps the list consistent with the
+	// revision_activity / revision_timeline counts, which also count only
+	// editorial edits. (A pending-but-not-yet-diffed edit surfaces once the
+	// sweep confirms it, exactly as it does in the activity counts.)
+	havingClauses := []string{"editorial_change_count >= 1"}
 	if filter.HasHeadlineChange {
 		havingClauses = append(havingClauses, "any_headline_change = true")
 	}
@@ -235,6 +244,11 @@ func (s *ClickHouseStorage) GetRevisionsArticles(
 					article_id,
 					source,
 					toUInt32(count())              AS chain_length,
+					toUInt32(countIf(
+						(length(diff_paragraphs) > 0
+						 AND NOT arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs))
+						OR headline_changed
+					))                             AS editorial_change_count,
 					countIf(headline_changed) > 0  AS any_headline_change,
 					max(snapshot_at)               AS latest_revision_at
 				FROM aer_gold.article_revisions FINAL
@@ -251,6 +265,7 @@ func (s *ClickHouseStorage) GetRevisionsArticles(
 			d.language              AS language,
 			toUInt64(d.word_count)  AS word_count,
 			r.chain_length          AS chain_length,
+			r.editorial_change_count AS editorial_change_count,
 			r.any_headline_change   AS has_headline_change,
 			r.latest_revision_at    AS latest_revision_at
 		FROM revisions_window AS r

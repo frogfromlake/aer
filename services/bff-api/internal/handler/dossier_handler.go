@@ -12,6 +12,7 @@ import (
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
@@ -251,15 +252,16 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 	}
 	for _, r := range rows {
 		item := struct {
-			ArticleId         string     `json:"articleId"`
-			ChainLength       *int       `json:"chainLength,omitempty"`
-			HasHeadlineChange *bool      `json:"hasHeadlineChange,omitempty"`
-			Language          *string    `json:"language,omitempty"`
-			LatestRevisionAt  *time.Time `json:"latestRevisionAt,omitempty"`
-			SentimentScore    *float32   `json:"sentimentScore,omitempty"`
-			Source            string     `json:"source"`
-			Timestamp         time.Time  `json:"timestamp"`
-			WordCount         *int       `json:"wordCount,omitempty"`
+			ArticleId            string     `json:"articleId"`
+			ChainLength          *int       `json:"chainLength,omitempty"`
+			EditorialChangeCount *int       `json:"editorialChangeCount,omitempty"`
+			HasHeadlineChange    *bool      `json:"hasHeadlineChange,omitempty"`
+			Language             *string    `json:"language,omitempty"`
+			LatestRevisionAt     *time.Time `json:"latestRevisionAt,omitempty"`
+			SentimentScore       *float32   `json:"sentimentScore,omitempty"`
+			Source               string     `json:"source"`
+			Timestamp            time.Time  `json:"timestamp"`
+			WordCount            *int       `json:"wordCount,omitempty"`
 		}{
 			ArticleId: r.ArticleID,
 			Source:    r.Source,
@@ -280,6 +282,8 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 		if r.HasRevisions {
 			cl := int(r.ChainLength) //nolint:gosec // bounded
 			item.ChainLength = &cl
+			ec := int(r.EditorialChangeCount) //nolint:gosec // bounded
+			item.EditorialChangeCount = &ec
 			h := r.HasHeadlineChange
 			item.HasHeadlineChange = &h
 			if !r.LatestRevisionAt.IsZero() {
@@ -291,15 +295,16 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 	}
 	if page.Items == nil {
 		page.Items = []struct {
-			ArticleId         string     `json:"articleId"`
-			ChainLength       *int       `json:"chainLength,omitempty"`
-			HasHeadlineChange *bool      `json:"hasHeadlineChange,omitempty"`
-			Language          *string    `json:"language,omitempty"`
-			LatestRevisionAt  *time.Time `json:"latestRevisionAt,omitempty"`
-			SentimentScore    *float32   `json:"sentimentScore,omitempty"`
-			Source            string     `json:"source"`
-			Timestamp         time.Time  `json:"timestamp"`
-			WordCount         *int       `json:"wordCount,omitempty"`
+			ArticleId            string     `json:"articleId"`
+			ChainLength          *int       `json:"chainLength,omitempty"`
+			EditorialChangeCount *int       `json:"editorialChangeCount,omitempty"`
+			HasHeadlineChange    *bool      `json:"hasHeadlineChange,omitempty"`
+			Language             *string    `json:"language,omitempty"`
+			LatestRevisionAt     *time.Time `json:"latestRevisionAt,omitempty"`
+			SentimentScore       *float32   `json:"sentimentScore,omitempty"`
+			Source               string     `json:"source"`
+			Timestamp            time.Time  `json:"timestamp"`
+			WordCount            *int       `json:"wordCount,omitempty"`
 		}{}
 	}
 	return page, nil
@@ -347,8 +352,18 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 		slog.Error("handler failure", "op", "GetArticleDetail.CountAggregationGroup", "error", err)
 		return nil, err //nolint:wrapcheck
 	}
-	if count < s.kAnonymityThreshold {
-		threshold := s.kAnonymityThreshold
+	// k-anonymity gate (WP-006 §7), scoped by corpus class (Phase 133). The
+	// gate guards against re-identifying individuals — meaningful for social
+	// / user-generated corpora, but NOT for PUBLIC institutional publishers
+	// (government press offices, newsrooms) whose article text is already
+	// public and whose "author" is an institution. For those the effective
+	// threshold drops to 1, so an existing article is always readable; the
+	// gate stays in full force for every other corpus class.
+	threshold := s.kAnonymityThreshold
+	if s.sourceIsPublicInstitutional(res.SourceName) {
+		threshold = 1
+	}
+	if count < threshold {
 		observed := count
 		anchor := "WP-006#section-7"
 		return GetArticleDetail403JSONResponse{
@@ -460,4 +475,19 @@ func decodeCursor(token string) (int, error) {
 		return 0, errors.New("negative offset")
 	}
 	return n, nil
+}
+
+// sourceIsPublicInstitutional reports whether the source belongs to a probe
+// whose corpus class is a public institutional publisher class exempt from
+// the L5 k-anonymity gate (Phase 133). A source not matched to any probe is
+// treated as NON-public — the gate stays enforced (fail safe).
+func (s *Server) sourceIsPublicInstitutional(sourceName string) bool {
+	for _, p := range s.probes {
+		for _, src := range p.Sources {
+			if src == sourceName && config.IsPublicCorpusClass(p.CorpusClass()) {
+				return true
+			}
+		}
+	}
+	return false
 }

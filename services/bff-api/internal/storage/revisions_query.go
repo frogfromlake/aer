@@ -41,6 +41,16 @@ type ArticleRevisionRow struct {
 	RevisionIndex      uint32    `ch:"revision_index"`
 	TimeSincePrevHours float64   `ch:"time_since_prev_hours"`
 	Trigger            string    `ch:"revision_trigger"`
+	// ArchiveURL is the Internet Archive playback URL for CDX snapshots
+	// (empty for republication-trigger rows). Surfaced so the L5 reader's
+	// "view snapshot" link resolves (Phase 133).
+	ArchiveURL string `ch:"archive_url"`
+	// DiffStatus is the editorial status of the diff for the pair ending
+	// at this revision, derived from `diff_paragraphs`: `pending` (no diff
+	// computed yet), `identical` (the sweep wrote the identical sentinel —
+	// a re-archival with no editorial change), or `changed`. Lets the L5
+	// reader walk the slider over editorial versions only (Phase 133).
+	DiffStatus string `ch:"diff_status"`
 }
 
 // RevisionActivityQuerier abstracts the storage-side queries for the
@@ -92,19 +102,39 @@ func (s *ClickHouseStorage) GetRevisionActivity(
 		args = append(args, src)
 	}
 
+	// Phase 133 — count EDITORIAL CHANGES, not raw captures. A revision is
+	// a content-changing transition (`is_edit`): the pair has a computed
+	// diff that is NOT the identical-sentinel. Identical re-archivals (the
+	// Internet Archive re-capturing unchanged content) and not-yet-diffed
+	// `pending` pairs are excluded — they are observation artefacts, not
+	// edits by the source. `article_revisions` is the source of truth; the
+	// diff classification lives in `diff_paragraphs`.
 	query := fmt.Sprintf(`
 		SELECT
 			source,
 			%s AS bucket,
-			toUInt64(count())                                                                    AS revisions,
-			toUInt64(uniqExact(article_id))                                                      AS articles_affected,
-			toUInt64(countIf(revision_trigger = 'cdx_snapshot'))                                 AS cdx_snapshot_count,
-			toUInt64(countIf(revision_trigger = 'republication_trigger'))                        AS republication_count,
-			toUInt64(countIf(revision_trigger NOT IN ('cdx_snapshot', 'republication_trigger'))) AS unknown_trigger_count
-		FROM aer_gold.article_revisions FINAL
-		WHERE snapshot_at >= ?
-		  AND snapshot_at <  ?
-		  AND source IN (%s)
+			toUInt64(countIf(is_edit))                                                                    AS revisions,
+			toUInt64(uniqExactIf(article_id, is_edit))                                                    AS articles_affected,
+			toUInt64(countIf(is_edit AND revision_trigger = 'cdx_snapshot'))                              AS cdx_snapshot_count,
+			toUInt64(countIf(is_edit AND revision_trigger = 'republication_trigger'))                     AS republication_count,
+			toUInt64(countIf(is_edit AND revision_trigger NOT IN ('cdx_snapshot', 'republication_trigger'))) AS unknown_trigger_count
+		FROM (
+			SELECT
+				source,
+				snapshot_at,
+				article_id,
+				revision_trigger,
+				-- An editorial edit = a real paragraph change OR a headline
+				-- change. A headline-only change has empty diff_paragraphs but
+				-- headline_changed=true, so it must be OR'd in (Phase 133).
+				((length(diff_paragraphs) > 0
+				  AND NOT arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs))
+				 OR headline_changed) AS is_edit
+			FROM aer_gold.article_revisions FINAL
+			WHERE snapshot_at >= ?
+			  AND snapshot_at <  ?
+			  AND source IN (%s)
+		)
 		GROUP BY source, bucket
 		ORDER BY bucket, source
 	`, bucketExpr, strings.Join(placeholders, ", "))
@@ -136,7 +166,13 @@ func (s *ClickHouseStorage) GetArticleRevisions(
 			prev_content_hash,
 			revision_index,
 			time_since_prev_hours,
-			revision_trigger
+			revision_trigger,
+			archive_url,
+			multiIf(
+				arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs), 'identical',
+				length(diff_paragraphs) > 0 OR headline_changed, 'changed',
+				'pending'
+			) AS diff_status
 		FROM aer_gold.article_revisions FINAL
 		WHERE article_id = ?
 		ORDER BY snapshot_at, content_hash

@@ -159,25 +159,28 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 	}
 
 	revisions := make([]struct {
-		ArchiveUrl         *string                                  `json:"archiveUrl,omitempty"`
-		ContentHash        string                                   `json:"contentHash"`
-		PrevContentHash    *string                                  `json:"prevContentHash,omitempty"`
-		RevisionIndex      int                                      `json:"revisionIndex"`
-		SnapshotAt         time.Time                                `json:"snapshotAt"`
-		TimeSincePrevHours *float64                                 `json:"timeSincePrevHours,omitempty"`
-		Trigger            ArticleRevisionsResponseRevisionsTrigger `json:"trigger"`
+		ArchiveUrl         *string                                     `json:"archiveUrl,omitempty"`
+		ContentHash        string                                      `json:"contentHash"`
+		DiffStatus         ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
+		PrevContentHash    *string                                     `json:"prevContentHash,omitempty"`
+		RevisionIndex      int                                         `json:"revisionIndex"`
+		SnapshotAt         time.Time                                   `json:"snapshotAt"`
+		TimeSincePrevHours *float64                                    `json:"timeSincePrevHours,omitempty"`
+		Trigger            ArticleRevisionsResponseRevisionsTrigger    `json:"trigger"`
 	}, 0, len(rows))
 	for _, r := range rows {
 		entry := struct {
-			ArchiveUrl         *string                                  `json:"archiveUrl,omitempty"`
-			ContentHash        string                                   `json:"contentHash"`
-			PrevContentHash    *string                                  `json:"prevContentHash,omitempty"`
-			RevisionIndex      int                                      `json:"revisionIndex"`
-			SnapshotAt         time.Time                                `json:"snapshotAt"`
-			TimeSincePrevHours *float64                                 `json:"timeSincePrevHours,omitempty"`
-			Trigger            ArticleRevisionsResponseRevisionsTrigger `json:"trigger"`
+			ArchiveUrl         *string                                     `json:"archiveUrl,omitempty"`
+			ContentHash        string                                      `json:"contentHash"`
+			DiffStatus         ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
+			PrevContentHash    *string                                     `json:"prevContentHash,omitempty"`
+			RevisionIndex      int                                         `json:"revisionIndex"`
+			SnapshotAt         time.Time                                   `json:"snapshotAt"`
+			TimeSincePrevHours *float64                                    `json:"timeSincePrevHours,omitempty"`
+			Trigger            ArticleRevisionsResponseRevisionsTrigger    `json:"trigger"`
 		}{
 			ContentHash:   r.ContentHash,
+			DiffStatus:    ArticleRevisionsResponseRevisionsDiffStatus(r.DiffStatus),
 			RevisionIndex: int(r.RevisionIndex), //nolint:gosec // bounded
 			SnapshotAt:    r.SnapshotAt,
 			Trigger:       ArticleRevisionsResponseRevisionsTrigger(r.Trigger),
@@ -197,6 +200,12 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 			tsp := r.TimeSincePrevHours
 			entry.PrevContentHash = &prev
 			entry.TimeSincePrevHours = &tsp
+		}
+		// Surface the Internet Archive playback URL when present (empty for
+		// republication-trigger rows that have no archive page yet).
+		if r.ArchiveURL != "" {
+			archiveURL := r.ArchiveURL
+			entry.ArchiveUrl = &archiveURL
 		}
 		revisions = append(revisions, entry)
 	}

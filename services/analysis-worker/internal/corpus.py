@@ -908,20 +908,48 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
         if remaining <= 0:
             return pairs
 
-        # Chain-head pairs (BUG-11 — Silver-now vs Wayback[0]).
+        # Chain-head pair (Phase 133 — anchored on the chain's NEWEST
+        # snapshot, not the oldest). The head ROW is the per-article MINIMUM
+        # revision_index — the only row without a mid-chain predecessor, so
+        # its diff slot is free — robust to offset chains (e.g. 4..17 from
+        # ADR-036 rebuilds), never a literal revision_index = 0. The
+        # COMPARISON is the current Silver body vs the NEWEST snapshot
+        # (max snapshot_at). The head row thus carries the
+        # `newest-snapshot → current` transition; together with the
+        # mid-chain pairs (S0→S1 … S_{n-1}→Sn) it tessellates the full
+        # timeline S0→…→Sn→current with NO overlap, so `countIf(is_edit)`
+        # over the rows is the EXACT editorial-edit count — no double-count
+        # of a cumulative diff, and 1-snapshot articles still get their
+        # single current-vs-snapshot edit. The head row keeps its OWN
+        # archive_url (identity / playback link); `compare_archive_url` is
+        # the newest snapshot we actually fetch + diff against.
         head_result = client.query(
             """
             SELECT
-                article_id, source, discourse_function, snapshot_at,
-                content_hash, prev_content_hash, revision_index,
-                time_since_prev_hours, revision_trigger,
-                ingestion_version, archive_url
-            FROM aer_gold.article_revisions FINAL
-            WHERE revision_index = 0
-              AND revision_trigger = 'cdx_snapshot'
-              AND length(diff_paragraphs) = 0
-              AND archive_url != ''
-            ORDER BY snapshot_at DESC
+                r.article_id, r.source, r.discourse_function, r.snapshot_at,
+                r.content_hash, r.prev_content_hash, r.revision_index,
+                r.time_since_prev_hours, r.revision_trigger,
+                r.ingestion_version, r.archive_url,
+                n.newest_archive AS compare_archive_url
+            FROM aer_gold.article_revisions AS r FINAL
+            INNER JOIN (
+                SELECT article_id, min(revision_index) AS head_index
+                FROM aer_gold.article_revisions FINAL
+                GROUP BY article_id
+            ) AS h
+                ON h.article_id = r.article_id
+               AND h.head_index = r.revision_index
+            INNER JOIN (
+                SELECT article_id, argMax(archive_url, snapshot_at) AS newest_archive
+                FROM aer_gold.article_revisions FINAL
+                WHERE archive_url != ''
+                GROUP BY article_id
+            ) AS n
+                ON n.article_id = r.article_id
+            WHERE r.revision_trigger = 'cdx_snapshot'
+              AND length(r.diff_paragraphs) = 0
+              AND r.archive_url != ''
+            ORDER BY r.snapshot_at DESC
             LIMIT %(limit)s
             """,
             parameters={"limit": int(remaining)},
@@ -940,10 +968,14 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                     "time_since_prev_hours": row[7],
                     "revision_trigger": row[8],
                     "ingestion_version": row[9],
+                    # The head row's OWN archive_url — written back unchanged
+                    # so the row keeps its identity / playback link.
                     "curr_archive_url": row[10],
-                    # No prev_archive_url for chain-head — the
-                    # "before" side is the current Silver body,
-                    # fetched separately at sweep time.
+                    # The NEWEST snapshot's archive — what we fetch and diff
+                    # the current Silver body against (Phase 133 re-anchor).
+                    "compare_archive_url": row[11],
+                    # No prev_archive_url for chain-head — the "before" side
+                    # is the current Silver body, fetched at sweep time.
                     "prev_archive_url": "",
                 }
             )
@@ -1029,6 +1061,84 @@ def _silver_text_to_html(cleaned_text: str) -> str:
     return f"<!DOCTYPE html><html><body>{body}</body></html>"
 
 
+# Phase 133 — `revision_count` is the count of EDITORIAL edits, not Wayback
+# captures. `is_edit` = the pair has a computed diff that is NOT the identical
+# re-archival sentinel (pending/empty diffs are not edits). The published
+# timestamp comes from `aer_silver.documents`; if that row is gone (TTL) we
+# fall back to the latest snapshot so the metric is never anchored at the 1970
+# epoch (which would TTL-prune it immediately).
+_REVISION_COUNT_RECONCILE_QUERY = """
+    SELECT
+        ar.article_id AS article_id,
+        any(ar.source) AS source,
+        any(ar.discourse_function) AS discourse_function,
+        toFloat64(countIf(
+            (length(ar.diff_paragraphs) > 0
+             AND NOT arrayExists(x -> JSONExtractString(x, 'op') = 'identical', ar.diff_paragraphs))
+            OR ar.headline_changed
+        )) AS editorial_edits,
+        multiIf(
+            any(d.timestamp) > toDateTime('2000-01-01 00:00:00'), any(d.timestamp),
+            max(ar.snapshot_at)
+        ) AS ts
+    FROM aer_gold.article_revisions AS ar FINAL
+    LEFT JOIN aer_silver.documents AS d FINAL ON d.article_id = ar.article_id
+    WHERE ar.article_id IN {ids:Array(String)}
+    GROUP BY ar.article_id
+"""
+
+
+def write_editorial_revision_counts(ch_pool, article_ids: list[str]) -> int:
+    """Recompute and upsert `revision_count` = editorial-edit count for the
+    given articles (Phase 133). Returns the number of metric rows written.
+
+    The editorial-edit count is derived from `aer_gold.article_revisions`
+    (the authoritative revision record) as the number of pairs whose diff is
+    a real change — excluding the identical re-archival sentinel and
+    not-yet-diffed pending pairs. `aer_gold.metrics` is
+    ReplacingMergeTree(ingestion_version) ORDER BY (article_id, metric_name),
+    so a fresh (higher) ingestion_version REPLACES the prior value by key —
+    the metric is edits-only and converges upward as the sweep classifies
+    more pairs. This is the SOLE writer of `revision_count`; no capture count
+    is written anywhere (see `article_revisions.upload_article_revisions`).
+    """
+    if not article_ids:
+        return 0
+    client = ch_pool.getconn()
+    try:
+        result = client.query(
+            _REVISION_COUNT_RECONCILE_QUERY,
+            parameters={"ids": list(article_ids)},
+        )
+    finally:
+        ch_pool.putconn(client)
+
+    version = time.time_ns()
+    rows = [
+        # column order: timestamp, value, source, metric_name, article_id,
+        # discourse_function, ingestion_version, timestamp_source
+        [row[4], float(row[3]), row[1], "revision_count", row[0], row[2] or "", version, ""]
+        for row in result.result_rows
+    ]
+    if not rows:
+        return 0
+    ch_pool.insert(
+        "aer_gold.metrics",
+        rows,
+        column_names=[
+            "timestamp",
+            "value",
+            "source",
+            "metric_name",
+            "article_id",
+            "discourse_function",
+            "ingestion_version",
+            "timestamp_source",
+        ],
+    )
+    return len(rows)
+
+
 def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str, max_pairs: int) -> int:
     """One revision-diff sweep tick. Returns rows written.
 
@@ -1037,10 +1147,13 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str
     * **mid_chain** (revision_index > 0): fetches BOTH `prev` and
       `curr` Wayback HTMLs; diff is paragraph-aligned between them.
 
-    * **chain_head** (revision_index = 0, BUG-11): fetches `curr`
-      Wayback HTML AND the current Silver body for the same article;
-      diff is "current Silver-now → Wayback[0]". Makes every article
-      with ≥ 1 Wayback snapshot diffable, not only chainLength ≥ 2.
+    * **chain_head** (the per-article MIN revision_index — Phase 133):
+      fetches the chain's NEWEST snapshot's Wayback HTML AND the current
+      Silver body; diff is "newest snapshot → current article", stored on
+      the head row (which keeps its own archive_url). Combined with the
+      mid-chain pairs this tessellates S0→…→Sn→current with no overlap, so
+      `countIf(is_edit)` is the exact editorial-edit count. Makes every
+      article with ≥ 1 Wayback snapshot diffable, not only chainLength ≥ 2.
 
     Fail-silent per pair: any single pair that fails (snapshot fetch
     error, trafilatura empty result, Silver miss) is logged and
@@ -1060,41 +1173,45 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str
 
     rows_to_write: list[list[object]] = []
     for pair in pairs:
-        # Fetch the `curr` snapshot — required in both kinds.
-        curr_result = snapshot_fetcher.fetch(pair["curr_archive_url"])
-        if curr_result.status != FETCH_OK:
-            continue
-
-        # Resolve the `prev` content — Wayback HTML for mid-chain,
-        # Silver body for chain-head.
+        # Resolve the (prev_html, curr_html) the diff compares. The row that
+        # gets WRITTEN always keeps the pair's own identity (incl. its own
+        # `curr_archive_url`); only the FETCH target differs per kind.
         if pair["kind"] == "mid_chain":
+            # prev = previous snapshot, curr = this snapshot.
+            curr_result = snapshot_fetcher.fetch(pair["curr_archive_url"])
+            if curr_result.status != FETCH_OK:
+                continue
             prev_result = snapshot_fetcher.fetch(pair["prev_archive_url"])
             if prev_result.status != FETCH_OK:
                 continue
             prev_html = prev_result.html
+            curr_html = curr_result.html
         elif pair["kind"] == "chain_head":
+            # Phase 133 — diff the current Silver body against the chain's
+            # NEWEST snapshot (`compare_archive_url`), NOT the head row's own
+            # (oldest) archive. The result is the `newest-snapshot → current`
+            # transition, stored on the head row (which keeps its own
+            # `curr_archive_url` for identity/link). prev = Silver-now, curr =
+            # newest Wayback HTML; the L5 frontend labels it "latest snapshot
+            # → current article".
+            curr_result = snapshot_fetcher.fetch(pair["compare_archive_url"])
+            if curr_result.status != FETCH_OK:
+                continue
             silver_text = fetch_silver_body_for_article(
                 ch_pool, minio_client, bucket, pair["article_id"]
             )
             if not silver_text:
                 # Article has no Silver body (archived-only past the
-                # analytical window, MinIO miss, etc.). Skip this
-                # tick; next tick re-attempts. We do NOT write the
-                # sentinel here — the row is genuinely undiffed, not
-                # diffed-but-empty.
+                # analytical window, MinIO miss, etc.). Skip this tick;
+                # next tick re-attempts. Do NOT write the sentinel — the
+                # row is genuinely undiffed, not diffed-but-empty.
                 continue
             prev_html = _silver_text_to_html(silver_text)
+            curr_html = curr_result.html
         else:
             continue
 
-        # Diff direction:
-        #   chain-head: prev = Silver-now, curr = Wayback[0]
-        #   so the diff says "what was changed FROM the current
-        #   Silver TO the older archive" — semantically equivalent
-        #   to "what has the publisher changed since archive[0]"
-        #   read in reverse. The L5 frontend labels the pair as
-        #   "current → archived" for clarity.
-        diff = compute_diff(prev_html, curr_result.html)
+        diff = compute_diff(prev_html, curr_html)
 
         new_version = max(int(pair["ingestion_version"]) + 1, time.time_ns())
         rows_to_write.append(
@@ -1125,6 +1242,27 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str
         rows_to_write,
         column_names=ARTICLE_REVISIONS_COLUMNS_FULL,
     )
+
+    # Phase 133 — recompute the editorial `revision_count` metric for every
+    # article whose diffs we just (re)classified. The sweep is the SOLE
+    # writer of revision_count (= editorial edits); the per-article capture
+    # count is no longer written (article_revisions.upload_article_revisions).
+    # Fail-silent: the diffs are already persisted, so a metric-write error
+    # only delays the count by one tick.
+    touched_ids = list({str(r[0]) for r in rows_to_write})
+    try:
+        metric_rows = write_editorial_revision_counts(ch_pool, touched_ids)
+        logger.info(
+            "revision_diff.revision_count.reconciled",
+            articles=len(touched_ids),
+            metric_rows=metric_rows,
+        )
+    except Exception as e:
+        logger.error(
+            "revision_diff.revision_count.failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
     return len(rows_to_write)
 
 

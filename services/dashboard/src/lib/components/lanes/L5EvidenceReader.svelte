@@ -14,6 +14,7 @@
     articleRevisionDiffQuery,
     type ArticleDetailDto,
     type ArticleRevisionsResponseDto,
+    type ArticleRevisionEntryDto,
     type ArticleRevisionDiffDto,
     type FetchContext,
     type QueryOutcome
@@ -106,35 +107,73 @@
     revisionsQ.data?.kind === 'success' ? revisionsQ.data.data.lookupStatus : ''
   );
 
-  // Phase 122d.1 — Diff tab. The tab is only meaningful when the
-  // article has ≥ 2 revisions (one to diff against another). The
-  // `diffPairIndex` is the LATER revision's `revisionIndex` (the
-  // endpoint diffs `index-1` → `index`); we default to the most
-  // recent pair on open and let the user scrub backwards.
+  // Phase 133 — Diff tab reworked to step over EDITORIAL versions only.
+  // The Wayback chain is captured at raw-HTML granularity, so most
+  // adjacent pairs are "identical after extraction" (a re-archival with
+  // no editorial change). Stepping through those is noise. The slider
+  // therefore walks only the non-identical consecutive pairs
+  // (`walkSteps`), oldest → newest; the chain-head pair (current article
+  // body vs the NEWEST snapshot — the latest editorial change) is shown
+  // as a separate "vs current article" view. The full per-capture list
+  // stays in the Revision history section below (the home for the
+  // re-archival frequency signal). `diffStatus` (from the revisions
+  // endpoint) classifies every pair WITHOUT fetching each diff up front.
   let activeTab = $state<'article' | 'diff'>('article');
-  let diffPairIndex = $state<number>(1);
+  // Which diff the panel shows: a step in the editorial walk, or the
+  // chain-head (current article body vs the NEWEST snapshot).
+  let diffView = $state<'walk' | 'cumulative'>('walk');
+  // Position WITHIN `walkSteps` (not a revisionIndex). 0 = oldest step.
+  let walkPos = $state<number>(0);
 
-  // BUG-9 + BUG-6 fix — diff query fires EAGERLY when the modal
-  // opens (not only when the user clicks the Diff tab). This pre-
-  // loads the diff so the tab switch is instant; previously the
-  // 5–10s diff fetch on tab-click felt like "the modal disappeared
-  // and reopened" because the body content unmounted/remounted.
-  //
-  // BUG-11 — chainLength=1 is now also diffable (pair 0 = current
-  // Silver vs Wayback[0]); the enabled condition allows index >= 0.
-  // pairCount = chainLength (was chainLength - 1 in pre-122d.1
-  // semantics).
+  // Chain head = the row carrying the head diff (Phase 133: current article
+  // body vs the NEWEST snapshot = the latest editorial change). It is the
+  // OLDEST row by snapshot_at (`revisionList[0]`) — the only row with no
+  // mid-chain predecessor, so its diff slot holds this head transition.
+  // `revision_index` is contiguous per article but NOT guaranteed to start
+  // at 0 (ADR-036 rebuilds can offset it), so key off array position.
+  const chainHead = $derived<ArticleRevisionEntryDto | null>(revisionList[0] ?? null);
+  // Editorial walk = every row after the head (each has a valid
+  // predecessor in the contiguous chain) minus the proven-identical
+  // re-archivals. `pending` stays in the walk — it MIGHT be a real change
+  // once the sweep computes it; we never silently hide a potentially-
+  // editorial step, only proven re-archivals are dropped.
+  const walkSteps = $derived(revisionList.slice(1).filter((r) => r.diffStatus !== 'identical'));
+  const lookupByIndex = $derived(new Map(revisionList.map((r) => [r.revisionIndex, r])));
+  // Summary counts span ALL rows (mid-chain steps + the head's
+  // newest-snapshot→current transition) so the disclosure matches the
+  // `revision_count` metric exactly (Phase 133 — the head carries a real
+  // editorial transition, not a cumulative double-count).
+  const changedCount = $derived(revisionList.filter((r) => r.diffStatus === 'changed').length);
+  const pendingCount = $derived(revisionList.filter((r) => r.diffStatus === 'pending').length);
+  const identicalCount = $derived(revisionList.filter((r) => r.diffStatus === 'identical').length);
+  const cumulativeAvailable = $derived(chainHead !== null);
+
+  // Whether the Diff tab has anything worth showing: at least one pair is
+  // an editorial change or still computing. When every capture is an
+  // identical re-archival (common for low-edit articles, and the whole
+  // story for single-snapshot ones), the cumulative "vs current article"
+  // view would just restate "nothing changed" — so we show one clear
+  // line instead of an empty slider (Issue 3).
+  const hasEditorialContent = $derived(
+    revisionList.some((r) => r.diffStatus === 'changed' || r.diffStatus === 'pending')
+  );
+
+  // The revisionIndex the diff query actually fetches.
+  const diffPairIndex = $derived(
+    diffView === 'cumulative'
+      ? (chainHead?.revisionIndex ?? -1)
+      : (walkSteps[walkPos]?.revisionIndex ?? -1)
+  );
+
+  // BUG-9 + BUG-6 — the diff query fires EAGERLY on modal open (not only
+  // on Diff-tab click) so the tab switch is instant.
   const diffQ = createQuery<
     QueryOutcome<ArticleRevisionDiffDto>,
     Error,
     QueryOutcome<ArticleRevisionDiffDto>
   >(() => {
     const enabled =
-      open &&
-      articleId !== null &&
-      revisionList.length >= 1 &&
-      diffPairIndex >= 0 &&
-      diffPairIndex < revisionList.length;
+      open && articleId !== null && diffPairIndex >= 0 && diffPairIndex < revisionList.length;
     if (!enabled || !articleId) {
       return {
         queryKey: ['aer', 'article-revision-diff', null, 0],
@@ -156,17 +195,14 @@
     };
   });
 
-  // Auto-pick the most recent pair when the revision list becomes
-  // available (or when the article changes). With BUG-11 chain-head
-  // diffing landed, "most recent" is index = chainLength - 1 (the
-  // last Wayback snapshot diffed against its predecessor). For a
-  // chainLength=1 article the only valid index is 0 (chain head).
+  // Re-seed at the oldest editorial step whenever the article changes.
+  // With no editorial steps but a chain-head present, fall back to the
+  // cumulative view so the tab is never blank.
   $effect(() => {
-    if (revisionList.length >= 1) {
-      diffPairIndex = revisionList.length - 1;
-    } else {
-      diffPairIndex = 0;
-    }
+    void articleId;
+    void revisionList.length;
+    walkPos = 0;
+    diffView = walkSteps.length > 0 ? 'walk' : 'cumulative';
   });
 
   let title = $derived.by(() => {
@@ -206,20 +242,25 @@
     return diffWordsWithSpace(before ?? '', after ?? '');
   }
 
-  // Pair labels — display the (before → after) timestamps so the
-  // slider readout is meaningful. Chain-head pair (revisionIndex=0):
-  // "Current article → snapshot from <date>". Mid-chain: "<date> →
-  // <date>".
-  function formatPairLabel(idx: number): string {
-    if (idx === 0) {
-      const after = revisionList[0]?.snapshotAt;
-      if (!after) return 'Current article → archived';
-      return `Current → ${new Date(after).toLocaleDateString('en-CA')}`;
-    }
-    const before = revisionList[idx - 1]?.snapshotAt;
-    const after = revisionList[idx]?.snapshotAt;
-    if (!before || !after) return `Pair ${idx}`;
-    return `${new Date(before).toLocaleDateString('en-CA')} → ${new Date(after).toLocaleDateString('en-CA')}`;
+  // Walk-step label — the (before → after) snapshot dates for a
+  // consecutive editorial pair. `before` is the preceding chain entry
+  // (revisionIndex − 1), `after` is this step's snapshot.
+  function walkStepLabel(step: ArticleRevisionEntryDto | undefined): string {
+    if (!step) return '—';
+    const before = lookupByIndex.get(step.revisionIndex - 1);
+    const b = before ? new Date(before.snapshotAt).toLocaleDateString('en-CA') : '?';
+    const a = new Date(step.snapshotAt).toLocaleDateString('en-CA');
+    return `${b} → ${a}`;
+  }
+
+  // Cumulative label — Phase 133: the chain-head now compares the current
+  // article body to the NEWEST snapshot (the latest archived state), i.e.
+  // "what the publisher changed since the last archive". Read newest →
+  // current.
+  function cumulativeLabel(): string {
+    const newest = revisionList[revisionList.length - 1]?.snapshotAt;
+    if (!newest) return 'Latest snapshot → current article';
+    return `Latest snapshot ${new Date(newest).toLocaleDateString('en-CA')} → current article`;
   }
 
   function lookupStatusLabel(status: string): string {
@@ -378,112 +419,183 @@
          the tab, content is usually already loaded. -->
     <div class="tab-panel" class:hidden={activeTab !== 'diff'}>
       {#if revisionList.length >= 1}
-        {@const pairCount = revisionList.length}
-        <div class="diff-controls">
-          <label class="diff-pair-label">
-            <span class="label-xs">Snapshot pair</span>
-            <input
-              type="range"
-              min={0}
-              max={pairCount - 1}
-              step={1}
-              bind:value={diffPairIndex}
-              aria-label="Snapshot pair selector"
-            />
-            <span class="diff-pair-readout">
-              {diffPairIndex + 1} / {pairCount} · {formatPairLabel(diffPairIndex)}
-            </span>
-          </label>
-        </div>
-        {#if diffQ.isPending}
-          <p class="muted" aria-busy="true">Loading diff…</p>
-        {:else if diffQ.data?.kind === 'refusal'}
-          <RefusalSurface refusal={diffQ.data} {ctx} />
-        {:else if diffQ.isError || diffQ.data?.kind === 'network-error'}
-          {@const err = (diffQ.error ?? null) as { httpStatus?: number; message?: string } | null}
-          {#if err?.httpStatus === 404 || (diffQ.data?.kind === 'network-error' && diffQ.data.httpStatus === 404)}
-            <!-- BUG-7 fix — operator info removed. -->
-            <p class="muted">Diff is being computed; check back in a few minutes.</p>
-          {:else}
-            <p class="error">Could not load diff.</p>
-          {/if}
-        {:else if diffQ.data?.kind === 'success' && diffQ.data.data}
-          {@const diff = diffQ.data.data}
-          {#if diff.pairKind === 'chain_head'}
-            <p class="diff-kind-note">
-              <span class="diff-kind-pill">current vs. archived</span>
-              Comparing the current article body to the oldest Wayback snapshot — answers "what has the
-              publisher changed since the IA last archived this URL".
-            </p>
-          {/if}
-          {#if diff.headlineChanged}
-            <div class="headline-change">
-              <p class="headline-label">Headline changed</p>
-              <p class="headline-before">
-                <span class="op-mark op-del">−</span>
-                {diff.headlineBefore || '(empty)'}
-              </p>
-              <p class="headline-after">
-                <span class="op-mark op-add">+</span>
-                {diff.headlineAfter || '(empty)'}
-              </p>
+        {#if !hasEditorialContent}
+          <!-- No editorial change anywhere in the chain — show one clear
+               line rather than a cumulative view that just restates
+               "unchanged" (Issue 3). The full capture list stays in the
+               Revision history section below. -->
+          <p class="muted">
+            No editorial changes detected — unchanged across {revisionList.length} archived capture{revisionList.length ===
+            1
+              ? ''
+              : 's'}{chainHead
+              ? ` since ${new Date(chainHead.snapshotAt).toLocaleDateString('en-CA')}`
+              : ''}. Wayback re-archived the page, but the article body never changed after
+            extraction.
+          </p>
+        {:else}
+          <!-- Disclosure — how the editorial walk relates to the raw
+             captures. The walk steps over editorial versions only;
+             identical re-archivals are summarised here, never silently
+             hidden (their full list is the Revision history below). -->
+          <p class="diff-summary">
+            {changedCount} editorial {changedCount === 1 ? 'change' : 'changes'}
+            {#if identicalCount > 0}
+              · {identicalCount} identical re-archival{identicalCount === 1 ? '' : 's'} skipped
+            {/if}
+            {#if pendingCount > 0}
+              · {pendingCount} still computing
+            {/if}
+          </p>
+
+          <!-- View toggle — only when both an editorial walk and the
+             cumulative chain-head comparison are available. -->
+          {#if cumulativeAvailable && walkSteps.length > 0}
+            <div class="diff-view-toggle" role="tablist" aria-label="Diff view">
+              <button
+                type="button"
+                class="toggle-btn small"
+                class:active={diffView === 'walk'}
+                role="tab"
+                aria-selected={diffView === 'walk'}
+                onclick={() => (diffView = 'walk')}>Editorial walk</button
+              >
+              <button
+                type="button"
+                class="toggle-btn small"
+                class:active={diffView === 'cumulative'}
+                role="tab"
+                aria-selected={diffView === 'cumulative'}
+                onclick={() => (diffView = 'cumulative')}>vs. current article</button
+              >
             </div>
           {/if}
-          {#if diff.identical}
-            <!-- BUG-10 fix — distinct surface for "computed but
-                 identical" (vs. BUG-7's "pending" state). -->
-            <p class="muted">
-              Both snapshots parse to identical content after extraction. The Wayback Machine
-              archived two captures with different file hashes but trafilatura recovers the same
-              article body from each — likely just an HTTP re-fetch without an editorial change.
-            </p>
-          {:else if diff.diffParagraphs.length === 0}
-            <p class="muted">No paragraph-level changes detected between these snapshots.</p>
+
+          {#if diffView === 'cumulative' && cumulativeAvailable}
+            <div class="diff-controls">
+              <span class="label-xs">Cumulative</span>
+              <span class="diff-pair-readout">{cumulativeLabel()}</span>
+            </div>
+          {:else if walkSteps.length > 0}
+            <div class="diff-controls">
+              <label class="diff-pair-label">
+                <span class="label-xs">Editorial version</span>
+                {#if walkSteps.length > 1}
+                  <input
+                    type="range"
+                    min={0}
+                    max={walkSteps.length - 1}
+                    step={1}
+                    bind:value={walkPos}
+                    aria-label="Editorial version selector"
+                  />
+                {/if}
+                <span class="diff-pair-readout">
+                  {walkPos + 1} / {walkSteps.length} · {walkStepLabel(walkSteps[walkPos])}
+                </span>
+              </label>
+            </div>
           {:else}
-            <ol class="diff-list" aria-label="Paragraph diff">
-              {#each diff.diffParagraphs as op, idx (idx)}
-                <li class="diff-item op-{op.op}">
-                  {#if op.op === 'add'}
-                    <span class="op-mark op-add">+</span>
-                    <span class="diff-text diff-add-block">{op.after}</span>
-                  {:else if op.op === 'del'}
-                    <span class="op-mark op-del">−</span>
-                    <span class="diff-text diff-del-block">{op.before}</span>
-                  {:else if op.op === 'mod'}
-                    <!-- BUG-8 fix — word-level inline diff. Each
+            <p class="muted">
+              No editorial changes to step through — every archived capture parsed to identical
+              content after extraction.
+            </p>
+          {/if}
+
+          {#if diffPairIndex < 0}
+            <!-- No valid pair selected; the controls above explain why. -->
+          {:else if diffQ.isPending}
+            <p class="muted" aria-busy="true">Loading diff…</p>
+          {:else if diffQ.data?.kind === 'refusal'}
+            <RefusalSurface refusal={diffQ.data} {ctx} />
+          {:else if diffQ.isError || diffQ.data?.kind === 'network-error'}
+            {@const err = (diffQ.error ?? null) as { httpStatus?: number; message?: string } | null}
+            {#if err?.httpStatus === 404 || (diffQ.data?.kind === 'network-error' && diffQ.data.httpStatus === 404)}
+              <!-- BUG-7 fix — operator info removed. -->
+              <p class="muted">Diff is being computed; check back in a few minutes.</p>
+            {:else}
+              <p class="error">Could not load diff.</p>
+            {/if}
+          {:else if diffQ.data?.kind === 'success' && diffQ.data.data}
+            {@const diff = diffQ.data.data}
+            {#if diff.pairKind === 'chain_head'}
+              <p class="diff-kind-note">
+                <span class="diff-kind-pill">latest vs. current</span>
+                Comparing the current article body to the most recent Wayback snapshot — answers "what
+                has the publisher changed since the IA last archived this URL".
+              </p>
+            {/if}
+            {#if diff.headlineChanged}
+              <div class="headline-change">
+                <p class="headline-label">Headline changed</p>
+                <p class="headline-before">
+                  <span class="op-mark op-del">−</span>
+                  {diff.headlineBefore || '(empty)'}
+                </p>
+                <p class="headline-after">
+                  <span class="op-mark op-add">+</span>
+                  {diff.headlineAfter || '(empty)'}
+                </p>
+              </div>
+            {/if}
+            {#if diff.identical}
+              <!-- BUG-10 fix — distinct surface for "computed but
+                 identical" (vs. BUG-7's "pending" state). -->
+              <p class="muted">
+                Both snapshots parse to identical content after extraction. The Wayback Machine
+                archived two captures with different file hashes but trafilatura recovers the same
+                article body from each — likely just an HTTP re-fetch without an editorial change.
+              </p>
+            {:else if diff.diffParagraphs.length === 0}
+              <p class="muted">No paragraph-level changes detected between these snapshots.</p>
+            {:else}
+              <ol class="diff-list" aria-label="Paragraph diff">
+                {#each diff.diffParagraphs as op, idx (idx)}
+                  <li class="diff-item op-{op.op}">
+                    {#if op.op === 'add'}
+                      <span class="op-mark op-add">+</span>
+                      <span class="diff-text diff-add-block">{op.after}</span>
+                    {:else if op.op === 'del'}
+                      <span class="op-mark op-del">−</span>
+                      <span class="diff-text diff-del-block">{op.before}</span>
+                    {:else if op.op === 'mod'}
+                      <!-- BUG-8 fix — word-level inline diff. Each
                          token is wrapped in a span: added text gets
                          a green background, removed text gets a red
                          background with strike-through, unchanged
                          text stays plain. Reads like a GitHub PR
                          diff inline within the paragraph. -->
-                    {@const wordOps = wordDiff(op.before ?? '', op.after ?? '')}
-                    <div class="diff-mod">
-                      <p class="diff-mod-line">
-                        <span class="op-mark op-mod">~</span>
-                        <span class="diff-text">
-                          {#each wordOps as token, tIdx (tIdx)}
-                            {#if token.added}
-                              <span class="word-add">{token.value}</span>
-                            {:else if token.removed}
-                              <span class="word-del">{token.value}</span>
-                            {:else}
-                              <span class="word-eq">{token.value}</span>
-                            {/if}
-                          {/each}
-                        </span>
-                      </p>
-                    </div>
-                  {:else}
-                    <!-- Defence-in-depth: an op outside the add/del/mod
+                      {@const wordOps = wordDiff(op.before ?? '', op.after ?? '')}
+                      <div class="diff-mod">
+                        <p class="diff-mod-line">
+                          <span class="op-mark op-mod">~</span>
+                          <span class="diff-text">
+                            {#each wordOps as token, tIdx (tIdx)}
+                              {#if token.added}
+                                <span class="word-add">{token.value}</span>
+                              {:else if token.removed}
+                                <span class="word-del">{token.value}</span>
+                              {:else}
+                                <span class="word-eq">{token.value}</span>
+                              {/if}
+                            {/each}
+                          </span>
+                        </p>
+                      </div>
+                    {:else}
+                      <!-- Defence-in-depth: an op outside the add/del/mod
                          vocabulary (e.g. a sentinel leaking through a
                          writer/reader mismatch) must never render as a
                          blank row — surface it explicitly instead. -->
-                    <span class="op-mark">·</span>
-                    <span class="diff-text muted">Unrecognised change (<code>{op.op}</code>).</span>
-                  {/if}
-                </li>
-              {/each}
-            </ol>
+                      <span class="op-mark">·</span>
+                      <span class="diff-text muted"
+                        >Unrecognised change (<code>{op.op}</code>).</span
+                      >
+                    {/if}
+                  </li>
+                {/each}
+              </ol>
+            {/if}
           {/if}
         {/if}
       {:else}
@@ -530,6 +642,16 @@
                 <li class="rev-row">
                   <time datetime={rev.snapshotAt}>{formatTs(rev.snapshotAt)}</time>
                   <span class="rev-trigger"><code>{rev.trigger}</code></span>
+                  <span
+                    class="rev-diff-tag rev-diff-{rev.diffStatus}"
+                    title={rev.diffStatus === 'changed'
+                      ? 'Editorial change detected at this capture'
+                      : rev.diffStatus === 'identical'
+                        ? 'Re-archival with no editorial change after extraction'
+                        : 'Diff not yet computed'}
+                  >
+                    {rev.diffStatus}
+                  </span>
                   <code class="rev-hash" title={rev.contentHash}>
                     {rev.contentHash.slice(0, 12)}…
                   </code>
@@ -692,6 +814,19 @@
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
+  }
+
+  .diff-summary {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .diff-view-toggle {
+    display: flex;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
   }
 
   .diff-pair-label {
@@ -991,6 +1126,30 @@
   .rev-hash {
     font-family: var(--font-mono);
     color: var(--color-fg-subtle);
+  }
+
+  .rev-diff-tag {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+  }
+
+  .rev-diff-changed {
+    color: rgba(126, 196, 160, 0.95);
+    border-color: rgba(126, 196, 160, 0.5);
+  }
+
+  .rev-diff-identical {
+    color: var(--color-fg-subtle);
+  }
+
+  .rev-diff-pending {
+    color: rgba(232, 168, 80, 0.95);
+    border-color: rgba(232, 168, 80, 0.45);
   }
 
   .rev-link {

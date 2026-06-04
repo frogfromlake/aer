@@ -33,9 +33,17 @@ type DistributionSummary struct {
 
 // DistributionResult bundles the histogram + summary returned by
 // GetMetricDistribution.
+//
+// ClampedUpper is the upper edge of the bin domain: `Summary.Max` when no
+// outliers were detected, otherwise the Tukey upper fence (P75 + 1.5·IQR).
+// OverflowCount is the number of rows whose value exceeds ClampedUpper
+// (always 0 when the domain was not clamped) — disclosed so the robust
+// clamp is never a silent truncation (Phase 133 B).
 type DistributionResult struct {
-	Bins    []DistributionBin
-	Summary DistributionSummary
+	Bins          []DistributionBin
+	Summary       DistributionSummary
+	ClampedUpper  float64
+	OverflowCount int64
 }
 
 // GetMetricDistribution computes a histogram and quantile summary of a
@@ -113,7 +121,26 @@ func (s *ClickHouseStorage) GetMetricDistribution(
 		P95:    r.P95,
 	}
 
-	span := r.Max - r.Min
+	// Outlier-robust binning (Phase 133 B). A single extreme value (e.g.
+	// one live-blog article with revision_count 995 against a median of 2)
+	// otherwise stretches the [min, max] domain so the equal-width bins
+	// collapse the entire body of the distribution into one bar. Bin over
+	// a robust upper bound — the Tukey upper fence P75 + 1.5·IQR — and
+	// divert everything above it into an explicit overflow count. When no
+	// value exceeds the fence the bound equals max and the histogram is
+	// identical to the naive one. The summary keeps the TRUE extrema; only
+	// the bin DOMAIN is clamped.
+	robustMax := r.Max
+	clamped := false
+	if iqr := r.P75 - r.P25; iqr > 0 {
+		if fence := r.P75 + 1.5*iqr; fence < r.Max {
+			robustMax = fence
+			clamped = true
+		}
+	}
+	result.ClampedUpper = robustMax
+
+	span := robustMax - r.Min
 	if span <= 0 {
 		// Degenerate case: all values identical. Emit a single bin centered
 		// on the value so the frontend can still render a flat histogram.
@@ -122,19 +149,25 @@ func (s *ClickHouseStorage) GetMetricDistribution(
 			Upper: r.Min,
 			Count: int64(r.Count), //nolint:gosec // bounded by row limit
 		}}
+		result.ClampedUpper = r.Min
 		return result, nil
 	}
 
 	binWidth := span / float64(bins)
+	// Cap the bucket at `bins` (one PAST the last in-range bin): that
+	// overflow bucket collects every value above robustMax. When the
+	// domain is not clamped, robustMax == max and the only value landing
+	// in the overflow bucket is `max` itself (inclusive top edge), which
+	// we fold back into the last in-range bin below.
 	histQuery := fmt.Sprintf(`
 		SELECT
-			least(toUInt32(floor((value - %f) / %f)), toUInt32(%d)) AS Bucket,
+			least(toUInt32(greatest(floor((value - %f) / %f), 0)), toUInt32(%d)) AS Bucket,
 			count() AS Cnt
 		FROM aer_gold.metrics
 		WHERE %s
 		GROUP BY Bucket
 		ORDER BY Bucket
-	`, r.Min, binWidth, bins-1, baseWhere)
+	`, r.Min, binWidth, bins, baseWhere)
 
 	var histRows []struct {
 		Bucket uint32
@@ -146,14 +179,22 @@ func (s *ClickHouseStorage) GetMetricDistribution(
 	}
 
 	binCounts := make([]int64, bins)
+	var overflow int64
 	for _, hr := range histRows {
 		idx := int(hr.Bucket)
-		idx = max(idx, 0)
+		cnt := int64(hr.Cnt) //nolint:gosec // bounded by row limit
 		if idx >= bins {
-			idx = bins - 1
+			if clamped {
+				overflow += cnt
+			} else {
+				binCounts[bins-1] += cnt // inclusive top edge → last bin
+			}
+			continue
 		}
-		binCounts[idx] += int64(hr.Cnt) //nolint:gosec // bounded by row limit
+		idx = max(idx, 0)
+		binCounts[idx] += cnt
 	}
+	result.OverflowCount = overflow
 
 	result.Bins = make([]DistributionBin, bins)
 	for i := 0; i < bins; i++ {

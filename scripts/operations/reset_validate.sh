@@ -10,7 +10,7 @@
 #   1. Docker volumes — preserved volumes still present
 #   2. MinIO — buckets exist, all empty
 #   3. PostgreSQL — `documents` empty, `sources` re-seeded
-#   4. ClickHouse — every Gold table exists, all rows = 0
+#   4. ClickHouse — analytical Gold tables empty; seeded equivalence grants present
 #   5. NATS JetStream — AER_LAKE stream exists, no pending messages
 #   6. Worker / BFF readiness — both /readyz endpoints return 200
 
@@ -172,8 +172,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "4. ClickHouse — Gold tables exist, all rows = 0"
+step "4. ClickHouse — analytical Gold tables empty, seeded grants present"
 if docker compose ps clickhouse --format '{{.State}}' 2>/dev/null | grep -q running; then
+    # These tables hold per-article ANALYTICAL output and must be empty
+    # after a reset. NOTE: `aer_gold.metric_equivalence` is NOT here — its
+    # cross-cultural equivalence grants are SEED data applied by migration
+    # 000028 (Phase 124), so it is expected to be re-seeded, not empty
+    # (validated separately below, like Postgres `sources`).
     expected_tables=(
         "aer_gold.metrics"
         "aer_gold.entities"
@@ -181,7 +186,6 @@ if docker compose ps clickhouse --format '{{.State}}' 2>/dev/null | grep -q runn
         "aer_gold.entity_cooccurrences"
         "aer_gold.language_detections"
         "aer_gold.metric_baselines"
-        "aer_gold.metric_equivalence"
         "aer_gold.metric_validity"
         "aer_gold.topic_assignments"
         "aer_silver.documents"
@@ -198,6 +202,17 @@ if docker compose ps clickhouse --format '{{.State}}' 2>/dev/null | grep -q runn
             fail "$tbl non-empty (rows=$rows)"
         fi
     done
+
+    # metric_equivalence: seeded grants must be re-applied (migration 000028
+    # seeds the temporal Level-1 grants for publication_hour/publication_weekday
+    # × de/fr). Use FINAL to collapse the ReplacingMergeTree before counting.
+    grants=$(docker compose exec -T clickhouse clickhouse-client -q "
+        SELECT count() FROM aer_gold.metric_equivalence FINAL;" 2>/dev/null || echo "ERROR")
+    if [[ "$grants" =~ ^[0-9]+$ && "$grants" -ge 1 ]]; then
+        ok "aer_gold.metric_equivalence seeded (grants=$grants)"
+    else
+        fail "aer_gold.metric_equivalence not seeded (count=$grants) — seed migration did not apply"
+    fi
 else
     note "ClickHouse container not running — skipping"
 fi

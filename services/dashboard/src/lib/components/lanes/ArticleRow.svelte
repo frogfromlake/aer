@@ -22,6 +22,10 @@
     sentimentScore?: number | null | undefined;
     // Phase 122d.1 — optional revision fields.
     chainLength?: number | null | undefined;
+    // Phase 133 — editorial changes (how often the source actually revised
+    // the article), as opposed to chainLength (Wayback captures, mostly
+    // identical re-archivals). When present, the pill leads with this.
+    editorialChangeCount?: number | null | undefined;
     hasHeadlineChange?: boolean | null | undefined;
     latestRevisionAt?: string | null | undefined;
   }
@@ -87,21 +91,23 @@
       <span class="num-cell muted">—</span>
     {/if}
   </td>
-  <!-- Phase 122d.1: revision badges. Hidden when fields are absent so
-       the row works identically in pre-122d.1 contexts (existing
-       Dossier inline-list that does not opt into ?includeRevisions). -->
+  <!-- Phase 133 — REVISION badge = editorial edits ONLY. A revision is a
+       confirmed editorial change; raw Wayback captures (mostly identical
+       re-archivals) are NEVER a revision and get NO badge. The badge shows
+       only when editorialChangeCount ≥ 1; the capture count is disclosed
+       solely in the tooltip, clearly labelled "captures". -->
   <td class="badges">
-    {#if item.chainLength !== null && item.chainLength !== undefined && item.chainLength > 0}
+    {#if item.editorialChangeCount !== null && item.editorialChangeCount !== undefined && item.editorialChangeCount > 0}
       <span
         class="badge chain-badge"
-        title="{item.chainLength} revision{item.chainLength === 1
+        title="{item.editorialChangeCount} editorial change{item.editorialChangeCount === 1
           ? ''
-          : 's'} detected{item.latestRevisionAt
-          ? ` · latest ${formatTs(item.latestRevisionAt)}`
-          : ''}"
-        aria-label="Revision chain length: {item.chainLength}"
+          : 's'}{item.chainLength
+          ? ` · ${item.chainLength} archived capture${item.chainLength === 1 ? '' : 's'} (mostly identical re-archivals)`
+          : ''}{item.latestRevisionAt ? ` · latest ${formatTs(item.latestRevisionAt)}` : ''}"
+        aria-label="Editorial changes: {item.editorialChangeCount}"
       >
-        ⟲ {item.chainLength}
+        ✎ {item.editorialChangeCount}
       </span>
     {/if}
     {#if item.hasHeadlineChange}

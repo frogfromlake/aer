@@ -149,19 +149,23 @@ entity_count:
 revision_count:
   tier_classification: 1
   algorithm_description: >
-    Count of detected revisions per article, sourced from
-    aer_gold.article_revisions. Each row in that table is either a
-    Wayback CDX snapshot (third-party witness, WP-003 §5.3.1
-    "authoritative ground truth (the IA archive)") or a publisher-
-    side republication-trigger event (Phase 122d.0 — sitemap_lastmod
-    ≥ REPUBLICATION_TRIGGER_MIN_DELTA_DAYS days after published_date).
-    Promoted to a first-class metric in Phase 122d.1 so the value
-    is bindable as a Phase-131 visual channel (Scatter, Distribution,
-    Cooccurrence overlay).
+    Number of EDITORIAL edits witnessed per article (Phase 133) — how
+    many times the source actually changed the article body/headline
+    after publication, NOT how often the Internet Archive captured it.
+    Derived from aer_gold.article_revisions: a pair counts only when its
+    computed diff is a real content change (not the identical
+    re-archival sentinel and not a not-yet-diffed pending pair).
+    Observed states come from third-party Wayback CDX captures and
+    publisher-side republication-trigger signals (sitemap_lastmod ≥
+    REPUBLICATION_TRIGGER_MIN_DELTA_DAYS days after published_date);
+    these are OBSERVATION INSTRUMENTS, not the edits themselves — their
+    cadence bounds detection recall but is excluded from the metric. The
+    diff sweep is the sole writer; the value converges upward as more
+    pairs are classified.
   known_limitations:
-    - "Coverage is bounded by Internet-Archive snapshot frequency, which is publisher-dependent — a source IA does not regularly archive will appear to have lower revision_count than a heavily-archived source even when actual edit cadence is identical (WP-003 §5.3.1)."
-    - "republication_trigger rows depend on the publisher's sitemap-lastmod behaviour — publishers that never update lastmod produce no republication-trigger signal even when articles are silently re-listed."
-    - "The CDX `collapse=digest` projection deduplicates consecutive identical content hashes, so the count reflects content transitions, not raw archive captures."
-    - "Coverage gap signalling: a wayback_lookup_status of `failed` / `no_snapshots` / `disabled` produces zero revision_count rows — distinct from `we observed an unedited article` (chain_length=1). The dashboard must surface this distinction; see Phase 122d.2 / ADR-037 Silent-Edit NS-class."
-  extractor_version_hash: v1
+    - "Witnessed lower bound, sampling-limited: an edit is detected only when it changed the extracted text BETWEEN two captured states. Two edits between two captures read as one; an edit reverted before the next capture is invisible. The true edit count is ≥ the witnessed count."
+    - "Detection recall is bounded by Internet-Archive snapshot frequency (publisher-dependent) and by republication-trigger coverage (publishers that never update sitemap-lastmod emit no signal). This bounds RECALL of edits — it is deliberately NOT counted as edits."
+    - "Extraction-defined: an edit = a change in the trafilatura-extracted body/headline. Markup/ad/boilerplate changes that leave the extracted article unchanged are correctly NOT counted."
+    - "Coverage gap: a wayback_lookup_status of `failed` / `no_snapshots` / `disabled` yields no article_revisions rows, so the article has no revision_count datum at all — distinct from `0 edits witnessed`. The ADR-036 re-attempt loop heals `failed` lookups; the dashboard surfaces the gap (Silent-Edit NS-class)."
+  extractor_version_hash: v2
   wp_reference: WP-003 §5.3.1

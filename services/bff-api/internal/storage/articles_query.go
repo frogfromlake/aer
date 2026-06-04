@@ -10,13 +10,13 @@ import (
 
 // ArticleQueryFilter narrows the article-listing query.
 type ArticleQueryFilter struct {
-	Start          *time.Time
-	End            *time.Time
-	Language       *string
-	EntityMatch    *string
-	SentimentBand  *string // "negative" | "neutral" | "positive"
-	Limit          int
-	Offset         int
+	Start         *time.Time
+	End           *time.Time
+	Language      *string
+	EntityMatch   *string
+	SentimentBand *string // "negative" | "neutral" | "positive"
+	Limit         int
+	Offset        int
 	// Phase 122d.1 — opt in to per-row revision fields (chainLength,
 	// hasHeadlineChange, latestRevisionAt). Server-side cost is one
 	// extra `aer_gold.article_revisions` lookup per page; rows with
@@ -42,10 +42,14 @@ type ArticleAggRow struct {
 	// Phase 122d.1 — revision fields. Populated only when
 	// `ArticleQueryFilter.IncludeRevisions=true` AND the article has
 	// at least one row in `aer_gold.article_revisions`.
-	ChainLength       uint32
-	HasHeadlineChange bool
-	HasRevisions      bool
-	LatestRevisionAt  time.Time
+	// ChainLength is the raw Wayback CAPTURE count (coverage detail, not a
+	// revision count). EditorialChangeCount is the number of CONFIRMED
+	// editorial edits (Phase 133) — the only count surfaced as "revisions".
+	ChainLength          uint32
+	EditorialChangeCount uint32
+	HasHeadlineChange    bool
+	HasRevisions         bool
+	LatestRevisionAt     time.Time
 }
 
 // GetSourceArticles returns paginated articles for a source. Filters
@@ -188,6 +192,7 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 		}
 		if rev, ok := revisions[r.ArticleID]; ok {
 			row.ChainLength = rev.ChainLength
+			row.EditorialChangeCount = rev.EditorialChangeCount
 			row.HasHeadlineChange = rev.HasHeadlineChange
 			row.LatestRevisionAt = rev.LatestRevisionAt
 			row.HasRevisions = true
@@ -200,10 +205,11 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 // revisionAggRow is the per-article aggregate of
 // `aer_gold.article_revisions` used to decorate the article-list view.
 type revisionAggRow struct {
-	ArticleID         string    `ch:"article_id"`
-	ChainLength       uint32    `ch:"chain_length"`
-	HasHeadlineChange bool      `ch:"has_headline_change"`
-	LatestRevisionAt  time.Time `ch:"latest_revision_at"`
+	ArticleID            string    `ch:"article_id"`
+	ChainLength          uint32    `ch:"chain_length"`
+	EditorialChangeCount uint32    `ch:"editorial_change_count"`
+	HasHeadlineChange    bool      `ch:"has_headline_change"`
+	LatestRevisionAt     time.Time `ch:"latest_revision_at"`
 }
 
 func (s *ClickHouseStorage) lookupArticleRevisions(ctx context.Context, articleIDs []string) (map[string]revisionAggRow, error) {
@@ -214,6 +220,11 @@ func (s *ClickHouseStorage) lookupArticleRevisions(ctx context.Context, articleI
 		SELECT
 			article_id,
 			toUInt32(count())              AS chain_length,
+			toUInt32(countIf(
+				(length(diff_paragraphs) > 0
+				 AND NOT arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs))
+				OR headline_changed
+			))                             AS editorial_change_count,
 			countIf(headline_changed) > 0  AS has_headline_change,
 			max(snapshot_at)               AS latest_revision_at
 		FROM aer_gold.article_revisions FINAL

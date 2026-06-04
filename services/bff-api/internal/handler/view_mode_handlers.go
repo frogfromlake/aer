@@ -214,6 +214,8 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	resp.Summary.P25 = res.Summary.P25
 	resp.Summary.P75 = res.Summary.P75
 	resp.Summary.P95 = res.Summary.P95
+	resp.ClampedUpper = res.ClampedUpper
+	resp.OverflowCount = res.OverflowCount
 
 	// segmentBy: build per-segment streams when requested.
 	if request.Params.SegmentBy != nil {
@@ -799,13 +801,13 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		LabeledNodeCount: &labeledNodeCount,
 	}
 	resp.Edges = make([]struct {
-		A            string  `json:"a"`
-		ALabel       *string `json:"aLabel,omitempty"`
-		ArticleCount int64   `json:"articleCount"`
-		B            string  `json:"b"`
-		BLabel       *string `json:"bLabel,omitempty"`
+		A            string    `json:"a"`
+		ALabel       *string   `json:"aLabel,omitempty"`
+		ArticleCount int64     `json:"articleCount"`
+		B            string    `json:"b"`
+		BLabel       *string   `json:"bLabel,omitempty"`
 		Presence     *[]string `json:"presence,omitempty"`
-		Weight       int64   `json:"weight"`
+		Weight       int64     `json:"weight"`
 	}, len(res.Edges))
 	for i, e := range res.Edges {
 		var aLabel, bLabel *string
@@ -823,13 +825,13 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 			presence = &p
 		}
 		resp.Edges[i] = struct {
-			A            string  `json:"a"`
-			ALabel       *string `json:"aLabel,omitempty"`
-			ArticleCount int64   `json:"articleCount"`
-			B            string  `json:"b"`
-			BLabel       *string `json:"bLabel,omitempty"`
+			A            string    `json:"a"`
+			ALabel       *string   `json:"aLabel,omitempty"`
+			ArticleCount int64     `json:"articleCount"`
+			B            string    `json:"b"`
+			BLabel       *string   `json:"bLabel,omitempty"`
 			Presence     *[]string `json:"presence,omitempty"`
-			Weight       int64   `json:"weight"`
+			Weight       int64     `json:"weight"`
 		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Presence: presence, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
@@ -1067,13 +1069,13 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		LabeledNodeCount: &labeledNodeCount,
 	}
 	resp.Edges = make([]struct {
-		A            string  `json:"a"`
-		ALabel       *string `json:"aLabel,omitempty"`
-		ArticleCount int64   `json:"articleCount"`
-		B            string  `json:"b"`
-		BLabel       *string `json:"bLabel,omitempty"`
+		A            string    `json:"a"`
+		ALabel       *string   `json:"aLabel,omitempty"`
+		ArticleCount int64     `json:"articleCount"`
+		B            string    `json:"b"`
+		BLabel       *string   `json:"bLabel,omitempty"`
 		Presence     *[]string `json:"presence,omitempty"`
-		Weight       int64   `json:"weight"`
+		Weight       int64     `json:"weight"`
 	}, len(res.Edges))
 	for i, e := range res.Edges {
 		var aLabel, bLabel *string
@@ -1091,13 +1093,13 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 			presence = &p
 		}
 		resp.Edges[i] = struct {
-			A            string  `json:"a"`
-			ALabel       *string `json:"aLabel,omitempty"`
-			ArticleCount int64   `json:"articleCount"`
-			B            string  `json:"b"`
-			BLabel       *string `json:"bLabel,omitempty"`
+			A            string    `json:"a"`
+			ALabel       *string   `json:"aLabel,omitempty"`
+			ArticleCount int64     `json:"articleCount"`
+			B            string    `json:"b"`
+			BLabel       *string   `json:"bLabel,omitempty"`
 			Presence     *[]string `json:"presence,omitempty"`
-			Weight       int64   `json:"weight"`
+			Weight       int64     `json:"weight"`
 		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Presence: presence, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {

@@ -22,6 +22,7 @@
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import { type ExportRow, type ExportPayload } from '$lib/viewmodes/cell-export';
   import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import { isIntegerMetric } from '$lib/viewmodes/metric-presentation';
   import {
     fmtValue,
     markIndexFromEvent,
@@ -66,6 +67,27 @@
     (GOLD_TO_SILVER[metricName] as SilverAggregationType | undefined) ?? 'word_count'
   );
 
+  // Phase 133 A — integer-valued metrics (counts, cyclic ordinals) render
+  // their histogram bin edges + axis ticks as integers. The equal-width bins
+  // otherwise land on fractional boundaries (e.g. `34.133`) that are
+  // meaningless for an integer quantity and misread as `34133` by a reader
+  // using "." as a thousands separator. The article `count` is unaffected.
+  const integerValued = $derived(
+    isIntegerMetric(dataLayer === 'silver' ? silverAggType : metricName)
+  );
+
+  /** Bin-range readout label. For integer metrics the fractional binning
+   *  boundary is rounded to the integer it brackets; a bin that collapses to
+   *  a single integer (sub-unit bin width) shows that one value. */
+  function fmtBinRange(lower: number, upper: number): string {
+    if (integerValued) {
+      const lo = Math.round(lower);
+      const hi = Math.round(upper);
+      return lo === hi ? String(lo) : `${lo} – ${hi}`;
+    }
+    return `${fmtValue(lower)} – ${fmtValue(upper)}`;
+  }
+
   const distQ = createQuery<
     QueryOutcome<DistributionResponseDto>,
     Error,
@@ -105,14 +127,30 @@
     };
   });
 
-  // Normalised distribution data regardless of layer.
+  // Normalised distribution data regardless of layer. `clampedUpper` /
+  // `overflowCount` are the Phase-133-B outlier-robust binning disclosure
+  // (Gold only — the Silver aggregation path carries neither, so its bins
+  // are unclamped).
   let activeDist = $derived.by(() => {
     if (dataLayer === 'silver') {
       if (silverDistQ.data?.kind !== 'success') return null;
-      return silverDistQ.data.data.distribution ?? null;
+      const d = silverDistQ.data.data.distribution ?? null;
+      if (!d) return null;
+      return {
+        bins: d.bins,
+        summary: d.summary,
+        clampedUpper: null as number | null,
+        overflowCount: 0
+      };
     }
     if (distQ.data?.kind !== 'success') return null;
-    return { bins: distQ.data.data.bins, summary: distQ.data.data.summary };
+    const d = distQ.data.data;
+    return {
+      bins: d.bins,
+      summary: d.summary,
+      clampedUpper: d.clampedUpper as number | null,
+      overflowCount: d.overflowCount
+    };
   });
 
   let isPending = $derived(dataLayer === 'silver' ? silverDistQ.isPending : distQ.isPending);
@@ -132,12 +170,63 @@
   );
 
   // Phase 124 — report the value-axis extent so PanelHost can union it into
-  // the shared domain. The summary min/max IS this cell's metric-axis extent.
+  // the shared domain. Report the ROBUST upper bound (clampedUpper), not the
+  // raw max, so one cell's outlier does not stretch every shared-axis cell
+  // (Phase 133 B).
   $effect(() => {
     if (!reportExtent) return;
     const d = activeDist;
-    if (d && d.summary.count > 0) reportExtent('value', [d.summary.min, d.summary.max]);
+    if (d && d.summary.count > 0)
+      reportExtent('value', [d.summary.min, d.clampedUpper ?? d.summary.max]);
     else reportExtent('value', null);
+  });
+
+  // Whether a shared (union) x-axis is in force (Phase 124). When it is,
+  // the visible domain spans every cell's extent, so a per-cell overflow
+  // bar drawn just past THIS cell's robust bound would land mid-range and
+  // read as a normal in-range bar contradicting its "above the bound"
+  // caption (Issue 1). Under a shared axis we therefore disclose the
+  // overflow only in the caption, not as a bar.
+  const sharedXActive = $derived(!!sharedDomains?.value);
+
+  // Histogram rows = in-range bins + one explicit overflow bar (Phase
+  // 133 B) when the domain was clamped, values fell beyond it, AND the
+  // axis is per-cell (free). The bar sits one bin-width past
+  // `clampedUpper`, styled distinctly; its count is never folded silently
+  // into the last bin (the caption always discloses it).
+  const plotRows = $derived.by(() => {
+    const d = activeDist;
+    if (!d)
+      return [] as Array<{
+        center: number;
+        width: number;
+        lower: number;
+        upper: number;
+        count: number;
+        overflow: boolean;
+      }>;
+    const rows = d.bins.map((b) => ({
+      center: (b.lower + b.upper) / 2,
+      width: b.upper - b.lower,
+      lower: b.lower,
+      upper: b.upper,
+      count: b.count,
+      overflow: false
+    }));
+    const cu = d.clampedUpper;
+    const last = rows[rows.length - 1];
+    if (d.overflowCount > 0 && cu != null && last && !sharedXActive) {
+      const w = last.width || 1;
+      rows.push({
+        center: cu + w / 2,
+        width: w,
+        lower: cu,
+        upper: d.summary.max,
+        count: d.overflowCount,
+        overflow: true
+      });
+    }
+    return rows;
   });
 
   let host: HTMLDivElement | undefined = $state();
@@ -146,6 +235,7 @@
 
   $effect(() => {
     const data = activeDist;
+    const rows = plotRows;
     // Phase 124 — when the panel is on a shared axis, apply the union domain
     // to x so identical values plot at identical positions across cells.
     const sharedX = sharedDomains?.value;
@@ -154,25 +244,29 @@
     (async () => {
       const Plot = await import('@observablehq/plot');
       if (!host || token !== renderToken) return;
-      const rows = data.bins.map((b) => ({
-        center: (b.lower + b.upper) / 2,
-        width: b.upper - b.lower,
-        count: b.count
-      }));
       const next = Plot.plot({
         width: host.clientWidth,
         height: 220,
         marginLeft: 56,
         marginBottom: 36,
-        x: { label: metricName, grid: false, ...(sharedX ? { domain: [...sharedX] } : {}) },
-        y: { label: 'count', grid: true },
+        x: {
+          label: metricName,
+          grid: false,
+          ...(integerValued ? { tickFormat: 'd' } : {}),
+          ...(sharedX ? { domain: [...sharedX] } : {})
+        },
+        y: { label: 'articles', grid: true, tickFormat: 'd' },
         marks: [
           Plot.rectY(rows, {
             x1: (d: { center: number; width: number }) => d.center - d.width / 2,
             x2: (d: { center: number; width: number }) => d.center + d.width / 2,
             y: 'count',
-            fill: 'rgba(82, 131, 184, 0.55)',
-            stroke: 'rgba(82, 131, 184, 0.95)'
+            // Overflow bar (values above the robust upper bound) gets a
+            // distinct amber fill so it never reads as an ordinary bin.
+            fill: (d: { overflow: boolean }) =>
+              d.overflow ? 'rgba(232, 168, 80, 0.45)' : 'rgba(82, 131, 184, 0.55)',
+            stroke: (d: { overflow: boolean }) =>
+              d.overflow ? 'rgba(232, 168, 80, 0.95)' : 'rgba(82, 131, 184, 0.95)'
           }),
           Plot.ruleX([data.summary.median], { stroke: '#e0a050', strokeWidth: 1.5 }),
           Plot.ruleX([data.summary.p25, data.summary.p75], {
@@ -204,25 +298,28 @@
 
   // Phase 132 — exact-value hover readout. The histogram's only <rect>
   // marks are the bars (the median/quartile rules are <line>s), and
-  // `Plot.rectY` renders one rect per bin in input order, so the
-  // DOM-order index maps directly onto `activeDist.bins`.
+  // `Plot.rectY` renders one rect per bar in input order, so the
+  // DOM-order index maps directly onto `plotRows` (bins + overflow).
   let readout = $state<ReadoutState>(HIDDEN_READOUT);
   function onPlotMove(ev: MouseEvent): void {
-    const bins = activeDist?.bins;
+    const rows = plotRows;
     const idx = markIndexFromEvent(ev.target, 'rect');
-    if (idx === null || !bins || !bins[idx]) {
+    if (idx === null || !rows[idx]) {
       readout = HIDDEN_READOUT;
       return;
     }
-    const b = bins[idx];
+    const b = rows[idx];
     readout = {
       visible: true,
       x: ev.clientX,
       y: ev.clientY,
       title: exportMetricName,
       rows: [
-        { label: 'range', value: `${fmtValue(b.lower)} – ${fmtValue(b.upper)}` },
-        { label: 'count', value: fmtValue(b.count) }
+        {
+          label: 'range',
+          value: b.overflow ? `> ${fmtBinRange(b.lower, b.lower)}` : fmtBinRange(b.lower, b.upper)
+        },
+        { label: 'articles', value: fmtValue(b.count) }
       ]
     };
   }
@@ -316,6 +413,16 @@
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
+    {#if activeDist.overflowCount > 0 && activeDist.clampedUpper != null}
+      <p class="overflow-note">
+        Binned up to {fmtBinRange(activeDist.clampedUpper, activeDist.clampedUpper)} (robust upper bound)
+        so outliers don't flatten the shape ·
+        <strong>{fmtValue(activeDist.overflowCount)}</strong>
+        article{activeDist.overflowCount === 1 ? '' : 's'} above it{sharedXActive
+          ? ''
+          : ' (amber bar)'} · true max {fmt(activeDist.summary.max)}
+      </p>
+    {/if}
     <dl class="summary" aria-label="Quantile summary">
       <div>
         <dt>n</dt>
@@ -402,6 +509,17 @@
   .plot-host {
     width: 100%;
     min-height: 220px;
+  }
+
+  .overflow-note {
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+  }
+
+  .overflow-note strong {
+    color: rgba(232, 168, 80, 0.95);
   }
 
   /* Plot's default text fills are dark; coerce to muted on the AĒR theme. */

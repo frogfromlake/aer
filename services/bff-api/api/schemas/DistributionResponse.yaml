@@ -7,6 +7,8 @@ required:
   - metricName
   - bins
   - summary
+  - clampedUpper
+  - overflowCount
 properties:
   metricName:
     type: string
@@ -27,9 +29,29 @@ properties:
     format: date-time
     nullable: true
     description: Resolved upper window bound; null when unbounded.
+  clampedUpper:
+    type: number
+    format: double
+    description: >
+      Upper bound of the histogram bin domain. Equals `summary.max` when no
+      outliers were detected; otherwise the Tukey upper fence
+      (p75 + 1.5·IQR), with values above it diverted into `overflowCount` so
+      a single extreme value cannot collapse the visible distribution into
+      one bar (Phase 133 B). The `summary` still reports the true max.
+  overflowCount:
+    type: integer
+    format: int64
+    minimum: 0
+    description: >
+      Number of articles whose value exceeds `clampedUpper`. Zero when the
+      distribution was not clamped. Disclosed so the robust clamp is never a
+      silent truncation.
   bins:
     type: array
-    description: Histogram bins ordered ascending by `lower`.
+    description: >
+      Histogram bins ordered ascending by `lower`, spanning `[summary.min,
+      clampedUpper]`. Values above `clampedUpper` are NOT in these bins —
+      see `overflowCount`.
     items:
       type: object
       required: [lower, upper, count]

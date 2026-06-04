@@ -3,35 +3,36 @@ entityType: refusal
 locale: en
 registers:
   semantic:
-    short: "Layer 5 access to source-level detail requires a minimum number of observations to protect against re-identification and observer-effect distortion."
+    short: "Reading this article's full text requires enough same-day articles from the source to keep an individual unidentifiable. The gate applies only to corpora where a person could be re-identified — public institutional publishers are exempt."
     long: >
-      You requested a view that would expose individual-source detail at a resolution finer
-      than AĒR's privacy and reflexivity thresholds allow. This is not a technical limit —
-      it is a principled one. When an observation context contains too few sources or articles,
-      showing per-source breakdowns creates two problems: first, individual authors or sources
-      become effectively re-identifiable, which AĒR's observer-effect commitments (WP-006)
-      prohibit; second, aggregate metrics become dominated by individual outliers, making
-      them statistically unreliable. The system protects you from drawing conclusions from
-      data that cannot support them. To unlock Layer 5 access, increase the time range to
-      accumulate more observations, or wait until more sources are active in this probe context.
+      You requested the full text of an individual article. For corpora where an author
+      could be re-identified, AĒR withholds it until the article sits within a large enough
+      group of same-day articles from the same source — too small a group could let an
+      adversary with outside knowledge single out a specific author. This is a principled
+      limit, not a technical one (WP-006 §7). It is scoped to where it matters: a PUBLIC
+      institutional publisher — a government press office, a newsroom with a public article
+      URL — is exempt, because the text is already public and the "author" is an institution,
+      not a private individual. For gated corpora, widen the time range to accumulate more
+      same-day articles, or use the always-available aggregate views.
   methodological:
-    short: "HTTP 403: k-anonymity threshold not met for this query scope. WP-006 §7 gate. Increase time range or source count to unlock. No individual-article data exposed."
+    short: "HTTP 403: k-anonymity gate (WP-006 §7). Counts articles in the (source, metric, day) aggregation group, not unique sources. Corpus-class scoped — public institutional sources are exempt. No individual-article data exposed."
     long: >
-      This refusal is triggered when a Layer 5 descent request (individual source-level detail)
-      is made for a query scope where the number of contributing sources k < k_min, as defined
-      in WP-006 §7 (Observer Effect & Reflexivity). The threshold is a configurable system
-      parameter (default: k_min = 5 unique sources per context window). The gate exists because
-      AĒR's observer-effect commitments forbid exposing individual-source resolution when the
-      anonymization set is too small — an adversary with external knowledge could re-identify
-      specific authors, editors, or institutional actors. The threshold also serves a statistical
-      purpose: at low k, aggregate metrics (means, distributions) are dominated by single-source
-      variance and are not meaningful population estimates. The gate is enforced server-side by
-      the BFF; it cannot be bypassed by the frontend. Resolution: expand the time range
-      (increasing the observation count), wait for additional sources to be ingested, or
-      accept Layer 3–4 aggregate views which are always available. WP-006 §7 documents the
-      exact threshold formula and the privacy rationale.
-contentVersion: "v2026-04-a"
+      This refusal fires when a Layer 5 read (individual article detail) is requested and the
+      article's aggregation group — the distinct articles sharing its (source, metric, UTC-day)
+      key in `aer_gold.metrics` — holds fewer than k_min documents (configurable; default 10).
+      It counts ARTICLES in that group, not unique sources. The gate exists because exposing
+      individual-article text from too small a group could let an adversary with external
+      knowledge re-identify a specific author. As of Phase 133 the gate is SCOPED BY CORPUS
+      CLASS: sources in a public-institutional class (`institutional-web` — government press
+      offices, newsrooms with public canonical URLs) are exempt (effective k_min = 1), since
+      their text is already public and authorship is institutional, not individual. The gate
+      stays in full force for classes where individuals could be deanonymised (social media,
+      user-generated content), added later. It is enforced server-side by the BFF and cannot
+      be bypassed by the frontend. Resolution for gated corpora: widen the time range to
+      accumulate more same-day articles, or use the Layer 3–4 aggregate views, always
+      available. WP-006 §7 documents the rationale and the corpus-class scoping.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-04-19"
+lastReviewedDate: "2026-06-04"
 workingPaperAnchors:
   - "WP-006 §7"

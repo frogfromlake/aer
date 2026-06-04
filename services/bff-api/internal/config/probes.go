@@ -51,6 +51,35 @@ func (e ProbeEntry) Short() string {
 	return e.Display()
 }
 
+// CorpusClass extracts the corpus-class suffix from the probeId, whose
+// convention is `probe-<n>-<iso2>-<corpus-class>` (e.g.
+// `probe-0-de-institutional-web` → `institutional-web`). Returns "" when the
+// id does not follow the convention.
+func (e ProbeEntry) CorpusClass() string {
+	parts := strings.SplitN(e.ProbeID, "-", 4)
+	if len(parts) < 4 {
+		return ""
+	}
+	return parts[3]
+}
+
+// publicCorpusClasses are corpus classes whose sources are PUBLIC
+// institutional publishers (government press offices, newsrooms) with public
+// canonical URLs. For these the L5 k-anonymity gate (WP-006 §7) is not
+// meaningful — the article text is already public and the "author" is an
+// institution, not a re-identifiable individual. The gate stays in force for
+// classes where individuals could be deanonymised (social media,
+// user-generated content), added later. See WP-006 §7 (Phase 133).
+var publicCorpusClasses = map[string]bool{
+	"institutional-web": true,
+}
+
+// IsPublicCorpusClass reports whether the corpus class is a public
+// institutional publisher class exempt from the L5 k-anonymity gate.
+func IsPublicCorpusClass(class string) bool {
+	return publicCorpusClasses[class]
+}
+
 // ProbeRegistry is the in-memory registry keyed by probeId.
 type ProbeRegistry map[string]ProbeEntry
 

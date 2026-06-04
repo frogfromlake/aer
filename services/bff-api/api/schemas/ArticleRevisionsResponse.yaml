@@ -43,6 +43,7 @@ properties:
         - contentHash
         - revisionIndex
         - trigger
+        - diffStatus
       properties:
         snapshotAt:
           type: string
@@ -81,3 +82,19 @@ properties:
             Internet Archive playback URL for CDX snapshots. Empty
             string for republication-trigger rows (no archive page
             exists yet).
+        diffStatus:
+          type: string
+          enum: [changed, identical, pending]
+          description: >
+            Editorial status of the diff for the pair ending at THIS
+            revision (revisionIndex-1 → revisionIndex; for the chain
+            head, current article body → this snapshot). `changed` =
+            paragraph-level or headline edits were detected; `identical`
+            = both snapshots parse to the same article body after
+            extraction (a re-archival without an editorial change);
+            `pending` = the background diff sweep has not yet computed
+            this pair. Lets the L5 reader step the slider over only the
+            editorial versions and disclose how many captures were
+            identical re-archivals (Phase 133 — derived from
+            `aer_gold.article_revisions.diff_paragraphs`, no extra
+            query).

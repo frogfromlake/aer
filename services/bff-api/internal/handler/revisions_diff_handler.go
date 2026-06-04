@@ -114,11 +114,14 @@ func (s *Server) GetArticleRevisionDiff(
 		opShapes = append(opShapes, opShape)
 	}
 
-	// BUG-11 pair-kind: revisionIndex=0 is chain_head (Silver-now →
-	// Wayback[0]); otherwise mid_chain.
-	pairKind := ChainHead
-	if row.RevisionIndex > 0 {
-		pairKind = MidChain
+	// Pair-kind: a chain HEAD has no predecessor row in article_revisions
+	// (the LEFT JOIN to revision_index-1 found nothing → zero before-time).
+	// Keying on "no predecessor" rather than `revisionIndex == 0` is robust
+	// to offset chains whose head index is not 0 (Phase 133). The head row
+	// carries the `newest-snapshot → current article` diff.
+	pairKind := MidChain
+	if row.SnapshotAtBefore.IsZero() {
+		pairKind = ChainHead
 	}
 
 	resp := GetArticleRevisionDiff200JSONResponse{
@@ -223,20 +226,22 @@ func (s *Server) GetRevisionsArticles(
 	}
 	for _, r := range rows {
 		item := struct {
-			ArticleId         string     `json:"articleId"`
-			ChainLength       int        `json:"chainLength"`
-			HasHeadlineChange bool       `json:"hasHeadlineChange"`
-			Language          *string    `json:"language,omitempty"`
-			LatestRevisionAt  *time.Time `json:"latestRevisionAt,omitempty"`
-			Source            string     `json:"source"`
-			Timestamp         time.Time  `json:"timestamp"`
-			WordCount         *int       `json:"wordCount,omitempty"`
+			ArticleId            string     `json:"articleId"`
+			ChainLength          int        `json:"chainLength"`
+			EditorialChangeCount int        `json:"editorialChangeCount"`
+			HasHeadlineChange    bool       `json:"hasHeadlineChange"`
+			Language             *string    `json:"language,omitempty"`
+			LatestRevisionAt     *time.Time `json:"latestRevisionAt,omitempty"`
+			Source               string     `json:"source"`
+			Timestamp            time.Time  `json:"timestamp"`
+			WordCount            *int       `json:"wordCount,omitempty"`
 		}{
-			ArticleId:         r.ArticleID,
-			Source:            r.Source,
-			Timestamp:         r.Timestamp,
-			ChainLength:       int(r.ChainLength), //nolint:gosec // bounded
-			HasHeadlineChange: r.HasHeadlineChange,
+			ArticleId:            r.ArticleID,
+			Source:               r.Source,
+			Timestamp:            r.Timestamp,
+			ChainLength:          int(r.ChainLength),          //nolint:gosec // bounded
+			EditorialChangeCount: int(r.EditorialChangeCount), //nolint:gosec // bounded
+			HasHeadlineChange:    r.HasHeadlineChange,
 		}
 		if r.Language != "" {
 			lang := r.Language
@@ -254,14 +259,15 @@ func (s *Server) GetRevisionsArticles(
 	}
 	if page.Items == nil {
 		page.Items = []struct {
-			ArticleId         string     `json:"articleId"`
-			ChainLength       int        `json:"chainLength"`
-			HasHeadlineChange bool       `json:"hasHeadlineChange"`
-			Language          *string    `json:"language,omitempty"`
-			LatestRevisionAt  *time.Time `json:"latestRevisionAt,omitempty"`
-			Source            string     `json:"source"`
-			Timestamp         time.Time  `json:"timestamp"`
-			WordCount         *int       `json:"wordCount,omitempty"`
+			ArticleId            string     `json:"articleId"`
+			ChainLength          int        `json:"chainLength"`
+			EditorialChangeCount int        `json:"editorialChangeCount"`
+			HasHeadlineChange    bool       `json:"hasHeadlineChange"`
+			Language             *string    `json:"language,omitempty"`
+			LatestRevisionAt     *time.Time `json:"latestRevisionAt,omitempty"`
+			Source               string     `json:"source"`
+			Timestamp            time.Time  `json:"timestamp"`
+			WordCount            *int       `json:"wordCount,omitempty"`
 		}{}
 	}
 	return page, nil

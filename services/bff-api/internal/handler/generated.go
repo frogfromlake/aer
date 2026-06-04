@@ -89,6 +89,27 @@ func (e ArticleRevisionsResponseLookupStatus) Valid() bool {
 	}
 }
 
+// Defines values for ArticleRevisionsResponseRevisionsDiffStatus.
+const (
+	Changed   ArticleRevisionsResponseRevisionsDiffStatus = "changed"
+	Identical ArticleRevisionsResponseRevisionsDiffStatus = "identical"
+	Pending   ArticleRevisionsResponseRevisionsDiffStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ArticleRevisionsResponseRevisionsDiffStatus enum.
+func (e ArticleRevisionsResponseRevisionsDiffStatus) Valid() bool {
+	switch e {
+	case Changed:
+		return true
+	case Identical:
+		return true
+	case Pending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArticleRevisionsResponseRevisionsTrigger.
 const (
 	CdxSnapshot          ArticleRevisionsResponseRevisionsTrigger = "cdx_snapshot"
@@ -956,6 +977,9 @@ type ArticleRevisionsResponse struct {
 		// ContentHash Content-body digest at this snapshot. For CDX snapshots, the value the Wayback Machine recorded (SHA-1 hex). For republication-trigger rows, the SHA-1 of the current cleaned-text.
 		ContentHash string `json:"contentHash"`
 
+		// DiffStatus Editorial status of the diff for the pair ending at THIS revision (revisionIndex-1 → revisionIndex; for the chain head, current article body → this snapshot). `changed` = paragraph-level or headline edits were detected; `identical` = both snapshots parse to the same article body after extraction (a re-archival without an editorial change); `pending` = the background diff sweep has not yet computed this pair. Lets the L5 reader step the slider over only the editorial versions and disclose how many captures were identical re-archivals (Phase 133 — derived from `aer_gold.article_revisions.diff_paragraphs`, no extra query).
+		DiffStatus ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
+
 		// PrevContentHash `contentHash` of the immediately preceding entry, or empty string for the chain head.
 		PrevContentHash *string `json:"prevContentHash,omitempty"`
 
@@ -979,6 +1003,9 @@ type ArticleRevisionsResponse struct {
 // ArticleRevisionsResponseLookupStatus Wayback CDX coverage signal for THIS article. `ok` = ≥ 1 CDX snapshot was captured; `no_snapshots` = the URL is not yet archived; `failed` = the lookup attempted but errored (timeout, rate-limit, network); `skipped` = canonical URL missing; `disabled` = the worker had the CDX integration off; empty string = pre-Phase-122d.0 data with no provenance recorded.
 type ArticleRevisionsResponseLookupStatus string
 
+// ArticleRevisionsResponseRevisionsDiffStatus Editorial status of the diff for the pair ending at THIS revision (revisionIndex-1 → revisionIndex; for the chain head, current article body → this snapshot). `changed` = paragraph-level or headline edits were detected; `identical` = both snapshots parse to the same article body after extraction (a re-archival without an editorial change); `pending` = the background diff sweep has not yet computed this pair. Lets the L5 reader step the slider over only the editorial versions and disclose how many captures were identical re-archivals (Phase 133 — derived from `aer_gold.article_revisions.diff_paragraphs`, no extra query).
+type ArticleRevisionsResponseRevisionsDiffStatus string
+
 // ArticleRevisionsResponseRevisionsTrigger Which mechanism produced this row.
 type ArticleRevisionsResponseRevisionsTrigger string
 
@@ -990,8 +1017,11 @@ type ArticlesPage struct {
 		// ArticleId SHA-256 hash of source + bronze_object_key (worker-derived).
 		ArticleId string `json:"articleId"`
 
-		// ChainLength Phase 122d.1 — number of revisions detected for this article (sum of CDX snapshots + republication-trigger rows). Only present when the request opts in via `?includeRevisions=true`. Null when the article has no revisions in `aer_gold.article_revisions`.
+		// ChainLength Number of archived CAPTURES detected for this article (Wayback CDX snapshots + republication triggers) — a coverage/tooling count, NOT a revision count (most captures are identical re-archivals). Only present when the request opts in via `?includeRevisions=true`. For "how often the article was actually edited", use `editorialChangeCount`.
 		ChainLength *int `json:"chainLength,omitempty"`
+
+		// EditorialChangeCount Phase 133 — number of CONFIRMED editorial changes for this article (content/headline changed between consecutive observed states, incl. newest-snapshot → current). This is the only count surfaced as "revisions". 0 = observed but never edited. Only present when the request opts in via `?includeRevisions=true`.
+		EditorialChangeCount *int `json:"editorialChangeCount,omitempty"`
 
 		// HasHeadlineChange Phase 122d.1 — true iff at least one revision in this article's chain reports `headline_changed=true`. Only present when the request opts in via `?includeRevisions=true`.
 		HasHeadlineChange *bool `json:"hasHeadlineChange,omitempty"`
@@ -1421,8 +1451,11 @@ type RevisionsArticlesPage struct {
 	Items   []struct {
 		ArticleId string `json:"articleId"`
 
-		// ChainLength Total revisions detected for this article in the window.
+		// ChainLength Total archived CAPTURES detected for this article in the window (Wayback CDX snapshots + republication triggers). This is a tooling/coverage count — most captures are identical re-archivals, NOT source edits. For "how often was the article actually changed", use `editorialChangeCount`.
 		ChainLength int `json:"chainLength"`
+
+		// EditorialChangeCount Number of captures whose content differs editorially from the previous one (paragraph/headline change after extraction) — i.e. how many times the source actually revised the article, as witnessed. Excludes identical re-archivals. A lower bound while some pairs are still being diffed (Phase 133).
+		EditorialChangeCount int `json:"editorialChangeCount"`
 
 		// HasHeadlineChange True iff at least one revision in the chain reports `headline_changed=true`.
 		HasHeadlineChange bool    `json:"hasHeadlineChange"`
@@ -5672,7 +5705,7 @@ type GetMetricDistributionResponseObject interface {
 }
 
 type GetMetricDistribution200JSONResponse struct {
-	// Bins Histogram bins ordered ascending by `lower`.
+	// Bins Histogram bins ordered ascending by `lower`, spanning `[summary.min, clampedUpper]`. Values above `clampedUpper` are NOT in these bins — see `overflowCount`.
 	Bins []struct {
 		Count int64 `json:"count"`
 
@@ -5683,8 +5716,14 @@ type GetMetricDistribution200JSONResponse struct {
 		Upper float64 `json:"upper"`
 	} `json:"bins"`
 
+	// ClampedUpper Upper bound of the histogram bin domain. Equals `summary.max` when no outliers were detected; otherwise the Tukey upper fence (p75 + 1.5·IQR), with values above it diverted into `overflowCount` so a single extreme value cannot collapse the visible distribution into one bar (Phase 133 B). The `summary` still reports the true max.
+	ClampedUpper float64 `json:"clampedUpper"`
+
 	// MetricName The metric name that was queried.
 	MetricName string `json:"metricName"`
+
+	// OverflowCount Number of articles whose value exceeds `clampedUpper`. Zero when the distribution was not clamped. Disclosed so the robust clamp is never a silent truncation.
+	OverflowCount int64 `json:"overflowCount"`
 
 	// Scope The resolved scope (`probe` or `source`).
 	Scope *string `json:"scope,omitempty"`

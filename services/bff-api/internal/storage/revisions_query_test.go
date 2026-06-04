@@ -18,30 +18,41 @@ import (
 // dashboard revision counts that rise then fall). This test writes the same
 // revision tuple twice under different versions and asserts it is counted
 // exactly once.
+//
+// Phase 133 — the activity count is now EDITORIAL CHANGES, not raw captures:
+// a row counts only when its `diff_paragraphs` is a real change (not the
+// `identical` re-archival sentinel and not empty/pending). The test seeds
+// change-diffs on the counted rows and an identical re-archival that must be
+// excluded.
 func TestGetRevisionActivity_CollapsesReattemptVersions(t *testing.T) {
 	store, ctx := setupTestStore(t)
 
 	snap := time.Date(2026, 5, 20, 9, 0, 0, 0, time.UTC)
+	changeDiff := []string{`{"op": "mod", "before": "a", "after": "b"}`}
+	identicalDiff := []string{`{"op": "identical"}`}
 
-	insert := func(snapshotAt time.Time, hash string, version uint64) {
+	insert := func(snapshotAt time.Time, hash string, version uint64, diff []string) {
 		t.Helper()
 		err := store.conn.Exec(ctx, `
 			INSERT INTO aer_gold.article_revisions
-				(article_id, source, snapshot_at, content_hash, revision_trigger, ingestion_version)
-			VALUES (?, ?, ?, ?, ?, ?)`,
-			"art-1", "elysee", snapshotAt, hash, "cdx_snapshot", version)
+				(article_id, source, snapshot_at, content_hash, revision_trigger, ingestion_version, diff_paragraphs)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			"art-1", "elysee", snapshotAt, hash, "cdx_snapshot", version, diff)
 		if err != nil {
 			t.Fatalf("insert revision (%s, v%d): %v", hash, version, err)
 		}
 	}
 
-	// Same revision tuple written twice — exactly what the re-attempt loop does
-	// when it re-heals "art-1". FINAL must collapse these to ONE.
-	insert(snap, "deadbeef", 1000)
-	insert(snap, "deadbeef", 2000)
-	// A second, genuinely distinct revision of the same article (single
-	// version). The true revision count for the article is therefore 2.
-	insert(snap.Add(time.Hour), "cafef00d", 1500)
+	// Same editorial-change tuple written twice — exactly what the re-attempt
+	// loop does when it re-heals "art-1". FINAL must collapse these to ONE.
+	insert(snap, "deadbeef", 1000, changeDiff)
+	insert(snap, "deadbeef", 2000, changeDiff)
+	// A second, genuinely distinct editorial change of the same article. The
+	// true editorial-revision count for the article is therefore 2.
+	insert(snap.Add(time.Hour), "cafef00d", 1500, changeDiff)
+	// An identical re-archival — a capture with no editorial change. It must
+	// NOT be counted as a revision (Phase 133 edits-only semantics).
+	insert(snap.Add(2*time.Hour), "f00dface", 1500, identicalDiff)
 
 	start := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -55,15 +66,16 @@ func TestGetRevisionActivity_CollapsesReattemptVersions(t *testing.T) {
 	if len(cells) != 1 {
 		t.Fatalf("want 1 (source, bucket) cell, got %d", len(cells))
 	}
-	// 2 distinct revisions — the double-versioned tuple counted once, plus the
-	// distinct second tuple. Without FINAL this would be 3.
+	// 2 editorial revisions — the double-versioned change counted once (FINAL),
+	// plus the distinct second change. The identical re-archival is excluded;
+	// without FINAL the deduped change would also double-count to 3.
 	if cells[0].Revisions != 2 {
-		t.Errorf("revisions: want 2 (duplicate ingestion_versions collapsed), got %d", cells[0].Revisions)
+		t.Errorf("revisions: want 2 (edits only, duplicate versions collapsed, identical excluded), got %d", cells[0].Revisions)
 	}
 	if cells[0].ArticlesAffected != 1 {
 		t.Errorf("articles_affected: want 1, got %d", cells[0].ArticlesAffected)
 	}
 	if cells[0].CdxSnapshotCount != 2 {
-		t.Errorf("cdx_snapshot_count: want 2, got %d", cells[0].CdxSnapshotCount)
+		t.Errorf("cdx_snapshot_count: want 2 (edit rows via cdx), got %d", cells[0].CdxSnapshotCount)
 	}
 }

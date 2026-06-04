@@ -80,3 +80,34 @@ const PURE_COUNT_METRICS: ReadonlySet<string> = new Set([
 export function isPureCountMetric(metricName: string): boolean {
   return PURE_COUNT_METRICS.has(metricName);
 }
+
+// ---------------------------------------------------------------------------
+// Integer-valued classification — display formatting (Phase 133 A).
+//
+// Some metrics carry an integer per article (counts, cyclic ordinals); the
+// rest are continuous (sentiment averages, confidence scores). For an
+// integer metric the histogram's bin EDGES are pure binning artefacts —
+// 30 equal divisions of [min, max] land on fractional boundaries like
+// `34.133` that (a) are meaningless for an integer quantity and (b) a
+// reader using "." as a thousands separator misreads as "34133". Rounding
+// those edges to integers in the readout / axis kills both problems; the
+// `count` (article tally) is unaffected. Continuous metrics keep decimals.
+// ---------------------------------------------------------------------------
+
+/** Metrics whose per-article value is an integer (counts + cyclic ordinals).
+ *  Their histogram bin edges and axis ticks are rendered as integers.
+ *  `raw_entity_count` is the Silver-layer alias of `entity_count`. */
+const INTEGER_VALUED_METRICS: ReadonlySet<string> = new Set([
+  'revision_count',
+  'word_count',
+  'entity_count',
+  'raw_entity_count',
+  'publication_hour',
+  'publication_weekday'
+]);
+
+/** Whether the metric's underlying values are integers — drives integer
+ *  bin-edge / tick formatting in the distribution cell. */
+export function isIntegerMetric(metricName: string): boolean {
+  return INTEGER_VALUED_METRICS.has(metricName);
+}
