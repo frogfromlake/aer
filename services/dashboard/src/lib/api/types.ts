@@ -641,6 +641,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/revisions/discourse-shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Silent-edit discourse-shift trajectory for a probe or source
+         * @description Returns the aggregated discourse shift produced by silent edits over `aer_gold.article_revisions` (Phase 122d.3). Each entry is one (source, bucket) cell rolling up the re-extraction deltas (`sentiment_delta`, `topic_shift_score`, entity add/remove) across the edits whose deltas were computed. Backs the `revision_discourse_shift` Episteme trajectory cell.
+         *     Read-only; same scope grammar as `/revisions` and `/metrics`. Only real edits with `deltas_computed=true` contribute — identical re-archivals and pending/partial rows are excluded so the averages are never polluted by default zeros. Sources with no such edits in the window do NOT appear in `entries`.
+         */
+        get: operations["getRevisionDiscourseShift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/revisions/edit-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Coordinated cross-source silent-edit clusters for a probe or source
+         * @description Returns coordinated-edit clusters over `aer_gold.article_revisions` (Phase 122d.3, Rhizome). A cluster is a (time bucket, entity) that ≥ `minSources` distinct sources each silently added or removed within the bucket — a cross-source temporal coincidence on the same entity. Backs the `revision_edit_clusters` Rhizome cell.
+         *     Read-only; same scope grammar as `/revisions`. Only computed-delta edits contribute. The scope must resolve to ≥ 2 sources for a cluster to exist; a single-source scope returns an empty list. The clustering is a disclosed temporal coincidence, never a causal claim (WP-003 §5).
+         */
+        get: operations["getRevisionEditClusters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/revisions/articles": {
         parameters: {
             query?: never;
@@ -1771,6 +1813,141 @@ export interface components {
             /** @description One entry per (source, bucket). Sources with zero rows in the window do NOT appear — absence is itself a signal and the dashboard renders the empty row from the scope membership, not from this list. */
             entries: components["schemas"]["RevisionActivityEntry"][];
         };
+        /** @description One row of the Silent-Edit Discourse Shift surface (Phase 122d.3). Rolls up `aer_gold.article_revisions` by (source, bucket) over the edit pairs whose discourse-shift deltas were computed (`deltas_computed=true` AND the pair is a real edit). Backs the `revision_discourse_shift` Episteme trajectory cell. All values are provisional engineering signals (`validation_status=unvalidated`). */
+        RevisionDiscourseShiftEntry: {
+            /**
+             * @description Canonical source identifier (e.g. `tagesschau`).
+             * @example tagesschau
+             */
+            source: string;
+            /**
+             * Format: date-time
+             * @description Aggregation bucket start, normalised to the requested resolution (single window-spanning bucket for `snapshot`; daily/weekly/monthly otherwise).
+             * @example 2026-05-01 00:00:00+00:00
+             */
+            bucket: string;
+            /**
+             * @description Count of editorial edits in this cell that have computed deltas (the denominator of the averages below).
+             * @example 12
+             */
+            editsWithDeltas: number;
+            /**
+             * Format: double
+             * @description Mean sentiment change across the cell's edits, later-in-time minus earlier-in-time. Positive = the source's edits trended more positive in this bucket. Zero when `editsWithDeltas=0`.
+             * @example 0.08
+             */
+            avgSentimentDelta: number;
+            /**
+             * Format: double
+             * @description Directional SUM of sentiment deltas across the cell's edits — the net editorial sentiment movement (distinct from the mean: a few large edits dominate). Zero when `editsWithDeltas=0`.
+             * @example 0.96
+             */
+            netSentimentDrift: number;
+            /**
+             * Format: double
+             * @description Mean semantic-shift magnitude (E5 cosine distance) across the cell's edits. Higher = edits moved the article's meaning more.
+             * @example 0.21
+             */
+            avgTopicShift: number;
+            /**
+             * @description Total named-entity spans added across the cell's edits.
+             * @example 7
+             */
+            entitiesAddedTotal: number;
+            /**
+             * @description Total named-entity spans removed across the cell's edits.
+             * @example 3
+             */
+            entitiesRemovedTotal: number;
+        };
+        /** @description Aggregation response for the Silent-Edit Discourse Shift cell (Phase 122d.3). Read from `aer_gold.article_revisions` with the same scope+window+resolution grammar as `/revisions`. One entry per (source, bucket); cells with no computed-delta edits in the window do NOT appear (absence is rendered from scope membership, not this list). */
+        RevisionDiscourseShiftResponse: {
+            /**
+             * @description Echoed scope of the request.
+             * @enum {string}
+             */
+            scope: "probe" | "source";
+            /** @description Echoed scope identifier. */
+            scopeId: string;
+            /**
+             * @description Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window; the others bucket the window on the requested grain (the Episteme trajectory).
+             * @enum {string}
+             */
+            resolution: "snapshot" | "daily" | "weekly" | "monthly";
+            /**
+             * Format: date-time
+             * @description Echoed inclusive window start.
+             */
+            windowStart?: string;
+            /**
+             * Format: date-time
+             * @description Echoed exclusive window end.
+             */
+            windowEnd?: string;
+            /** @description One entry per (source, bucket) with computed-delta edits. */
+            entries: components["schemas"]["RevisionDiscourseShiftEntry"][];
+        };
+        /** @description One coordinated-edit cluster (Phase 122d.3, Rhizome). A cluster is a (time bucket, entity) where ≥ `minSources` distinct sources each made a computed-delta edit that added or removed that entity within the bucket — a cross-source temporal coincidence on the same entity. A relational signal, NOT a causal claim: co-occurrence in time is disclosed, not interpreted (WP-003 §5). Provisional (`validation_status=unvalidated`). */
+        RevisionEditClusterEntry: {
+            /**
+             * Format: date-time
+             * @description Aggregation bucket start (per the requested resolution).
+             */
+            bucket: string;
+            /**
+             * @description The named-entity surface span that ≥ `minSources` sources added or removed in this bucket.
+             * @example Selenskyj
+             */
+            entity: string;
+            /**
+             * @description The distinct sources that co-edited this entity in the bucket (length ≥ the requested `minSources`).
+             * @example [
+             *       "tagesschau",
+             *       "bundesregierung"
+             *     ]
+             */
+            sources: string[];
+            /**
+             * @description Total (edit, entity) incidences in the cluster across all its sources — how many edits touched this entity in the bucket.
+             * @example 4
+             */
+            editCount: number;
+            /**
+             * Format: double
+             * @description Mean semantic-shift magnitude (E5 cosine distance) of the cluster's edits — how much those edits moved the articles' meaning.
+             * @example 0.18
+             */
+            avgTopicShift: number;
+        };
+        /** @description Coordinated-edit-cluster response (Phase 122d.3, Rhizome). Surfaces cross-source temporally-clustered silent edits on shared entities, read from `aer_gold.article_revisions` with the same scope/window/resolution grammar as `/revisions`. Only edits with computed deltas contribute. The scope must resolve to ≥ 2 sources for any cluster to be possible (a single-source scope returns an empty list). */
+        RevisionEditClustersResponse: {
+            /**
+             * @description Echoed scope of the request.
+             * @enum {string}
+             */
+            scope: "probe" | "source";
+            /** @description Echoed scope identifier. */
+            scopeId: string;
+            /**
+             * @description The time-bucket grain coordinated edits are grouped within.
+             * @enum {string}
+             */
+            resolution: "snapshot" | "daily" | "weekly" | "monthly";
+            /** @description The minimum number of distinct co-editing sources for a (bucket, entity) to qualify as a cluster (echoed; default 2). */
+            minSources: number;
+            /**
+             * Format: date-time
+             * @description Echoed inclusive window start.
+             */
+            windowStart?: string;
+            /**
+             * Format: date-time
+             * @description Echoed exclusive window end.
+             */
+            windowEnd?: string;
+            /** @description Coordinated-edit clusters, most-edited first. Empty when no entity was co-edited by ≥ `minSources` sources in any bucket. */
+            clusters: components["schemas"]["RevisionEditClusterEntry"][];
+        };
         /** @description Per-article revision chain for the L5 Evidence Reader (Phase 122d.0). Returns the ordered list of detected revisions for one article — Wayback CDX snapshots and publisher-side republication-trigger events. The endpoint is subject to the Silver-eligibility gate inherited from `GET /articles/{id}`: a source whose `silver_eligible=false` returns 403 with the same refusal payload. */
         ArticleRevisionsResponse: {
             /** @description SHA-256 article identifier. */
@@ -1812,6 +1989,22 @@ export interface components {
                  * @enum {string}
                  */
                 diffStatus: "changed" | "identical" | "pending";
+                /** @description Phase 122d.3 — whether the discourse-shift deltas below were computed for the pair ending at THIS revision. `false` = identical re-archival, language unknown, or not yet re-extracted; the delta fields then carry defaults and MUST NOT be read as measurements. Provisional engineering signal (`validation_status=unvalidated`). */
+                deltasComputed: boolean;
+                /**
+                 * Format: double
+                 * @description Change in the multilingual-backbone sentiment scalar across the edit, computed **later-in-time minus earlier-in-time**. For the chain-head pair (current article body vs newest snapshot) "later" is the CURRENT article — a positive value means the article reads more positively now than at the snapshot. Omitted/zero when `deltasComputed=false`. Do not re-invert the sign client-side.
+                 */
+                sentimentDelta?: number;
+                /** @description Named-entity surface spans present in the LATER text but not the earlier one (set difference). Empty when `deltasComputed=false`. */
+                entitiesAdded?: string[];
+                /** @description Named-entity surface spans present in the EARLIER text but not the later one. Empty when `deltasComputed=false`. */
+                entitiesRemoved?: string[];
+                /**
+                 * Format: double
+                 * @description Semantic-shift magnitude — cosine distance between the two snapshots' multilingual-E5 embeddings (0 = identical semantic vector). A SEMANTIC shift, NOT a topic-label switch. Zero when not computed.
+                 */
+                topicShiftScore?: number;
             }[];
         };
         /**
@@ -4333,6 +4526,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevisionActivityResponse"];
+                };
+            };
+            /** @description Invalid scope/window/resolution parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getRevisionDiscourseShift: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Inclusive start of the analysis window (RFC 3339). */
+                startDate?: string;
+                /** @description Exclusive end of the analysis window (RFC 3339). */
+                endDate?: string;
+                /** @description Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window; `daily` / `weekly` / `monthly` bucket the window on that grain (the Episteme trajectory). */
+                resolution?: "snapshot" | "daily" | "weekly" | "monthly";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregated discourse-shift payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionDiscourseShiftResponse"];
+                };
+            };
+            /** @description Invalid scope/window/resolution parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getRevisionEditClusters: {
+        parameters: {
+            query: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required. */
+                scopeId: string;
+                /** @description Inclusive start of the analysis window (RFC 3339). */
+                startDate?: string;
+                /** @description Exclusive end of the analysis window (RFC 3339). */
+                endDate?: string;
+                /** @description The time-bucket grain coordinated edits are grouped within. */
+                resolution?: "snapshot" | "daily" | "weekly" | "monthly";
+                /** @description Minimum distinct co-editing sources for a (bucket, entity) to qualify as a cluster. Clamped to [2, 10]; default 2. */
+                minSources?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Coordinated-edit-cluster payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionEditClustersResponse"];
                 };
             };
             /** @description Invalid scope/window/resolution parameters. */

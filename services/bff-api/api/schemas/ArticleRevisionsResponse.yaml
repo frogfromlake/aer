@@ -44,6 +44,7 @@ properties:
         - revisionIndex
         - trigger
         - diffStatus
+        - deltasComputed
       properties:
         snapshotAt:
           type: string
@@ -98,3 +99,50 @@ properties:
             identical re-archivals (Phase 133 — derived from
             `aer_gold.article_revisions.diff_paragraphs`, no extra
             query).
+        deltasComputed:
+          type: boolean
+          description: >
+            Phase 122d.3 — whether the discourse-shift deltas below were
+            computed for the pair ending at THIS revision. `false` =
+            identical re-archival, language unknown, or not yet
+            re-extracted; the delta fields then carry defaults and MUST
+            NOT be read as measurements. Provisional engineering signal
+            (`validation_status=unvalidated`).
+        sentimentDelta:
+          type: number
+          format: double
+          minimum: -2
+          maximum: 2
+          description: >
+            Change in the multilingual-backbone sentiment scalar across
+            the edit, computed **later-in-time minus earlier-in-time**.
+            For the chain-head pair (current article body vs newest
+            snapshot) "later" is the CURRENT article — a positive value
+            means the article reads more positively now than at the
+            snapshot. Omitted/zero when `deltasComputed=false`. Do not
+            re-invert the sign client-side.
+        entitiesAdded:
+          type: array
+          items:
+            type: string
+          description: >
+            Named-entity surface spans present in the LATER text but not
+            the earlier one (set difference). Empty when
+            `deltasComputed=false`.
+        entitiesRemoved:
+          type: array
+          items:
+            type: string
+          description: >
+            Named-entity surface spans present in the EARLIER text but
+            not the later one. Empty when `deltasComputed=false`.
+        topicShiftScore:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 2
+          description: >
+            Semantic-shift magnitude — cosine distance between the two
+            snapshots' multilingual-E5 embeddings (0 = identical
+            semantic vector). A SEMANTIC shift, NOT a topic-label switch.
+            Zero when not computed.

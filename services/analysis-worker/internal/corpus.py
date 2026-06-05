@@ -791,6 +791,12 @@ ARTICLE_REVISIONS_COLUMNS_FULL = [
     "headline_changed",
     "headline_before",
     "headline_after",
+    # Phase 122d.3 — Silent-Edit Discourse Shift deltas.
+    "sentiment_delta",
+    "entities_added",
+    "entities_removed",
+    "topic_shift_score",
+    "deltas_computed",
 ]
 
 
@@ -869,11 +875,18 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                 curr.revision_trigger      AS revision_trigger,
                 curr.ingestion_version     AS ingestion_version,
                 curr.archive_url           AS curr_archive_url,
-                prev.archive_url           AS prev_archive_url
+                prev.archive_url           AS prev_archive_url,
+                lang.language              AS language
             FROM aer_gold.article_revisions AS curr FINAL
             INNER JOIN aer_gold.article_revisions AS prev FINAL
                 ON prev.article_id     = curr.article_id
                AND prev.revision_index = curr.revision_index - 1
+            LEFT JOIN (
+                SELECT article_id, argMax(language, ingestion_version) AS language
+                FROM aer_silver.documents
+                GROUP BY article_id
+            ) AS lang
+                ON lang.article_id = curr.article_id
             WHERE curr.revision_index > 0
               AND curr.revision_trigger = 'cdx_snapshot'
               AND prev.revision_trigger = 'cdx_snapshot'
@@ -900,6 +913,7 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                 "ingestion_version": row[9],
                 "curr_archive_url": row[10],
                 "prev_archive_url": row[11],
+                "language": row[12],
             }
             for row in mid_result.result_rows
         ]
@@ -930,7 +944,8 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                 r.content_hash, r.prev_content_hash, r.revision_index,
                 r.time_since_prev_hours, r.revision_trigger,
                 r.ingestion_version, r.archive_url,
-                n.newest_archive AS compare_archive_url
+                n.newest_archive AS compare_archive_url,
+                lang.language AS language
             FROM aer_gold.article_revisions AS r FINAL
             INNER JOIN (
                 SELECT article_id, min(revision_index) AS head_index
@@ -946,6 +961,12 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                 GROUP BY article_id
             ) AS n
                 ON n.article_id = r.article_id
+            LEFT JOIN (
+                SELECT article_id, argMax(language, ingestion_version) AS language
+                FROM aer_silver.documents
+                GROUP BY article_id
+            ) AS lang
+                ON lang.article_id = r.article_id
             WHERE r.revision_trigger = 'cdx_snapshot'
               AND length(r.diff_paragraphs) = 0
               AND r.archive_url != ''
@@ -977,6 +998,7 @@ def fetch_undiffed_pairs(ch_pool, limit: int) -> list[dict]:
                     # No prev_archive_url for chain-head — the "before" side
                     # is the current Silver body, fetched at sweep time.
                     "prev_archive_url": "",
+                    "language": row[12],
                 }
             )
         return pairs
@@ -1139,7 +1161,14 @@ def write_editorial_revision_counts(ch_pool, article_ids: list[str]) -> int:
     return len(rows)
 
 
-def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str, max_pairs: int) -> int:
+def run_revision_diff_sweep(
+    ch_pool,
+    snapshot_fetcher,
+    minio_client,
+    bucket: str,
+    max_pairs: int,
+    delta_tools=None,
+) -> int:
     """One revision-diff sweep tick. Returns rows written.
 
     Handles two pair kinds:
@@ -1160,12 +1189,35 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str
     skipped; the sweep continues with the next pair. Empty diffs are
     written with the SENTINEL_IDENTICAL_OP marker (BUG-B) so the
     next sweep does not re-process them.
+
+    Phase 122d.3 — when ``delta_tools`` (a ``RevisionDeltaTools`` bundle)
+    is supplied, the sweep ALSO re-extracts the discourse shift for every
+    pair that is a real edit, in the SAME pass (the two snapshot texts are
+    already in hand — no second Wayback fetch). Deltas are written as 5
+    extra columns. Identical re-archivals (the sentinel diff) and rows
+    where the language is unknown get default deltas with
+    ``deltas_computed=False`` so the BFF never aggregates them. The model
+    pass is the per-tick cost lever: lower ``REVISION_DIFF_MAX_PAIRS_PER_TICK``
+    if a tick approaches the (hourly) interval.
     """
     # Imported here rather than at module top so the corpus module
     # boots without the wayback dependency (legacy compatibility for
     # operators running the worker with WAYBACK_CDX_ENABLED=false).
-    from internal.article_revisions_diff import compute_diff
+    import json
+
+    from internal.article_revisions_diff import (
+        SENTINEL_IDENTICAL_OP,
+        compute_diff,
+        extract_paragraphs,
+    )
+    from internal.extractors.revision_deltas import (
+        DeltaResult,
+        compute_deltas,
+        orient_pair,
+    )
     from internal.wayback.snapshot_fetcher import FETCH_OK
+
+    _sentinel_json = json.dumps(SENTINEL_IDENTICAL_OP, ensure_ascii=False)
 
     pairs = fetch_undiffed_pairs(ch_pool, max_pairs)
     if not pairs:
@@ -1213,6 +1265,36 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str
 
         diff = compute_diff(prev_html, curr_html)
 
+        # Phase 122d.3 — re-extract the discourse shift for real edits only.
+        # `is_edit` mirrors the revision_count reconcile predicate: a non-
+        # sentinel paragraph diff OR a headline change. Identical re-archivals
+        # (~55% of pairs) keep default zero deltas with deltas_computed=False.
+        deltas = DeltaResult()
+        is_edit = bool(diff.headline_changed) or (
+            bool(diff.diff_paragraphs) and diff.diff_paragraphs != [_sentinel_json]
+        )
+        if delta_tools is not None and is_edit:
+            # Orient earliest→latest so every delta is later-minus-earlier.
+            # The chain_head reversal lives in `orient_pair` (unit-pinned).
+            older_html, newer_html = orient_pair(pair["kind"], prev_html, curr_html)
+            try:
+                older_text = "\n\n".join(extract_paragraphs(older_html))
+                newer_text = "\n\n".join(extract_paragraphs(newer_html))
+                deltas = compute_deltas(
+                    older_text, newer_text, pair.get("language"), delta_tools
+                )
+            except Exception as exc:
+                # Fail-silent: a model error must never lose the diff. The
+                # row is still written with default (uncomputed) deltas; a
+                # later re-extraction can fill them after a re-diff.
+                logger.warning(
+                    "revision_diff.deltas.failed",
+                    article_id=pair["article_id"],
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                deltas = DeltaResult()
+
         new_version = max(int(pair["ingestion_version"]) + 1, time.time_ns())
         rows_to_write.append(
             [
@@ -1231,6 +1313,11 @@ def run_revision_diff_sweep(ch_pool, snapshot_fetcher, minio_client, bucket: str
                 diff.headline_changed,
                 diff.headline_before,
                 diff.headline_after,
+                deltas.sentiment_delta,
+                deltas.entities_added,
+                deltas.entities_removed,
+                deltas.topic_shift_score,
+                deltas.deltas_computed,
             ]
         )
 
@@ -1273,6 +1360,7 @@ async def revision_diff_extraction_loop(
     bucket: str,
     config: RevisionDiffConfig,
     stop_event: asyncio.Event,
+    delta_tools=None,
 ) -> None:
     """Background task: every ``interval_seconds`` invoke a diff sweep.
 
@@ -1280,6 +1368,11 @@ async def revision_diff_extraction_loop(
     chain-head pair (BUG-11, revision_index=0) can pull the current
     Silver body for diffing against Wayback[0]. Mid-chain pairs
     ignore them.
+
+    ``delta_tools`` (Phase 122d.3) is the load-once ``RevisionDeltaTools``
+    bundle (sentiment + NER + E5 embedder) used to re-extract the
+    discourse shift in the same pass as the diff. ``None`` disables the
+    delta path (diffs still flow).
 
     Cleanly stops on ``stop_event``. Errors at the sweep level are
     contained and logged — the fail-silent posture of the Phase-122d
@@ -1313,6 +1406,7 @@ async def revision_diff_extraction_loop(
                 minio_client,
                 bucket,
                 config.max_pairs_per_tick,
+                delta_tools,
             )
             logger.info("revision_diff.sweep.complete", rows_written=rows_written)
         except Exception as e:

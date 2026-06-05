@@ -1,0 +1,40 @@
+type: object
+description: >
+  Aggregation response for the Silent-Edit Discourse Shift cell
+  (Phase 122d.3). Read from `aer_gold.article_revisions` with the same
+  scope+window+resolution grammar as `/revisions`. One entry per
+  (source, bucket); cells with no computed-delta edits in the window do
+  NOT appear (absence is rendered from scope membership, not this list).
+required:
+  - scope
+  - scopeId
+  - resolution
+  - entries
+properties:
+  scope:
+    type: string
+    enum: [probe, source]
+    description: Echoed scope of the request.
+  scopeId:
+    type: string
+    description: Echoed scope identifier.
+  resolution:
+    type: string
+    enum: [snapshot, daily, weekly, monthly]
+    description: >
+      Aggregation grain. `snapshot` collapses to a single bucket
+      spanning the whole window; the others bucket the window on the
+      requested grain (the Episteme trajectory).
+  windowStart:
+    type: string
+    format: date-time
+    description: Echoed inclusive window start.
+  windowEnd:
+    type: string
+    format: date-time
+    description: Echoed exclusive window end.
+  entries:
+    type: array
+    description: One entry per (source, bucket) with computed-delta edits.
+    items:
+      $ref: './RevisionDiscourseShiftEntry.yaml'

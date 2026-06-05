@@ -1,0 +1,30 @@
+entityId: howto_revision_discourse_shift
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Not how often a source edits, but what the edits DO to the discourse — mean sentiment change and semantic shift over time."
+    long: >
+      The discourse-level reading of silent edits. For every editorial change AĒR re-extracts the
+      article's sentiment and named entities from each archived snapshot version and measures the
+      shift: each point is one source's MEAN sentiment delta for that bucket, computed later-in-time
+      minus earlier-in-time (a positive value = the source's edits made articles read more positively).
+      Hover for the net directional drift (the sum, where a few large edits dominate), the mean
+      semantic shift (how much the article's meaning moved), and the entities added/removed. A flat
+      line at zero means edits left sentiment untouched. Read a sustained drift in one direction as a
+      signal worth a second look — not as proof; these are provisional engineering measures.
+  methodological:
+    short: "Per-(source, bucket) averages of the re-extraction deltas on aer_gold.article_revisions, edits with computed deltas only."
+    long: >
+      Aggregated from aer_gold.article_revisions (read with FINAL) over the edits whose discourse-shift
+      deltas were computed — identical re-archivals and pending/partial rows are excluded, so default
+      zeros never pollute the averages. sentiment_delta uses the multilingual news-class backbone
+      (cardiffnlp/twitter-xlm-roberta-base-sentiment) so the signal is cross-probe comparable;
+      topic_shift_score is the cosine distance of multilingual-E5 embeddings of the two snapshot texts
+      (a SEMANTIC shift, not a topic-label switch). All values are provisional
+      (validation_status=unvalidated) — engineering defaults, not validated measurements.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-05"
+workingPaperAnchors:
+  - "WP-003 §5.3"

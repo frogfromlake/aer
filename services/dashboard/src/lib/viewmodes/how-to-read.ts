@@ -60,8 +60,12 @@ const FALLBACK_TEMPLATES: Record<ViewMode, string> = {
     'One bar per source — how many silent edits we observed in the active window. Wayback CDX captures third-party-witnessed edits; sitemap-lastmod jumps capture publisher-side re-listings (republication trigger).',
   revision_timeline:
     'Edit activity over time. Each point is a per-source bucket count: rising = the source is editing more often; falling = it has settled.',
+  revision_discourse_shift:
+    "Each point is one source's mean sentiment change for that bucket (later minus earlier), re-extracted from each snapshot version. Above zero = edits read more positively; hover for the semantic shift and entity churn. Provisional measures.",
   cross_probe_lead_lag:
-    'Each point is one time-shift (lag) between the two probes; the height is how strongly their hourly publication rhythms line up at that shift. The tallest point is the lead-lag: a shift to the right means the compared probe follows the reference.'
+    'Each point is one time-shift (lag) between the two probes; the height is how strongly their hourly publication rhythms line up at that shift. The tallest point is the lead-lag: a shift to the right means the compared probe follows the reference.',
+  revision_edit_clusters:
+    'Each row is an entity that two or more sources silently edited in the same time bucket — a cross-source coincidence on the same name. A disclosed coincidence, not a causal claim; widen the bucket or raise the source threshold to tighten it.'
 };
 
 /** Compose the "how to read" note as an ordered list of sentences: the
@@ -155,6 +159,8 @@ export function composeHowToRead(
     case 'topic_evolution':
     case 'revision_activity':
     case 'revision_timeline':
+    case 'revision_discourse_shift':
+    case 'revision_edit_clusters':
       // No extra config levers yet; the template line stands alone.
       break;
   }

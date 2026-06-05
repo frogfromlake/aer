@@ -446,6 +446,90 @@ func (e RevisionActivityResponseScope) Valid() bool {
 	}
 }
 
+// Defines values for RevisionDiscourseShiftResponseResolution.
+const (
+	RevisionDiscourseShiftResponseResolutionDaily    RevisionDiscourseShiftResponseResolution = "daily"
+	RevisionDiscourseShiftResponseResolutionMonthly  RevisionDiscourseShiftResponseResolution = "monthly"
+	RevisionDiscourseShiftResponseResolutionSnapshot RevisionDiscourseShiftResponseResolution = "snapshot"
+	RevisionDiscourseShiftResponseResolutionWeekly   RevisionDiscourseShiftResponseResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the RevisionDiscourseShiftResponseResolution enum.
+func (e RevisionDiscourseShiftResponseResolution) Valid() bool {
+	switch e {
+	case RevisionDiscourseShiftResponseResolutionDaily:
+		return true
+	case RevisionDiscourseShiftResponseResolutionMonthly:
+		return true
+	case RevisionDiscourseShiftResponseResolutionSnapshot:
+		return true
+	case RevisionDiscourseShiftResponseResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevisionDiscourseShiftResponseScope.
+const (
+	RevisionDiscourseShiftResponseScopeProbe  RevisionDiscourseShiftResponseScope = "probe"
+	RevisionDiscourseShiftResponseScopeSource RevisionDiscourseShiftResponseScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the RevisionDiscourseShiftResponseScope enum.
+func (e RevisionDiscourseShiftResponseScope) Valid() bool {
+	switch e {
+	case RevisionDiscourseShiftResponseScopeProbe:
+		return true
+	case RevisionDiscourseShiftResponseScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevisionEditClustersResponseResolution.
+const (
+	RevisionEditClustersResponseResolutionDaily    RevisionEditClustersResponseResolution = "daily"
+	RevisionEditClustersResponseResolutionMonthly  RevisionEditClustersResponseResolution = "monthly"
+	RevisionEditClustersResponseResolutionSnapshot RevisionEditClustersResponseResolution = "snapshot"
+	RevisionEditClustersResponseResolutionWeekly   RevisionEditClustersResponseResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the RevisionEditClustersResponseResolution enum.
+func (e RevisionEditClustersResponseResolution) Valid() bool {
+	switch e {
+	case RevisionEditClustersResponseResolutionDaily:
+		return true
+	case RevisionEditClustersResponseResolutionMonthly:
+		return true
+	case RevisionEditClustersResponseResolutionSnapshot:
+		return true
+	case RevisionEditClustersResponseResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevisionEditClustersResponseScope.
+const (
+	RevisionEditClustersResponseScopeProbe  RevisionEditClustersResponseScope = "probe"
+	RevisionEditClustersResponseScopeSource RevisionEditClustersResponseScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the RevisionEditClustersResponseScope enum.
+func (e RevisionEditClustersResponseScope) Valid() bool {
+	switch e {
+	case RevisionEditClustersResponseScopeProbe:
+		return true
+	case RevisionEditClustersResponseScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetContentParamsLocale.
 const (
 	GetContentParamsLocaleDe GetContentParamsLocale = "de"
@@ -791,6 +875,90 @@ func (e GetRevisionsArticlesParamsScope) Valid() bool {
 	}
 }
 
+// Defines values for GetRevisionDiscourseShiftParamsScope.
+const (
+	GetRevisionDiscourseShiftParamsScopeProbe  GetRevisionDiscourseShiftParamsScope = "probe"
+	GetRevisionDiscourseShiftParamsScopeSource GetRevisionDiscourseShiftParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionDiscourseShiftParamsScope enum.
+func (e GetRevisionDiscourseShiftParamsScope) Valid() bool {
+	switch e {
+	case GetRevisionDiscourseShiftParamsScopeProbe:
+		return true
+	case GetRevisionDiscourseShiftParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetRevisionDiscourseShiftParamsResolution.
+const (
+	GetRevisionDiscourseShiftParamsResolutionDaily    GetRevisionDiscourseShiftParamsResolution = "daily"
+	GetRevisionDiscourseShiftParamsResolutionMonthly  GetRevisionDiscourseShiftParamsResolution = "monthly"
+	GetRevisionDiscourseShiftParamsResolutionSnapshot GetRevisionDiscourseShiftParamsResolution = "snapshot"
+	GetRevisionDiscourseShiftParamsResolutionWeekly   GetRevisionDiscourseShiftParamsResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionDiscourseShiftParamsResolution enum.
+func (e GetRevisionDiscourseShiftParamsResolution) Valid() bool {
+	switch e {
+	case GetRevisionDiscourseShiftParamsResolutionDaily:
+		return true
+	case GetRevisionDiscourseShiftParamsResolutionMonthly:
+		return true
+	case GetRevisionDiscourseShiftParamsResolutionSnapshot:
+		return true
+	case GetRevisionDiscourseShiftParamsResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetRevisionEditClustersParamsScope.
+const (
+	GetRevisionEditClustersParamsScopeProbe  GetRevisionEditClustersParamsScope = "probe"
+	GetRevisionEditClustersParamsScopeSource GetRevisionEditClustersParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionEditClustersParamsScope enum.
+func (e GetRevisionEditClustersParamsScope) Valid() bool {
+	switch e {
+	case GetRevisionEditClustersParamsScopeProbe:
+		return true
+	case GetRevisionEditClustersParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetRevisionEditClustersParamsResolution.
+const (
+	GetRevisionEditClustersParamsResolutionDaily    GetRevisionEditClustersParamsResolution = "daily"
+	GetRevisionEditClustersParamsResolutionMonthly  GetRevisionEditClustersParamsResolution = "monthly"
+	GetRevisionEditClustersParamsResolutionSnapshot GetRevisionEditClustersParamsResolution = "snapshot"
+	GetRevisionEditClustersParamsResolutionWeekly   GetRevisionEditClustersParamsResolution = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the GetRevisionEditClustersParamsResolution enum.
+func (e GetRevisionEditClustersParamsResolution) Valid() bool {
+	switch e {
+	case GetRevisionEditClustersParamsResolutionDaily:
+		return true
+	case GetRevisionEditClustersParamsResolutionMonthly:
+		return true
+	case GetRevisionEditClustersParamsResolutionSnapshot:
+		return true
+	case GetRevisionEditClustersParamsResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetScopeAvailableMetricsParamsScope.
 const (
 	GetScopeAvailableMetricsParamsScopeProbe  GetScopeAvailableMetricsParamsScope = "probe"
@@ -977,8 +1145,17 @@ type ArticleRevisionsResponse struct {
 		// ContentHash Content-body digest at this snapshot. For CDX snapshots, the value the Wayback Machine recorded (SHA-1 hex). For republication-trigger rows, the SHA-1 of the current cleaned-text.
 		ContentHash string `json:"contentHash"`
 
+		// DeltasComputed Phase 122d.3 — whether the discourse-shift deltas below were computed for the pair ending at THIS revision. `false` = identical re-archival, language unknown, or not yet re-extracted; the delta fields then carry defaults and MUST NOT be read as measurements. Provisional engineering signal (`validation_status=unvalidated`).
+		DeltasComputed bool `json:"deltasComputed"`
+
 		// DiffStatus Editorial status of the diff for the pair ending at THIS revision (revisionIndex-1 → revisionIndex; for the chain head, current article body → this snapshot). `changed` = paragraph-level or headline edits were detected; `identical` = both snapshots parse to the same article body after extraction (a re-archival without an editorial change); `pending` = the background diff sweep has not yet computed this pair. Lets the L5 reader step the slider over only the editorial versions and disclose how many captures were identical re-archivals (Phase 133 — derived from `aer_gold.article_revisions.diff_paragraphs`, no extra query).
 		DiffStatus ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
+
+		// EntitiesAdded Named-entity surface spans present in the LATER text but not the earlier one (set difference). Empty when `deltasComputed=false`.
+		EntitiesAdded *[]string `json:"entitiesAdded,omitempty"`
+
+		// EntitiesRemoved Named-entity surface spans present in the EARLIER text but not the later one. Empty when `deltasComputed=false`.
+		EntitiesRemoved *[]string `json:"entitiesRemoved,omitempty"`
 
 		// PrevContentHash `contentHash` of the immediately preceding entry, or empty string for the chain head.
 		PrevContentHash *string `json:"prevContentHash,omitempty"`
@@ -986,11 +1163,17 @@ type ArticleRevisionsResponse struct {
 		// RevisionIndex Zero-based position in the chain.
 		RevisionIndex int `json:"revisionIndex"`
 
+		// SentimentDelta Change in the multilingual-backbone sentiment scalar across the edit, computed **later-in-time minus earlier-in-time**. For the chain-head pair (current article body vs newest snapshot) "later" is the CURRENT article — a positive value means the article reads more positively now than at the snapshot. Omitted/zero when `deltasComputed=false`. Do not re-invert the sign client-side.
+		SentimentDelta *float64 `json:"sentimentDelta,omitempty"`
+
 		// SnapshotAt When this revision was observed.
 		SnapshotAt time.Time `json:"snapshotAt"`
 
 		// TimeSincePrevHours Hours between this entry and the preceding one. Zero for the chain head.
 		TimeSincePrevHours *float64 `json:"timeSincePrevHours,omitempty"`
+
+		// TopicShiftScore Semantic-shift magnitude — cosine distance between the two snapshots' multilingual-E5 embeddings (0 = identical semantic vector). A SEMANTIC shift, NOT a topic-label switch. Zero when not computed.
+		TopicShiftScore *float64 `json:"topicShiftScore,omitempty"`
 
 		// Trigger Which mechanism produced this row.
 		Trigger ArticleRevisionsResponseRevisionsTrigger `json:"trigger"`
@@ -1445,6 +1628,102 @@ type RevisionActivityResponseResolution string
 // RevisionActivityResponseScope Echoed scope of the request.
 type RevisionActivityResponseScope string
 
+// RevisionDiscourseShiftResponse Aggregation response for the Silent-Edit Discourse Shift cell (Phase 122d.3). Read from `aer_gold.article_revisions` with the same scope+window+resolution grammar as `/revisions`. One entry per (source, bucket); cells with no computed-delta edits in the window do NOT appear (absence is rendered from scope membership, not this list).
+type RevisionDiscourseShiftResponse struct {
+	// Entries One entry per (source, bucket) with computed-delta edits.
+	Entries []struct {
+		// AvgSentimentDelta Mean sentiment change across the cell's edits, later-in-time minus earlier-in-time. Positive = the source's edits trended more positive in this bucket. Zero when `editsWithDeltas=0`.
+		AvgSentimentDelta float64 `json:"avgSentimentDelta"`
+
+		// AvgTopicShift Mean semantic-shift magnitude (E5 cosine distance) across the cell's edits. Higher = edits moved the article's meaning more.
+		AvgTopicShift float64 `json:"avgTopicShift"`
+
+		// Bucket Aggregation bucket start, normalised to the requested resolution (single window-spanning bucket for `snapshot`; daily/weekly/monthly otherwise).
+		Bucket time.Time `json:"bucket"`
+
+		// EditsWithDeltas Count of editorial edits in this cell that have computed deltas (the denominator of the averages below).
+		EditsWithDeltas int `json:"editsWithDeltas"`
+
+		// EntitiesAddedTotal Total named-entity spans added across the cell's edits.
+		EntitiesAddedTotal int `json:"entitiesAddedTotal"`
+
+		// EntitiesRemovedTotal Total named-entity spans removed across the cell's edits.
+		EntitiesRemovedTotal int `json:"entitiesRemovedTotal"`
+
+		// NetSentimentDrift Directional SUM of sentiment deltas across the cell's edits — the net editorial sentiment movement (distinct from the mean: a few large edits dominate). Zero when `editsWithDeltas=0`.
+		NetSentimentDrift float64 `json:"netSentimentDrift"`
+
+		// Source Canonical source identifier (e.g. `tagesschau`).
+		Source string `json:"source"`
+	} `json:"entries"`
+
+	// Resolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window; the others bucket the window on the requested grain (the Episteme trajectory).
+	Resolution RevisionDiscourseShiftResponseResolution `json:"resolution"`
+
+	// Scope Echoed scope of the request.
+	Scope RevisionDiscourseShiftResponseScope `json:"scope"`
+
+	// ScopeId Echoed scope identifier.
+	ScopeId string `json:"scopeId"`
+
+	// WindowEnd Echoed exclusive window end.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Echoed inclusive window start.
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+}
+
+// RevisionDiscourseShiftResponseResolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window; the others bucket the window on the requested grain (the Episteme trajectory).
+type RevisionDiscourseShiftResponseResolution string
+
+// RevisionDiscourseShiftResponseScope Echoed scope of the request.
+type RevisionDiscourseShiftResponseScope string
+
+// RevisionEditClustersResponse Coordinated-edit-cluster response (Phase 122d.3, Rhizome). Surfaces cross-source temporally-clustered silent edits on shared entities, read from `aer_gold.article_revisions` with the same scope/window/resolution grammar as `/revisions`. Only edits with computed deltas contribute. The scope must resolve to ≥ 2 sources for any cluster to be possible (a single-source scope returns an empty list).
+type RevisionEditClustersResponse struct {
+	// Clusters Coordinated-edit clusters, most-edited first. Empty when no entity was co-edited by ≥ `minSources` sources in any bucket.
+	Clusters []struct {
+		// AvgTopicShift Mean semantic-shift magnitude (E5 cosine distance) of the cluster's edits — how much those edits moved the articles' meaning.
+		AvgTopicShift float64 `json:"avgTopicShift"`
+
+		// Bucket Aggregation bucket start (per the requested resolution).
+		Bucket time.Time `json:"bucket"`
+
+		// EditCount Total (edit, entity) incidences in the cluster across all its sources — how many edits touched this entity in the bucket.
+		EditCount int `json:"editCount"`
+
+		// Entity The named-entity surface span that ≥ `minSources` sources added or removed in this bucket.
+		Entity string `json:"entity"`
+
+		// Sources The distinct sources that co-edited this entity in the bucket (length ≥ the requested `minSources`).
+		Sources []string `json:"sources"`
+	} `json:"clusters"`
+
+	// MinSources The minimum number of distinct co-editing sources for a (bucket, entity) to qualify as a cluster (echoed; default 2).
+	MinSources int `json:"minSources"`
+
+	// Resolution The time-bucket grain coordinated edits are grouped within.
+	Resolution RevisionEditClustersResponseResolution `json:"resolution"`
+
+	// Scope Echoed scope of the request.
+	Scope RevisionEditClustersResponseScope `json:"scope"`
+
+	// ScopeId Echoed scope identifier.
+	ScopeId string `json:"scopeId"`
+
+	// WindowEnd Echoed exclusive window end.
+	WindowEnd *time.Time `json:"windowEnd,omitempty"`
+
+	// WindowStart Echoed inclusive window start.
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+}
+
+// RevisionEditClustersResponseResolution The time-bucket grain coordinated edits are grouped within.
+type RevisionEditClustersResponseResolution string
+
+// RevisionEditClustersResponseScope Echoed scope of the request.
+type RevisionEditClustersResponseScope string
+
 // RevisionsArticlesPage Paginated list of articles with at least one revision in the active window (Phase 122d.1 / ADR-032 amendment). Powers the Workbench drill-down from a `revision_activity` bar or a `revision_timeline` bucket-point into the article list backing the signal. Cursor-based pagination identical to `/sources/{id}/articles` for consistency.
 type RevisionsArticlesPage struct {
 	HasMore bool `json:"hasMore"`
@@ -1869,6 +2148,57 @@ type GetRevisionsArticlesParams struct {
 // GetRevisionsArticlesParamsScope defines parameters for GetRevisionsArticles.
 type GetRevisionsArticlesParamsScope string
 
+// GetRevisionDiscourseShiftParams defines parameters for GetRevisionDiscourseShift.
+type GetRevisionDiscourseShiftParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetRevisionDiscourseShiftParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// StartDate Inclusive start of the analysis window (RFC 3339).
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate Exclusive end of the analysis window (RFC 3339).
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// Resolution Aggregation grain. `snapshot` collapses to a single bucket spanning the whole window; `daily` / `weekly` / `monthly` bucket the window on that grain (the Episteme trajectory).
+	Resolution *GetRevisionDiscourseShiftParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+}
+
+// GetRevisionDiscourseShiftParamsScope defines parameters for GetRevisionDiscourseShift.
+type GetRevisionDiscourseShiftParamsScope string
+
+// GetRevisionDiscourseShiftParamsResolution defines parameters for GetRevisionDiscourseShift.
+type GetRevisionDiscourseShiftParamsResolution string
+
+// GetRevisionEditClustersParams defines parameters for GetRevisionEditClusters.
+type GetRevisionEditClustersParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetRevisionEditClustersParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeId string `form:"scopeId" json:"scopeId"`
+
+	// StartDate Inclusive start of the analysis window (RFC 3339).
+	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate Exclusive end of the analysis window (RFC 3339).
+	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// Resolution The time-bucket grain coordinated edits are grouped within.
+	Resolution *GetRevisionEditClustersParamsResolution `form:"resolution,omitempty" json:"resolution,omitempty"`
+
+	// MinSources Minimum distinct co-editing sources for a (bucket, entity) to qualify as a cluster. Clamped to [2, 10]; default 2.
+	MinSources *int `form:"minSources,omitempty" json:"minSources,omitempty"`
+}
+
+// GetRevisionEditClustersParamsScope defines parameters for GetRevisionEditClusters.
+type GetRevisionEditClustersParamsScope string
+
+// GetRevisionEditClustersParamsResolution defines parameters for GetRevisionEditClusters.
+type GetRevisionEditClustersParamsResolution string
+
 // GetScopeAvailableMetricsParams defines parameters for GetScopeAvailableMetrics.
 type GetScopeAvailableMetricsParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
@@ -2076,6 +2406,12 @@ type ServerInterface interface {
 	// List articles with revisions for the Workbench drill-down
 	// (GET /revisions/articles)
 	GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams)
+	// Silent-edit discourse-shift trajectory for a probe or source
+	// (GET /revisions/discourse-shift)
+	GetRevisionDiscourseShift(w http.ResponseWriter, r *http.Request, params GetRevisionDiscourseShiftParams)
+	// Coordinated cross-source silent-edit clusters for a probe or source
+	// (GET /revisions/edit-clusters)
+	GetRevisionEditClusters(w http.ResponseWriter, r *http.Request, params GetRevisionEditClustersParams)
 	// Metrics available across a multi-source scope (per-source intersection)
 	// (GET /scope/available-metrics)
 	GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetricsParams)
@@ -2253,6 +2589,18 @@ func (_ Unimplemented) GetRevisionActivity(w http.ResponseWriter, r *http.Reques
 // List articles with revisions for the Workbench drill-down
 // (GET /revisions/articles)
 func (_ Unimplemented) GetRevisionsArticles(w http.ResponseWriter, r *http.Request, params GetRevisionsArticlesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Silent-edit discourse-shift trajectory for a probe or source
+// (GET /revisions/discourse-shift)
+func (_ Unimplemented) GetRevisionDiscourseShift(w http.ResponseWriter, r *http.Request, params GetRevisionDiscourseShiftParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Coordinated cross-source silent-edit clusters for a probe or source
+// (GET /revisions/edit-clusters)
+func (_ Unimplemented) GetRevisionEditClusters(w http.ResponseWriter, r *http.Request, params GetRevisionEditClustersParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3750,6 +4098,158 @@ func (siw *ServerInterfaceWrapper) GetRevisionsArticles(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetRevisionDiscourseShift operation middleware
+func (siw *ServerInterfaceWrapper) GetRevisionDiscourseShift(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRevisionDiscourseShiftParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "startDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "resolution" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resolution", r.URL.Query(), &params.Resolution, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resolution", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRevisionDiscourseShift(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRevisionEditClusters operation middleware
+func (siw *ServerInterfaceWrapper) GetRevisionEditClusters(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRevisionEditClustersParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "scopeId" -------------
+
+	if paramValue := r.URL.Query().Get("scopeId"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scopeId"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "startDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", r.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "resolution" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resolution", r.URL.Query(), &params.Resolution, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resolution", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "minSources" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "minSources", r.URL.Query(), &params.MinSources, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "minSources", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRevisionEditClusters(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetScopeAvailableMetrics operation middleware
 func (siw *ServerInterfaceWrapper) GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request) {
 
@@ -4529,6 +5029,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/revisions/articles", wrapper.GetRevisionsArticles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/revisions/discourse-shift", wrapper.GetRevisionDiscourseShift)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/revisions/edit-clusters", wrapper.GetRevisionEditClusters)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/scope/available-metrics", wrapper.GetScopeAvailableMetrics)
@@ -6616,6 +7122,166 @@ func (response GetRevisionsArticles500JSONResponse) VisitGetRevisionsArticlesRes
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetRevisionDiscourseShiftRequestObject struct {
+	Params GetRevisionDiscourseShiftParams
+}
+
+type GetRevisionDiscourseShiftResponseObject interface {
+	VisitGetRevisionDiscourseShiftResponse(w http.ResponseWriter) error
+}
+
+type GetRevisionDiscourseShift200JSONResponse RevisionDiscourseShiftResponse
+
+func (response GetRevisionDiscourseShift200JSONResponse) VisitGetRevisionDiscourseShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionDiscourseShift400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionDiscourseShift400JSONResponse) VisitGetRevisionDiscourseShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionDiscourseShift404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionDiscourseShift404JSONResponse) VisitGetRevisionDiscourseShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionDiscourseShift500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionDiscourseShift500JSONResponse) VisitGetRevisionDiscourseShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionEditClustersRequestObject struct {
+	Params GetRevisionEditClustersParams
+}
+
+type GetRevisionEditClustersResponseObject interface {
+	VisitGetRevisionEditClustersResponse(w http.ResponseWriter) error
+}
+
+type GetRevisionEditClusters200JSONResponse RevisionEditClustersResponse
+
+func (response GetRevisionEditClusters200JSONResponse) VisitGetRevisionEditClustersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionEditClusters400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionEditClusters400JSONResponse) VisitGetRevisionEditClustersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionEditClusters404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionEditClusters404JSONResponse) VisitGetRevisionEditClustersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetRevisionEditClusters500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetRevisionEditClusters500JSONResponse) VisitGetRevisionEditClustersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetScopeAvailableMetricsRequestObject struct {
 	Params GetScopeAvailableMetricsParams
 }
@@ -7540,6 +8206,12 @@ type StrictServerInterface interface {
 	// List articles with revisions for the Workbench drill-down
 	// (GET /revisions/articles)
 	GetRevisionsArticles(ctx context.Context, request GetRevisionsArticlesRequestObject) (GetRevisionsArticlesResponseObject, error)
+	// Silent-edit discourse-shift trajectory for a probe or source
+	// (GET /revisions/discourse-shift)
+	GetRevisionDiscourseShift(ctx context.Context, request GetRevisionDiscourseShiftRequestObject) (GetRevisionDiscourseShiftResponseObject, error)
+	// Coordinated cross-source silent-edit clusters for a probe or source
+	// (GET /revisions/edit-clusters)
+	GetRevisionEditClusters(ctx context.Context, request GetRevisionEditClustersRequestObject) (GetRevisionEditClustersResponseObject, error)
 	// Metrics available across a multi-source scope (per-source intersection)
 	// (GET /scope/available-metrics)
 	GetScopeAvailableMetrics(ctx context.Context, request GetScopeAvailableMetricsRequestObject) (GetScopeAvailableMetricsResponseObject, error)
@@ -8226,6 +8898,58 @@ func (sh *strictHandler) GetRevisionsArticles(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRevisionsArticlesResponseObject); ok {
 		if err := validResponse.VisitGetRevisionsArticlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRevisionDiscourseShift operation middleware
+func (sh *strictHandler) GetRevisionDiscourseShift(w http.ResponseWriter, r *http.Request, params GetRevisionDiscourseShiftParams) {
+	var request GetRevisionDiscourseShiftRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRevisionDiscourseShift(ctx, request.(GetRevisionDiscourseShiftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRevisionDiscourseShift")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRevisionDiscourseShiftResponseObject); ok {
+		if err := validResponse.VisitGetRevisionDiscourseShiftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRevisionEditClusters operation middleware
+func (sh *strictHandler) GetRevisionEditClusters(w http.ResponseWriter, r *http.Request, params GetRevisionEditClustersParams) {
+	var request GetRevisionEditClustersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRevisionEditClusters(ctx, request.(GetRevisionEditClustersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRevisionEditClusters")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRevisionEditClustersResponseObject); ok {
+		if err := validResponse.VisitGetRevisionEditClustersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

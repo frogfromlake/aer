@@ -1,0 +1,66 @@
+get:
+  tags: [Analysis]
+  summary: Silent-edit discourse-shift trajectory for a probe or source
+  description: >
+    Returns the aggregated discourse shift produced by silent edits over
+    `aer_gold.article_revisions` (Phase 122d.3). Each entry is one
+    (source, bucket) cell rolling up the re-extraction deltas
+    (`sentiment_delta`, `topic_shift_score`, entity add/remove) across the
+    edits whose deltas were computed. Backs the `revision_discourse_shift`
+    Episteme trajectory cell.
+
+    Read-only; same scope grammar as `/revisions` and `/metrics`. Only
+    real edits with `deltas_computed=true` contribute — identical
+    re-archivals and pending/partial rows are excluded so the averages
+    are never polluted by default zeros. Sources with no such edits in
+    the window do NOT appear in `entries`.
+  operationId: getRevisionDiscourseShift
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - name: startDate
+      in: query
+      required: false
+      description: Inclusive start of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: endDate
+      in: query
+      required: false
+      description: Exclusive end of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: resolution
+      in: query
+      required: false
+      description: >
+        Aggregation grain. `snapshot` collapses to a single bucket
+        spanning the whole window; `daily` / `weekly` / `monthly` bucket
+        the window on that grain (the Episteme trajectory).
+      schema:
+        type: string
+        enum: [snapshot, daily, weekly, monthly]
+        default: daily
+  responses:
+    '200':
+      description: Aggregated discourse-shift payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RevisionDiscourseShiftResponse'
+    '400':
+      description: Invalid scope/window/resolution parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

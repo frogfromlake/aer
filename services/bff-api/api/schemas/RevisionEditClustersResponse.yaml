@@ -1,0 +1,47 @@
+type: object
+description: >
+  Coordinated-edit-cluster response (Phase 122d.3, Rhizome). Surfaces
+  cross-source temporally-clustered silent edits on shared entities, read
+  from `aer_gold.article_revisions` with the same scope/window/resolution
+  grammar as `/revisions`. Only edits with computed deltas contribute. The
+  scope must resolve to ≥ 2 sources for any cluster to be possible (a
+  single-source scope returns an empty list).
+required:
+  - scope
+  - scopeId
+  - resolution
+  - minSources
+  - clusters
+properties:
+  scope:
+    type: string
+    enum: [probe, source]
+    description: Echoed scope of the request.
+  scopeId:
+    type: string
+    description: Echoed scope identifier.
+  resolution:
+    type: string
+    enum: [snapshot, daily, weekly, monthly]
+    description: The time-bucket grain coordinated edits are grouped within.
+  minSources:
+    type: integer
+    minimum: 2
+    description: >
+      The minimum number of distinct co-editing sources for a (bucket,
+      entity) to qualify as a cluster (echoed; default 2).
+  windowStart:
+    type: string
+    format: date-time
+    description: Echoed inclusive window start.
+  windowEnd:
+    type: string
+    format: date-time
+    description: Echoed exclusive window end.
+  clusters:
+    type: array
+    description: >
+      Coordinated-edit clusters, most-edited first. Empty when no entity
+      was co-edited by ≥ `minSources` sources in any bucket.
+    items:
+      $ref: './RevisionEditClusterEntry.yaml'

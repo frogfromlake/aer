@@ -1,0 +1,30 @@
+entityId: howto_revision_discourse_shift
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Nicht wie oft eine Quelle editiert, sondern was die Edits MIT dem Diskurs machen — mittlere Sentiment-Änderung und Bedeutungsverschiebung über die Zeit."
+    long: >
+      Die diskursische Lesart stiller Edits. Für jede redaktionelle Änderung extrahiert AĒR Sentiment und
+      benannte Entitäten aus jeder archivierten Snapshot-Version neu und misst die Verschiebung: jeder Punkt
+      ist die MITTLERE Sentiment-Änderung einer Quelle in diesem Bucket, berechnet als später-in-der-Zeit minus
+      früher-in-der-Zeit (ein positiver Wert = die Edits ließen Artikel positiver lesen). Im Hover: die
+      gerichtete Netto-Drift (die Summe, in der wenige große Edits dominieren), die mittlere
+      Bedeutungsverschiebung (wie stark sich die Bedeutung bewegte) und hinzugefügte/entfernte Entitäten. Eine
+      flache Linie bei null heißt: die Edits ließen das Sentiment unberührt. Eine anhaltende Drift in eine
+      Richtung ist ein Signal für einen zweiten Blick — kein Beweis; dies sind vorläufige technische Maße.
+  methodological:
+    short: "Mittelwerte je (Quelle, Bucket) der Re-Extraktions-Deltas aus aer_gold.article_revisions, nur Edits mit berechneten Deltas."
+    long: >
+      Aggregiert aus aer_gold.article_revisions (mit FINAL gelesen) über die Edits, deren Discourse-Shift-Deltas
+      berechnet wurden — identische Re-Archivierungen und ausstehende/partielle Zeilen sind ausgeschlossen, sodass
+      Default-Nullen die Mittelwerte nie verfälschen. sentiment_delta nutzt das mehrsprachige News-Backbone
+      (cardiffnlp/twitter-xlm-roberta-base-sentiment), damit das Signal probe-übergreifend vergleichbar ist;
+      topic_shift_score ist die Kosinus-Distanz mehrsprachiger E5-Embeddings der beiden Snapshot-Texte (eine
+      BEDEUTUNGS-Verschiebung, kein Topic-Label-Wechsel). Alle Werte sind vorläufig
+      (validation_status=unvalidated) — technische Standardwerte, keine validierten Messungen.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-05"
+workingPaperAnchors:
+  - "WP-003 §5.3"

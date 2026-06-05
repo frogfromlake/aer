@@ -314,7 +314,12 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 			diff_paragraphs Array(String) DEFAULT [],
 			headline_changed Bool DEFAULT false,
 			headline_before String DEFAULT '',
-			headline_after String DEFAULT ''
+			headline_after String DEFAULT '',
+			sentiment_delta Float64 DEFAULT 0,
+			entities_added Array(String) DEFAULT [],
+			entities_removed Array(String) DEFAULT [],
+			topic_shift_score Float64 DEFAULT 0,
+			deltas_computed Bool DEFAULT false
 		) ENGINE = ReplacingMergeTree(ingestion_version)
 		ORDER BY (article_id, snapshot_at, content_hash)
 	`)

@@ -35,6 +35,16 @@ export type ViewMode =
   // pillar→presentation mapping.
   | 'revision_activity'
   | 'revision_timeline'
+  // Phase 122d.3 — Silent-Edit Discourse Shift (Episteme, over-time). The
+  // discourse-level reading of edits: how a source's edits move sentiment
+  // and meaning across the window. Metric-less (usesMetric:false); the
+  // signal is the re-extraction delta, not a chosen Gold metric.
+  | 'revision_discourse_shift'
+  // Phase 122d.3 — coordinated cross-source edit clusters (Rhizome,
+  // relational). Cross-source temporally-clustered silent edits on shared
+  // entities — the relational counterpart of `revision_discourse_shift`,
+  // split into its own pillar per the strict 1-1 mapping (ADR-035).
+  | 'revision_edit_clusters'
   // Phase 124 — cross-probe temporal lead-lag (Rhizome, relational). The
   // lagged cross-correlation of two probes' hourly publication activity;
   // metric-less (usesMetric:false) and inherently a probe-pair artefact.
@@ -269,6 +279,8 @@ const VIEW_MODES: readonly ViewMode[] = [
   'metric_scatter',
   'revision_activity',
   'revision_timeline',
+  'revision_discourse_shift',
+  'revision_edit_clusters',
   'cross_probe_lead_lag'
 ];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];

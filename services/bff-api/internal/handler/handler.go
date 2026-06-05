@@ -114,6 +114,10 @@ type Store interface {
 	// Phase 122d.0: Silent-Edit Observability — aggregation + per-article
 	// chain over aer_gold.article_revisions.
 	GetRevisionActivity(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error)
+	// Phase 122d.3: Silent-Edit Discourse Shift — re-extraction deltas
+	// aggregated by (source, bucket).
+	GetRevisionDiscourseShift(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution) ([]storage.RevisionDiscourseShiftCell, error)
+	GetRevisionEditClusters(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution, minSources int) ([]storage.RevisionEditClusterRow, error)
 	GetArticleRevisions(ctx context.Context, articleID string) ([]storage.ArticleRevisionRow, error)
 	// Phase 122d.1: Silent-Edit Diff Substance + Drilldown.
 	GetArticleRevisionDiff(ctx context.Context, articleID string, revisionIndex int) (*storage.ArticleRevisionDiffRow, error)

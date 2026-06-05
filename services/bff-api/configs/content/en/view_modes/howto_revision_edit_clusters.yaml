@@ -1,0 +1,28 @@
+entityId: howto_revision_edit_clusters
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Entities that two or more sources silently edited in the same time bucket — cross-source coincidences worth a second look."
+    long: >
+      The relational reading of silent edits. Each cluster is a (time bucket, entity) that at least
+      `minSources` distinct sources each quietly added or removed within the same window — for example,
+      two outlets both editing references to the same person in the same week. Read it as a DISCLOSED
+      COINCIDENCE, never a causal or coordination claim: AĒR observes that the edits co-occurred in
+      time, nothing more (WP-003 §5). Tighten the signal by widening the time bucket or raising the
+      source threshold. An empty list means no entity was co-edited by enough sources — the common,
+      unremarkable case.
+  methodological:
+    short: "Computed-delta edits exploded across their added/removed entities, grouped by (bucket, entity), kept when ≥ minSources distinct sources contribute."
+    long: >
+      Built from aer_gold.article_revisions (read with FINAL) over edits whose discourse-shift deltas
+      were computed. Each edit is exploded across the union of its added and removed entity spans;
+      groups of (bucket, entity) are kept only when the distinct co-editing source count clears the
+      threshold (clamped 2–10, default 2). Entity matching is on the raw surface span, so cross-lingual
+      or spelling variants are NOT merged (a deliberate conservative choice — no false coincidences).
+      Provisional (validation_status=unvalidated).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-05"
+workingPaperAnchors:
+  - "WP-003 §5"

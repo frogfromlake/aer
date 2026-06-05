@@ -328,6 +328,43 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/RevisionTimelineCell.svelte')).default
   },
+  // Phase 122d.3 — Silent-Edit Discourse Shift (Episteme). Goes one level
+  // deeper than `revision_timeline`: not HOW OFTEN a source edits, but what
+  // the edits DO to the discourse — the mean sentiment delta + semantic
+  // (topic) shift per source over the window, re-extracted from each
+  // snapshot version. Metric-less; the resolution control buckets the
+  // trajectory. The provisional delta backbones are disclosed in the
+  // how-to-read note.
+  {
+    id: 'revision_discourse_shift',
+    label: 'Discourse shift',
+    discipline: 'episteme',
+    description:
+      'How silent edits move the discourse — mean sentiment delta and semantic (topic) shift per source over time.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: true,
+    configurableParams: [],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/RevisionDiscourseShiftCell.svelte')).default
+  },
+  // Phase 122d.3 — Rhizome coordinated-edit clusters. The relational reading
+  // of silent edits: cross-source temporal coincidences on the same entity
+  // (≥2 sources silently editing the same name in the same time bucket).
+  // Metric-less; a disclosed coincidence, never a causal claim (WP-003 §5).
+  {
+    id: 'revision_edit_clusters',
+    label: 'Edit clusters',
+    discipline: 'network_science',
+    description:
+      'Coordinated cross-source silent edits — which entities ≥2 sources quietly changed in the same time bucket.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: true,
+    configurableParams: [],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/RevisionEditClustersCell.svelte')).default
+  },
   // Phase 124 — Rhizome cross-probe temporal lead-lag. A relational artefact
   // over a probe PAIR: the lagged cross-correlation of the two probes' hourly
   // publication activity. Metric-less (the signal is publication activity, not
@@ -459,7 +496,12 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     description:
       'How the expressible shifts over time. Time is the axis: metric time-series, topic evolution, drift, and silent-edit activity over time — the long-term shape of what can be said within the discursive formation.',
     color: '#c8a85a',
-    presentations: ['time_series', 'topic_evolution', 'revision_timeline']
+    presentations: [
+      'time_series',
+      'topic_evolution',
+      'revision_timeline',
+      'revision_discourse_shift'
+    ]
   },
   {
     id: 'rhizome',
@@ -470,7 +512,7 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     description:
       'How frames move. Entity co-occurrence, lead-lag, cross-probe diffusion — the relational substrate of the discourse.',
     color: '#9a8fb8',
-    presentations: ['cooccurrence_network', 'cross_probe_lead_lag']
+    presentations: ['cooccurrence_network', 'cross_probe_lead_lag', 'revision_edit_clusters']
   }
 ];
 

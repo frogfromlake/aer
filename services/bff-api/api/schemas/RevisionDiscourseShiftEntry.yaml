@@ -1,0 +1,71 @@
+type: object
+description: >
+  One row of the Silent-Edit Discourse Shift surface (Phase 122d.3).
+  Rolls up `aer_gold.article_revisions` by (source, bucket) over the
+  edit pairs whose discourse-shift deltas were computed
+  (`deltas_computed=true` AND the pair is a real edit). Backs the
+  `revision_discourse_shift` Episteme trajectory cell. All values are
+  provisional engineering signals (`validation_status=unvalidated`).
+required:
+  - source
+  - bucket
+  - editsWithDeltas
+  - avgSentimentDelta
+  - netSentimentDrift
+  - avgTopicShift
+  - entitiesAddedTotal
+  - entitiesRemovedTotal
+properties:
+  source:
+    type: string
+    description: Canonical source identifier (e.g. `tagesschau`).
+    example: tagesschau
+  bucket:
+    type: string
+    format: date-time
+    description: >
+      Aggregation bucket start, normalised to the requested resolution
+      (single window-spanning bucket for `snapshot`; daily/weekly/monthly
+      otherwise).
+    example: 2026-05-01T00:00:00Z
+  editsWithDeltas:
+    type: integer
+    minimum: 0
+    description: >
+      Count of editorial edits in this cell that have computed deltas
+      (the denominator of the averages below).
+    example: 12
+  avgSentimentDelta:
+    type: number
+    format: double
+    description: >
+      Mean sentiment change across the cell's edits, later-in-time minus
+      earlier-in-time. Positive = the source's edits trended more
+      positive in this bucket. Zero when `editsWithDeltas=0`.
+    example: 0.08
+  netSentimentDrift:
+    type: number
+    format: double
+    description: >
+      Directional SUM of sentiment deltas across the cell's edits — the
+      net editorial sentiment movement (distinct from the mean: a few
+      large edits dominate). Zero when `editsWithDeltas=0`.
+    example: 0.96
+  avgTopicShift:
+    type: number
+    format: double
+    minimum: 0
+    description: >
+      Mean semantic-shift magnitude (E5 cosine distance) across the
+      cell's edits. Higher = edits moved the article's meaning more.
+    example: 0.21
+  entitiesAddedTotal:
+    type: integer
+    minimum: 0
+    description: Total named-entity spans added across the cell's edits.
+    example: 7
+  entitiesRemovedTotal:
+    type: integer
+    minimum: 0
+    description: Total named-entity spans removed across the cell's edits.
+    example: 3

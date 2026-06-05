@@ -225,6 +225,19 @@
     }
   }
 
+  // Phase 122d.3 — discourse-shift delta helpers for the Revision history
+  // rows. The deltas are later-in-time minus earlier-in-time (the BFF
+  // already orients chain-head pairs), so a positive sentiment delta means
+  // the article reads more positively after the edit. Never re-invert.
+  function sentimentArrow(d: number): string {
+    if (d > 0.0005) return '▲';
+    if (d < -0.0005) return '▼';
+    return '→';
+  }
+  function fmtDelta(d: number): string {
+    return (d >= 0 ? '+' : '') + d.toFixed(3);
+  }
+
   function onDialogClose() {
     provenanceExpanded = false;
     revisionsExpanded = false;
@@ -664,6 +677,45 @@
                     >
                       view snapshot ↗
                     </a>
+                  {/if}
+                  <!-- Phase 122d.3 — discourse-shift deltas for this edit
+                       (later − earlier). Only shown when computed; pending /
+                       identical / language-unknown rows carry no measurement. -->
+                  {#if rev.deltasComputed}
+                    <span class="rev-deltas">
+                      <span
+                        class="rev-delta-sent"
+                        class:pos={(rev.sentimentDelta ?? 0) > 0}
+                        class:neg={(rev.sentimentDelta ?? 0) < 0}
+                        title="Sentiment change across this edit (later − earlier), multilingual backbone"
+                      >
+                        {sentimentArrow(rev.sentimentDelta ?? 0)} sentiment {fmtDelta(
+                          rev.sentimentDelta ?? 0
+                        )}
+                      </span>
+                      <span
+                        class="rev-delta-topic"
+                        title="Semantic shift — E5 cosine distance between the two snapshot texts (0 = identical meaning)"
+                      >
+                        ⤳ shift {(rev.topicShiftScore ?? 0).toFixed(3)}
+                      </span>
+                      {#if (rev.entitiesAdded?.length ?? 0) > 0 || (rev.entitiesRemoved?.length ?? 0) > 0}
+                        <span
+                          class="rev-delta-ent"
+                          title={`Entities added: ${(rev.entitiesAdded ?? []).join(', ') || '—'}\nEntities removed: ${(rev.entitiesRemoved ?? []).join(', ') || '—'}`}
+                        >
+                          +{rev.entitiesAdded?.length ?? 0} / −{rev.entitiesRemoved?.length ?? 0}
+                          entities
+                        </span>
+                      {/if}
+                    </span>
+                  {:else if rev.diffStatus === 'changed'}
+                    <span
+                      class="rev-deltas rev-deltas-pending"
+                      title="Discourse-shift deltas are still being computed for this edit"
+                    >
+                      shift computing…
+                    </span>
                   {/if}
                 </li>
               {/each}
@@ -1162,6 +1214,38 @@
   .rev-link:hover {
     color: var(--color-accent);
     text-decoration: underline;
+  }
+
+  /* Phase 122d.3 — discourse-shift deltas wrap onto their own line under
+     the revision row (flex-basis:100% forces the wrap regardless of the
+     auto-margin on .rev-link). */
+  .rev-deltas {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-fg-muted);
+    padding-left: var(--space-2);
+  }
+
+  .rev-deltas-pending {
+    color: rgba(232, 168, 80, 0.9);
+    font-style: italic;
+  }
+
+  .rev-delta-sent.pos {
+    color: rgba(126, 196, 160, 0.95);
+  }
+
+  .rev-delta-sent.neg {
+    color: rgba(214, 122, 122, 0.95);
+  }
+
+  .rev-delta-ent {
+    color: var(--color-fg-subtle);
+    cursor: help;
   }
 
   .provenance-summary {

@@ -1,0 +1,72 @@
+get:
+  tags: [Analysis]
+  summary: Coordinated cross-source silent-edit clusters for a probe or source
+  description: >
+    Returns coordinated-edit clusters over `aer_gold.article_revisions`
+    (Phase 122d.3, Rhizome). A cluster is a (time bucket, entity) that
+    ≥ `minSources` distinct sources each silently added or removed within
+    the bucket — a cross-source temporal coincidence on the same entity.
+    Backs the `revision_edit_clusters` Rhizome cell.
+
+    Read-only; same scope grammar as `/revisions`. Only computed-delta
+    edits contribute. The scope must resolve to ≥ 2 sources for a cluster
+    to exist; a single-source scope returns an empty list. The clustering
+    is a disclosed temporal coincidence, never a causal claim (WP-003 §5).
+  operationId: getRevisionEditClusters
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - $ref: '../parameters/scopeId.yaml'
+    - name: startDate
+      in: query
+      required: false
+      description: Inclusive start of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: endDate
+      in: query
+      required: false
+      description: Exclusive end of the analysis window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    - name: resolution
+      in: query
+      required: false
+      description: The time-bucket grain coordinated edits are grouped within.
+      schema:
+        type: string
+        enum: [snapshot, daily, weekly, monthly]
+        default: daily
+    - name: minSources
+      in: query
+      required: false
+      description: >
+        Minimum distinct co-editing sources for a (bucket, entity) to
+        qualify as a cluster. Clamped to [2, 10]; default 2.
+      schema:
+        type: integer
+        minimum: 2
+        maximum: 10
+        default: 2
+  responses:
+    '200':
+      description: Coordinated-edit-cluster payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RevisionEditClustersResponse'
+    '400':
+      description: Invalid scope/window/resolution parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

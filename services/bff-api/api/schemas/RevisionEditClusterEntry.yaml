@@ -1,0 +1,48 @@
+type: object
+description: >
+  One coordinated-edit cluster (Phase 122d.3, Rhizome). A cluster is a
+  (time bucket, entity) where ≥ `minSources` distinct sources each made a
+  computed-delta edit that added or removed that entity within the bucket
+  — a cross-source temporal coincidence on the same entity. A relational
+  signal, NOT a causal claim: co-occurrence in time is disclosed, not
+  interpreted (WP-003 §5). Provisional (`validation_status=unvalidated`).
+required:
+  - bucket
+  - entity
+  - sources
+  - editCount
+  - avgTopicShift
+properties:
+  bucket:
+    type: string
+    format: date-time
+    description: Aggregation bucket start (per the requested resolution).
+  entity:
+    type: string
+    description: >
+      The named-entity surface span that ≥ `minSources` sources added or
+      removed in this bucket.
+    example: Selenskyj
+  sources:
+    type: array
+    items:
+      type: string
+    description: >
+      The distinct sources that co-edited this entity in the bucket (length
+      ≥ the requested `minSources`).
+    example: [tagesschau, bundesregierung]
+  editCount:
+    type: integer
+    minimum: 0
+    description: >
+      Total (edit, entity) incidences in the cluster across all its sources
+      — how many edits touched this entity in the bucket.
+    example: 4
+  avgTopicShift:
+    type: number
+    format: double
+    minimum: 0
+    description: >
+      Mean semantic-shift magnitude (E5 cosine distance) of the cluster's
+      edits — how much those edits moved the articles' meaning.
+    example: 0.18

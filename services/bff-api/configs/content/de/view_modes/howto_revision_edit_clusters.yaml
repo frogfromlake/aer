@@ -1,0 +1,28 @@
+entityId: howto_revision_edit_clusters
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Entitäten, die zwei oder mehr Quellen im selben Zeit-Bucket still editiert haben — quellenübergreifende Koinzidenzen für einen zweiten Blick."
+    long: >
+      Die relationale Lesart stiller Edits. Jeder Cluster ist ein (Zeit-Bucket, Entität), den mindestens
+      `minSources` verschiedene Quellen im selben Fenster still hinzugefügt oder entfernt haben — etwa zwei
+      Medien, die Bezüge auf dieselbe Person in derselben Woche ändern. Lies dies als OFFENGELEGTE
+      KOINZIDENZ, nie als Kausal- oder Koordinationsbehauptung: AĒR beobachtet nur, dass die Edits zeitlich
+      zusammenfielen, mehr nicht (WP-003 §5). Schärfe das Signal, indem du den Zeit-Bucket aufweitest oder die
+      Quellenschwelle erhöhst. Eine leere Liste heißt: keine Entität wurde von genug Quellen gemeinsam editiert
+      — der häufige, unauffällige Fall.
+  methodological:
+    short: "Edits mit berechneten Deltas, aufgefächert über ihre hinzugefügten/entfernten Entitäten, gruppiert nach (Bucket, Entität), behalten wenn ≥ minSources verschiedene Quellen beitragen."
+    long: >
+      Gebildet aus aer_gold.article_revisions (mit FINAL gelesen) über Edits mit berechneten
+      Discourse-Shift-Deltas. Jeder Edit wird über die Vereinigung seiner hinzugefügten und entfernten
+      Entitäts-Spans aufgefächert; Gruppen von (Bucket, Entität) werden nur behalten, wenn die Zahl
+      verschiedener co-editierender Quellen die Schwelle übersteigt (begrenzt 2–10, Standard 2). Der Abgleich
+      erfolgt auf dem rohen Oberflächen-Span, sprach- oder Schreibvarianten werden NICHT zusammengeführt (eine
+      bewusst konservative Wahl — keine falschen Koinzidenzen). Vorläufig (validation_status=unvalidated).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-05"
+workingPaperAnchors:
+  - "WP-003 §5"

@@ -32,6 +32,30 @@ type RevisionActivityCell struct {
 	UnknownTriggerCount uint64    `ch:"unknown_trigger_count"`
 }
 
+// RevisionDiscourseShiftCell is one (source, bucket) aggregation row of
+// the Silent-Edit Discourse Shift surface (Phase 122d.3) — the re-extraction
+// deltas rolled up over the cell's computed-delta edits.
+type RevisionDiscourseShiftCell struct {
+	Source               string    `ch:"source"`
+	Bucket               time.Time `ch:"bucket"`
+	EditsWithDeltas      uint64    `ch:"edits_with_deltas"`
+	AvgSentimentDelta    float64   `ch:"avg_sentiment_delta"`
+	NetSentimentDrift    float64   `ch:"net_sentiment_drift"`
+	AvgTopicShift        float64   `ch:"avg_topic_shift"`
+	EntitiesAddedTotal   uint64    `ch:"entities_added_total"`
+	EntitiesRemovedTotal uint64    `ch:"entities_removed_total"`
+}
+
+// RevisionEditClusterRow is one coordinated-edit cluster (Phase 122d.3,
+// Rhizome): a (bucket, entity) co-edited by ≥ minSources distinct sources.
+type RevisionEditClusterRow struct {
+	Bucket        time.Time `ch:"bucket"`
+	Entity        string    `ch:"entity"`
+	Sources       []string  `ch:"sources"`
+	EditCount     uint64    `ch:"edit_count"`
+	AvgTopicShift float64   `ch:"avg_topic_shift"`
+}
+
 // ArticleRevisionRow is one detected revision for the per-article
 // chain returned by `GET /articles/{id}/revisions`.
 type ArticleRevisionRow struct {
@@ -51,12 +75,23 @@ type ArticleRevisionRow struct {
 	// a re-archival with no editorial change), or `changed`. Lets the L5
 	// reader walk the slider over editorial versions only (Phase 133).
 	DiffStatus string `ch:"diff_status"`
+	// Phase 122d.3 — Silent-Edit Discourse Shift deltas for the pair ending
+	// at this revision. Computed later-in-time minus earlier-in-time (the
+	// chain-head pair's "later" is the current article). DeltasComputed
+	// gates whether the deltas are real measurements or defaults.
+	DeltasComputed  bool     `ch:"deltas_computed"`
+	SentimentDelta  float64  `ch:"sentiment_delta"`
+	EntitiesAdded   []string `ch:"entities_added"`
+	EntitiesRemoved []string `ch:"entities_removed"`
+	TopicShiftScore float64  `ch:"topic_shift_score"`
 }
 
 // RevisionActivityQuerier abstracts the storage-side queries for the
 // Silent-Edit Observability endpoints. Implemented by ClickHouseStorage.
 type RevisionActivityQuerier interface {
 	GetRevisionActivity(ctx context.Context, sources []string, start, end time.Time, resolution RevisionActivityResolution) ([]RevisionActivityCell, error)
+	GetRevisionDiscourseShift(ctx context.Context, sources []string, start, end time.Time, resolution RevisionActivityResolution) ([]RevisionDiscourseShiftCell, error)
+	GetRevisionEditClusters(ctx context.Context, sources []string, start, end time.Time, resolution RevisionActivityResolution, minSources int) ([]RevisionEditClusterRow, error)
 	GetArticleRevisions(ctx context.Context, articleID string) ([]ArticleRevisionRow, error)
 }
 
@@ -146,6 +181,158 @@ func (s *ClickHouseStorage) GetRevisionActivity(
 	return rows, nil
 }
 
+// GetRevisionDiscourseShift aggregates the Phase-122d.3 re-extraction
+// deltas on `aer_gold.article_revisions` by (source, bucket).
+//
+// Only real edits with computed deltas contribute (`is_edit AND
+// deltas_computed`): identical re-archivals (the sentinel diff) and
+// pending/partial rows are excluded so the averages are never polluted
+// by default zeros. The `HAVING` drops empty cells so every returned row
+// has a non-zero denominator. `FINAL` is required for the same
+// ReplacingMergeTree reason documented on `GetRevisionActivity`.
+//
+// An empty `sources` slice yields no rows — the aggregation is always
+// scoped, never global.
+func (s *ClickHouseStorage) GetRevisionDiscourseShift(
+	ctx context.Context,
+	sources []string,
+	start, end time.Time,
+	resolution RevisionActivityResolution,
+) ([]RevisionDiscourseShiftCell, error) {
+	if len(sources) == 0 {
+		return nil, nil
+	}
+
+	bucketExpr, err := revisionBucketExpr(resolution, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	placeholders := make([]string, len(sources))
+	args := []any{start, end}
+	for i, src := range sources {
+		placeholders[i] = "?"
+		args = append(args, src)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			source,
+			%s AS bucket,
+			toUInt64(countIf(scored))                       AS edits_with_deltas,
+			avgIf(sentiment_delta, scored)                  AS avg_sentiment_delta,
+			sumIf(sentiment_delta, scored)                  AS net_sentiment_drift,
+			avgIf(topic_shift_score, scored)                AS avg_topic_shift,
+			toUInt64(sumIf(length(entities_added), scored))   AS entities_added_total,
+			toUInt64(sumIf(length(entities_removed), scored)) AS entities_removed_total
+		FROM (
+			SELECT
+				source,
+				snapshot_at,
+				sentiment_delta,
+				topic_shift_score,
+				entities_added,
+				entities_removed,
+				-- A scored edit = a real editorial change (paragraph or
+				-- headline) whose discourse-shift deltas were computed.
+				(((length(diff_paragraphs) > 0
+				   AND NOT arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs))
+				  OR headline_changed)
+				 AND deltas_computed) AS scored
+			FROM aer_gold.article_revisions FINAL
+			WHERE snapshot_at >= ?
+			  AND snapshot_at <  ?
+			  AND source IN (%s)
+		)
+		GROUP BY source, bucket
+		HAVING edits_with_deltas > 0
+		ORDER BY bucket, source
+	`, bucketExpr, strings.Join(placeholders, ", "))
+
+	var rows []RevisionDiscourseShiftCell
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		return nil, fmt.Errorf("revision discourse-shift query: %w", err)
+	}
+	return rows, nil
+}
+
+// GetRevisionEditClusters finds coordinated-edit clusters (Phase 122d.3,
+// Rhizome): a (bucket, entity) co-edited by ≥ minSources distinct sources
+// among the scoped sources. Each computed-delta edit is exploded across the
+// union of its added+removed entity spans (`arrayJoin`), grouped by
+// (bucket, entity), and kept only when the distinct-source count clears the
+// threshold. The clustering is a disclosed temporal coincidence, not a
+// causal claim (WP-003 §5).
+//
+// `minSources` is clamped to [2, 10] (a single-source cluster is not a
+// coincidence). An empty `sources` slice yields no rows.
+func (s *ClickHouseStorage) GetRevisionEditClusters(
+	ctx context.Context,
+	sources []string,
+	start, end time.Time,
+	resolution RevisionActivityResolution,
+	minSources int,
+) ([]RevisionEditClusterRow, error) {
+	if len(sources) == 0 {
+		return nil, nil
+	}
+	if minSources < 2 {
+		minSources = 2
+	}
+	if minSources > 10 {
+		minSources = 10
+	}
+
+	bucketExpr, err := revisionBucketExpr(resolution, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	placeholders := make([]string, len(sources))
+	args := []any{start, end}
+	for i, src := range sources {
+		placeholders[i] = "?"
+		args = append(args, src)
+	}
+
+	// `minSources` is a bounded int (clamped above) — safe to inline; the
+	// clickhouse-go driver does not bind params inside HAVING reliably.
+	query := fmt.Sprintf(`
+		SELECT
+			bucket,
+			entity,
+			groupUniqArray(source)        AS sources,
+			toUInt64(count())             AS edit_count,
+			avg(topic_shift_score)        AS avg_topic_shift
+		FROM (
+			SELECT
+				%s AS bucket,
+				source,
+				topic_shift_score,
+				arrayJoin(arrayDistinct(arrayConcat(entities_added, entities_removed))) AS entity
+			FROM aer_gold.article_revisions FINAL
+			WHERE snapshot_at >= ?
+			  AND snapshot_at <  ?
+			  AND source IN (%s)
+			  AND deltas_computed
+			  AND (((length(diff_paragraphs) > 0
+			         AND NOT arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs))
+			        OR headline_changed))
+		)
+		WHERE entity != ''
+		GROUP BY bucket, entity
+		HAVING length(sources) >= %d
+		ORDER BY edit_count DESC, bucket, entity
+		LIMIT 200
+	`, bucketExpr, strings.Join(placeholders, ", "), minSources)
+
+	var rows []RevisionEditClusterRow
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		return nil, fmt.Errorf("revision edit-clusters query: %w", err)
+	}
+	return rows, nil
+}
+
 // GetArticleRevisions returns the ordered revision chain for one
 // article. ReplacingMergeTree merges may not have settled across the
 // (article_id, snapshot_at, content_hash) primary tuple, so the query
@@ -172,7 +359,12 @@ func (s *ClickHouseStorage) GetArticleRevisions(
 				arrayExists(x -> JSONExtractString(x, 'op') = 'identical', diff_paragraphs), 'identical',
 				length(diff_paragraphs) > 0 OR headline_changed, 'changed',
 				'pending'
-			) AS diff_status
+			) AS diff_status,
+			deltas_computed,
+			sentiment_delta,
+			entities_added,
+			entities_removed,
+			topic_shift_score
 		FROM aer_gold.article_revisions FINAL
 		WHERE article_id = ?
 		ORDER BY snapshot_at, content_hash

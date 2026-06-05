@@ -104,6 +104,230 @@ func (s *Server) GetRevisionActivity(ctx context.Context, request GetRevisionAct
 	return resp, nil
 }
 
+// GetRevisionDiscourseShift handles GET /revisions/discourse-shift —
+// Phase 122d.3. Same scope/window/resolution grammar as
+// `GetRevisionActivity`; aggregates the re-extraction deltas
+// (`sentiment_delta`, `topic_shift_score`, entity add/remove) over the
+// computed-delta edits. Sources with no such edits in the window are
+// absent (rendered from scope membership, like every revision surface).
+func (s *Server) GetRevisionDiscourseShift(ctx context.Context, request GetRevisionDiscourseShiftRequestObject) (GetRevisionDiscourseShiftResponseObject, error) {
+	scope := GetRevisionActivityParamsScopeProbe
+	if request.Params.Scope != nil {
+		scope = GetRevisionActivityParamsScope(string(*request.Params.Scope))
+	}
+	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeId)
+	if err != nil {
+		if errors.Is(err, storage.ErrSourceNotFound) || errors.Is(err, errRevisionsProbeNotFound) {
+			return GetRevisionDiscourseShift404JSONResponse{Message: err.Error()}, nil
+		}
+		slog.Error("handler failure", "op", "GetRevisionDiscourseShift.resolveScope", "error", err)
+		return GetRevisionDiscourseShift500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetRevisionDiscourseShift400JSONResponse{Message: msg}, nil
+	}
+	resolution := discourseShiftResolutionFromParam(request.Params.Resolution)
+
+	cells, err := s.db.GetRevisionDiscourseShift(ctx, sources, start, end, resolution)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetRevisionDiscourseShift", "error", err)
+		return GetRevisionDiscourseShift500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetRevisionDiscourseShift200JSONResponse{
+		Scope:      discourseShiftScopeToResponse(scope),
+		ScopeId:    request.Params.ScopeId,
+		Resolution: discourseShiftResolutionToResponse(resolution),
+	}
+	resp.WindowStart = request.Params.StartDate
+	resp.WindowEnd = request.Params.EndDate
+
+	entries := make([]struct {
+		AvgSentimentDelta    float64   `json:"avgSentimentDelta"`
+		AvgTopicShift        float64   `json:"avgTopicShift"`
+		Bucket               time.Time `json:"bucket"`
+		EditsWithDeltas      int       `json:"editsWithDeltas"`
+		EntitiesAddedTotal   int       `json:"entitiesAddedTotal"`
+		EntitiesRemovedTotal int       `json:"entitiesRemovedTotal"`
+		NetSentimentDrift    float64   `json:"netSentimentDrift"`
+		Source               string    `json:"source"`
+	}, 0, len(cells))
+	for _, c := range cells {
+		entries = append(entries, struct {
+			AvgSentimentDelta    float64   `json:"avgSentimentDelta"`
+			AvgTopicShift        float64   `json:"avgTopicShift"`
+			Bucket               time.Time `json:"bucket"`
+			EditsWithDeltas      int       `json:"editsWithDeltas"`
+			EntitiesAddedTotal   int       `json:"entitiesAddedTotal"`
+			EntitiesRemovedTotal int       `json:"entitiesRemovedTotal"`
+			NetSentimentDrift    float64   `json:"netSentimentDrift"`
+			Source               string    `json:"source"`
+		}{
+			AvgSentimentDelta:    c.AvgSentimentDelta,
+			AvgTopicShift:        c.AvgTopicShift,
+			Bucket:               c.Bucket,
+			EditsWithDeltas:      int(c.EditsWithDeltas),      //nolint:gosec // bounded
+			EntitiesAddedTotal:   int(c.EntitiesAddedTotal),   //nolint:gosec // bounded
+			EntitiesRemovedTotal: int(c.EntitiesRemovedTotal), //nolint:gosec // bounded
+			NetSentimentDrift:    c.NetSentimentDrift,
+			Source:               c.Source,
+		})
+	}
+	resp.Entries = entries
+	return resp, nil
+}
+
+// discourseShiftResolutionFromParam maps the URL resolution enum onto the
+// storage constant, defaulting to `daily` (the Episteme trajectory grain).
+func discourseShiftResolutionFromParam(p *GetRevisionDiscourseShiftParamsResolution) storage.RevisionActivityResolution {
+	if p == nil {
+		return storage.RevisionResolutionDaily
+	}
+	switch storage.RevisionActivityResolution(*p) {
+	case storage.RevisionResolutionSnapshot,
+		storage.RevisionResolutionDaily,
+		storage.RevisionResolutionWeekly,
+		storage.RevisionResolutionMonthly:
+		return storage.RevisionActivityResolution(*p)
+	default:
+		return storage.RevisionResolutionDaily
+	}
+}
+
+func discourseShiftResolutionToResponse(r storage.RevisionActivityResolution) RevisionDiscourseShiftResponseResolution {
+	switch r {
+	case storage.RevisionResolutionDaily:
+		return RevisionDiscourseShiftResponseResolutionDaily
+	case storage.RevisionResolutionWeekly:
+		return RevisionDiscourseShiftResponseResolutionWeekly
+	case storage.RevisionResolutionMonthly:
+		return RevisionDiscourseShiftResponseResolutionMonthly
+	default:
+		return RevisionDiscourseShiftResponseResolutionSnapshot
+	}
+}
+
+func discourseShiftScopeToResponse(scope GetRevisionActivityParamsScope) RevisionDiscourseShiftResponseScope {
+	if strings.EqualFold(string(scope), string(GetRevisionActivityParamsScopeSource)) {
+		return RevisionDiscourseShiftResponseScopeSource
+	}
+	return RevisionDiscourseShiftResponseScopeProbe
+}
+
+// GetRevisionEditClusters handles GET /revisions/edit-clusters —
+// Phase 122d.3 (Rhizome). Surfaces cross-source temporally-clustered
+// silent edits on shared entities. Same scope/window/resolution grammar
+// as the other revision surfaces, plus a `minSources` threshold (clamped
+// [2, 10], default 2). A single-source scope yields no clusters.
+func (s *Server) GetRevisionEditClusters(ctx context.Context, request GetRevisionEditClustersRequestObject) (GetRevisionEditClustersResponseObject, error) {
+	scope := GetRevisionActivityParamsScopeProbe
+	if request.Params.Scope != nil {
+		scope = GetRevisionActivityParamsScope(string(*request.Params.Scope))
+	}
+	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeId)
+	if err != nil {
+		if errors.Is(err, storage.ErrSourceNotFound) || errors.Is(err, errRevisionsProbeNotFound) {
+			return GetRevisionEditClusters404JSONResponse{Message: err.Error()}, nil
+		}
+		slog.Error("handler failure", "op", "GetRevisionEditClusters.resolveScope", "error", err)
+		return GetRevisionEditClusters500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	start, end, msg := resolveWindow(request.Params.StartDate, request.Params.EndDate)
+	if msg != "" {
+		return GetRevisionEditClusters400JSONResponse{Message: msg}, nil
+	}
+	resolution := editClustersResolutionFromParam(request.Params.Resolution)
+
+	minSources := 2
+	if request.Params.MinSources != nil {
+		minSources = *request.Params.MinSources
+	}
+	if minSources < 2 {
+		minSources = 2
+	}
+	if minSources > 10 {
+		minSources = 10
+	}
+
+	rows, err := s.db.GetRevisionEditClusters(ctx, sources, start, end, resolution, minSources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetRevisionEditClusters", "error", err)
+		return GetRevisionEditClusters500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetRevisionEditClusters200JSONResponse{
+		Scope:      editClustersScopeToResponse(scope),
+		ScopeId:    request.Params.ScopeId,
+		Resolution: editClustersResolutionToResponse(resolution),
+		MinSources: minSources,
+	}
+	resp.WindowStart = request.Params.StartDate
+	resp.WindowEnd = request.Params.EndDate
+
+	clusters := make([]struct {
+		AvgTopicShift float64   `json:"avgTopicShift"`
+		Bucket        time.Time `json:"bucket"`
+		EditCount     int       `json:"editCount"`
+		Entity        string    `json:"entity"`
+		Sources       []string  `json:"sources"`
+	}, 0, len(rows))
+	for _, r := range rows {
+		clusters = append(clusters, struct {
+			AvgTopicShift float64   `json:"avgTopicShift"`
+			Bucket        time.Time `json:"bucket"`
+			EditCount     int       `json:"editCount"`
+			Entity        string    `json:"entity"`
+			Sources       []string  `json:"sources"`
+		}{
+			AvgTopicShift: r.AvgTopicShift,
+			Bucket:        r.Bucket,
+			EditCount:     int(r.EditCount), //nolint:gosec // bounded
+			Entity:        r.Entity,
+			Sources:       append([]string(nil), r.Sources...),
+		})
+	}
+	resp.Clusters = clusters
+	return resp, nil
+}
+
+func editClustersResolutionFromParam(p *GetRevisionEditClustersParamsResolution) storage.RevisionActivityResolution {
+	if p == nil {
+		return storage.RevisionResolutionDaily
+	}
+	switch storage.RevisionActivityResolution(*p) {
+	case storage.RevisionResolutionSnapshot,
+		storage.RevisionResolutionDaily,
+		storage.RevisionResolutionWeekly,
+		storage.RevisionResolutionMonthly:
+		return storage.RevisionActivityResolution(*p)
+	default:
+		return storage.RevisionResolutionDaily
+	}
+}
+
+func editClustersResolutionToResponse(r storage.RevisionActivityResolution) RevisionEditClustersResponseResolution {
+	switch r {
+	case storage.RevisionResolutionDaily:
+		return RevisionEditClustersResponseResolutionDaily
+	case storage.RevisionResolutionWeekly:
+		return RevisionEditClustersResponseResolutionWeekly
+	case storage.RevisionResolutionMonthly:
+		return RevisionEditClustersResponseResolutionMonthly
+	default:
+		return RevisionEditClustersResponseResolutionSnapshot
+	}
+}
+
+func editClustersScopeToResponse(scope GetRevisionActivityParamsScope) RevisionEditClustersResponseScope {
+	if strings.EqualFold(string(scope), string(GetRevisionActivityParamsScopeSource)) {
+		return RevisionEditClustersResponseScopeSource
+	}
+	return RevisionEditClustersResponseScopeProbe
+}
+
 // GetArticleRevisions handles GET /articles/{id}/revisions — the L5
 // Evidence per-article chain. Reuses the Silver-eligibility gate that
 // governs every other per-article read so a non-eligible source
@@ -161,29 +385,55 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 	revisions := make([]struct {
 		ArchiveUrl         *string                                     `json:"archiveUrl,omitempty"`
 		ContentHash        string                                      `json:"contentHash"`
+		DeltasComputed     bool                                        `json:"deltasComputed"`
 		DiffStatus         ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
+		EntitiesAdded      *[]string                                   `json:"entitiesAdded,omitempty"`
+		EntitiesRemoved    *[]string                                   `json:"entitiesRemoved,omitempty"`
 		PrevContentHash    *string                                     `json:"prevContentHash,omitempty"`
 		RevisionIndex      int                                         `json:"revisionIndex"`
+		SentimentDelta     *float64                                    `json:"sentimentDelta,omitempty"`
 		SnapshotAt         time.Time                                   `json:"snapshotAt"`
 		TimeSincePrevHours *float64                                    `json:"timeSincePrevHours,omitempty"`
+		TopicShiftScore    *float64                                    `json:"topicShiftScore,omitempty"`
 		Trigger            ArticleRevisionsResponseRevisionsTrigger    `json:"trigger"`
 	}, 0, len(rows))
 	for _, r := range rows {
 		entry := struct {
 			ArchiveUrl         *string                                     `json:"archiveUrl,omitempty"`
 			ContentHash        string                                      `json:"contentHash"`
+			DeltasComputed     bool                                        `json:"deltasComputed"`
 			DiffStatus         ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
+			EntitiesAdded      *[]string                                   `json:"entitiesAdded,omitempty"`
+			EntitiesRemoved    *[]string                                   `json:"entitiesRemoved,omitempty"`
 			PrevContentHash    *string                                     `json:"prevContentHash,omitempty"`
 			RevisionIndex      int                                         `json:"revisionIndex"`
+			SentimentDelta     *float64                                    `json:"sentimentDelta,omitempty"`
 			SnapshotAt         time.Time                                   `json:"snapshotAt"`
 			TimeSincePrevHours *float64                                    `json:"timeSincePrevHours,omitempty"`
+			TopicShiftScore    *float64                                    `json:"topicShiftScore,omitempty"`
 			Trigger            ArticleRevisionsResponseRevisionsTrigger    `json:"trigger"`
 		}{
-			ContentHash:   r.ContentHash,
-			DiffStatus:    ArticleRevisionsResponseRevisionsDiffStatus(r.DiffStatus),
-			RevisionIndex: int(r.RevisionIndex), //nolint:gosec // bounded
-			SnapshotAt:    r.SnapshotAt,
-			Trigger:       ArticleRevisionsResponseRevisionsTrigger(r.Trigger),
+			ContentHash:    r.ContentHash,
+			DeltasComputed: r.DeltasComputed,
+			DiffStatus:     ArticleRevisionsResponseRevisionsDiffStatus(r.DiffStatus),
+			RevisionIndex:  int(r.RevisionIndex), //nolint:gosec // bounded
+			SnapshotAt:     r.SnapshotAt,
+			Trigger:        ArticleRevisionsResponseRevisionsTrigger(r.Trigger),
+		}
+		// Phase 122d.3 — surface the discourse-shift deltas only when they
+		// were actually computed (a real edit with a known language). When
+		// not computed the omitempty pointers stay nil so the client never
+		// reads a default as a measurement. entitiesAdded/Removed are emitted
+		// even when empty (an empty set is a real "no entity change" datum).
+		if r.DeltasComputed {
+			sentimentDelta := r.SentimentDelta
+			topicShift := r.TopicShiftScore
+			added := append([]string(nil), r.EntitiesAdded...)
+			removed := append([]string(nil), r.EntitiesRemoved...)
+			entry.SentimentDelta = &sentimentDelta
+			entry.TopicShiftScore = &topicShift
+			entry.EntitiesAdded = &added
+			entry.EntitiesRemoved = &removed
 		}
 		// Honour the OpenAPI omitempty contract for chain-head rows.
 		// `prevContentHash` and `timeSincePrevHours` are documented as

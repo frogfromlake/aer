@@ -303,6 +303,14 @@ func (m *mockStore) GetRevisionActivity(_ context.Context, _ []string, _, _ time
 	return nil, nil
 }
 
+func (m *mockStore) GetRevisionDiscourseShift(_ context.Context, _ []string, _, _ time.Time, _ storage.RevisionActivityResolution) ([]storage.RevisionDiscourseShiftCell, error) {
+	return nil, nil
+}
+
+func (m *mockStore) GetRevisionEditClusters(_ context.Context, _ []string, _, _ time.Time, _ storage.RevisionActivityResolution, _ int) ([]storage.RevisionEditClusterRow, error) {
+	return nil, nil
+}
+
 func (m *mockStore) GetArticleRevisions(_ context.Context, _ string) ([]storage.ArticleRevisionRow, error) {
 	return nil, nil
 }

@@ -83,6 +83,10 @@ paths:
     $ref: './paths/revision_diff.yaml'
   /revisions:
     $ref: './paths/revisions.yaml'
+  /revisions/discourse-shift:
+    $ref: './paths/revisions_discourse_shift.yaml'
+  /revisions/edit-clusters:
+    $ref: './paths/revisions_edit_clusters.yaml'
   /revisions/articles:
     $ref: './paths/revisions_articles.yaml'
   /healthz:
@@ -179,6 +183,14 @@ components:
       $ref: './schemas/RevisionActivityEntry.yaml'
     RevisionActivityResponse:
       $ref: './schemas/RevisionActivityResponse.yaml'
+    RevisionDiscourseShiftEntry:
+      $ref: './schemas/RevisionDiscourseShiftEntry.yaml'
+    RevisionDiscourseShiftResponse:
+      $ref: './schemas/RevisionDiscourseShiftResponse.yaml'
+    RevisionEditClusterEntry:
+      $ref: './schemas/RevisionEditClusterEntry.yaml'
+    RevisionEditClustersResponse:
+      $ref: './schemas/RevisionEditClustersResponse.yaml'
     ArticleRevisionsResponse:
       $ref: './schemas/ArticleRevisionsResponse.yaml'
     ArticleRevisionDiff:

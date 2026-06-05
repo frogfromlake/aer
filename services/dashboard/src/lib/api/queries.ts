@@ -56,6 +56,13 @@ export type DiscoveryCoveragePerChannelDto = components['schemas']['DiscoveryCov
 // Phase 122d.0 — Silent-Edit Observability (ADR-032).
 export type RevisionActivityResponseDto = components['schemas']['RevisionActivityResponse'];
 export type RevisionActivityEntryDto = components['schemas']['RevisionActivityEntry'];
+// Phase 122d.3 — Silent-Edit Discourse Shift trajectory.
+export type RevisionDiscourseShiftResponseDto =
+  components['schemas']['RevisionDiscourseShiftResponse'];
+export type RevisionDiscourseShiftEntryDto = components['schemas']['RevisionDiscourseShiftEntry'];
+// Phase 122d.3 — coordinated cross-source edit clusters (Rhizome).
+export type RevisionEditClustersResponseDto = components['schemas']['RevisionEditClustersResponse'];
+export type RevisionEditClusterEntryDto = components['schemas']['RevisionEditClusterEntry'];
 export type ArticleRevisionsResponseDto = components['schemas']['ArticleRevisionsResponse'];
 export type ArticleRevisionEntryDto = ArticleRevisionsResponseDto['revisions'][number];
 export type RevisionActivityResolution = 'snapshot' | 'daily' | 'weekly' | 'monthly';
@@ -916,6 +923,61 @@ export function revisionActivityQuery(
     queryKey: ['aer', 'revision-activity', params] as const,
     queryFn: () =>
       fetchJson<RevisionActivityResponseDto>(ctx, `/revisions?${qs.toString()}`, 'unspecified'),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 122d.3 — discourse-shift trajectory. Same scope/window/resolution
+// grammar as `revisionActivityQuery`; reads the `/revisions/discourse-shift`
+// aggregation (per-source sentiment-delta + topic-shift over the window).
+export function revisionDiscourseShiftQuery(
+  ctx: FetchContext,
+  params: RevisionActivityParams
+): QueryOptions<RevisionDiscourseShiftResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('startDate', params.start);
+  if (params.end) qs.set('endDate', params.end);
+  qs.set('resolution', params.resolution);
+  return {
+    queryKey: ['aer', 'revision-discourse-shift', params] as const,
+    queryFn: () =>
+      fetchJson<RevisionDiscourseShiftResponseDto>(
+        ctx,
+        `/revisions/discourse-shift?${qs.toString()}`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 122d.3 — Rhizome coordinated-edit clusters. Cross-source
+// temporally-clustered silent edits on shared entities. `minSources`
+// (default 2) is the coincidence threshold.
+export interface RevisionEditClustersParams extends RevisionActivityParams {
+  minSources?: number | undefined;
+}
+
+export function revisionEditClustersQuery(
+  ctx: FetchContext,
+  params: RevisionEditClustersParams
+): QueryOptions<RevisionEditClustersResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('startDate', params.start);
+  if (params.end) qs.set('endDate', params.end);
+  qs.set('resolution', params.resolution);
+  if (params.minSources) qs.set('minSources', String(params.minSources));
+  return {
+    queryKey: ['aer', 'revision-edit-clusters', params] as const,
+    queryFn: () =>
+      fetchJson<RevisionEditClustersResponseDto>(
+        ctx,
+        `/revisions/edit-clusters?${qs.toString()}`,
+        'unspecified'
+      ),
     staleTime: FIVE_MINUTES
   };
 }

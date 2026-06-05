@@ -282,6 +282,52 @@ def init_extractors(extractor_classes, alias_index: WikidataAliasIndex | None = 
     return extractors
 
 
+def _build_revision_delta_tools(extractors, alias_index):
+    """Assemble the Phase-122d.3 discourse-shift re-extraction toolset.
+
+    Reuses the already-loaded multilingual-sentiment + NER extractor
+    instances (no second model load) and loads the E5 embedder ONCE. The
+    E5 load is gated on the revision-diff loop being enabled
+    (``REVISION_DIFF_EXTRACTION_ENABLED``) so a worker that does not run
+    the sweep does not pay the ~2 GB E5 resident-memory cost. Returns
+    ``None`` when the loop is disabled; callers then pass ``None`` into
+    the loop (delta path off, diffs unaffected).
+    """
+    from internal.extractors.revision_deltas import E5PairEmbedder, RevisionDeltaTools
+
+    if os.getenv("REVISION_DIFF_EXTRACTION_ENABLED", "false").lower() != "true":
+        logger.info("revision_diff.delta_tools.disabled")
+        return None
+
+    sentiment = next(
+        (e for e in extractors if isinstance(e, MultilingualBertSentimentExtractor)),
+        None,
+    )
+    ner = next(
+        (e for e in extractors if isinstance(e, NamedEntityExtractor)),
+        None,
+    )
+    try:
+        embedder = E5PairEmbedder()
+    except Exception as exc:
+        logger.warning(
+            "revision_diff.e5_embedder.unavailable",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        embedder = None
+
+    logger.info(
+        "revision_diff.delta_backbones",
+        sentiment_model=getattr(sentiment, "_model_name", None),
+        sentiment_revision=getattr(sentiment, "_model_revision", None),
+        e5_model=getattr(embedder, "model", None),
+        e5_revision=getattr(embedder, "revision", None),
+        ner_models=sorted((getattr(ner, "_language_to_model", {}) or {}).values()),
+    )
+    return RevisionDeltaTools(sentiment=sentiment, ner=ner, embedder=embedder)
+
+
 @dataclass
 class WorkerConfig:
     """Configuration for the analysis worker, injectable for testing."""
@@ -468,6 +514,14 @@ async def main(config: WorkerConfig | None = None):
     )
     alias_index = _load_wikidata_index()
     extractors = init_extractors(DEFAULT_EXTRACTOR_CLASSES, alias_index=alias_index)
+    # Phase 122d.3 — Silent-Edit Discourse Shift. Reuse the ALREADY-LOADED
+    # sentiment + NER extractor instances (no second model load) for the
+    # revision-diff re-extraction; the E5 embedder is the only new load and
+    # is gated on the revision-diff loop being enabled. The boot log
+    # re-records the active backbone revisions that produce the deltas
+    # ("re-record the active backbone" — provenance lives in the pinned
+    # manifest + this log, no new provenance table).
+    revision_delta_tools = _build_revision_delta_tools(extractors, alias_index)
     # Phase 122e A17: per-source language scope. Documents whose detected
     # language falls outside the source's allow-list quarantine before the
     # Silver write. See `configs/probe_language_scope.yaml`.
@@ -603,6 +657,7 @@ async def main(config: WorkerConfig | None = None):
             os.getenv("WORKER_SILVER_BUCKET", "silver"),
             revision_diff_config,
             stop_event,
+            revision_delta_tools,
         )
     )
 
