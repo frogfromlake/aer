@@ -25,6 +25,8 @@ describe('view-mode registry', () => {
       'topic_evolution',
       'revision_activity',
       'revision_timeline',
+      'revision_discourse_shift',
+      'revision_edit_clusters',
       'cross_probe_lead_lag'
     ]);
   });
@@ -127,15 +129,19 @@ describe('pillar mapping', () => {
     ]);
     // Episteme (diachronic): time_series + topic_evolution
     //                      + revision_timeline (Phase 122d.0 — silent-edit over time)
+    //                      + revision_discourse_shift (Phase 122d.3 — discourse trajectory)
     expect(getPillar('episteme').presentations).toEqual([
       'time_series',
       'topic_evolution',
-      'revision_timeline'
+      'revision_timeline',
+      'revision_discourse_shift'
     ]);
-    // Rhizome (relational): cooccurrence_network
+    // Rhizome (relational): cooccurrence_network + cross_probe_lead_lag
+    //                     + revision_edit_clusters (Phase 122d.3 — coordinated edits)
     expect(getPillar('rhizome').presentations).toEqual([
       'cooccurrence_network',
-      'cross_probe_lead_lag'
+      'cross_probe_lead_lag',
+      'revision_edit_clusters'
     ]);
   });
 
@@ -153,10 +159,19 @@ describe('pillar mapping', () => {
     ]);
 
     const epistemIds = presentationsForPillar('episteme').map((p) => p.id);
-    expect(epistemIds).toEqual(['time_series', 'topic_evolution', 'revision_timeline']);
+    expect(epistemIds).toEqual([
+      'time_series',
+      'topic_evolution',
+      'revision_timeline',
+      'revision_discourse_shift'
+    ]);
 
     const rhizIds = presentationsForPillar('rhizome').map((p) => p.id);
-    expect(rhizIds).toEqual(['cooccurrence_network', 'cross_probe_lead_lag']);
+    expect(rhizIds).toEqual([
+      'cooccurrence_network',
+      'cross_probe_lead_lag',
+      'revision_edit_clusters'
+    ]);
 
     // null → Aleph default
     expect(presentationsForPillar(null).map((p) => p.id)).toEqual([

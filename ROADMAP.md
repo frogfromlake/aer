@@ -4116,6 +4116,11 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 ### Validation
 * [x] Clicking a probe selects in-place + flies-to + shows the banner (no jump); SHIFT-click grows the banner while the globe stays interactive; the large overlay opens only on explicit action; search works on universal attributes; the overlay works in the no-WebGL2 fallback; deep-links round-trip. (Multi-probe coverage comparison is validated in Phase 123 once the second probe exists.)
 
+# Iteration 8 — Probe Expansion & Cross-Cultural Operations
+
+*Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one — including the finalised three-surface Dossier-as-overlay architecture (Phase 123a, landed at the end of Iteration 7). Then the first cross-probe equivalence grant and the silent-edit discourse-shift analysis.*
+
+---
 
 ## Phase 123: Probe 1 — French Institutional Sources [P1] - [x] DONE
 
@@ -4226,6 +4231,23 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
+## Phase 122d.3: Silent-Edit — Discourse Shift [P1] - [x] DONE
+
+*Answers "how does the discourse shift through edits". Re-extracts sentiment/NER/topic over each snapshot version (on the news-class backbone) and surfaces edit-driven deltas. After Probe 1 because the re-extraction (the most expensive part) yields the richest comparison on cross-cultural data.*
+
+*Renamed from 122d.2 → 122d.3 when the Negative Space Coherence phase landed as 122d.2 (no scope change, position unchanged — still post-Probe-1).*
+
+**Grounding.** Read first: Phase-122d.0/.1/.2 output (`article_revisions` + diffs + the Negative-Space taxonomy that classifies edit signatures), the extractor pipeline (`main.py`, `internal/extractors/`), the current multilingual sentiment backbone (`shared.multilingual_bert` in `language_capabilities.yaml` — backbone re-selection deferred to the Deferred block, so re-extraction runs on whatever backbone is current at execution time), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs are in place and re-record the active backbone revision before re-extracting.
+
+### Worker + Gold
+* [x] **Re-extraction** over snapshot versions → delta columns on `article_revisions`: `sentiment_delta`, `entities_added`, `entities_removed`, `topic_shift_score`.
+
+### Frontend
+* [x] **`revision_discourse_shift` cell** (configurable; Episteme for trajectory, Rhizome for relation). **Rhizome — coordinated edit clusters** (a relational cell): cross-source temporally-clustered edits.
+
+### Validation
+* [x] An edited article shows sentiment-trajectory + entity add/remove deltas; coordinated cross-source edit bursts render in Rhizome.
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -4256,31 +4278,6 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
    - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
    - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
    - **hand back to the operator to commit — never auto-commit.**
-
----
-
-# Iteration 8 — Probe Expansion & Cross-Cultural Operations
-
-*Takes the cross-cultural infrastructure (Phase 115), the multilingual NLP foundation (Iteration 6), and the now-mature, fully-instrumented Probe-0 pipeline, and puts a second cultural context into operation. Probe 1 inherits everything from day one — including the finalised three-surface Dossier-as-overlay architecture (Phase 123a, landed at the end of Iteration 7). Then the first cross-probe equivalence grant and the silent-edit discourse-shift analysis.*
-
----
-
-## Phase 122d.3: Silent-Edit — Discourse Shift [P1] - [ ] TODO
-
-*Answers "how does the discourse shift through edits". Re-extracts sentiment/NER/topic over each snapshot version (on the news-class backbone) and surfaces edit-driven deltas. After Probe 1 because the re-extraction (the most expensive part) yields the richest comparison on cross-cultural data.*
-
-*Renamed from 122d.2 → 122d.3 when the Negative Space Coherence phase landed as 122d.2 (no scope change, position unchanged — still post-Probe-1).*
-
-**Grounding.** Read first: Phase-122d.0/.1/.2 output (`article_revisions` + diffs + the Negative-Space taxonomy that classifies edit signatures), the extractor pipeline (`main.py`, `internal/extractors/`), the current multilingual sentiment backbone (`shared.multilingual_bert` in `language_capabilities.yaml` — backbone re-selection deferred to the Deferred block, so re-extraction runs on whatever backbone is current at execution time), `RhizomeShell` (panels+cells, post-130). Preserve: extractor determinism, the news-class backbone for cross-probe comparability. Verify-first: confirm 122d.1 diffs are in place and re-record the active backbone revision before re-extracting.
-
-### Worker + Gold
-* [ ] **Re-extraction** over snapshot versions → delta columns on `article_revisions`: `sentiment_delta`, `entities_added`, `entities_removed`, `topic_shift_score`.
-
-### Frontend
-* [ ] **`revision_discourse_shift` cell** (configurable; Episteme for trajectory, Rhizome for relation). **Rhizome — coordinated edit clusters** (a relational cell): cross-source temporally-clustered edits.
-
-### Validation
-* [ ] An edited article shows sentiment-trajectory + entity add/remove deltas; coordinated cross-source edit bursts render in Rhizome.
 
 ---
 
