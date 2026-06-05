@@ -38,6 +38,9 @@ export interface HowToReadFacts {
   viewerLanguage?: string | undefined;
   linkedNodeCount?: number | undefined;
   labeledNodeCount?: number | undefined;
+  /** Phase 126 — this cell is on a per-cell override that differs from the
+   *  panel default, so it is not directly comparable to its sibling cells. */
+  configOverridden?: boolean | undefined;
 }
 
 /** Built-in per-presentation template lines — the fallback when the content
@@ -177,6 +180,15 @@ export function composeHowToRead(
       facts.scales === 'shared'
         ? 'Scale: shared across this panel’s cells — identical values sit at identical positions, so you can compare cells directly.'
         : 'Scale: independent (free) — each cell is scaled to its own data, so read shapes within a cell, not positions across cells.'
+    );
+  }
+
+  // Phase 126 — per-cell override disclosure. When this cell's configuration
+  // differs from the panel default it is not directly comparable to its
+  // siblings; say so explicitly (comparison-as-default, Brief §1.3).
+  if (facts.configOverridden) {
+    out.push(
+      'This cell is on a custom configuration that differs from the panel default — read it on its own terms, not directly against its sibling cells.'
     );
   }
   return out.filter((s) => s.length > 0);

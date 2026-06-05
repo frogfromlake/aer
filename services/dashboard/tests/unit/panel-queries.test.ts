@@ -4,6 +4,7 @@ import {
   coOccurrencePostDescriptorForPanel,
   defaultMetricForScopes,
   expandProbeScopeFanout,
+  resolveCellConfig,
   selectCellRender,
   shouldRefuseMergedCrossProbe
 } from '../../src/lib/workbench/panel-queries';
@@ -346,5 +347,91 @@ describe('defaultMetricForScopes', () => {
 
   it('empty scope → the multilingual backbone', () => {
     expect(defaultMetricForScopes([])).toBe(CROSS_PROBE_DEFAULT_METRIC);
+  });
+});
+
+// Phase 126 — stable cell keys + per-cell config resolution.
+describe('Phase 126 — stable cell keys (override binding)', () => {
+  it('split single-group keys cells by source NAME, not render index', () => {
+    const r = selectCellRender(
+      panel({ composition: 'split', scopes: [group(['probe-0'], ['tagesschau', 'taz'])] })
+    );
+    expect(r.units.map((u) => u.key)).toEqual(['s:tagesschau', 's:taz']);
+  });
+
+  it('a source key is unchanged when a sibling is inserted before it', () => {
+    const before = selectCellRender(
+      panel({ composition: 'split', scopes: [group(['probe-0'], ['taz'])] })
+    );
+    const after = selectCellRender(
+      panel({ composition: 'split', scopes: [group(['probe-0'], ['tagesschau', 'taz'])] })
+    );
+    const tazBefore = before.units.find((u) => u.scopeId === 'taz')!.key;
+    const tazAfter = after.units.find((u) => u.scopeId === 'taz')!.key;
+    expect(tazAfter).toBe(tazBefore); // override on taz survives the reorder
+  });
+
+  it('probe-scope fan-out keys by probeId:name', () => {
+    const p = panel({ composition: 'split', scopes: [group(['probe-0', 'probe-1'], [])] });
+    const fan = expandProbeScopeFanout(
+      p,
+      selectCellRender(p),
+      (pid) => (pid === 'probe-0' ? ['tagesschau'] : ['franceinfo']),
+      'probe-0'
+    );
+    expect(fan?.units.map((u) => u.key)).toEqual(['probe-0:tagesschau', 'probe-1:franceinfo']);
+  });
+});
+
+describe('resolveCellConfig (override-with-inheritance)', () => {
+  it('inherits every panel default when the cell has no override', () => {
+    const p = panel({ view: 'distribution', bins: 40, scales: 'free' });
+    const cfg = resolveCellConfig(p, 's:tagesschau');
+    expect(cfg.bins).toBe(40);
+    expect(cfg.scales).toBe('free');
+    expect(cfg.isOverridden).toBe(false);
+  });
+
+  it('override wins per-lever; non-overridden levers still inherit', () => {
+    const p = panel({
+      view: 'distribution',
+      bins: 40,
+      scales: 'shared',
+      cellOverrides: { 's:taz': { bins: 90 } }
+    });
+    const overridden = resolveCellConfig(p, 's:taz');
+    expect(overridden.bins).toBe(90); // override wins
+    expect(overridden.scales).toBe('shared'); // inherited
+    expect(overridden.isOverridden).toBe(true);
+
+    const sibling = resolveCellConfig(p, 's:tagesschau');
+    expect(sibling.bins).toBe(40); // sibling untouched
+    expect(sibling.isOverridden).toBe(false);
+  });
+
+  it('a false/shared override is honoured (does not fall through to the default)', () => {
+    const p = panel({
+      view: 'time_series',
+      showBand: true,
+      scales: 'free',
+      cellOverrides: { 's:taz': { showBand: false, scales: 'shared' } }
+    });
+    const cfg = resolveCellConfig(p, 's:taz');
+    expect(cfg.showBand).toBe(false);
+    expect(cfg.scales).toBe('shared');
+  });
+
+  it('merges channels one level deep (override one axis, inherit the rest)', () => {
+    const p = panel({
+      view: 'metric_scatter',
+      channels: { x: 'word_count', y: 'sentiment_score_sentiws', size: 'entity_count' },
+      cellOverrides: { 's:taz': { channels: { x: 'language_confidence' } } }
+    });
+    const cfg = resolveCellConfig(p, 's:taz');
+    expect(cfg.channels).toEqual({
+      x: 'language_confidence', // overridden
+      y: 'sentiment_score_sentiws', // inherited
+      size: 'entity_count' // inherited
+    });
   });
 });

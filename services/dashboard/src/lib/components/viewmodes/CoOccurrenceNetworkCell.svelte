@@ -39,7 +39,8 @@
     topN,
     channels,
     forceStrength,
-    displayLanguage
+    displayLanguage,
+    configOverridden
   }: ViewModeCellProps = $props();
 
   // Phase 123b — cross-lingual relabel. When the panel toggle is on 'viewer',
@@ -579,7 +580,8 @@
     displayLanguage: displayLanguage ?? 'source',
     viewerLanguage: viewerLang,
     linkedNodeCount,
-    labeledNodeCount
+    labeledNodeCount,
+    configOverridden
   });
   const exportPayload = $derived<ExportPayload>({
     meta: {

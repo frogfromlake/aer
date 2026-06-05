@@ -9,6 +9,7 @@
 import { setUrl, urlState } from '$lib/state/url.svelte';
 import {
   EMPTY_URL_STATE,
+  type CellOverridePatch,
   type Panel,
   type PillarState,
   type ScopeGroup,
@@ -19,7 +20,10 @@ import {
   addPanelPure,
   addScopeGroupPure,
   addWindowPure,
+  applyCellOverride,
+  clearCellOverrides,
   focusPanelPure,
+  removeCellOverride,
   removePanelPure,
   setMaximizedPanelPure,
   toggleMaximizedPanelPure,
@@ -84,6 +88,23 @@ export function removeScopeGroup(path: PanelPath, groupIndex: number): void {
     scopes.splice(groupIndex, 1);
     return { ...panel, scopes };
   });
+}
+
+/** Phase 126 — set/merge a per-cell override (a partial of the cell-shape
+ *  levers) on the panel at `path`. A lever set to `undefined` reverts it to the
+ *  panel default. */
+export function setCellOverride(path: PanelPath, cellKey: string, patch: CellOverridePatch): void {
+  updatePanel(path, (p) => applyCellOverride(p, cellKey, patch));
+}
+
+/** Phase 126 — clear one cell's override ("Reset to panel default"). */
+export function resetCellOverride(path: PanelPath, cellKey: string): void {
+  updatePanel(path, (p) => removeCellOverride(p, cellKey));
+}
+
+/** Phase 126 — clear every per-cell override on the panel ("Reset all cells"). */
+export function resetAllCellOverrides(path: PanelPath): void {
+  updatePanel(path, (p) => clearCellOverrides(p));
 }
 
 /** Reserved for future Window-Tab UI. */

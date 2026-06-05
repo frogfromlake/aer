@@ -14,7 +14,14 @@
 // the `merged`-composition path that needs the new CoOccurrence
 // endpoint.
 
-import type { Panel, ScopeGroup, ViewMode } from '$lib/state/url-internals';
+import type {
+  CellChannelBinding,
+  CellOverride,
+  Panel,
+  ScaleMode,
+  ScopeGroup,
+  ViewMode
+} from '$lib/state/url-internals';
 import { CROSS_PROBE_DEFAULT_METRIC, getPresentation, isPureCountMetric } from '../viewmodes';
 
 // ---------------------------------------------------------------------------
@@ -37,8 +44,16 @@ import { CROSS_PROBE_DEFAULT_METRIC, getPresentation, isPureCountMetric } from '
 export type CellRenderStrategy = 'merged-single' | 'merged-multi' | 'overlay' | 'split';
 
 export interface CellRenderUnit {
-  // Stable React-key-style identifier so the Panel host can `{#each}` over
-  // multiple Cells without re-mounting.
+  // Stable identifier for this rendered cell. Two roles:
+  //   (1) Svelte `{#each}` key so the host re-renders without re-mounting;
+  //   (2) Phase 126 — the per-cell OVERRIDE key (`Panel.cellOverrides[key]`).
+  // It is derived deterministically from the cell's ScopeGroup / probe /
+  // source identity (NOT a bare render index), so an override binds to the
+  // same cell across re-renders and URL round-trips. ScopeGroup-cell keys use
+  // the group index (the group's natural identity in the ordered `scopes`
+  // array); source-cell keys use the source name so the override survives a
+  // scope reorder. An override on a source that later leaves the scope simply
+  // stops resolving — the correct behaviour.
   key: string;
   // The `(scope, scopeId)` tuple to hand to a Cell that still consumes the
   // Phase-107 contract. `probeIds`/`sourceIds` carry multi-target lists
@@ -69,6 +84,54 @@ export interface CellRender {
 // merged-multi-scope path needs the POST endpoint; their split path
 // renders one Cell per ScopeGroup with the legacy GET endpoint.
 const COOCCURRENCE_VIEWS: ReadonlySet<ViewMode> = new Set(['cooccurrence_network']);
+
+// ---------------------------------------------------------------------------
+// Phase 126 — per-cell config resolution (override-with-inheritance).
+//
+// The panel holds the shared default for every cell-shape lever; a cell may
+// carry a `cellOverrides[key]` partial. `resolveCellConfig` merges them with
+// override-wins precedence per lever, so the PanelHost can thread the effective
+// value into each rendered cell. Pure + vitest-pinned (no Svelte, no runes).
+// ---------------------------------------------------------------------------
+
+export interface ResolvedCellConfig {
+  bins: number | undefined;
+  topN: number | undefined;
+  forceStrength: number | undefined;
+  showBand: boolean | undefined;
+  scales: ScaleMode | undefined;
+  displayLanguage: 'source' | 'viewer' | undefined;
+  channels: CellChannelBinding | undefined;
+  /** True when this cell carries at least one lever overriding the panel
+   *  default — drives the "custom / not directly comparable" marker. */
+  isOverridden: boolean;
+}
+
+/** Merge a cell's override (if any) over the panel defaults, override wins
+ *  per-lever. `channels` merges one level deep so a cell can override a single
+ *  scatter axis while inheriting the others. */
+export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellConfig {
+  const ov: CellOverride | undefined = panel.cellOverrides?.[cellKey];
+  return {
+    bins: ov?.bins ?? panel.bins,
+    topN: ov?.topN ?? panel.topN,
+    forceStrength: ov?.forceStrength ?? panel.forceStrength,
+    showBand: ov?.showBand ?? panel.showBand,
+    scales: ov?.scales ?? panel.scales,
+    displayLanguage: ov?.displayLanguage ?? panel.displayLanguage,
+    channels: mergeCellChannels(panel.channels, ov?.channels),
+    isOverridden: ov !== undefined && Object.keys(ov).length > 0
+  };
+}
+
+function mergeCellChannels(
+  base: CellChannelBinding | undefined,
+  ov: CellChannelBinding | undefined
+): CellChannelBinding | undefined {
+  if (!base && !ov) return undefined;
+  const merged: CellChannelBinding = { ...(base ?? {}), ...(ov ?? {}) };
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
 
 /**
  * selectCellRender chooses how many Cells to render for the Panel and how
@@ -144,8 +207,10 @@ export function selectCellRender(panel: Panel): CellRender {
   }
   return {
     strategy: 'split',
-    units: g.sourceIds.map((source, i) => ({
-      key: `s${i}`,
+    // Phase 126 — key by source name (not the render index) so a per-cell
+    // override binds to the source, surviving a scope reorder.
+    units: g.sourceIds.map((source) => ({
+      key: `s:${source}`,
       scope: 'source' as const,
       scopeId: source,
       probeIds: [],
@@ -253,9 +318,11 @@ export function expandProbeScopeFanout(
   const multi = probeOrder.length > 1;
   const units: CellRenderUnit[] = [];
   for (const probeId of probeOrder) {
-    sourceNamesByProbe(probeId).forEach((name, si) => {
+    // Phase 126 — key by `probeId:name` (deterministic from identity, no
+    // render index) so a per-cell override survives re-renders + URL round-trips.
+    sourceNamesByProbe(probeId).forEach((name) => {
       units.push({
-        key: `${probeId}-${si}-${name}`,
+        key: `${probeId}:${name}`,
         scope: 'source',
         scopeId: name,
         probeIds: [],

@@ -288,3 +288,84 @@ describe('_toggleMaximizedPanelPure', () => {
     expect(next?.aleph?.windows[0]?.maximizedPanelIndex).toBe(2);
   });
 });
+
+// Phase 126 — per-cell override helpers (pure, Panel → Panel).
+import {
+  applyCellOverride as _applyCellOverride,
+  removeCellOverride as _removeCellOverride,
+  clearCellOverrides as _clearCellOverrides
+} from '../../src/lib/workbench/panel-mutators-pure';
+
+describe('Phase 126 — applyCellOverride / removeCellOverride / clearCellOverrides', () => {
+  it('sets a lever override on one cell, leaving others untouched', () => {
+    const p = panel({ view: 'distribution', bins: 30 });
+    const next = _applyCellOverride(p, 's:taz', { bins: 90 });
+    expect(next.cellOverrides).toEqual({ 's:taz': { bins: 90 } });
+    expect(next.bins).toBe(30); // panel default unchanged
+    expect(p.cellOverrides).toBeUndefined(); // input not mutated
+  });
+
+  it('merges successive lever overrides on the same cell', () => {
+    let p = panel({ view: 'metric_scatter' });
+    p = _applyCellOverride(p, 's:taz', { bins: 90 });
+    p = _applyCellOverride(p, 's:taz', { scales: 'free' });
+    expect(p.cellOverrides?.['s:taz']).toEqual({ bins: 90, scales: 'free' });
+  });
+
+  it('merges channel overrides one level deep', () => {
+    let p = panel({ view: 'metric_scatter', channels: { x: 'a', y: 'b' } });
+    p = _applyCellOverride(p, 's:taz', { channels: { x: 'c' } });
+    p = _applyCellOverride(p, 's:taz', { channels: { size: 'd' } });
+    expect(p.cellOverrides?.['s:taz']?.channels).toEqual({ x: 'c', size: 'd' });
+  });
+
+  it('clears a single lever (undefined) and drops an emptied override', () => {
+    let p = panel({ view: 'distribution', cellOverrides: { 's:taz': { bins: 90 } } });
+    p = _applyCellOverride(p, 's:taz', { bins: undefined });
+    expect(p.cellOverrides).toBeUndefined(); // emptied entry + emptied map both dropped
+  });
+
+  it('reverts a single channel to inherit via undefined', () => {
+    let p = panel({ cellOverrides: { 's:taz': { channels: { x: 'c', size: 'd' } } } });
+    p = _applyCellOverride(p, 's:taz', { channels: { size: undefined } });
+    expect(p.cellOverrides?.['s:taz']?.channels).toEqual({ x: 'c' });
+  });
+
+  it('removeCellOverride drops one cell, clearCellOverrides drops all', () => {
+    const p = panel({ cellOverrides: { 's:a': { bins: 10 }, 's:b': { topN: 5 } } });
+    const oneGone = _removeCellOverride(p, 's:a');
+    expect(oneGone.cellOverrides).toEqual({ 's:b': { topN: 5 } });
+    const allGone = _clearCellOverrides(p);
+    expect(allGone.cellOverrides).toBeUndefined();
+  });
+
+  it('removeCellOverride on the last entry drops the whole map', () => {
+    const p = panel({ cellOverrides: { 's:a': { bins: 10 } } });
+    expect(_removeCellOverride(p, 's:a').cellOverrides).toBeUndefined();
+  });
+});
+
+describe('Phase 126 — clonePanel deep-copies cellOverrides (via addPanelPure)', () => {
+  it('a cloned panel does not share the cellOverrides object with its source', () => {
+    const base: WorkbenchPillarsState = {
+      aleph: {
+        windows: [
+          {
+            panels: [panel({ cellOverrides: { 's:taz': { bins: 90, channels: { x: 'a' } } } })],
+            focusedPanelIndex: 0
+          }
+        ],
+        activeWindowIndex: 0
+      },
+      episteme: null,
+      rhizome: null
+    };
+    const next = _addPanelPure(base, 'aleph');
+    const src = next!.aleph!.windows[0]!.panels[0]!;
+    const clone = next!.aleph!.windows[0]!.panels[1]!;
+    expect(clone.cellOverrides).toEqual(src.cellOverrides);
+    expect(clone.cellOverrides).not.toBe(src.cellOverrides); // distinct map
+    expect(clone.cellOverrides!['s:taz']).not.toBe(src.cellOverrides!['s:taz']); // distinct entry
+    expect(clone.cellOverrides!['s:taz']!.channels).not.toBe(src.cellOverrides!['s:taz']!.channels);
+  });
+});

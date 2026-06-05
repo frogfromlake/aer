@@ -12,6 +12,9 @@
 import {
   MAX_PANELS_PER_WINDOW,
   MAX_WINDOWS_PER_PILLAR,
+  type CellChannelBinding,
+  type CellOverride,
+  type CellOverridePatch,
   type Panel,
   type PillarState,
   type ScopeGroup,
@@ -57,13 +60,25 @@ function setPanel(window: WorkbenchWindow, panelIndex: number, next: Panel): Wor
 }
 
 function clonePanel(p: Panel): Panel {
-  return {
+  const clone: Panel = {
     ...p,
     scopes: p.scopes.map((g) => ({
       probeIds: [...g.probeIds],
       sourceIds: [...g.sourceIds]
     }))
   };
+  // Phase 126 — deep-copy the per-cell override map (and its nested channel
+  // objects) so a cloned panel never shares mutable override state with its
+  // source. The Phase-126 mutators all rebuild immutably, so this is defensive,
+  // but it keeps clonePanel's deep-copy contract honest for future editors.
+  if (p.cellOverrides) {
+    const co: Record<string, CellOverride> = {};
+    for (const [k, ov] of Object.entries(p.cellOverrides)) {
+      co[k] = ov.channels ? { ...ov, channels: { ...ov.channels } } : { ...ov };
+    }
+    clone.cellOverrides = co;
+  }
+  return clone;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +249,85 @@ export function toggleMaximizedPanelPure(
     windowIndex,
     isCurrentlyMaximized ? null : panelIndex
   );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 126 — per-cell override helpers (pure, Panel → Panel).
+//
+// These operate on a single Panel so they compose cleanly with
+// `updatePanel(path, fn)` (the rune wrappers live in panel-mutators.ts) and are
+// trivially vitest-pinned. A `patch` field set to `undefined` CLEARS that lever
+// (reverts the cell to the panel default); a field absent from the patch is left
+// untouched. The whole `cellOverrides` map and any emptied override are dropped
+// so a panel never carries a no-op entry.
+// ---------------------------------------------------------------------------
+
+const CHANNEL_KEYS = ['x', 'y', 'size', 'color', 'netSize', 'netColor'] as const;
+
+function setOrDelete<K extends keyof CellOverride>(
+  o: CellOverride,
+  key: K,
+  value: CellOverride[K] | undefined
+): void {
+  if (value === undefined) delete o[key];
+  else o[key] = value;
+}
+
+/** Merge `patch` over the cell's existing override (override wins per-lever).
+ *  Channels merge one level deep: a cell can re-point a single scatter axis
+ *  while inheriting the rest. A channel set to `undefined` reverts THAT channel
+ *  to the panel default (per-cell channels re-point or inherit; they do not
+ *  force-unbind a channel the panel binds). */
+export function applyCellOverride(panel: Panel, cellKey: string, patch: CellOverridePatch): Panel {
+  const existing: CellOverride = panel.cellOverrides?.[cellKey] ?? {};
+  const next: CellOverride = { ...existing };
+
+  if ('bins' in patch) setOrDelete(next, 'bins', patch.bins);
+  if ('topN' in patch) setOrDelete(next, 'topN', patch.topN);
+  if ('forceStrength' in patch) setOrDelete(next, 'forceStrength', patch.forceStrength);
+  if ('showBand' in patch) setOrDelete(next, 'showBand', patch.showBand);
+  if ('scales' in patch) setOrDelete(next, 'scales', patch.scales);
+  if ('displayLanguage' in patch) setOrDelete(next, 'displayLanguage', patch.displayLanguage);
+  if ('channels' in patch) {
+    const ch: CellChannelBinding = { ...(existing.channels ?? {}) };
+    const pch = patch.channels ?? {};
+    for (const k of CHANNEL_KEYS) {
+      if (!(k in pch)) continue;
+      const val = pch[k];
+      if (val === undefined) delete ch[k];
+      else (ch as Record<string, unknown>)[k] = val;
+    }
+    if (Object.keys(ch).length > 0) next.channels = ch;
+    else delete next.channels;
+  }
+
+  const overrides: Record<string, CellOverride> = { ...(panel.cellOverrides ?? {}) };
+  if (Object.keys(next).length > 0) overrides[cellKey] = next;
+  else delete overrides[cellKey];
+
+  const out: Panel = { ...panel };
+  if (Object.keys(overrides).length > 0) out.cellOverrides = overrides;
+  else delete out.cellOverrides;
+  return out;
+}
+
+/** Drop one cell's override entirely (its "Reset to panel default"). */
+export function removeCellOverride(panel: Panel, cellKey: string): Panel {
+  if (!panel.cellOverrides || !(cellKey in panel.cellOverrides)) return panel;
+  const overrides = { ...panel.cellOverrides };
+  delete overrides[cellKey];
+  const out: Panel = { ...panel };
+  if (Object.keys(overrides).length > 0) out.cellOverrides = overrides;
+  else delete out.cellOverrides;
+  return out;
+}
+
+/** Drop every per-cell override on the panel (the panel-level "Reset all"). */
+export function clearCellOverrides(panel: Panel): Panel {
+  if (!panel.cellOverrides) return panel;
+  const out: Panel = { ...panel };
+  delete out.cellOverrides;
+  return out;
 }
 
 export function addWindowPure(

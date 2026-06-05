@@ -28,7 +28,8 @@
     channels,
     reportExtent,
     sharedDomains,
-    axisScaleState
+    axisScaleState,
+    configOverridden
   }: ViewModeCellProps = $props();
 
   // Resolve the bound channels with sensible defaults so the cell renders even
@@ -175,7 +176,8 @@
     size: sizeMetric,
     color: colorMetric,
     renderedCount: points.length,
-    scales: axisScaleState
+    scales: axisScaleState,
+    configOverridden
   });
   const exportPayload = $derived<ExportPayload>({
     meta: {

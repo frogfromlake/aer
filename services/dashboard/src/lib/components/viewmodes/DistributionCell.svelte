@@ -46,7 +46,8 @@
     bins,
     reportExtent,
     sharedDomains,
-    axisScaleState
+    axisScaleState,
+    configOverridden
   }: ViewModeCellProps = $props();
 
   // Phase 131 — configurable histogram bin count (default 30, BFF-clamped to
@@ -357,7 +358,11 @@
           max: activeDist.summary.max
         }
       : undefined,
-    howToRead: composeHowToRead('distribution', { bins: activeBins, scales: axisScaleState }),
+    howToRead: composeHowToRead('distribution', {
+      bins: activeBins,
+      scales: axisScaleState,
+      configOverridden
+    }),
     rows: exportRows,
     columns: ['lower', 'upper', 'count']
   });
@@ -461,7 +466,10 @@
         <dd>{fmt(s.max)}</dd>
       </div>
     </dl>
-    <HowToRead presentation="distribution" facts={{ bins: activeBins, scales: axisScaleState }} />
+    <HowToRead
+      presentation="distribution"
+      facts={{ bins: activeBins, scales: axisScaleState, configOverridden }}
+    />
   {/if}
 </section>
 

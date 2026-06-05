@@ -33,7 +33,8 @@
     normalization,
     reportExtent,
     sharedDomains,
-    axisScaleState
+    axisScaleState,
+    configOverridden
   }: ViewModeCellProps = $props();
 
   // Phase 131 — ±1σ uncertainty band toggle (default shown).
@@ -131,7 +132,11 @@
       windowStart,
       windowEnd
     },
-    howToRead: composeHowToRead('time_series', { showBand: bandShown, scales: axisScaleState }),
+    howToRead: composeHowToRead('time_series', {
+      showBand: bandShown,
+      scales: axisScaleState,
+      configOverridden
+    }),
     rows: exportRows,
     columns: ['timestamp', 'source', 'value', 'stddev', 'count']
   });
@@ -177,7 +182,10 @@
       {normalization}
       yDomain={sharedY}
     />
-    <HowToRead presentation="time_series" facts={{ showBand: bandShown, scales: axisScaleState }} />
+    <HowToRead
+      presentation="time_series"
+      facts={{ showBand: bandShown, scales: axisScaleState, configOverridden }}
+    />
   {:else if composition === 'overlay'}
     <!-- Phase 122k §14c finding 2 — Overlay: per-source independent
          queries, plotted as N viridis-coloured lines on a SHARED canvas.
@@ -193,7 +201,7 @@
     />
     <!-- Overlay has no ±1σ band (OverlayLaneChart plots per-source lines only),
          so the note must not claim one. -->
-    <HowToRead presentation="time_series" facts={{ showBand: false }} />
+    <HowToRead presentation="time_series" facts={{ showBand: false, configOverridden }} />
   {:else}
     {#each sources as source (source.name)}
       <SourceLaneChart
@@ -209,7 +217,10 @@
         yDomain={sharedY}
       />
     {/each}
-    <HowToRead presentation="time_series" facts={{ showBand: bandShown, scales: axisScaleState }} />
+    <HowToRead
+      presentation="time_series"
+      facts={{ showBand: bandShown, scales: axisScaleState, configOverridden }}
+    />
   {/if}
 </div>
 

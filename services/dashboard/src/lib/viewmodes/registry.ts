@@ -188,6 +188,11 @@ export interface ViewModeCellProps {
   sharedDomains?:
     | { readonly value?: readonly [number, number]; readonly x?: readonly [number, number] }
     | undefined;
+  // Phase 126 — true when this rendered cell carries a per-cell override that
+  // differs from the panel default. Cells that compose a "how to read" note
+  // pass it into the `configOverridden` fact so the note discloses the cell is
+  // on a custom (not-directly-comparable) configuration.
+  configOverridden?: boolean | undefined;
   /** Phase 124 — the panel's effective axis-scale state for this cell, used
    *  only for the "how to read" disclosure: 'shared' (on the union axis),
    *  'free' (multi-cell but independent — by user choice or the cross-context

@@ -32,22 +32,26 @@
     DEFAULT_LOOKBACK_MS,
     type CellChannelBinding,
     type Normalization,
-    type NetworkColorChannel,
-    type NetworkSizeChannel,
     type Resolution,
     type ViewMode,
     type ViewingMode
   } from '$lib/state/url-internals';
-  import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import {
+    resetAllCellOverrides,
+    updatePanel,
+    type PanelPath
+  } from '$lib/workbench/panel-mutators';
   import { defaultMetricForScopes } from '$lib/workbench/panel-queries';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
-
-  // Phase 131 — default per-cell config values. Mirrors the cell-side and
-  // BFF-side defaults so a freshly-added Panel renders identically whether
-  // or not the user has touched the config levers.
-  const DEFAULT_BINS = 30;
-  const DEFAULT_TOPN = 60;
-  const DEFAULT_FORCE_STRENGTH = 50;
+  // Phase 126 — shared lever constants (defaults + network channel tables) so
+  // the panel controls and the per-cell override popover cannot drift.
+  import {
+    DEFAULT_BINS,
+    DEFAULT_FORCE_STRENGTH,
+    DEFAULT_TOPN,
+    NET_COLOR_CHANNELS,
+    NET_SIZE_CHANNELS
+  } from '$lib/workbench/cell-levers';
 
   interface Props {
     pillar: ViewingMode;
@@ -340,6 +344,11 @@
     if (!panelPath) return;
     updatePanel(panelPath, (p) => {
       const next = { ...p, view: id };
+      // Phase 126 — per-cell overrides are presentation-specific (a bins
+      // override is meaningless for a network view; a scatter-axis override for
+      // a distribution). A view change discards them so they neither apply
+      // silently nor linger in the URL without an affordance to clear them.
+      delete next.cellOverrides;
       const pres = presentations.find((x) => x.id === id);
       const usesMetric = pres?.usesMetric ?? true;
       // Keep the Panel coherent: when the new view consumes a metric the
@@ -546,6 +555,9 @@
   // levers it consumes (`configurableParams`); we render exactly those.
   // -----------------------------------------------------------------------
   const configParams = $derived(activePresentation.configurableParams ?? []);
+  // Phase 126 — does any cell in this panel carry a per-cell override? Drives the
+  // panel-level "Reset all cells" affordance.
+  const cellOverrideCount = $derived(Object.keys(boundPanel?.cellOverrides ?? {}).length);
   const activeBins = $derived(boundPanel?.bins ?? DEFAULT_BINS);
   const activeTopN = $derived(boundPanel?.topN ?? DEFAULT_TOPN);
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
@@ -583,17 +595,6 @@
     }
     return out;
   });
-
-  const NET_SIZE_CHANNELS: ReadonlyArray<{ id: NetworkSizeChannel; label: string }> = [
-    { id: 'total_count', label: 'Weight' },
-    { id: 'degree', label: 'Degree' }
-  ];
-  const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: string }> = [
-    { id: 'label', label: 'Entity type' },
-    { id: 'presence', label: 'Source presence' },
-    { id: 'source_overlay', label: 'Source overlay' },
-    { id: 'uniform', label: 'Uniform' }
-  ];
 
   // Live slider read-outs. The range sliders update these on every `oninput`
   // tick for instant visual feedback, but COMMIT to Panel state (and thus the
@@ -1132,6 +1133,23 @@
               <option value={m}>{m}</option>
             {/each}
           </select>
+        </div>
+      {/if}
+
+      <!-- Phase 126 — panel-level "Reset all cells" clears every per-cell
+           override at once. Shown only when at least one cell is overridden;
+           the per-cell popover carries the single-cell reset. -->
+      {#if cellOverrideCount > 0 && panelPath}
+        <div class="ctrl-row config-row" role="group" aria-label="Per-cell overrides">
+          <span class="ctrl-eyebrow">Cells</span>
+          <button
+            type="button"
+            class="ctrl-btn"
+            onclick={() => panelPath && resetAllCellOverrides(panelPath)}
+            title="Clear the custom per-cell configuration on all {cellOverrideCount} overridden cell(s) and return them to the panel default"
+          >
+            ↺ Reset {cellOverrideCount} custom cell{cellOverrideCount === 1 ? '' : 's'}
+          </button>
         </div>
       {/if}
     {/if}

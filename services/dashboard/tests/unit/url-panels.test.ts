@@ -100,6 +100,76 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded?.windows[0]?.panels[0]?.channels).toBeUndefined();
   });
 
+  // Phase 126 — per-cell overrides.
+  it('round-trips per-cell overrides (scalar, channels, and both sides of enums)', () => {
+    const original = makePillarState([
+      makeWindow([
+        makePanel({
+          view: 'metric_scatter',
+          bins: 30,
+          scales: 'free',
+          channels: { x: 'word_count', y: 'sentiment_score_sentiws' },
+          cellOverrides: {
+            's:tagesschau': {
+              bins: 80,
+              topN: 120,
+              forceStrength: 90,
+              // both enum levers pinned to their non-inherited value on either side:
+              showBand: false,
+              scales: 'shared',
+              displayLanguage: 'viewer',
+              channels: { x: 'entity_count' }
+            },
+            'probe-0:bundesregierung': { showBand: true, displayLanguage: 'source' }
+          }
+        })
+      ])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+  });
+
+  it('omits cellOverrides when absent (URL stays clean)', () => {
+    const original = makePillarState([makeWindow([makePanel()])]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.cellOverrides).toBeUndefined();
+  });
+
+  it('drops an empty override entry and an all-empty override map', () => {
+    const original = makePillarState([
+      makeWindow([makePanel({ cellOverrides: { 's:a': {}, 's:b': {} } })])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded?.windows[0]?.panels[0]?.cellOverrides).toBeUndefined();
+  });
+
+  it('rejects a malformed cellOverride lever on decode', () => {
+    // co with a non-numeric bins (bn) → reject the whole payload.
+    const compact = {
+      w: [
+        {
+          p: [
+            {
+              s: [{ pi: ['probe-0'], si: [] }],
+              c: 's',
+              v: 'distribution',
+              m: 'word_count',
+              l: 'g',
+              co: { 's:a': { bn: 'lots' } }
+            }
+          ],
+          fi: 0
+        }
+      ],
+      aw: 0
+    };
+    const encoded = btoa(JSON.stringify(compact))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(decodePillarState(encoded)).toBeNull();
+  });
+
   it('preserves optional Panel fields (resolution, normalization, topN, locked)', () => {
     const original = makePillarState([
       makeWindow([

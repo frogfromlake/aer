@@ -120,6 +120,44 @@ export interface CellChannelBinding {
   netColor?: NetworkColorChannel;
 }
 
+// Phase 126 — per-cell configuration override. A split / small-multiple panel
+// shares one set of cell-shape levers (the panel default); a single cell may
+// override a lever when the shared value harms its readability. A CellOverride
+// is a PARTIAL of the panel's cell-shape levers only — never the panel-identity
+// ones (view / metric / composition / splitDirection / scope / window / layer /
+// resolution / normalization stay panel-wide; changing one of those is a NEW
+// panel, not a cell tweak). A lever absent from the override inherits the panel
+// default; a lever present wins for that cell only (CSS-specificity model). The
+// map lives on `Panel.cellOverrides`, keyed by the stable per-cell key
+// (`cellOverrideKey` in panel-queries.ts).
+export interface CellOverride {
+  bins?: number;
+  topN?: number;
+  forceStrength?: number;
+  showBand?: boolean;
+  scales?: ScaleMode;
+  displayLanguage?: 'source' | 'viewer';
+  channels?: CellChannelBinding;
+}
+
+// Phase 126 — a CellOverride PATCH. Identical shape, but every lever may be set
+// to `undefined` to CLEAR it (revert the cell to the panel default). Under the
+// project's `exactOptionalPropertyTypes`, an absent key and an explicit-`undefined`
+// key differ; the patch type makes "clear this lever" expressible, which the
+// plain CellOverride (number, not number|undefined) cannot.
+export type CellChannelPatch = {
+  [K in keyof CellChannelBinding]?: CellChannelBinding[K] | undefined;
+};
+export type CellOverridePatch = {
+  bins?: number | undefined;
+  topN?: number | undefined;
+  forceStrength?: number | undefined;
+  showBand?: boolean | undefined;
+  scales?: ScaleMode | undefined;
+  displayLanguage?: 'source' | 'viewer' | undefined;
+  channels?: CellChannelPatch | undefined;
+};
+
 export interface Panel {
   scopes: ScopeGroup[]; // 1..M scope-groups
   composition: Composition;
@@ -182,6 +220,12 @@ export interface Panel {
   // 'free' restores per-cell optimal domains. Encoded as `sc` in the compact
   // payload (emitted only when 'free').
   scales?: ScaleMode;
+  // Phase 126 — per-cell overrides of the cell-shape levers above. Keyed by the
+  // stable cell key (`cellOverrideKey`, panel-queries.ts). Absent ⇒ every cell
+  // inherits the panel defaults; an entry overrides only the levers it names,
+  // for that cell only (comparison-as-default — the override is the signposted
+  // exception, Brief §1.3). Encoded as `co` in the compact payload.
+  cellOverrides?: Record<string, CellOverride>;
 }
 
 export interface WorkbenchWindow {
@@ -394,6 +438,13 @@ export function writeToSearch(state: UrlState): string {
 //   lf → lockedFunction         fi  → focusedPanelIndex
 //   aw → activeWindowIndex      bn  → bins                ch → channels
 //   sb → showBand=false (0)     fs  → forceStrength       dl → displayLanguage=viewer (1)
+//   co → cellOverrides (Phase 126; map cellKey → CompactCellOverride)
+//
+// Phase 126 note — inside a CompactCellOverride the enum levers (`sb`, `sc`,
+// `dl`) are PRESENCE-encoded (0 or 1, only when overridden) rather than
+// default-omitted like the panel-level keys: an override must be able to set a
+// lever to its non-default value AND to its default value, so "absent" has to
+// mean "inherit", not "default".
 //
 // `c` and `l` get a one-letter alphabet because they're the only
 // well-bounded enums where one-letter keys aid compression; `v`/`r`/`n`
@@ -413,6 +464,19 @@ interface CompactChannelBinding {
   co?: string;
   ns?: NetworkSizeChannel;
   nc?: NetworkColorChannel;
+}
+
+// Phase 126 — compact per-cell override. Mirrors CompactPanel's cell-shape
+// short keys, but `sb` / `sc` / `dl` are presence-encoded (0 = the default
+// value, 1 = the non-default value) so an override can pin either side.
+interface CompactCellOverride {
+  bn?: number; // bins
+  tN?: number; // topN
+  fs?: number; // forceStrength
+  sb?: 0 | 1; // showBand (0 = false, 1 = true)
+  sc?: 0 | 1; // scales (0 = shared, 1 = free)
+  dl?: 0 | 1; // displayLanguage (0 = source, 1 = viewer)
+  ch?: CompactChannelBinding; // visual-channel binding
 }
 
 interface CompactPanel {
@@ -443,6 +507,8 @@ interface CompactPanel {
   // debugging is straightforward.
   ws?: string;
   we?: string;
+  // Phase 126 — per-cell overrides, keyed by stable cell key.
+  co?: Record<string, CompactCellOverride>;
 }
 
 interface CompactWindow {
@@ -522,19 +588,78 @@ function compactPanel(p: Panel): CompactPanel {
   // omitted unless explicitly disabled (default = shown).
   if (p.bins !== undefined) c.bn = p.bins;
   if (p.channels !== undefined) {
-    const cb: CompactChannelBinding = {};
-    if (p.channels.x !== undefined) cb.x = p.channels.x;
-    if (p.channels.y !== undefined) cb.y = p.channels.y;
-    if (p.channels.size !== undefined) cb.sz = p.channels.size;
-    if (p.channels.color !== undefined) cb.co = p.channels.color;
-    if (p.channels.netSize !== undefined) cb.ns = p.channels.netSize;
-    if (p.channels.netColor !== undefined) cb.nc = p.channels.netColor;
-    if (Object.keys(cb).length > 0) c.ch = cb;
+    const cb = compactChannels(p.channels);
+    if (cb) c.ch = cb;
   }
   if (p.showBand === false) c.sb = 0;
   if (p.forceStrength !== undefined) c.fs = p.forceStrength;
   if (p.displayLanguage === 'viewer') c.dl = 1;
+  // Phase 126 — per-cell overrides. Each empty override is dropped; the whole
+  // `co` map is omitted when no cell carries one.
+  if (p.cellOverrides !== undefined) {
+    const co: Record<string, CompactCellOverride> = {};
+    for (const [k, ov] of Object.entries(p.cellOverrides)) {
+      const cov = compactCellOverride(ov);
+      if (cov) co[k] = cov;
+    }
+    if (Object.keys(co).length > 0) c.co = co;
+  }
   return c;
+}
+
+// Phase 126 — channel + cell-override (de)compaction, shared by the panel-level
+// channels field and the per-cell overrides.
+function compactChannels(ch: CellChannelBinding): CompactChannelBinding | null {
+  const cb: CompactChannelBinding = {};
+  if (ch.x !== undefined) cb.x = ch.x;
+  if (ch.y !== undefined) cb.y = ch.y;
+  if (ch.size !== undefined) cb.sz = ch.size;
+  if (ch.color !== undefined) cb.co = ch.color;
+  if (ch.netSize !== undefined) cb.ns = ch.netSize;
+  if (ch.netColor !== undefined) cb.nc = ch.netColor;
+  return Object.keys(cb).length > 0 ? cb : null;
+}
+
+function expandChannels(c: CompactChannelBinding): CellChannelBinding | null {
+  const cb: CellChannelBinding = {};
+  if (typeof c.x === 'string') cb.x = c.x;
+  if (typeof c.y === 'string') cb.y = c.y;
+  if (typeof c.sz === 'string') cb.size = c.sz;
+  if (typeof c.co === 'string') cb.color = c.co;
+  if (c.ns === 'total_count' || c.ns === 'degree') cb.netSize = c.ns;
+  if (c.nc === 'label' || c.nc === 'presence' || c.nc === 'uniform' || c.nc === 'source_overlay')
+    cb.netColor = c.nc;
+  return Object.keys(cb).length > 0 ? cb : null;
+}
+
+function compactCellOverride(ov: CellOverride): CompactCellOverride | null {
+  const c: CompactCellOverride = {};
+  if (ov.bins !== undefined) c.bn = ov.bins;
+  if (ov.topN !== undefined) c.tN = ov.topN;
+  if (ov.forceStrength !== undefined) c.fs = ov.forceStrength;
+  if (ov.showBand !== undefined) c.sb = ov.showBand ? 1 : 0;
+  if (ov.scales !== undefined) c.sc = ov.scales === 'free' ? 1 : 0;
+  if (ov.displayLanguage !== undefined) c.dl = ov.displayLanguage === 'viewer' ? 1 : 0;
+  if (ov.channels !== undefined) {
+    const cb = compactChannels(ov.channels);
+    if (cb) c.ch = cb;
+  }
+  return Object.keys(c).length > 0 ? c : null;
+}
+
+function expandCellOverride(c: CompactCellOverride): CellOverride {
+  const ov: CellOverride = {};
+  if (typeof c.bn === 'number') ov.bins = c.bn;
+  if (typeof c.tN === 'number') ov.topN = c.tN;
+  if (typeof c.fs === 'number') ov.forceStrength = c.fs;
+  if (c.sb === 0 || c.sb === 1) ov.showBand = c.sb === 1;
+  if (c.sc === 0 || c.sc === 1) ov.scales = c.sc === 1 ? 'free' : 'shared';
+  if (c.dl === 0 || c.dl === 1) ov.displayLanguage = c.dl === 1 ? 'viewer' : 'source';
+  if (c.ch !== undefined && typeof c.ch === 'object') {
+    const cb = expandChannels(c.ch);
+    if (cb) ov.channels = cb;
+  }
+  return ov;
 }
 
 function expandPillarState(c: CompactPillarState): PillarState {
@@ -577,24 +702,22 @@ function expandPanel(c: CompactPanel): Panel {
   // Phase 131 per-cell config.
   if (typeof c.bn === 'number') p.bins = c.bn;
   if (c.ch !== undefined && typeof c.ch === 'object') {
-    const cb: CellChannelBinding = {};
-    if (typeof c.ch.x === 'string') cb.x = c.ch.x;
-    if (typeof c.ch.y === 'string') cb.y = c.ch.y;
-    if (typeof c.ch.sz === 'string') cb.size = c.ch.sz;
-    if (typeof c.ch.co === 'string') cb.color = c.ch.co;
-    if (c.ch.ns === 'total_count' || c.ch.ns === 'degree') cb.netSize = c.ch.ns;
-    if (
-      c.ch.nc === 'label' ||
-      c.ch.nc === 'presence' ||
-      c.ch.nc === 'uniform' ||
-      c.ch.nc === 'source_overlay'
-    )
-      cb.netColor = c.ch.nc;
-    if (Object.keys(cb).length > 0) p.channels = cb;
+    const cb = expandChannels(c.ch);
+    if (cb) p.channels = cb;
   }
   if (c.sb === 0) p.showBand = false;
   if (typeof c.fs === 'number') p.forceStrength = c.fs;
   if (c.dl === 1) p.displayLanguage = 'viewer';
+  // Phase 126 — per-cell overrides. Empty overrides are dropped so a decoded
+  // panel never carries a no-op entry.
+  if (c.co !== undefined && typeof c.co === 'object') {
+    const co: Record<string, CellOverride> = {};
+    for (const [k, cov] of Object.entries(c.co)) {
+      const ov = expandCellOverride(cov);
+      if (Object.keys(ov).length > 0) co[k] = ov;
+    }
+    if (Object.keys(co).length > 0) p.cellOverrides = co;
+  }
   return p;
 }
 
@@ -680,6 +803,28 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   // Phase 122k F5 — per-panel window keys.
   if (v.ws !== undefined && typeof v.ws !== 'string') return false;
   if (v.we !== undefined && typeof v.we !== 'string') return false;
+  // Phase 126 — per-cell overrides. A record of cellKey → CompactCellOverride.
+  if (v.co !== undefined) {
+    if (!isRecord(v.co)) return false;
+    for (const cov of Object.values(v.co)) {
+      if (!isCompactCellOverride(cov)) return false;
+    }
+  }
+  return true;
+}
+
+function isCompactCellOverride(v: unknown): v is CompactCellOverride {
+  if (!isRecord(v)) return false;
+  if (v.bn !== undefined && (typeof v.bn !== 'number' || !Number.isFinite(v.bn))) return false;
+  if (v.tN !== undefined && (typeof v.tN !== 'number' || !Number.isFinite(v.tN))) return false;
+  if (v.fs !== undefined && (typeof v.fs !== 'number' || !Number.isFinite(v.fs))) return false;
+  if (v.sb !== undefined && v.sb !== 0 && v.sb !== 1) return false;
+  if (v.sc !== undefined && v.sc !== 0 && v.sc !== 1) return false;
+  if (v.dl !== undefined && v.dl !== 0 && v.dl !== 1) return false;
+  // `ch` is expanded defensively (each field type-checked in expandChannels),
+  // mirroring the panel-level channel handling — only its container shape is
+  // validated here.
+  if (v.ch !== undefined && !isRecord(v.ch)) return false;
   return true;
 }
 

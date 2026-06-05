@@ -34,6 +34,7 @@
   } from '$lib/api/queries';
   import {
     expandProbeScopeFanout,
+    resolveCellConfig,
     selectCellRender,
     shouldRefuseMergedCrossProbe,
     type CellRenderUnit
@@ -53,6 +54,7 @@
   import PanelControls from './PanelControls.svelte';
   import PanelMetaStrip from './PanelMetaStrip.svelte';
   import ScopeEditor from './ScopeEditor.svelte';
+  import CellConfigPopover from './CellConfigPopover.svelte';
 
   interface Props {
     panel: Panel;
@@ -106,6 +108,16 @@
   // the button silently seeded a default group with all probes and
   // empty sources — confusing UX since the user wanted to choose.
   let scopeEditorOpen = $state(false);
+
+  // Phase 126 — per-cell configuration popover. Holds the `unit.key` of the
+  // cell whose config popover is open, or null. Per-cell overrides are offered
+  // only on multi-cell panels (split / small-multiples) — on a single-cell
+  // panel the PanelControls already configure that one cell.
+  let openConfigKey = $state<string | null>(null);
+  function toggleCellConfig(key: string, e: MouseEvent) {
+    e.stopPropagation();
+    openConfigKey = openConfigKey === key ? null : key;
+  }
 
   function onFocusClick() {
     if (path) focusPanel(path);
@@ -221,6 +233,25 @@
     const p = probesById[probeId];
     return p?.shortName ?? p?.displayName ?? probeId;
   }
+
+  // Phase 126 — scalar metric options for the per-cell scatter-axis pickers.
+  // Same all-source-intersection set as the panel metric picker (`available`),
+  // default-prepended so the picker is never empty. The popover augments this
+  // with any currently-bound channel metric so a binding stays visible.
+  const scalarMetricOptions = $derived.by<string[]>(() => {
+    const seen: Record<string, true> = {};
+    const out: string[] = [];
+    const push = (n: string | undefined) => {
+      if (n && !seen[n]) {
+        seen[n] = true;
+        out.push(n);
+      }
+    };
+    push(DEFAULT_METRIC_NAME);
+    if (metricAvailQ.data?.kind === 'success')
+      for (const m of metricAvailQ.data.data.available) push(m);
+    return out;
+  });
   // The distinct in-scope probe ids of a single-ScopeGroup split fan-out,
   // in stable scope order — drives the per-probe accent index (1-based tint
   // cycles through the same four-tone palette as the ScopeGroup accent).
@@ -260,6 +291,13 @@
   const expandedUnits = $derived<readonly CellRenderUnit[]>(fanout?.units ?? cellRender.units);
   const fanoutProbeOrder = $derived<readonly string[]>(fanout?.probeOrder ?? []);
   const isMultiProbeFanout = $derived(fanoutProbeOrder.length > 1);
+
+  // Phase 126 — per-cell overrides are offered only when the panel renders more
+  // than one cell (a split / small-multiple), the presentation exposes at least
+  // one cell-shape lever, and the host is interactive.
+  const perCellConfig = $derived(
+    path !== null && expandedUnits.length > 1 && (presentation.configurableParams?.length ?? 0) > 0
+  );
 
   // Lazy-load the Cell component. Each presentation lives in its own
   // chunk; the same Component instance is reused across all units of a
@@ -345,7 +383,6 @@
     'metric_scatter'
   ]);
   const sharedAxisApplies = $derived(SHARED_AXIS_VIEWS.has(panel.view) && expandedUnits.length > 1);
-  const scaleMode = $derived<'shared' | 'free'>(panel.scales ?? 'shared');
   const renderedProbeCount = $derived.by(() => {
     // Plain Record dedup (not Set) per the codebase's prefer-svelte-reactivity
     // convention for transient reactive computations.
@@ -372,7 +409,31 @@
     return presentation.usesMetric !== false && !isPureCountMetric(panel.metric);
   });
   const shareForbidden = $derived(sharedAxisApplies && renderedProbeCount > 1 && isIntensiveMetric);
-  const computeShared = $derived(sharedAxisApplies && scaleMode === 'shared' && !shareForbidden);
+
+  // Phase 126 — a cell's EFFECTIVE axis-scale, honouring per-cell overrides:
+  //   - the cross-context guard forces every cell to 'free' (shareForbidden);
+  //   - a per-cell x/y channel override changes WHAT the axis measures, so the
+  //     cell can no longer share an axis with its siblings → 'free' (otherwise
+  //     a shared union would merge incompatible metric ranges);
+  //   - otherwise the per-cell `scales` override wins over the panel default.
+  function effectiveCellScale(cellKey: string): 'shared' | 'free' {
+    if (shareForbidden) return 'free';
+    const ov = panel.cellOverrides?.[cellKey];
+    if (ov?.channels?.x !== undefined || ov?.channels?.y !== undefined) return 'free';
+    return ov?.scales ?? panel.scales ?? 'shared';
+  }
+  // The cells that actually share the axis — only these feed AND read the union,
+  // so a cell freed (by override or guard) neither stretches its siblings' axis
+  // nor is distorted by theirs.
+  const sharedCellKeys = $derived.by<Record<string, true>>(() => {
+    const out: Record<string, true> = {};
+    if (!sharedAxisApplies || shareForbidden) return out;
+    for (const u of expandedUnits) if (effectiveCellScale(u.key) === 'shared') out[u.key] = true;
+    return out;
+  });
+  // Compute the union only when at least one cell consumes it (avoids the
+  // all-'free' panel recomputing a union nothing reads).
+  const computeShared = $derived(sharedAxisApplies && Object.keys(sharedCellKeys).length > 0);
 
   // Per-rendered-cell extents, keyed `${cellKey}|${axis}`. A plain Record
   // (reassigned on each update) drives reactivity without a mutable Map, per
@@ -398,6 +459,9 @@
     let hi = -Infinity;
     for (const [k, v] of Object.entries(reportedExtents)) {
       if (!k.endsWith(`|${axis}`)) continue;
+      // Phase 126 — only the shared cells form the union; a freed cell still
+      // reports its extent (so it stays fresh if re-shared) but is excluded here.
+      if (!sharedCellKeys[k.slice(0, k.lastIndexOf('|'))]) continue;
       if (v[0] < lo) lo = v[0];
       if (v[1] > hi) hi = v[1];
     }
@@ -588,7 +652,48 @@
             ? probeTintIndex(unit.probeId, fanoutProbeOrder) + 1
             : null}
         {@const accentNum = groupNum ?? probeNum}
-        <div class="panel-cell" class:has-group={accentNum !== null} data-group={accentNum}>
+        {@const cfg = resolveCellConfig(panel, unit.key)}
+        {@const cellScale = effectiveCellScale(unit.key)}
+        <div
+          class="panel-cell"
+          class:has-group={accentNum !== null}
+          class:cell-overridden={cfg.isOverridden}
+          data-group={accentNum}
+        >
+          {#if perCellConfig}
+            <div class="cell-config-bar">
+              {#if cfg.isOverridden}
+                <span
+                  class="cell-custom-badge"
+                  title="This cell is on a custom configuration — not directly comparable to its sibling cells."
+                >
+                  custom
+                </span>
+              {/if}
+              <button
+                type="button"
+                class="cell-config-btn"
+                class:active={openConfigKey === unit.key}
+                aria-label="Configure this cell"
+                aria-expanded={openConfigKey === unit.key}
+                title="Per-cell configuration — override the panel default for this cell only"
+                onclick={(e) => toggleCellConfig(unit.key, e)}
+              >
+                ⚙ Cell
+              </button>
+            </div>
+          {/if}
+          {#if perCellConfig && path && openConfigKey === unit.key}
+            <CellConfigPopover
+              panelPath={path}
+              cellKey={unit.key}
+              cellLabel={unit.scopeId}
+              {panel}
+              {presentation}
+              {scalarMetricOptions}
+              onClose={() => (openConfigKey = null)}
+            />
+          {/if}
           {#if groupNum !== null}
             <header class="cell-group-eyebrow">
               <span class="cell-group-badge" aria-hidden="true">Group {groupNum}</span>
@@ -620,18 +725,19 @@
             {dataLayer}
             probeIds={unit.probeIds.length > 1 ? [...unit.probeIds] : []}
             composition={panel.composition}
-            bins={panel.bins}
-            topN={panel.topN}
-            channels={panel.channels}
-            showBand={panel.showBand}
+            bins={cfg.bins}
+            topN={cfg.topN}
+            channels={cfg.channels}
+            showBand={cfg.showBand}
             resolution={panel.resolution}
             normalization={panel.normalization}
-            forceStrength={panel.forceStrength}
-            displayLanguage={panel.displayLanguage}
+            forceStrength={cfg.forceStrength}
+            displayLanguage={cfg.displayLanguage}
             cellKey={unit.key}
             reportExtent={sharedAxisApplies ? reportExtentFor(unit.key) : undefined}
-            {sharedDomains}
-            axisScaleState={sharedAxisApplies ? (computeShared ? 'shared' : 'free') : undefined}
+            sharedDomains={cellScale === 'shared' ? sharedDomains : undefined}
+            axisScaleState={sharedAxisApplies ? cellScale : undefined}
+            configOverridden={cfg.isOverridden}
           />
         </div>
       {/each}
@@ -862,6 +968,59 @@
 
   .panel-cell {
     min-height: 14rem;
+    /* Phase 126 — anchor for the per-cell config popover. */
+    position: relative;
+  }
+
+  /* Phase 126 — per-cell config affordance. A normal-flow right-aligned bar
+     above the cell content (never overlapping the cell's own export row), so
+     the ⚙ and the "custom" marker stay clearly visible (operator request). */
+  .cell-config-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+  .cell-config-btn {
+    appearance: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 1px var(--space-2);
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+  .cell-config-btn:hover,
+  .cell-config-btn:focus-visible {
+    border-color: var(--color-accent);
+    color: var(--color-fg);
+  }
+  .cell-config-btn.active {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  }
+  .cell-custom-badge {
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  /* A subtle outline accent on the whole cell when it carries an override, so
+     the "this one is different" signal is legible even before reading the badge. */
+  .panel-cell.cell-overridden {
+    outline: 1px dashed color-mix(in srgb, var(--color-accent) 45%, transparent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
   }
 
   /* Phase 122k §11 finding — multi-group split panels need a visual
