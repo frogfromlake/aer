@@ -558,6 +558,14 @@
   // Phase 126 — does any cell in this panel carry a per-cell override? Drives the
   // panel-level "Reset all cells" affordance.
   const cellOverrideCount = $derived(Object.keys(boundPanel?.cellOverrides ?? {}).length);
+  // Phase 126 — does any cell override its own X/Y axis? Such a cell measures a
+  // different metric than its siblings, so it always reads free regardless of
+  // this panel-level Shared/Free toggle. Drives the clarifying note under Scale.
+  const hasAxisOverride = $derived(
+    Object.values(boundPanel?.cellOverrides ?? {}).some(
+      (ov) => ov.channels?.x !== undefined || ov.channels?.y !== undefined
+    )
+  );
   const activeBins = $derived(boundPanel?.bins ?? DEFAULT_BINS);
   const activeTopN = $derived(boundPanel?.topN ?? DEFAULT_TOPN);
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
@@ -1029,6 +1037,15 @@
             {activeScaleMode === 'shared' ? 'Shared axis' : 'Free axis'}
           </button>
         </div>
+        {#if hasAxisOverride}
+          <!-- Phase 126 — the panel Scale toggle is the default for cells that
+               CAN share. A cell with its own X/Y axis measures a different
+               metric and always reads free, independent of this. Disclose so the
+               panel button never reads as a promise the custom cell can't keep. -->
+          <p class="scale-note">
+            ⓘ Cells with a custom X/Y axis always read free — independent of this.
+          </p>
+        {/if}
       {/if}
 
       {#if configParams.includes('networkChannels')}
@@ -1426,6 +1443,15 @@
     font-weight: var(--font-weight-semibold);
     min-width: 3.5rem;
     flex-shrink: 0;
+  }
+
+  /* Phase 126 — clarifying note under the panel Scale toggle when a cell has a
+     custom X/Y axis (then the panel default doesn't apply to that cell). */
+  .scale-note {
+    margin: 0 0 0 calc(3.5rem + var(--space-2));
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    font-style: italic;
   }
 
   .ctrl-options {

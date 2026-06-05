@@ -62,6 +62,16 @@
   const effForce = $derived(cfg.forceStrength ?? DEFAULT_FORCE_STRENGTH);
   const effShowBand = $derived(cfg.showBand ?? true);
   const effScale = $derived<'shared' | 'free'>(cfg.scales ?? 'shared');
+  // A per-cell X/Y axis override changes WHAT the axis measures, so the cell
+  // can no longer share the panel axis — PanelHost forces it to 'free'
+  // (effectiveCellScale). Reflect that here: the Scale lever then shows 'free'
+  // and is locked (the user can't put a different-metric axis back onto the
+  // shared scale), so the popover never claims 'shared' for a cell that renders
+  // free.
+  const axisOverrideForcesFree = $derived(
+    override?.channels?.x !== undefined || override?.channels?.y !== undefined
+  );
+  const effScaleDisplay = $derived<'shared' | 'free'>(axisOverrideForcesFree ? 'free' : effScale);
   const effLabels = $derived<'source' | 'viewer'>(cfg.displayLanguage ?? 'source');
   const effChannels = $derived<CellChannelBinding>(cfg.channels ?? {});
 
@@ -272,13 +282,16 @@
         <button
           type="button"
           role="switch"
-          aria-checked={effScale === 'shared'}
+          aria-checked={effScaleDisplay === 'shared'}
           class="ccp-btn"
-          class:active={effScale === 'shared'}
-          onclick={() => setScale(effScale === 'shared' ? 'free' : 'shared')}
-          title="Shared: this cell sits on the panel's union axis (comparable). Free: this cell scales to its own data."
+          class:active={effScaleDisplay === 'shared'}
+          disabled={axisOverrideForcesFree}
+          onclick={() => setScale(effScaleDisplay === 'shared' ? 'free' : 'shared')}
+          title={axisOverrideForcesFree
+            ? "This cell's X/Y axis is custom, so it measures different metrics than its siblings and can't share their scale — it always reads on its own."
+            : "Shared: this cell sits on the panel's union axis (comparable). Free: this cell scales to its own data."}
         >
-          {effScale === 'shared' ? 'Shared axis' : 'Free axis'}
+          {effScaleDisplay === 'shared' ? 'Shared axis' : 'Free axis'}
         </button>
       </div>
     {/if}
@@ -494,13 +507,28 @@
   }
   .ccp-row-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* Phase 126 (fix) — two columns when the popover is wide enough, collapsing
+       to one when the cell (and thus the popover) is narrow, so the axis
+       pickers stay readable instead of overflowing or cramping. */
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
     gap: var(--space-2);
   }
   .ccp-field {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    /* Phase 126 (fix) — allow the grid/flex item to shrink below the select's
+       intrinsic (longest-option) width so a long metric name like
+       `sentiment_score_bert_multilingual` can't push the dropdown past the
+       popover edge. */
+    min-width: 0;
+  }
+  .ccp-field > .ccp-select {
+    width: 100%;
+  }
+  /* Inline (network) selects share the row width and shrink to fit. */
+  .ccp-row:not(.ccp-row-grid) > .ccp-select {
+    flex: 1 1 0;
   }
 
   .ccp-rk {
@@ -549,6 +577,10 @@
     border-color: var(--color-accent);
     color: var(--color-accent);
   }
+  .ccp-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 
   .ccp-select {
     appearance: none;
@@ -560,6 +592,11 @@
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
     cursor: pointer;
+    /* Phase 126 (fix) — never exceed the popover; truncate the visible label
+       instead of overflowing the container. */
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
   }
   .ccp-select:hover,
   .ccp-select:focus-visible {
