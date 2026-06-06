@@ -39,6 +39,7 @@ func TestGetMetricDistribution_HistogramAndSummary(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		5,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -162,6 +163,7 @@ func TestGetMetricCorrelation_PerfectPositive(t *testing.T) {
 		[]string{"tagesschau"},
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -216,6 +218,7 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 		10,
 		"",
 		"",
+		0,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -276,6 +279,7 @@ func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
 		10,
 		"",
 		"",
+		0,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -329,6 +333,7 @@ func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
 		10,
 		"",
 		"",
+		0,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -394,6 +399,7 @@ func TestGetEntityCoOccurrence_ViewerLanguageRelabel(t *testing.T) {
 		10,
 		"de",
 		"",
+		0,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -466,6 +472,7 @@ func TestGetEntityCoOccurrence_NoViewerLanguageNoRelabel(t *testing.T) {
 		10,
 		"", // no viewer language
 		"",
+		0,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -554,6 +561,7 @@ func TestGetMetricScatter_PivotsByArticleAndBindsSize(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		2000,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -591,6 +599,7 @@ func TestGetMetricScatter_TruncationFlag(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		1,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)

@@ -27,6 +27,8 @@ get:
     - $ref: '../parameters/sourceIds.yaml'
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
+    - $ref: '../parameters/metadataFilterField.yaml'
+    - $ref: '../parameters/metadataFilterValue.yaml'
   responses:
     '200':
       description: NxN correlation matrix.

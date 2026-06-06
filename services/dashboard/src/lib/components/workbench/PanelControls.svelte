@@ -422,16 +422,6 @@
     );
   }
 
-  // Phase 125 — what KIND of list `Panel.metricSet` holds for a view: metric
-  // names (correlation_matrix / parallel_coordinates), categorical field names
-  // (sankey), or none. Used to clear metricSet when pickView crosses the
-  // metric↔field boundary so the seed repopulates with the right kind.
-  function metricSetKind(view: ViewMode): 'metric' | 'field' | null {
-    if (view === 'correlation_matrix' || view === 'parallel_coordinates') return 'metric';
-    if (view === 'sankey') return 'field';
-    return null;
-  }
-
   function pickView(id: ViewMode) {
     if (id === activePresentation.id) return;
     if (!panelPath) return;
@@ -442,15 +432,19 @@
       // a distribution). A view change discards them so they neither apply
       // silently nor linger in the URL without an affordance to clear them.
       delete next.cellOverrides;
-      // Phase 125 — `Panel.metricSet` is overloaded: it holds METRIC names for
-      // correlation_matrix/parallel_coordinates but categorical FIELD names for
-      // sankey. Switching across that kind-boundary must clear it (else the
-      // length≥2 seed guard keeps the wrong-kind list and the cell queries
-      // garbage). Same-kind switches (matrix↔parallel) preserve the selection.
-      if (metricSetKind(id) !== metricSetKind(activePresentation.id)) {
-        delete next.metricSet;
-      }
       const pres = presentations.find((x) => x.id === id);
+      // Phase 125a — metricSet (metric names) and fieldChain (categorical
+      // fields) are now distinct Panel fields and can never collide. Drop
+      // whichever the new view does not consume so a stale list neither lingers
+      // in the URL nor blocks the seed below. Same-kind switches (matrix↔
+      // parallel) keep metricSet; switching into sankey keeps fieldChain.
+      const nextParams = pres?.configurableParams ?? [];
+      if (!nextParams.includes('metricSet')) delete next.metricSet;
+      if (!nextParams.includes('sankeyFields')) delete next.fieldChain;
+      // Phase 125a — drop a stale facet field when the new view cannot facet, so
+      // it neither lingers in the URL nor silently reactivates on a later switch
+      // back (symmetry with metricSet/fieldChain/cellOverrides above).
+      if (!(pres?.supportsFaceting ?? false)) delete next.facetField;
       const usesMetric = pres?.usesMetric ?? true;
       const nextUsesMetadataField = pres?.usesMetadataField ?? false;
       const prevUsesMetadataField = activePresentation.usesMetadataField ?? false;
@@ -510,13 +504,13 @@
       ) {
         next.metricSet = scalarMetricOptions.slice(0, 4);
       }
-      // Phase 125 — seed the Sankey field chain (metricSet holds categorical
-      // FIELDS here) with the first up-to-3 offerable categorical fields.
+      // Phase 125 — seed the Sankey field chain (Phase 125a: in `fieldChain`)
+      // with the first up-to-3 offerable categorical fields.
       if (
         (pres?.configurableParams ?? []).includes('sankeyFields') &&
-        (next.metricSet?.length ?? 0) < 2
+        (next.fieldChain?.length ?? 0) < 2
       ) {
-        next.metricSet = offerableMetadataFields().slice(0, 3);
+        next.fieldChain = offerableMetadataFields().slice(0, 3);
       }
       // Phase 125 — seed the cross-tab numeric metric (channels.x) on first
       // switch so it renders at once; prefer a sentiment metric.
@@ -772,6 +766,48 @@
       const out = { ...p };
       if (next.length > 0) out.metricSet = next;
       else delete out.metricSet;
+      return out;
+    });
+  }
+
+  // Phase 125a — the ordered categorical field chain for the Sankey cell,
+  // persisted in Panel.fieldChain (split out of the overloaded metricSet).
+  const activeFieldChain = $derived<readonly string[]>(boundPanel?.fieldChain ?? []);
+  // Toggle a field in/out of the chain. Append on add so the alluvial column
+  // order follows the user's selection order (no-discovery-bias: the pool is
+  // the scope's offerable categorical fields).
+  function toggleFieldChainMember(name: string) {
+    if (!panelPath) return;
+    updatePanel(panelPath, (p) => {
+      const cur = p.fieldChain ?? [];
+      const next = cur.includes(name) ? cur.filter((m) => m !== name) : [...cur, name];
+      const out = { ...p };
+      if (next.length > 0) out.fieldChain = next;
+      else delete out.fieldChain;
+      return out;
+    });
+  }
+
+  // Phase 125a — faceting / small-multiples. The facet field is a categorical
+  // metadata field (no-discovery-bias: the pool is `offerableMetadataFields()`,
+  // never a capability-ranked list); "None" clears it. Offered only for
+  // presentations that support faceting (the per-article cells).
+  const viewSupportsFaceting = $derived(activePresentation.supportsFaceting ?? false);
+  const activeFacetField = $derived<string>(boundPanel?.facetField ?? '');
+  // For a field-driven view (categorical_distribution / cross_tab) the panel's
+  // own field rides in `metric`; faceting BY that same field is degenerate (each
+  // sub-cell collapses to one bar), so exclude it from the facet picker.
+  const facetFieldOptions = $derived<string[]>(
+    viewUsesMetadataField
+      ? offerableMetadataFields().filter((f) => f !== activeMetric)
+      : offerableMetadataFields()
+  );
+  function setFacetField(field: string) {
+    if (!panelPath) return;
+    updatePanel(panelPath, (p) => {
+      const out = { ...p };
+      if (field) out.facetField = field;
+      else delete out.facetField;
       return out;
     });
   }
@@ -1513,17 +1549,17 @@
       {/if}
 
       <!-- Phase 125 — Sankey field chain: an ordered multi-select of categorical
-           fields (metricSet holds the field names). -->
+           fields (Phase 125a: persisted in Panel.fieldChain). -->
       {#if configParams.includes('sankeyFields')}
         <div class="ctrl-row config-row" role="group" aria-label="Sankey fields">
           <span class="ctrl-eyebrow">Fields</span>
           <div class="metric-set-options" onclick={(e) => e.stopPropagation()} role="presentation">
             {#each offerableMetadataFields() as f (f)}
-              <label class="metric-set-chip" class:active={activeMetricSet.includes(f)}>
+              <label class="metric-set-chip" class:active={activeFieldChain.includes(f)}>
                 <input
                   type="checkbox"
-                  checked={activeMetricSet.includes(f)}
-                  onchange={() => toggleMetricSetMember(f)}
+                  checked={activeFieldChain.includes(f)}
+                  onchange={() => toggleFieldChainMember(f)}
                 />
                 <code>{f}</code>
               </label>
@@ -1564,6 +1600,30 @@
               <option value={m}>{m}</option>
             {/each}
           </select>
+        </div>
+      {/if}
+
+      <!-- Phase 125a — faceting / small-multiples. Break the cell into one
+           sub-cell per value of a categorical field (no-discovery-bias pool;
+           "None" clears). Offered only for per-article presentations. -->
+      {#if viewSupportsFaceting && panelPath}
+        <div class="ctrl-row config-row" role="group" aria-label="Facet by field">
+          <span class="ctrl-eyebrow">Facet by</span>
+          <select
+            class="config-select"
+            value={activeFacetField}
+            onchange={(e) => setFacetField((e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Facet by categorical field"
+          >
+            <option value="">— None —</option>
+            {#each facetFieldOptions as f (f)}
+              <option value={f}>{f}</option>
+            {/each}
+          </select>
+          {#if facetFieldOptions.length === 0}
+            <span class="field-empty">No categorical metadata for this scope.</span>
+          {/if}
         </div>
       {/if}
 

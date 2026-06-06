@@ -25,6 +25,7 @@
     scopeId,
     windowStart,
     windowEnd,
+    metadataFilter,
     dataLayer = 'gold',
     metricSet,
     configOverridden
@@ -46,6 +47,7 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
+      metadataFilter,
       metrics
     });
     return {

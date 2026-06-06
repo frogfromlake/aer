@@ -327,7 +327,7 @@ export interface paths {
          * Entity co-occurrence graph (Network Science x force-directed graph)
          * @description Aggregates `aer_gold.entity_cooccurrences` over the window, returns the top-N edges by summed `cooccurrence_count` plus the union of incident nodes. Backs the Network Science discipline view-mode cell.
          *     Scope is resolved from the union of `scopeId`, `probeIds`, and `sourceIds`. At least one must be present. Each node carries a `presence` field listing the resolved sources where it appears, enabling per-source shading in the force-directed graph (Phase 114).
-         *     Edge cap: `topN` (default 50, max 500).
+         *     Edge cap: `topN` (default 50, max 6000 — Phase 125b raised the ceiling for the large-scale renderer). `minWeight` drops edges below a weight floor.
          */
         get: operations["getEntityCoOccurrence"];
         put?: never;
@@ -2455,6 +2455,10 @@ export interface operations {
                 start?: string;
                 /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
                 end?: string;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path?: never;
@@ -2548,6 +2552,10 @@ export interface operations {
                 end?: string;
                 /** @description Symmetric lag bound in hours (default 168, max 720). */
                 maxLagHours?: number;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path?: never;
@@ -2667,6 +2675,10 @@ export interface operations {
                 end?: string;
                 /** @description Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive. */
                 maxPoints?: number;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path?: never;
@@ -2833,6 +2845,10 @@ export interface operations {
                 end?: string;
                 /** @description Number of histogram bins to request for the distribution. Server clamps values outside [1, 200] to the nearest bound. */
                 bins?: number;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path: {
@@ -3028,6 +3044,10 @@ export interface operations {
                 end?: string;
                 /** @description Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive. */
                 maxPoints?: number;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path?: never;
@@ -3362,6 +3382,10 @@ export interface operations {
                 end?: string;
                 /** @description Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200]. */
                 topN?: number;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path: {
@@ -3454,6 +3478,10 @@ export interface operations {
                 end?: string;
                 /** @description Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200]. */
                 topN?: number;
+                /** @description Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query. */
+                metadataFilterField?: string;
+                /** @description Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored. */
+                metadataFilterValue?: string;
             };
             header?: never;
             path: {
@@ -3784,8 +3812,10 @@ export interface operations {
                 start?: string;
                 /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
                 end?: string;
-                /** @description Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound. */
+                /** @description Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 6000] to the nearest bound. The default SVG renderer requests a small value (~60); the large-scale WebGL renderer (maximized single-cell view, Phase 125b) requests a high value. */
                 topN?: number;
+                /** @description Phase 125b — minimum co-occurrence weight (summed `cooccurrence_count`) for an edge to be included. The primary control against the quadratic edge "hairball" in the large-scale view: raise it to keep only the strongest pairs. 0 / absent disables the threshold. The node set is derived from the surviving edges, so this thins both edges and nodes. */
+                minWeight?: number;
                 /** @description Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation. */
                 viewerLanguage?: string;
                 /** @description Phase 125 — when set, each node carries `metricValue` = the mean of this per-article metric over the articles where the entity appears, so the network cell can size/colour nodes by a metric. */

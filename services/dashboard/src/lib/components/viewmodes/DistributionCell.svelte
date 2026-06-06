@@ -41,6 +41,7 @@
     windowStart,
     windowEnd,
     metricName,
+    metadataFilter,
     dataLayer = 'gold',
     sources = [],
     composition,
@@ -100,6 +101,7 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
+      metadataFilter,
       bins: activeBins
     });
     return {

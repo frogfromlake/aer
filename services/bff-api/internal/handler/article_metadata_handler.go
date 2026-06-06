@@ -46,7 +46,8 @@ func (s *Server) GetMetadataDistribution(ctx context.Context, request GetMetadat
 		topN = *request.Params.TopN
 	}
 
-	res, err := s.db.GetCategoricalDistribution(ctx, request.Field, sources, start, end, topN)
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
+	res, err := s.db.GetCategoricalDistribution(ctx, request.Field, sources, start, end, topN, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetadataDistribution", "error", err)
 		return GetMetadataDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -104,33 +105,16 @@ func (s *Server) GetMetadataCrossTab(ctx context.Context, request GetMetadataCro
 
 	// Cross-frame gate — correlating a metric across languages is only
 	// meaningful when the metric's cross-cultural equivalence is granted.
-	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
-	if err != nil {
-		slog.Error("handler failure", "op", "GetMetadataCrossTab.CountLanguagesForSources", "error", err)
+	if refusal, err := s.crossFrameGate(ctx, []string{metric}, sources, start, end); err != nil {
+		slog.Error("handler failure", "op", "GetMetadataCrossTab.crossFrameGate", "error", err)
 		return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
-	}
-	if nLangs > 1 {
-		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
-		if err != nil {
-			slog.Error("handler failure", "op", "GetMetadataCrossTab.collectLanguagesForScope", "error", err)
-			return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
-		}
-		granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, metric, languages)
-		if err != nil {
-			slog.Error("handler failure", "op", "GetMetadataCrossTab.CheckNormalizationEquivalenceForLanguages", "error", err)
-			return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
-		}
-		if !granted {
-			gate := crossFrameGateID
-			anchor := crossFrameAnchor
-			alts := append([]string(nil), crossFrameRefusalAlternatives...)
-			return GetMetadataCrossTab400JSONResponse{
-				Message:            crossFrameRefusalMessage,
-				Gate:               &gate,
-				WorkingPaperAnchor: &anchor,
-				Alternatives:       &alts,
-			}, nil
-		}
+	} else if refusal != nil {
+		return GetMetadataCrossTab400JSONResponse{
+			Message:            refusal.Message,
+			Gate:               refusal.Gate,
+			WorkingPaperAnchor: refusal.WorkingPaperAnchor,
+			Alternatives:       refusal.Alternatives,
+		}, nil
 	}
 
 	topN := 20
@@ -138,7 +122,8 @@ func (s *Server) GetMetadataCrossTab(ctx context.Context, request GetMetadataCro
 		topN = *request.Params.TopN
 	}
 
-	res, err := s.db.GetCrossTab(ctx, request.Field, metric, sources, start, end, topN)
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
+	res, err := s.db.GetCrossTab(ctx, request.Field, metric, sources, start, end, topN, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetadataCrossTab", "error", err)
 		return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil

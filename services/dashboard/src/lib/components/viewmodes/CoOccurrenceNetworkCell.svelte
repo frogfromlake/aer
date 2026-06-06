@@ -16,8 +16,25 @@
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
   import type { ViewModeCellProps } from '$lib/viewmodes';
-  import type { ExportRow, ExportPayload } from '$lib/viewmodes/cell-export';
-  import { composeHowToRead } from '$lib/viewmodes/how-to-read';
+  import type { ExportPayload } from '$lib/viewmodes/cell-export';
+  import {
+    computeMetricExtent,
+    resolvedSourceCount as resolvedSourceCountOf,
+    buildNetworkNodes,
+    buildNetworkEdges,
+    nodeRadius,
+    buildSourceColorMap,
+    nodeFillColor,
+    nodeStrokeColor as nodeStrokeColorShared,
+    nodeStrokeWidth as nodeStrokeWidthShared,
+    edgeStrokeColor,
+    buildHowToReadFacts,
+    buildExportPayload,
+    SHARED_COLOR,
+    UNKNOWN_PROVENANCE_COLOR,
+    type MetricExtent,
+    type NodeColorContext
+  } from '$lib/viewmodes/cooccurrence-network-shared';
   import {
     fmtValue,
     HIDDEN_READOUT,
@@ -61,15 +78,7 @@
   // The BFF-resolved set is the SoT for the overlay.
   const resolvedSourceCount = $derived.by(() => {
     const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    if (!data) return 0;
-    const names: Record<string, true> = {};
-    for (const e of data.edges) {
-      for (const s of e.presence ?? []) names[s] = true;
-    }
-    for (const n of data.nodes) {
-      for (const s of n.presence ?? []) names[s] = true;
-    }
-    return Object.keys(names).length;
+    return data ? resolvedSourceCountOf(data) : 0;
   });
   const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
   const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
@@ -81,14 +90,9 @@
   );
   // Phase 125 — min/max of the per-node metric across the returned graph, for
   // normalising the metric size/colour channels. Null when no node carries it.
-  const metricExtent = $derived.by<{ min: number; max: number } | null>(() => {
+  const metricExtent = $derived.by<MetricExtent | null>(() => {
     const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    if (!d) return null;
-    const vals = d.nodes
-      .map((n) => n.metricValue)
-      .filter((v): v is number => v != null && Number.isFinite(v));
-    if (vals.length === 0) return null;
-    return { min: Math.min(...vals), max: Math.max(...vals) };
+    return d ? computeMetricExtent(d) : null;
   });
   // Phase 131 (BUG1.7) — force-layout spread (0..100 → node repulsion).
   // Higher spreads a crowded graph apart so it stays readable.
@@ -169,51 +173,15 @@
     const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
     if (!data) return;
     const t = ++token;
-    // Phase 131 — node size bound to the selected channel: total co-occurrence
-    // weight (default), node degree, or (Phase 125) a per-article metric mapped
-    // by its min–max so the most-positive entity is largest.
-    const mExt = metricExtent;
-    const sizeOf = (n: (typeof data.nodes)[number]) => {
-      if (netSize === 'metric') {
-        if (n.metricValue == null || !mExt) return 0;
-        const span = mExt.max - mExt.min;
-        return span > 0 ? (n.metricValue - mExt.min) / span : 0.5;
-      }
-      return netSize === 'degree' ? (n.degree ?? 0) : n.totalCount;
-    };
-    const maxSize =
-      netSize === 'metric' ? 1 : data.nodes.reduce((m, n) => Math.max(m, sizeOf(n)), 1);
-    const seedNodes: SimNode[] = data.nodes.map((n) => {
-      // Phase 123b — relabel to the viewer language only when one was returned
-      // for this node's QID; unlinked nodes (and linked-but-unlabelled ones)
-      // keep their source surface form.
-      const viewerLabel = n.viewerLabel ?? null;
-      const relabeled = !!viewerLabel && viewerLabel !== n.text;
-      return {
-        id: n.text,
-        label: n.label,
-        sourceText: n.text,
-        viewerLabel,
-        displayName: relabeled ? (viewerLabel as string) : n.text,
-        relabeled,
-        // Phase 131 (BUG2.2) — wider radius range (4..26) so the Size channel
-        // (weight vs degree) produces a visibly different node sizing.
-        radius: 4 + 22 * Math.sqrt(sizeOf(n) / maxSize),
-        totalCount: n.totalCount,
-        degree: n.degree ?? 0,
-        presenceCount: n.presence?.length ?? 0,
-        presence: n.presence ?? [],
-        wikidataQid: n.wikidataQid ?? null,
-        metricValue: n.metricValue ?? null
-      };
-    });
-    const seedEdges: SimEdge[] = data.edges.map((e) => ({
-      source: e.a,
-      target: e.b,
-      weight: e.weight,
-      articleCount: e.articleCount ?? 0,
-      presence: e.presence ?? []
+    // Phase 125b — node/edge models come from the shared module (size channel,
+    // relabel, presence) so the SVG cell and the at-scale renderer stay in
+    // lock-step. The radius range (4..26) is this renderer's mapping of the
+    // shared 0..1 `sizeNorm`.
+    const seedNodes: SimNode[] = buildNetworkNodes(data, netSize, metricExtent).map((b) => ({
+      ...b,
+      radius: nodeRadius(b.sizeNorm)
     }));
+    const seedEdges: SimEdge[] = buildNetworkEdges(data);
     (async () => {
       const d3 = await import('d3-force');
       if (t !== token) return;
@@ -471,111 +439,29 @@
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  function labelColor(label: string): string {
-    const palette = ['#5283b8', '#b87a52', '#52b885', '#a058b8', '#b85265', '#888888'];
-    let h = 0;
-    for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) | 0;
-    return palette[Math.abs(h) % palette.length] ?? palette[0]!;
-  }
-
-  // Phase 131a — categorical source palette. One colour per source name
-  // for the source-coloured overlay. Auto-assigned by index in the
-  // *current* `sources` prop so the graph keeps stable colours as long
-  // as the scope is stable. Edges and nodes with multi-source presence
-  // fall back to the "shared" grey so overlap is visually distinct
-  // from single-source contribution.
-  //
-  // Channel separation (per user redirect): the *fill* channel always
-  // encodes the selected `netColor` metric (label / presence /
-  // uniform). The *border ring* and the *edge stroke* always encode
-  // source provenance when the scope is merged. That keeps the viridis-
-  // style metric ramp readable on the disc while still surfacing
-  // which source contributed each node and edge. `netColor === 'source_overlay'`
-  // is the one mode where both fill and ring use the source palette — for
-  // users who don't want a competing metric channel.
-  const SOURCE_PALETTE = [
-    '#5283b8',
-    '#b87a52',
-    '#52b885',
-    '#a058b8',
-    '#b85265',
-    '#7f8a4e',
-    '#3c5da0',
-    '#a07b3c'
-  ];
-  const SHARED_COLOR = '#9aa1ab';
-  // Phase 131a — a distinct "no provenance data" colour so empty
-  // `presence` (BFF's best-effort lookup failed) is not silently
-  // mislabelled as "shared (≥2 sources)" by the legend.
-  const UNKNOWN_PROVENANCE_COLOR = '#3b3f47';
-  const sourceColorMap = $derived.by(() => {
-    const map: Record<string, string> = {};
-    sources.forEach((s, i) => {
-      const fallback = SOURCE_PALETTE[i % SOURCE_PALETTE.length] ?? '#5283b8';
-      map[s.name] = fallback;
-    });
-    return map;
+  // Phase 125b — colour/size logic lives in the shared module
+  // (`cooccurrence-network-shared.ts`); these are thin reactive wrappers so the
+  // SVG template is unchanged and the at-scale renderer computes identical
+  // visuals. The source palette / label hash / blue→amber ramps live there.
+  const sourceColorMap = $derived(buildSourceColorMap(sources.map((s) => s.name)));
+  const maxPresence = $derived(nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1));
+  const nodeColorCtx = $derived<NodeColorContext>({
+    netColor,
+    metricExtent,
+    maxPresence,
+    sourceColorMap
   });
-  function sourceColor(presence: string[]): string {
-    if (presence.length === 0) return UNKNOWN_PROVENANCE_COLOR;
-    if (presence.length === 1) {
-      return sourceColorMap[presence[0]!] ?? UNKNOWN_PROVENANCE_COLOR;
-    }
-    return SHARED_COLOR;
-  }
-
-  // Phase 131 — node fill bound to the selected channel.
-  let maxPresence = $derived(nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1));
   function nodeFill(n: SimNode): string {
-    if (netColor === 'uniform') return '#5283b8';
-    if (netColor === 'metric') {
-      // Phase 125 — colour by the per-article metric, min→max mapped blue→amber.
-      // A node with no metric value is greyed (honest absence, not a fake 0).
-      if (n.metricValue == null || !metricExtent) return '#4a4f57';
-      const span = metricExtent.max - metricExtent.min;
-      const t = span > 0 ? (n.metricValue - metricExtent.min) / span : 0.5;
-      const lo = [82, 131, 184];
-      const hi = [224, 160, 80];
-      const c = lo.map((l, i) => Math.round(l + ((hi[i] ?? l) - l) * t));
-      return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-    }
-    if (netColor === 'presence') {
-      const t = maxPresence > 1 ? (n.presenceCount - 1) / (maxPresence - 1) : 0;
-      const lo = [82, 131, 184];
-      const hi = [224, 160, 80];
-      const c = lo.map((l, i) => Math.round(l + ((hi[i] ?? l) - l) * t));
-      return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-    }
-    if (netColor === 'source_overlay') {
-      return sourceColor(n.presence);
-    }
-    return labelColor(n.label);
+    return nodeFillColor(n, nodeColorCtx);
   }
-
-  // Phase 131a — node border channel: source provenance. The selection
-  // ring (--color-fg) keeps priority when the node is selected — that
-  // is the active UI affordance, not a data channel.
   function nodeStrokeColor(n: SimNode, isSelected: boolean): string | 'none' {
-    if (isSelected) return 'var(--color-fg)';
-    if (!isMergedScope) return 'none';
-    return sourceColor(n.presence);
+    return nodeStrokeColorShared(n, isMergedScope, sourceColorMap, isSelected);
   }
   function nodeStrokeWidth(n: SimNode, isSelected: boolean): number {
-    if (isSelected) return 1.5;
-    if (!isMergedScope) return 0;
-    // Border ring scales with node radius so small nodes still show
-    // their source provenance legibly without drowning the fill.
-    return Math.max(1.5, n.radius * 0.18);
+    return nodeStrokeWidthShared(n.radius, isMergedScope, isSelected);
   }
-
-  // Edges have no metric channel, so they always source-colour-encode
-  // when the scope is merged. Single-source scopes leave them in the
-  // neutral grey since there is no per-edge provenance to display.
   function edgeStroke(e: SimEdge): string {
-    if (isMergedScope) {
-      return sourceColor(e.presence);
-    }
-    return 'rgba(180, 200, 220, 0.5)';
+    return edgeStrokeColor(e, isMergedScope, sourceColorMap);
   }
 
   function nodeX(n: SimNode | string): number {
@@ -593,18 +479,6 @@
 
   let maxEdgeWeight = $derived(edges.reduce((m, e) => Math.max(m, e.weight), 1));
 
-  // Phase 131 — export (the full edge list) + how-to-read facts.
-  const exportRows = $derived<ExportRow[]>(
-    (graphQ.data?.kind === 'success' ? graphQ.data.data.edges : []).map((e) => ({
-      entityA: e.a,
-      entityB: e.b,
-      weight: e.weight,
-      articleCount: e.articleCount ?? '',
-      // Phase 131a — preserve per-edge provenance in CSV/JSON exports so
-      // the source-coloured overlay is reproducible in downstream tools.
-      sources: (e.presence ?? []).join('|')
-    }))
-  );
   // Phase 123b — cross-lingual coverage. linkedNodeCount = nodes carrying a
   // QID (the relabel-eligible subset); labeledNodeCount = those that actually
   // got a viewer-language label. Surfaced so the reader sees how much of a
@@ -614,33 +488,37 @@
   const linkedNodeCount = $derived(graphData?.linkedNodeCount ?? 0);
   const labeledNodeCount = $derived(graphData?.labeledNodeCount ?? 0);
   const relabelActive = $derived(displayLanguage === 'viewer' && !!viewerLang);
-  const howToReadFacts = $derived({
-    topN: TOP_N,
-    netSize,
-    netColor,
-    renderedCount: nodes.length,
-    displayLanguage: displayLanguage ?? 'source',
-    viewerLanguage: viewerLang,
-    linkedNodeCount,
-    labeledNodeCount,
-    configOverridden
-  });
-  const exportPayload = $derived<ExportPayload>({
-    meta: {
-      viewMode: 'cooccurrence_network',
+  // Phase 125b — how-to-read facts + export payload come from the shared module
+  // (same contract as the at-scale renderer). `howToReadFacts` still feeds the
+  // <HowToRead> component below.
+  const howToReadFacts = $derived(
+    buildHowToReadFacts({
+      topN: TOP_N,
+      netSize,
+      netColor,
+      renderedCount: nodes.length,
+      displayLanguage: displayLanguage ?? 'source',
+      viewerLanguage: viewerLang,
+      linkedNodeCount,
+      labeledNodeCount,
+      configOverridden
+    })
+  );
+  const exportPayload = $derived<ExportPayload>(
+    buildExportPayload({
       scope,
       scopeId,
       windowStart,
       windowEnd,
       topN: TOP_N,
-      sizeChannel: netSize,
-      colorChannel: netColor
-    },
-    summary: { nodes: nodes.length, edges: edges.length },
-    howToRead: composeHowToRead('cooccurrence_network', howToReadFacts),
-    rows: exportRows,
-    columns: ['entityA', 'entityB', 'weight', 'articleCount', 'sources']
-  });
+      netSize,
+      netColor,
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      howToReadFacts,
+      data: graphData
+    })
+  );
   const exportFilenameParts = $derived([
     'cooccurrence-network',
     scope === 'source' ? scopeId : 'probe'

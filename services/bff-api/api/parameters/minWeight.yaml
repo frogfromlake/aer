@@ -1,0 +1,13 @@
+name: minWeight
+in: query
+description: >
+  Phase 125b — minimum co-occurrence weight (summed `cooccurrence_count`) for an
+  edge to be included. The primary control against the quadratic edge "hairball"
+  in the large-scale view: raise it to keep only the strongest pairs. 0 / absent
+  disables the threshold. The node set is derived from the surviving edges, so
+  this thins both edges and nodes.
+required: false
+schema:
+  type: integer
+  default: 0
+  minimum: 0

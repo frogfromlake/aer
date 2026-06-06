@@ -73,6 +73,12 @@ export interface CellRenderUnit {
   // (per-probe label + accent) and pass the correct `scopeProbeId`. Absent
   // for single-probe fan-outs and for the multi-ScopeGroup paths above.
   probeId?: string;
+  // Phase 125a — faceting / small-multiples. When set, this unit is one facet
+  // sub-cell: the host passes `{field: facetField, value: facetValue}` as the
+  // cell's `metadataFilter`, restricting its per-article query to articles
+  // carrying that value. Both are set together or neither.
+  facetField?: string;
+  facetValue?: string;
 }
 
 export interface CellRender {
@@ -380,6 +386,54 @@ export function expandProbeScopeFanout(
     });
   }
   return { units, probeOrder };
+}
+
+// Phase 125a — the hard cap on facet sub-cells. Faceting by a high-cardinality
+// field (e.g. author) would otherwise spawn hundreds of cells; we render the
+// top-N facet values (by article count, the order the BFF returns) and disclose
+// the truncation. 12 keeps a 3×4 / 4×3 grid legible.
+export const MAX_FACET_CELLS = 12;
+
+export interface FacetFanout {
+  units: CellRenderUnit[];
+  field: string;
+  /** Distinct facet values available before capping — drives "showing N of M". */
+  totalValues: number;
+  /** True when totalValues exceeded MAX_FACET_CELLS and the tail was dropped. */
+  capped: boolean;
+}
+
+// expandFacetFanout breaks a panel into one render unit per facet value (Phase
+// 125a small-multiples). Each unit reuses the SAME scope tuple as the base
+// (faceting is orthogonal to scope — "break THIS scope's cell by section"); the
+// only per-unit difference is the facet field/value the host turns into a
+// `metadataFilter`. Returns null when no facet field is set or no values exist.
+// `facetValues` is the scope's distinct values for the field (ranked by article
+// count, already top-N from the categorical-distribution endpoint);
+// `totalDistinct` is that endpoint's true distinct-value count, so the host can
+// disclose "showing N of M facets" honestly even when the BFF truncated.
+export function expandFacetFanout(
+  panel: Panel,
+  facetValues: readonly string[],
+  totalDistinct: number,
+  baseUnit: Pick<CellRenderUnit, 'scope' | 'scopeId' | 'probeIds' | 'sourceIds' | 'probeId'>
+): FacetFanout | null {
+  const field = panel.facetField?.trim();
+  if (!field || facetValues.length === 0) return null;
+  const values = facetValues.slice(0, MAX_FACET_CELLS);
+  const total = Math.max(totalDistinct, values.length);
+  const capped = total > values.length;
+  const units: CellRenderUnit[] = values.map((value) => ({
+    key: `facet:${field}:${value}`,
+    scope: baseUnit.scope,
+    scopeId: baseUnit.scopeId,
+    probeIds: baseUnit.probeIds,
+    sourceIds: baseUnit.sourceIds,
+    ...(baseUnit.probeId ? { probeId: baseUnit.probeId } : {}),
+    facetField: field,
+    facetValue: value
+  }));
+  return { units, field, totalValues: total, capped };
 }
 
 // ---------------------------------------------------------------------------

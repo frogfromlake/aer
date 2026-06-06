@@ -1,0 +1,10 @@
+name: metadataFilterValue
+in: query
+description: >
+  Faceting / small-multiples filter value (Phase 125a). The categorical value
+  that `metadataFilterField` must carry for an article to be included. Both
+  parameters must be supplied together; either alone is ignored.
+required: false
+schema:
+  type: string
+  minLength: 1

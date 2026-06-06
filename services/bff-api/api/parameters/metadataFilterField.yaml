@@ -1,0 +1,12 @@
+name: metadataFilterField
+in: query
+description: >
+  Faceting / small-multiples filter (Phase 125a). Restricts the per-article
+  computation to articles whose categorical metadata field `metadataFilterField`
+  carries the value `metadataFilterValue`. Both must be supplied together; a
+  field without a value (or vice versa) is ignored. The membership is evaluated
+  over the same window and resolved source set as the main query.
+required: false
+schema:
+  type: string
+  minLength: 1

@@ -34,6 +34,7 @@
     windowStart,
     windowEnd,
     metricName,
+    metadataFilter,
     topN,
     configOverridden
   }: ViewModeCellProps = $props();
@@ -53,6 +54,7 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
+      metadataFilter,
       topN: activeTopN
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };

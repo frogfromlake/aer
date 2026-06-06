@@ -21,6 +21,7 @@
     scopeId,
     windowStart,
     windowEnd,
+    metadataFilter,
     dataLayer = 'gold',
     metricName,
     channels,
@@ -39,6 +40,7 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
+      metadataFilter,
       topN: activeTopN
     });
     return {

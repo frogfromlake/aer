@@ -625,6 +625,24 @@ export interface ViewModeQueryParams {
   scopeId: string;
   start?: string | undefined;
   end?: string | undefined;
+  // Phase 125a faceting / small-multiples: when set, the per-article computation
+  // is restricted to articles whose categorical field carries the given value —
+  // one facet value per sub-cell. Threaded into every per-article query factory
+  // below; part of `params`, so it varies the TanStack queryKey automatically.
+  metadataFilter?: { field: string; value: string } | undefined;
+}
+
+// appendMetadataFilter writes the Phase-125a faceting params onto a query string
+// when both halves are present. Both must be set together (the BFF ignores a
+// half-supplied pair); a blank field/value is treated as "no facet".
+function appendMetadataFilter(
+  qs: URLSearchParams,
+  mf?: { field: string; value: string } | undefined
+): void {
+  if (mf && mf.field && mf.value) {
+    qs.set('metadataFilterField', mf.field);
+    qs.set('metadataFilterValue', mf.value);
+  }
 }
 
 export interface MetricsAvailableParams {
@@ -699,6 +717,7 @@ export function metricDistributionQuery(
   if (params.start) qs.set('start', params.start);
   if (params.end) qs.set('end', params.end);
   if (params.bins) qs.set('bins', String(params.bins));
+  appendMetadataFilter(qs, params.metadataFilter);
   return {
     queryKey: ['aer', 'metric-distribution', metricName, params] as const,
     queryFn: () =>
@@ -726,6 +745,7 @@ export function metadataDistributionQuery(
   if (params.start) qs.set('start', params.start);
   if (params.end) qs.set('end', params.end);
   if (params.topN) qs.set('topN', String(params.topN));
+  appendMetadataFilter(qs, params.metadataFilter);
   return {
     queryKey: ['aer', 'metadata-distribution', field, params] as const,
     queryFn: () =>
@@ -788,6 +808,7 @@ export function metricScatterQuery(
   if (params.sizeMetric) qs.set('sizeMetric', params.sizeMetric);
   if (params.colorMetric) qs.set('colorMetric', params.colorMetric);
   if (params.maxPoints) qs.set('maxPoints', String(params.maxPoints));
+  appendMetadataFilter(qs, params.metadataFilter);
   return {
     queryKey: ['aer', 'metric-scatter', params] as const,
     queryFn: () =>
@@ -808,6 +829,7 @@ export function correlationMatrixQuery(
   if (params.start) qs.set('start', params.start);
   if (params.end) qs.set('end', params.end);
   qs.set('metrics', params.metrics.join(','));
+  appendMetadataFilter(qs, params.metadataFilter);
   return {
     queryKey: ['aer', 'metric-correlation', params] as const,
     queryFn: () =>
@@ -834,6 +856,7 @@ export function crossTabQuery(
   if (params.start) qs.set('start', params.start);
   if (params.end) qs.set('end', params.end);
   if (params.topN) qs.set('topN', String(params.topN));
+  appendMetadataFilter(qs, params.metadataFilter);
   const path = `/metadata/${encodeURIComponent(field)}/by-metric/${encodeURIComponent(metric)}`;
   return {
     queryKey: ['aer', 'metadata-crosstab', field, metric, params] as const,
@@ -857,6 +880,7 @@ export function correlationLeadLagQuery(
   qs.set('xMetric', params.xMetric);
   qs.set('yMetric', params.yMetric);
   if (params.maxLagHours) qs.set('maxLagHours', String(params.maxLagHours));
+  appendMetadataFilter(qs, params.metadataFilter);
   return {
     queryKey: ['aer', 'correlation-lead-lag', params] as const,
     queryFn: () =>
@@ -882,6 +906,7 @@ export function parallelCoordsQuery(
   if (params.end) qs.set('end', params.end);
   qs.set('metrics', params.metrics.join(','));
   if (params.maxPoints) qs.set('maxPoints', String(params.maxPoints));
+  appendMetadataFilter(qs, params.metadataFilter);
   return {
     queryKey: ['aer', 'metric-parallel', params] as const,
     queryFn: () =>
@@ -917,7 +942,12 @@ export function sankeyQuery(
 
 export function entityCoOccurrenceQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & { topN?: number; viewerLanguage?: string; nodeMetric?: string }
+  params: ViewModeQueryParams & {
+    topN?: number;
+    viewerLanguage?: string;
+    nodeMetric?: string;
+    minWeight?: number;
+  }
 ): QueryOptions<CoOccurrenceGraphDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -931,6 +961,9 @@ export function entityCoOccurrenceQuery(
   // Phase 125 — when set, each node carries `metricValue` (mean of this metric
   // over the entity's articles) for the metric size/colour channels.
   if (params.nodeMetric) qs.set('nodeMetric', params.nodeMetric);
+  // Phase 125b — min co-occurrence weight (edge density floor for the at-scale
+  // renderer). Omitted when 0 (no thinning).
+  if (params.minWeight && params.minWeight > 0) qs.set('minWeight', String(params.minWeight));
   return {
     queryKey: ['aer', 'entity-cooccurrence', params] as const,
     queryFn: () =>

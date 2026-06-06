@@ -138,7 +138,7 @@ func (m *mockStore) GetMetricsWithSpread(_ context.Context, start, end time.Time
 	return m.metricsSpread, m.metricsSpreadErr
 }
 
-func (m *mockStore) GetMetricScatter(_ context.Context, xMetric, yMetric string, _, _ *string, sources []string, start, end time.Time, _ int) (storage.ScatterResult, error) {
+func (m *mockStore) GetMetricScatter(_ context.Context, xMetric, yMetric string, _, _ *string, sources []string, start, end time.Time, _ int, _ *storage.MetadataFilter) (storage.ScatterResult, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSources = sources
@@ -197,12 +197,12 @@ func (m *mockStore) GetTemporalLeadLag(_ context.Context, _, _ []string, _, _ ti
 	return m.leadLag, m.leadLagErr
 }
 
-func (m *mockStore) GetMetricLeadLag(_ context.Context, sources []string, _, _ string, _, _ time.Time, _ int) (storage.LeadLagResult, error) {
+func (m *mockStore) GetMetricLeadLag(_ context.Context, sources []string, _, _ string, _, _ time.Time, _ int, _ *storage.MetadataFilter) (storage.LeadLagResult, error) {
 	m.capturedSources = sources
 	return m.leadLag, m.leadLagErr
 }
 
-func (m *mockStore) GetParallelCoords(_ context.Context, _, sources []string, _, _ time.Time, _ int) (storage.ParallelCoordResult, error) {
+func (m *mockStore) GetParallelCoords(_ context.Context, _, sources []string, _, _ time.Time, _ int, _ *storage.MetadataFilter) (storage.ParallelCoordResult, error) {
 	m.capturedSources = sources
 	return m.parallelCoords, m.parallelCoordsErr
 }
@@ -250,7 +250,7 @@ func (m *mockStore) GetMetricCulturalContextNotes(_ context.Context, _ string) (
 	return m.culturalContextNotes, m.culturalContextNotesErr
 }
 
-func (m *mockStore) GetMetricDistribution(_ context.Context, metricName string, sources []string, start, end time.Time, bins int) (storage.DistributionResult, error) {
+func (m *mockStore) GetMetricDistribution(_ context.Context, metricName string, sources []string, start, end time.Time, bins int, _ *storage.MetadataFilter) (storage.DistributionResult, error) {
 	m.capturedMetricName = &metricName
 	m.capturedSources = sources
 	m.capturedStart = start
@@ -269,7 +269,7 @@ func (m *mockStore) GetMetricHeatmap(_ context.Context, metricName string, sourc
 	return m.heatmap, m.heatmapErr
 }
 
-func (m *mockStore) GetMetricCorrelation(_ context.Context, metricNames []string, sources []string, start, end time.Time) (storage.CorrelationResult, error) {
+func (m *mockStore) GetMetricCorrelation(_ context.Context, metricNames []string, sources []string, start, end time.Time, _ *storage.MetadataFilter) (storage.CorrelationResult, error) {
 	m.capturedMetrics = metricNames
 	m.capturedSources = sources
 	m.capturedStart = start
@@ -277,7 +277,7 @@ func (m *mockStore) GetMetricCorrelation(_ context.Context, metricNames []string
 	return m.correlation, m.correlationErr
 }
 
-func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int, _ string, _ string) (storage.CoOccurrenceResult, error) {
+func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int, _ string, _ string, _ int) (storage.CoOccurrenceResult, error) {
 	m.capturedSources = sources
 	m.capturedStart = start
 	m.capturedEnd = end
@@ -325,7 +325,7 @@ func (m *mockStore) GetMetadataCoverage(_ context.Context, sources []string) ([]
 	return m.metadataCoverage, m.metadataCoverageErr
 }
 
-func (m *mockStore) GetCategoricalDistribution(_ context.Context, _ string, sources []string, _, _ time.Time, _ int) (storage.CategoricalDistributionResult, error) {
+func (m *mockStore) GetCategoricalDistribution(_ context.Context, _ string, sources []string, _, _ time.Time, _ int, _ *storage.MetadataFilter) (storage.CategoricalDistributionResult, error) {
 	m.capturedSources = sources
 	return m.categoricalDistribution, m.categoricalDistributionErr
 }
@@ -335,7 +335,7 @@ func (m *mockStore) GetScopeAvailableMetadata(_ context.Context, _, _ time.Time,
 	return m.scopeAvailableMetadata, m.scopeAvailableMetadataErr
 }
 
-func (m *mockStore) GetCrossTab(_ context.Context, _, _ string, sources []string, _, _ time.Time, _ int) (storage.CrossTabResult, error) {
+func (m *mockStore) GetCrossTab(_ context.Context, _, _ string, sources []string, _, _ time.Time, _ int, _ *storage.MetadataFilter) (storage.CrossTabResult, error) {
 	m.capturedSources = sources
 	return m.crossTab, m.crossTabErr
 }

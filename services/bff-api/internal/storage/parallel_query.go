@@ -36,6 +36,7 @@ func (s *ClickHouseStorage) GetParallelCoords(
 	sources []string,
 	start, end time.Time,
 	maxPoints int,
+	metadataFilter *MetadataFilter,
 ) (ParallelCoordResult, error) {
 	out := ParallelCoordResult{Metrics: metrics, Rows: []ParallelCoordRow{}}
 	if len(metrics) < 2 || len(sources) == 0 {
@@ -48,29 +49,24 @@ func (s *ClickHouseStorage) GetParallelCoords(
 		maxPoints = 10000
 	}
 
-	args := make([]any, 0, 2+len(sources)+3*len(metrics))
-	ph := func(v any) string {
-		args = append(args, v)
-		return fmt.Sprintf("$%d", len(args))
-	}
-	startP := ph(start)
-	endP := ph(end)
-	srcPlaceholders := make([]string, len(sources))
-	for i, src := range sources {
-		srcPlaceholders[i] = ph(src)
-	}
+	sa := newScopeArgs()
+	startP := sa.ph(start)
+	endP := sa.ph(end)
+	srcIn := sa.srcIn(sources)
 	avgParts := make([]string, len(metrics))
 	for i, m := range metrics {
-		avgParts[i] = fmt.Sprintf("avgIf(value, metric_name = %s)", ph(m))
+		avgParts[i] = fmt.Sprintf("avgIf(value, metric_name = %s)", sa.ph(m))
 	}
 	inPlaceholders := make([]string, len(metrics))
 	for i, m := range metrics {
-		inPlaceholders[i] = ph(m)
+		inPlaceholders[i] = sa.ph(m)
 	}
 	havingParts := make([]string, len(metrics))
 	for i, m := range metrics {
-		havingParts[i] = fmt.Sprintf("countIf(metric_name = %s) > 0", ph(m))
+		havingParts[i] = fmt.Sprintf("countIf(metric_name = %s) > 0", sa.ph(m))
 	}
+	// Faceting (Phase 125a): restrict to facet-matching articles.
+	facetClause := sa.metadataFilterClause(metadataFilter, start, end, sources)
 
 	query := fmt.Sprintf(`
 		SELECT article_id AS ArticleID,
@@ -80,7 +76,7 @@ func (s *ClickHouseStorage) GetParallelCoords(
 		WHERE timestamp >= %s AND timestamp < %s
 		  AND source IN (%s)
 		  AND article_id IS NOT NULL AND article_id != ''
-		  AND metric_name IN (%s)
+		  AND metric_name IN (%s)%s
 		GROUP BY article_id
 		HAVING %s
 		ORDER BY ArticleID
@@ -88,14 +84,15 @@ func (s *ClickHouseStorage) GetParallelCoords(
 	`,
 		strings.Join(avgParts, ", "),
 		startP, endP,
-		strings.Join(srcPlaceholders, ", "),
+		srcIn,
 		strings.Join(inPlaceholders, ", "),
+		facetClause,
 		strings.Join(havingParts, " AND "),
 		maxPoints+1,
 	)
 
 	var rows []ParallelCoordRow
-	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+	if err := s.conn.Select(ctx, &rows, query, sa.Args...); err != nil {
 		slog.Error("Failed to query parallel coordinates", "error", err)
 		return out, err
 	}

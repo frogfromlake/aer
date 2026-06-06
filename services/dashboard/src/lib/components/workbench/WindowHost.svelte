@@ -17,6 +17,7 @@
   // Per-window max panels is enforced at the URL-state layer
   // (MAX_PANELS_PER_WINDOW = 8).
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import {
     MAX_PANELS_PER_WINDOW,
@@ -56,6 +57,32 @@
 
   const panelCount = $derived(activeWindow?.panels.length ?? 0);
   const canAddPanel = $derived(panelCount < MAX_PANELS_PER_WINDOW);
+
+  // Phase 125b — cross-panel linked brushing. A Window-scoped, transient set of
+  // selected article ids shared across the panels of this Window: clicking a
+  // per-article mark (scatter point / parallel line) in one panel highlights the
+  // same articles in another panel's per-article cell. Deliberately NOT
+  // URL-persisted (ephemeral interaction, not saved configuration; Brief §5.5).
+  // The `selection` object reference is stable; `ids` is the reactive SvelteSet.
+  const selectedArticleIds = new SvelteSet<string>();
+  const selection = {
+    get ids(): ReadonlySet<string> {
+      return selectedArticleIds;
+    },
+    toggle(articleId: string) {
+      if (selectedArticleIds.has(articleId)) selectedArticleIds.delete(articleId);
+      else selectedArticleIds.add(articleId);
+    },
+    clear() {
+      selectedArticleIds.clear();
+    }
+  };
+  // Clear the selection when the active window changes (a new comparison frame);
+  // stale ids from a prior scope are harmless but a fresh window starts clean.
+  $effect(() => {
+    void activeWindowIndex;
+    selectedArticleIds.clear();
+  });
 
   // Phase 122i revision (C3). Validate the maximize pointer against the
   // current panel count (defensive — URL surgery could leave a stale
@@ -142,6 +169,7 @@
           canRemove={panelCount > 1}
           isMaximized
           canMaximize={true}
+          {selection}
         />
       </div>
 
@@ -243,6 +271,7 @@
           canRemove={panelCount > 1}
           isMaximized={false}
           canMaximize={panelCount > 1}
+          {selection}
         />
       {/each}
     </div>

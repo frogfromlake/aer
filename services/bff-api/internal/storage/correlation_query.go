@@ -31,6 +31,7 @@ func (s *ClickHouseStorage) GetMetricCorrelation(
 	metricNames []string,
 	sources []string,
 	start, end time.Time,
+	metadataFilter *MetadataFilter,
 ) (CorrelationResult, error) {
 	if len(metricNames) < 2 {
 		return CorrelationResult{}, fmt.Errorf("need at least 2 metrics for correlation")
@@ -56,6 +57,15 @@ func (s *ClickHouseStorage) GetMetricCorrelation(
 			args = append(args, src)
 		}
 		clauses = append(clauses, fmt.Sprintf("source IN (%s)", strings.Join(srcPlaceholders, ", ")))
+	}
+
+	// Faceting (Phase 125a): restrict the buckets to facet-matching articles.
+	// metadataFilterClause yields " AND article_id IN (...)"; strip the connector
+	// since clauses are joined with " AND ".
+	facetSA := &scopeArgs{Args: args}
+	if fc := facetSA.metadataFilterClause(metadataFilter, start, end, sources); fc != "" {
+		clauses = append(clauses, strings.TrimPrefix(fc, " AND "))
+		args = facetSA.Args
 	}
 
 	// Pivot via groupArrayIf: for each 5-min bucket, compute the per-metric

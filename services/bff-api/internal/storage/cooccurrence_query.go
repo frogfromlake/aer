@@ -8,6 +8,17 @@ import (
 	"time"
 )
 
+// MaxCoOccurrenceTopN is the hard sanity ceiling on the number of edges a single
+// co-occurrence query may return. Phase 125b raised it from the previous 500 to
+// support the large-scale WebGL renderer (sigma.js) in the maximized single-cell
+// view; the default SVG path still requests a small topN (default 60). The
+// ceiling is a backstop against a pathological request, NOT the product limit —
+// `minWeight` is the real density control. 6000 edges (~3000 nodes, ≲1.5 MB JSON)
+// stays smooth end-to-end (payload + parse + ForceAtlas2 + render) on moderate
+// hardware; raise it empirically after measuring real corpus payloads. Going much
+// higher needs a streaming/binary transport, not just a larger cap.
+const MaxCoOccurrenceTopN = 6000
+
 // CoOccurrenceEdge is one entity-pair edge aggregated over a window.
 //
 // Phase 131a: ``Presence`` lists the source names where this edge was
@@ -102,12 +113,16 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	topN int,
 	viewerLanguage string,
 	nodeMetric string,
+	minWeight int,
 ) (CoOccurrenceResult, error) {
 	if topN < 1 {
 		topN = 1
 	}
-	if topN > 500 {
-		topN = 500
+	if topN > MaxCoOccurrenceTopN {
+		topN = MaxCoOccurrenceTopN
+	}
+	if minWeight < 0 {
+		minWeight = 0
 	}
 
 	args := []any{start, end}
@@ -124,6 +139,16 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		clauses = append(clauses, fmt.Sprintf("source IN (%s)", strings.Join(placeholders, ", ")))
 	}
 
+	// Phase 125b — min-weight edge threshold (the primary defence against the
+	// quadratic edge "hairball" at scale): keep only pairs whose summed
+	// co-occurrence count meets the floor. Applied as HAVING over the aggregate;
+	// omitted (no-op) when minWeight <= 0.
+	havingClause := ""
+	if minWeight > 0 {
+		havingClause = fmt.Sprintf("HAVING sum(cooccurrence_count) >= $%d", len(args)+1)
+		args = append(args, uint64(minWeight))
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			entity_a_text  AS A,
@@ -135,9 +160,10 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		FROM aer_gold.entity_cooccurrences FINAL
 		WHERE %s
 		GROUP BY A, B
+		%s
 		ORDER BY Weight DESC, A ASC, B ASC
 		LIMIT %d
-	`, strings.Join(clauses, " AND "), topN)
+	`, strings.Join(clauses, " AND "), havingClause, topN)
 
 	var rows []struct {
 		A            string

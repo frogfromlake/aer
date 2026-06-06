@@ -271,6 +271,17 @@ export interface Panel {
   // sensible scope-available default when absent. Encoded as `ms` in the
   // compact payload (emitted only when set).
   metricSet?: string[];
+  // Phase 125a — the ordered chain of categorical metadata FIELDS for the
+  // sankey/alluvial cell. Split out of the overloaded `metricSet` (which held
+  // metric names AND field names) so the two never collide. Encoded as `fc` in
+  // the compact payload (emitted only when set). Pre-125a sankey URLs stored
+  // the chain in `ms`; expandPanel maps that legacy form into `fieldChain`.
+  fieldChain?: string[];
+  // Phase 125a — faceting / small-multiples. When set, a split panel breaks the
+  // cell into one sub-cell per distinct value of this categorical metadata
+  // field, each restricted to articles carrying that value (a `metadataFilter`
+  // on the per-article query). Empty/absent ⇒ no faceting. Encoded as `ff`.
+  facetField?: string;
   // Phase 126 — per-cell overrides of the cell-shape levers above. Keyed by the
   // stable cell key (`cellOverrideKey`, panel-queries.ts). Absent ⇒ every cell
   // inherits the panel defaults; an entry overrides only the levers it names,
@@ -569,6 +580,10 @@ interface CompactPanel {
   // Phase 125 — N-metric set for multivariate cells (correlation_matrix,
   // parallel_coordinates). Absent when unset.
   ms?: string[];
+  // Phase 125a — categorical field chain for the sankey cell. Absent when unset.
+  fc?: string[];
+  // Phase 125a — faceting field for small-multiples. Absent when unset.
+  ff?: string;
   // Phase 126 — per-cell overrides, keyed by stable cell key.
   co?: Record<string, CompactCellOverride>;
 }
@@ -648,6 +663,10 @@ function compactPanel(p: Panel): CompactPanel {
   if (p.windowEnd !== undefined) c.we = p.windowEnd;
   // Phase 125 — N-metric set for multivariate cells.
   if (p.metricSet !== undefined && p.metricSet.length > 0) c.ms = [...p.metricSet];
+  // Phase 125a — categorical field chain for the sankey cell.
+  if (p.fieldChain !== undefined && p.fieldChain.length > 0) c.fc = [...p.fieldChain];
+  // Phase 125a — faceting field for small-multiples.
+  if (p.facetField !== undefined && p.facetField.length > 0) c.ff = p.facetField;
   // Phase 131 per-cell config. bins/channels omitted when unset; showBand
   // omitted unless explicitly disabled (default = shown).
   if (p.bins !== undefined) c.bn = p.bins;
@@ -773,9 +792,21 @@ function expandPanel(c: CompactPanel): Panel {
   // Phase 122k F5 — per-panel window.
   if (typeof c.ws === 'string') p.windowStart = c.ws;
   if (typeof c.we === 'string') p.windowEnd = c.we;
-  // Phase 125 — N-metric set for multivariate cells.
-  if (Array.isArray(c.ms) && c.ms.length > 0)
-    p.metricSet = c.ms.filter((m) => typeof m === 'string');
+  // Phase 125a — categorical field chain for the sankey cell.
+  if (Array.isArray(c.fc) && c.fc.length > 0)
+    p.fieldChain = c.fc.filter((m) => typeof m === 'string');
+  // Phase 125a — faceting field for small-multiples.
+  if (typeof c.ff === 'string' && c.ff.length > 0) p.facetField = c.ff;
+  // Phase 125 — N-metric set for multivariate cells. Pre-125a sankey URLs
+  // stored the field chain in `ms`; route that legacy form into `fieldChain`.
+  if (Array.isArray(c.ms) && c.ms.length > 0) {
+    const list = c.ms.filter((m) => typeof m === 'string');
+    if (c.v === 'sankey') {
+      if (p.fieldChain === undefined) p.fieldChain = list;
+    } else {
+      p.metricSet = list;
+    }
+  }
   // Phase 131 per-cell config.
   if (typeof c.bn === 'number') p.bins = c.bn;
   if (c.ch !== undefined && typeof c.ch === 'object') {
@@ -883,6 +914,11 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   // Phase 125 — N-metric set.
   if (v.ms !== undefined && (!Array.isArray(v.ms) || !v.ms.every((m) => typeof m === 'string')))
     return false;
+  // Phase 125a — categorical field chain (sankey).
+  if (v.fc !== undefined && (!Array.isArray(v.fc) || !v.fc.every((m) => typeof m === 'string')))
+    return false;
+  // Phase 125a — faceting field.
+  if (v.ff !== undefined && typeof v.ff !== 'string') return false;
   // Phase 126 — per-cell overrides. A record of cellKey → CompactCellOverride.
   if (v.co !== undefined) {
     if (!isRecord(v.co)) return false;

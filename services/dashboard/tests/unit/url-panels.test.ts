@@ -94,6 +94,30 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded?.windows[0]?.panels[0]?.displayLanguage).toBeUndefined();
   });
 
+  // Phase 125a — metricSet (metrics) and fieldChain (sankey fields) split.
+  it('round-trips sankey fieldChain and correlation metricSet independently', () => {
+    const original = makePillarState([
+      makeWindow([
+        makePanel({ view: 'sankey', fieldChain: ['article_type', 'section'] }),
+        makePanel({ view: 'correlation_matrix', metricSet: ['word_count', 'entity_count'] })
+      ])
+    ]);
+    expect(decodePillarState(encodePillarState(original))).toEqual(original);
+  });
+
+  it('maps a pre-125a sankey ms field-chain onto fieldChain (back-compat)', () => {
+    // Pre-125a URLs stored the sankey field chain in `ms` (overloaded metricSet).
+    // The encoder still emits `ms` from a panel's `metricSet`, so a sankey panel
+    // given metricSet reproduces a legacy payload exactly; decode must route it.
+    const legacy = makePillarState([
+      makeWindow([makePanel({ view: 'sankey', metricSet: ['article_type', 'section'] })])
+    ]);
+    const decoded = decodePillarState(encodePillarState(legacy));
+    const panel = decoded?.windows[0]?.panels[0];
+    expect(panel?.fieldChain).toEqual(['article_type', 'section']);
+    expect(panel?.metricSet).toBeUndefined();
+  });
+
   it('drops an empty channels object rather than serialising it', () => {
     const original = makePillarState([makeWindow([makePanel({ channels: {} })])]);
     const decoded = decodePillarState(encodePillarState(original));

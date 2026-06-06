@@ -115,12 +115,13 @@ func (s *ClickHouseStorage) GetMetricLeadLag(
 	xMetric, yMetric string,
 	start, end time.Time,
 	maxLagHours int,
+	metadataFilter *MetadataFilter,
 ) (LeadLagResult, error) {
-	x, err := s.hourlyMetricSeries(ctx, sources, xMetric, start, end)
+	x, err := s.hourlyMetricSeries(ctx, sources, xMetric, start, end, metadataFilter)
 	if err != nil {
 		return LeadLagResult{}, err
 	}
-	y, err := s.hourlyMetricSeries(ctx, sources, yMetric, start, end)
+	y, err := s.hourlyMetricSeries(ctx, sources, yMetric, start, end, metadataFilter)
 	if err != nil {
 		return LeadLagResult{}, err
 	}
@@ -134,7 +135,7 @@ func (s *ClickHouseStorage) GetMetricLeadLag(
 // value of `metric` in that hour for the source set. The metrics-table read
 // deliberately omits FINAL (the avg tolerates transient re-ingest skew — the
 // established convention for metric reads).
-func (s *ClickHouseStorage) hourlyMetricSeries(ctx context.Context, sources []string, metric string, start, end time.Time) (map[int64]float64, error) {
+func (s *ClickHouseStorage) hourlyMetricSeries(ctx context.Context, sources []string, metric string, start, end time.Time, metadataFilter *MetadataFilter) (map[int64]float64, error) {
 	args := []any{start, end, metric}
 	where := "timestamp >= $1 AND timestamp < $2 AND metric_name = $3"
 	if len(sources) > 0 {
@@ -145,6 +146,10 @@ func (s *ClickHouseStorage) hourlyMetricSeries(ctx context.Context, sources []st
 		}
 		where += fmt.Sprintf(" AND source IN (%s)", strings.Join(placeholders, ", "))
 	}
+	// Faceting (Phase 125a): restrict the series to facet-matching articles.
+	facetSA := &scopeArgs{Args: args}
+	where += facetSA.metadataFilterClause(metadataFilter, start, end, sources)
+	args = facetSA.Args
 	query := fmt.Sprintf(`
 		SELECT toStartOfHour(timestamp) AS Bucket, avg(value) AS V
 		FROM aer_gold.metrics

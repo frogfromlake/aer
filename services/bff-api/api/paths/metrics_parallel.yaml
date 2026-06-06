@@ -26,6 +26,8 @@ get:
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/maxPoints.yaml'
+    - $ref: '../parameters/metadataFilterField.yaml'
+    - $ref: '../parameters/metadataFilterValue.yaml'
   responses:
     '200':
       description: Parallel-coordinates matrix.

@@ -4302,6 +4302,89 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 * [x] A metadata dimension renders through a configurable cell (e.g. mean sentiment by `section`); a missing-field case renders as Negative Space, not an error.
 
 
+## Phase 133a: Metadata Comparability Coherence + Per-Cell Dimension Peek [P1] - [x] DONE
+
+*Follow-up to Phase 133. Promoting metadata exposed that the Workbench's cross-source/cross-probe **comparability** was incoherent — not a pipeline defect (every comparable dimension promoted correctly) but three compounding frontend inconsistencies: a metric-class-blind source filter (lacking-source dropped for metrics, empty-essay for categorical fields), silent within-frame partials (the "show anyway" disclosure was cross-probe-gated), and a seed that preferred a partial field. The fix is a single, uniform **three-tier comparability model** for all dimensions (metrics + categorical fields), at any scale of probes/sources, with **no probe/source-specific code**. SoT: `docs/design/workbench_comparability.md`; decision: ADR-038.*
+
+**Three-tier model.** (1) **Panel default = the intersection** — the picker offers only dimensions present on every scoped source, so default panels are always fully populated. (2) **"Show anyway"** offers a partial dimension across the sources that have it, with lacking sources **dropped from the fan-out and named in a panel note** — uniform for metrics and fields, within-frame and cross-probe; partials are never folded in silently. (3) **Per-cell peek** — one cell may override its dimension to one valid for its own source (same kind as the view), via the Phase-126 `cellOverrides` plumbing extended with a `metric` lever, rendered with a **loud "not comparable to the sibling cells" banner** (amends the Phase-126 "metric = panel-wide" rule; view + scope stay panel-wide).
+
+* [x] **Part 0 — Docs.** `docs/design/workbench_comparability.md` (living spec + feature-interaction matrix) + ADR-038. ✅ landed with this phase.
+* [x] **A. Integer formatting.** `DistributionCell.fmt()` collapses into the integer-safe `fmtValue` (no `image_count = 1.000`; keeps `mean` decimal).
+* [x] **B. Intersection seed.** `firstMetadataField` seeds the first intersection dimension (deterministic), no hard-coded `section` bias.
+* [x] **C. Intersection-only default.** `isScopeAvailable` + `offerableMetadataFields` offer partials only under `activeShowWithheld` (drop the within-frame auto-offer) — uniform for all dimensions incl. sentiment tiers.
+* [x] **D. Uniform withheld disclosure.** Ungate the "N withheld · show anyway" blocks from `isCrossProbe`; render whenever partials exist, for metrics and fields.
+* [x] **E. Drop lacking sources for categorical too.** Extend `PanelHost`'s source filter to consult `/scope/available-metadata` for field views.
+* [x] **F. Dropped-source panel note.** Compact, data-driven "Not shown: <source> — no <dim>" line.
+* [x] **G. Shared compact empty-state.** `CellEmptyState` primitive; retire the 4-sentence Negative-Space essay (nuance → how-to-read).
+* [x] **I–K. Per-cell dimension peek.** `CellOverride.metric` + codec (`url-internals.ts`), `resolveCellConfig` (`panel-queries.ts`), `PanelHost` threads per-cell metric, `CellConfigPopover` dimension picker (cell-source-scoped availability, same-kind, inherit option) + loud off-comparison banner.
+
+**Done when:** the feature-interaction matrix in the design doc is all-✓ (a lacking source behaves identically across distribution / categorical / time_series and across single-source / multi-source-one-probe / cross-probe); per-cell peek round-trips via URL; `make fe-typecheck && fe-test && fe-lint` green. Pure frontend + docs — no backend/contract change, no worker rebuild.
+
+## Phase 125: Relational & Multivariate Cells [P1] - [x] DONE (faceting+cleanups → 125a ✓; brushing/WebGL → 125b)
+
+**Status (2026-06-06).** Seven new cell types shipped + validated live, all green
+(fe typecheck/test/lint · BFF go build + go vet · codegen idempotent · big
+code-review with 2 bugs fixed): scatter+regression+r, correlation_matrix,
+cross_tab, metric_lead_lag, parallel_coordinates, sankey, and network node-metric
+binding. New endpoints `/metrics/correlation` (gate added), `/correlation/lead-lag`,
+`/metrics/parallel`, `/metadata/{field}/by-metric/{metric}`, `/metadata/sankey`,
+plus `nodeMetric` on `/entities/cooccurrence`. Cross-frame correlation/cross-tab/
+lead-lag/parallel gate on equivalence → refusal-as-cell; each cell has how-to-read
+EN+DE + export. **Deferred to Phase 125a** (the explicitly defer-friendly pieces):
+faceting/small-multiples, linked brushing, large-scale WebGL renderer; plus noted
+cleanups (extract the cross-frame-gate helper; split the overloaded `Panel.metricSet`
+into metric- vs field-lists; a shared lazy-Plot cell-shell).
+
+*The capstone of the analytical surface — and a deliberate simplification of the old "Composition Workspace". There is NO separate canvas: after reframing cards→configurable cells and edges→relational cells, a separate surface had no distinct paradigm (it was effectively a second, more powerful Workbench). Instead the Workbench cell system gains relational and multivariate cell types, each in its natural pillar. Delivers the requirement: chain arbitrarily many metrics/metadata into publication-ready, always-explained analyses.*
+
+**Grounding.** Read first: the Cell registry + Phase-131 channel-binding, `CoOccurrenceNetworkCell.svelte` (d3-force precedent), `RhizomeShell` (panels+cells, post-130), the Phase-124 lead-lag helper, Phase-133 metadata dimensions, `buildSelectionWorkbenchUrl` in `panel-queries.ts` (the selection→Workbench entry; the old `buildFreeComposeUrl`/`buildDfEntryUrl`/`buildPillarUrl` "compose-canvas" builders were retired in Phase 123c). Preserve: the unified Workbench model (no parallel surface), no-discovery-bias in any search, the refusal-surface contract, bundle budgets. Verify-first: confirm 131 + 133 + 124 landed (this composes their building blocks).
+
+### New cell types
+* [x] **Bivariate:** Correlation (scatter + regression line + r — extended `metric_scatter`, no second scatter); Cross-Tab (metadata×metric → mean per category, `/metadata/{field}/by-metric/{metric}`); Lead-Lag (two metrics over time, `/correlation/lead-lag`). Cross-Tab in Aleph; Lead-Lag in Rhizome.
+* [x] **Multivariate (chain N dimensions):** Parallel Coordinates (N axes, `/metrics/parallel`), Correlation Matrix (N metrics pairwise, `/metrics/correlation` + equivalence gate), Sankey/Alluvial (N categorical fields, `/metadata/sankey`). Matrix→scatter drill: deferred (Phase 125a polish).
+* [x] **Configurable network — (a) metric/metadata dimension binding** on `cooccurrence_network` node size/colour shipped (BFF `nodeMetric` aggregates a per-article metric onto entity nodes; new `metric` channel). [ ] **(b) large-scale WebGL renderer → Phase 125b.**
+
+### Cross-cutting capabilities
+* [x] **Faceting / small-multiples → Phase 125a (DONE)** — cross-cutting `metadataFilter` on the per-article endpoints + frontend fan-out. [ ] **Linked brushing → Phase 125b** (Window-level cross-panel selection; intra-panel is near-vacuous because a Panel has a single view — see the 125a architecture decision).
+
+### Backend
+* [x] **Generalise the Phase-124 lead-lag — do NOT re-implement it.** Phase 124 already shipped a **minimal public** `GET /probes/{probeId}/lead-lag` (temporal-grant-gated, signal = hourly publication activity) on top of `storage.GetTemporalLeadLag` + the pure `computeLeadLag` core (`leadlag_query.go`) and the shared `pearsonXY` (`correlation_query.go`). Phase 125 **builds on those**: generalise to arbitrary **metric series** (not just activity) and the broader `/correlation/lead-lag` form, reusing `computeLeadLag`/`pearsonXY`; keep the metric-class-aware equivalence gate (`CheckNormalizationEquivalenceForLanguages`). Add correlation/cross-tab/multivariate aggregation helpers. Cross-frame without equivalence → refusal-as-cell. Search respects no-discovery-bias. OpenAPI + `make codegen`.
+
+### Frontend home + drift
+* [x] Lives in RhizomeShell/Workbench as relational/multivariate cells in panels. **No `/compose` route, no card/edge physics, no parallel surface.**
+
+### Validation
+* [x] Parallel Coordinates + Correlation Matrix + Sankey render and chain N dimensions; cross-probe lead-lag/correlation without equivalence renders refusal-as-cell with a Level-1 alternative; every cell carries a "how to read" note. [x] faceting breaks a cell by a metadata dimension → **Phase 125a (DONE)**.
+
+---
+
+## Phase 125a: Faceting & Phase-125 Cleanups [P1] - [x] DONE
+
+**Status (2026-06-06).** Shipped + validated: **faceting / small-multiples** and the
+Phase-125 code-review **cleanups**. Linked brushing and the large-scale network
+renderer were **carved out to Phase 125b** after a design discussion (see below).
+All green: fe typecheck/test/lint (284 unit tests, +7 new) · BFF `go build`/`go vet` ·
+`go test ./internal/handler` + `./internal/storage` (Testcontainers) · `make codegen`/
+`make fe-codegen` idempotent · full code-review (1 severe finding fixed: faceting no
+longer silently narrows a multi-source/multi-group panel to its first unit — it
+refuses + discloses instead). Faceting validated live against real data across all 7
+per-article endpoints (unfiltered→facet counts narrow exactly; half-pairs ignored;
+unknown values honestly empty).
+
+* [x] **Faceting / small-multiples** — break a cell into one sub-cell per value of a categorical field. Shared **`metadataFilter` (field+value)** params (`api/parameters/metadataFilter{Field,Value}.yaml`) threaded through all 7 per-article endpoints (distribution, scatter, parallel, cross-tab, correlation, lead-lag, categorical-distribution) + storage via the new `scopeArgs.metadataFilterClause` (`article_id IN (SELECT … FROM article_metadata FINAL WHERE field=F AND has(value,v) …)`). Frontend: `Panel.facetField` (URL key `ff`), `expandFacetFanout` beside `expandProbeScopeFanout`, per-unit `metadataFilter` threaded by `PanelHost`, a `Facet by` picker (no-discovery-bias, excludes the panel's own field), `supportsFaceting` on the 7 presentations, hard cap `MAX_FACET_CELLS=12` with honest "showing N of M" disclosure. **Faceting applies only when the panel resolves to a single base scope unit** (merged-single, or split-single-group-no-source); a multi-source/multi-group split panel is NOT faceted (the per-article endpoints are single-scope) — it keeps its fan-out and discloses "faceting unavailable", never a silent narrowing.
+* [x] **Cleanups from the Phase-125 code-review:** extracted the copy-pasted cross-frame-gate block into `s.crossFrameGate(...)` (4 handlers); split the overloaded `Panel.metricSet` into `metricSet` (metrics) + `fieldChain` (sankey fields, URL key `fc`, with `ms`→`fieldChain` back-compat for old sankey URLs); a shared `scopeArgs` window+source arg-builder (`scope_args.go`, adopted by crosstab/parallel/sankey + the seeding pattern for the bespoke builders). **Deferred (deliberate):** the shared lazy-Plot cell-shell (touches 6 validated cells for zero behaviour change — not worth the risk before the data refresh); `metric_scatter` cross-frame parity + `queryNodeMetric` time-slice alignment (carry to 125b with the renderer).
+
+**Architecture decision (2026-06-06).** Linked brushing's classic form
+("select in one chart, highlight the same items in the others") needs *different views
+of the same items side by side*. In AĒR a Panel has a **single view**, so sibling cells
+are the same view over different slices — an article usually sits in one slice, so
+intra-panel cross-cell brushing is near-vacuous (meaningful only for list-field facets
+or overlapping ScopeGroups). The natural home is **cross-PANEL** (Window-level). We
+decided **NOT** to allow per-cell views (it would break the per-Panel comparability
+frame, ADR-038, and push cognitive load past the dashboard's complexity ceiling);
+Panels remain the unit for different views. Linked brushing therefore moves to Phase
+125b as a Window-level transient selection.
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -4343,52 +4426,37 @@ Phase 122k sits between 122j (methodology hardening) and 122a (per-article DF cl
 
 ---
 
-## Phase 125: Relational & Multivariate Cells [P1] - [~] CORE DONE (faceting/brushing/WebGL → Phase 125a)
+## Phase 125b: Co-occurrence at Scale & Cross-Panel Brushing [P1] - [x] DONE (pending manual UI + recrawl)
 
-**Status (2026-06-06).** Seven new cell types shipped + validated live, all green
-(fe typecheck/test/lint · BFF go build + go vet · codegen idempotent · big
-code-review with 2 bugs fixed): scatter+regression+r, correlation_matrix,
-cross_tab, metric_lead_lag, parallel_coordinates, sankey, and network node-metric
-binding. New endpoints `/metrics/correlation` (gate added), `/correlation/lead-lag`,
-`/metrics/parallel`, `/metadata/{field}/by-metric/{metric}`, `/metadata/sankey`,
-plus `nodeMetric` on `/entities/cooccurrence`. Cross-frame correlation/cross-tab/
-lead-lag/parallel gate on equivalence → refusal-as-cell; each cell has how-to-read
-EN+DE + export. **Deferred to Phase 125a** (the explicitly defer-friendly pieces):
-faceting/small-multiples, linked brushing, large-scale WebGL renderer; plus noted
-cleanups (extract the cross-frame-gate helper; split the overloaded `Panel.metricSet`
-into metric- vs field-lists; a shared lazy-Plot cell-shell).
+**Status (2026-06-07).** Built + validated as far as headless allows: fe typecheck/test/lint ·
+fe production build (sigma/graphology code-split into lazy chunks; FA2 `/worker` subpath
+resolves) · BFF `go build`/`go vet`/`go test ./internal/{handler,storage}` (Testcontainers) ·
+`make codegen`/`fe-codegen` idempotent · live curls for the BFF params. 4-angle focused
+code-review: BFF + shared-extraction + brushing clean; 2 at-scale findings fixed (FA2 stop-timer
+now cleared via effect-cleanup; all reactive reads hoisted above the `await`). **The WebGL
+render + Plot click-brushing are manual-only checks** (TESTING.md B1/B4) — the user runs them
+after the worker rebuild + `make reset` + `make crawl`.
 
-*The capstone of the analytical surface — and a deliberate simplification of the old "Composition Workspace". There is NO separate canvas: after reframing cards→configurable cells and edges→relational cells, a separate surface had no distinct paradigm (it was effectively a second, more powerful Workbench). Instead the Workbench cell system gains relational and multivariate cell types, each in its natural pillar. Delivers the requirement: chain arbitrarily many metrics/metadata into publication-ready, always-explained analyses.*
-
-**Grounding.** Read first: the Cell registry + Phase-131 channel-binding, `CoOccurrenceNetworkCell.svelte` (d3-force precedent), `RhizomeShell` (panels+cells, post-130), the Phase-124 lead-lag helper, Phase-133 metadata dimensions, `buildSelectionWorkbenchUrl` in `panel-queries.ts` (the selection→Workbench entry; the old `buildFreeComposeUrl`/`buildDfEntryUrl`/`buildPillarUrl` "compose-canvas" builders were retired in Phase 123c). Preserve: the unified Workbench model (no parallel surface), no-discovery-bias in any search, the refusal-surface contract, bundle budgets. Verify-first: confirm 131 + 133 + 124 landed (this composes their building blocks).
-
-### New cell types
-* [x] **Bivariate:** Correlation (scatter + regression line + r — extended `metric_scatter`, no second scatter); Cross-Tab (metadata×metric → mean per category, `/metadata/{field}/by-metric/{metric}`); Lead-Lag (two metrics over time, `/correlation/lead-lag`). Cross-Tab in Aleph; Lead-Lag in Rhizome.
-* [x] **Multivariate (chain N dimensions):** Parallel Coordinates (N axes, `/metrics/parallel`), Correlation Matrix (N metrics pairwise, `/metrics/correlation` + equivalence gate), Sankey/Alluvial (N categorical fields, `/metadata/sankey`). Matrix→scatter drill: deferred (Phase 125a polish).
-* [x] **Configurable network — (a) metric/metadata dimension binding** on `cooccurrence_network` node size/colour shipped (BFF `nodeMetric` aggregates a per-article metric onto entity nodes; new `metric` channel). [ ] **(b) large-scale WebGL renderer → Phase 125a.**
-
-### Cross-cutting capabilities
-* [ ] **Faceting / small-multiples** + **Linked brushing** → **Phase 125a** (faceting needs a cross-cutting `metadataFilter` on the per-article endpoints; brushing needs transient cross-cell state — the explicitly defer-friendly pieces).
-
-### Backend
-* [x] **Generalise the Phase-124 lead-lag — do NOT re-implement it.** Phase 124 already shipped a **minimal public** `GET /probes/{probeId}/lead-lag` (temporal-grant-gated, signal = hourly publication activity) on top of `storage.GetTemporalLeadLag` + the pure `computeLeadLag` core (`leadlag_query.go`) and the shared `pearsonXY` (`correlation_query.go`). Phase 125 **builds on those**: generalise to arbitrary **metric series** (not just activity) and the broader `/correlation/lead-lag` form, reusing `computeLeadLag`/`pearsonXY`; keep the metric-class-aware equivalence gate (`CheckNormalizationEquivalenceForLanguages`). Add correlation/cross-tab/multivariate aggregation helpers. Cross-frame without equivalence → refusal-as-cell. Search respects no-discovery-bias. OpenAPI + `make codegen`.
-
-### Frontend home + drift
-* [x] Lives in RhizomeShell/Workbench as relational/multivariate cells in panels. **No `/compose` route, no card/edge physics, no parallel surface.**
-
-### Validation
-* [x] Parallel Coordinates + Correlation Matrix + Sankey render and chain N dimensions; cross-probe lead-lag/correlation without equivalence renders refusal-as-cell with a Level-1 alternative; every cell carries a "how to read" note. [ ] faceting breaks a cell by a metadata dimension → **Phase 125a**.
-
----
-
-## Phase 125a: Faceting, Linked Brushing & Large-Scale Network [P1] - [ ] TODO
-
-*The explicitly defer-friendly tail split off from Phase 125 (ROADMAP-sanctioned: "if they balloon, split to a Phase-125a follow-up"). Phase 125 shipped the seven relational/multivariate cell types; 125a adds the cross-cutting interaction layer.*
-
-* [ ] **Faceting / small-multiples** — break a cell by a categorical dimension's values. Needs a shared **`metadataFilter` (field+value)** query param threaded through the per-article endpoints (distribution, scatter, parallel, cross-tab, correlation, lead-lag) + storage (`article_id IN (SELECT … FROM article_metadata WHERE field=F AND value has v …)`), then a frontend fan-out (one sub-cell per facet value) + a `facetField` lever. Reuse the `expandProbeScopeFanout` pattern.
-* [ ] **Linked brushing** — select in one cell, highlight across siblings. A transient per-Panel selection store (Svelte 5 rune, NOT URL-persisted; distinct from `cellOverrides`), injected into each rendered cell by `PanelHost`.
-* [ ] **Large-scale network renderer** — canvas/WebGL path for `cooccurrence_network` above a node threshold (lazy); SVG stays the default.
-* [ ] **Cleanups from the Phase-125 code-review:** extract the copy-pasted cross-frame-gate block into one `s.crossFrameGate(...)` helper (4 handlers); split the overloaded `Panel.metricSet` into a metric-list + a field-list (root cause of the kind-switch bug fixed pragmatically in 125); a shared lazy-Plot cell-shell (ladder + export wiring) reused by the new cells; a shared "window+source IN" arg-builder for the storage queries; consider gating `metric_scatter` cross-frame for parity with the matrix, and align `queryNodeMetric`'s time-slice with the co-occurrence window.
+* [x] **Co-occurrence at scale (the marquee feature).** Chosen renderer: **Tier 2 — sigma.js
+  (WebGL) + graphology + graphology-layout-forceatlas2 (worker)**, lazy-loaded; engaged ONLY
+  when the panel is **maximized AND resolves to a single cell** (`PanelHost.atScaleActive`,
+  registry `supportsAtScale`). Default small view stays the d3-force **SVG** cell. BFF: `topN`
+  ceiling raised 500→**6000** (`MaxCoOccurrenceTopN`, tunable), new **`minWeight`** edge-density
+  param (`HAVING sum(cooccurrence_count) >= …`) — a **visible density slider** in the at-scale
+  view (the real hairball control). Node sizing/colour/relabel/export come from the SHARED module
+  (`cooccurrence-network-shared.ts`) so the SVG cell and the WebGL renderer never diverge
+  (anti-stale: extraction, not duplication). Folded-in 125a polish: `metric_scatter` cross-frame
+  gate parity. *(The other 125a-deferred item — `queryNodeMetric` time-slice — was already correct;
+  dropped.)* **Renderer-interface seam:** the at-scale renderer is a self-contained component
+  behind the `supportsAtScale` flag; if real data ever exceeds ~100k nodes-in-view (unlikely given
+  Heaps' law + `minWeight`), Tier 3 (cosmos, GPU simulation) is a renderer swap behind the same
+  seam — and needs a streaming/binary transport, not just a higher cap.
+* [x] **Cross-panel linked brushing.** Window-level transient `SvelteSet<articleId>` in
+  `WindowHost` (NOT URL; cleared on active-window change), threaded Window→PanelHost→cell via
+  `ViewModeCellProps.selection`. **Scatter ↔ Parallel-coordinates** participate (per-article
+  identity): click a mark → toggle; selected emphasised, others dimmed. Other cells ignore it.
+  Intra-panel is out of scope (a Panel has one view — 125a decision); per-cell views rejected
+  (preserves the comparability frame + bounds cognitive load).
 
 ---
 
@@ -4481,24 +4549,6 @@ This phase enforces the following — every implementation choice must satisfy t
 * [ ] The toggle is discoverable from the chrome (not URL-only).
 
 ---
-
-## Phase 133a: Metadata Comparability Coherence + Per-Cell Dimension Peek [P1] - [ ] TODO
-
-*Follow-up to Phase 133. Promoting metadata exposed that the Workbench's cross-source/cross-probe **comparability** was incoherent — not a pipeline defect (every comparable dimension promoted correctly) but three compounding frontend inconsistencies: a metric-class-blind source filter (lacking-source dropped for metrics, empty-essay for categorical fields), silent within-frame partials (the "show anyway" disclosure was cross-probe-gated), and a seed that preferred a partial field. The fix is a single, uniform **three-tier comparability model** for all dimensions (metrics + categorical fields), at any scale of probes/sources, with **no probe/source-specific code**. SoT: `docs/design/workbench_comparability.md`; decision: ADR-038.*
-
-**Three-tier model.** (1) **Panel default = the intersection** — the picker offers only dimensions present on every scoped source, so default panels are always fully populated. (2) **"Show anyway"** offers a partial dimension across the sources that have it, with lacking sources **dropped from the fan-out and named in a panel note** — uniform for metrics and fields, within-frame and cross-probe; partials are never folded in silently. (3) **Per-cell peek** — one cell may override its dimension to one valid for its own source (same kind as the view), via the Phase-126 `cellOverrides` plumbing extended with a `metric` lever, rendered with a **loud "not comparable to the sibling cells" banner** (amends the Phase-126 "metric = panel-wide" rule; view + scope stay panel-wide).
-
-* [ ] **Part 0 — Docs.** `docs/design/workbench_comparability.md` (living spec + feature-interaction matrix) + ADR-038. ✅ landed with this phase.
-* [ ] **A. Integer formatting.** `DistributionCell.fmt()` collapses into the integer-safe `fmtValue` (no `image_count = 1.000`; keeps `mean` decimal).
-* [ ] **B. Intersection seed.** `firstMetadataField` seeds the first intersection dimension (deterministic), no hard-coded `section` bias.
-* [ ] **C. Intersection-only default.** `isScopeAvailable` + `offerableMetadataFields` offer partials only under `activeShowWithheld` (drop the within-frame auto-offer) — uniform for all dimensions incl. sentiment tiers.
-* [ ] **D. Uniform withheld disclosure.** Ungate the "N withheld · show anyway" blocks from `isCrossProbe`; render whenever partials exist, for metrics and fields.
-* [ ] **E. Drop lacking sources for categorical too.** Extend `PanelHost`'s source filter to consult `/scope/available-metadata` for field views.
-* [ ] **F. Dropped-source panel note.** Compact, data-driven "Not shown: <source> — no <dim>" line.
-* [ ] **G. Shared compact empty-state.** `CellEmptyState` primitive; retire the 4-sentence Negative-Space essay (nuance → how-to-read).
-* [ ] **I–K. Per-cell dimension peek.** `CellOverride.metric` + codec (`url-internals.ts`), `resolveCellConfig` (`panel-queries.ts`), `PanelHost` threads per-cell metric, `CellConfigPopover` dimension picker (cell-source-scoped availability, same-kind, inherit option) + loud off-comparison banner.
-
-**Done when:** the feature-interaction matrix in the design doc is all-✓ (a lacking source behaves identically across distribution / categorical / time_series and across single-source / multi-source-one-probe / cross-probe); per-cell peek round-trips via URL; `make fe-typecheck && fe-test && fe-lint` green. Pure frontend + docs — no backend/contract change, no worker rebuild.
 
 ---
 

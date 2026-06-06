@@ -21,9 +21,11 @@
     scopeId,
     windowStart,
     windowEnd,
+    metadataFilter,
     dataLayer = 'gold',
     metricSet,
-    configOverridden
+    configOverridden,
+    selection
   }: ViewModeCellProps = $props();
 
   const metrics = $derived<string[]>([...(metricSet ?? [])]);
@@ -36,6 +38,7 @@
         scopeId,
         start: windowStart,
         end: windowEnd,
+        metadataFilter,
         metrics,
         maxPoints: 3000
       });
@@ -56,7 +59,7 @@
   const isEmpty = $derived(!!data && data.rows.length === 0);
 
   // Long-form, per-axis min–max normalised points: one entry per (article, axis).
-  type PCPoint = { id: string; axis: string; y: number };
+  type PCPoint = { id: string; articleId: string; axis: string; y: number };
   const longPoints = $derived.by<PCPoint[]>(() => {
     if (!data || data.rows.length === 0) return [];
     const axes = data.metrics;
@@ -79,7 +82,7 @@
         if (v === undefined) continue;
         const span = maxs[j]! - mins[j]!;
         const y = span > 0 ? (v - mins[j]!) / span : 0.5;
-        out.push({ id, axis: axes[j]!, y });
+        out.push({ id, articleId: r.articleId, axis: axes[j]!, y });
       }
     }
     return out;
@@ -92,8 +95,13 @@
   $effect(() => {
     const pts = longPoints;
     const axes = data?.metrics ?? [];
+    // Phase 125b — cross-panel brushing: track the selection size synchronously
+    // so the render re-runs when it changes.
+    const selSet = selection?.ids;
+    const selN = selSet?.size ?? 0;
     if (!host || pts.length === 0) return;
     const token = ++renderToken;
+    const baseOpacity = Math.max(0.06, Math.min(0.5, 30 / Math.max(1, data?.rows.length ?? 1)));
     (async () => {
       const Plot = await import('@observablehq/plot');
       if (!host || token !== renderToken) return;
@@ -111,13 +119,29 @@
             x: 'axis',
             y: 'y',
             z: 'id',
-            stroke: 'rgba(82, 131, 184, 0.85)',
-            strokeWidth: 0.6,
-            strokeOpacity: Math.max(0.06, Math.min(0.5, 30 / Math.max(1, data?.rows.length ?? 1)))
-          })
+            // Selected lines (their article ∈ the Window selection) emphasised;
+            // the rest dim when a selection is active. Per-group constant since
+            // every point of a line shares articleId.
+            stroke: (d: PCPoint) =>
+              selN > 0 && selSet!.has(d.articleId) ? 'var(--color-fg)' : 'rgba(82, 131, 184, 0.85)',
+            strokeWidth: (d: PCPoint) => (selN > 0 && selSet!.has(d.articleId) ? 1.4 : 0.6),
+            strokeOpacity: (d: PCPoint) =>
+              selN === 0 ? baseOpacity : selSet!.has(d.articleId) ? 0.95 : 0.04
+          }),
+          // Pointer layer enables `plot.value` (nearest vertex) for click-toggle.
+          ...(selection
+            ? [Plot.dot(pts, Plot.pointer({ x: 'axis', y: 'y', r: 3, fill: 'var(--color-fg)' }))]
+            : [])
         ]
       });
       if (plotEl) plotEl.remove();
+      if (selection) {
+        next.addEventListener('click', () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const d = (next as any).value as PCPoint | undefined;
+          if (d?.articleId) selection.toggle(d.articleId);
+        });
+      }
       // eslint-disable-next-line svelte/no-dom-manipulating
       host.appendChild(next as unknown as HTMLElement);
       plotEl = next as unknown as HTMLElement;

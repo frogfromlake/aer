@@ -11,7 +11,8 @@ get:
     the resolved sources where it appears, enabling per-source shading in the
     force-directed graph (Phase 114).
 
-    Edge cap: `topN` (default 50, max 500).
+    Edge cap: `topN` (default 50, max 6000 — Phase 125b raised the ceiling for
+    the large-scale renderer). `minWeight` drops edges below a weight floor.
   operationId: getEntityCoOccurrence
   parameters:
     - $ref: '../parameters/scope.yaml'
@@ -29,6 +30,7 @@ get:
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/topN.yaml'
+    - $ref: '../parameters/minWeight.yaml'
     - $ref: '../parameters/viewerLanguage.yaml'
     - name: nodeMetric
       in: query

@@ -60,6 +60,7 @@ func (s *ClickHouseStorage) GetCategoricalDistribution(
 	sources []string,
 	start, end time.Time,
 	topN int,
+	metadataFilter *MetadataFilter,
 ) (CategoricalDistributionResult, error) {
 	out := CategoricalDistributionResult{Categories: []CategoryCount{}}
 	if field == "" || len(sources) == 0 {
@@ -82,6 +83,10 @@ func (s *ClickHouseStorage) GetCategoricalDistribution(
 	}
 	clauses = append(clauses, fmt.Sprintf("source IN (%s)", strings.Join(placeholders, ", ")))
 	where := strings.Join(clauses, " AND ")
+	// Faceting (Phase 125a): restrict both subqueries to facet-matching articles.
+	facetSA := &scopeArgs{Args: args}
+	where += facetSA.metadataFilterClause(metadataFilter, start, end, sources)
+	args = facetSA.Args
 
 	perValueQuery := fmt.Sprintf(`
 		SELECT v AS Value, uniqExact(article_id) AS Articles

@@ -1,6 +1,6 @@
 <script lang="ts">
   // Phase 125 — Sankey / alluvial (Rhizome). Article flows across an ordered
-  // chain of categorical metadata fields (`Panel.metricSet`). Backed by
+  // chain of categorical metadata fields (`Panel.fieldChain`). Backed by
   // `GET /metadata/sankey`. d3-sankey is lazy-imported (the only new dependency
   // this phase adds — it ships only when this cell is selected, Brief §7).
   import { createQuery } from '@tanstack/svelte-query';
@@ -21,12 +21,12 @@
     windowStart,
     windowEnd,
     dataLayer = 'gold',
-    metricSet,
+    fieldChain,
     configOverridden
   }: ViewModeCellProps = $props();
 
-  // metricSet is reused as the ORDERED field chain for the alluvial.
-  const fields = $derived<string[]>([...(metricSet ?? [])]);
+  // fieldChain is the ORDERED categorical field chain for the alluvial.
+  const fields = $derived<string[]>([...(fieldChain ?? [])]);
   const enoughFields = $derived(fields.length >= 2);
 
   const skQ = createQuery<QueryOutcome<SankeyDto>, Error, QueryOutcome<SankeyDto>>(() => {

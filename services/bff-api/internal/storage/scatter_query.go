@@ -57,6 +57,7 @@ func (s *ClickHouseStorage) GetMetricScatter(
 	sources []string,
 	start, end time.Time,
 	maxPoints int,
+	metadataFilter *MetadataFilter,
 ) (ScatterResult, error) {
 	if maxPoints < 1 {
 		maxPoints = 1
@@ -108,6 +109,11 @@ func (s *ClickHouseStorage) GetMetricScatter(
 		sourceClause = fmt.Sprintf("AND source IN (%s)", strings.Join(placeholders, ", "))
 	}
 
+	// Faceting (Phase 125a): restrict to facet-matching articles (" AND ..." form).
+	facetSA := &scopeArgs{Args: args}
+	facetClause := facetSA.metadataFilterClause(metadataFilter, start, end, sources)
+	args = facetSA.Args
+
 	// Over-fetch by one to detect truncation without a second count query.
 	query := fmt.Sprintf(`
 		SELECT
@@ -122,12 +128,12 @@ func (s *ClickHouseStorage) GetMetricScatter(
 		WHERE timestamp >= $1 AND timestamp < $2
 			AND article_id IS NOT NULL
 			AND metric_name IN (%s)
-			%s
+			%s%s
 		GROUP BY article_id
 		HAVING countIf(metric_name = %s) > 0 AND countIf(metric_name = %s) > 0
 		ORDER BY ArticleID ASC
 		LIMIT %d
-	`, xPH, yPH, sizeCol, colorCol, strings.Join(inList, ", "), sourceClause, xPH, yPH, maxPoints+1)
+	`, xPH, yPH, sizeCol, colorCol, strings.Join(inList, ", "), sourceClause, facetClause, xPH, yPH, maxPoints+1)
 
 	var rows []scatterRow
 	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {

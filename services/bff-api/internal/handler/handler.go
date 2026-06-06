@@ -89,9 +89,9 @@ type Store interface {
 	GetEquivalenceStatus(ctx context.Context, metricName string) (*storage.EquivalenceStatusRow, error)
 	GetTemporalLeadLag(ctx context.Context, referenceSources, comparedSources []string, start, end time.Time, maxLagHours int) (storage.LeadLagResult, error)
 	// Phase 125: generalised metric lead-lag (two metrics' hourly series, one scope).
-	GetMetricLeadLag(ctx context.Context, sources []string, xMetric, yMetric string, start, end time.Time, maxLagHours int) (storage.LeadLagResult, error)
+	GetMetricLeadLag(ctx context.Context, sources []string, xMetric, yMetric string, start, end time.Time, maxLagHours int, metadataFilter *storage.MetadataFilter) (storage.LeadLagResult, error)
 	// Phase 125: per-article N-metric matrix for parallel coordinates.
-	GetParallelCoords(ctx context.Context, metrics, sources []string, start, end time.Time, maxPoints int) (storage.ParallelCoordResult, error)
+	GetParallelCoords(ctx context.Context, metrics, sources []string, start, end time.Time, maxPoints int, metadataFilter *storage.MetadataFilter) (storage.ParallelCoordResult, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error)
@@ -101,12 +101,12 @@ type Store interface {
 	GetMetricValidationStatus(ctx context.Context, metricName string) (string, error)
 	GetMetricCulturalContextNotes(ctx context.Context, metricName string) (string, error)
 	// Phase 102: view-mode query endpoints.
-	GetMetricDistribution(ctx context.Context, metricName string, sources []string, start, end time.Time, bins int) (storage.DistributionResult, error)
+	GetMetricDistribution(ctx context.Context, metricName string, sources []string, start, end time.Time, bins int, metadataFilter *storage.MetadataFilter) (storage.DistributionResult, error)
 	GetMetricHeatmap(ctx context.Context, metricName string, sources []string, xDim, yDim storage.HeatmapDimension, start, end time.Time) ([]storage.HeatmapCell, error)
-	GetMetricCorrelation(ctx context.Context, metricNames []string, sources []string, start, end time.Time) (storage.CorrelationResult, error)
-	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int, viewerLanguage string, nodeMetric string) (storage.CoOccurrenceResult, error)
+	GetMetricCorrelation(ctx context.Context, metricNames []string, sources []string, start, end time.Time, metadataFilter *storage.MetadataFilter) (storage.CorrelationResult, error)
+	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int, viewerLanguage string, nodeMetric string, minWeight int) (storage.CoOccurrenceResult, error)
 	// Phase 131: paired-metric scatter over aer_gold.metrics (visual-channel binding).
-	GetMetricScatter(ctx context.Context, xMetric, yMetric string, sizeMetric, colorMetric *string, sources []string, start, end time.Time, maxPoints int) (storage.ScatterResult, error)
+	GetMetricScatter(ctx context.Context, xMetric, yMetric string, sizeMetric, colorMetric *string, sources []string, start, end time.Time, maxPoints int, metadataFilter *storage.MetadataFilter) (storage.ScatterResult, error)
 	// Phase 120: BERTopic topic-distribution endpoint over aer_gold.topic_assignments.
 	GetTopicDistribution(ctx context.Context, params storage.TopicDistributionParams) ([]storage.TopicDistributionRow, error)
 	// Phase 103b: silver-aggregation endpoints over aer_silver.documents.
@@ -117,10 +117,10 @@ type Store interface {
 	GetMetadataCoverage(ctx context.Context, sources []string) ([]storage.MetadataCoverageCell, error)
 	// Phase 133: categorical metadata distribution + per-scope availability gate
 	// over aer_gold.article_metadata.
-	GetCategoricalDistribution(ctx context.Context, field string, sources []string, start, end time.Time, topN int) (storage.CategoricalDistributionResult, error)
+	GetCategoricalDistribution(ctx context.Context, field string, sources []string, start, end time.Time, topN int, metadataFilter *storage.MetadataFilter) (storage.CategoricalDistributionResult, error)
 	GetScopeAvailableMetadata(ctx context.Context, start, end time.Time, sources []string) (storage.ScopeMetadataAvailability, error)
 	// Phase 125: cross-tab of a categorical field × a numeric metric (article_id JOIN).
-	GetCrossTab(ctx context.Context, field, metric string, sources []string, start, end time.Time, topN int) (storage.CrossTabResult, error)
+	GetCrossTab(ctx context.Context, field, metric string, sources []string, start, end time.Time, topN int, metadataFilter *storage.MetadataFilter) (storage.CrossTabResult, error)
 	// Phase 125: alluvial flow across an ordered chain of categorical fields.
 	GetSankey(ctx context.Context, fields, sources []string, start, end time.Time, topN int) (storage.SankeyResult, error)
 	// Phase 122d.0: Silent-Edit Observability — aggregation + per-article
@@ -299,6 +299,75 @@ func crossFrameRefusal() GetMetrics400JSONResponse {
 		WorkingPaperAnchor: &anchor,
 		Alternatives:       &alts,
 	}
+}
+
+// parseMetadataFilter builds the Phase-125a faceting restriction from the two
+// optional query params (metadataFilterField + metadataFilterValue). Both must be
+// present and non-blank; otherwise it returns nil (no faceting). Trimmed so a
+// stray-whitespace value never silently empties a facet.
+func parseMetadataFilter(field, value *string) *storage.MetadataFilter {
+	if field == nil || value == nil {
+		return nil
+	}
+	f := strings.TrimSpace(*field)
+	v := strings.TrimSpace(*value)
+	if f == "" || v == "" {
+		return nil
+	}
+	return &storage.MetadataFilter{Field: f, Value: v}
+}
+
+// crossFrameRefusalFields carries the structured 400 refusal payload shared by
+// every Phase-125 cross-frame equivalence gate. Each handler returns its own
+// typed *400JSONResponse, so the gate hands back these fields rather than a
+// concrete response type; the caller maps them onto its response struct.
+type crossFrameRefusalFields struct {
+	Message            string
+	Gate               *string
+	WorkingPaperAnchor *string
+	Alternatives       *[]string
+}
+
+// crossFrameGate runs the Phase-125 cross-frame equivalence gate for a set of
+// metrics over a resolved scope. Returns:
+//   - (refusal, nil) — the scope spans >1 language and at least one metric
+//     lacks a cross-cultural equivalence grant; the caller returns its typed
+//     400 built from refusal's fields (Level-1 alternative: stay in one frame).
+//   - (nil, err)     — an internal error occurred; the caller returns 500.
+//   - (nil, nil)     — the gate passed (single frame, or all metrics granted).
+//
+// Extracted in Phase 125a from four identical copies (GetMetricCorrelation,
+// GetCorrelationLeadLag, GetMetricParallelCoords, GetMetadataCrossTab).
+func (s *Server) crossFrameGate(ctx context.Context, metrics []string, sources []string, start, end time.Time) (*crossFrameRefusalFields, error) {
+	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
+	if err != nil {
+		return nil, err
+	}
+	if nLangs <= 1 {
+		return nil, nil
+	}
+	languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range metrics {
+		granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
+		if err != nil {
+			return nil, err
+		}
+		if !granted {
+			gate := crossFrameGateID
+			anchor := crossFrameAnchor
+			alts := append([]string(nil), crossFrameRefusalAlternatives...)
+			return &crossFrameRefusalFields{
+				Message:            crossFrameRefusalMessage,
+				Gate:               &gate,
+				WorkingPaperAnchor: &anchor,
+				Alternatives:       &alts,
+			}, nil
+		}
+	}
+	return nil, nil
 }
 
 // GetMetrics handles the GET /metrics request and fetches time-series data.

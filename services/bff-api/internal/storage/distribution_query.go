@@ -60,6 +60,7 @@ func (s *ClickHouseStorage) GetMetricDistribution(
 	sources []string,
 	start, end time.Time,
 	bins int,
+	metadataFilter *MetadataFilter,
 ) (DistributionResult, error) {
 	if bins < 1 {
 		bins = 1
@@ -81,6 +82,13 @@ func (s *ClickHouseStorage) GetMetricDistribution(
 	}
 
 	baseWhere, args := buildScopeWhere(metricName, sources, start, end)
+	// Faceting (Phase 125a): continue the placeholder numbering from buildScopeWhere
+	// (seed a scopeArgs with its args) and append the facet membership clause.
+	// baseWhere + args feed BOTH the summary and histogram queries, so the
+	// restriction propagates to both.
+	facetSA := &scopeArgs{Args: args}
+	baseWhere += facetSA.metadataFilterClause(metadataFilter, start, end, sources)
+	args = facetSA.Args
 	// Aggregates over an empty set: count()==0 and the floats default to 0.
 	// We short-circuit on Count==0 below, so the zero summary is never
 	// surfaced as a real bin set.

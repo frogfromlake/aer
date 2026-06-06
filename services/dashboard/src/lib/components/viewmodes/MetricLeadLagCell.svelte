@@ -28,6 +28,7 @@
     scopeId,
     windowStart,
     windowEnd,
+    metadataFilter,
     dataLayer = 'gold',
     channels,
     configOverridden
@@ -46,6 +47,7 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
+      metadataFilter,
       xMetric,
       yMetric
     });

@@ -5,6 +5,8 @@ import {
   coOccurrencePostDescriptorForPanel,
   defaultMetricForScopes,
   expandProbeScopeFanout,
+  expandFacetFanout,
+  MAX_FACET_CELLS,
   resolveCellConfig,
   selectCellRender,
   shouldRefuseMergedCrossProbe
@@ -321,6 +323,50 @@ describe('expandProbeScopeFanout (Phase 123c B — cross-probe split fan-out)', 
     // split but multiple scope groups
     const mg = panel({ composition: 'split', scopes: [group(['probe-0']), group(['probe-1'])] });
     expect(expandProbeScopeFanout(mg, selectCellRender(mg), srcByProbe, 'probe-0')).toBeNull();
+  });
+});
+
+describe('expandFacetFanout (Phase 125a — faceting / small-multiples)', () => {
+  const base = {
+    scope: 'probe' as const,
+    scopeId: 'probe-0',
+    probeIds: ['probe-0'] as readonly string[],
+    sourceIds: [] as readonly string[]
+  };
+
+  it('returns null when no facetField is set', () => {
+    expect(expandFacetFanout(panel(), ['politics', 'sport'], 2, base)).toBeNull();
+  });
+
+  it('returns null when no facet values exist', () => {
+    expect(expandFacetFanout(panel({ facetField: 'section' }), [], 0, base)).toBeNull();
+  });
+
+  it('builds one unit per value, each carrying the facet field/value and base scope', () => {
+    const r = expandFacetFanout(panel({ facetField: 'section' }), ['politics', 'sport'], 2, base);
+    expect(r).not.toBeNull();
+    expect(r!.units).toHaveLength(2);
+    expect(r!.capped).toBe(false);
+    expect(r!.totalValues).toBe(2);
+    expect(r!.units[0]).toMatchObject({
+      key: 'facet:section:politics',
+      scope: 'probe',
+      scopeId: 'probe-0',
+      facetField: 'section',
+      facetValue: 'politics'
+    });
+  });
+
+  it('caps at MAX_FACET_CELLS and reports the true distinct total (honest N of M)', () => {
+    const values = Array.from({ length: MAX_FACET_CELLS + 5 }, (_, i) => `v${i}`);
+    const r = expandFacetFanout(panel({ facetField: 'author' }), values, 99, base);
+    expect(r!.units).toHaveLength(MAX_FACET_CELLS);
+    expect(r!.capped).toBe(true);
+    expect(r!.totalValues).toBe(99);
+  });
+
+  it('trims a whitespace-only facetField to null', () => {
+    expect(expandFacetFanout(panel({ facetField: '   ' }), ['x'], 1, base)).toBeNull();
   });
 });
 

@@ -26,17 +26,21 @@
     probesQuery,
     scopeAvailableMetricsQuery,
     scopeAvailableMetadataQuery,
+    metadataDistributionQuery,
     type FetchContext,
     type ProbeDossierDto,
     type ProbeDto,
     type QueryOutcome,
     type RefusalOutcome,
     type ScopeAvailableMetricsDto,
-    type ScopeAvailableMetadataDto
+    type ScopeAvailableMetadataDto,
+    type CategoricalDistributionResponseDto
   } from '$lib/api/queries';
   import {
     availabilityScope,
     expandProbeScopeFanout,
+    expandFacetFanout,
+    MAX_FACET_CELLS,
     resolveCellConfig,
     selectCellRender,
     shouldRefuseMergedCrossProbe,
@@ -82,6 +86,9 @@
      *  panel (nothing to compare against, no minimised tray would
      *  appear). */
     canMaximize?: boolean;
+    /** Phase 125b — Window-level cross-panel brushing selection, threaded to
+     *  every cell. Per-article cells (scatter, parallel) use it; others ignore. */
+    selection?: ViewModeCellProps['selection'];
   }
 
   let {
@@ -96,7 +103,8 @@
     focused = false,
     canRemove = false,
     isMaximized = false,
-    canMaximize = false
+    canMaximize = false,
+    selection
   }: Props = $props();
 
   const path = $derived(
@@ -332,9 +340,93 @@
   const fanout = $derived(
     expandProbeScopeFanout(panel, cellRender, sourceNamesForProbe, dossier.probeId)
   );
-  const expandedUnits = $derived<readonly CellRenderUnit[]>(fanout?.units ?? cellRender.units);
+
+  // Phase 125a — faceting / small-multiples. When the panel names a facetField,
+  // enumerate that categorical field's distinct values over the panel's scope
+  // and render one sub-cell per value, each restricted to articles carrying it
+  // (a `metadataFilter`). Faceting replaces the probe-scope fan-out and is
+  // orthogonal to the metric/view. Only the per-article presentations support it
+  // (a facet sub-cell is just the same cell with a metadataFilter).
+  //
+  // Faceting requires the panel to resolve to a SINGLE base scope unit
+  // (merged-single, or a split panel whose single ScopeGroup has no source
+  // narrowing — both yield one unit covering the whole probe). A panel that
+  // splits into MULTIPLE base units (explicit multi-source narrowing, or
+  // multiple ScopeGroups) is NOT faceted: the per-article endpoints are
+  // single-scope, so faceting `units[0]` would silently drop the other
+  // sources/groups. In that case we keep the normal fan-out and disclose that
+  // faceting is unavailable (never a silent narrowing — the supreme maxim).
+  const facetField = $derived(panel.facetField?.trim() ?? '');
+  const facetSupported = $derived(presentation.supportsFaceting ?? false);
+  const facetSingleScope = $derived(cellRender.units.length === 1);
+  const facetBaseUnit = $derived<CellRenderUnit | null>(
+    facetSingleScope ? (cellRender.units[0] ?? null) : null
+  );
+  const facetActive = $derived(facetField.length > 0 && facetSupported && facetBaseUnit !== null);
+  // facetField set + supported, but the panel splits into >1 base unit → we
+  // refuse to facet (would drop sources/groups) and surface a note instead.
+  const facetUnavailable = $derived(facetField.length > 0 && facetSupported && !facetSingleScope);
+  const facetValuesQ = createQuery<
+    QueryOutcome<CategoricalDistributionResponseDto>,
+    Error,
+    QueryOutcome<CategoricalDistributionResponseDto>
+  >(() => {
+    const base = facetBaseUnit;
+    const o = metadataDistributionQuery(ctx, facetField || 'section', {
+      scope: base?.scope ?? 'probe',
+      scopeId: base?.scopeId ?? '',
+      start: panel.windowStart ?? windowStart,
+      end: panel.windowEnd ?? windowEnd,
+      topN: MAX_FACET_CELLS
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: facetActive
+    };
+  });
+  const facetFanout = $derived.by(() => {
+    if (!facetActive || !facetBaseUnit) return null;
+    if (facetValuesQ.data?.kind !== 'success') return null;
+    const data = facetValuesQ.data.data;
+    const values = data.categories.map((c) => c.value);
+    return expandFacetFanout(panel, values, data.distinctValues ?? values.length, facetBaseUnit);
+  });
+
+  // When faceting is active the grid is driven SOLELY by the facet fan-out — we
+  // never silently fall back to the unfaceted cell (that would misrepresent the
+  // data). While the facet values load, or if the field has none in scope, the
+  // unit list is empty and the template surfaces a status note instead.
+  const expandedUnits = $derived<readonly CellRenderUnit[]>(
+    facetActive ? (facetFanout?.units ?? []) : (fanout?.units ?? cellRender.units)
+  );
+  // Faceting status for the disclosure note (honest "showing N of M facets" +
+  // cap), and to distinguish "loading" from "no values" in the empty branch.
+  const facetPending = $derived(facetActive && facetValuesQ.isPending);
+  const facetEmpty = $derived(
+    facetActive && facetValuesQ.data?.kind === 'success' && facetFanout === null
+  );
   const fanoutProbeOrder = $derived<readonly string[]>(fanout?.probeOrder ?? []);
   const isMultiProbeFanout = $derived(fanoutProbeOrder.length > 1);
+
+  // Phase 125b — at-scale (WebGL) co-occurrence renderer engages ONLY when the
+  // panel is maximized AND resolves to a single cell (one big focused map,
+  // bounded to one simulation). Split / multi-cell / non-maximized keep the
+  // default capped SVG cell. Lazy-loaded so the sigma chunk ships only on use.
+  const atScaleActive = $derived(
+    isMaximized &&
+      (presentation.supportsAtScale ?? false) &&
+      expandedUnits.length === 1 &&
+      !facetActive
+  );
+  let AtScaleComponent = $state<Component<ViewModeCellProps> | null>(null);
+  $effect(() => {
+    if (!atScaleActive || AtScaleComponent) return;
+    void import('$lib/components/viewmodes/CoOccurrenceNetworkAtScale.svelte').then((m) => {
+      AtScaleComponent = m.default;
+    });
+  });
 
   // Phase 126 — per-cell overrides are offered only when the panel renders more
   // than one cell (a split / small-multiple), the presentation exposes at least
@@ -437,7 +529,11 @@
   // the layout off `cellRender.strategy === 'split'` alone missed that path,
   // so per-scope split cells always stacked vertically and the direction
   // toggle appeared dead. Drive it off the composition + rendered-cell count.
-  const isSplitLayout = $derived(panel.composition === 'split' && expandedUnits.length > 1);
+  // Phase 125a — faceting always renders a small-multiples grid (one sub-cell
+  // per facet value), independent of the composition toggle.
+  const isSplitLayout = $derived(
+    (panel.composition === 'split' || facetActive) && expandedUnits.length > 1
+  );
 
   // ---------------------------------------------------------------------------
   // Phase 124 — shared-axis comparison discipline.
@@ -720,6 +816,16 @@
     </p>
   {/if}
 
+  <!-- Phase 125a — faceting is set but the panel splits into >1 base scope unit
+       (multi-source / multi-group). We refuse to facet rather than silently drop
+       sources, and say so. -->
+  {#if facetUnavailable}
+    <p class="panel-drop-note" role="note">
+      Faceting by <code>{facetField}</code> is unavailable for a multi-source / multi-group panel
+      (it would cover only the first). Use <strong>Merged</strong> composition or a single source to facet.
+    </p>
+  {/if}
+
   <div
     class="panel-body"
     class:split={isSplitLayout}
@@ -727,6 +833,32 @@
   >
     {#if crossProbeRefusal}
       <RefusalSurface refusal={crossProbeRefusal} {ctx} />
+    {:else if atScaleActive}
+      <!-- Phase 125b — maximized single-cell co-occurrence → large-scale WebGL
+           renderer (sigma.js). Handles its own loading / refusal internally. -->
+      {#if AtScaleComponent && expandedUnits[0]}
+        {@const AtScale = AtScaleComponent}
+        {@const unit = expandedUnits[0]}
+        {@const cfg = resolveCellConfig(panel, unit.key)}
+        <div class="panel-cell">
+          <AtScale
+            {ctx}
+            scopeProbeId={unit.probeId ?? dossier.probeId}
+            scope={unit.scope}
+            scopeId={unit.scopeId}
+            windowStart={effectiveWindowStart}
+            windowEnd={effectiveWindowEnd}
+            metricName={cfg.metric}
+            sources={sourcesForUnit(unit)}
+            {dataLayer}
+            channels={cfg.channels}
+            displayLanguage={cfg.displayLanguage}
+            configOverridden={cfg.isOverridden}
+          />
+        </div>
+      {:else}
+        <p class="muted" aria-busy="true">Loading large-scale renderer…</p>
+      {/if}
     {:else if loadError}
       <p class="muted">Cell failed to load: {loadError}</p>
     {:else if !CellComponent}
@@ -737,10 +869,24 @@
           >Show anyway</strong
         > in the panel config, or use a cell's config to peek at one source's own dimension.
       </p>
+    {:else if facetPending}
+      <p class="muted" aria-busy="true">Loading facet values for <code>{facetField}</code>…</p>
+    {:else if facetEmpty}
+      <p class="muted">
+        No values for <code>{facetField}</code> in the active scope — nothing to facet by.
+      </p>
     {:else if expandedUnits.length === 0}
       <p class="muted">No sources in the active scope.</p>
     {:else}
       {@const Cell = CellComponent}
+      {#if facetFanout}
+        <p class="facet-disclosure" role="note">
+          Faceted by <code>{facetFanout.field}</code> — showing {facetFanout.units.length} of {facetFanout.totalValues}
+          value{facetFanout.totalValues === 1 ? '' : 's'}{facetFanout.capped
+            ? ` (top ${MAX_FACET_CELLS} by article count; the rest are omitted)`
+            : ''}. Each sub-cell holds only articles carrying that value.
+        </p>
+      {/if}
       {#each expandedUnits as unit (unit.key)}
         {@const groupNum = unit.groupIndex !== undefined ? unit.groupIndex + 1 : null}
         {@const probeNum =
@@ -809,6 +955,14 @@
               <span class="cell-group-badge">{probeLabelFor(unit.probeId)}</span>
               <span class="cell-group-summary">{unit.scopeId}</span>
             </header>
+          {:else if unit.facetField && unit.facetValue !== undefined}
+            <!-- Phase 125a — faceting / small-multiples. Each sub-cell is the
+                 same view restricted to one value of the facet field; the badge
+                 names that value so the grid reads as "<field> = <value>". -->
+            <header class="cell-group-eyebrow">
+              <span class="cell-group-badge">{unit.facetField}</span>
+              <span class="cell-group-summary">{unit.facetValue}</span>
+            </header>
           {/if}
           {#if cfg.dimensionOverridden}
             <!-- ADR-038 — per-cell dimension peek. This cell shows a DIFFERENT
@@ -836,6 +990,10 @@
             topN={cfg.topN}
             channels={cfg.channels}
             metricSet={panel.metricSet}
+            fieldChain={panel.fieldChain}
+            metadataFilter={unit.facetField && unit.facetValue !== undefined
+              ? { field: unit.facetField, value: unit.facetValue }
+              : undefined}
             showBand={cfg.showBand}
             resolution={panel.resolution}
             normalization={panel.normalization}
@@ -846,6 +1004,7 @@
             sharedDomains={cellScale === 'shared' ? sharedDomains : undefined}
             axisScaleState={sharedAxisApplies ? cellScale : undefined}
             configOverridden={cfg.isOverridden}
+            {selection}
           />
         </div>
       {/each}
@@ -1213,6 +1372,21 @@
     line-height: var(--line-height-loose);
   }
   .cell-peek-banner code {
+    font-family: var(--font-mono);
+  }
+  /* Phase 125a — faceting disclosure above the small-multiples grid. */
+  .facet-disclosure {
+    grid-column: 1 / -1;
+    margin: 0 0 var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2, var(--color-surface));
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted, var(--color-fg));
+    line-height: var(--line-height-loose);
+  }
+  .facet-disclosure code {
     font-family: var(--font-mono);
   }
   /* ADR-038 — dropped-source disclosure note above the cell grid. */

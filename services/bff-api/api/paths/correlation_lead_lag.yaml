@@ -35,6 +35,8 @@ get:
         type: integer
         minimum: 1
         maximum: 720
+    - $ref: '../parameters/metadataFilterField.yaml'
+    - $ref: '../parameters/metadataFilterValue.yaml'
   responses:
     '200':
       description: Lead-lag spectrum.

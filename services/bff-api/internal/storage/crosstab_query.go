@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 )
 
@@ -45,6 +44,7 @@ func (s *ClickHouseStorage) GetCrossTab(
 	sources []string,
 	start, end time.Time,
 	topN int,
+	metadataFilter *MetadataFilter,
 ) (CrossTabResult, error) {
 	out := CrossTabResult{Buckets: []CrossTabBucket{}}
 	if field == "" || metric == "" || len(sources) == 0 {
@@ -57,30 +57,18 @@ func (s *ClickHouseStorage) GetCrossTab(
 		topN = 200
 	}
 
-	// Positional args, each placeholder used once (window + sources appear in
-	// both subqueries, so they are bound twice — unambiguous over reuse).
-	args := make([]any, 0, 6+2*len(sources))
-	idx := 0
-	next := func(v any) string {
-		args = append(args, v)
-		idx++
-		return fmt.Sprintf("$%d", idx)
-	}
-	srcIn := func() string {
-		ps := make([]string, len(sources))
-		for i, src := range sources {
-			ps[i] = next(src)
-		}
-		return strings.Join(ps, ", ")
-	}
-
+	// Positional args (window + sources appear in both subqueries, so they are
+	// bound twice — ClickHouse positional params are not deduplicated).
+	sa := newScopeArgs()
+	// Faceting (Phase 125a): narrow the metadata side to facet-matching articles.
+	// The INNER JOIN on article_id propagates the restriction to the metric side.
 	metaWhere := fmt.Sprintf(
 		"field = %s AND timestamp >= %s AND timestamp < %s AND source IN (%s)",
-		next(field), next(start), next(end), srcIn(),
-	)
+		sa.ph(field), sa.ph(start), sa.ph(end), sa.srcIn(sources),
+	) + sa.metadataFilterClause(metadataFilter, start, end, sources)
 	metricWhere := fmt.Sprintf(
 		"metric_name = %s AND timestamp >= %s AND timestamp < %s AND source IN (%s) AND article_id IS NOT NULL AND article_id != ''",
-		next(metric), next(start), next(end), srcIn(),
+		sa.ph(metric), sa.ph(start), sa.ph(end), sa.srcIn(sources),
 	)
 
 	query := fmt.Sprintf(`
@@ -104,7 +92,7 @@ func (s *ClickHouseStorage) GetCrossTab(
 	`, metaWhere, metricWhere)
 
 	var rows []CrossTabBucket
-	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+	if err := s.conn.Select(ctx, &rows, query, sa.Args...); err != nil {
 		slog.Error("Failed to query cross-tab", "error", err, "field", field, "metric", metric)
 		return out, err
 	}

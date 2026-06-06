@@ -9,7 +9,12 @@
   // chunk only ships when this cell is selected (Brief §7 budget).
   import { createQuery } from '@tanstack/svelte-query';
   import { onDestroy } from 'svelte';
-  import { metricScatterQuery, type ScatterResponseDto, type QueryOutcome } from '$lib/api/queries';
+  import {
+    metricScatterQuery,
+    type ScatterResponseDto,
+    type ScatterPointDto,
+    type QueryOutcome
+  } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { DEFAULT_METRIC_NAME } from '$lib/viewmodes';
   import type { ViewModeCellProps } from '$lib/viewmodes';
@@ -24,12 +29,14 @@
     scopeId,
     windowStart,
     windowEnd,
+    metadataFilter,
     dataLayer = 'gold',
     channels,
     reportExtent,
     sharedDomains,
     axisScaleState,
-    configOverridden
+    configOverridden,
+    selection
   }: ViewModeCellProps = $props();
 
   // Resolve the bound channels with sensible defaults so the cell renders even
@@ -50,6 +57,7 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
+      metadataFilter,
       xMetric,
       yMetric,
       sizeMetric,
@@ -138,6 +146,11 @@
     // Phase 124 — shared x / y domains when the panel is on a shared axis.
     const sharedX = sharedDomains?.x;
     const sharedY = sharedDomains?.value;
+    // Phase 125b — cross-panel brushing. Read the set's size synchronously so
+    // this render re-runs when the Window selection changes; when non-empty,
+    // selected points stay opaque and the rest dim (never hidden).
+    const selSet = selection?.ids;
+    const selN = selSet?.size ?? 0;
     if (!host || rows.length === 0) return;
     const token = ++renderToken;
     (async () => {
@@ -171,10 +184,29 @@
             fill: hasColor ? 'color' : 'rgba(82, 131, 184, 0.55)',
             stroke: hasColor ? 'rgba(16,20,26,0.6)' : 'rgba(82, 131, 184, 0.95)',
             strokeWidth: 0.5,
-            fillOpacity: 0.7,
+            // Phase 125b — dim non-selected points when a cross-panel selection
+            // is active; full opacity otherwise.
+            fillOpacity: (d: ScatterPointDto) =>
+              selN === 0 ? 0.7 : selSet!.has(d.articleId ?? '') ? 0.95 : 0.08,
             channels: { source: { value: 'source', label: 'source' } },
             tip: true
           }),
+          // Phase 125b — emphasis ring on the brushed (selected) points.
+          ...(selN > 0
+            ? [
+                Plot.dot(
+                  rows.filter((d) => selSet!.has(d.articleId ?? '')),
+                  {
+                    x: 'x',
+                    y: 'y',
+                    r: hasSize ? 'size' : 3.2,
+                    fill: 'none',
+                    stroke: 'var(--color-fg)',
+                    strokeWidth: 1.5
+                  }
+                )
+              ]
+            : []),
           // Phase 125 (A1) — OLS trend line + ±CI band, drawn on top so the
           // relationship is legible. Only when a fit is defined (variance on
           // both axes, ≥3 points).
@@ -187,10 +219,35 @@
                   strokeWidth: 1.5
                 })
               ]
+            : []),
+          // Phase 125b — pointer layer enables `plot.value` (closest datum) so a
+          // click can toggle that article in the Window selection.
+          ...(selection
+            ? [
+                Plot.dot(
+                  rows,
+                  Plot.pointer({
+                    x: 'x',
+                    y: 'y',
+                    r: hasSize ? 'size' : 3.2,
+                    fill: 'none',
+                    stroke: 'var(--color-accent, #e0a050)',
+                    strokeWidth: 2
+                  })
+                )
+              ]
             : [])
         ]
       });
       if (plotEl) plotEl.remove();
+      // Phase 125b — click toggles the pointed article in the Window selection.
+      if (selection) {
+        next.addEventListener('click', () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const d = (next as any).value as ScatterPointDto | undefined;
+          if (d?.articleId) selection.toggle(d.articleId);
+        });
+      }
       // eslint-disable-next-line svelte/no-dom-manipulating
       host.appendChild(next as unknown as HTMLElement);
       plotEl = next as unknown as HTMLElement;

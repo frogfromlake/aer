@@ -68,7 +68,8 @@ export type CellParamKind =
   // cell. Persisted in `Panel.channels.x` / `.y`.
   | 'leadLagAxes'
   // Phase 125 — an ordered multi-select of categorical FIELDS for the Sankey
-  // cell (the alluvial chain). Persisted in `Panel.metricSet`.
+  // cell (the alluvial chain). Persisted in `Panel.fieldChain` (Phase 125a
+  // split it out of the overloaded `metricSet`).
   | 'sankeyFields';
 
 /** One presentation-form axis entry. The matrix-cell id is composed at
@@ -127,6 +128,20 @@ export interface PresentationDefinition {
    *  merged. PanelControls hides the Overlay button when this is false.
    *  Defaults to false. */
   supportsOverlay?: boolean;
+  /** Phase 125a — whether this presentation supports faceting / small-multiples
+   *  (breaking the cell into one sub-cell per categorical value via a
+   *  `metadataFilter`). True only for the per-article presentations whose cells
+   *  thread `metadataFilter` into their query (distribution, categorical
+   *  distribution, scatter, cross-tab, correlation matrix, metric lead-lag,
+   *  parallel coordinates). PanelControls offers the facet picker only when
+   *  true; PanelHost ignores `facetField` otherwise. Defaults to false. */
+  supportsFaceting?: boolean;
+  /** Phase 125b — whether this presentation has a large-scale (WebGL) renderer
+   *  variant engaged when the panel is maximized AND resolves to a single cell.
+   *  True only for `cooccurrence_network` (the sigma.js at-scale map); PanelHost
+   *  routes to CoOccurrenceNetworkAtScale in that case, else the default cell.
+   *  Defaults to false. */
+  supportsAtScale?: boolean;
 }
 
 /** Common props passed to every cell. The cell decides which subset
@@ -176,6 +191,25 @@ export interface ViewModeCellProps {
   /** Phase 125 — the N-metric set for multivariate cells (correlation_matrix,
    *  parallel_coordinates). Threaded from `Panel.metricSet`. */
   metricSet?: readonly string[] | undefined;
+  /** Phase 125a — the ordered categorical field chain for the sankey cell.
+   *  Threaded from `Panel.fieldChain` (split out of the overloaded metricSet). */
+  fieldChain?: readonly string[] | undefined;
+  /** Phase 125a — faceting / small-multiples restriction. When set, this cell is
+   *  one facet sub-cell: its per-article query is restricted to articles whose
+   *  `field` carries `value`. Injected per render-unit by PanelHost; absent on a
+   *  normal (non-faceted) cell. */
+  metadataFilter?: { field: string; value: string } | undefined;
+  /** Phase 125b — cross-panel linked brushing. A Window-level transient set of
+   *  selected article ids, shared across the panels of a Window. Per-article
+   *  cells (scatter, parallel coordinates) emphasise selected articles and toggle
+   *  on click; aggregating cells ignore it. NOT URL-persisted (transient). */
+  selection?:
+    | {
+        ids: ReadonlySet<string>;
+        toggle: (articleId: string) => void;
+        clear: () => void;
+      }
+    | undefined;
   /** Time-series ±1σ uncertainty band; undefined = shown. */
   showBand?: boolean | undefined;
   /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
@@ -248,6 +282,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: true,
     usesResolution: false,
     configurableParams: ['bins', 'scales'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/DistributionCell.svelte')).default
   },
@@ -262,6 +297,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: ['topN', 'networkChannels', 'forceStrength', 'displayLanguage'],
+    supportsAtScale: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CoOccurrenceNetworkCell.svelte')).default
   },
@@ -279,6 +315,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: ['scatterAxes', 'scales'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/ScatterCell.svelte')).default
   },
@@ -428,6 +465,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetadataField: true,
     usesResolution: false,
     configurableParams: ['topN'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CategoricalDistributionCell.svelte')).default
   },
@@ -445,6 +483,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: ['metricSet'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CorrelationMatrixCell.svelte')).default
   },
@@ -463,6 +502,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetadataField: true,
     usesResolution: false,
     configurableParams: ['crossMetric', 'topN'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CrossTabCell.svelte')).default
   },
@@ -479,6 +519,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: ['leadLagAxes'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/MetricLeadLagCell.svelte')).default
   },
@@ -495,13 +536,14 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: ['metricSet'],
+    supportsFaceting: true,
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/ParallelCoordinatesCell.svelte')).default
   },
   // Phase 125 — Sankey/alluvial (Rhizome, relational): article flows across an
   // ordered chain of categorical metadata fields. Channel-driven
   // (usesMetric:false); the field chain is the `sankeyFields` lever
-  // (Panel.metricSet). Lazy-loads d3-sankey.
+  // (Panel.fieldChain — Phase 125a split it out of metricSet). Lazy-loads d3-sankey.
   {
     id: 'sankey',
     label: 'Sankey',

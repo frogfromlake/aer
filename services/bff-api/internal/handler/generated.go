@@ -1922,6 +1922,12 @@ type GetCorrelationLeadLagParams struct {
 
 	// MaxLagHours Symmetric lag bound in hours (default 168, max 720).
 	MaxLagHours *int `form:"maxLagHours,omitempty" json:"maxLagHours,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetCorrelationLeadLagParamsScope defines parameters for GetCorrelationLeadLag.
@@ -1968,8 +1974,11 @@ type GetEntityCoOccurrenceParams struct {
 	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
 	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
 
-	// TopN Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 500] to the nearest bound.
+	// TopN Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 6000] to the nearest bound. The default SVG renderer requests a small value (~60); the large-scale WebGL renderer (maximized single-cell view, Phase 125b) requests a high value.
 	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+
+	// MinWeight Phase 125b — minimum co-occurrence weight (summed `cooccurrence_count`) for an edge to be included. The primary control against the quadratic edge "hairball" in the large-scale view: raise it to keep only the strongest pairs. 0 / absent disables the threshold. The node set is derived from the surviving edges, so this thins both edges and nodes.
+	MinWeight *int `form:"minWeight,omitempty" json:"minWeight,omitempty"`
 
 	// ViewerLanguage Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation.
 	ViewerLanguage *string `form:"viewerLanguage,omitempty" json:"viewerLanguage,omitempty"`
@@ -2077,6 +2086,12 @@ type GetMetadataCrossTabParams struct {
 
 	// TopN Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200].
 	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetMetadataCrossTabParamsScope defines parameters for GetMetadataCrossTab.
@@ -2104,6 +2119,12 @@ type GetMetadataDistributionParams struct {
 
 	// TopN Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200].
 	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetMetadataDistributionParamsScope defines parameters for GetMetadataDistribution.
@@ -2173,6 +2194,12 @@ type GetMetricCorrelationParams struct {
 
 	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
 	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetMetricCorrelationParamsScope defines parameters for GetMetricCorrelation.
@@ -2203,6 +2230,12 @@ type GetMetricParallelCoordsParams struct {
 
 	// MaxPoints Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive.
 	MaxPoints *int `form:"maxPoints,omitempty" json:"maxPoints,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetMetricParallelCoordsParamsScope defines parameters for GetMetricParallelCoords.
@@ -2242,6 +2275,12 @@ type GetMetricScatterParams struct {
 
 	// MaxPoints Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive.
 	MaxPoints *int `form:"maxPoints,omitempty" json:"maxPoints,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetMetricScatterParamsScope defines parameters for GetMetricScatter.
@@ -2272,6 +2311,12 @@ type GetMetricDistributionParams struct {
 
 	// Bins Number of histogram bins to request for the distribution. Server clamps values outside [1, 200] to the nearest bound.
 	Bins *int `form:"bins,omitempty" json:"bins,omitempty"`
+
+	// MetadataFilterField Faceting / small-multiples filter (Phase 125a). Restricts the per-article computation to articles whose categorical metadata field `metadataFilterField` carries the value `metadataFilterValue`. Both must be supplied together; a field without a value (or vice versa) is ignored. The membership is evaluated over the same window and resolved source set as the main query.
+	MetadataFilterField *string `form:"metadataFilterField,omitempty" json:"metadataFilterField,omitempty"`
+
+	// MetadataFilterValue Faceting / small-multiples filter value (Phase 125a). The categorical value that `metadataFilterField` must carry for an article to be included. Both parameters must be supplied together; either alone is ignored.
+	MetadataFilterValue *string `form:"metadataFilterValue,omitempty" json:"metadataFilterValue,omitempty"`
 }
 
 // GetMetricDistributionParamsScope defines parameters for GetMetricDistribution.
@@ -3273,6 +3318,22 @@ func (siw *ServerInterfaceWrapper) GetCorrelationLeadLag(w http.ResponseWriter, 
 		return
 	}
 
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCorrelationLeadLag(w, r, params)
 	}))
@@ -3424,6 +3485,14 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "minWeight" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "minWeight", r.URL.Query(), &params.MinWeight, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "minWeight", Err: err})
 		return
 	}
 
@@ -3745,6 +3814,22 @@ func (siw *ServerInterfaceWrapper) GetMetadataCrossTab(w http.ResponseWriter, r 
 		return
 	}
 
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetadataCrossTab(w, r, field, metric, params)
 	}))
@@ -3832,6 +3917,22 @@ func (siw *ServerInterfaceWrapper) GetMetadataDistribution(w http.ResponseWriter
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
 		return
 	}
 
@@ -4053,6 +4154,22 @@ func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r
 		return
 	}
 
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetricCorrelation(w, r, params)
 	}))
@@ -4146,6 +4263,22 @@ func (siw *ServerInterfaceWrapper) GetMetricParallelCoords(w http.ResponseWriter
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxPoints", r.URL.Query(), &params.MaxPoints, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxPoints", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
 		return
 	}
 
@@ -4276,6 +4409,22 @@ func (siw *ServerInterfaceWrapper) GetMetricScatter(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetricScatter(w, r, params)
 	}))
@@ -4371,6 +4520,22 @@ func (siw *ServerInterfaceWrapper) GetMetricDistribution(w http.ResponseWriter, 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "bins", r.URL.Query(), &params.Bins, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bins", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterField" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterField", r.URL.Query(), &params.MetadataFilterField, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterField", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "metadataFilterValue" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadataFilterValue", r.URL.Query(), &params.MetadataFilterValue, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metadataFilterValue", Err: err})
 		return
 	}
 

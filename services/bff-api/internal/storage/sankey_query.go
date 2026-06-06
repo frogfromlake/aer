@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 )
 
@@ -81,22 +80,11 @@ func (s *ClickHouseStorage) GetSankey(
 		f1 := fields[i]
 		f2 := fields[i+1]
 
-		args := make([]any, 0, 6+2*len(sources))
-		ph := func(v any) string {
-			args = append(args, v)
-			return fmt.Sprintf("$%d", len(args))
-		}
-		srcIn := func() string {
-			ps := make([]string, len(sources))
-			for j, src := range sources {
-				ps[j] = ph(src)
-			}
-			return strings.Join(ps, ", ")
-		}
+		sa := newScopeArgs()
 		aWhere := fmt.Sprintf("field = %s AND timestamp >= %s AND timestamp < %s AND source IN (%s)",
-			ph(f1), ph(start), ph(end), srcIn())
+			sa.ph(f1), sa.ph(start), sa.ph(end), sa.srcIn(sources))
 		bWhere := fmt.Sprintf("field = %s AND timestamp >= %s AND timestamp < %s AND source IN (%s)",
-			ph(f2), ph(start), ph(end), srcIn())
+			sa.ph(f2), sa.ph(start), sa.ph(end), sa.srcIn(sources))
 
 		query := fmt.Sprintf(`
 			SELECT a.v AS Src, b.v AS Dst, uniqExact(a.article_id) AS N
@@ -114,7 +102,7 @@ func (s *ClickHouseStorage) GetSankey(
 		`, aWhere, bWhere, topN)
 
 		var rows []sankeyPairRow
-		if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		if err := s.conn.Select(ctx, &rows, query, sa.Args...); err != nil {
 			slog.Error("Failed to query sankey pair", "error", err, "from", f1, "to", f2)
 			return out, err
 		}

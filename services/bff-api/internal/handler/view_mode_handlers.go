@@ -179,8 +179,10 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	if request.Params.Bins != nil {
 		bins = *request.Params.Bins
 	}
+	// Phase 125a faceting: applied uniformly to the aggregate and every segment.
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
 
-	res, err := s.db.GetMetricDistribution(ctx, request.MetricName, sources, start, end, bins)
+	res, err := s.db.GetMetricDistribution(ctx, request.MetricName, sources, start, end, bins, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricDistribution", "error", err)
 		return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -243,7 +245,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 				} `json:"summary"`
 			}, 0, len(sources))
 			for _, src := range sources {
-				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, []string{src}, start, end, bins)
+				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, []string{src}, start, end, bins, mf)
 				if serr != nil {
 					slog.Error("handler failure", "op", "GetMetricDistribution.stream", "source", src, "error", serr)
 					return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -319,7 +321,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 				} `json:"summary"`
 			}, 0, len(probeSegs))
 			for _, seg := range probeSegs {
-				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, seg.sources, start, end, bins)
+				sr, serr := s.db.GetMetricDistribution(ctx, request.MetricName, seg.sources, start, end, bins, mf)
 				if serr != nil {
 					slog.Error("handler failure", "op", "GetMetricDistribution.stream", "probe", seg.id, "error", serr)
 					return GetMetricDistribution500JSONResponse{Message: genericInternalError}, nil
@@ -419,7 +421,31 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 		maxPoints = *request.Params.MaxPoints
 	}
 
-	res, err := s.db.GetMetricScatter(ctx, xMetric, yMetric, sizeMetric, colorMetric, sources, start, end, maxPoints)
+	// Phase 125b — cross-frame gate parity with the other per-article cells
+	// (correlation/cross-tab/lead-lag/parallel): a scatter pooling per-article
+	// points across cultural frames is only meaningful when each bound metric's
+	// equivalence is granted. Gate on x/y + any bound size/colour metric.
+	gateMetrics := []string{xMetric, yMetric}
+	if sizeMetric != nil {
+		gateMetrics = append(gateMetrics, *sizeMetric)
+	}
+	if colorMetric != nil {
+		gateMetrics = append(gateMetrics, *colorMetric)
+	}
+	if refusal, err := s.crossFrameGate(ctx, gateMetrics, sources, start, end); err != nil {
+		slog.Error("handler failure", "op", "GetMetricScatter.crossFrameGate", "error", err)
+		return GetMetricScatter500JSONResponse{Message: genericInternalError}, nil
+	} else if refusal != nil {
+		return GetMetricScatter400JSONResponse{
+			Message:            refusal.Message,
+			Gate:               refusal.Gate,
+			WorkingPaperAnchor: refusal.WorkingPaperAnchor,
+			Alternatives:       refusal.Alternatives,
+		}, nil
+	}
+
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
+	res, err := s.db.GetMetricScatter(ctx, xMetric, yMetric, sizeMetric, colorMetric, sources, start, end, maxPoints, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricScatter", "error", err)
 		return GetMetricScatter500JSONResponse{Message: genericInternalError}, nil
@@ -724,38 +750,20 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 	// languages is only meaningful when each metric's cross-cultural
 	// equivalence is granted; otherwise refuse with the standard cross-frame
 	// payload (Level-1 alternative: stay within one cultural frame).
-	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
-	if err != nil {
-		slog.Error("handler failure", "op", "GetMetricCorrelation.CountLanguagesForSources", "error", err)
+	if refusal, err := s.crossFrameGate(ctx, metrics, sources, start, end); err != nil {
+		slog.Error("handler failure", "op", "GetMetricCorrelation.crossFrameGate", "error", err)
 		return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
-	}
-	if nLangs > 1 {
-		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
-		if err != nil {
-			slog.Error("handler failure", "op", "GetMetricCorrelation.collectLanguagesForScope", "error", err)
-			return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
-		}
-		for _, m := range metrics {
-			ok, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
-			if err != nil {
-				slog.Error("handler failure", "op", "GetMetricCorrelation.CheckNormalizationEquivalenceForLanguages", "error", err)
-				return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
-			}
-			if !ok {
-				gate := crossFrameGateID
-				anchor := crossFrameAnchor
-				alts := append([]string(nil), crossFrameRefusalAlternatives...)
-				return GetMetricCorrelation400JSONResponse{
-					Message:            crossFrameRefusalMessage,
-					Gate:               &gate,
-					WorkingPaperAnchor: &anchor,
-					Alternatives:       &alts,
-				}, nil
-			}
-		}
+	} else if refusal != nil {
+		return GetMetricCorrelation400JSONResponse{
+			Message:            refusal.Message,
+			Gate:               refusal.Gate,
+			WorkingPaperAnchor: refusal.WorkingPaperAnchor,
+			Alternatives:       refusal.Alternatives,
+		}, nil
 	}
 
-	res, err := s.db.GetMetricCorrelation(ctx, metrics, sources, start, end)
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
+	res, err := s.db.GetMetricCorrelation(ctx, metrics, sources, start, end, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricCorrelation", "error", err)
 		return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
@@ -809,38 +817,20 @@ func (s *Server) GetCorrelationLeadLag(ctx context.Context, request GetCorrelati
 
 	// Cross-frame gate — correlating metric series across languages is only
 	// meaningful when both metrics' cross-cultural equivalence is granted.
-	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
-	if err != nil {
-		slog.Error("handler failure", "op", "GetCorrelationLeadLag.CountLanguagesForSources", "error", err)
+	if refusal, err := s.crossFrameGate(ctx, []string{xMetric, yMetric}, sources, start, end); err != nil {
+		slog.Error("handler failure", "op", "GetCorrelationLeadLag.crossFrameGate", "error", err)
 		return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
-	}
-	if nLangs > 1 {
-		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
-		if err != nil {
-			slog.Error("handler failure", "op", "GetCorrelationLeadLag.collectLanguagesForScope", "error", err)
-			return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
-		}
-		for _, m := range []string{xMetric, yMetric} {
-			granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
-			if err != nil {
-				slog.Error("handler failure", "op", "GetCorrelationLeadLag.CheckNormalizationEquivalenceForLanguages", "error", err)
-				return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
-			}
-			if !granted {
-				gate := crossFrameGateID
-				anchor := crossFrameAnchor
-				alts := append([]string(nil), crossFrameRefusalAlternatives...)
-				return GetCorrelationLeadLag400JSONResponse{
-					Message:            crossFrameRefusalMessage,
-					Gate:               &gate,
-					WorkingPaperAnchor: &anchor,
-					Alternatives:       &alts,
-				}, nil
-			}
-		}
+	} else if refusal != nil {
+		return GetCorrelationLeadLag400JSONResponse{
+			Message:            refusal.Message,
+			Gate:               refusal.Gate,
+			WorkingPaperAnchor: refusal.WorkingPaperAnchor,
+			Alternatives:       refusal.Alternatives,
+		}, nil
 	}
 
-	res, err := s.db.GetMetricLeadLag(ctx, sources, xMetric, yMetric, start, end, maxLag)
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
+	res, err := s.db.GetMetricLeadLag(ctx, sources, xMetric, yMetric, start, end, maxLag, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetCorrelationLeadLag", "error", err)
 		return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
@@ -902,35 +892,16 @@ func (s *Server) GetMetricParallelCoords(ctx context.Context, request GetMetricP
 	}
 
 	// Cross-frame gate — a multi-language scope requires each metric's grant.
-	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
-	if err != nil {
-		slog.Error("handler failure", "op", "GetMetricParallelCoords.CountLanguagesForSources", "error", err)
+	if refusal, err := s.crossFrameGate(ctx, metrics, sources, start, end); err != nil {
+		slog.Error("handler failure", "op", "GetMetricParallelCoords.crossFrameGate", "error", err)
 		return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
-	}
-	if nLangs > 1 {
-		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
-		if err != nil {
-			slog.Error("handler failure", "op", "GetMetricParallelCoords.collectLanguagesForScope", "error", err)
-			return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
-		}
-		for _, m := range metrics {
-			granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
-			if err != nil {
-				slog.Error("handler failure", "op", "GetMetricParallelCoords.CheckNormalizationEquivalenceForLanguages", "error", err)
-				return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
-			}
-			if !granted {
-				gate := crossFrameGateID
-				anchor := crossFrameAnchor
-				alts := append([]string(nil), crossFrameRefusalAlternatives...)
-				return GetMetricParallelCoords400JSONResponse{
-					Message:            crossFrameRefusalMessage,
-					Gate:               &gate,
-					WorkingPaperAnchor: &anchor,
-					Alternatives:       &alts,
-				}, nil
-			}
-		}
+	} else if refusal != nil {
+		return GetMetricParallelCoords400JSONResponse{
+			Message:            refusal.Message,
+			Gate:               refusal.Gate,
+			WorkingPaperAnchor: refusal.WorkingPaperAnchor,
+			Alternatives:       refusal.Alternatives,
+		}, nil
 	}
 
 	maxPoints := 3000
@@ -938,7 +909,8 @@ func (s *Server) GetMetricParallelCoords(ctx context.Context, request GetMetricP
 		maxPoints = *request.Params.MaxPoints
 	}
 
-	res, err := s.db.GetParallelCoords(ctx, metrics, sources, start, end, maxPoints)
+	mf := parseMetadataFilter(request.Params.MetadataFilterField, request.Params.MetadataFilterValue)
+	res, err := s.db.GetParallelCoords(ctx, metrics, sources, start, end, maxPoints, mf)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricParallelCoords", "error", err)
 		return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
@@ -999,8 +971,13 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.NodeMetric != nil {
 		nodeMetric = canonicalMetricNames([]string{*request.Params.NodeMetric})[0]
 	}
+	// Phase 125b — min co-occurrence weight (edge threshold for the at-scale view).
+	minWeight := 0
+	if request.Params.MinWeight != nil {
+		minWeight = *request.Params.MinWeight
+	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -1279,7 +1256,10 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		viewerLanguage = *body.ViewerLanguage
 	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "")
+	// The POST multi-scope path is the merged-graph (SVG) renderer only — the
+	// at-scale WebGL view is single-cell (GET). No minWeight here (topN<=500
+	// already bounds it).
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0)
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
