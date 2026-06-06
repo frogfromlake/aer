@@ -3,8 +3,19 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"math"
 	"strings"
 )
+
+// safeFloat replaces NaN/±Inf with 0 so the JSON encoder (which rejects them)
+// never fails. stddevSamp over a single article returns NaN — a legitimate
+// "no spread" case rendered as 0.
+func safeFloat(v float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0
+	}
+	return v
+}
 
 // GetMetadataDistribution returns the top-N values of a categorical metadata
 // field over the resolved scope, ranked by distinct in-scope article count,
@@ -60,6 +71,176 @@ func (s *Server) GetMetadataDistribution(ctx context.Context, request GetMetadat
 			Articles int    `json:"articles"`
 			Value    string `json:"value"`
 		}{Articles: int(c.Articles), Value: c.Value}
+	}
+	return resp, nil
+}
+
+// GetMetadataCrossTab returns, for one categorical metadata field × one numeric
+// metric, the per-category article count + mean/spread of the metric (Phase 125).
+// Cross-frame (multi-language) requests gate on the metric's equivalence grant.
+func (s *Server) GetMetadataCrossTab(ctx context.Context, request GetMetadataCrossTabRequestObject) (GetMetadataCrossTabResponseObject, error) {
+	rawScope := ""
+	if request.Params.Scope != nil {
+		rawScope = string(*request.Params.Scope)
+	}
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	if !ok {
+		if strings.HasPrefix(reason, "unknown probe") {
+			return GetMetadataCrossTab404JSONResponse{Message: reason}, nil
+		}
+		return GetMetadataCrossTab400JSONResponse{Message: reason}, nil
+	}
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
+		return GetMetadataCrossTab400JSONResponse{Message: msg}, nil
+	}
+	if request.Field == "" {
+		return GetMetadataCrossTab400JSONResponse{Message: "field is required"}, nil
+	}
+	if request.Metric == "" {
+		return GetMetadataCrossTab400JSONResponse{Message: "metric is required"}, nil
+	}
+	metric := canonicalMetricNames([]string{request.Metric})[0]
+
+	// Cross-frame gate — correlating a metric across languages is only
+	// meaningful when the metric's cross-cultural equivalence is granted.
+	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetadataCrossTab.CountLanguagesForSources", "error", err)
+		return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
+	}
+	if nLangs > 1 {
+		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetMetadataCrossTab.collectLanguagesForScope", "error", err)
+			return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
+		}
+		granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, metric, languages)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetMetadataCrossTab.CheckNormalizationEquivalenceForLanguages", "error", err)
+			return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
+		}
+		if !granted {
+			gate := crossFrameGateID
+			anchor := crossFrameAnchor
+			alts := append([]string(nil), crossFrameRefusalAlternatives...)
+			return GetMetadataCrossTab400JSONResponse{
+				Message:            crossFrameRefusalMessage,
+				Gate:               &gate,
+				WorkingPaperAnchor: &anchor,
+				Alternatives:       &alts,
+			}, nil
+		}
+	}
+
+	topN := 20
+	if request.Params.TopN != nil {
+		topN = *request.Params.TopN
+	}
+
+	res, err := s.db.GetCrossTab(ctx, request.Field, metric, sources, start, end, topN)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetadataCrossTab", "error", err)
+		return GetMetadataCrossTab500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetMetadataCrossTab200JSONResponse{
+		Field:          request.Field,
+		Metric:         metric,
+		Scope:          strPtr(string(kind)),
+		ScopeId:        request.Params.ScopeId,
+		WindowStart:    request.Params.Start,
+		WindowEnd:      request.Params.End,
+		DistinctValues: res.DistinctValues,
+	}
+	resp.Categories = make([]struct {
+		Articles int64   `json:"articles"`
+		Mean     float64 `json:"mean"`
+		Std      float64 `json:"std"`
+		Value    string  `json:"value"`
+	}, len(res.Buckets))
+	for i, b := range res.Buckets {
+		resp.Categories[i] = struct {
+			Articles int64   `json:"articles"`
+			Mean     float64 `json:"mean"`
+			Std      float64 `json:"std"`
+			Value    string  `json:"value"`
+		}{Articles: int64(b.Articles), Mean: safeFloat(b.Mean), Std: safeFloat(b.Std), Value: b.Value} //nolint:gosec // bounded by 365-day TTL
+	}
+	return resp, nil
+}
+
+// GetMetadataSankey returns the alluvial flow across an ordered chain of
+// categorical metadata fields (Phase 125). Article counts only — no metric
+// normalization, so no equivalence gate. Field chain capped at 8 for legibility.
+func (s *Server) GetMetadataSankey(ctx context.Context, request GetMetadataSankeyRequestObject) (GetMetadataSankeyResponseObject, error) {
+	rawScope := ""
+	if request.Params.Scope != nil {
+		rawScope = string(*request.Params.Scope)
+	}
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	if !ok {
+		if strings.HasPrefix(reason, "unknown probe") {
+			return GetMetadataSankey404JSONResponse{Message: reason}, nil
+		}
+		return GetMetadataSankey400JSONResponse{Message: reason}, nil
+	}
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
+		return GetMetadataSankey400JSONResponse{Message: msg}, nil
+	}
+
+	fields := splitAndTrim(request.Params.Fields)
+	if len(fields) < 2 {
+		return GetMetadataSankey400JSONResponse{Message: "fields must list at least 2 names"}, nil
+	}
+	if len(fields) > 8 {
+		fields = fields[:8]
+	}
+
+	topN := 50
+	if request.Params.TopN != nil {
+		topN = *request.Params.TopN
+	}
+
+	res, err := s.db.GetSankey(ctx, fields, sources, start, end, topN)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetadataSankey", "error", err)
+		return GetMetadataSankey500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetMetadataSankey200JSONResponse{
+		Fields:      res.Fields,
+		Scope:       strPtr(string(kind)),
+		ScopeId:     request.Params.ScopeId,
+		WindowStart: request.Params.Start,
+		WindowEnd:   request.Params.End,
+	}
+	resp.Nodes = make([]struct {
+		Field string `json:"field"`
+		Id    string `json:"id"`
+		Layer int    `json:"layer"`
+		Value string `json:"value"`
+	}, len(res.Nodes))
+	for i, n := range res.Nodes {
+		resp.Nodes[i] = struct {
+			Field string `json:"field"`
+			Id    string `json:"id"`
+			Layer int    `json:"layer"`
+			Value string `json:"value"`
+		}{Field: n.Field, Id: n.ID, Layer: n.Layer, Value: n.Value}
+	}
+	resp.Links = make([]struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+		Value  int64  `json:"value"`
+	}, len(res.Links))
+	for i, l := range res.Links {
+		resp.Links[i] = struct {
+			Source string `json:"source"`
+			Target string `json:"target"`
+			Value  int64  `json:"value"`
+		}{Source: l.Source, Target: l.Target, Value: l.Value}
 	}
 	return resp, nil
 }

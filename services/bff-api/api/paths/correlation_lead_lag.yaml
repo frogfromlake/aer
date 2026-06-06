@@ -1,0 +1,58 @@
+get:
+  tags: [Metrics]
+  summary: Generalised metric lead-lag — lagged cross-correlation of two metrics over time
+  description: >
+    Cross-correlates the hourly mean series of two metrics over one scope, across
+    a symmetric lag range — "does xMetric lead yMetric?". Reuses the Phase-124
+    cross-correlation core (generalises `/probes/{id}/lead-lag`, which is fixed to
+    publication activity). Scope is resolved from the union of `scope`/`scopeId`,
+    `probeIds`, `sourceIds`. A multi-language scope requires a validated
+    equivalence grant for BOTH metrics; absent that, a 400 refusal with a Level-1
+    alternative (WP-004 §5.2).
+  operationId: getCorrelationLeadLag
+  parameters:
+    - $ref: '../parameters/xMetric.yaml'
+    - $ref: '../parameters/yMetric.yaml'
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - name: maxLagHours
+      in: query
+      description: Symmetric lag bound in hours (default 168, max 720).
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 720
+  responses:
+    '200':
+      description: Lead-lag spectrum.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/CorrelationLeadLag.yaml'
+    '400':
+      description: Invalid scope/window, or a cross-frame equivalence refusal.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

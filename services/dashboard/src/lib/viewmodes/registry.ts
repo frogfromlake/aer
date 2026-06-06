@@ -56,7 +56,20 @@ export type CellParamKind =
   // Phase 124 — axis-scale mode (shared vs free) for multi-cell value-axis
   // panels. PanelControls renders the toggle for the presentations that carry
   // a comparable value axis (distribution, time_series, metric_scatter).
-  | 'scales';
+  | 'scales'
+  // Phase 125 — N-metric set picker for multivariate cells (correlation_matrix,
+  // parallel_coordinates). A multi-select of scope-available metrics persisted
+  // in `Panel.metricSet`.
+  | 'metricSet'
+  // Phase 125 — a single numeric-metric picker for the cross-tab cell (the
+  // metric aggregated per category value). Persisted in `Panel.channels.x`.
+  | 'crossMetric'
+  // Phase 125 — two numeric-metric pickers (x leads y) for the metric lead-lag
+  // cell. Persisted in `Panel.channels.x` / `.y`.
+  | 'leadLagAxes'
+  // Phase 125 — an ordered multi-select of categorical FIELDS for the Sankey
+  // cell (the alluvial chain). Persisted in `Panel.metricSet`.
+  | 'sankeyFields';
 
 /** One presentation-form axis entry. The matrix-cell id is composed at
  *  call-sites as `<id>_<metricName>` to match content-catalog yaml keys. */
@@ -160,6 +173,9 @@ export interface ViewModeCellProps {
   topN?: number | undefined;
   /** Visual-channel binding — scatter axes/size/colour, network size/colour. */
   channels?: import('$lib/state/url-internals').CellChannelBinding | undefined;
+  /** Phase 125 — the N-metric set for multivariate cells (correlation_matrix,
+   *  parallel_coordinates). Threaded from `Panel.metricSet`. */
+  metricSet?: readonly string[] | undefined;
   /** Time-series ±1σ uncertainty band; undefined = shown. */
   showBand?: boolean | undefined;
   /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
@@ -414,6 +430,89 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     configurableParams: ['topN'],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CategoricalDistributionCell.svelte')).default
+  },
+  // Phase 125 — pairwise Pearson correlation matrix (Aleph, synchronic). An
+  // N×N heatmap over a chosen metric set (`Panel.metricSet`); the single-metric
+  // picker is hidden (usesMetric:false) and the `metricSet` lever drives it.
+  // Drill a cell → scatter for that metric pair.
+  {
+    id: 'correlation_matrix',
+    label: 'Correlation matrix',
+    discipline: 'metadata_mining',
+    description:
+      'Pairwise Pearson correlation across a chosen set of metrics — which move together, which are independent.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: ['metricSet'],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/CorrelationMatrixCell.svelte')).default
+  },
+  // Phase 125 — cross-tab (Aleph, synchronic): a categorical metadata field ×
+  // a numeric metric → the metric's mean per category value. Field-driven
+  // (usesMetadataField:true → Group-by picker); the numeric metric binds via
+  // the `crossMetric` lever (Panel.channels.x).
+  {
+    id: 'cross_tab',
+    label: 'Cross-tab',
+    discipline: 'metadata_mining',
+    description:
+      'A metric broken down by a metadata category — e.g. mean sentiment per section. Bars ranked by article count, coloured by the metric.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesMetadataField: true,
+    usesResolution: false,
+    configurableParams: ['crossMetric', 'topN'],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/CrossTabCell.svelte')).default
+  },
+  // Phase 125 — generalised metric lead-lag (Rhizome, relational): does xMetric
+  // lead yMetric over the scope? Channel-driven (usesMetric:false); the two
+  // metrics bind via the `leadLagAxes` lever (Panel.channels.x/.y).
+  {
+    id: 'metric_lead_lag',
+    label: 'Lead-lag (metrics)',
+    discipline: 'metadata_mining',
+    description:
+      'Lagged cross-correlation of two metrics over time — does one consistently lead the other?',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: ['leadLagAxes'],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/MetricLeadLagCell.svelte')).default
+  },
+  // Phase 125 — parallel coordinates (Aleph, multivariate): one polyline per
+  // article across N metric axes. Channel-driven (usesMetric:false); the axis
+  // set is the `metricSet` lever (Panel.metricSet, shared with the matrix).
+  {
+    id: 'parallel_coordinates',
+    label: 'Parallel coordinates',
+    discipline: 'metadata_mining',
+    description:
+      'One line per article across several metric axes — read clusters and crossing patterns across many dimensions at once.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: ['metricSet'],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/ParallelCoordinatesCell.svelte')).default
+  },
+  // Phase 125 — Sankey/alluvial (Rhizome, relational): article flows across an
+  // ordered chain of categorical metadata fields. Channel-driven
+  // (usesMetric:false); the field chain is the `sankeyFields` lever
+  // (Panel.metricSet). Lazy-loads d3-sankey.
+  {
+    id: 'sankey',
+    label: 'Sankey',
+    discipline: 'metadata_mining',
+    description:
+      'Article flows between categories across an ordered chain of metadata fields — where the corpus splits and merges.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesResolution: false,
+    configurableParams: ['sankeyFields'],
+    loadComponent: async () => (await import('$lib/components/viewmodes/SankeyCell.svelte')).default
   }
 ];
 
@@ -521,6 +620,9 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
       'topic_distribution',
       'metric_scatter',
       'categorical_distribution',
+      'correlation_matrix',
+      'cross_tab',
+      'parallel_coordinates',
       'revision_activity'
     ]
   },
@@ -549,7 +651,13 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     description:
       'How frames move. Entity co-occurrence, lead-lag, cross-probe diffusion — the relational substrate of the discourse.',
     color: '#9a8fb8',
-    presentations: ['cooccurrence_network', 'cross_probe_lead_lag', 'revision_edit_clusters']
+    presentations: [
+      'cooccurrence_network',
+      'cross_probe_lead_lag',
+      'metric_lead_lag',
+      'sankey',
+      'revision_edit_clusters'
+    ]
   }
 ];
 

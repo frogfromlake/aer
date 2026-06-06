@@ -1,0 +1,27 @@
+entityId: howto_metric_lead_lag
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Does one metric lead another over time? Each point is a time-shift; the tallest is the lead-lag — a shift right means the second metric follows the first."
+    long: >
+      A lead-lag answers "when one of these measurements moves, does the other follow — and how long
+      after?". The curve is the correlation of the two metrics' hourly series at every time-shift; the
+      peak names the most likely lead/lag. A peak at lag 0 means they move in step; a peak to the
+      right means the second metric follows the first, to the left means it leads. This describes
+      timing co-movement, not cause — a shared external driver produces the same shape.
+  methodological:
+    short: "Lagged Pearson cross-correlation of two metrics' hourly mean series over one scope; reuses the Phase-124 cross-correlation core."
+    long: >
+      The server builds each metric's hourly mean series over the scope and window, then computes the
+      Pearson correlation at every integer hour-shift in ±maxLagHours (reusing the Phase-124
+      computeLeadLag core). A lag is null when too few hourly buckets overlap at that shift or a side
+      has zero variance — left blank, never zero. The bucket count at lag 0 is a sample-size proxy: a
+      thin overlap is a noisy curve. A multi-language scope requires a validated equivalence grant for
+      both metrics; absent that, the cell refuses with a Level-1 alternative (WP-004 §5.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-004 §5.2"

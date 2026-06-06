@@ -30,6 +30,16 @@ get:
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/topN.yaml'
     - $ref: '../parameters/viewerLanguage.yaml'
+    - name: nodeMetric
+      in: query
+      required: false
+      description: >
+        Phase 125 — when set, each node carries `metricValue` = the mean of this
+        per-article metric over the articles where the entity appears, so the
+        network cell can size/colour nodes by a metric.
+      schema:
+        type: string
+        minLength: 1
   responses:
     '200':
       description: Top-N co-occurrence subgraph.

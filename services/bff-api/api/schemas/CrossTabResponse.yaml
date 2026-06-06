@@ -1,0 +1,59 @@
+type: object
+description: >
+  Cross-tab of a categorical metadata field against a numeric metric: for each
+  category value of the field, the number of distinct in-scope articles that
+  carry both, plus the mean and sample standard deviation of the metric among
+  them. Top-N by article count; `distinctValues` discloses the full cardinality
+  so a truncation is never silent (Phase 125).
+required:
+  - field
+  - metric
+  - categories
+  - distinctValues
+properties:
+  field:
+    type: string
+  metric:
+    type: string
+  categories:
+    type: array
+    items:
+      type: object
+      required:
+        - value
+        - articles
+        - mean
+        - std
+      properties:
+        value:
+          type: string
+        articles:
+          type: integer
+          format: int64
+          description: Distinct in-scope articles in this category that carry the metric.
+        mean:
+          type: number
+          format: double
+          description: Mean of the metric over the articles in this category.
+        std:
+          type: number
+          format: double
+          description: Sample standard deviation of the metric in this category (NaN/0 for a single article).
+  distinctValues:
+    type: integer
+    format: int64
+    description: Total number of distinct category values (drives "showing top N of M").
+  scope:
+    type: string
+    nullable: true
+  scopeId:
+    type: string
+    nullable: true
+  windowStart:
+    type: string
+    format: date-time
+    nullable: true
+  windowEnd:
+    type: string
+    format: date-time
+    nullable: true

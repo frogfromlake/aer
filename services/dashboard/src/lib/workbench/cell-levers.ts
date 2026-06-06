@@ -16,11 +16,15 @@ export const DEFAULT_FORCE_STRENGTH = 50;
 
 export const NET_SIZE_CHANNELS: ReadonlyArray<{ id: NetworkSizeChannel; label: string }> = [
   { id: 'total_count', label: 'Weight' },
-  { id: 'degree', label: 'Degree' }
+  { id: 'degree', label: 'Degree' },
+  // Phase 125 — size by a per-article metric (mean over the entity's articles).
+  { id: 'metric', label: 'Metric' }
 ];
 export const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: string }> = [
   { id: 'label', label: 'Entity type' },
   { id: 'presence', label: 'Source presence' },
   { id: 'source_overlay', label: 'Source overlay' },
-  { id: 'uniform', label: 'Uniform' }
+  { id: 'uniform', label: 'Uniform' },
+  // Phase 125 — colour by a per-article metric.
+  { id: 'metric', label: 'Metric' }
 ];

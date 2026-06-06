@@ -41,6 +41,9 @@ export interface HowToReadFacts {
   viewerLanguage?: string | undefined;
   linkedNodeCount?: number | undefined;
   labeledNodeCount?: number | undefined;
+  /** Phase 125 (A1) — Pearson r for the scatter regression line (correlation
+   *  strength/direction of the x↔y relationship). Absent when undefined. */
+  r?: number | undefined;
   /** Phase 126 — this cell is on a per-cell override that differs from the
    *  panel default, so it is not directly comparable to its sibling cells. */
   configOverridden?: boolean | undefined;
@@ -73,7 +76,17 @@ const FALLBACK_TEMPLATES: Record<ViewMode, string> = {
   revision_edit_clusters:
     'Each row is an entity that two or more sources silently edited in the same time bucket — a cross-source coincidence on the same name. A disclosed coincidence, not a causal claim; widen the bucket or raise the source threshold to tighten it.',
   categorical_distribution:
-    'Each bar is one category value of the chosen metadata field; its height is how many articles in the scope carry that value. Read the shape, not single bars — which categories dominate the corpus.'
+    'Each bar is one category value of the chosen metadata field; its height is how many articles in the scope carry that value. Read the shape, not single bars — which categories dominate the corpus.',
+  correlation_matrix:
+    'Each cell is the Pearson correlation of two metrics over the scope; warm = they rise together, cool = one falls as the other rises, pale = unrelated. The diagonal is always 1.',
+  cross_tab:
+    'Each bar is one category of the metadata field; its length/colour is the mean of the chosen metric among the articles in that category. Read which categories run high or low on the metric.',
+  metric_lead_lag:
+    'Each point is one time-shift (lag) between two metrics; the height is how strongly they line up at that shift. The tallest point is the lead-lag: a shift right means the second metric follows the first.',
+  parallel_coordinates:
+    'Each line is one article threaded across several metric axes (each axis scaled to its own min–max). Lines that move together cluster; lines that cross show trade-offs between metrics.',
+  sankey:
+    'Each column is a metadata field; each band is a flow of articles from one category to the next. Thicker bands carry more articles — read where the corpus concentrates and splits.'
 };
 
 /** Compose the "how to read" note as an ordered list of sentences: the
@@ -147,11 +160,67 @@ export function composeHowToRead(
       }
       if (facts.size) out.push(`Bigger dots = higher ${facts.size}.`);
       if (facts.color) out.push(`Dot colour = ${facts.color} (brighter = higher).`);
+      if (facts.r !== undefined) {
+        const mag = Math.abs(facts.r);
+        const strength =
+          mag >= 0.7 ? 'strong' : mag >= 0.4 ? 'moderate' : mag >= 0.2 ? 'weak' : 'negligible';
+        const dir = facts.r > 0 ? 'positive' : facts.r < 0 ? 'negative' : 'flat';
+        out.push(
+          `The amber line is the linear fit; r = ${facts.r.toFixed(2)} (${strength} ${dir} correlation). Correlation is not causation, and r only captures a straight-line relationship.`
+        );
+      }
       if (facts.renderedCount !== undefined) {
         out.push(
           `${facts.renderedCount} article${facts.renderedCount === 1 ? '' : 's'} had both metrics and could be plotted.`
         );
       }
+      break;
+    case 'correlation_matrix':
+      out.push(
+        'Read off-diagonal cells: a strong warm/cool cell flags two metrics worth inspecting as a scatter (click a cell to drill in). Correlation is not causation, and it only captures straight-line relationships.'
+      );
+      if (facts.renderedCount !== undefined) {
+        out.push(
+          `${facts.renderedCount} metric${facts.renderedCount === 1 ? '' : 's'} in the matrix (the Metric set lever). Cells with too few overlapping articles are left blank.`
+        );
+      }
+      break;
+    case 'cross_tab':
+      out.push(
+        'Bars are ranked by article count; the colour encodes the mean metric value (so a short bar with few articles is a thin sample — read it with care). The count and spread (±σ) are in the hover.'
+      );
+      if (facts.renderedCount !== undefined) {
+        out.push(
+          `${facts.renderedCount} categor${facts.renderedCount === 1 ? 'y' : 'ies'} shown${facts.distinctValues !== undefined && facts.distinctValues > facts.renderedCount ? ` of ${facts.distinctValues}` : ''} (the Top N lever). Categories where no article carries the metric are absent, never zero.`
+        );
+      }
+      break;
+    case 'metric_lead_lag':
+      if (facts.x && facts.y) {
+        out.push(
+          `A peak at lag 0 means ${facts.x} and ${facts.y} move in step; a peak to the right means ${facts.y} follows ${facts.x}, to the left means it leads. Correlation is not causation.`
+        );
+      }
+      if (facts.renderedCount !== undefined) {
+        out.push(
+          `${facts.renderedCount} overlapping hourly bucket${facts.renderedCount === 1 ? '' : 's'} at lag 0 (a sample-size proxy — a thin overlap is a noisy curve).`
+        );
+      }
+      break;
+    case 'parallel_coordinates':
+      out.push(
+        'Each axis is independently scaled to its own range, so a line high on one axis and low on the next is an article that scores high on the first metric and low on the second. Only articles carrying every metric are drawn.'
+      );
+      if (facts.renderedCount !== undefined) {
+        out.push(
+          `${facts.renderedCount} article${facts.renderedCount === 1 ? '' : 's'} drawn (those with all chosen metrics).`
+        );
+      }
+      break;
+    case 'sankey':
+      out.push(
+        'Bands are the top flows between each pair of fields (a long tail is dropped, not summed into a misleading band). A list-valued field can place one article in several bands, so band widths are article-flow weights, not a strict partition.'
+      );
       break;
     case 'cross_probe_lead_lag':
       out.push(
@@ -229,6 +298,8 @@ function networkSizeLabel(v: string): string {
   switch (v) {
     case 'degree':
       return 'how many different entities it connects to (more links = bigger)';
+    case 'metric':
+      return 'the mean of the chosen metric over the articles mentioning it (higher = bigger; grey = no such article)';
     case 'total_count':
     default:
       return 'how often it is mentioned alongside others (more = bigger)';
@@ -243,6 +314,8 @@ function networkColorLabel(v: string): string {
       return 'which source it came from — one colour per source, grey when shared (Phase 131a)';
     case 'uniform':
       return 'nothing — all dots share one colour';
+    case 'metric':
+      return 'the mean of the chosen metric over its articles (blue→amber low→high; grey = no such article)';
     case 'label':
     default:
       return 'what kind of thing it is — person, place, or organisation';

@@ -1,0 +1,52 @@
+type: object
+description: >
+  Per-article N-metric matrix for parallel coordinates (Phase 125). Each row is
+  one article with a value on every requested metric axis (request order); only
+  articles carrying ALL requested metrics contribute a row (a complete polyline).
+  Capped — `truncated` discloses when the cap bit.
+required:
+  - metrics
+  - rows
+  - truncated
+properties:
+  metrics:
+    type: array
+    description: The metric axes, in order; each row's `values` aligns to this.
+    items:
+      type: string
+    minItems: 2
+  rows:
+    type: array
+    items:
+      type: object
+      required:
+        - articleId
+        - source
+        - values
+      properties:
+        articleId:
+          type: string
+        source:
+          type: string
+        values:
+          type: array
+          items:
+            type: number
+            format: double
+  truncated:
+    type: boolean
+    description: True when the per-article cap bit (showing the first N).
+  scope:
+    type: string
+    nullable: true
+  scopeId:
+    type: string
+    nullable: true
+  windowStart:
+    type: string
+    format: date-time
+    nullable: true
+  windowEnd:
+    type: string
+    format: date-time
+    nullable: true

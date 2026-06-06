@@ -587,6 +587,24 @@ func (e GetContentParamsEntityType) Valid() bool {
 	}
 }
 
+// Defines values for GetCorrelationLeadLagParamsScope.
+const (
+	GetCorrelationLeadLagParamsScopeProbe  GetCorrelationLeadLagParamsScope = "probe"
+	GetCorrelationLeadLagParamsScopeSource GetCorrelationLeadLagParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetCorrelationLeadLagParamsScope enum.
+func (e GetCorrelationLeadLagParamsScope) Valid() bool {
+	switch e {
+	case GetCorrelationLeadLagParamsScopeProbe:
+		return true
+	case GetCorrelationLeadLagParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetEntityCoOccurrenceParamsScope.
 const (
 	GetEntityCoOccurrenceParamsScopeProbe  GetEntityCoOccurrenceParamsScope = "probe"
@@ -599,6 +617,42 @@ func (e GetEntityCoOccurrenceParamsScope) Valid() bool {
 	case GetEntityCoOccurrenceParamsScopeProbe:
 		return true
 	case GetEntityCoOccurrenceParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetadataSankeyParamsScope.
+const (
+	GetMetadataSankeyParamsScopeProbe  GetMetadataSankeyParamsScope = "probe"
+	GetMetadataSankeyParamsScopeSource GetMetadataSankeyParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetadataSankeyParamsScope enum.
+func (e GetMetadataSankeyParamsScope) Valid() bool {
+	switch e {
+	case GetMetadataSankeyParamsScopeProbe:
+		return true
+	case GetMetadataSankeyParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetadataCrossTabParamsScope.
+const (
+	GetMetadataCrossTabParamsScopeProbe  GetMetadataCrossTabParamsScope = "probe"
+	GetMetadataCrossTabParamsScopeSource GetMetadataCrossTabParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetadataCrossTabParamsScope enum.
+func (e GetMetadataCrossTabParamsScope) Valid() bool {
+	switch e {
+	case GetMetadataCrossTabParamsScopeProbe:
+		return true
+	case GetMetadataCrossTabParamsScopeSource:
 		return true
 	default:
 		return false
@@ -683,6 +737,24 @@ func (e GetMetricCorrelationParamsScope) Valid() bool {
 	case GetMetricCorrelationParamsScopeProbe:
 		return true
 	case GetMetricCorrelationParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricParallelCoordsParamsScope.
+const (
+	GetMetricParallelCoordsParamsScopeProbe  GetMetricParallelCoordsParamsScope = "probe"
+	GetMetricParallelCoordsParamsScopeSource GetMetricParallelCoordsParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricParallelCoordsParamsScope enum.
+func (e GetMetricParallelCoordsParamsScope) Valid() bool {
+	switch e {
+	case GetMetricParallelCoordsParamsScopeProbe:
+		return true
+	case GetMetricParallelCoordsParamsScopeSource:
 		return true
 	default:
 		return false
@@ -1822,6 +1894,39 @@ type GetContentParamsLocale string
 // GetContentParamsEntityType defines parameters for GetContent.
 type GetContentParamsEntityType string
 
+// GetCorrelationLeadLagParams defines parameters for GetCorrelationLeadLag.
+type GetCorrelationLeadLagParams struct {
+	// XMetric Metric name bound to the scatter's X position channel (e.g. `word_count`). Required. Only articles carrying both `xMetric` and `yMetric` in the window contribute a point.
+	XMetric string `form:"xMetric" json:"xMetric"`
+
+	// YMetric Metric name bound to the scatter's Y position channel (e.g. `sentiment_score_sentiws`). Required. Only articles carrying both `xMetric` and `yMetric` in the window contribute a point.
+	YMetric string `form:"yMetric" json:"yMetric"`
+
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetCorrelationLeadLagParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// MaxLagHours Symmetric lag bound in hours (default 168, max 720).
+	MaxLagHours *int `form:"maxLagHours,omitempty" json:"maxLagHours,omitempty"`
+}
+
+// GetCorrelationLeadLagParamsScope defines parameters for GetCorrelationLeadLag.
+type GetCorrelationLeadLagParamsScope string
+
 // GetEntitiesParams defines parameters for GetEntities.
 type GetEntitiesParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
@@ -1868,6 +1973,9 @@ type GetEntityCoOccurrenceParams struct {
 
 	// ViewerLanguage Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation.
 	ViewerLanguage *string `form:"viewerLanguage,omitempty" json:"viewerLanguage,omitempty"`
+
+	// NodeMetric Phase 125 — when set, each node carries `metricValue` = the mean of this per-article metric over the articles where the entity appears, so the network cell can size/colour nodes by a metric.
+	NodeMetric *string `form:"nodeMetric,omitempty" json:"nodeMetric,omitempty"`
 }
 
 // GetEntityCoOccurrenceParamsScope defines parameters for GetEntityCoOccurrence.
@@ -1916,6 +2024,63 @@ type GetLanguagesParams struct {
 	// Limit Maximum number of results to return (default 100, max 1000)
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
+
+// GetMetadataSankeyParams defines parameters for GetMetadataSankey.
+type GetMetadataSankeyParams struct {
+	// Fields Comma-separated ordered list of categorical field names (≥2, ≤8).
+	Fields string `form:"fields" json:"fields"`
+
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetadataSankeyParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// TopN Maximum edges per consecutive field pair (default 50, clamped to [1, 200]).
+	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+}
+
+// GetMetadataSankeyParamsScope defines parameters for GetMetadataSankey.
+type GetMetadataSankeyParamsScope string
+
+// GetMetadataCrossTabParams defines parameters for GetMetadataCrossTab.
+type GetMetadataCrossTabParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetadataCrossTabParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// TopN Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200].
+	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+}
+
+// GetMetadataCrossTabParamsScope defines parameters for GetMetadataCrossTab.
+type GetMetadataCrossTabParamsScope string
 
 // GetMetadataDistributionParams defines parameters for GetMetadataDistribution.
 type GetMetadataDistributionParams struct {
@@ -2012,6 +2177,36 @@ type GetMetricCorrelationParams struct {
 
 // GetMetricCorrelationParamsScope defines parameters for GetMetricCorrelation.
 type GetMetricCorrelationParamsScope string
+
+// GetMetricParallelCoordsParams defines parameters for GetMetricParallelCoords.
+type GetMetricParallelCoordsParams struct {
+	// Metrics Comma-separated list of metric names to include in the correlation matrix (e.g. `sentiment_score,word_count,entity_count`). Required; must contain between 2 and 10 names.
+	Metrics string `form:"metrics" json:"metrics"`
+
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetricParallelCoordsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// MaxPoints Maximum number of per-article points to return for the scatter cloud, ordered deterministically by article id. Server clamps values outside [1, 10000] to the nearest bound. When the in-window article set exceeds this cap the response sets `truncated=true` so the dashboard can surface a "showing N of M" note rather than implying the cloud is exhaustive.
+	MaxPoints *int `form:"maxPoints,omitempty" json:"maxPoints,omitempty"`
+}
+
+// GetMetricParallelCoordsParamsScope defines parameters for GetMetricParallelCoords.
+type GetMetricParallelCoordsParamsScope string
 
 // GetMetricScatterParams defines parameters for GetMetricScatter.
 type GetMetricScatterParams struct {
@@ -2433,6 +2628,9 @@ type ServerInterface interface {
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
+	// Generalised metric lead-lag — lagged cross-correlation of two metrics over time
+	// (GET /correlation/lead-lag)
+	GetCorrelationLeadLag(w http.ResponseWriter, r *http.Request, params GetCorrelationLeadLagParams)
 	// Retrieve aggregated named entities
 	// (GET /entities)
 	GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams)
@@ -2448,6 +2646,12 @@ type ServerInterface interface {
 	// Retrieve aggregated language detections
 	// (GET /languages)
 	GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams)
+	// Alluvial flow across an ordered chain of categorical metadata fields
+	// (GET /metadata/sankey)
+	GetMetadataSankey(w http.ResponseWriter, r *http.Request, params GetMetadataSankeyParams)
+	// Cross-tab of a categorical metadata field against a numeric metric
+	// (GET /metadata/{field}/by-metric/{metric})
+	GetMetadataCrossTab(w http.ResponseWriter, r *http.Request, field string, metric string, params GetMetadataCrossTabParams)
 	// Per-scope distribution of a categorical metadata field (top-N by article)
 	// (GET /metadata/{field}/distribution)
 	GetMetadataDistribution(w http.ResponseWriter, r *http.Request, field string, params GetMetadataDistributionParams)
@@ -2460,6 +2664,9 @@ type ServerInterface interface {
 	// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
 	// (GET /metrics/correlation)
 	GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams)
+	// Per-article N-metric matrix for parallel coordinates
+	// (GET /metrics/parallel)
+	GetMetricParallelCoords(w http.ResponseWriter, r *http.Request, params GetMetricParallelCoordsParams)
 	// Paired-metric scatter (Metadata mining × visual-channel binding)
 	// (GET /metrics/scatter)
 	GetMetricScatter(w http.ResponseWriter, r *http.Request, params GetMetricScatterParams)
@@ -2565,6 +2772,12 @@ func (_ Unimplemented) GetContent(w http.ResponseWriter, r *http.Request, entity
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Generalised metric lead-lag — lagged cross-correlation of two metrics over time
+// (GET /correlation/lead-lag)
+func (_ Unimplemented) GetCorrelationLeadLag(w http.ResponseWriter, r *http.Request, params GetCorrelationLeadLagParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Retrieve aggregated named entities
 // (GET /entities)
 func (_ Unimplemented) GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams) {
@@ -2595,6 +2808,18 @@ func (_ Unimplemented) GetLanguages(w http.ResponseWriter, r *http.Request, para
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Alluvial flow across an ordered chain of categorical metadata fields
+// (GET /metadata/sankey)
+func (_ Unimplemented) GetMetadataSankey(w http.ResponseWriter, r *http.Request, params GetMetadataSankeyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Cross-tab of a categorical metadata field against a numeric metric
+// (GET /metadata/{field}/by-metric/{metric})
+func (_ Unimplemented) GetMetadataCrossTab(w http.ResponseWriter, r *http.Request, field string, metric string, params GetMetadataCrossTabParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Per-scope distribution of a categorical metadata field (top-N by article)
 // (GET /metadata/{field}/distribution)
 func (_ Unimplemented) GetMetadataDistribution(w http.ResponseWriter, r *http.Request, field string, params GetMetadataDistributionParams) {
@@ -2616,6 +2841,12 @@ func (_ Unimplemented) GetMetricsAvailable(w http.ResponseWriter, r *http.Reques
 // Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
 // (GET /metrics/correlation)
 func (_ Unimplemented) GetMetricCorrelation(w http.ResponseWriter, r *http.Request, params GetMetricCorrelationParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-article N-metric matrix for parallel coordinates
+// (GET /metrics/parallel)
+func (_ Unimplemented) GetMetricParallelCoords(w http.ResponseWriter, r *http.Request, params GetMetricParallelCoordsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2942,6 +3173,117 @@ func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetCorrelationLeadLag operation middleware
+func (siw *ServerInterfaceWrapper) GetCorrelationLeadLag(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCorrelationLeadLagParams
+
+	// ------------- Required query parameter "xMetric" -------------
+
+	if paramValue := r.URL.Query().Get("xMetric"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "xMetric"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "xMetric", r.URL.Query(), &params.XMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "xMetric", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "yMetric" -------------
+
+	if paramValue := r.URL.Query().Get("yMetric"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "yMetric"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "yMetric", r.URL.Query(), &params.YMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "yMetric", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "maxLagHours" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxLagHours", r.URL.Query(), &params.MaxLagHours, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxLagHours", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCorrelationLeadLag(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetEntities operation middleware
 func (siw *ServerInterfaceWrapper) GetEntities(w http.ResponseWriter, r *http.Request) {
 
@@ -3093,6 +3435,14 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 		return
 	}
 
+	// ------------- Optional query parameter "nodeMetric" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeMetric", r.URL.Query(), &params.NodeMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeMetric", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetEntityCoOccurrence(w, r, params)
 	}))
@@ -3202,6 +3552,201 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetLanguages(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetadataSankey operation middleware
+func (siw *ServerInterfaceWrapper) GetMetadataSankey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetadataSankeyParams
+
+	// ------------- Required query parameter "fields" -------------
+
+	if paramValue := r.URL.Query().Get("fields"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "fields"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "fields", r.URL.Query(), &params.Fields, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fields", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "topN" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetadataSankey(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetadataCrossTab operation middleware
+func (siw *ServerInterfaceWrapper) GetMetadataCrossTab(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "field" -------------
+	var field string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "field", chi.URLParam(r, "field"), &field, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "field", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "metric" -------------
+	var metric string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "metric", chi.URLParam(r, "metric"), &metric, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metric", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetadataCrossTabParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "topN" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetadataCrossTab(w, r, field, metric, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3510,6 +4055,102 @@ func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMetricCorrelation(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetricParallelCoords operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricParallelCoords(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricParallelCoordsParams
+
+	// ------------- Required query parameter "metrics" -------------
+
+	if paramValue := r.URL.Query().Get("metrics"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "metrics"})
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "metrics", r.URL.Query(), &params.Metrics, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "metrics", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "maxPoints" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "maxPoints", r.URL.Query(), &params.MaxPoints, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "maxPoints", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetricParallelCoords(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5239,6 +5880,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/correlation/lead-lag", wrapper.GetCorrelationLeadLag)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/entities", wrapper.GetEntities)
 	})
 	r.Group(func(r chi.Router) {
@@ -5254,6 +5898,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/languages", wrapper.GetLanguages)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metadata/sankey", wrapper.GetMetadataSankey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metadata/{field}/by-metric/{metric}", wrapper.GetMetadataCrossTab)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metadata/{field}/distribution", wrapper.GetMetadataDistribution)
 	})
 	r.Group(func(r chi.Router) {
@@ -5264,6 +5914,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics/correlation", wrapper.GetMetricCorrelation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics/parallel", wrapper.GetMetricParallelCoords)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics/scatter", wrapper.GetMetricScatter)
@@ -5632,6 +6285,107 @@ func (response GetContent500JSONResponse) VisitGetContentResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetCorrelationLeadLagRequestObject struct {
+	Params GetCorrelationLeadLagParams
+}
+
+type GetCorrelationLeadLagResponseObject interface {
+	VisitGetCorrelationLeadLagResponse(w http.ResponseWriter) error
+}
+
+type GetCorrelationLeadLag200JSONResponse struct {
+	// BucketCountAtZero Overlapping hourly buckets at lag 0 (a sample-size proxy).
+	BucketCountAtZero *int64 `json:"bucketCountAtZero,omitempty"`
+
+	// MaxLagHours Symmetric lag bound; `points` span -maxLagHours..+maxLagHours.
+	MaxLagHours     int      `json:"maxLagHours"`
+	PeakCorrelation *float64 `json:"peakCorrelation,omitempty"`
+	PeakLagHours    *int     `json:"peakLagHours,omitempty"`
+
+	// Points One entry per integer lag in [-maxLagHours, +maxLagHours].
+	Points []struct {
+		// Correlation Pearson correlation at this lag; null when too few overlapping buckets or zero variance.
+		Correlation *float64 `json:"correlation"`
+		LagHours    int      `json:"lagHours"`
+	} `json:"points"`
+	Scope       *string    `json:"scope,omitempty"`
+	ScopeId     *string    `json:"scopeId,omitempty"`
+	WindowEnd   *time.Time `json:"windowEnd,omitempty"`
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+	XMetric     string     `json:"xMetric"`
+	YMetric     string     `json:"yMetric"`
+}
+
+func (response GetCorrelationLeadLag200JSONResponse) VisitGetCorrelationLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCorrelationLeadLag400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetCorrelationLeadLag400JSONResponse) VisitGetCorrelationLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCorrelationLeadLag404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetCorrelationLeadLag404JSONResponse) VisitGetCorrelationLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCorrelationLeadLag500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetCorrelationLeadLag500JSONResponse) VisitGetCorrelationLeadLagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetEntitiesRequestObject struct {
 	Params GetEntitiesParams
 }
@@ -5746,6 +6500,9 @@ type GetEntityCoOccurrence200JSONResponse struct {
 		// Degree Number of distinct neighbours in the returned edge set.
 		Degree int64  `json:"degree"`
 		Label  string `json:"label"`
+
+		// MetricValue Phase 125 node-metric binding. The mean of the requested `nodeMetric` over the articles where this entity appears, or null when no `nodeMetric` was requested or no article carrying it mentions the entity. Lets the network cell size/colour nodes by a metric (e.g. mean sentiment of the mentioning articles) rather than only graph-intrinsic degree/weight.
+		MetricValue *float64 `json:"metricValue,omitempty"`
 
 		// Presence Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114).
 		Presence *[]string `json:"presence,omitempty"`
@@ -5880,6 +6637,9 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 		// Degree Number of distinct neighbours in the returned edge set.
 		Degree int64  `json:"degree"`
 		Label  string `json:"label"`
+
+		// MetricValue Phase 125 node-metric binding. The mean of the requested `nodeMetric` over the articles where this entity appears, or null when no `nodeMetric` was requested or no article carrying it mentions the entity. Lets the network cell size/colour nodes by a metric (e.g. mean sentiment of the mentioning articles) rather than only graph-intrinsic degree/weight.
+		MetricValue *float64 `json:"metricValue,omitempty"`
 
 		// Presence Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114).
 		Presence *[]string `json:"presence,omitempty"`
@@ -6100,6 +6860,214 @@ type GetLanguages500JSONResponse struct {
 }
 
 func (response GetLanguages500JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataSankeyRequestObject struct {
+	Params GetMetadataSankeyParams
+}
+
+type GetMetadataSankeyResponseObject interface {
+	VisitGetMetadataSankeyResponse(w http.ResponseWriter) error
+}
+
+type GetMetadataSankey200JSONResponse struct {
+	// Fields The ordered field chain (layers); ≥2.
+	Fields []string `json:"fields"`
+	Links  []struct {
+		// Source Source node id.
+		Source string `json:"source"`
+
+		// Target Target node id.
+		Target string `json:"target"`
+
+		// Value Distinct in-scope articles flowing source → target.
+		Value int64 `json:"value"`
+	} `json:"links"`
+	Nodes []struct {
+		Field string `json:"field"`
+
+		// Id Layer-namespaced node id (`<layer>::<value>`).
+		Id    string `json:"id"`
+		Layer int    `json:"layer"`
+		Value string `json:"value"`
+	} `json:"nodes"`
+	Scope       *string    `json:"scope,omitempty"`
+	ScopeId     *string    `json:"scopeId,omitempty"`
+	WindowEnd   *time.Time `json:"windowEnd,omitempty"`
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+}
+
+func (response GetMetadataSankey200JSONResponse) VisitGetMetadataSankeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataSankey400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataSankey400JSONResponse) VisitGetMetadataSankeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataSankey404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataSankey404JSONResponse) VisitGetMetadataSankeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataSankey500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataSankey500JSONResponse) VisitGetMetadataSankeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataCrossTabRequestObject struct {
+	Field  string `json:"field"`
+	Metric string `json:"metric"`
+	Params GetMetadataCrossTabParams
+}
+
+type GetMetadataCrossTabResponseObject interface {
+	VisitGetMetadataCrossTabResponse(w http.ResponseWriter) error
+}
+
+type GetMetadataCrossTab200JSONResponse struct {
+	Categories []struct {
+		// Articles Distinct in-scope articles in this category that carry the metric.
+		Articles int64 `json:"articles"`
+
+		// Mean Mean of the metric over the articles in this category.
+		Mean float64 `json:"mean"`
+
+		// Std Sample standard deviation of the metric in this category (NaN/0 for a single article).
+		Std   float64 `json:"std"`
+		Value string  `json:"value"`
+	} `json:"categories"`
+
+	// DistinctValues Total number of distinct category values (drives "showing top N of M").
+	DistinctValues int64      `json:"distinctValues"`
+	Field          string     `json:"field"`
+	Metric         string     `json:"metric"`
+	Scope          *string    `json:"scope,omitempty"`
+	ScopeId        *string    `json:"scopeId,omitempty"`
+	WindowEnd      *time.Time `json:"windowEnd,omitempty"`
+	WindowStart    *time.Time `json:"windowStart,omitempty"`
+}
+
+func (response GetMetadataCrossTab200JSONResponse) VisitGetMetadataCrossTabResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataCrossTab400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataCrossTab400JSONResponse) VisitGetMetadataCrossTabResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataCrossTab404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataCrossTab404JSONResponse) VisitGetMetadataCrossTabResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataCrossTab500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataCrossTab500JSONResponse) VisitGetMetadataCrossTabResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -6450,6 +7418,101 @@ type GetMetricCorrelation500JSONResponse struct {
 }
 
 func (response GetMetricCorrelation500JSONResponse) VisitGetMetricCorrelationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricParallelCoordsRequestObject struct {
+	Params GetMetricParallelCoordsParams
+}
+
+type GetMetricParallelCoordsResponseObject interface {
+	VisitGetMetricParallelCoordsResponse(w http.ResponseWriter) error
+}
+
+type GetMetricParallelCoords200JSONResponse struct {
+	// Metrics The metric axes, in order; each row's `values` aligns to this.
+	Metrics []string `json:"metrics"`
+	Rows    []struct {
+		ArticleId string    `json:"articleId"`
+		Source    string    `json:"source"`
+		Values    []float64 `json:"values"`
+	} `json:"rows"`
+	Scope   *string `json:"scope,omitempty"`
+	ScopeId *string `json:"scopeId,omitempty"`
+
+	// Truncated True when the per-article cap bit (showing the first N).
+	Truncated   bool       `json:"truncated"`
+	WindowEnd   *time.Time `json:"windowEnd,omitempty"`
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+}
+
+func (response GetMetricParallelCoords200JSONResponse) VisitGetMetricParallelCoordsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricParallelCoords400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetricParallelCoords400JSONResponse) VisitGetMetricParallelCoordsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricParallelCoords404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetricParallelCoords404JSONResponse) VisitGetMetricParallelCoordsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetricParallelCoords500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetricParallelCoords500JSONResponse) VisitGetMetricParallelCoordsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -8626,6 +9689,9 @@ type StrictServerInterface interface {
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
+	// Generalised metric lead-lag — lagged cross-correlation of two metrics over time
+	// (GET /correlation/lead-lag)
+	GetCorrelationLeadLag(ctx context.Context, request GetCorrelationLeadLagRequestObject) (GetCorrelationLeadLagResponseObject, error)
 	// Retrieve aggregated named entities
 	// (GET /entities)
 	GetEntities(ctx context.Context, request GetEntitiesRequestObject) (GetEntitiesResponseObject, error)
@@ -8641,6 +9707,12 @@ type StrictServerInterface interface {
 	// Retrieve aggregated language detections
 	// (GET /languages)
 	GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error)
+	// Alluvial flow across an ordered chain of categorical metadata fields
+	// (GET /metadata/sankey)
+	GetMetadataSankey(ctx context.Context, request GetMetadataSankeyRequestObject) (GetMetadataSankeyResponseObject, error)
+	// Cross-tab of a categorical metadata field against a numeric metric
+	// (GET /metadata/{field}/by-metric/{metric})
+	GetMetadataCrossTab(ctx context.Context, request GetMetadataCrossTabRequestObject) (GetMetadataCrossTabResponseObject, error)
 	// Per-scope distribution of a categorical metadata field (top-N by article)
 	// (GET /metadata/{field}/distribution)
 	GetMetadataDistribution(ctx context.Context, request GetMetadataDistributionRequestObject) (GetMetadataDistributionResponseObject, error)
@@ -8653,6 +9725,9 @@ type StrictServerInterface interface {
 	// Pairwise Pearson correlation matrix (Metadata mining x correlation matrix)
 	// (GET /metrics/correlation)
 	GetMetricCorrelation(ctx context.Context, request GetMetricCorrelationRequestObject) (GetMetricCorrelationResponseObject, error)
+	// Per-article N-metric matrix for parallel coordinates
+	// (GET /metrics/parallel)
+	GetMetricParallelCoords(ctx context.Context, request GetMetricParallelCoordsRequestObject) (GetMetricParallelCoordsResponseObject, error)
 	// Paired-metric scatter (Metadata mining × visual-channel binding)
 	// (GET /metrics/scatter)
 	GetMetricScatter(ctx context.Context, request GetMetricScatterRequestObject) (GetMetricScatterResponseObject, error)
@@ -8867,6 +9942,32 @@ func (sh *strictHandler) GetContent(w http.ResponseWriter, r *http.Request, enti
 	}
 }
 
+// GetCorrelationLeadLag operation middleware
+func (sh *strictHandler) GetCorrelationLeadLag(w http.ResponseWriter, r *http.Request, params GetCorrelationLeadLagParams) {
+	var request GetCorrelationLeadLagRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCorrelationLeadLag(ctx, request.(GetCorrelationLeadLagRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCorrelationLeadLag")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCorrelationLeadLagResponseObject); ok {
+		if err := validResponse.VisitGetCorrelationLeadLagResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetEntities operation middleware
 func (sh *strictHandler) GetEntities(w http.ResponseWriter, r *http.Request, params GetEntitiesParams) {
 	var request GetEntitiesRequestObject
@@ -9000,6 +10101,60 @@ func (sh *strictHandler) GetLanguages(w http.ResponseWriter, r *http.Request, pa
 	}
 }
 
+// GetMetadataSankey operation middleware
+func (sh *strictHandler) GetMetadataSankey(w http.ResponseWriter, r *http.Request, params GetMetadataSankeyParams) {
+	var request GetMetadataSankeyRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetadataSankey(ctx, request.(GetMetadataSankeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetadataSankey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetadataSankeyResponseObject); ok {
+		if err := validResponse.VisitGetMetadataSankeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetadataCrossTab operation middleware
+func (sh *strictHandler) GetMetadataCrossTab(w http.ResponseWriter, r *http.Request, field string, metric string, params GetMetadataCrossTabParams) {
+	var request GetMetadataCrossTabRequestObject
+
+	request.Field = field
+	request.Metric = metric
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetadataCrossTab(ctx, request.(GetMetadataCrossTabRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetadataCrossTab")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetadataCrossTabResponseObject); ok {
+		if err := validResponse.VisitGetMetadataCrossTabResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMetadataDistribution operation middleware
 func (sh *strictHandler) GetMetadataDistribution(w http.ResponseWriter, r *http.Request, field string, params GetMetadataDistributionParams) {
 	var request GetMetadataDistributionRequestObject
@@ -9098,6 +10253,32 @@ func (sh *strictHandler) GetMetricCorrelation(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetricCorrelationResponseObject); ok {
 		if err := validResponse.VisitGetMetricCorrelationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetricParallelCoords operation middleware
+func (sh *strictHandler) GetMetricParallelCoords(w http.ResponseWriter, r *http.Request, params GetMetricParallelCoordsParams) {
+	var request GetMetricParallelCoordsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetricParallelCoords(ctx, request.(GetMetricParallelCoordsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetricParallelCoords")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetricParallelCoordsResponseObject); ok {
+		if err := validResponse.VisitGetMetricParallelCoordsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -1,0 +1,27 @@
+entityId: howto_parallel_coordinates
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "One line per article threaded across several metric axes — read clusters of lines that move together and crossings that show trade-offs."
+    long: >
+      Parallel coordinates show many metrics at once. Each vertical axis is one metric; each line is
+      one article, connecting its value on every axis. Bundles of near-parallel lines are groups of
+      similar articles; lines that cross between two axes are articles that score high on one metric
+      and low on the next (a trade-off). Each axis is scaled to its own min–max, so the shape is
+      comparable across metrics on very different scales.
+  methodological:
+    short: "Per-article pivot of N metrics over the scope; only articles carrying every metric are drawn. Each axis independently min–max normalised client-side."
+    long: >
+      The server pivots aer_gold.metrics per article into an N-value vector (one avgIf per metric),
+      keeping only articles that carry every requested metric so each polyline is complete. The cell
+      normalises each axis to its own observed min–max for display; the export carries the raw values.
+      The axis count is capped at 8 for readability and the article count is capped (a disclosed
+      "showing first N"). A multi-language scope requires a validated equivalence grant for every
+      metric; absent that, the cell refuses with a Level-1 alternative (WP-004 §5.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-004 §5.2"

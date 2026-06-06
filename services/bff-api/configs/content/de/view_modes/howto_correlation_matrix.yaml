@@ -1,0 +1,32 @@
+entityId: howto_correlation_matrix
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Jede Zelle ist die Korrelation zweier Kennzahlen im Bereich — warm = sie steigen gemeinsam, kühl = die eine fällt, wenn die andere steigt, blass = kein Zusammenhang."
+    long: >
+      Eine Korrelations-Matrix beantwortet „welche dieser Messgrößen bewegen sich gemeinsam, welche
+      sind unabhängig?". Lies die Zellen abseits der Diagonale: eine kräftig warme oder kühle Zelle
+      markiert ein Paar, das sich als Streudiagramm zu öffnen lohnt, um die Form hinter der Zahl zu
+      sehen. Die Diagonale ist immer 1 (eine Kennzahl korreliert perfekt mit sich selbst).
+      Korrelation ist keine Kausalität, und Pearsons r erfasst nur lineare Zusammenhänge — ein
+      gekrümmter Zusammenhang kann als schwaches r erscheinen.
+  methodological:
+    short: "Paarweises Pearson-r über 5-Minuten-Bucket-Mittel der gewählten Kennzahlen; Zellen mit zu wenigen überlappenden Buckets bleiben leer, nie null."
+    long: >
+      Für jede Kennzahl der gewählten Menge berechnet der Server Bucket-Mittel (5-Minuten-Auflösung,
+      wie der Zeitreihen-Endpoint), dann Pearson r über jedes Paar der Bucket-Mittel-Reihen. Die
+      Beobachtungseinheit ist der Zeit-Bucket, nicht der Artikel — also ein „bewegen sich diese
+      Kennzahlen über die Zeit gemeinsam", verschieden vom artikelweisen Streudiagramm. Ein Paar mit
+      zu wenigen überlappenden Buckets liefert null und wird leer dargestellt
+      (disclose-never-coerce, WP-003 §3.2), nie als erzwungene Null. Eine bereichsübergreifende
+      (mehrsprachige) Matrix erfordert für jede Kennzahl eine validierte Äquivalenz-Freigabe; fehlt
+      sie, verweigert die Zelle mit einer Level-1-Alternative, statt nicht-vergleichbare Skalen zu
+      korrelieren (WP-004 §5.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §5.2"

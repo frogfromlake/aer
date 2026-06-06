@@ -1,0 +1,62 @@
+get:
+  tags: [Metrics]
+  summary: Alluvial flow across an ordered chain of categorical metadata fields
+  description: >
+    For an ordered list of categorical metadata `fields` (≥2, e.g.
+    `article_type,section`), returns the alluvial flow: nodes are category values
+    per layer, links are distinct-article flows between consecutive layers
+    (top-N per pair). Reads `aer_gold.article_metadata` (FINAL). Scope is
+    resolved from the union of `scope`/`scopeId`, `probeIds`, `sourceIds`. No
+    metric normalization is involved (article counts), so no equivalence gate.
+  operationId: getMetadataSankey
+  parameters:
+    - name: fields
+      in: query
+      required: true
+      description: Comma-separated ordered list of categorical field names (≥2, ≤8).
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - name: topN
+      in: query
+      description: Maximum edges per consecutive field pair (default 50, clamped to [1, 200]).
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+  responses:
+    '200':
+      description: Alluvial flow.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/SankeyResponse.yaml'
+    '400':
+      description: Invalid scope/window or fewer than two fields.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

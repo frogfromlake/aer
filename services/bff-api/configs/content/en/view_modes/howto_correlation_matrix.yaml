@@ -1,0 +1,30 @@
+entityId: howto_correlation_matrix
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Each cell is the correlation of two metrics over the scope — warm = they rise together, cool = one falls as the other rises, pale = unrelated."
+    long: >
+      A correlation matrix answers "across this set of measurements, which move together and which
+      are independent?". Read the off-diagonal cells: a strong warm or cool cell flags a pair worth
+      opening as a scatter to see the shape behind the number. The diagonal is always 1 (a metric
+      correlates perfectly with itself). Correlation is not causation, and Pearson r only captures
+      straight-line relationships — a curved relationship can read as a weak r.
+  methodological:
+    short: "Pairwise Pearson r over per-5-minute-bucket means of the chosen metric set; cells with too few overlapping buckets are left blank, never zero."
+    long: >
+      For every metric in the chosen set the server computes per-bucket means (5-minute resolution,
+      matching the time-series endpoint), then Pearson r over each pair of bucket-mean series. Note
+      the unit of observation is the time-bucket, not the article — this is a "do these metrics move
+      together over time" correlation, distinct from the per-article scatter. A pair with too few
+      overlapping buckets returns null and is rendered blank (disclose-never-coerce, WP-003 §3.2),
+      never a coerced zero. A cross-frame (multi-language) matrix requires a validated equivalence
+      grant for every metric in the set; absent that, the cell refuses with a Level-1 alternative
+      rather than correlating non-comparable scales (WP-004 §5.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §5.2"

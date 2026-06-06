@@ -75,6 +75,17 @@ properties:
             otherwise it keeps the source surface form (`text`). This is the
             per-language rdfs:label Wikidata publishes — never a machine
             translation.
+        metricValue:
+          type: number
+          format: double
+          nullable: true
+          description: >
+            Phase 125 node-metric binding. The mean of the requested `nodeMetric`
+            over the articles where this entity appears, or null when no
+            `nodeMetric` was requested or no article carrying it mentions the
+            entity. Lets the network cell size/colour nodes by a metric (e.g.
+            mean sentiment of the mentioning articles) rather than only
+            graph-intrinsic degree/weight.
   edges:
     type: array
     items:

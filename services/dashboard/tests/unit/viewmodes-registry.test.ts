@@ -28,7 +28,12 @@ describe('view-mode registry', () => {
       'revision_discourse_shift',
       'revision_edit_clusters',
       'cross_probe_lead_lag',
-      'categorical_distribution'
+      'categorical_distribution',
+      'correlation_matrix',
+      'cross_tab',
+      'metric_lead_lag',
+      'parallel_coordinates',
+      'sankey'
     ]);
   });
 
@@ -127,6 +132,9 @@ describe('pillar mapping', () => {
       'topic_distribution',
       'metric_scatter',
       'categorical_distribution',
+      'correlation_matrix',
+      'cross_tab',
+      'parallel_coordinates',
       'revision_activity'
     ]);
     // Episteme (diachronic): time_series + topic_evolution
@@ -143,6 +151,8 @@ describe('pillar mapping', () => {
     expect(getPillar('rhizome').presentations).toEqual([
       'cooccurrence_network',
       'cross_probe_lead_lag',
+      'metric_lead_lag',
+      'sankey',
       'revision_edit_clusters'
     ]);
   });
@@ -158,6 +168,9 @@ describe('pillar mapping', () => {
       'topic_distribution',
       'metric_scatter',
       'categorical_distribution',
+      'correlation_matrix',
+      'cross_tab',
+      'parallel_coordinates',
       'revision_activity'
     ]);
 
@@ -173,6 +186,8 @@ describe('pillar mapping', () => {
     expect(rhizIds).toEqual([
       'cooccurrence_network',
       'cross_probe_lead_lag',
+      'metric_lead_lag',
+      'sankey',
       'revision_edit_clusters'
     ]);
 
@@ -182,6 +197,9 @@ describe('pillar mapping', () => {
       'topic_distribution',
       'metric_scatter',
       'categorical_distribution',
+      'correlation_matrix',
+      'cross_tab',
+      'parallel_coordinates',
       'revision_activity'
     ]);
   });

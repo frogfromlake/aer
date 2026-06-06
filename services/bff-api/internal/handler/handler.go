@@ -88,6 +88,10 @@ type Store interface {
 	GetProbeEquivalence(ctx context.Context, start, end time.Time, sources []string) ([]storage.ProbeEquivalenceMetric, error)
 	GetEquivalenceStatus(ctx context.Context, metricName string) (*storage.EquivalenceStatusRow, error)
 	GetTemporalLeadLag(ctx context.Context, referenceSources, comparedSources []string, start, end time.Time, maxLagHours int) (storage.LeadLagResult, error)
+	// Phase 125: generalised metric lead-lag (two metrics' hourly series, one scope).
+	GetMetricLeadLag(ctx context.Context, sources []string, xMetric, yMetric string, start, end time.Time, maxLagHours int) (storage.LeadLagResult, error)
+	// Phase 125: per-article N-metric matrix for parallel coordinates.
+	GetParallelCoords(ctx context.Context, metrics, sources []string, start, end time.Time, maxPoints int) (storage.ParallelCoordResult, error)
 	CheckBaselineExists(ctx context.Context, metricName string, source *string) (bool, error)
 	CheckEquivalenceExists(ctx context.Context, metricName string) (bool, error)
 	GetEntities(ctx context.Context, start, end time.Time, sources []string, label *string, limit int) ([]storage.EntityRow, error)
@@ -100,7 +104,7 @@ type Store interface {
 	GetMetricDistribution(ctx context.Context, metricName string, sources []string, start, end time.Time, bins int) (storage.DistributionResult, error)
 	GetMetricHeatmap(ctx context.Context, metricName string, sources []string, xDim, yDim storage.HeatmapDimension, start, end time.Time) ([]storage.HeatmapCell, error)
 	GetMetricCorrelation(ctx context.Context, metricNames []string, sources []string, start, end time.Time) (storage.CorrelationResult, error)
-	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int, viewerLanguage string) (storage.CoOccurrenceResult, error)
+	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int, viewerLanguage string, nodeMetric string) (storage.CoOccurrenceResult, error)
 	// Phase 131: paired-metric scatter over aer_gold.metrics (visual-channel binding).
 	GetMetricScatter(ctx context.Context, xMetric, yMetric string, sizeMetric, colorMetric *string, sources []string, start, end time.Time, maxPoints int) (storage.ScatterResult, error)
 	// Phase 120: BERTopic topic-distribution endpoint over aer_gold.topic_assignments.
@@ -115,6 +119,10 @@ type Store interface {
 	// over aer_gold.article_metadata.
 	GetCategoricalDistribution(ctx context.Context, field string, sources []string, start, end time.Time, topN int) (storage.CategoricalDistributionResult, error)
 	GetScopeAvailableMetadata(ctx context.Context, start, end time.Time, sources []string) (storage.ScopeMetadataAvailability, error)
+	// Phase 125: cross-tab of a categorical field × a numeric metric (article_id JOIN).
+	GetCrossTab(ctx context.Context, field, metric string, sources []string, start, end time.Time, topN int) (storage.CrossTabResult, error)
+	// Phase 125: alluvial flow across an ordered chain of categorical fields.
+	GetSankey(ctx context.Context, fields, sources []string, start, end time.Time, topN int) (storage.SankeyResult, error)
 	// Phase 122d.0: Silent-Edit Observability — aggregation + per-article
 	// chain over aer_gold.article_revisions.
 	GetRevisionActivity(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error)

@@ -1,0 +1,31 @@
+entityId: howto_cross_tab
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "A metric broken down by a metadata category — each bar is one category, its length/colour the mean of the metric among those articles."
+    long: >
+      A cross-tab answers "does this metric differ by category?" — e.g. is sentiment more positive in
+      one section than another, or are some authors' articles longer. Each bar is one value of the
+      chosen metadata field; the bar shows the mean of the chosen metric over the articles in that
+      category, and the hover gives the article count and spread. Read a short bar built on few
+      articles with care — a small sample is a noisy mean.
+  methodological:
+    short: "Per-category mean of a numeric metric, from a JOIN of article_metadata (the field) × metrics (the metric) on article_id; top-N by article count."
+    long: >
+      The server joins aer_gold.article_metadata (the categorical field, arrayJoin-expanded, read
+      FINAL for exact distinct-article counts) with aer_gold.metrics (the numeric metric, pivoted per
+      article) on article_id, then per category value computes the distinct-article count and the
+      metric's mean and sample standard deviation. Categories are ranked by article count and capped
+      at the Top-N; the full distinct-value count is disclosed so truncation is never silent. A
+      category where no article carries the metric is absent, never a coerced zero (WP-003 §3.2). For
+      a list-valued field an article may appear under several categories. A cross-frame (multi-
+      language) request requires the metric's validated equivalence grant; absent that, the cell
+      refuses with a Level-1 alternative (WP-004 §5.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §5.2"

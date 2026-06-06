@@ -1,0 +1,29 @@
+entityId: howto_parallel_coordinates
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Eine Linie je Artikel über mehrere Kennzahl-Achsen — lies Bündel gemeinsam verlaufender Linien und Kreuzungen, die Trade-offs zeigen."
+    long: >
+      Parallel-Koordinaten zeigen viele Kennzahlen auf einmal. Jede senkrechte Achse ist eine
+      Kennzahl; jede Linie ist ein Artikel und verbindet seinen Wert auf jeder Achse. Bündel nahezu
+      paralleler Linien sind Gruppen ähnlicher Artikel; Linien, die zwischen zwei Achsen kreuzen, sind
+      Artikel mit hohem Wert auf der einen und niedrigem auf der nächsten Kennzahl (ein Trade-off).
+      Jede Achse ist auf ihr eigenes Min–Max skaliert, sodass die Form auch über sehr verschieden
+      skalierte Kennzahlen vergleichbar ist.
+  methodological:
+    short: "Per-Artikel-Pivot von N Kennzahlen über den Bereich; nur Artikel mit allen Kennzahlen werden gezeichnet. Jede Achse wird clientseitig eigen-min–max-normiert."
+    long: >
+      Der Server pivotiert aer_gold.metrics je Artikel in einen N-Werte-Vektor (ein avgIf je
+      Kennzahl) und behält nur Artikel, die jede angeforderte Kennzahl tragen, damit jede Linie
+      vollständig ist. Die Zelle normiert jede Achse zur Anzeige auf ihr eigenes beobachtetes
+      Min–Max; der Export trägt die Rohwerte. Die Achsenzahl ist zur Lesbarkeit auf 8 gedeckelt, die
+      Artikelzahl ebenfalls (offengelegt als „erste N"). Ein mehrsprachiger Bereich erfordert für
+      jede Kennzahl eine validierte Äquivalenz-Freigabe; fehlt sie, verweigert die Zelle mit einer
+      Level-1-Alternative (WP-004 §5.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-004 §5.2"

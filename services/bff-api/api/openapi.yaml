@@ -29,6 +29,10 @@ paths:
     $ref: './paths/metrics_available.yaml'
   /metrics/correlation:
     $ref: './paths/metrics_correlation.yaml'
+  /correlation/lead-lag:
+    $ref: './paths/correlation_lead_lag.yaml'
+  /metrics/parallel:
+    $ref: './paths/metrics_parallel.yaml'
   /metrics/{metricName}/provenance:
     $ref: './paths/metrics_provenance.yaml'
   /metrics/{metricName}/distribution:
@@ -43,6 +47,10 @@ paths:
     $ref: './paths/scope_available_metadata.yaml'
   /metadata/{field}/distribution:
     $ref: './paths/metadata_distribution.yaml'
+  /metadata/{field}/by-metric/{metric}:
+    $ref: './paths/metadata_crosstab.yaml'
+  /metadata/sankey:
+    $ref: './paths/metadata_sankey.yaml'
   /entities:
     $ref: './paths/entities.yaml'
   /entities/cooccurrence:

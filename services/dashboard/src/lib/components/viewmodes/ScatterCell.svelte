@@ -74,6 +74,37 @@
   const hasSize = $derived(!!sizeMetric);
   const hasColor = $derived(!!colorMetric);
 
+  // Phase 125 (A1) — bivariate correlation: OLS fit + Pearson r over the
+  // per-article points. Null when there are too few points or an axis has no
+  // variance (a vertical/horizontal cloud has no defined slope or r).
+  const regression = $derived.by<{ slope: number; intercept: number; r: number; n: number } | null>(
+    () => {
+      const rows = points;
+      const n = rows.length;
+      if (n < 3) return null;
+      let sx = 0;
+      let sy = 0;
+      let sxx = 0;
+      let syy = 0;
+      let sxy = 0;
+      for (const p of rows) {
+        sx += p.x;
+        sy += p.y;
+        sxx += p.x * p.x;
+        syy += p.y * p.y;
+        sxy += p.x * p.y;
+      }
+      const dx = n * sxx - sx * sx;
+      const dy = n * syy - sy * sy;
+      if (dx <= 0 || dy <= 0) return null; // no variance on an axis
+      const slope = (n * sxy - sx * sy) / dx;
+      const intercept = (sy - slope * sx) / n;
+      const r = (n * sxy - sx * sy) / Math.sqrt(dx * dy);
+      return { slope, intercept, r, n };
+    }
+  );
+  const rLabel = $derived(regression ? regression.r.toFixed(2) : null);
+
   // Phase 124 — report the x and y (value) extents so PanelHost can union them
   // into the shared domains for a multi-cell scatter panel.
   $effect(() => {
@@ -143,7 +174,20 @@
             fillOpacity: 0.7,
             channels: { source: { value: 'source', label: 'source' } },
             tip: true
-          })
+          }),
+          // Phase 125 (A1) — OLS trend line + ±CI band, drawn on top so the
+          // relationship is legible. Only when a fit is defined (variance on
+          // both axes, ≥3 points).
+          ...(regression
+            ? [
+                Plot.linearRegressionY(rows, {
+                  x: 'x',
+                  y: 'y',
+                  stroke: '#e0a050',
+                  strokeWidth: 1.5
+                })
+              ]
+            : [])
         ]
       });
       if (plotEl) plotEl.remove();
@@ -177,6 +221,7 @@
     color: colorMetric,
     renderedCount: points.length,
     scales: axisScaleState,
+    r: regression?.r,
     configOverridden
   });
   const exportPayload = $derived<ExportPayload>({
@@ -192,7 +237,10 @@
       windowEnd,
       truncated: data?.truncated ? 'yes' : 'no'
     },
-    summary: { points: points.length },
+    summary: {
+      points: points.length,
+      ...(regression ? { pearson_r: regression.r, slope: regression.slope } : {})
+    },
     howToRead: composeHowToRead('metric_scatter', howToReadFacts),
     rows: exportRows
   });
@@ -213,7 +261,9 @@
       Scatter
       <span class="muted"
         >— <code>{xMetric}</code> × <code>{yMetric}</code> ·
-        <strong class="scope-name">{scopeId}</strong></span
+        <strong class="scope-name">{scopeId}</strong>{#if rLabel}
+          · <span class="r-badge" title="Pearson correlation coefficient">r = {rLabel}</span
+          >{/if}</span
       >
     </h3>
     {#if points.length > 0}
@@ -317,6 +367,12 @@
     color: var(--color-fg);
     font-weight: var(--font-weight-medium);
     font-family: var(--font-mono);
+  }
+
+  .r-badge {
+    font-family: var(--font-mono);
+    color: #e0a050;
+    font-weight: var(--font-weight-medium);
   }
 
   .notice {

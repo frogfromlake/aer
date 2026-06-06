@@ -73,6 +73,23 @@
   });
   const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
   const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
+  // Phase 125 — the per-article metric aggregated onto nodes, requested only
+  // when a metric channel is actually bound (size or colour = 'metric').
+  const netMetric = $derived(channels?.netMetric);
+  const nodeMetric = $derived(
+    (netSize === 'metric' || netColor === 'metric') && netMetric ? netMetric : undefined
+  );
+  // Phase 125 — min/max of the per-node metric across the returned graph, for
+  // normalising the metric size/colour channels. Null when no node carries it.
+  const metricExtent = $derived.by<{ min: number; max: number } | null>(() => {
+    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    if (!d) return null;
+    const vals = d.nodes
+      .map((n) => n.metricValue)
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    if (vals.length === 0) return null;
+    return { min: Math.min(...vals), max: Math.max(...vals) };
+  });
   // Phase 131 (BUG1.7) — force-layout spread (0..100 → node repulsion).
   // Higher spreads a crowded graph apart so it stays readable.
   const spread = $derived(forceStrength ?? 50);
@@ -90,7 +107,8 @@
       start: windowStart,
       end: windowEnd,
       topN: TOP_N,
-      ...(viewerLang ? { viewerLanguage: viewerLang } : {})
+      ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
+      ...(nodeMetric ? { nodeMetric } : {})
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
@@ -120,6 +138,9 @@
      *  directly without an additional lookup). */
     presence: string[];
     wikidataQid?: string | null;
+    /** Phase 125 — mean per-article metric for the metric size/colour channels;
+     *  null when no node metric was requested or the entity has no such article. */
+    metricValue?: number | null;
     x?: number;
     y?: number;
     fx?: number | null;
@@ -149,10 +170,19 @@
     if (!data) return;
     const t = ++token;
     // Phase 131 — node size bound to the selected channel: total co-occurrence
-    // weight (default) or node degree.
-    const sizeOf = (n: (typeof data.nodes)[number]) =>
-      netSize === 'degree' ? (n.degree ?? 0) : n.totalCount;
-    const maxSize = data.nodes.reduce((m, n) => Math.max(m, sizeOf(n)), 1);
+    // weight (default), node degree, or (Phase 125) a per-article metric mapped
+    // by its min–max so the most-positive entity is largest.
+    const mExt = metricExtent;
+    const sizeOf = (n: (typeof data.nodes)[number]) => {
+      if (netSize === 'metric') {
+        if (n.metricValue == null || !mExt) return 0;
+        const span = mExt.max - mExt.min;
+        return span > 0 ? (n.metricValue - mExt.min) / span : 0.5;
+      }
+      return netSize === 'degree' ? (n.degree ?? 0) : n.totalCount;
+    };
+    const maxSize =
+      netSize === 'metric' ? 1 : data.nodes.reduce((m, n) => Math.max(m, sizeOf(n)), 1);
     const seedNodes: SimNode[] = data.nodes.map((n) => {
       // Phase 123b — relabel to the viewer language only when one was returned
       // for this node's QID; unlinked nodes (and linked-but-unlabelled ones)
@@ -173,7 +203,8 @@
         degree: n.degree ?? 0,
         presenceCount: n.presence?.length ?? 0,
         presence: n.presence ?? [],
-        wikidataQid: n.wikidataQid ?? null
+        wikidataQid: n.wikidataQid ?? null,
+        metricValue: n.metricValue ?? null
       };
     });
     const seedEdges: SimEdge[] = data.edges.map((e) => ({
@@ -497,6 +528,17 @@
   let maxPresence = $derived(nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1));
   function nodeFill(n: SimNode): string {
     if (netColor === 'uniform') return '#5283b8';
+    if (netColor === 'metric') {
+      // Phase 125 — colour by the per-article metric, min→max mapped blue→amber.
+      // A node with no metric value is greyed (honest absence, not a fake 0).
+      if (n.metricValue == null || !metricExtent) return '#4a4f57';
+      const span = metricExtent.max - metricExtent.min;
+      const t = span > 0 ? (n.metricValue - metricExtent.min) / span : 0.5;
+      const lo = [82, 131, 184];
+      const hi = [224, 160, 80];
+      const c = lo.map((l, i) => Math.round(l + ((hi[i] ?? l) - l) * t));
+      return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+    }
     if (netColor === 'presence') {
       const t = maxPresence > 1 ? (n.presenceCount - 1) / (maxPresence - 1) : 0;
       const lo = [82, 131, 184];

@@ -835,6 +835,7 @@
             bins={cfg.bins}
             topN={cfg.topN}
             channels={cfg.channels}
+            metricSet={panel.metricSet}
             showBand={cfg.showBand}
             resolution={panel.resolution}
             normalization={panel.normalization}

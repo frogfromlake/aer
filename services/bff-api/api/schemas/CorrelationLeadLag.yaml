@@ -1,0 +1,62 @@
+type: object
+description: >
+  Generalised metric lead-lag (Phase 125). The lagged cross-correlation of two
+  metrics' hourly mean series over one scope, across a symmetric lag range. A
+  point at lag τ correlates xMetric at hour h with yMetric at hour h+τ, so a peak
+  at τ>0 means yMetric LAGS xMetric (xMetric leads). Reuses the Phase-124
+  cross-correlation core. A multi-language scope requires a validated equivalence
+  grant for both metrics; absent that, a 400 refusal with a Level-1 alternative.
+required:
+  - xMetric
+  - yMetric
+  - maxLagHours
+  - points
+properties:
+  xMetric:
+    type: string
+  yMetric:
+    type: string
+  maxLagHours:
+    type: integer
+    description: Symmetric lag bound; `points` span -maxLagHours..+maxLagHours.
+  bucketCountAtZero:
+    type: integer
+    format: int64
+    description: Overlapping hourly buckets at lag 0 (a sample-size proxy).
+  points:
+    type: array
+    description: One entry per integer lag in [-maxLagHours, +maxLagHours].
+    items:
+      type: object
+      required:
+        - lagHours
+        - correlation
+      properties:
+        lagHours:
+          type: integer
+        correlation:
+          type: number
+          format: double
+          nullable: true
+          description: Pearson correlation at this lag; null when too few overlapping buckets or zero variance.
+  peakLagHours:
+    type: integer
+    nullable: true
+  peakCorrelation:
+    type: number
+    format: double
+    nullable: true
+  scope:
+    type: string
+    nullable: true
+  scopeId:
+    type: string
+    nullable: true
+  windowStart:
+    type: string
+    format: date-time
+    nullable: true
+  windowEnd:
+    type: string
+    format: date-time
+    nullable: true

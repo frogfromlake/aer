@@ -45,6 +45,12 @@ type CoOccurrenceNode struct {
 	// form. This is the per-language rdfs:label Wikidata publishes — never a
 	// machine translation.
 	ViewerLabel string
+	// MetricValue is the mean of a chosen per-article metric over the articles
+	// where this entity appears (Phase 125 node-metric binding), or nil when no
+	// node metric was requested or the entity has no article carrying it. Lets
+	// the network cell size/colour nodes by a metric (e.g. mean sentiment of the
+	// articles mentioning this entity) rather than only graph-intrinsic degree.
+	MetricValue *float64
 }
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
@@ -95,6 +101,7 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	start, end time.Time,
 	topN int,
 	viewerLanguage string,
+	nodeMetric string,
 ) (CoOccurrenceResult, error) {
 	if topN < 1 {
 		topN = 1
@@ -213,6 +220,14 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		labelMap, _ = s.queryNodeLabels(ctx, qidMap, viewerLanguage)
 	}
 
+	// Phase 125: per-node metric aggregation (mean of `nodeMetric` over the
+	// articles where each entity appears). Best-effort, mirroring the QID/label
+	// lookups — a failure leaves nodes without a MetricValue, never a 5xx.
+	var metricMap map[string]float64
+	if nodeMetric != "" && len(acc) > 0 {
+		metricMap, _ = s.queryNodeMetric(ctx, acc, nodeMetric, sources, start, end)
+	}
+
 	var linkedNodeCount, labeledNodeCount int64
 	nodes := make([]CoOccurrenceNode, 0, len(acc))
 	for text, a := range acc {
@@ -224,6 +239,12 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		}
 		if presenceMap != nil {
 			n.Presence = presenceMap[text]
+		}
+		if metricMap != nil {
+			if v, ok := metricMap[text]; ok {
+				vc := v
+				n.MetricValue = &vc
+			}
 		}
 		if qidMap != nil {
 			n.WikidataQid = qidMap[text]
@@ -476,6 +497,79 @@ func (s *ClickHouseStorage) queryNodeWikidataQids(
 		if r.WikidataQid != "" {
 			result[r.EntityText] = r.WikidataQid
 		}
+	}
+	return result, nil
+}
+
+// queryNodeMetric returns, for the node entity-text set, the mean of `metric`
+// over the articles where each entity appears (Phase 125). Joins
+// aer_gold.entities (entity → article_id) with a per-article metric pivot on
+// article_id, within the window + sources, grouped by entity. Best-effort: a
+// failure returns nil and the caller leaves nodes without a MetricValue.
+func (s *ClickHouseStorage) queryNodeMetric(
+	ctx context.Context,
+	acc map[string]*nodeAccumulator,
+	metric string,
+	sources []string,
+	start, end time.Time,
+) (map[string]float64, error) {
+	if len(acc) == 0 || metric == "" {
+		return nil, nil
+	}
+	args := make([]any, 0, 6+len(acc)+2*len(sources))
+	ph := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+	srcIn := func() string {
+		if len(sources) == 0 {
+			return ""
+		}
+		sp := make([]string, len(sources))
+		for i, src := range sources {
+			sp[i] = ph(src)
+		}
+		return fmt.Sprintf(" AND source IN (%s)", strings.Join(sp, ", "))
+	}
+	textPh := make([]string, 0, len(acc))
+	for t := range acc {
+		textPh = append(textPh, ph(t))
+	}
+	eStart := ph(start)
+	eEnd := ph(end)
+	eSrc := srcIn()
+	metricP := ph(metric)
+	mStart := ph(start)
+	mEnd := ph(end)
+	mSrc := srcIn()
+
+	query := fmt.Sprintf(`
+		SELECT e.entity_text AS EntityText, avg(m.MetricValue) AS Mean
+		FROM (
+			SELECT DISTINCT entity_text, article_id
+			FROM aer_gold.entities FINAL
+			WHERE entity_text IN (%s) AND timestamp >= %s AND timestamp < %s AND article_id IS NOT NULL%s
+		) e
+		INNER JOIN (
+			SELECT article_id, avg(value) AS MetricValue
+			FROM aer_gold.metrics
+			WHERE metric_name = %s AND timestamp >= %s AND timestamp < %s AND article_id IS NOT NULL%s
+			GROUP BY article_id
+		) m ON e.article_id = m.article_id
+		GROUP BY EntityText
+	`, strings.Join(textPh, ", "), eStart, eEnd, eSrc, metricP, mStart, mEnd, mSrc)
+
+	var rows []struct {
+		EntityText string  `ch:"EntityText"`
+		Mean       float64 `ch:"Mean"`
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Warn("Failed to query node metric (non-fatal)", "error", err)
+		return nil, err //nolint:wrapcheck // caller treats this as optional
+	}
+	result := make(map[string]float64, len(rows))
+	for _, r := range rows {
+		result[r.EntityText] = r.Mean
 	}
 	return result, nil
 }

@@ -36,6 +36,21 @@ export type CoOccurrenceGraphDto = components['schemas']['CoOccurrenceGraph'];
 export type ScatterResponseDto =
   paths['/metrics/scatter']['get']['responses'][200]['content']['application/json'];
 export type ScatterPointDto = ScatterResponseDto['points'][number];
+// Phase 125 — pairwise Pearson correlation matrix over an N-metric set.
+export type CorrelationMatrixDto =
+  paths['/metrics/correlation']['get']['responses'][200]['content']['application/json'];
+// Phase 125 — cross-tab of a categorical field × a numeric metric.
+export type CrossTabDto =
+  paths['/metadata/{field}/by-metric/{metric}']['get']['responses'][200]['content']['application/json'];
+// Phase 125 — generalised metric lead-lag (two metrics' hourly series).
+export type CorrelationLeadLagDto =
+  paths['/correlation/lead-lag']['get']['responses'][200]['content']['application/json'];
+// Phase 125 — per-article N-metric matrix for parallel coordinates.
+export type ParallelCoordsDto =
+  paths['/metrics/parallel']['get']['responses'][200]['content']['application/json'];
+// Phase 125 — alluvial flow across an ordered chain of categorical fields.
+export type SankeyDto =
+  paths['/metadata/sankey']['get']['responses'][200]['content']['application/json'];
 export type AvailableMetricDto = components['schemas']['AvailableMetric'];
 // Phase 123c (C1) — per-source metric availability across a multi-source
 // scope. `available` = metrics present in Gold for EVERY scoped source (the
@@ -781,9 +796,128 @@ export function metricScatterQuery(
   };
 }
 
+// Phase 125 — pairwise correlation matrix over an N-metric set. Cross-frame
+// without equivalence ⇒ the BFF returns a 400 refusal (gate=metric_equivalence).
+export function correlationMatrixQuery(
+  ctx: FetchContext,
+  params: ViewModeQueryParams & { metrics: string[] }
+): QueryOptions<CorrelationMatrixDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  qs.set('metrics', params.metrics.join(','));
+  return {
+    queryKey: ['aer', 'metric-correlation', params] as const,
+    queryFn: () =>
+      fetchJson<CorrelationMatrixDto>(
+        ctx,
+        `/metrics/correlation?${qs.toString()}`,
+        'cross_frame_equivalence_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 125 — cross-tab: a categorical field × a numeric metric. Cross-frame
+// without equivalence ⇒ the BFF 400-refuses (gate=metric_equivalence).
+export function crossTabQuery(
+  ctx: FetchContext,
+  field: string,
+  metric: string,
+  params: ViewModeQueryParams & { topN?: number }
+): QueryOptions<CrossTabDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  if (params.topN) qs.set('topN', String(params.topN));
+  const path = `/metadata/${encodeURIComponent(field)}/by-metric/${encodeURIComponent(metric)}`;
+  return {
+    queryKey: ['aer', 'metadata-crosstab', field, metric, params] as const,
+    queryFn: () =>
+      fetchJson<CrossTabDto>(ctx, `${path}?${qs.toString()}`, 'cross_frame_equivalence_missing'),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 125 — generalised metric lead-lag (does xMetric lead yMetric over the
+// scope?). Cross-frame without equivalence ⇒ the BFF 400-refuses.
+export function correlationLeadLagQuery(
+  ctx: FetchContext,
+  params: ViewModeQueryParams & { xMetric: string; yMetric: string; maxLagHours?: number }
+): QueryOptions<CorrelationLeadLagDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  qs.set('xMetric', params.xMetric);
+  qs.set('yMetric', params.yMetric);
+  if (params.maxLagHours) qs.set('maxLagHours', String(params.maxLagHours));
+  return {
+    queryKey: ['aer', 'correlation-lead-lag', params] as const,
+    queryFn: () =>
+      fetchJson<CorrelationLeadLagDto>(
+        ctx,
+        `/correlation/lead-lag?${qs.toString()}`,
+        'cross_frame_equivalence_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 125 — per-article N-metric matrix for parallel coordinates. Cross-frame
+// without equivalence ⇒ the BFF 400-refuses.
+export function parallelCoordsQuery(
+  ctx: FetchContext,
+  params: ViewModeQueryParams & { metrics: string[]; maxPoints?: number }
+): QueryOptions<ParallelCoordsDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  qs.set('metrics', params.metrics.join(','));
+  if (params.maxPoints) qs.set('maxPoints', String(params.maxPoints));
+  return {
+    queryKey: ['aer', 'metric-parallel', params] as const,
+    queryFn: () =>
+      fetchJson<ParallelCoordsDto>(
+        ctx,
+        `/metrics/parallel?${qs.toString()}`,
+        'cross_frame_equivalence_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 125 — alluvial flow across an ordered chain of categorical fields.
+export function sankeyQuery(
+  ctx: FetchContext,
+  fields: string[],
+  params: ViewModeQueryParams & { topN?: number }
+): QueryOptions<SankeyDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  qs.set('fields', fields.join(','));
+  if (params.topN) qs.set('topN', String(params.topN));
+  return {
+    queryKey: ['aer', 'metadata-sankey', fields, params] as const,
+    queryFn: () =>
+      fetchJson<SankeyDto>(ctx, `/metadata/sankey?${qs.toString()}`, 'validation_missing'),
+    staleTime: FIVE_MINUTES
+  };
+}
+
 export function entityCoOccurrenceQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & { topN?: number; viewerLanguage?: string }
+  params: ViewModeQueryParams & { topN?: number; viewerLanguage?: string; nodeMetric?: string }
 ): QueryOptions<CoOccurrenceGraphDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -794,6 +928,9 @@ export function entityCoOccurrenceQuery(
   // Phase 123b — cross-lingual relabel: when set, the BFF attaches a
   // viewer-language label per QID-linked node.
   if (params.viewerLanguage) qs.set('viewerLanguage', params.viewerLanguage);
+  // Phase 125 — when set, each node carries `metricValue` (mean of this metric
+  // over the entity's articles) for the metric size/colour channels.
+  if (params.nodeMetric) qs.set('nodeMetric', params.nodeMetric);
   return {
     queryKey: ['aer', 'entity-cooccurrence', params] as const,
     queryFn: () =>

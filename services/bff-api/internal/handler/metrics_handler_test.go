@@ -86,6 +86,12 @@ type mockStore struct {
 	categoricalDistributionErr error
 	scopeAvailableMetadata     storage.ScopeMetadataAvailability
 	scopeAvailableMetadataErr  error
+	crossTab                   storage.CrossTabResult
+	crossTabErr                error
+	parallelCoords             storage.ParallelCoordResult
+	parallelCoordsErr          error
+	sankey                     storage.SankeyResult
+	sankeyErr                  error
 	// Phase 131 mocks: time-series spread + paired-metric scatter.
 	metricsSpread    []storage.MetricRow
 	metricsSpreadErr error
@@ -191,6 +197,21 @@ func (m *mockStore) GetTemporalLeadLag(_ context.Context, _, _ []string, _, _ ti
 	return m.leadLag, m.leadLagErr
 }
 
+func (m *mockStore) GetMetricLeadLag(_ context.Context, sources []string, _, _ string, _, _ time.Time, _ int) (storage.LeadLagResult, error) {
+	m.capturedSources = sources
+	return m.leadLag, m.leadLagErr
+}
+
+func (m *mockStore) GetParallelCoords(_ context.Context, _, sources []string, _, _ time.Time, _ int) (storage.ParallelCoordResult, error) {
+	m.capturedSources = sources
+	return m.parallelCoords, m.parallelCoordsErr
+}
+
+func (m *mockStore) GetSankey(_ context.Context, _, sources []string, _, _ time.Time, _ int) (storage.SankeyResult, error) {
+	m.capturedSources = sources
+	return m.sankey, m.sankeyErr
+}
+
 func (m *mockStore) GetEquivalenceStatus(_ context.Context, _ string) (*storage.EquivalenceStatusRow, error) {
 	return m.equivalenceStatus, m.equivalenceStatusErr
 }
@@ -256,7 +277,7 @@ func (m *mockStore) GetMetricCorrelation(_ context.Context, metricNames []string
 	return m.correlation, m.correlationErr
 }
 
-func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int, _ string) (storage.CoOccurrenceResult, error) {
+func (m *mockStore) GetEntityCoOccurrence(_ context.Context, sources []string, start, end time.Time, topN int, _ string, _ string) (storage.CoOccurrenceResult, error) {
 	m.capturedSources = sources
 	m.capturedStart = start
 	m.capturedEnd = end
@@ -312,6 +333,11 @@ func (m *mockStore) GetCategoricalDistribution(_ context.Context, _ string, sour
 func (m *mockStore) GetScopeAvailableMetadata(_ context.Context, _, _ time.Time, sources []string) (storage.ScopeMetadataAvailability, error) {
 	m.capturedSources = sources
 	return m.scopeAvailableMetadata, m.scopeAvailableMetadataErr
+}
+
+func (m *mockStore) GetCrossTab(_ context.Context, _, _ string, sources []string, _, _ time.Time, _ int) (storage.CrossTabResult, error) {
+	m.capturedSources = sources
+	return m.crossTab, m.crossTabErr
 }
 
 func (m *mockStore) GetRevisionActivity(_ context.Context, _ []string, _, _ time.Time, _ storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error) {

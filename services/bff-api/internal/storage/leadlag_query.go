@@ -104,6 +104,71 @@ func computeLeadLag(ref, cmp map[int64]float64, maxLagHours int) LeadLagResult {
 	return result
 }
 
+// GetMetricLeadLag computes the lagged cross-correlation of two metrics' hourly
+// mean series over one scope — "does metric X lead metric Y?" (Phase 125). It
+// reuses computeLeadLag (the pure cross-correlation core) and pearsonXY; only
+// the per-metric hourly series is new. The handler enforces the cross-frame
+// equivalence gate when the scope spans more than one language.
+func (s *ClickHouseStorage) GetMetricLeadLag(
+	ctx context.Context,
+	sources []string,
+	xMetric, yMetric string,
+	start, end time.Time,
+	maxLagHours int,
+) (LeadLagResult, error) {
+	x, err := s.hourlyMetricSeries(ctx, sources, xMetric, start, end)
+	if err != nil {
+		return LeadLagResult{}, err
+	}
+	y, err := s.hourlyMetricSeries(ctx, sources, yMetric, start, end)
+	if err != nil {
+		return LeadLagResult{}, err
+	}
+	result := computeLeadLag(x, y, maxLagHours)
+	result.ReferenceSources = sources
+	result.ComparedSources = sources
+	return result, nil
+}
+
+// hourlyMetricSeries returns a map from hour-bucket epoch seconds to the mean
+// value of `metric` in that hour for the source set. The metrics-table read
+// deliberately omits FINAL (the avg tolerates transient re-ingest skew — the
+// established convention for metric reads).
+func (s *ClickHouseStorage) hourlyMetricSeries(ctx context.Context, sources []string, metric string, start, end time.Time) (map[int64]float64, error) {
+	args := []any{start, end, metric}
+	where := "timestamp >= $1 AND timestamp < $2 AND metric_name = $3"
+	if len(sources) > 0 {
+		placeholders := make([]string, len(sources))
+		for i, src := range sources {
+			placeholders[i] = fmt.Sprintf("$%d", len(args)+1)
+			args = append(args, src)
+		}
+		where += fmt.Sprintf(" AND source IN (%s)", strings.Join(placeholders, ", "))
+	}
+	query := fmt.Sprintf(`
+		SELECT toStartOfHour(timestamp) AS Bucket, avg(value) AS V
+		FROM aer_gold.metrics
+		WHERE %s
+		GROUP BY Bucket
+		ORDER BY Bucket
+		LIMIT %d
+	`, where, s.rowLimit)
+
+	var rows []struct {
+		Bucket time.Time
+		V      float64
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Error("Failed to query hourly metric series for lead-lag", "error", err, "metric", metric)
+		return nil, err
+	}
+	out := make(map[int64]float64, len(rows))
+	for _, r := range rows {
+		out[r.Bucket.Unix()] = r.V
+	}
+	return out, nil
+}
+
 // hourlyActivity returns a map from hour-bucket epoch seconds to the distinct
 // article count published in that hour for the given source set. timestamp on
 // aer_gold.metrics is the article published_date, so this is genuine

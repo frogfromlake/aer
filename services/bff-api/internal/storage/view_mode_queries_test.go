@@ -215,6 +215,7 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
 		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -274,6 +275,7 @@ func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
 		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -325,6 +327,7 @@ func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
 		mustParse(t, "2026-04-24T00:00:00Z"),
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
+		"",
 		"",
 	)
 	if err != nil {
@@ -390,6 +393,7 @@ func TestGetEntityCoOccurrence_ViewerLanguageRelabel(t *testing.T) {
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
 		"de",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -461,6 +465,7 @@ func TestGetEntityCoOccurrence_NoViewerLanguageNoRelabel(t *testing.T) {
 		mustParse(t, "2026-04-25T00:00:00Z"),
 		10,
 		"", // no viewer language
+		"",
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)

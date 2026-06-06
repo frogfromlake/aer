@@ -53,7 +53,28 @@ export type ViewMode =
   // count per category value of a categorical metadata FIELD (section / author /
   // tags / …). Field-driven, not metric-driven (usesMetric:false,
   // usesMetadataField:true); the chosen field is carried in `Panel.metric`.
-  | 'categorical_distribution';
+  | 'categorical_distribution'
+  // Phase 125 — pairwise Pearson correlation matrix over an N-metric set
+  // (Aleph, synchronic). Channel-driven (usesMetric:false); the metric set is
+  // carried in `Panel.metricSet`. Drill a cell → scatter for that pair.
+  | 'correlation_matrix'
+  // Phase 125 — cross-tab of a categorical metadata FIELD × a numeric METRIC
+  // (Aleph, synchronic): the metric's mean per category value. The field rides
+  // in `Panel.metric` (usesMetadataField:true); the numeric metric binds to
+  // `Panel.channels.x`.
+  | 'cross_tab'
+  // Phase 125 — generalised metric lead-lag (Rhizome, relational): the lagged
+  // cross-correlation of two metrics' hourly series over one scope. The two
+  // metrics bind to `Panel.channels.x` / `.y` (channel-driven, usesMetric:false).
+  | 'metric_lead_lag'
+  // Phase 125 — parallel coordinates (Aleph, multivariate): one polyline per
+  // article across N metric axes (`Panel.metricSet`). Channel-driven
+  // (usesMetric:false).
+  | 'parallel_coordinates'
+  // Phase 125 — Sankey/alluvial (Rhizome, relational): article flows across an
+  // ordered chain of categorical metadata fields. The field chain is carried in
+  // `Panel.metricSet` (reused as a generic ordered string list).
+  | 'sankey';
 // Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
@@ -106,12 +127,22 @@ export interface ScopeGroup {
 // scatter cell the channels bind to *metric* names; for the co-occurrence
 // network they bind to a graph dimension (node weight vs. degree; colour by
 // entity label, cross-source presence, or uniform).
-export type NetworkSizeChannel = 'total_count' | 'degree';
+// Phase 125 — `metric` sizes/colours nodes by the per-article metric named in
+// `CellChannelBinding.netMetric`, aggregated (mean) over the articles where the
+// entity appears (BFF `nodeMetric`). 'total_count'/'degree' stay graph-intrinsic.
+export type NetworkSizeChannel = 'total_count' | 'degree' | 'metric';
 // Phase 131a — `source_overlay` colours nodes & edges by their originating
 // source from the BFF per-edge `presence` field. Available whenever the
 // scope covers multiple sources; the cell auto-promotes it as the default
 // for merged scopes.
-export type NetworkColorChannel = 'label' | 'presence' | 'uniform' | 'source_overlay';
+export type NetworkColorChannel =
+  | 'label'
+  | 'presence'
+  | 'uniform'
+  | 'source_overlay'
+  // Phase 125 — colour nodes by `CellChannelBinding.netMetric` (mean per-article
+  // metric over the mentioning articles).
+  | 'metric';
 
 export interface CellChannelBinding {
   // Scatter — metric names bound to the position + optional size/colour
@@ -123,6 +154,9 @@ export interface CellChannelBinding {
   // Co-occurrence network — node-size + node-colour channel selectors.
   netSize?: NetworkSizeChannel;
   netColor?: NetworkColorChannel;
+  // Phase 125 — the per-article metric name aggregated onto nodes when netSize
+  // or netColor is 'metric' (drives BFF `nodeMetric`).
+  netMetric?: string;
 }
 
 // Phase 126 — per-cell configuration override. A split / small-multiple panel
@@ -232,6 +266,11 @@ export interface Panel {
   // 'free' restores per-cell optimal domains. Encoded as `sc` in the compact
   // payload (emitted only when 'free').
   scales?: ScaleMode;
+  // Phase 125 — the N-metric set for multivariate cells (correlation_matrix,
+  // parallel_coordinates). Ordered list of metric names; the cell picks a
+  // sensible scope-available default when absent. Encoded as `ms` in the
+  // compact payload (emitted only when set).
+  metricSet?: string[];
   // Phase 126 — per-cell overrides of the cell-shape levers above. Keyed by the
   // stable cell key (`cellOverrideKey`, panel-queries.ts). Absent ⇒ every cell
   // inherits the panel defaults; an entry overrides only the levers it names,
@@ -338,7 +377,12 @@ const VIEW_MODES: readonly ViewMode[] = [
   'revision_discourse_shift',
   'revision_edit_clusters',
   'cross_probe_lead_lag',
-  'categorical_distribution'
+  'categorical_distribution',
+  'correlation_matrix',
+  'cross_tab',
+  'metric_lead_lag',
+  'parallel_coordinates',
+  'sankey'
 ];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid
@@ -477,6 +521,7 @@ interface CompactChannelBinding {
   co?: string;
   ns?: NetworkSizeChannel;
   nc?: NetworkColorChannel;
+  nm?: string; // netMetric (Phase 125 node-metric name)
 }
 
 // Phase 126 — compact per-cell override. Mirrors CompactPanel's cell-shape
@@ -521,6 +566,9 @@ interface CompactPanel {
   // debugging is straightforward.
   ws?: string;
   we?: string;
+  // Phase 125 — N-metric set for multivariate cells (correlation_matrix,
+  // parallel_coordinates). Absent when unset.
+  ms?: string[];
   // Phase 126 — per-cell overrides, keyed by stable cell key.
   co?: Record<string, CompactCellOverride>;
 }
@@ -598,6 +646,8 @@ function compactPanel(p: Panel): CompactPanel {
   // Phase 122k F5 — per-panel window.
   if (p.windowStart !== undefined) c.ws = p.windowStart;
   if (p.windowEnd !== undefined) c.we = p.windowEnd;
+  // Phase 125 — N-metric set for multivariate cells.
+  if (p.metricSet !== undefined && p.metricSet.length > 0) c.ms = [...p.metricSet];
   // Phase 131 per-cell config. bins/channels omitted when unset; showBand
   // omitted unless explicitly disabled (default = shown).
   if (p.bins !== undefined) c.bn = p.bins;
@@ -631,6 +681,7 @@ function compactChannels(ch: CellChannelBinding): CompactChannelBinding | null {
   if (ch.color !== undefined) cb.co = ch.color;
   if (ch.netSize !== undefined) cb.ns = ch.netSize;
   if (ch.netColor !== undefined) cb.nc = ch.netColor;
+  if (ch.netMetric !== undefined) cb.nm = ch.netMetric;
   return Object.keys(cb).length > 0 ? cb : null;
 }
 
@@ -640,9 +691,16 @@ function expandChannels(c: CompactChannelBinding): CellChannelBinding | null {
   if (typeof c.y === 'string') cb.y = c.y;
   if (typeof c.sz === 'string') cb.size = c.sz;
   if (typeof c.co === 'string') cb.color = c.co;
-  if (c.ns === 'total_count' || c.ns === 'degree') cb.netSize = c.ns;
-  if (c.nc === 'label' || c.nc === 'presence' || c.nc === 'uniform' || c.nc === 'source_overlay')
+  if (c.ns === 'total_count' || c.ns === 'degree' || c.ns === 'metric') cb.netSize = c.ns;
+  if (
+    c.nc === 'label' ||
+    c.nc === 'presence' ||
+    c.nc === 'uniform' ||
+    c.nc === 'source_overlay' ||
+    c.nc === 'metric'
+  )
     cb.netColor = c.nc;
+  if (typeof c.nm === 'string' && c.nm.length > 0) cb.netMetric = c.nm;
   return Object.keys(cb).length > 0 ? cb : null;
 }
 
@@ -715,6 +773,9 @@ function expandPanel(c: CompactPanel): Panel {
   // Phase 122k F5 — per-panel window.
   if (typeof c.ws === 'string') p.windowStart = c.ws;
   if (typeof c.we === 'string') p.windowEnd = c.we;
+  // Phase 125 — N-metric set for multivariate cells.
+  if (Array.isArray(c.ms) && c.ms.length > 0)
+    p.metricSet = c.ms.filter((m) => typeof m === 'string');
   // Phase 131 per-cell config.
   if (typeof c.bn === 'number') p.bins = c.bn;
   if (c.ch !== undefined && typeof c.ch === 'object') {
@@ -819,6 +880,9 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   // Phase 122k F5 — per-panel window keys.
   if (v.ws !== undefined && typeof v.ws !== 'string') return false;
   if (v.we !== undefined && typeof v.we !== 'string') return false;
+  // Phase 125 — N-metric set.
+  if (v.ms !== undefined && (!Array.isArray(v.ms) || !v.ms.every((m) => typeof m === 'string')))
+    return false;
   // Phase 126 — per-cell overrides. A record of cellKey → CompactCellOverride.
   if (v.co !== undefined) {
     if (!isRecord(v.co)) return false;

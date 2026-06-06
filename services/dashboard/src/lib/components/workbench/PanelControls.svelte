@@ -422,6 +422,16 @@
     );
   }
 
+  // Phase 125 — what KIND of list `Panel.metricSet` holds for a view: metric
+  // names (correlation_matrix / parallel_coordinates), categorical field names
+  // (sankey), or none. Used to clear metricSet when pickView crosses the
+  // metric↔field boundary so the seed repopulates with the right kind.
+  function metricSetKind(view: ViewMode): 'metric' | 'field' | null {
+    if (view === 'correlation_matrix' || view === 'parallel_coordinates') return 'metric';
+    if (view === 'sankey') return 'field';
+    return null;
+  }
+
   function pickView(id: ViewMode) {
     if (id === activePresentation.id) return;
     if (!panelPath) return;
@@ -432,6 +442,14 @@
       // a distribution). A view change discards them so they neither apply
       // silently nor linger in the URL without an affordance to clear them.
       delete next.cellOverrides;
+      // Phase 125 — `Panel.metricSet` is overloaded: it holds METRIC names for
+      // correlation_matrix/parallel_coordinates but categorical FIELD names for
+      // sankey. Switching across that kind-boundary must clear it (else the
+      // length≥2 seed guard keeps the wrong-kind list and the cell queries
+      // garbage). Same-kind switches (matrix↔parallel) preserve the selection.
+      if (metricSetKind(id) !== metricSetKind(activePresentation.id)) {
+        delete next.metricSet;
+      }
       const pres = presentations.find((x) => x.id === id);
       const usesMetric = pres?.usesMetric ?? true;
       const nextUsesMetadataField = pres?.usesMetadataField ?? false;
@@ -481,6 +499,53 @@
               ? 'word_count'
               : (opts.find((m) => m !== x) ?? x);
         }
+        next.channels = { ...(next.channels ?? {}), x, y };
+      }
+      // Phase 125 — seed the N-metric set on first switch into a metricSet-driven
+      // view (correlation_matrix, parallel_coordinates) so it renders at once.
+      // The first up-to-4 scope-available scalar metrics; needs ≥2.
+      if (
+        (pres?.configurableParams ?? []).includes('metricSet') &&
+        (next.metricSet?.length ?? 0) < 2
+      ) {
+        next.metricSet = scalarMetricOptions.slice(0, 4);
+      }
+      // Phase 125 — seed the Sankey field chain (metricSet holds categorical
+      // FIELDS here) with the first up-to-3 offerable categorical fields.
+      if (
+        (pres?.configurableParams ?? []).includes('sankeyFields') &&
+        (next.metricSet?.length ?? 0) < 2
+      ) {
+        next.metricSet = offerableMetadataFields().slice(0, 3);
+      }
+      // Phase 125 — seed the cross-tab numeric metric (channels.x) on first
+      // switch so it renders at once; prefer a sentiment metric.
+      if ((pres?.configurableParams ?? []).includes('crossMetric') && !next.channels?.x) {
+        const opts = scalarMetricOptions;
+        const seed =
+          opts.find((m) => m === 'sentiment_score_bert_multilingual') ??
+          opts.find((m) => m.startsWith('sentiment_score')) ??
+          opts.find((m) => m === 'word_count') ??
+          opts[0];
+        if (seed) next.channels = { ...(next.channels ?? {}), x: seed };
+      }
+      // Phase 125 — seed the lead-lag x/y metrics on first switch (two distinct
+      // metrics so the cell renders at once).
+      if (
+        (pres?.configurableParams ?? []).includes('leadLagAxes') &&
+        (!next.channels?.x || !next.channels?.y)
+      ) {
+        const opts = scalarMetricOptions;
+        const x =
+          next.channels?.x ??
+          opts.find((m) => m.startsWith('sentiment_score')) ??
+          opts[0] ??
+          DEFAULT_METRIC_NAME;
+        const y =
+          next.channels?.y ??
+          (opts.includes('word_count') && x !== 'word_count'
+            ? 'word_count'
+            : (opts.find((m) => m !== x) ?? x));
         next.channels = { ...(next.channels ?? {}), x, y };
       }
       return next;
@@ -694,6 +759,22 @@
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
   const activeChannels = $derived<CellChannelBinding>(boundPanel?.channels ?? {});
   const activeForceStrength = $derived(boundPanel?.forceStrength ?? DEFAULT_FORCE_STRENGTH);
+  // Phase 125 — the N-metric set for multivariate cells (correlation_matrix,
+  // parallel_coordinates), persisted in Panel.metricSet.
+  const activeMetricSet = $derived<readonly string[]>(boundPanel?.metricSet ?? []);
+  // Toggle a metric in/out of the set (no-discovery-bias: the option pool is the
+  // scope-available scalar metrics, not a capability-ranked list).
+  function toggleMetricSetMember(name: string) {
+    if (!panelPath) return;
+    updatePanel(panelPath, (p) => {
+      const cur = p.metricSet ?? [];
+      const next = cur.includes(name) ? cur.filter((m) => m !== name) : [...cur, name];
+      const out = { ...p };
+      if (next.length > 0) out.metricSet = next;
+      else delete out.metricSet;
+      return out;
+    });
+  }
 
   // Scalar-metric options for the scatter axis/size/colour pickers. Every
   // real metric from /metrics/available, default-prepended so the picker is
@@ -806,6 +887,14 @@
       const ch: CellChannelBinding = { ...(p.channels ?? {}) };
       if (value === '') delete ch[key];
       else (ch[key] as string) = value;
+      // Phase 125 — selecting the network 'metric' channel needs a metric to
+      // aggregate; seed one if none is bound yet so the cell renders at once.
+      if ((key === 'netSize' || key === 'netColor') && value === 'metric' && !ch.netMetric) {
+        const seed =
+          scalarMetricOptions.find((m) => m.startsWith('sentiment_score')) ??
+          scalarMetricOptions[0];
+        if (seed) ch.netMetric = seed;
+      }
       const o = { ...p };
       if (Object.keys(ch).length > 0) o.channels = ch;
       else delete o.channels;
@@ -1285,6 +1374,26 @@
             {/each}
           </select>
         </div>
+        <!-- Phase 125 — when a network channel is bound to 'metric', pick which
+             per-article metric is aggregated onto the nodes. -->
+        {#if activeChannels.netSize === 'metric' || activeChannels.netColor === 'metric'}
+          <div class="ctrl-row config-row" role="group" aria-label="Node metric">
+            <span class="ctrl-eyebrow">Metric</span>
+            <select
+              class="config-select"
+              value={activeChannels.netMetric ?? ''}
+              onchange={(e) =>
+                setChannel('netMetric', (e.currentTarget as HTMLSelectElement).value)}
+              onclick={(e) => e.stopPropagation()}
+              aria-label="Node metric"
+            >
+              <option value="" disabled>— pick a metric —</option>
+              {#each scalarMetricOptions as m (m)}
+                <option value={m}>{m}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
       {/if}
 
       {#if configParams.includes('displayLanguage')}
@@ -1356,6 +1465,101 @@
             aria-label="Scatter point-colour metric"
           >
             <option value="">— none —</option>
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      <!-- Phase 125 — N-metric set picker for multivariate cells (correlation
+           matrix, parallel coordinates). A checkbox list of scope-available
+           scalar metrics (no-discovery-bias); ≥2 needed to render. -->
+      {#if configParams.includes('metricSet')}
+        <div class="ctrl-row config-row" role="group" aria-label="Metric set">
+          <span class="ctrl-eyebrow">Metric set</span>
+          <div class="metric-set-options" onclick={(e) => e.stopPropagation()} role="presentation">
+            {#each scalarMetricOptions as m (m)}
+              <label class="metric-set-chip" class:active={activeMetricSet.includes(m)}>
+                <input
+                  type="checkbox"
+                  checked={activeMetricSet.includes(m)}
+                  onchange={() => toggleMetricSetMember(m)}
+                />
+                <code>{m}</code>
+              </label>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      <!-- Phase 125 — cross-tab numeric metric (a single metric select bound to
+           channels.x). The categorical field comes from the Group-by picker. -->
+      {#if configParams.includes('crossMetric')}
+        <div class="ctrl-row config-row" role="group" aria-label="Cross-tab metric">
+          <span class="ctrl-eyebrow">Metric</span>
+          <select
+            class="config-select"
+            value={activeChannels.x ?? ''}
+            onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Cross-tab numeric metric"
+          >
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      <!-- Phase 125 — Sankey field chain: an ordered multi-select of categorical
+           fields (metricSet holds the field names). -->
+      {#if configParams.includes('sankeyFields')}
+        <div class="ctrl-row config-row" role="group" aria-label="Sankey fields">
+          <span class="ctrl-eyebrow">Fields</span>
+          <div class="metric-set-options" onclick={(e) => e.stopPropagation()} role="presentation">
+            {#each offerableMetadataFields() as f (f)}
+              <label class="metric-set-chip" class:active={activeMetricSet.includes(f)}>
+                <input
+                  type="checkbox"
+                  checked={activeMetricSet.includes(f)}
+                  onchange={() => toggleMetricSetMember(f)}
+                />
+                <code>{f}</code>
+              </label>
+            {/each}
+            {#if offerableMetadataFields().length === 0}
+              <span class="field-empty"
+                >No categorical metadata for this scope (Negative Space).</span
+              >
+            {/if}
+          </div>
+        </div>
+      {/if}
+
+      <!-- Phase 125 — lead-lag x/y metric pickers (x leads y; both bound to
+           channels). -->
+      {#if configParams.includes('leadLagAxes')}
+        <div class="ctrl-row config-row" role="group" aria-label="Lead-lag metrics">
+          <span class="ctrl-eyebrow">X → Y</span>
+          <select
+            class="config-select"
+            value={activeChannels.x ?? ''}
+            onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Lead-lag X metric (leads)"
+          >
+            {#each scalarMetricOptions as m (m)}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
+          <select
+            class="config-select"
+            value={activeChannels.y ?? ''}
+            onchange={(e) => setChannel('y', (e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Lead-lag Y metric (follows)"
+          >
             {#each scalarMetricOptions as m (m)}
               <option value={m}>{m}</option>
             {/each}
@@ -1715,6 +1919,31 @@
 
   .ctrl-btn.metadata-metric {
     border-style: dashed;
+  }
+
+  /* Phase 125 — metric-set multi-select chips. */
+  .metric-set-options {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .metric-set-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+  .metric-set-chip.active {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  .metric-set-chip code {
+    font-family: var(--font-mono);
   }
 
   .ctrl-btn:hover,

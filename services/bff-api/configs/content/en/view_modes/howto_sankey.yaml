@@ -1,0 +1,28 @@
+entityId: howto_sankey
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Article flows between categories across an ordered chain of metadata fields — where the corpus concentrates, splits, and merges."
+    long: >
+      A Sankey (alluvial) traces how articles distribute across several categorical fields at once.
+      Each column is a field; each band is a flow of articles from a category in one column to a
+      category in the next. Thick bands are where the corpus concentrates; a fanning-out shows a
+      category that spreads across many of the next; a converging pattern shows many categories that
+      funnel into one. Read it left to right as the corpus being repeatedly re-grouped.
+  methodological:
+    short: "Distinct-article flows between consecutive field pairs, from article_id self-joins on aer_gold.article_metadata (FINAL); top-N edges per pair."
+    long: >
+      For each consecutive pair of fields the server joins aer_gold.article_metadata on article_id
+      (both sides FINAL, for exact distinct-article counts) and counts distinct articles per
+      (value, value) pair, keeping the top-N edges per pair so a long tail does not explode the
+      graph (the drop is disclosed here, never summed into a misleading band). A list-valued field
+      can place one article under several values, so band widths are article-flow weights, not a
+      strict partition. The field chain is capped at 8 columns. Article counts only — no metric
+      normalization, so no cross-cultural equivalence gate applies (categories from different
+      languages simply appear as distinct nodes).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-003 §3.2"

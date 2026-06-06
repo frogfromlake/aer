@@ -1,0 +1,69 @@
+type: object
+description: >
+  Alluvial flow across an ordered chain of categorical metadata fields (Phase
+  125). Nodes are category values at a layer (`<layer>::<value>`); links are
+  distinct-article flows between a layer-i node and a layer-(i+1) node. Edges are
+  top-N per consecutive field pair, so a long tail does not explode the graph.
+required:
+  - fields
+  - nodes
+  - links
+properties:
+  fields:
+    type: array
+    description: The ordered field chain (layers); ≥2.
+    items:
+      type: string
+    minItems: 2
+  nodes:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - field
+        - value
+        - layer
+      properties:
+        id:
+          type: string
+          description: Layer-namespaced node id (`<layer>::<value>`).
+        field:
+          type: string
+        value:
+          type: string
+        layer:
+          type: integer
+  links:
+    type: array
+    items:
+      type: object
+      required:
+        - source
+        - target
+        - value
+      properties:
+        source:
+          type: string
+          description: Source node id.
+        target:
+          type: string
+          description: Target node id.
+        value:
+          type: integer
+          format: int64
+          description: Distinct in-scope articles flowing source → target.
+  scope:
+    type: string
+    nullable: true
+  scopeId:
+    type: string
+    nullable: true
+  windowStart:
+    type: string
+    format: date-time
+    nullable: true
+  windowEnd:
+    type: string
+    format: date-time
+    nullable: true

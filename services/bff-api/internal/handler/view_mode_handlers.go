@@ -720,6 +720,41 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 	// Phase 117 read-side alias.
 	metrics = canonicalMetricNames(metrics)
 
+	// Phase 125 — cross-frame gate. Correlating raw per-bucket means across
+	// languages is only meaningful when each metric's cross-cultural
+	// equivalence is granted; otherwise refuse with the standard cross-frame
+	// payload (Level-1 alternative: stay within one cultural frame).
+	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetricCorrelation.CountLanguagesForSources", "error", err)
+		return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
+	}
+	if nLangs > 1 {
+		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetMetricCorrelation.collectLanguagesForScope", "error", err)
+			return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
+		}
+		for _, m := range metrics {
+			ok, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
+			if err != nil {
+				slog.Error("handler failure", "op", "GetMetricCorrelation.CheckNormalizationEquivalenceForLanguages", "error", err)
+				return GetMetricCorrelation500JSONResponse{Message: genericInternalError}, nil
+			}
+			if !ok {
+				gate := crossFrameGateID
+				anchor := crossFrameAnchor
+				alts := append([]string(nil), crossFrameRefusalAlternatives...)
+				return GetMetricCorrelation400JSONResponse{
+					Message:            crossFrameRefusalMessage,
+					Gate:               &gate,
+					WorkingPaperAnchor: &anchor,
+					Alternatives:       &alts,
+				}, nil
+			}
+		}
+	}
+
 	res, err := s.db.GetMetricCorrelation(ctx, metrics, sources, start, end)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricCorrelation", "error", err)
@@ -736,6 +771,200 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}, nil
+}
+
+// GetCorrelationLeadLag computes the lagged cross-correlation of two metrics'
+// hourly mean series over one scope (Phase 125). Generalises the Phase-124
+// publication-activity lead-lag; reuses computeLeadLag/pearsonXY. A multi-
+// language scope gates on both metrics' equivalence.
+func (s *Server) GetCorrelationLeadLag(ctx context.Context, request GetCorrelationLeadLagRequestObject) (GetCorrelationLeadLagResponseObject, error) {
+	rawScope := ""
+	if request.Params.Scope != nil {
+		rawScope = string(*request.Params.Scope)
+	}
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	if !ok {
+		if strings.HasPrefix(reason, "unknown probe") {
+			return GetCorrelationLeadLag404JSONResponse{Message: reason}, nil
+		}
+		return GetCorrelationLeadLag400JSONResponse{Message: reason}, nil
+	}
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
+		return GetCorrelationLeadLag400JSONResponse{Message: msg}, nil
+	}
+	xMetric := canonicalMetricNames([]string{request.Params.XMetric})[0]
+	yMetric := canonicalMetricNames([]string{request.Params.YMetric})[0]
+	if xMetric == "" || yMetric == "" {
+		return GetCorrelationLeadLag400JSONResponse{Message: "xMetric and yMetric are required"}, nil
+	}
+
+	maxLag := leadLagDefaultMaxLagHours
+	if request.Params.MaxLagHours != nil {
+		maxLag = *request.Params.MaxLagHours
+	}
+	if maxLag < 1 || maxLag > leadLagMaxAllowedLagHours {
+		return GetCorrelationLeadLag400JSONResponse{Message: "maxLagHours must be between 1 and 720"}, nil
+	}
+
+	// Cross-frame gate — correlating metric series across languages is only
+	// meaningful when both metrics' cross-cultural equivalence is granted.
+	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetCorrelationLeadLag.CountLanguagesForSources", "error", err)
+		return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
+	}
+	if nLangs > 1 {
+		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetCorrelationLeadLag.collectLanguagesForScope", "error", err)
+			return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
+		}
+		for _, m := range []string{xMetric, yMetric} {
+			granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
+			if err != nil {
+				slog.Error("handler failure", "op", "GetCorrelationLeadLag.CheckNormalizationEquivalenceForLanguages", "error", err)
+				return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
+			}
+			if !granted {
+				gate := crossFrameGateID
+				anchor := crossFrameAnchor
+				alts := append([]string(nil), crossFrameRefusalAlternatives...)
+				return GetCorrelationLeadLag400JSONResponse{
+					Message:            crossFrameRefusalMessage,
+					Gate:               &gate,
+					WorkingPaperAnchor: &anchor,
+					Alternatives:       &alts,
+				}, nil
+			}
+		}
+	}
+
+	res, err := s.db.GetMetricLeadLag(ctx, sources, xMetric, yMetric, start, end, maxLag)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetCorrelationLeadLag", "error", err)
+		return GetCorrelationLeadLag500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	bucketAtZero := res.BucketCountAtZero
+	resp := GetCorrelationLeadLag200JSONResponse{
+		XMetric:           xMetric,
+		YMetric:           yMetric,
+		MaxLagHours:       res.MaxLagHours,
+		BucketCountAtZero: &bucketAtZero,
+		PeakLagHours:      res.PeakLagHours,
+		PeakCorrelation:   res.PeakCorrelation,
+		Scope:             strPtr(string(kind)),
+		ScopeId:           request.Params.ScopeId,
+		WindowStart:       request.Params.Start,
+		WindowEnd:         request.Params.End,
+	}
+	resp.Points = make([]struct {
+		// Correlation Pearson correlation at this lag; null when too few overlapping buckets or zero variance.
+		Correlation *float64 `json:"correlation"`
+		LagHours    int      `json:"lagHours"`
+	}, len(res.Points))
+	for i, p := range res.Points {
+		resp.Points[i] = struct {
+			Correlation *float64 `json:"correlation"`
+			LagHours    int      `json:"lagHours"`
+		}{Correlation: p.Correlation, LagHours: p.LagHours}
+	}
+	return resp, nil
+}
+
+// GetMetricParallelCoords returns the per-article N-metric matrix for the
+// parallel-coordinates cell (Phase 125). Capped at 8 axes for readability; a
+// multi-language scope gates on every metric's equivalence.
+func (s *Server) GetMetricParallelCoords(ctx context.Context, request GetMetricParallelCoordsRequestObject) (GetMetricParallelCoordsResponseObject, error) {
+	rawScope := ""
+	if request.Params.Scope != nil {
+		rawScope = string(*request.Params.Scope)
+	}
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	if !ok {
+		if strings.HasPrefix(reason, "unknown probe") {
+			return GetMetricParallelCoords404JSONResponse{Message: reason}, nil
+		}
+		return GetMetricParallelCoords400JSONResponse{Message: reason}, nil
+	}
+	start, end, msg := resolveWindow(request.Params.Start, request.Params.End)
+	if msg != "" {
+		return GetMetricParallelCoords400JSONResponse{Message: msg}, nil
+	}
+
+	metrics := canonicalMetricNames(splitAndTrim(request.Params.Metrics))
+	if len(metrics) < 2 {
+		return GetMetricParallelCoords400JSONResponse{Message: "metrics must list at least 2 names"}, nil
+	}
+	if len(metrics) > 8 {
+		metrics = metrics[:8] // cap axes for readability
+	}
+
+	// Cross-frame gate — a multi-language scope requires each metric's grant.
+	nLangs, err := s.db.CountLanguagesForSources(ctx, start, end, sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetricParallelCoords.CountLanguagesForSources", "error", err)
+		return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
+	}
+	if nLangs > 1 {
+		languages, err := s.collectLanguagesForScope(ctx, start, end, sources)
+		if err != nil {
+			slog.Error("handler failure", "op", "GetMetricParallelCoords.collectLanguagesForScope", "error", err)
+			return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
+		}
+		for _, m := range metrics {
+			granted, err := s.db.CheckNormalizationEquivalenceForLanguages(ctx, m, languages)
+			if err != nil {
+				slog.Error("handler failure", "op", "GetMetricParallelCoords.CheckNormalizationEquivalenceForLanguages", "error", err)
+				return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
+			}
+			if !granted {
+				gate := crossFrameGateID
+				anchor := crossFrameAnchor
+				alts := append([]string(nil), crossFrameRefusalAlternatives...)
+				return GetMetricParallelCoords400JSONResponse{
+					Message:            crossFrameRefusalMessage,
+					Gate:               &gate,
+					WorkingPaperAnchor: &anchor,
+					Alternatives:       &alts,
+				}, nil
+			}
+		}
+	}
+
+	maxPoints := 3000
+	if request.Params.MaxPoints != nil {
+		maxPoints = *request.Params.MaxPoints
+	}
+
+	res, err := s.db.GetParallelCoords(ctx, metrics, sources, start, end, maxPoints)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetMetricParallelCoords", "error", err)
+		return GetMetricParallelCoords500JSONResponse{Message: genericInternalError}, nil
+	}
+
+	resp := GetMetricParallelCoords200JSONResponse{
+		Metrics:     res.Metrics,
+		Truncated:   res.Truncated,
+		Scope:       strPtr(string(kind)),
+		ScopeId:     request.Params.ScopeId,
+		WindowStart: request.Params.Start,
+		WindowEnd:   request.Params.End,
+	}
+	resp.Rows = make([]struct {
+		ArticleId string    `json:"articleId"`
+		Source    string    `json:"source"`
+		Values    []float64 `json:"values"`
+	}, len(res.Rows))
+	for i, r := range res.Rows {
+		resp.Rows[i] = struct {
+			ArticleId string    `json:"articleId"`
+			Source    string    `json:"source"`
+			Values    []float64 `json:"values"`
+		}{ArticleId: r.ArticleID, Source: r.Source, Values: r.Values}
+	}
+	return resp, nil
 }
 
 // GetEntityCoOccurrence returns the top-N entity-pair edges aggregated over
@@ -766,8 +995,12 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.ViewerLanguage != nil {
 		viewerLanguage = *request.Params.ViewerLanguage
 	}
+	nodeMetric := ""
+	if request.Params.NodeMetric != nil {
+		nodeMetric = canonicalMetricNames([]string{*request.Params.NodeMetric})[0]
+	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -837,6 +1070,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	resp.Nodes = make([]struct {
 		Degree      int64     `json:"degree"`
 		Label       string    `json:"label"`
+		MetricValue *float64  `json:"metricValue,omitempty"`
 		Presence    *[]string `json:"presence,omitempty"`
 		Text        string    `json:"text"`
 		TotalCount  int64     `json:"totalCount"`
@@ -859,15 +1093,21 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 			vl := n.ViewerLabel
 			viewerLabel = &vl
 		}
+		var metricValue *float64
+		if n.MetricValue != nil {
+			mv := safeFloat(*n.MetricValue)
+			metricValue = &mv
+		}
 		resp.Nodes[i] = struct {
 			Degree      int64     `json:"degree"`
 			Label       string    `json:"label"`
+			MetricValue *float64  `json:"metricValue,omitempty"`
 			Presence    *[]string `json:"presence,omitempty"`
 			Text        string    `json:"text"`
 			TotalCount  int64     `json:"totalCount"`
 			ViewerLabel *string   `json:"viewerLabel,omitempty"`
 			WikidataQid *string   `json:"wikidataQid,omitempty"`
-		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
+		}{Degree: n.Degree, Label: n.Label, MetricValue: metricValue, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
 	}
 	return resp, nil
 }
@@ -1039,7 +1279,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		viewerLanguage = *body.ViewerLanguage
 	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "")
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
@@ -1105,6 +1345,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	resp.Nodes = make([]struct {
 		Degree      int64     `json:"degree"`
 		Label       string    `json:"label"`
+		MetricValue *float64  `json:"metricValue,omitempty"`
 		Presence    *[]string `json:"presence,omitempty"`
 		Text        string    `json:"text"`
 		TotalCount  int64     `json:"totalCount"`
@@ -1127,15 +1368,21 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 			vl := n.ViewerLabel
 			viewerLabel = &vl
 		}
+		var metricValue *float64
+		if n.MetricValue != nil {
+			mv := safeFloat(*n.MetricValue)
+			metricValue = &mv
+		}
 		resp.Nodes[i] = struct {
 			Degree      int64     `json:"degree"`
 			Label       string    `json:"label"`
+			MetricValue *float64  `json:"metricValue,omitempty"`
 			Presence    *[]string `json:"presence,omitempty"`
 			Text        string    `json:"text"`
 			TotalCount  int64     `json:"totalCount"`
 			ViewerLabel *string   `json:"viewerLabel,omitempty"`
 			WikidataQid *string   `json:"wikidataQid,omitempty"`
-		}{Degree: n.Degree, Label: n.Label, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
+		}{Degree: n.Degree, Label: n.Label, MetricValue: metricValue, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
 	}
 	return resp, nil
 }

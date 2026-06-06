@@ -1,0 +1,29 @@
+entityId: howto_sankey
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Artikel-Flüsse zwischen Kategorien über eine geordnete Kette von Metadaten-Feldern — wo sich der Korpus bündelt, aufteilt und zusammenführt."
+    long: >
+      Ein Sankey (Alluvial) zeigt, wie sich Artikel über mehrere kategoriale Felder zugleich
+      verteilen. Jede Spalte ist ein Feld; jedes Band ist ein Fluss von Artikeln aus einer Kategorie
+      der einen Spalte in eine Kategorie der nächsten. Dicke Bänder zeigen, wo sich der Korpus
+      bündelt; ein Auffächern zeigt eine Kategorie, die sich über viele der nächsten verteilt; ein
+      Zusammenlaufen zeigt viele Kategorien, die in eine münden. Von links nach rechts gelesen wird
+      der Korpus wiederholt neu gruppiert.
+  methodological:
+    short: "Distinct-Artikel-Flüsse zwischen aufeinanderfolgenden Feld-Paaren, aus article_id-Selfjoins auf aer_gold.article_metadata (FINAL); Top-N-Kanten je Paar."
+    long: >
+      Für jedes aufeinanderfolgende Feld-Paar verknüpft der Server aer_gold.article_metadata über
+      article_id (beide Seiten FINAL, für exakte Distinct-Artikel-Zählung) und zählt distinkte
+      Artikel je (Wert, Wert)-Paar; je Paar werden die Top-N-Kanten behalten, damit ein langer
+      Schwanz den Graphen nicht sprengt (die Kürzung wird hier offengelegt, nie in ein irreführendes
+      Band summiert). Ein Listen-Feld kann einen Artikel unter mehrere Werte setzen, daher sind
+      Bandbreiten Artikel-Fluss-Gewichte, keine strikte Partition. Die Feld-Kette ist auf 8 Spalten
+      gedeckelt. Nur Artikelzahlen — keine Kennzahl-Normierung, also kein Äquivalenz-Gate (Kategorien
+      verschiedener Sprachen erscheinen einfach als eigene Knoten).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-003 §3.2"

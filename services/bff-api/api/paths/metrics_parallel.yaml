@@ -1,0 +1,49 @@
+get:
+  tags: [Metrics]
+  summary: Per-article N-metric matrix for parallel coordinates
+  description: >
+    Pivots `aer_gold.metrics` per article into a vector over the requested metric
+    set (≥2), keeping only articles that carry every metric. Backs the
+    parallel-coordinates cell. Scope is resolved from the union of
+    `scope`/`scopeId`, `probeIds`, `sourceIds`. A multi-language scope requires a
+    validated equivalence grant for every metric; absent that, a 400 refusal with
+    a Level-1 alternative (WP-004 §5.2). Capped at maxPoints.
+  operationId: getMetricParallelCoords
+  parameters:
+    - $ref: '../parameters/metricsList.yaml'
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - $ref: '../parameters/maxPoints.yaml'
+  responses:
+    '200':
+      description: Parallel-coordinates matrix.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ParallelCoordsResponse.yaml'
+    '400':
+      description: Invalid scope/window, fewer than two metrics, or a cross-frame refusal.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
