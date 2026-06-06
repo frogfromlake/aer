@@ -169,3 +169,87 @@ revision_count:
     - "Coverage gap: a wayback_lookup_status of `failed` / `no_snapshots` / `disabled` yields no article_revisions rows, so the article has no revision_count datum at all — distinct from `0 edits witnessed`. The ADR-036 re-attempt loop heals `failed` lookups; the dashboard surfaces the gap (Silent-Edit NS-class)."
   extractor_version_hash: v2
   wp_reference: WP-003 §5.3.1
+
+# ---------------------------------------------------------------------------
+# Phase 133 (Slice 1) — scalar metadata promoted to Gold metric_names.
+# These are not produced by a MetricExtractor: they are read from the WebMeta
+# structured-metadata fields and assembled in the processor (the same place
+# discourse_function is derived), because the MetricExtractor protocol never
+# sees `meta`. A field is promoted only when the WebAdapter actually extracted
+# it (its extraction_methods entry is a real method) — absence is surfaced as
+# Negative Space via aer_gold.metadata_coverage, never coerced to a value
+# (WP-003 §3.2).
+# ---------------------------------------------------------------------------
+
+paywall_status:
+  tier_classification: 1
+  algorithm_description: >
+    Per-article paywall flag (1 = behind a paywall, 0 = freely accessible),
+    read deterministically from the publisher's structured metadata
+    (schema.org isAccessibleForFree, negated) by the WebAdapter and promoted
+    to a Gold metric_name by the processor (Phase 133). The merged-scope
+    aggregate is the SHARE of paywalled articles (an intensive proportion).
+  known_limitations:
+    - "Publisher-declared, not verified — the flag reflects what the publisher asserts in structured metadata, not an independent paywall probe; a mis-tagged page is recorded as the publisher tagged it (WP-003 §3.2)."
+    - "Metadata-richness asymmetry — many publishers never emit isAccessibleForFree. For those sources the field is structurally absent (Negative Space), NOT assumed free; absence is a publisher choice, not a defect (WP-003 §3.2)."
+  extractor_version_hash: metadata-v1
+  wp_reference: WP-003 §3.2
+
+image_count:
+  tier_classification: 1
+  algorithm_description: >
+    Number of images the publisher exposes in the article's structured
+    metadata (schema.org image[]), counted by the WebAdapter and promoted to a
+    Gold metric_name by the processor (Phase 133). An extensive count — a
+    merged-scope total is a legitimate sum over the unioned corpus.
+  known_limitations:
+    - "Structured-metadata only — counts images declared in JSON-LD/OpenGraph, not every <img> in the rendered article body; the structured set is usually the lead/social images, so this under-counts true illustration density (WP-003 §3.2)."
+    - "Metadata-richness asymmetry — a source that emits no structured image metadata is structurally absent for this field (Negative Space), never recorded as zero images (WP-003 §3.2)."
+  extractor_version_hash: metadata-v1
+  wp_reference: WP-003 §3.2
+
+# The next three are emitted generically by the worker but are 0%-populated in
+# the current corpus (no source exposes them in structured metadata yet). They
+# light up automatically once Phase 133 Slice 6 (custom_extractors) recovers
+# them from visible HTML; their provenance is registered now so the
+# /provenance endpoint never 404s for an emitted metric.
+
+reading_time_minutes:
+  tier_classification: 1
+  algorithm_description: >
+    Estimated reading time in minutes, read deterministically from the
+    publisher's structured metadata (schema.org timeRequired, an ISO-8601
+    duration) by the WebAdapter and promoted to a Gold metric_name by the
+    processor (Phase 133). An extensive quantity (total minutes is a legitimate
+    merged sum).
+  known_limitations:
+    - "Publisher-declared estimate — reflects the publisher's own reading-time figure (or a CMS default), not a measured reading speed; figures are not comparable across publishers using different words-per-minute assumptions (WP-003 §3.2)."
+    - "Metadata-richness asymmetry — most sources never emit timeRequired in structured form; for those it is structurally absent (Negative Space), recovered only by per-source visible-HTML rules (Phase 133 custom_extractors), never assumed (WP-003 §3.2)."
+  extractor_version_hash: metadata-v1
+  wp_reference: WP-003 §3.2
+
+comment_count:
+  tier_classification: 1
+  algorithm_description: >
+    Number of reader comments the publisher declares in structured metadata
+    (schema.org interactionStatistic / commentCount), read by the WebAdapter and
+    promoted to a Gold metric_name by the processor (Phase 133). An extensive
+    count.
+  known_limitations:
+    - "Snapshot at crawl time — the comment count reflects the moment of capture, not the article's final comment volume; a re-crawl yields a different value (WP-003 §3.2)."
+    - "Metadata-richness asymmetry — many publishers (and all comment-less institutional sources) never emit a comment count; for those it is structurally absent (Negative Space), never recorded as 0 comments (WP-003 §3.2)."
+  extractor_version_hash: metadata-v1
+  wp_reference: WP-003 §3.2
+
+external_citation_count:
+  tier_classification: 1
+  algorithm_description: >
+    Number of external sources an article cites, counted from the publisher's
+    structured citation metadata (schema.org citation) by the WebAdapter and
+    promoted to a Gold metric_name by the processor (Phase 133). An extensive
+    count — a merged-scope total is a legitimate sum.
+  known_limitations:
+    - "Structured-citation only — counts citations the publisher declares in machine-readable metadata, not every hyperlink in the article body; most outbound links are not declared as schema.org citations, so this under-counts true referencing (WP-003 §3.2)."
+    - "Metadata-richness asymmetry — a source that declares no structured citations is structurally absent for this field (Negative Space), never recorded as zero citations (WP-003 §3.2)."
+  extractor_version_hash: metadata-v1
+  wp_reference: WP-003 §3.2

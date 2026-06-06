@@ -30,9 +30,11 @@ registers:
       relative to a 24/7 newsroom is institutional communication cadence, not a
       defect: count comparisons against higher-volume sources require
       normalization or the refusal surface (WP-003).
-contentVersion: "v2026-05-a"
+
+      Authorship is institutional — articles are authored or approved by the Federal Press Office (BPA), not by named journalists, so the source carries no per-article byline by design. An absent `author` field here is therefore structural absence (a publisher choice), never a defect or a name to fabricate (WP-003 §3.2); editorial responsibility resides in the Impressum, not a byline.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"

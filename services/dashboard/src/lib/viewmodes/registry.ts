@@ -84,6 +84,12 @@ export interface PresentationDefinition {
    *  Cell ignores it. PanelControls hides the Metric row when this is
    *  false. Defaults to `true`. */
   usesMetric?: boolean;
+  /** Phase 133 — this presentation consumes a categorical metadata FIELD
+   *  (section / author / tags / …), carried in `Panel.metric`, instead of a
+   *  Gold metric. PanelControls draws its dimension picker from
+   *  `/scope/available-metadata` rather than the metric list (and keeps the
+   *  single-metric picker hidden via `usesMetric: false`). Defaults to false. */
+  usesMetadataField?: boolean;
   /** Does this presentation's cell consume the active `resolution` prop?
    *  Only time-series-shaped cells (per-source small-multiples on a time
    *  axis) honour resolution today. PanelControls and EpistemeShell hide
@@ -388,6 +394,26 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     configurableParams: [],
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/LeadLagCell.svelte')).default
+  },
+  // Phase 133 — categorical metadata distribution (Aleph, synchronic). One bar
+  // per category value of a categorical metadata field (section / author / tags
+  // / …), ranked by distinct-article count. Field-driven: the single-metric
+  // picker is hidden (usesMetric:false) and PanelControls offers categorical
+  // fields from `/scope/available-metadata` instead (usesMetadataField:true).
+  // The chosen field rides in `Panel.metric`. `topN` caps the visible bars.
+  {
+    id: 'categorical_distribution',
+    label: 'Category distribution',
+    discipline: 'metadata_mining',
+    description:
+      'Article count per category of a metadata field (section, author, tags, …) — what kinds of articles the scope is made of.',
+    layout: 'per-scope',
+    usesMetric: false,
+    usesMetadataField: true,
+    usesResolution: false,
+    configurableParams: ['topN'],
+    loadComponent: async () =>
+      (await import('$lib/components/viewmodes/CategoricalDistributionCell.svelte')).default
   }
 ];
 
@@ -490,7 +516,13 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
     description:
       'Every observed probe in scope, no time axis beyond the active window. Snapshot-oriented analyses: sentiment levels, lexical density, distributional shape, paired-metric structure, what is being talked about right now (by volume), and which sources are currently editing most (silent-edit activity).',
     color: '#5283b8',
-    presentations: ['distribution', 'topic_distribution', 'metric_scatter', 'revision_activity']
+    presentations: [
+      'distribution',
+      'topic_distribution',
+      'metric_scatter',
+      'categorical_distribution',
+      'revision_activity'
+    ]
   },
   {
     id: 'episteme',

@@ -1,0 +1,47 @@
+type: object
+description: >
+  Per-scope categorical-metadata availability (Phase 133) — the categorical
+  analog of ScopeAvailableMetrics. Drives the dimension picker's metadata
+  group so a cross-probe panel never binds a field absent on some scoped source.
+required:
+  - scopedSources
+  - available
+  - partial
+properties:
+  scopedSources:
+    type: array
+    description: The resolved source names the availability was computed over.
+    items:
+      type: string
+  available:
+    type: array
+    description: >
+      Categorical metadata fields that have data for EVERY scoped source in the
+      window. The only fields safe to bind on a panel spanning the whole scope.
+    items:
+      type: string
+  partial:
+    type: array
+    description: >
+      Fields present for SOME but not all scoped sources, with the subset of
+      sources that carry them. Surfaced as an explanatory hint, never offered
+      for binding (unless the user opts in).
+    items:
+      type: object
+      required:
+        - field
+        - sources
+      properties:
+        field:
+          type: string
+        sources:
+          type: array
+          description: The scoped sources that have data for this field.
+          items:
+            type: string
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time

@@ -72,7 +72,17 @@ const PURE_COUNT_METRICS: ReadonlySet<string> = new Set([
   'entity_count',
   'publication_hour',
   'publication_weekday',
-  'temporal_distribution'
+  'temporal_distribution',
+  // Phase 133 — scalar-metadata EVENT counts are extensive (summable across
+  // contexts), so a merged cross-probe pooling is a legitimate total, not a
+  // ranking. Deliberately NOT listed: `paywall_status` (per-article 0/1 whose
+  // merged aggregate is a PROPORTION — intensive) and `reading_time_minutes`
+  // (a per-article DURATION — closer to an intensive per-article quantity than
+  // an event count; summed reading-minutes across probes is not a clean total,
+  // so the merged-cross-probe guard conservatively refuses it).
+  'image_count',
+  'external_citation_count',
+  'comment_count'
 ]);
 
 /** Whether the metric is a pure (extensive) count — the only class for
@@ -103,7 +113,15 @@ const INTEGER_VALUED_METRICS: ReadonlySet<string> = new Set([
   'entity_count',
   'raw_entity_count',
   'publication_hour',
-  'publication_weekday'
+  'publication_weekday',
+  // Phase 133 — scalar metadata are integer-valued (counts, minutes) or a 0/1
+  // flag (paywall_status), so their histogram bin edges + axis ticks render as
+  // integers.
+  'image_count',
+  'external_citation_count',
+  'comment_count',
+  'reading_time_minutes',
+  'paywall_status'
 ]);
 
 /** Whether the metric's underlying values are integers — drives integer

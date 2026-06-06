@@ -15,10 +15,12 @@
   import {
     metricsAvailableQuery,
     scopeAvailableMetricsQuery,
+    scopeAvailableMetadataQuery,
     type AvailableMetricDto,
     type FetchContext,
     type QueryOutcome,
-    type ScopeAvailableMetricsDto
+    type ScopeAvailableMetricsDto,
+    type ScopeAvailableMetadataDto
   } from '$lib/api/queries';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import {
@@ -237,6 +239,83 @@
     return scopedSourceNames.filter((s) => !haveSet.has(s));
   }
 
+  // Phase 133 — categorical metadata field availability for the scope (the
+  // categorical analog of scopeAvailQ). Only fetched when the active view is
+  // field-driven, so scalar-view panels pay nothing.
+  const metadataAvailQ = createQuery<
+    QueryOutcome<ScopeAvailableMetadataDto>,
+    Error,
+    QueryOutcome<ScopeAvailableMetadataDto>
+  >(() => {
+    const o = scopeAvailableMetadataQuery(ctx, {
+      probeIds: panelScope.probeIds,
+      sourceIds: panelScope.sourceIds,
+      start: windowIso.start,
+      end: windowIso.end
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      // Enabled on scope alone (like the metric `scopeAvailQ`), NOT gated on the
+      // current view: `firstMetadataField()` runs inside pickView at the instant
+      // of switching INTO a field view, when `viewUsesMetadataField` is still
+      // false for the OLD view — gating here would leave the offerable list empty
+      // and always seed `section`, even where `section` is Negative Space.
+      enabled: hasScope
+    };
+  });
+  const metadataAvail = $derived<ScopeAvailableMetadataDto | null>(
+    hasScope && metadataAvailQ.data?.kind === 'success' ? metadataAvailQ.data.data : null
+  );
+  const availableMetadataFields = $derived<readonly string[]>(metadataAvail?.available ?? []);
+  const partialMetadataFields = $derived<ScopeAvailableMetadataDto['partial']>(
+    metadataAvail?.partial ?? []
+  );
+  // The offerable categorical fields (no carried-over metric). Same within-frame
+  // discipline as metrics: within a single probe, partial (some-source) fields
+  // are offered too — a field a source lacks renders an empty cell there (honest
+  // absence), not a reason to hide it. Cross-probe withholds partials unless
+  // "show anyway". This list is view-independent so it is correct even when read
+  // from pickView during a switch INTO a field view.
+  function offerableMetadataFields(): string[] {
+    const seen: Record<string, true> = {};
+    const out: string[] = [];
+    const add = (f: string) => {
+      if (f && !seen[f]) {
+        seen[f] = true;
+        out.push(f);
+      }
+    };
+    for (const f of availableMetadataFields) add(f);
+    if (!isCrossProbe || activeShowWithheld) {
+      for (const p of partialMetadataFields) add(p.field);
+    }
+    out.sort();
+    return out;
+  }
+  // The picker list: offerable fields + the active field surfaced so the picker
+  // reflects the current selection. Gated on the active view (only consumed
+  // under `{#if viewUsesMetadataField}`).
+  const metadataFields = $derived.by<string[]>(() => {
+    if (!viewUsesMetadataField) return [];
+    const out = offerableMetadataFields();
+    if (activeMetric && !out.includes(activeMetric)) {
+      out.push(activeMetric);
+      out.sort();
+    }
+    return out;
+  });
+  // The first sensible categorical field to seed when switching to a field-driven
+  // view: prefer `section` (the most common), else the first OFFERABLE field
+  // (never the carried-over metric name). Reads the offerable list directly so it
+  // is correct at the instant pickView runs (the active view is still the old one).
+  function firstMetadataField(): string {
+    const fields = offerableMetadataFields();
+    if (fields.includes('section')) return 'section';
+    return fields[0] ?? 'section';
+  }
+
   const activeMetric = $derived(boundPanel ? boundPanel.metric : DEFAULT_METRIC_NAME);
   const activeLayer = $derived<'gold' | 'silver'>(boundPanel ? boundPanel.layer : 'gold');
   const activeNormalization = $derived<Normalization>(
@@ -261,6 +340,9 @@
   // control hidden so the UI never misleads the user about what changes
   // when they click.
   const viewUsesMetric = $derived(activePresentation.usesMetric ?? true);
+  // Phase 133 — the active view consumes a categorical metadata FIELD (carried
+  // in `Panel.metric`) instead of a Gold metric. Drives the field picker below.
+  const viewUsesMetadataField = $derived(activePresentation.usesMetadataField ?? false);
   const viewUsesResolution = $derived(activePresentation.usesResolution ?? false);
   // Phase 131 (bugfix BUG4) — Compare (normalization) only does something on
   // the time-series cell; hide it elsewhere so it isn't a no-op lever.
@@ -351,11 +433,25 @@
       delete next.cellOverrides;
       const pres = presentations.find((x) => x.id === id);
       const usesMetric = pres?.usesMetric ?? true;
-      // Keep the Panel coherent: when the new view consumes a metric the
-      // current one cannot satisfy, swap to a compatible default so the Cell
-      // never renders a nonsensical (metric × presentation) pairing.
-      if (usesMetric && !metricSupportsPresentation(next.metric, id)) {
-        next.metric = firstMetricSupporting(id);
+      const nextUsesMetadataField = pres?.usesMetadataField ?? false;
+      const prevUsesMetadataField = activePresentation.usesMetadataField ?? false;
+      // Phase 133 — `Panel.metric` carries a categorical FIELD for field-driven
+      // views and a Gold metric otherwise. Reconcile across that boundary so the
+      // cell never receives the wrong kind of identifier: switching INTO a
+      // field-driven view (from a metric view) seeds a default field; switching
+      // OUT of one (into a metric view) must reset, because a field name like
+      // "section" spuriously passes metricSupportsPresentation (scalar default).
+      if (nextUsesMetadataField) {
+        if (!prevUsesMetadataField || !next.metric) {
+          next.metric = firstMetadataField();
+        }
+      } else if (usesMetric) {
+        // Keep the Panel coherent: swap to a compatible metric when the current
+        // identifier is a field (came from a field view) or an incompatible
+        // metric, so the cell never renders a nonsensical (metric × view) pair.
+        if (prevUsesMetadataField || !metricSupportsPresentation(next.metric, id)) {
+          next.metric = firstMetricSupporting(id);
+        }
       }
       // Phase 131 (bugfix) — reconcile composition: if the panel was in
       // overlay but the new view cannot render overlay (only time-series
@@ -568,6 +664,10 @@
   );
   const activeBins = $derived(boundPanel?.bins ?? DEFAULT_BINS);
   const activeTopN = $derived(boundPanel?.topN ?? DEFAULT_TOPN);
+  // The Top N lever is shared: co-occurrence accepts up to 500 edges, but the
+  // categorical-distribution endpoint clamps to 200 server-side — match the
+  // ceiling to the active view so the slider never silently does nothing.
+  const topNMax = $derived(viewUsesMetadataField ? 200 : 500);
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
   const activeChannels = $derived<CellChannelBinding>(boundPanel?.channels ?? {});
   const activeForceStrength = $derived(boundPanel?.forceStrength ?? DEFAULT_FORCE_STRENGTH);
@@ -624,7 +724,7 @@
   }
   function setTopN(n: number) {
     if (!panelPath || !Number.isFinite(n)) return;
-    const clamped = Math.min(500, Math.max(1, Math.round(n)));
+    const clamped = Math.min(topNMax, Math.max(1, Math.round(n)));
     if (clamped === activeTopN) return;
     updatePanel(panelPath, (p) => ({ ...p, topN: clamped }));
   }
@@ -866,6 +966,75 @@
       </div>
     {/if}
 
+    <!-- Phase 133 — categorical metadata FIELD picker. Shown only for
+         field-driven views (categorical_distribution). The field is the
+         GROUPING dimension (hence the "Group by" eyebrow, distinct from a
+         measured "Metric") and rides in Panel.metric. A native <select>
+         scales past the metric button-row as the field set grows. -->
+    {#if viewUsesMetadataField}
+      <div class="ctrl-row config-row" role="group" aria-label="Group-by field">
+        <span class="ctrl-eyebrow">Group by</span>
+        {#if metadataFields.length > 0}
+          <select
+            class="config-select"
+            value={activeMetric}
+            onchange={(e) => pickMetric((e.currentTarget as HTMLSelectElement).value)}
+            onclick={(e) => e.stopPropagation()}
+            aria-label="Categorical metadata field to group by"
+          >
+            {#each metadataFields as f (f)}
+              <option value={f}>{f}</option>
+            {/each}
+          </select>
+        {:else}
+          <span class="field-empty">No categorical metadata for this scope (Negative Space).</span>
+        {/if}
+      </div>
+
+      <!-- Cross-probe metadata withholding (mirror of the metric hint). Fields
+           absent on some scoped source are withheld unless "show anyway". -->
+      {#if isCrossProbe && partialMetadataFields.length > 0}
+        <div class="ctrl-row partial-hint" role="note">
+          <span class="ctrl-eyebrow">Withheld</span>
+          <div class="partial-hint-body">
+            <p class="partial-hint-lead">
+              {partialMetadataFields.length} metadata field{partialMetadataFields.length === 1
+                ? ''
+                : 's'} not present on every one of the {scopedSourceCount} scoped source{scopedSourceCount ===
+              1
+                ? ''
+                : 's'} (metadata asymmetry — a publisher choice, WP-003 §3.2):
+            </p>
+            <ul class="partial-hint-list" role="list">
+              {#each partialMetadataFields as pf (pf.field)}
+                {@const missing = missingSourcesFor(pf.sources)}
+                <li class="partial-metric-row">
+                  <code class="partial-metric">{pf.field}</code>
+                  <span class="partial-metric-detail">
+                    has {pf.sources.length}/{scopedSourceCount}{#if missing.length > 0}
+                      · missing on <strong>{missing.join(', ')}</strong>{/if}
+                  </span>
+                </li>
+              {/each}
+            </ul>
+            {#if isPanelBound}
+              <button
+                type="button"
+                class="ctrl-btn partial-toggle"
+                class:active={activeShowWithheld}
+                role="switch"
+                aria-checked={activeShowWithheld}
+                onclick={toggleShowWithheld}
+                title="Offer these fields anyway. Sources lacking the chosen field render Negative Space, not a forced zero."
+              >
+                {activeShowWithheld ? '✓ Showing withheld' : 'Show anyway'}
+              </button>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    {/if}
+
     <!-- Phase 123c (C1 + Issue 6) — partial-metric hint. Surfaces metrics
          that have data for only SOME scoped sources, and names the sources
          that LACK each one (the "cause") so the user doesn't have to trial-
@@ -967,7 +1136,7 @@
             <input
               type="range"
               min="5"
-              max="500"
+              max={topNMax}
               step="5"
               value={activeTopN}
               oninput={(e) => (liveTopN = Number((e.currentTarget as HTMLInputElement).value))}
@@ -975,7 +1144,7 @@
                 setTopN(Number((e.currentTarget as HTMLInputElement).value));
                 liveTopN = null;
               }}
-              aria-label="Top co-occurrence edge count slider"
+              aria-label="Top N slider"
             />
             <output class="config-value">{displayTopN}</output>
           </div>
@@ -1449,6 +1618,13 @@
      custom X/Y axis (then the panel default doesn't apply to that cell). */
   .scale-note {
     margin: 0 0 0 calc(3.5rem + var(--space-2));
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    font-style: italic;
+  }
+
+  /* Phase 133 — empty-state for the categorical field picker. */
+  .field-empty {
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
     font-style: italic;

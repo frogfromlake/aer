@@ -27,7 +27,8 @@ describe('view-mode registry', () => {
       'revision_timeline',
       'revision_discourse_shift',
       'revision_edit_clusters',
-      'cross_probe_lead_lag'
+      'cross_probe_lead_lag',
+      'categorical_distribution'
     ]);
   });
 
@@ -125,6 +126,7 @@ describe('pillar mapping', () => {
       'distribution',
       'topic_distribution',
       'metric_scatter',
+      'categorical_distribution',
       'revision_activity'
     ]);
     // Episteme (diachronic): time_series + topic_evolution
@@ -155,6 +157,7 @@ describe('pillar mapping', () => {
       'distribution',
       'topic_distribution',
       'metric_scatter',
+      'categorical_distribution',
       'revision_activity'
     ]);
 
@@ -178,6 +181,7 @@ describe('pillar mapping', () => {
       'distribution',
       'topic_distribution',
       'metric_scatter',
+      'categorical_distribution',
       'revision_activity'
     ]);
   });

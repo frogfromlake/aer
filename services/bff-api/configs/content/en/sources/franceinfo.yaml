@@ -31,9 +31,11 @@ registers:
       metadata. Its high cadence relative to the Élysée's event-driven bursts
       means cross-source / cross-probe count comparisons require normalization or
       the refusal surface.
-contentVersion: "v2026-05-a"
+
+      Authorship is editorial — articles carry individual journalist bylines, so an `author` field is expected; a missing byline on a given article is a real gap, not a structural choice (contrast the institutional Élysée, WP-003 §3.2).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"

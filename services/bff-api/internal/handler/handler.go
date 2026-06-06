@@ -111,6 +111,10 @@ type Store interface {
 	GetSilverCorrelation(ctx context.Context, source string, start, end time.Time) (storage.SilverCorrelationResult, error)
 	// Phase 122f: metadata-coverage matrix over aer_gold.metadata_coverage.
 	GetMetadataCoverage(ctx context.Context, sources []string) ([]storage.MetadataCoverageCell, error)
+	// Phase 133: categorical metadata distribution + per-scope availability gate
+	// over aer_gold.article_metadata.
+	GetCategoricalDistribution(ctx context.Context, field string, sources []string, start, end time.Time, topN int) (storage.CategoricalDistributionResult, error)
+	GetScopeAvailableMetadata(ctx context.Context, start, end time.Time, sources []string) (storage.ScopeMetadataAvailability, error)
 	// Phase 122d.0: Silent-Edit Observability — aggregation + per-article
 	// chain over aer_gold.article_revisions.
 	GetRevisionActivity(ctx context.Context, sources []string, start, end time.Time, resolution storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error)

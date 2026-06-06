@@ -1,0 +1,70 @@
+get:
+  tags: [Metrics]
+  summary: Per-scope distribution of a categorical metadata field (top-N by article)
+  description: >
+    Returns, for one categorical metadata field (e.g. `section`, `author`,
+    `tags`), the top-N values ranked by the number of DISTINCT in-scope articles
+    that carry each value, plus the disclosed long tail (`otherArticles`) and
+    the total distinct-value cardinality (`distinctValues`) so a Top-N
+    truncation is never silent. Backs the Phase-133 categorical cell
+    (grouped-bar / "count per category").
+
+    Reads `aer_gold.article_metadata` — one row per (article, field) with an
+    Array(String) value; the query arrayJoin-expands the values and counts
+    distinct articles per value, so a duplicate element within one article never
+    double-counts. Scope is resolved from the union of `scope`/`scopeId`,
+    `probeIds`, and `sourceIds`; at least one must be present. A field that is
+    structurally absent for the scope (no rows) returns an empty distribution —
+    the cell renders Negative Space, not a misleading zero (WP-003 §3.2).
+  operationId: getMetadataDistribution
+  parameters:
+    - name: field
+      in: path
+      required: true
+      description: Categorical metadata field name (e.g. `section`, `tags`, `author`).
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+    - name: topN
+      in: query
+      description: Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200].
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+  responses:
+    '200':
+      description: Categorical distribution payload.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/CategoricalDistributionResponse.yaml'
+    '400':
+      description: Invalid scope, unknown probe / source, or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

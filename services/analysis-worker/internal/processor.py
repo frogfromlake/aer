@@ -29,6 +29,8 @@ from internal import quarantine as _quarantine_module
 from internal import silver as _silver_module
 from internal import silver_projection as _silver_projection_module
 from internal import metadata_coverage as _metadata_coverage_module
+from internal import metadata_metrics as _metadata_metrics_module
+from internal import article_metadata as _article_metadata_module
 from internal import article_revisions as _article_revisions_module
 from internal import wayback_lookups as _wayback_lookups_module
 from internal.models.probe_scope import ProbeLanguageScope
@@ -346,6 +348,23 @@ class DataProcessor:
                     error=str(e),
                 )
 
+        # Phase 133 (Slice 1) — promote scalar metadata fields (paywall status,
+        # image / citation / comment counts, reading time) to Gold metrics.
+        # Assembled HERE, not in a MetricExtractor, because they live on `meta`
+        # (WebMeta), which the extractor protocol never sees — the same reason
+        # `_derive_discourse_function` lives in the processor. A field the
+        # WebAdapter did not extract emits no row (disclose-never-coerce).
+        for metric_name, value in _metadata_metrics_module.derive_metadata_metrics(meta):
+            all_metrics.append(
+                GoldMetric(
+                    timestamp=working_core.timestamp,
+                    value=value,
+                    source=working_core.source,
+                    metric_name=metric_name,
+                    article_id=article_id,
+                )
+            )
+
         discourse_fn = _derive_discourse_function(meta)
 
         # Phase 122e A18: surface the provenance of `core.timestamp` to Gold.
@@ -375,6 +394,16 @@ class DataProcessor:
         # No-op for non-web meta — only WebMeta carries `extraction_methods`.
         _metadata_coverage_module.upload_metadata_coverage(
             self.ch, working_core, meta, ingestion_version, event_time
+        )
+
+        # Phase 133 (Slice 2): promote categorical metadata VALUES (section,
+        # author, tags, …) to `aer_gold.article_metadata` so they are queryable
+        # as grouping/measured dimensions. One row per non-empty (field, value);
+        # absent fields write nothing (disclose-never-coerce — absence is shown
+        # as Negative Space via metadata_coverage above). Shares `article_id`
+        # (= core.document_id) with the metrics rows so cross-tabs join cleanly.
+        _article_metadata_module.upload_article_metadata(
+            self.ch, working_core, meta, ingestion_version, discourse_fn, timestamp_source
         )
 
         # Silent-failure guard (migration 000025): record THIS article's

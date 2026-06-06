@@ -1,0 +1,53 @@
+entityId: paywall_status
+entityType: metric
+locale: de
+registers:
+  semantic:
+    short: "Ob ein Artikel hinter einer Bezahlschranke liegt (1) oder frei zugänglich ist (0). Über einen Bereich aggregiert ergibt sich der Anteil der Artikel mit Bezahlschranke."
+    long: >
+      paywall_status erfasst pro Artikel, ob der Herausgeber ihn als
+      zahlungspflichtig markiert. Als einzelner Artikel ist es ein 0/1-Wert;
+      über eine Quelle oder ein Zeitfenster gebündelt wird daraus der Anteil des
+      Korpus hinter einer Bezahlschranke — ein Blick darauf, wie offen ein
+      Herausgeber seine Berichterstattung verbreitet und wie sich diese Offenheit
+      über die Zeit verändert oder zwischen Quellen unterscheidet. Ein steigender
+      Bezahlschranken-Anteil kann einen Wandel des Geschäftsmodells signalisieren;
+      eine staatliche Quelle ohne jede Bezahlschranke neben einer kommerziellen
+      Quelle mit starker Bezahlschranke ist ein struktureller Unterschied in der
+      öffentlichen Reichweite, kein Qualitätsurteil.
+
+      Es ist ein vom Herausgeber deklariertes Signal: AĒR liest, was die Seite in
+      ihren strukturierten Metadaten angibt, und prüft die Bezahlschranke nicht
+      selbst. Entscheidend: Abwesenheit bedeutet nicht Freiheit — eine Quelle, die
+      keine Zugänglichkeit deklariert, wird für dieses Feld als Negative Space
+      gezeigt (der Herausgeber gibt es nicht aus), niemals stillschweigend als
+      „alles frei" gezählt.
+  methodological:
+    short: "Aus schema.org isAccessibleForFree (negiert) in den strukturierten Metadaten gelesen. Tier 1 (deterministisch). Abwesend, wenn der Herausgeber kein Zugänglichkeits-Flag ausgibt — als Negative Space gezeigt, nie zu 0 umgedeutet."
+    long: >
+      paywall_status wird deterministisch aus den strukturierten Metadaten des
+      Artikels abgeleitet: schema.org isAccessibleForFree=false → 1
+      (Bezahlschranke), isAccessibleForFree=true → 0 (frei). Der Wert wird vom
+      WebAdapter an der Silver-Grenze extrahiert und vom Processor zu einem Gold-
+      metric_name befördert (Phase 133) — er entsteht nicht durch einen
+      statistischen oder modellbasierten Extraktor, ist also ein deterministisches
+      Tier-1-Maß. Validierungsstatus: unvalidated (Engineering-Default).
+
+      Der tragende methodische Punkt ist disclose-never-coerce (WP-003 §3.2): die
+      Metrik wird NUR für Artikel erfasst, deren Herausgeber das Zugänglichkeits-
+      Flag tatsächlich ausgibt. Eine Quelle, die es nie ausgibt, ist für
+      paywall_status strukturell abwesend — im Coverage-Panel als Negative Space
+      gezeigt und im Dimensions-Picker für diesen Bereich nicht angeboten — und
+      wird NIE als „0 / alles frei" erfasst. Das Schweigen des Herausgebers ist
+      eine Herausgeber-Entscheidung, kein Maß für Offenheit.
+
+      Komposition — ein zusammengeführter Mehrquellen-Bereich aggregiert als
+      Mittelwert der 0/1-Werte, also als Bezahlschranken-ANTEIL, eine intensive
+      Proportion: mehr als eine Probe auf einer Achse zu bündeln behauptet
+      kontextübergreifende Vergleichbarkeit und ist entsprechend reguliert
+      (Brief §1.3). Die geteilte Komposition zeigt den Anteil pro Quelle.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-003 §3.2"

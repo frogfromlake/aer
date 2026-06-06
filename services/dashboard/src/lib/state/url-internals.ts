@@ -48,7 +48,12 @@ export type ViewMode =
   // Phase 124 — cross-probe temporal lead-lag (Rhizome, relational). The
   // lagged cross-correlation of two probes' hourly publication activity;
   // metric-less (usesMetric:false) and inherently a probe-pair artefact.
-  | 'cross_probe_lead_lag';
+  | 'cross_probe_lead_lag'
+  // Phase 133 — categorical metadata distribution (Aleph, synchronic). Article
+  // count per category value of a categorical metadata FIELD (section / author /
+  // tags / …). Field-driven, not metric-driven (usesMetric:false,
+  // usesMetadataField:true); the chosen field is carried in `Panel.metric`.
+  | 'categorical_distribution';
 // Data layer toggle (Phase 111). `gold` is the default (omitted from URL);
 // `silver` routes Surface II queries to /api/v1/silver/* and enforces the
 // WP-006 §5.2 eligibility gate. Only meaningful when a probe is selected.
@@ -325,7 +330,8 @@ const VIEW_MODES: readonly ViewMode[] = [
   'revision_timeline',
   'revision_discourse_shift',
   'revision_edit_clusters',
-  'cross_probe_lead_lag'
+  'cross_probe_lead_lag',
+  'categorical_distribution'
 ];
 const NORMALIZATIONS: readonly Normalization[] = ['raw', 'zscore', 'percentile'];
 // A metric name must be short, ascii, and identifier-shaped to avoid

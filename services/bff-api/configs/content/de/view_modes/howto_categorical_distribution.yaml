@@ -1,0 +1,37 @@
+entityId: howto_categorical_distribution
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Ein Balken je Kategoriewert des gewählten Metadaten-Feldes; die Balkenhöhe ist die Zahl der Artikel im Bereich mit diesem Wert. Liest, welche Kategorien den Korpus dominieren."
+    long: >
+      Eine Kategorie-Verteilung beantwortet „aus welchen Arten von Artikeln besteht dieser
+      Bereich?" — wie viele in jedes Ressort fallen, welche Schlagwörter sie tragen oder von wem
+      sie geschrieben sind. Die Balken sind nach Artikelzahl sortiert; der Top-N-Regler bestimmt die
+      Balkenzahl, und die Zelle nennt stets die Gesamtzahl distinkter Werte, sodass ein langer
+      Schwanz in Worten offengelegt wird (statt in einem irreführenden Sammelbalken). Jeder Artikel
+      wird je Wert einmal gezählt, daher können Listen-Felder (Schlagwörter, Kategorien) einen
+      Artikel unter mehrere Balken setzen. Ein leeres Diagramm ist bedeutsam, hat aber zwei mögliche
+      Ursachen — das Feld ist strukturell abwesend (Negative Space, eine Herausgeber-Entscheidung)
+      oder schlicht kein erfasster Artikel im Fenster trägt es; das Coverage-Panel je Quelle
+      unterscheidet beides. So oder so wird nie zu einem „Null"-Balken umgedeutet.
+  methodological:
+    short: "Distinct-Artikel-Zählung je Wert eines kategorischen Metadaten-Feldes, gelesen aus aer_gold.article_metadata. Top-N mit offengelegtem Rest. Verfügbarkeit über das Coverage-Signal gesteuert."
+    long: >
+      Das Feld ist eine kategorische Metadaten-Dimension (Ressort, Autor, Schlagwörter, …), die der
+      WebAdapter in die Silver-Hülle extrahiert und der Worker nach aer_gold.article_metadata
+      befördert hat. Die Balkenzahl ist uniqExact(article_id) je Wert über Fenster und Bereich, also
+      zählt ein doppelter Wert innerhalb eines Artikels nie doppelt. Werte jenseits der Top-N werden
+      nicht gezeichnet; die Zelle nennt stets die Gesamtzahl distinkter Werte, sodass die Kürzung in
+      Worten offengelegt wird statt als „other"-Balken (dessen Schwanzgewicht bei Listen-Feldern
+      eine Wert-Vorkommens-Summe wäre, keine Distinct-Artikel-Zählung). Welche Felder für einen Bereich
+      ANGEBOTEN werden, steuert das Phase-122f-Coverage-Signal (ein Feld, das eine Quelle nicht
+      ausgibt, wird für diesen Bereich zurückgehalten oder per „show anyway" mit Nennung der
+      fehlenden Quellen gezeigt) — Abwesenheit wird als Negative Space gezeigt, nie zu einem
+      Null-Balken umgedeutet (WP-003 §3.2). Diese Dimensionen sind provisorisch und vom Herausgeber
+      deklariert; sie beschreiben, was Herausgeber offenlegen, keine Grundwahrheit.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-003 §3.2"

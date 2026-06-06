@@ -1,0 +1,49 @@
+entityId: paywall_status
+entityType: metric
+locale: en
+registers:
+  semantic:
+    short: "Whether an article sits behind a paywall (1) or is freely accessible (0). Aggregated over a scope it reads as the share of paywalled articles."
+    long: >
+      paywall_status records, per article, whether the publisher marks it as
+      requiring payment to read. As a single article it is a 0/1 flag; pooled
+      over a source or window it becomes the share of the corpus behind a
+      paywall — a lens on how openly a publisher circulates its reporting and
+      how that openness shifts over time or differs across sources. A rising
+      paywalled share can signal a business-model shift; a government source
+      that paywalls nothing while a commercial source paywalls heavily is a
+      structural difference in public reach, not a quality judgement.
+
+      It is a publisher-declared signal: AĒR reads what the page asserts in its
+      structured metadata, it does not itself test the paywall. Crucially,
+      absence is not freedom — a source that never declares accessibility is
+      shown as Negative Space for this field (the publisher does not emit it),
+      never silently counted as "all free".
+  methodological:
+    short: "Read from schema.org isAccessibleForFree (negated) in the publisher's structured metadata. Tier 1 (deterministic). Absent when the publisher emits no accessibility flag — surfaced as Negative Space, never coerced to 0."
+    long: >
+      paywall_status is derived deterministically from the article's structured
+      metadata: schema.org isAccessibleForFree=false → 1 (paywalled),
+      isAccessibleForFree=true → 0 (free). The value is extracted by the
+      WebAdapter at the Silver boundary and promoted to a Gold metric_name by
+      the processor (Phase 133) — it is not produced by a statistical or
+      model-based extractor, so it is a Tier 1 deterministic measure.
+      Validation status: unvalidated (engineering default).
+
+      The load-bearing methodological point is disclose-never-coerce
+      (WP-003 §3.2): the metric is recorded ONLY for articles whose publisher
+      actually emits the accessibility flag. A source that never emits it is
+      structurally absent for paywall_status — surfaced as Negative Space in the
+      coverage panel and withheld from the dimension picker for that scope — and
+      is NEVER recorded as "0 / all free". The publisher's silence is a
+      publisher choice, not a measurement of openness.
+
+      Composition — a merged multi-source scope aggregates as the mean 0/1, i.e.
+      the paywalled SHARE, which is an intensive proportion: pooling more than
+      one probe onto one axis asserts cross-context comparability and is gated
+      accordingly (Brief §1.3). Split composition reports the share per source.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-003 §3.2"

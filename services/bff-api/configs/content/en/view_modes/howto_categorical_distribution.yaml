@@ -1,0 +1,35 @@
+entityId: howto_categorical_distribution
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "One bar per category value of the chosen metadata field; bar height is how many articles in scope carry that value. Read which categories dominate the corpus."
+    long: >
+      A category distribution answers "what kinds of articles is this scope made of?" — how many
+      fall in each section, carry each tag, or are written by each author. Bars are ranked by
+      article count; the Top N lever sets how many bars you see, and the cell always states the
+      total distinct-value count so any long tail is disclosed in words (not folded into a
+      misleading aggregate bar). Each article is counted once per distinct value, so list fields
+      (tags, categories) can place one article under several bars. An empty chart is meaningful but
+      has two possible causes — the field is structurally absent (Negative Space, a publisher's
+      choice) or simply no captured article in the window carries it; the per-source metadata
+      coverage panel distinguishes them. Either way it is never coerced to a "zero" bar.
+  methodological:
+    short: "Distinct-article count per value of a categorical metadata field, read from aer_gold.article_metadata. Top-N with a disclosed long tail. Availability gated by the metadata-coverage signal."
+    long: >
+      The field is a categorical metadata dimension (section, author, tags, …) the WebAdapter
+      extracted into the Silver envelope and the worker promoted to aer_gold.article_metadata.
+      The bar count is uniqExact(article_id) per value over the window and scope, so a duplicate
+      value within one article never double-counts. Values beyond the Top-N are not drawn; the cell
+      always states the total distinct-value count so the truncation is disclosed in words rather
+      than as an "other" bar (whose tail weight for list fields would be a value-occurrence sum,
+      not a distinct-article count). Which fields are OFFERED for a scope is gated by the Phase-122f
+      metadata-coverage signal (a field a source does not emit is withheld for that scope, or
+      shown via "show anyway" with the lacking sources named) — absence is surfaced as Negative
+      Space, never coerced to a zero bar (WP-003 §3.2). These dimensions are provisional and
+      publisher-declared; they describe what publishers choose to expose, not a ground truth.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-06"
+workingPaperAnchors:
+  - "WP-003 §3.2"

@@ -173,6 +173,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/scope/available-metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Categorical metadata fields available across a multi-source scope (intersection)
+         * @description Returns, for the resolved scope, which categorical metadata fields have data in `aer_gold.article_metadata` for **every** scoped source (`available`) versus only **some** of them (`partial`). The categorical analog of `/scope/available-metrics`: the dimension picker offers only `available` fields so a panel spanning probes with asymmetric metadata richness never binds a field that silently yields empty cells; `partial` carries the per-field source list so the UI can explain why a field was withheld.
+         *     "Present" means the field has at least one value-row in the window for the source — i.e. selecting it would render non-empty. (The Phase-122f metadata-coverage matrix + `structurallyAbsent` remains the methodological Negative-Space surface; this endpoint is only the picker availability gate.) Scope is resolved from the union of `scope`/`scopeId`, `probeIds`, and `sourceIds`; at least one must be present.
+         */
+        get: operations["getScopeAvailableMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metadata/{field}/distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-scope distribution of a categorical metadata field (top-N by article)
+         * @description Returns, for one categorical metadata field (e.g. `section`, `author`, `tags`), the top-N values ranked by the number of DISTINCT in-scope articles that carry each value, plus the disclosed long tail (`otherArticles`) and the total distinct-value cardinality (`distinctValues`) so a Top-N truncation is never silent. Backs the Phase-133 categorical cell (grouped-bar / "count per category").
+         *     Reads `aer_gold.article_metadata` — one row per (article, field) with an Array(String) value; the query arrayJoin-expands the values and counts distinct articles per value, so a duplicate element within one article never double-counts. Scope is resolved from the union of `scope`/`scopeId`, `probeIds`, and `sourceIds`; at least one must be present. A field that is structurally absent for the scope (no rows) returns an empty distribution — the cell renders Negative Space, not a misleading zero (WP-003 §3.2).
+         */
+        get: operations["getMetadataDistribution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/entities": {
         parameters: {
             query?: never;
@@ -1314,6 +1356,52 @@ export interface components {
                     p95: number;
                 };
             }[];
+        };
+        /** @description Top-N categorical distribution of one metadata field over a scope (Phase 133). Counts are DISTINCT in-scope articles per value; the long tail beyond the Top-N is disclosed so the truncation is never silent. */
+        CategoricalDistributionResponse: {
+            /**
+             * @description The categorical metadata field this distribution is over.
+             * @example section
+             */
+            field: string;
+            /** @description Resolved scope kind ("probe" or "source"). */
+            scope?: string;
+            /** @description Resolved scope identifier, when a single scopeId was supplied. */
+            scopeId?: string;
+            /** Format: date-time */
+            windowStart?: string;
+            /** Format: date-time */
+            windowEnd?: string;
+            /** @description The top-N values, ranked by distinct-article count (desc, then value asc). */
+            categories: {
+                /** @description One categorical value (e.g. a section name, a tag, an author). */
+                value: string;
+                /** @description Number of distinct in-scope articles carrying this value. */
+                articles: number;
+            }[];
+            /** @description Distinct in-scope articles that carry ANY value for this field. */
+            totalArticles: number;
+            /** @description Total number of distinct values for this field in scope. When greater than the length of `categories`, the client discloses "showing top N of M". */
+            distinctValues: number;
+            /** @description Summed per-value article weight beyond the Top-N (for an optional "other" bar). For list fields one article can carry several values, so this is a value-occurrence weight, NOT a distinct-article count — use `distinctValues` for the unambiguous category count. */
+            otherArticles: number;
+        };
+        /** @description Per-scope categorical-metadata availability (Phase 133) — the categorical analog of ScopeAvailableMetrics. Drives the dimension picker's metadata group so a cross-probe panel never binds a field absent on some scoped source. */
+        ScopeAvailableMetadata: {
+            /** @description The resolved source names the availability was computed over. */
+            scopedSources: string[];
+            /** @description Categorical metadata fields that have data for EVERY scoped source in the window. The only fields safe to bind on a panel spanning the whole scope. */
+            available: string[];
+            /** @description Fields present for SOME but not all scoped sources, with the subset of sources that carry them. Surfaced as an explanatory hint, never offered for binding (unless the user opts in). */
+            partial: {
+                field: string;
+                /** @description The scoped sources that have data for this field. */
+                sources: string[];
+            }[];
+            /** Format: date-time */
+            windowStart?: string;
+            /** Format: date-time */
+            windowEnd?: string;
         };
         /** @description Two-dimensional binning of a metric over a time window. `xDimension` and `yDimension` are echoed back for the frontend's axis labelling. */
         HeatmapResponse: {
@@ -2801,6 +2889,185 @@ export interface operations {
                 };
             };
             /** @description Invalid scope or malformed window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getScopeAvailableMetadata: {
+        parameters: {
+            query?: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available (all-source) and partial (some-source) categorical field sets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScopeAvailableMetadata"];
+                };
+            };
+            /** @description Invalid scope or malformed window. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Probe or source not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getMetadataDistribution: {
+        parameters: {
+            query?: {
+                /** @description Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4. */
+                scope?: "probe" | "source";
+                /** @description Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise. */
+                scopeId?: string;
+                /** @description Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response. */
+                probeIds?: string;
+                /** @description Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned. */
+                sourceIds?: string;
+                /** @description Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                start?: string;
+                /** @description Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
+                end?: string;
+                /** @description Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200]. */
+                topN?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Categorical metadata field name (e.g. `section`, `tags`, `author`). */
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Categorical distribution payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoricalDistributionResponse"];
+                };
+            };
+            /** @description Invalid scope, unknown probe / source, or malformed window. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -31,9 +31,11 @@ registers:
       Stimme, nicht "die deutsche öffentliche Meinung". Absolute Artikelzahlen
       sind über Quellen unterschiedlicher Kadenz nicht vergleichbar — Raten oder
       die Normalisierungs-/Refusal-Surface nutzen.
-contentVersion: "v2026-05-a"
+
+      Die Autorschaft ist redaktionell — Artikel tragen individuelle journalistische / redaktionelle Bylines, ein `author`-Feld ist hier also zu erwarten; fehlt es bei einem Artikel, ist das eine echte Lücke, keine strukturelle Entscheidung (im Kontrast zu den institutionellen Regierungsquellen, WP-003 §3.2).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"

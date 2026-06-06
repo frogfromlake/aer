@@ -45,6 +45,12 @@ export type AvailableMetricDto = components['schemas']['AvailableMetric'];
 export type ScopeAvailableMetricsDto =
   paths['/scope/available-metrics']['get']['responses'][200]['content']['application/json'];
 export type PartialMetricDto = ScopeAvailableMetricsDto['partial'][number];
+// Phase 133 — categorical metadata distribution + per-scope availability.
+export type CategoricalDistributionResponseDto =
+  components['schemas']['CategoricalDistributionResponse'];
+export type CategoryCountDto = CategoricalDistributionResponseDto['categories'][number];
+export type ScopeAvailableMetadataDto = components['schemas']['ScopeAvailableMetadata'];
+export type PartialMetadataFieldDto = ScopeAvailableMetadataDto['partial'][number];
 export type SilverAggregationResponseDto = components['schemas']['SilverAggregationResponse'];
 export type TopicDistributionResponseDto = components['schemas']['TopicDistributionResponse'];
 export type MetadataCoverageResponseDto = components['schemas']['MetadataCoverageResponse'];
@@ -685,6 +691,60 @@ export function metricDistributionQuery(
         ctx,
         `/metrics/${encodeURIComponent(metricName)}/distribution?${qs.toString()}`,
         'validation_missing'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 133 — categorical metadata distribution. `field` is a categorical
+// metadata field (section / author / tags / …) carried in the panel's `metric`
+// slot when the active presentation is `categorical_distribution`. Top-N values
+// by distinct-article count over the scope; absent field → empty distribution.
+export function metadataDistributionQuery(
+  ctx: FetchContext,
+  field: string,
+  params: ViewModeQueryParams & { topN?: number }
+): QueryOptions<CategoricalDistributionResponseDto> {
+  const qs = new URLSearchParams();
+  qs.set('scope', params.scope);
+  qs.set('scopeId', params.scopeId);
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  if (params.topN) qs.set('topN', String(params.topN));
+  return {
+    queryKey: ['aer', 'metadata-distribution', field, params] as const,
+    queryFn: () =>
+      fetchJson<CategoricalDistributionResponseDto>(
+        ctx,
+        `/metadata/${encodeURIComponent(field)}/distribution?${qs.toString()}`,
+        'unspecified'
+      ),
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Phase 133 — categorical metadata fields available across the panel scope (the
+// categorical analog of scopeAvailableMetricsQuery). Reuses the same param
+// shape; gates which fields the dimension picker offers.
+export function scopeAvailableMetadataQuery(
+  ctx: FetchContext,
+  params: ScopeAvailableMetricsParams
+): QueryOptions<ScopeAvailableMetadataDto> {
+  const qs = new URLSearchParams();
+  if (params.scope) qs.set('scope', params.scope);
+  if (params.scopeId) qs.set('scopeId', params.scopeId);
+  if (params.probeIds && params.probeIds.length > 0) qs.set('probeIds', params.probeIds.join(','));
+  if (params.sourceIds && params.sourceIds.length > 0)
+    qs.set('sourceIds', params.sourceIds.join(','));
+  if (params.start) qs.set('start', params.start);
+  if (params.end) qs.set('end', params.end);
+  return {
+    queryKey: ['aer', 'scope-available-metadata', params] as const,
+    queryFn: () =>
+      fetchJson<ScopeAvailableMetadataDto>(
+        ctx,
+        `/scope/available-metadata?${qs.toString()}`,
+        'unspecified'
       ),
     staleTime: FIVE_MINUTES
   };

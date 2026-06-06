@@ -1,0 +1,62 @@
+type: object
+description: >
+  Top-N categorical distribution of one metadata field over a scope (Phase 133).
+  Counts are DISTINCT in-scope articles per value; the long tail beyond the
+  Top-N is disclosed so the truncation is never silent.
+required:
+  - field
+  - categories
+  - totalArticles
+  - distinctValues
+  - otherArticles
+properties:
+  field:
+    type: string
+    description: The categorical metadata field this distribution is over.
+    example: section
+  scope:
+    type: string
+    description: Resolved scope kind ("probe" or "source").
+  scopeId:
+    type: string
+    description: Resolved scope identifier, when a single scopeId was supplied.
+  windowStart:
+    type: string
+    format: date-time
+  windowEnd:
+    type: string
+    format: date-time
+  categories:
+    type: array
+    description: The top-N values, ranked by distinct-article count (desc, then value asc).
+    items:
+      type: object
+      required:
+        - value
+        - articles
+      properties:
+        value:
+          type: string
+          description: One categorical value (e.g. a section name, a tag, an author).
+        articles:
+          type: integer
+          minimum: 0
+          description: Number of distinct in-scope articles carrying this value.
+  totalArticles:
+    type: integer
+    minimum: 0
+    description: Distinct in-scope articles that carry ANY value for this field.
+  distinctValues:
+    type: integer
+    minimum: 0
+    description: >
+      Total number of distinct values for this field in scope. When greater than
+      the length of `categories`, the client discloses "showing top N of M".
+  otherArticles:
+    type: integer
+    minimum: 0
+    description: >
+      Summed per-value article weight beyond the Top-N (for an optional "other"
+      bar). For list fields one article can carry several values, so this is a
+      value-occurrence weight, NOT a distinct-article count — use
+      `distinctValues` for the unambiguous category count.

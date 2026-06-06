@@ -36,9 +36,11 @@ registers:
       is the finest meaningful temporal resolution (WP-005). This low, bursty
       cadence is itself a discourse signal; cross-probe count comparisons require
       normalization or the refusal surface (WP-003).
-contentVersion: "v2026-05-a"
+
+      Authorship is institutional — communiqués, allocutions and discours are issued by the Présidence de la République, not by named journalists, so the source carries no per-article byline by design. An absent `author` field here is structural absence (a publisher choice), never a defect or a fabricated name (WP-003 §3.2).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"

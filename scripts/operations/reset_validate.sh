@@ -188,6 +188,7 @@ if docker compose ps clickhouse --format '{{.State}}' 2>/dev/null | grep -q runn
         "aer_gold.metric_baselines"
         "aer_gold.metric_validity"
         "aer_gold.topic_assignments"
+        "aer_gold.article_metadata"
         "aer_silver.documents"
     )
     for tbl in "${expected_tables[@]}"; do

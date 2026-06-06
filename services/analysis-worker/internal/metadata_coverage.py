@@ -86,6 +86,16 @@ def _normalise_method(raw: Optional[str]) -> str:
     return raw
 
 
+def is_extraction_present(extraction_methods: dict[str, Optional[str]], field: str) -> bool:
+    """True iff ``field`` was populated by a real (in-vocabulary) extraction
+    method. This is the single presence definition shared by the coverage matrix
+    and the Phase-133 metadata-metric promotion (:mod:`metadata_metrics`), so the
+    two surfaces never disagree about whether a field is present: an out-of-
+    vocabulary method collapses to ``null`` here exactly as it does in coverage.
+    """
+    return _normalise_method(extraction_methods.get(field)) != NULL_METHOD
+
+
 def build_coverage_rows(
     source: str,
     article_id: str,

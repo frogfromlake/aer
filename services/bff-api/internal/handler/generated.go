@@ -605,6 +605,24 @@ func (e GetEntityCoOccurrenceParamsScope) Valid() bool {
 	}
 }
 
+// Defines values for GetMetadataDistributionParamsScope.
+const (
+	GetMetadataDistributionParamsScopeProbe  GetMetadataDistributionParamsScope = "probe"
+	GetMetadataDistributionParamsScopeSource GetMetadataDistributionParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetMetadataDistributionParamsScope enum.
+func (e GetMetadataDistributionParamsScope) Valid() bool {
+	switch e {
+	case GetMetadataDistributionParamsScopeProbe:
+		return true
+	case GetMetadataDistributionParamsScopeSource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMetricsParamsNormalization.
 const (
 	Percentile GetMetricsParamsNormalization = "percentile"
@@ -953,6 +971,24 @@ func (e GetRevisionEditClustersParamsResolution) Valid() bool {
 	case GetRevisionEditClustersParamsResolutionSnapshot:
 		return true
 	case GetRevisionEditClustersParamsResolutionWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetScopeAvailableMetadataParamsScope.
+const (
+	GetScopeAvailableMetadataParamsScopeProbe  GetScopeAvailableMetadataParamsScope = "probe"
+	GetScopeAvailableMetadataParamsScopeSource GetScopeAvailableMetadataParamsScope = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetScopeAvailableMetadataParamsScope enum.
+func (e GetScopeAvailableMetadataParamsScope) Valid() bool {
+	switch e {
+	case GetScopeAvailableMetadataParamsScopeProbe:
+		return true
+	case GetScopeAvailableMetadataParamsScopeSource:
 		return true
 	default:
 		return false
@@ -1881,6 +1917,33 @@ type GetLanguagesParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetMetadataDistributionParams defines parameters for GetMetadataDistribution.
+type GetMetadataDistributionParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetMetadataDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+
+	// TopN Maximum number of categories to return (ranked by article count). Default 20, clamped to [1, 200].
+	TopN *int `form:"topN,omitempty" json:"topN,omitempty"`
+}
+
+// GetMetadataDistributionParamsScope defines parameters for GetMetadataDistribution.
+type GetMetadataDistributionParamsScope string
+
 // GetMetricsParams defines parameters for GetMetrics.
 type GetMetricsParams struct {
 	// StartDate Start date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
@@ -2199,6 +2262,30 @@ type GetRevisionEditClustersParamsScope string
 // GetRevisionEditClustersParamsResolution defines parameters for GetRevisionEditClusters.
 type GetRevisionEditClustersParamsResolution string
 
+// GetScopeAvailableMetadataParams defines parameters for GetScopeAvailableMetadata.
+type GetScopeAvailableMetadataParams struct {
+	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
+	Scope *GetScopeAvailableMetadataParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+
+	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
+	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
+
+	// SourceIds Comma-separated list of source names (e.g. `tagesschau,bundesregierung`). When provided alongside or instead of `scopeId`, the sources are added to the resolved scope union. Compatible with `probeIds` — both sets are merged and deduplicated. Backward-compatible with the single `source` parameter on the flat-list endpoints: if `source` is also present the two values are unioned.
+	SourceIds *string `form:"sourceIds,omitempty" json:"sourceIds,omitempty"`
+
+	// Start Inclusive start of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
+
+	// End Exclusive end of the query window (RFC 3339). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
+	End *time.Time `form:"end,omitempty" json:"end,omitempty"`
+}
+
+// GetScopeAvailableMetadataParamsScope defines parameters for GetScopeAvailableMetadata.
+type GetScopeAvailableMetadataParamsScope string
+
 // GetScopeAvailableMetricsParams defines parameters for GetScopeAvailableMetrics.
 type GetScopeAvailableMetricsParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
@@ -2361,6 +2448,9 @@ type ServerInterface interface {
 	// Retrieve aggregated language detections
 	// (GET /languages)
 	GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams)
+	// Per-scope distribution of a categorical metadata field (top-N by article)
+	// (GET /metadata/{field}/distribution)
+	GetMetadataDistribution(w http.ResponseWriter, r *http.Request, field string, params GetMetadataDistributionParams)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(w http.ResponseWriter, r *http.Request, params GetMetricsParams)
@@ -2412,6 +2502,9 @@ type ServerInterface interface {
 	// Coordinated cross-source silent-edit clusters for a probe or source
 	// (GET /revisions/edit-clusters)
 	GetRevisionEditClusters(w http.ResponseWriter, r *http.Request, params GetRevisionEditClustersParams)
+	// Categorical metadata fields available across a multi-source scope (intersection)
+	// (GET /scope/available-metadata)
+	GetScopeAvailableMetadata(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetadataParams)
 	// Metrics available across a multi-source scope (per-source intersection)
 	// (GET /scope/available-metrics)
 	GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetricsParams)
@@ -2499,6 +2592,12 @@ func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 // Retrieve aggregated language detections
 // (GET /languages)
 func (_ Unimplemented) GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Per-scope distribution of a categorical metadata field (top-N by article)
+// (GET /metadata/{field}/distribution)
+func (_ Unimplemented) GetMetadataDistribution(w http.ResponseWriter, r *http.Request, field string, params GetMetadataDistributionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2601,6 +2700,12 @@ func (_ Unimplemented) GetRevisionDiscourseShift(w http.ResponseWriter, r *http.
 // Coordinated cross-source silent-edit clusters for a probe or source
 // (GET /revisions/edit-clusters)
 func (_ Unimplemented) GetRevisionEditClusters(w http.ResponseWriter, r *http.Request, params GetRevisionEditClustersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Categorical metadata fields available across a multi-source scope (intersection)
+// (GET /scope/available-metadata)
+func (_ Unimplemented) GetScopeAvailableMetadata(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetadataParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3097,6 +3202,96 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetLanguages(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMetadataDistribution operation middleware
+func (siw *ServerInterfaceWrapper) GetMetadataDistribution(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "field" -------------
+	var field string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "field", chi.URLParam(r, "field"), &field, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "field", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetadataDistributionParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "topN" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "topN", r.URL.Query(), &params.TopN, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "topN", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetadataDistribution(w, r, field, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4250,6 +4445,79 @@ func (siw *ServerInterfaceWrapper) GetRevisionEditClusters(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// GetScopeAvailableMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetScopeAvailableMetadata(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetScopeAvailableMetadataParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scopeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "probeIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "probeIds", r.URL.Query(), &params.ProbeIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sourceIds" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourceIds", r.URL.Query(), &params.SourceIds, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceIds", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "start" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "start", r.URL.Query(), &params.Start, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "start", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "end" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "end", r.URL.Query(), &params.End, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "end", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetScopeAvailableMetadata(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetScopeAvailableMetrics operation middleware
 func (siw *ServerInterfaceWrapper) GetScopeAvailableMetrics(w http.ResponseWriter, r *http.Request) {
 
@@ -4986,6 +5254,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/languages", wrapper.GetLanguages)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metadata/{field}/distribution", wrapper.GetMetadataDistribution)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metrics", wrapper.GetMetrics)
 	})
 	r.Group(func(r chi.Router) {
@@ -5035,6 +5306,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/revisions/edit-clusters", wrapper.GetRevisionEditClusters)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scope/available-metadata", wrapper.GetScopeAvailableMetadata)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/scope/available-metrics", wrapper.GetScopeAvailableMetrics)
@@ -5826,6 +6100,116 @@ type GetLanguages500JSONResponse struct {
 }
 
 func (response GetLanguages500JSONResponse) VisitGetLanguagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataDistributionRequestObject struct {
+	Field  string `json:"field"`
+	Params GetMetadataDistributionParams
+}
+
+type GetMetadataDistributionResponseObject interface {
+	VisitGetMetadataDistributionResponse(w http.ResponseWriter) error
+}
+
+type GetMetadataDistribution200JSONResponse struct {
+	// Categories The top-N values, ranked by distinct-article count (desc, then value asc).
+	Categories []struct {
+		// Articles Number of distinct in-scope articles carrying this value.
+		Articles int `json:"articles"`
+
+		// Value One categorical value (e.g. a section name, a tag, an author).
+		Value string `json:"value"`
+	} `json:"categories"`
+
+	// DistinctValues Total number of distinct values for this field in scope. When greater than the length of `categories`, the client discloses "showing top N of M".
+	DistinctValues int `json:"distinctValues"`
+
+	// Field The categorical metadata field this distribution is over.
+	Field string `json:"field"`
+
+	// OtherArticles Summed per-value article weight beyond the Top-N (for an optional "other" bar). For list fields one article can carry several values, so this is a value-occurrence weight, NOT a distinct-article count — use `distinctValues` for the unambiguous category count.
+	OtherArticles int `json:"otherArticles"`
+
+	// Scope Resolved scope kind ("probe" or "source").
+	Scope *string `json:"scope,omitempty"`
+
+	// ScopeId Resolved scope identifier, when a single scopeId was supplied.
+	ScopeId *string `json:"scopeId,omitempty"`
+
+	// TotalArticles Distinct in-scope articles that carry ANY value for this field.
+	TotalArticles int        `json:"totalArticles"`
+	WindowEnd     *time.Time `json:"windowEnd,omitempty"`
+	WindowStart   *time.Time `json:"windowStart,omitempty"`
+}
+
+func (response GetMetadataDistribution200JSONResponse) VisitGetMetadataDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataDistribution400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataDistribution400JSONResponse) VisitGetMetadataDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataDistribution404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataDistribution404JSONResponse) VisitGetMetadataDistributionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataDistribution500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataDistribution500JSONResponse) VisitGetMetadataDistributionResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -7282,6 +7666,102 @@ func (response GetRevisionEditClusters500JSONResponse) VisitGetRevisionEditClust
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetScopeAvailableMetadataRequestObject struct {
+	Params GetScopeAvailableMetadataParams
+}
+
+type GetScopeAvailableMetadataResponseObject interface {
+	VisitGetScopeAvailableMetadataResponse(w http.ResponseWriter) error
+}
+
+type GetScopeAvailableMetadata200JSONResponse struct {
+	// Available Categorical metadata fields that have data for EVERY scoped source in the window. The only fields safe to bind on a panel spanning the whole scope.
+	Available []string `json:"available"`
+
+	// Partial Fields present for SOME but not all scoped sources, with the subset of sources that carry them. Surfaced as an explanatory hint, never offered for binding (unless the user opts in).
+	Partial []struct {
+		Field string `json:"field"`
+
+		// Sources The scoped sources that have data for this field.
+		Sources []string `json:"sources"`
+	} `json:"partial"`
+
+	// ScopedSources The resolved source names the availability was computed over.
+	ScopedSources []string   `json:"scopedSources"`
+	WindowEnd     *time.Time `json:"windowEnd,omitempty"`
+	WindowStart   *time.Time `json:"windowStart,omitempty"`
+}
+
+func (response GetScopeAvailableMetadata200JSONResponse) VisitGetScopeAvailableMetadataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetScopeAvailableMetadata400JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetScopeAvailableMetadata400JSONResponse) VisitGetScopeAvailableMetadataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetScopeAvailableMetadata404JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetScopeAvailableMetadata404JSONResponse) VisitGetScopeAvailableMetadataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetScopeAvailableMetadata500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetScopeAvailableMetadata500JSONResponse) VisitGetScopeAvailableMetadataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetScopeAvailableMetricsRequestObject struct {
 	Params GetScopeAvailableMetricsParams
 }
@@ -8161,6 +8641,9 @@ type StrictServerInterface interface {
 	// Retrieve aggregated language detections
 	// (GET /languages)
 	GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error)
+	// Per-scope distribution of a categorical metadata field (top-N by article)
+	// (GET /metadata/{field}/distribution)
+	GetMetadataDistribution(ctx context.Context, request GetMetadataDistributionRequestObject) (GetMetadataDistributionResponseObject, error)
 	// Retrieve aggregated time-series metrics
 	// (GET /metrics)
 	GetMetrics(ctx context.Context, request GetMetricsRequestObject) (GetMetricsResponseObject, error)
@@ -8212,6 +8695,9 @@ type StrictServerInterface interface {
 	// Coordinated cross-source silent-edit clusters for a probe or source
 	// (GET /revisions/edit-clusters)
 	GetRevisionEditClusters(ctx context.Context, request GetRevisionEditClustersRequestObject) (GetRevisionEditClustersResponseObject, error)
+	// Categorical metadata fields available across a multi-source scope (intersection)
+	// (GET /scope/available-metadata)
+	GetScopeAvailableMetadata(ctx context.Context, request GetScopeAvailableMetadataRequestObject) (GetScopeAvailableMetadataResponseObject, error)
 	// Metrics available across a multi-source scope (per-source intersection)
 	// (GET /scope/available-metrics)
 	GetScopeAvailableMetrics(ctx context.Context, request GetScopeAvailableMetricsRequestObject) (GetScopeAvailableMetricsResponseObject, error)
@@ -8507,6 +8993,33 @@ func (sh *strictHandler) GetLanguages(w http.ResponseWriter, r *http.Request, pa
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetLanguagesResponseObject); ok {
 		if err := validResponse.VisitGetLanguagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetadataDistribution operation middleware
+func (sh *strictHandler) GetMetadataDistribution(w http.ResponseWriter, r *http.Request, field string, params GetMetadataDistributionParams) {
+	var request GetMetadataDistributionRequestObject
+
+	request.Field = field
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetadataDistribution(ctx, request.(GetMetadataDistributionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetadataDistribution")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetadataDistributionResponseObject); ok {
+		if err := validResponse.VisitGetMetadataDistributionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -8950,6 +9463,32 @@ func (sh *strictHandler) GetRevisionEditClusters(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRevisionEditClustersResponseObject); ok {
 		if err := validResponse.VisitGetRevisionEditClustersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetScopeAvailableMetadata operation middleware
+func (sh *strictHandler) GetScopeAvailableMetadata(w http.ResponseWriter, r *http.Request, params GetScopeAvailableMetadataParams) {
+	var request GetScopeAvailableMetadataRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetScopeAvailableMetadata(ctx, request.(GetScopeAvailableMetadataRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetScopeAvailableMetadata")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetScopeAvailableMetadataResponseObject); ok {
+		if err := validResponse.VisitGetScopeAvailableMetadataResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -36,9 +36,11 @@ registers:
       sinnvolle Auflösung (WP-005). Diese niedrige, schubweise Kadenz ist selbst
       ein Diskurssignal; Cross-Probe-Mengenvergleiche verlangen Normalisierung
       oder die Refusal-Surface (WP-003).
-contentVersion: "v2026-05-a"
+
+      Die Autorschaft ist institutionell — Communiqués, Allocutions und Discours stammen von der Présidence de la République, nicht von namentlichen Journalist:innen; die Quelle trägt konstruktionsbedingt keine Artikel-Byline. Ein fehlendes `author`-Feld ist strukturelle Abwesenheit (eine Herausgeber-Entscheidung), kein Defekt und kein erfundener Name (WP-003 §3.2).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"

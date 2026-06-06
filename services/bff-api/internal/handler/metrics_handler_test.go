@@ -81,6 +81,11 @@ type mockStore struct {
 	// Phase 122f metadata-coverage mocks.
 	metadataCoverage    []storage.MetadataCoverageCell
 	metadataCoverageErr error
+	// Phase 133: categorical metadata distribution + availability.
+	categoricalDistribution    storage.CategoricalDistributionResult
+	categoricalDistributionErr error
+	scopeAvailableMetadata     storage.ScopeMetadataAvailability
+	scopeAvailableMetadataErr  error
 	// Phase 131 mocks: time-series spread + paired-metric scatter.
 	metricsSpread    []storage.MetricRow
 	metricsSpreadErr error
@@ -297,6 +302,16 @@ func (m *mockStore) GetSilverCorrelation(_ context.Context, source string, start
 func (m *mockStore) GetMetadataCoverage(_ context.Context, sources []string) ([]storage.MetadataCoverageCell, error) {
 	m.capturedSources = sources
 	return m.metadataCoverage, m.metadataCoverageErr
+}
+
+func (m *mockStore) GetCategoricalDistribution(_ context.Context, _ string, sources []string, _, _ time.Time, _ int) (storage.CategoricalDistributionResult, error) {
+	m.capturedSources = sources
+	return m.categoricalDistribution, m.categoricalDistributionErr
+}
+
+func (m *mockStore) GetScopeAvailableMetadata(_ context.Context, _, _ time.Time, sources []string) (storage.ScopeMetadataAvailability, error) {
+	m.capturedSources = sources
+	return m.scopeAvailableMetadata, m.scopeAvailableMetadataErr
 }
 
 func (m *mockStore) GetRevisionActivity(_ context.Context, _ []string, _, _ time.Time, _ storage.RevisionActivityResolution) ([]storage.RevisionActivityCell, error) {

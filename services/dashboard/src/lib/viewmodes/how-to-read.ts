@@ -29,6 +29,9 @@ export interface HowToReadFacts {
   netColor?: string | undefined;
   /** Number of nodes / points / sources actually rendered, when known. */
   renderedCount?: number | undefined;
+  /** Phase 133 — total distinct categories for a categorical_distribution
+   *  field; with `renderedCount` (bars shown) it composes "top N of M". */
+  distinctValues?: number | undefined;
   /** Phase 124 — multi-cell axis-scale state for value-axis presentations:
    *  'shared' (this cell is on the panel's union axis, directly comparable),
    *  'free' (independent axis). Absent for single-cell panels — no note. */
@@ -68,7 +71,9 @@ const FALLBACK_TEMPLATES: Record<ViewMode, string> = {
   cross_probe_lead_lag:
     'Each point is one time-shift (lag) between the two probes; the height is how strongly their hourly publication rhythms line up at that shift. The tallest point is the lead-lag: a shift to the right means the compared probe follows the reference.',
   revision_edit_clusters:
-    'Each row is an entity that two or more sources silently edited in the same time bucket — a cross-source coincidence on the same name. A disclosed coincidence, not a causal claim; widen the bucket or raise the source threshold to tighten it.'
+    'Each row is an entity that two or more sources silently edited in the same time bucket — a cross-source coincidence on the same name. A disclosed coincidence, not a causal claim; widen the bucket or raise the source threshold to tighten it.',
+  categorical_distribution:
+    'Each bar is one category value of the chosen metadata field; its height is how many articles in the scope carry that value. Read the shape, not single bars — which categories dominate the corpus.'
 };
 
 /** Compose the "how to read" note as an ordered list of sentences: the
@@ -157,6 +162,23 @@ export function composeHowToRead(
           `${facts.renderedCount} overlapping hour${facts.renderedCount === 1 ? '' : 's'} fed the correlation at lag 0 — a small overlap makes the peak noisy, so read it cautiously.`
         );
       }
+      break;
+    case 'categorical_distribution':
+      out.push(
+        'Taller bars = more articles carry that category value. Bars are ranked by article count; the Top N slider sets how many you see and the total distinct-value count is always disclosed, so any long tail is stated in words rather than folded into a misleading bar.'
+      );
+      if (
+        facts.renderedCount !== undefined &&
+        facts.distinctValues !== undefined &&
+        facts.distinctValues > facts.renderedCount
+      ) {
+        out.push(
+          `Showing the top ${facts.renderedCount} of ${facts.distinctValues} distinct values (the Top N slider).`
+        );
+      }
+      out.push(
+        'An empty chart has two possible causes — the field is structurally absent (Negative Space, a publisher choice) or no captured article in the window carries it; the per-source metadata coverage panel distinguishes them. Either way it is never coerced to a zero bar.'
+      );
       break;
     case 'topic_distribution':
     case 'topic_evolution':

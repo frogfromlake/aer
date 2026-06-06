@@ -1,0 +1,55 @@
+get:
+  tags: [Metrics]
+  summary: Categorical metadata fields available across a multi-source scope (intersection)
+  description: >
+    Returns, for the resolved scope, which categorical metadata fields have data
+    in `aer_gold.article_metadata` for **every** scoped source (`available`)
+    versus only **some** of them (`partial`). The categorical analog of
+    `/scope/available-metrics`: the dimension picker offers only `available`
+    fields so a panel spanning probes with asymmetric metadata richness never
+    binds a field that silently yields empty cells; `partial` carries the
+    per-field source list so the UI can explain why a field was withheld.
+
+    "Present" means the field has at least one value-row in the window for the
+    source — i.e. selecting it would render non-empty. (The Phase-122f
+    metadata-coverage matrix + `structurallyAbsent` remains the methodological
+    Negative-Space surface; this endpoint is only the picker availability gate.)
+    Scope is resolved from the union of `scope`/`scopeId`, `probeIds`, and
+    `sourceIds`; at least one must be present.
+  operationId: getScopeAvailableMetadata
+  parameters:
+    - $ref: '../parameters/scope.yaml'
+    - name: scopeId
+      in: query
+      description: >
+        Single scope target (probe id or source name). Required when `probeIds`
+        and `sourceIds` are absent; optional otherwise.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    - $ref: '../parameters/probeIds.yaml'
+    - $ref: '../parameters/sourceIds.yaml'
+    - $ref: '../parameters/windowStart.yaml'
+    - $ref: '../parameters/windowEnd.yaml'
+  responses:
+    '200':
+      description: Available (all-source) and partial (some-source) categorical field sets.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ScopeAvailableMetadata.yaml'
+    '400':
+      description: Invalid scope or malformed window.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '404':
+      description: Probe or source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Error.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

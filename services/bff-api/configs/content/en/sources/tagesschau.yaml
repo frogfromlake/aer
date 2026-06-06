@@ -28,9 +28,11 @@ registers:
       corpus is institutional/editorial voice only, not "German public opinion".
       Absolute article counts are not comparable across sources of different
       publication cadence — use rates or the normalization / refusal surface.
-contentVersion: "v2026-05-a"
+
+      Authorship is editorial — articles carry individual journalist / editorial bylines, so an `author` field is expected for this source; where a given article lacks one that is a real per-article gap, not a structural choice (contrast the institutional government sources, WP-003 §3.2).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"

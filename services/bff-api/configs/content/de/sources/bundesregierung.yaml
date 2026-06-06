@@ -32,9 +32,11 @@ registers:
       einem 24/7-Newsroom ist institutionelle Kommunikationskadenz, kein Defekt:
       Mengenvergleiche mit volumenstärkeren Quellen verlangen Normalisierung oder
       die Refusal-Surface (WP-003).
-contentVersion: "v2026-05-a"
+
+      Die Autorschaft ist institutionell — Artikel werden vom Bundespresseamt (BPA) verfasst oder freigegeben, nicht von namentlichen Journalist:innen; die Quelle trägt daher konstruktionsbedingt keine Artikel-Byline. Ein fehlendes `author`-Feld ist hier strukturelle Abwesenheit (eine Herausgeber-Entscheidung), kein Defekt und kein zu erfindender Name (WP-003 §3.2); die Verantwortung liegt im Impressum, nicht in einer Byline.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-30"
+lastReviewedDate: "2026-06-06"
 workingPaperAnchors:
   - "WP-001 §6"
   - "WP-003"
