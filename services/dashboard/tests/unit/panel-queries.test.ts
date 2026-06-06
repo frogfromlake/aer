@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  availabilityScope,
   coOccurrencePostDescriptorForPanel,
   defaultMetricForScopes,
   expandProbeScopeFanout,
@@ -383,6 +384,32 @@ describe('Phase 126 — stable cell keys (override binding)', () => {
   });
 });
 
+describe('availabilityScope (ADR-038 — filter semantics, mirrors the render)', () => {
+  it('a group naming specific sources scopes to THOSE only (not its whole probe)', () => {
+    // The bug: {probeIds:[probe-0], sourceIds:[tagesschau]} must NOT widen to the
+    // whole probe, else the BFF unions probe-0→all-sources and marks the other
+    // source's dimensions as "partial"/withheld while only tagesschau renders.
+    const scope = availabilityScope([group(['probe-0'], ['tagesschau'])]);
+    expect(scope).toEqual({ probeIds: [], sourceIds: ['tagesschau'] });
+  });
+
+  it('a whole-probe group (no sourceIds) contributes its probeIds', () => {
+    expect(availabilityScope([group(['probe-0'], [])])).toEqual({
+      probeIds: ['probe-0'],
+      sourceIds: []
+    });
+  });
+
+  it('mixes whole-probe and specific-source groups, de-duped', () => {
+    const scope = availabilityScope([
+      group(['probe-1'], []), // whole probe
+      group(['probe-0'], ['tagesschau']), // one source
+      group(['probe-0'], ['tagesschau']) // dup source
+    ]);
+    expect(scope).toEqual({ probeIds: ['probe-1'], sourceIds: ['tagesschau'] });
+  });
+});
+
 describe('resolveCellConfig (override-with-inheritance)', () => {
   it('inherits every panel default when the cell has no override', () => {
     const p = panel({ view: 'distribution', bins: 40, scales: 'free' });
@@ -433,5 +460,40 @@ describe('resolveCellConfig (override-with-inheritance)', () => {
       y: 'sentiment_score_sentiws', // inherited
       size: 'entity_count' // inherited
     });
+  });
+
+  // ADR-038 — per-cell dimension peek.
+  it('resolves the panel dimension when no cell metric override is set', () => {
+    const p = panel({ view: 'categorical_distribution', metric: 'author' });
+    const cfg = resolveCellConfig(p, 's:tagesschau');
+    expect(cfg.metric).toBe('author');
+    expect(cfg.dimensionOverridden).toBe(false);
+  });
+
+  it('a per-cell metric override wins and flags dimensionOverridden', () => {
+    const p = panel({
+      view: 'categorical_distribution',
+      metric: 'author',
+      cellOverrides: { 's:tagesschau': { metric: 'section' } }
+    });
+    const cfg = resolveCellConfig(p, 's:tagesschau');
+    expect(cfg.metric).toBe('section'); // peek wins
+    expect(cfg.dimensionOverridden).toBe(true);
+    expect(cfg.isOverridden).toBe(true);
+    // sibling stays on the panel dimension, on-comparison
+    const sib = resolveCellConfig(p, 's:elysee');
+    expect(sib.metric).toBe('author');
+    expect(sib.dimensionOverridden).toBe(false);
+  });
+
+  it('an override equal to the panel dimension is not flagged off-comparison', () => {
+    const p = panel({
+      view: 'distribution',
+      metric: 'word_count',
+      cellOverrides: { 's:taz': { metric: 'word_count' } }
+    });
+    const cfg = resolveCellConfig(p, 's:taz');
+    expect(cfg.metric).toBe('word_count');
+    expect(cfg.dimensionOverridden).toBe(false);
   });
 });

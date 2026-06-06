@@ -111,6 +111,59 @@ def test_extract_image_url_returns_empty_for_unrecognized_shapes():
 
 
 # ---------------------------------------------------------------------------
+# Phase 133 data-quality — image_count = DISTINCT images, not responsive crops.
+# _dedupe_images collapses renditions of the same photo (the tagesschau CMS
+# emits one lead image in 16x9 / 1x1 / 4x3 crops → must count as 1).
+# ---------------------------------------------------------------------------
+
+
+def test_dedupe_images_collapses_tagesschau_responsive_crops():
+    from internal.adapters.web_extract import _dedupe_images
+    from internal.adapters.web_meta import ImageRef
+    base = "https://images.tagesschau.de/image/d215dd25-cb73/ABCDEF"
+    images = [
+        ImageRef(url=f"{base}/16x9-1920/henna-jorgensen-100.jpg"),
+        ImageRef(url=f"{base}/1x1-840/henna-jorgensen-100.jpg"),
+        ImageRef(url=f"{base}/4x3/henna-jorgensen-100.jpg?width=1280"),
+    ]
+    result = _dedupe_images(images)
+    assert len(result) == 1  # one distinct image, not three crops
+
+
+def test_dedupe_images_keeps_genuinely_distinct_images():
+    from internal.adapters.web_extract import _dedupe_images
+    from internal.adapters.web_meta import ImageRef
+    images = [
+        ImageRef(url="https://www.franceinfo.fr/img/lead.jpg"),
+        ImageRef(url="https://www.franceinfo.fr/img/inline-1.jpg"),
+        ImageRef(url="https://www.franceinfo.fr/img/inline-2.jpg"),
+    ]
+    assert len(_dedupe_images(images)) == 3
+
+
+def test_dedupe_images_keeps_url_less_refs_and_preserves_order():
+    from internal.adapters.web_extract import _dedupe_images
+    from internal.adapters.web_meta import ImageRef
+    images = [
+        ImageRef(url="https://x.test/a/16x9/p.jpg"),
+        ImageRef(url=""),  # no identity → always kept
+        ImageRef(url="https://x.test/a/4x3/p.jpg"),  # same photo as the first
+        ImageRef(url=""),
+    ]
+    result = _dedupe_images(images)
+    assert [r.url for r in result] == ["https://x.test/a/16x9/p.jpg", "", ""]
+
+
+def test_image_identity_strips_crop_token_and_query():
+    from internal.adapters.web_extract import _image_identity
+    a = _image_identity("https://h.test/path/16x9-1920/photo.jpg")
+    b = _image_identity("https://h.test/path/4x3/photo.jpg?width=900")
+    assert a == b
+    # A non-crop segment (year, slug with suffix) is NOT stripped.
+    assert _image_identity("https://h.test/2024/photo.jpg") != a
+
+
+# ---------------------------------------------------------------------------
 # Fixture HTML
 # ---------------------------------------------------------------------------
 

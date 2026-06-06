@@ -143,6 +143,12 @@ export interface CellOverride {
   scales?: ScaleMode;
   displayLanguage?: 'source' | 'viewer';
   channels?: CellChannelBinding;
+  // ADR-038 — per-cell DIMENSION peek. A metric name (metric views) or a
+  // categorical field name (field views), same kind as the panel view, valid for
+  // THIS cell's own source. Breaks comparability by design → rendered with a loud
+  // banner. Amends the Phase-126 "metric = panel-wide" rule (view + scope stay
+  // panel-wide; only the dimension is per-cell-overridable).
+  metric?: string;
 }
 
 // Phase 126 — a CellOverride PATCH. Identical shape, but every lever may be set
@@ -161,6 +167,7 @@ export type CellOverridePatch = {
   scales?: ScaleMode | undefined;
   displayLanguage?: 'source' | 'viewer' | undefined;
   channels?: CellChannelPatch | undefined;
+  metric?: string | undefined;
 };
 
 export interface Panel {
@@ -483,6 +490,7 @@ interface CompactCellOverride {
   sc?: 0 | 1; // scales (0 = shared, 1 = free)
   dl?: 0 | 1; // displayLanguage (0 = source, 1 = viewer)
   ch?: CompactChannelBinding; // visual-channel binding
+  mc?: string; // metric/field dimension (ADR-038 per-cell peek)
 }
 
 interface CompactPanel {
@@ -650,6 +658,7 @@ function compactCellOverride(ov: CellOverride): CompactCellOverride | null {
     const cb = compactChannels(ov.channels);
     if (cb) c.ch = cb;
   }
+  if (ov.metric !== undefined) c.mc = ov.metric;
   return Object.keys(c).length > 0 ? c : null;
 }
 
@@ -665,6 +674,7 @@ function expandCellOverride(c: CompactCellOverride): CellOverride {
     const cb = expandChannels(c.ch);
     if (cb) ov.channels = cb;
   }
+  if (typeof c.mc === 'string' && c.mc.length > 0) ov.metric = c.mc;
   return ov;
 }
 
@@ -831,6 +841,7 @@ function isCompactCellOverride(v: unknown): v is CompactCellOverride {
   // mirroring the panel-level channel handling — only its container shape is
   // validated here.
   if (v.ch !== undefined && !isRecord(v.ch)) return false;
+  if (v.mc !== undefined && typeof v.mc !== 'string') return false;
   return true;
 }
 

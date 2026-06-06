@@ -131,9 +131,27 @@
       // Phase 124 — y scale honours the shared domain via a live-ref range
       // function: returns the panel's union domain when set, else the chart's
       // own data range (free scale).
+      //
+      // Phase 133 (Issue 3) — a CONSTANT series (e.g. image_count = 3 for every
+      // article) yields a zero-height domain [v, v]. uPlot's built-in rangeNum
+      // pads such a domain, but a custom `range` function bypasses that, and a
+      // zero-height (or non-finite) scale sends uPlot's tick-generation loop
+      // (`val += foundIncr`, foundIncr → 0) into an unbounded allocation → tab
+      // OOM. Pad any degenerate/non-finite domain here so uPlot always gets a
+      // finite, non-zero interval. Covers both the free-scale and shared-domain
+      // (union extent of a constant series) paths.
+      const padDegenerate = (lo: number, hi: number): [number, number] => {
+        if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
+        if (lo === hi) {
+          const pad = lo === 0 ? 1 : Math.abs(lo) * 0.1;
+          return [lo - pad, hi + pad];
+        }
+        return [lo, hi];
+      };
       const yRange: YRangeFn = (_self, dataMin, dataMax) => {
         const d = yDomainRef.current;
-        return d ? [d[0], d[1]] : [dataMin, dataMax];
+        const [lo, hi] = d ? [d[0], d[1]] : [dataMin, dataMax];
+        return padDegenerate(lo, hi);
       };
       const opts = {
         width: host.clientWidth,

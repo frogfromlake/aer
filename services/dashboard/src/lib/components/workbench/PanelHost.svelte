@@ -25,14 +25,17 @@
   import {
     probesQuery,
     scopeAvailableMetricsQuery,
+    scopeAvailableMetadataQuery,
     type FetchContext,
     type ProbeDossierDto,
     type ProbeDto,
     type QueryOutcome,
     type RefusalOutcome,
-    type ScopeAvailableMetricsDto
+    type ScopeAvailableMetricsDto,
+    type ScopeAvailableMetadataDto
   } from '$lib/api/queries';
   import {
+    availabilityScope,
     expandProbeScopeFanout,
     resolveCellConfig,
     selectCellRender,
@@ -161,15 +164,16 @@
   });
   // Source NAMES for a probe: prefer the dossier (authoritative + ordered)
   // for its own probe; fall back to the registry list for the others. When a
-  // metric-source filter is active (Issue 6 — the panel's metric is present
+  // dimension-source filter is active (ADR-038 — the panel's dimension is present
   // on only some sources), the list is narrowed to the sources that carry it
-  // so the fan-out never renders a known-empty cell.
+  // so the fan-out never renders a known-empty cell (lacking sources are dropped
+  // and disclosed in the panel note instead).
   function sourceNamesForProbe(probeId: string): string[] {
     const all =
       probeId === dossier.probeId
         ? dossier.sources.map((s) => s.name)
         : (probesById[probeId]?.sources ?? []);
-    const filter = metricSourceFilter;
+    const filter = dimensionSourceFilter;
     return filter ? all.filter((n) => filter.has(n)) : all;
   }
 
@@ -180,28 +184,19 @@
   // PanelControls. Window read from props/panel directly (not the
   // `effectiveWindow*` consts, which are declared later) to avoid a TDZ on
   // this query's initial synchronous evaluation.
-  const panelScopeUnion = $derived.by(() => {
-    const sp: Record<string, true> = {};
-    const ss: Record<string, true> = {};
-    const probeIds: string[] = [];
-    const sourceIds: string[] = [];
-    for (const g of panel.scopes) {
-      for (const p of g.probeIds)
-        if (!sp[p]) {
-          sp[p] = true;
-          probeIds.push(p);
-        }
-      for (const s of g.sourceIds)
-        if (!ss[s]) {
-          ss[s] = true;
-          sourceIds.push(s);
-        }
-    }
-    return { probeIds, sourceIds };
-  });
+  // ADR-038 — FILTER semantics (a group naming specific sources scopes to those
+  // only), mirroring the render fan-out, so availability/drop/note are computed
+  // over exactly what renders — not the whole probe.
+  const panelScopeUnion = $derived(availabilityScope(panel.scopes));
   const panelHasScope = $derived(
     panelScopeUnion.probeIds.length > 0 || panelScopeUnion.sourceIds.length > 0
   );
+  // ADR-038 — the panel's dimension is a Gold metric for metric views and a
+  // categorical FIELD for field-driven views; availability comes from the
+  // matching endpoint. `fieldDriven` routes the filter (and the dropped-source
+  // note) to the right source, so a source lacking the chosen FIELD is dropped
+  // exactly like one lacking a metric — uniform behaviour, no empty essays.
+  const fieldDriven = $derived(presentation.usesMetadataField ?? false);
   const metricAvailQ = createQuery<
     QueryOutcome<ScopeAvailableMetricsDto>,
     Error,
@@ -217,18 +212,67 @@
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
       staleTime: o.staleTime,
-      enabled: panelHasScope
+      enabled: panelHasScope && !fieldDriven
     };
   });
-  // `null` = no narrowing (metric on every source, or data not loaded). A Set
-  // = render only these sources for the active metric.
-  const metricSourceFilter = $derived.by<Set<string> | null>(() => {
-    if (metricAvailQ.data?.kind !== 'success') return null;
-    const d = metricAvailQ.data.data;
-    if (d.available.includes(panel.metric)) return null;
-    const partial = d.partial.find((p) => p.metricName === panel.metric);
-    return partial ? new Set(partial.sources) : null;
+  const metadataAvailQ = createQuery<
+    QueryOutcome<ScopeAvailableMetadataDto>,
+    Error,
+    QueryOutcome<ScopeAvailableMetadataDto>
+  >(() => {
+    const o = scopeAvailableMetadataQuery(ctx, {
+      probeIds: panelScopeUnion.probeIds,
+      sourceIds: panelScopeUnion.sourceIds,
+      start: panel.windowStart ?? windowStart,
+      end: panel.windowEnd ?? windowEnd
+    });
+    return {
+      queryKey: [...o.queryKey],
+      queryFn: o.queryFn,
+      staleTime: o.staleTime,
+      enabled: panelHasScope && fieldDriven
+    };
   });
+  // The active dimension's availability split (available / partial / scopedSources)
+  // from whichever endpoint matches the view. `partialField` reads the right key
+  // (`field` vs `metricName`).
+  const dimensionAvail = $derived.by<{
+    available: string[];
+    partialSources: string[] | null;
+    scopedSources: string[];
+  } | null>(() => {
+    const q = fieldDriven ? metadataAvailQ : metricAvailQ;
+    if (q.data?.kind !== 'success') return null;
+    const d = q.data.data;
+    const partial = fieldDriven
+      ? (d as ScopeAvailableMetadataDto).partial.find((p) => p.field === panel.metric)
+      : (d as ScopeAvailableMetricsDto).partial.find((p) => p.metricName === panel.metric);
+    return {
+      available: d.available,
+      partialSources: partial ? partial.sources : null,
+      scopedSources: d.scopedSources
+    };
+  });
+  // `null` = no narrowing (dimension on every source, or data not loaded). A Set
+  // = render only these sources for the active dimension.
+  const dimensionSourceFilter = $derived.by<Set<string> | null>(() => {
+    const a = dimensionAvail;
+    if (!a) return null;
+    if (a.available.includes(panel.metric)) return null;
+    return a.partialSources ? new Set(a.partialSources) : null;
+  });
+  // ADR-038 — scoped sources dropped because they lack the active dimension,
+  // named in the panel note so absence is disclosed, never silent.
+  const droppedSources = $derived.by<string[]>(() => {
+    const a = dimensionAvail;
+    if (!a || !a.partialSources) return [];
+    const have = new Set(a.partialSources);
+    return a.scopedSources.filter((s) => !have.has(s));
+  });
+  // ADR-038 — field-driven panel whose chosen dimension is empty/unshared: there
+  // is no comparable categorical field across the scope (intersection empty,
+  // show-anyway off). Surface ONE panel note instead of N empty cells.
+  const noSharedDimension = $derived(fieldDriven && panelHasScope && !panel.metric);
   function probeLabelFor(probeId: string): string {
     const p = probesById[probeId];
     return p?.shortName ?? p?.displayName ?? probeId;
@@ -340,6 +384,43 @@
       };
     });
   }
+
+  // ADR-038 — per-cell dimension peek option list. The raw availability payload
+  // (available + partial) for the active dimension KIND.
+  const availFullData = $derived.by<ScopeAvailableMetricsDto | ScopeAvailableMetadataDto | null>(
+    () => {
+      const q = fieldDriven ? metadataAvailQ : metricAvailQ;
+      return q.data?.kind === 'success' ? q.data.data : null;
+    }
+  );
+  // The source(s) the currently-open config cell covers (a single source for a
+  // per-source cell; the unit's sources for a group/merged cell).
+  const openCellSources = $derived.by<string[]>(() => {
+    if (!openConfigKey) return [];
+    const unit = expandedUnits.find((u) => u.key === openConfigKey);
+    if (!unit) return [];
+    if (unit.scope === 'source') return [unit.scopeId];
+    return sourcesForUnit(unit).map((s) => s.name);
+  });
+  // Dimensions valid for the open cell's own source(s) — same kind as the view:
+  // every intersection dimension (the cell's source has it) plus any partial at
+  // least one of the cell's sources carries. This is the peek menu: a cell may
+  // glance at a dimension the panel does not compare, but only one its own source
+  // actually emits. Fully data-driven (no probe/source-specific code).
+  const cellDimensionOptions = $derived.by<string[]>(() => {
+    const d = availFullData;
+    if (!d || openCellSources.length === 0) return [];
+    const srcSet = new Set(openCellSources);
+    const names = [...d.available];
+    if (fieldDriven) {
+      for (const p of (d as ScopeAvailableMetadataDto).partial)
+        if (p.sources.some((s) => srcSet.has(s))) names.push(p.field);
+    } else {
+      for (const p of (d as ScopeAvailableMetricsDto).partial)
+        if (p.sources.some((s) => srcSet.has(s))) names.push(p.metricName);
+    }
+    return [...new Set(names)].sort();
+  });
 
   const dataLayer = $derived<'gold' | 'silver'>(panel.layer === 'silver' ? 'silver' : 'gold');
 
@@ -630,6 +711,15 @@
     </MethodologyBanner>
   {/if}
 
+  <!-- ADR-038 — disclose sources dropped because they lack the active dimension,
+       so absence is named, never silent (Tier 2 "show anyway" payoff). -->
+  {#if droppedSources.length > 0 && !noSharedDimension}
+    <p class="panel-drop-note" role="note">
+      Not shown: <strong>{droppedSources.join(', ')}</strong> — no
+      <code>{panel.metric}</code> (not emitted).
+    </p>
+  {/if}
+
   <div
     class="panel-body"
     class:split={isSplitLayout}
@@ -641,6 +731,12 @@
       <p class="muted">Cell failed to load: {loadError}</p>
     {:else if !CellComponent}
       <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+    {:else if noSharedDimension}
+      <p class="muted">
+        No categorical dimension is shared across the scoped sources. Enable a partial field via <strong
+          >Show anyway</strong
+        > in the panel config, or use a cell's config to peek at one source's own dimension.
+      </p>
     {:else if expandedUnits.length === 0}
       <p class="muted">No sources in the active scope.</p>
     {:else}
@@ -691,6 +787,7 @@
               {panel}
               {presentation}
               {scalarMetricOptions}
+              {cellDimensionOptions}
               onClose={() => (openConfigKey = null)}
             />
           {/if}
@@ -713,6 +810,16 @@
               <span class="cell-group-summary">{unit.scopeId}</span>
             </header>
           {/if}
+          {#if cfg.dimensionOverridden}
+            <!-- ADR-038 — per-cell dimension peek. This cell shows a DIFFERENT
+                 dimension than the panel, so it is deliberately off-comparison.
+                 A loud banner makes that unmistakable (cf. the soft `custom`
+                 badge for shape-only overrides). -->
+            <p class="cell-peek-banner" role="note">
+              ⚠ Showing <code>{cfg.metric}</code> — a different dimension than this panel's
+              <code>{panel.metric}</code>. Not comparable to the sibling cells.
+            </p>
+          {/if}
           <Cell
             {ctx}
             scopeProbeId={unit.probeId ?? dossier.probeId}
@@ -720,7 +827,7 @@
             scopeId={unit.scopeId}
             windowStart={effectiveWindowStart}
             windowEnd={effectiveWindowEnd}
-            metricName={panel.metric}
+            metricName={cfg.metric}
             sources={sourcesForUnit(unit)}
             {dataLayer}
             probeIds={unit.probeIds.length > 1 ? [...unit.probeIds] : []}
@@ -1090,5 +1197,31 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+  /* ADR-038 — per-cell dimension-peek banner: loud, because it marks an
+     off-comparison cell (distinct from the soft `custom` shape-override badge). */
+  .cell-peek-banner {
+    margin: 0 0 var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-warning, #e8a850);
+    border-left-width: 3px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-warning, #e8a850) 12%, transparent);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    line-height: var(--line-height-loose);
+  }
+  .cell-peek-banner code {
+    font-family: var(--font-mono);
+  }
+  /* ADR-038 — dropped-source disclosure note above the cell grid. */
+  .panel-drop-note {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+  .panel-drop-note code {
+    font-family: var(--font-mono);
+    color: var(--color-fg);
   }
 </style>

@@ -26,6 +26,7 @@
   import {
     CROSS_PROBE_DEFAULT_METRIC,
     DEFAULT_METRIC_NAME,
+    isMetadataMetric,
     metricSupportsPresentation,
     presentationsForPillar,
     resolvePresentation
@@ -43,7 +44,7 @@
     updatePanel,
     type PanelPath
   } from '$lib/workbench/panel-mutators';
-  import { defaultMetricForScopes } from '$lib/workbench/panel-queries';
+  import { availabilityScope, defaultMetricForScopes } from '$lib/workbench/panel-queries';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
   // Phase 126 — shared lever constants (defaults + network channel tables) so
   // the panel controls and the per-cell override popover cannot drift.
@@ -156,33 +157,16 @@
   // asymmetric capability can never bind a metric that silently yields empty
   // cells; `partial` is surfaced as an explanatory hint.
   // -----------------------------------------------------------------------
-  const panelScope = $derived.by(() => {
-    const seenP: Record<string, true> = {};
-    const seenS: Record<string, true> = {};
-    const probeIds: string[] = [];
-    const sourceIds: string[] = [];
-    for (const g of boundPanel?.scopes ?? []) {
-      for (const p of g.probeIds)
-        if (!seenP[p]) {
-          seenP[p] = true;
-          probeIds.push(p);
-        }
-      for (const s of g.sourceIds)
-        if (!seenS[s]) {
-          seenS[s] = true;
-          sourceIds.push(s);
-        }
-    }
-    return { probeIds, sourceIds };
-  });
+  // ADR-038 — availability is computed with FILTER semantics (a group naming
+  // specific sources scopes to THOSE only), mirroring the render fan-out, so a
+  // single-source scope is never widened to its whole probe.
+  const panelScope = $derived(availabilityScope(boundPanel?.scopes ?? []));
   const hasScope = $derived(panelScope.probeIds.length > 0 || panelScope.sourceIds.length > 0);
-  // The metric-availability WITHHOLDING is a CROSS-PROBE discipline only
-  // (backbone strategy: cross-probe runs on the shared multilingual backbone;
-  // within a single frame all tiers are allowed). Within one probe — even with
-  // several sources — we never withhold: a metric missing on one source simply
-  // renders an empty cell there, which is honest absence-as-data, not a reason
-  // to hide the metric from the picker.
-  const isCrossProbe = $derived(panelScope.probeIds.length > 1);
+  // ADR-038 — availability WITHHOLDING is now uniform across scope shapes: a
+  // partial dimension (present on some but not all scoped sources) is withheld by
+  // default and offered only via "show anyway", whether the panel spans one probe
+  // or several. The default is always the intersection, so every cell is filled;
+  // there is no within-frame vs cross-probe distinction here any more.
 
   const scopeAvailQ = createQuery<
     QueryOutcome<ScopeAvailableMetricsDto>,
@@ -217,19 +201,28 @@
   );
   // Metrics present for SOME but not all scoped sources — rendered as a hint.
   const partialMetrics = $derived<ScopeAvailableMetricsDto['partial']>(scopeAvail?.partial ?? []);
+  const partialMetricSet = $derived<Set<string>>(new Set(partialMetrics.map((p) => p.metricName)));
   // The full resolved scoped-source list — denominator + "missing on" set.
   const scopedSourceNames = $derived<readonly string[]>(scopeAvail?.scopedSources ?? []);
   const scopedSourceCount = $derived(scopedSourceNames.length);
   // Issue 6 — "show anyway": when on, the picker also offers partial metrics.
   const activeShowWithheld = $derived(boundPanel?.showWithheld === true);
-  // A metric is offerable when there is no scope constraint yet OR it is in
-  // the all-source intersection OR the user opted to "show anyway". Filters
+  // ADR-038 — a metric is offerable when there is no scope constraint yet, OR it
+  // is in the all-source intersection (`available`), OR it is a PARTIAL metric
+  // (present on some scoped source) AND the user opted to "show anyway". Filters
   // both the metric picker and the scatter selectors.
+  //
+  // The catalog is the GLOBAL `/metrics/available` union; this gate constrains it
+  // to the SCOPE's INTERSECTION by default (Tier 1) so every cell is populated and
+  // the comparison is apples-to-apples. Partials sit behind the uniform
+  // "show anyway" toggle (Tier 2) — within-frame and cross-probe alike, no silent
+  // within-frame folding. A single-source scope has no partials, so it collapses
+  // to exactly that source's dimensions — matching its metadata-coverage matrix.
   function isScopeAvailable(name: string): boolean {
-    // Within a single probe, never withhold (show all; missing-on-a-source
-    // renders an empty cell). Withholding is a cross-probe-only discipline.
-    if (scopeAvailableSet === null || activeShowWithheld || !isCrossProbe) return true;
-    return scopeAvailableSet.has(name);
+    if (scopeAvailableSet === null) return true;
+    if (scopeAvailableSet.has(name)) return true;
+    if (partialMetricSet.has(name) && activeShowWithheld) return true;
+    return false;
   }
   // Issue 6 — the scoped sources that LACK a given partial metric (the "cause"
   // of the withholding), so the hint can name them instead of leaving the
@@ -272,12 +265,11 @@
   const partialMetadataFields = $derived<ScopeAvailableMetadataDto['partial']>(
     metadataAvail?.partial ?? []
   );
-  // The offerable categorical fields (no carried-over metric). Same within-frame
-  // discipline as metrics: within a single probe, partial (some-source) fields
-  // are offered too — a field a source lacks renders an empty cell there (honest
-  // absence), not a reason to hide it. Cross-probe withholds partials unless
-  // "show anyway". This list is view-independent so it is correct even when read
-  // from pickView during a switch INTO a field view.
+  // ADR-038 — the offerable categorical fields (no carried-over metric). Same
+  // discipline as metrics: the INTERSECTION (`available`) by default (Tier 1);
+  // partials (some-source) only under "show anyway" (Tier 2), within-frame and
+  // cross-probe alike — never folded in silently. View-independent so it is
+  // correct even when read from pickView during a switch INTO a field view.
   function offerableMetadataFields(): string[] {
     const seen: Record<string, true> = {};
     const out: string[] = [];
@@ -288,7 +280,7 @@
       }
     };
     for (const f of availableMetadataFields) add(f);
-    if (!isCrossProbe || activeShowWithheld) {
+    if (activeShowWithheld) {
       for (const p of partialMetadataFields) add(p.field);
     }
     out.sort();
@@ -306,14 +298,16 @@
     }
     return out;
   });
-  // The first sensible categorical field to seed when switching to a field-driven
-  // view: prefer `section` (the most common), else the first OFFERABLE field
-  // (never the carried-over metric name). Reads the offerable list directly so it
-  // is correct at the instant pickView runs (the active view is still the old one).
+  // ADR-038 — the field to seed when switching to a field-driven view: the first
+  // INTERSECTION field (deterministic, sorted), NO hard-coded field-name bias and
+  // NO partial (a partial would seed a field some scoped source lacks → an
+  // off-comparison default). Returns '' when the scope shares no categorical field
+  // at all — the cell then shows honest Negative Space instead of querying a
+  // non-existent field. Reads `availableMetadataFields` directly so it is correct
+  // at the instant pickView runs (the active view is still the old one); the
+  // reconcile $effect below repairs the seed once the availability query resolves.
   function firstMetadataField(): string {
-    const fields = offerableMetadataFields();
-    if (fields.includes('section')) return 'section';
-    return fields[0] ?? 'section';
+    return [...availableMetadataFields].sort()[0] ?? '';
   }
 
   const activeMetric = $derived(boundPanel ? boundPanel.metric : DEFAULT_METRIC_NAME);
@@ -400,6 +394,13 @@
     }
     return merged;
   });
+
+  // Phase 133 (Issue 4) — split the offered metrics into the analytical
+  // measures (sentiment, entity_count, …) and the publisher-declared metadata
+  // metrics (image_count, paywall_status, …), so the picker can group them under
+  // distinct labels rather than imply they carry equal analytical weight.
+  const analyticalMetrics = $derived<string[]>(metrics.filter((m) => !isMetadataMetric(m)));
+  const metadataMetrics = $derived<string[]>(metrics.filter((m) => isMetadataMetric(m)));
 
   function pickMetric(name: string) {
     if (name === activeMetric) return;
@@ -585,14 +586,36 @@
   // the reset target is always scope-available, so the next run early-returns.
   $effect(() => {
     if (!panelPath || !boundPanel || !viewUsesMetric) return;
-    // Only cross-probe panels reconcile away an unavailable metric — within a
-    // single probe nothing is withheld, so a metric stays selected even if a
-    // source lacks it (the cell renders empty there).
-    if (scopeAvailableSet === null || activeShowWithheld || !isCrossProbe) return;
-    if (scopeAvailableSet.has(activeMetric)) return;
+    // Reconcile away a metric the scope does not carry. `isScopeAvailable`
+    // already encodes the within-frame rule (partials stay selected on a
+    // multi-source single probe — the cell renders empty there, honest
+    // absence), so this fires for a single-source scope too: a stale/URL-set
+    // metadata metric the lone source never emits snaps back to a valid one.
+    if (scopeAvailableSet === null || activeShowWithheld) return;
+    if (isScopeAvailable(activeMetric)) return;
     if (!availableMetricNames.includes(activeMetric)) return;
     const next = resetMetricForScope();
     if (next && next !== activeMetric) {
+      updatePanel(panelPath, (p) => ({ ...p, metric: next }));
+    }
+  });
+
+  // Phase 133 (Issue 6) + ADR-038 — categorical-field reconcile. The seed in
+  // pickView runs synchronously and can fall through to a stale field when the
+  // availability query has not yet resolved (or when a panel is CREATED already
+  // in a field-driven view, where pickView never ran), or when toggling
+  // "show anyway" OFF leaves a now-unofferable partial selected. Once
+  // `metadataAvail` is in hand, if the active field is not offerable, snap to the
+  // first offerable field — or to '' (Negative Space) when the scope shares NO
+  // categorical field (intersection empty + show-anyway off). Converges: the
+  // reset target is always offerable, so the next run early-returns.
+  $effect(() => {
+    if (!panelPath || !boundPanel || !viewUsesMetadataField) return;
+    if (metadataAvail === null) return; // query pending / refused / errored
+    const fields = offerableMetadataFields();
+    if (activeMetric && fields.includes(activeMetric)) return;
+    const next = firstMetadataField();
+    if (next !== activeMetric) {
       updatePanel(panelPath, (p) => ({ ...p, metric: next }));
     }
   });
@@ -950,7 +973,7 @@
       <div class="ctrl-row" role="radiogroup" aria-label="Metric">
         <span class="ctrl-eyebrow">Metric</span>
         <div class="ctrl-options">
-          {#each metrics as m (m)}
+          {#each analyticalMetrics as m (m)}
             <button
               type="button"
               role="radio"
@@ -962,6 +985,22 @@
               <code>{m}</code>
             </button>
           {/each}
+          {#if metadataMetrics.length > 0}
+            <span class="metric-group-label" aria-hidden="true">Metadata</span>
+            {#each metadataMetrics as m (m)}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={activeMetric === m}
+                class="ctrl-btn metric-btn metadata-metric"
+                class:active={activeMetric === m}
+                onclick={() => pickMetric(m)}
+                title="Publisher-declared metadata (structural; less analytical weight than the NLP measures)"
+              >
+                <code>{m}</code>
+              </button>
+            {/each}
+          {/if}
         </div>
       </div>
     {/if}
@@ -991,9 +1030,10 @@
         {/if}
       </div>
 
-      <!-- Cross-probe metadata withholding (mirror of the metric hint). Fields
-           absent on some scoped source are withheld unless "show anyway". -->
-      {#if isCrossProbe && partialMetadataFields.length > 0}
+      <!-- ADR-038 — metadata withholding (mirror of the metric hint). Fields
+           absent on some scoped source are withheld unless "show anyway",
+           uniformly within-frame AND cross-probe (never folded in silently). -->
+      {#if partialMetadataFields.length > 0}
         <div class="ctrl-row partial-hint" role="note">
           <span class="ctrl-eyebrow">Withheld</span>
           <div class="partial-hint-body">
@@ -1035,12 +1075,13 @@
       {/if}
     {/if}
 
-    <!-- Phase 123c (C1 + Issue 6) — partial-metric hint. Surfaces metrics
+    <!-- Phase 123c (C1) + ADR-038 — partial-metric hint. Surfaces metrics
          that have data for only SOME scoped sources, and names the sources
          that LACK each one (the "cause") so the user doesn't have to trial-
          and-error. "Show anyway" offers them in the picker regardless; the
-         panel then renders only the sources that carry the chosen metric. -->
-    {#if isCrossProbe && partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
+         panel then renders only the sources that carry the chosen metric.
+         Shown uniformly within-frame AND cross-probe (never folded in silently). -->
+    {#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
       <div class="ctrl-row partial-hint" role="note">
         <span class="ctrl-eyebrow">Withheld</span>
         <div class="partial-hint-body">
@@ -1656,6 +1697,24 @@
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
     color: inherit;
+  }
+
+  /* Phase 133 (Issue 4) — metadata-metric group: a subtle inline label and a
+     dimmer pill, so structural metadata reads as secondary to the NLP measures
+     without leaving the same row. */
+  .metric-group-label {
+    align-self: center;
+    margin-left: var(--space-2);
+    padding-left: var(--space-2);
+    border-left: 1px solid var(--color-border);
+    font-size: var(--font-size-2xs, 10px);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-fg-subtle, var(--color-fg-muted));
+  }
+
+  .ctrl-btn.metadata-metric {
+    border-style: dashed;
   }
 
   .ctrl-btn:hover,

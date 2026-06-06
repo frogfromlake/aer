@@ -24,6 +24,7 @@
   } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
 
   let {
@@ -201,12 +202,7 @@
   {:else if isNetworkError}
     <p class="muted">Could not load category distribution.</p>
   {:else if isEmpty}
-    <p class="empty">
-      No <code>{field}</code> values in this window and scope — nothing to chart (never a coerced
-      zero). This is either structural <strong>Negative Space</strong> (the publisher does not emit
-      the field — a publisher choice, WP-003 §3.2) or simply no captured article carrying it in the
-      selected window; the per-source <em>metadata coverage</em> panel distinguishes the two.
-    </p>
+    <CellEmptyState label={field} />
   {:else if data}
     <div
       class="plot-host"
@@ -281,16 +277,6 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .empty {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
-    margin: 0;
-    line-height: var(--line-height-loose);
-  }
-  .empty code {
-    font-family: var(--font-mono);
-    color: var(--color-fg);
   }
   .scope-name {
     color: var(--color-fg);

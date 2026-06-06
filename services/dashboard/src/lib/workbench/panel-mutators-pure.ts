@@ -288,6 +288,7 @@ export function applyCellOverride(panel: Panel, cellKey: string, patch: CellOver
   if ('showBand' in patch) setOrDelete(next, 'showBand', patch.showBand);
   if ('scales' in patch) setOrDelete(next, 'scales', patch.scales);
   if ('displayLanguage' in patch) setOrDelete(next, 'displayLanguage', patch.displayLanguage);
+  if ('metric' in patch) setOrDelete(next, 'metric', patch.metric); // ADR-038 per-cell peek
   if ('channels' in patch) {
     const ch: CellChannelBinding = { ...(existing.channels ?? {}) };
     const pch = patch.channels ?? {};

@@ -36,14 +36,50 @@
     presentation: PresentationDefinition;
     /** Scalar metric names for the scatter axis pickers (scope-available). */
     scalarMetricOptions: readonly string[];
+    /** ADR-038 — dimensions valid for THIS cell's own source (same kind as the
+     *  view), for the per-cell dimension-peek picker. */
+    cellDimensionOptions: readonly string[];
     onClose: () => void;
   }
-  let { panelPath, cellKey, cellLabel, panel, presentation, scalarMetricOptions, onClose }: Props =
-    $props();
+  let {
+    panelPath,
+    cellKey,
+    cellLabel,
+    panel,
+    presentation,
+    scalarMetricOptions,
+    cellDimensionOptions,
+    onClose
+  }: Props = $props();
 
   const configParams = $derived(presentation.configurableParams ?? []);
   const cfg = $derived(resolveCellConfig(panel, cellKey));
   const override = $derived(panel.cellOverrides?.[cellKey]);
+
+  // ADR-038 — the per-cell dimension peek is offered for the single-dimension
+  // views (distribution / time_series → a metric; categorical_distribution → a
+  // field). Scatter / co-occurrence are channel-driven and use the channel
+  // pickers instead, so the peek row is hidden there.
+  const dimensionPeekable = $derived(
+    (presentation.usesMetric ?? false) || (presentation.usesMetadataField ?? false)
+  );
+  const dimensionNoun = $derived(presentation.usesMetadataField ? 'Group by' : 'Metric');
+  const ovMetric = $derived(override?.metric !== undefined);
+  // The select shows the OVERRIDE when set, else '' (= inherit the panel default).
+  const dimensionSelectValue = $derived(override?.metric ?? '');
+  // Always keep the active (overridden) dimension visible even if it slipped out
+  // of the option list, so the select reflects reality.
+  const dimensionOptions = $derived.by<string[]>(() => {
+    const out = [...cellDimensionOptions];
+    if (override?.metric && !out.includes(override.metric)) out.push(override.metric);
+    return out;
+  });
+  // Inherit reverts the cell to the panel dimension; choosing the panel's own
+  // dimension also clears the override (no no-op "custom").
+  function setDimension(value: string) {
+    const chosen = value === '' ? undefined : value;
+    setCellOverride(panelPath, cellKey, { metric: chosen === panel.metric ? undefined : chosen });
+  }
 
   // Per-lever "is this overridden" — drives the per-row override dot.
   const ovBins = $derived(override?.bins !== undefined);
@@ -184,6 +220,30 @@
   {/if}
 
   <div class="ccp-body">
+    {#if dimensionPeekable}
+      <!-- ADR-038 — per-cell dimension peek. Choosing a dimension other than the
+           panel's puts THIS cell off-comparison (a loud banner shows on the cell).
+           Options are limited to dimensions this cell's own source emits. -->
+      <div class="ccp-row" role="group" aria-label="Cell dimension">
+        <span class="ccp-rk"
+          >{dimensionNoun}
+          {#if ovMetric}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+        >
+        <select
+          class="ccp-select"
+          value={dimensionSelectValue}
+          onchange={(e) => setDimension((e.currentTarget as HTMLSelectElement).value)}
+          aria-label="Cell dimension (peek)"
+          title="Peek at a different dimension for this cell only — off-comparison, valid for this cell's source."
+        >
+          <option value="">— inherit ({panel.metric}) —</option>
+          {#each dimensionOptions as d (d)}
+            <option value={d}>{d}</option>
+          {/each}
+        </select>
+      </div>
+    {/if}
+
     {#if configParams.includes('bins')}
       <div class="ccp-row" role="group" aria-label="Histogram bins">
         <span class="ccp-rk"

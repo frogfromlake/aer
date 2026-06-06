@@ -4459,6 +4459,26 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 133a: Metadata Comparability Coherence + Per-Cell Dimension Peek [P1] - [ ] TODO
+
+*Follow-up to Phase 133. Promoting metadata exposed that the Workbench's cross-source/cross-probe **comparability** was incoherent — not a pipeline defect (every comparable dimension promoted correctly) but three compounding frontend inconsistencies: a metric-class-blind source filter (lacking-source dropped for metrics, empty-essay for categorical fields), silent within-frame partials (the "show anyway" disclosure was cross-probe-gated), and a seed that preferred a partial field. The fix is a single, uniform **three-tier comparability model** for all dimensions (metrics + categorical fields), at any scale of probes/sources, with **no probe/source-specific code**. SoT: `docs/design/workbench_comparability.md`; decision: ADR-038.*
+
+**Three-tier model.** (1) **Panel default = the intersection** — the picker offers only dimensions present on every scoped source, so default panels are always fully populated. (2) **"Show anyway"** offers a partial dimension across the sources that have it, with lacking sources **dropped from the fan-out and named in a panel note** — uniform for metrics and fields, within-frame and cross-probe; partials are never folded in silently. (3) **Per-cell peek** — one cell may override its dimension to one valid for its own source (same kind as the view), via the Phase-126 `cellOverrides` plumbing extended with a `metric` lever, rendered with a **loud "not comparable to the sibling cells" banner** (amends the Phase-126 "metric = panel-wide" rule; view + scope stay panel-wide).
+
+* [ ] **Part 0 — Docs.** `docs/design/workbench_comparability.md` (living spec + feature-interaction matrix) + ADR-038. ✅ landed with this phase.
+* [ ] **A. Integer formatting.** `DistributionCell.fmt()` collapses into the integer-safe `fmtValue` (no `image_count = 1.000`; keeps `mean` decimal).
+* [ ] **B. Intersection seed.** `firstMetadataField` seeds the first intersection dimension (deterministic), no hard-coded `section` bias.
+* [ ] **C. Intersection-only default.** `isScopeAvailable` + `offerableMetadataFields` offer partials only under `activeShowWithheld` (drop the within-frame auto-offer) — uniform for all dimensions incl. sentiment tiers.
+* [ ] **D. Uniform withheld disclosure.** Ungate the "N withheld · show anyway" blocks from `isCrossProbe`; render whenever partials exist, for metrics and fields.
+* [ ] **E. Drop lacking sources for categorical too.** Extend `PanelHost`'s source filter to consult `/scope/available-metadata` for field views.
+* [ ] **F. Dropped-source panel note.** Compact, data-driven "Not shown: <source> — no <dim>" line.
+* [ ] **G. Shared compact empty-state.** `CellEmptyState` primitive; retire the 4-sentence Negative-Space essay (nuance → how-to-read).
+* [ ] **I–K. Per-cell dimension peek.** `CellOverride.metric` + codec (`url-internals.ts`), `resolveCellConfig` (`panel-queries.ts`), `PanelHost` threads per-cell metric, `CellConfigPopover` dimension picker (cell-source-scoped availability, same-kind, inherit option) + loud off-comparison banner.
+
+**Done when:** the feature-interaction matrix in the design doc is all-✓ (a lacking source behaves identically across distribution / categorical / time_series and across single-source / multi-source-one-probe / cross-probe); per-cell peek round-trips via URL; `make fe-typecheck && fe-test && fe-lint` green. Pure frontend + docs — no backend/contract change, no worker rebuild.
+
+---
+
 # Iteration 10 — Access Control & Persistence
 
 *Closes the POC as a controlled-access, usable research instrument. Driven by the LICENSE: §3.2 permits scientific use only with explicit prior consent + ethics-board approval + a responsible-use agreement; §3.3 requires immediate revocation on violation; §4c forbids operation without consent. Auth is the technical enforcement of that access control — not primarily collaboration. Privacy-minimal throughout: an anti-surveillance instrument does not surveil its own users.*

@@ -30,6 +30,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
+from urllib.parse import urlsplit
 
 from internal.adapters.web_meta import (
     ALLOWED_EXTRACTION_METHODS,
@@ -645,6 +646,56 @@ def _extract_image_url(value: Any) -> str:
     return ""
 
 
+# Aspect-ratio / crop path tokens publishers insert to expose ONE image in
+# several responsive renditions — e.g. tagesschau's `16x9-1920`, `1x1-840`,
+# `4x3`. Stripped when computing an image's identity so the same photo in N
+# crops counts once. Matches `WxH` optionally followed by `-<resolution>`.
+_IMAGE_CROP_TOKEN_RE = re.compile(r"^\d+x\d+(?:-\d+)?$")
+
+
+def _image_identity(url: str) -> str:
+    """A crop/size-independent identity for an image URL, used to dedupe
+    responsive renditions of the same photo (Phase 133 data-quality fix).
+
+    JSON-LD `image` arrays frequently carry one image in multiple aspect-ratio
+    crops (schema.org best practice). Counting each rendition makes a constant
+    template (tagesschau: always 16x9 + 1x1 + 4x3 of the lead image) read as
+    "3 images". This normaliser drops the query string (publishers vary
+    `?width=` per rendition) and any aspect-ratio crop path segment, so the
+    renditions collapse to one identity while genuinely distinct images
+    (different filenames/paths) stay distinct.
+
+    Heuristic, deliberately conservative: a publisher that encodes the size in
+    the FILENAME rather than a path segment will not dedupe (an over-count, the
+    pre-fix behaviour — never an under-count of real images).
+    """
+    parts = urlsplit(url.strip())
+    segments = [
+        s for s in parts.path.split("/") if s and not _IMAGE_CROP_TOKEN_RE.match(s)
+    ]
+    # Host + crop-stripped path, lowercased. Scheme/query/fragment ignored.
+    return f"{parts.netloc.lower()}/{'/'.join(segments).lower()}"
+
+
+def _dedupe_images(images: list[ImageRef]) -> list[ImageRef]:
+    """Collapse responsive renditions of the same image, preserving order and
+    keeping the first occurrence. An ImageRef with no URL is always kept (no
+    identity to compare on). Never empties a non-empty list, so the field's
+    presence/coverage semantics are unchanged."""
+    seen: set[str] = set()
+    out: list[ImageRef] = []
+    for img in images:
+        if not img.url:
+            out.append(img)
+            continue
+        key = _image_identity(img.url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(img)
+    return out
+
+
 def _resolve_image(
     meta: WebMeta,
     jsonld: Optional[dict[str, Any]],
@@ -880,7 +931,9 @@ def _resolve_tier_c(
             )
         )
     if images:
-        meta.images = images
+        # Collapse responsive renditions of the same image so `image_count`
+        # (len) measures DISTINCT images, not crops (Phase 133 data-quality).
+        meta.images = _dedupe_images(images)
         _record(meta, "images", "json_ld")
     else:
         _record(meta, "images", None)

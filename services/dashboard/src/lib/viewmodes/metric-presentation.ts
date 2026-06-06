@@ -129,3 +129,29 @@ const INTEGER_VALUED_METRICS: ReadonlySet<string> = new Set([
 export function isIntegerMetric(metricName: string): boolean {
   return INTEGER_VALUED_METRICS.has(metricName);
 }
+
+// ---------------------------------------------------------------------------
+// Metadata-derived metrics — picker grouping (Phase 133, Issue 4).
+//
+// These ride the normal metric rails but are publisher-declared structural
+// metadata (image count, paywall flag, …), not the analytical NLP/structural
+// measures (sentiment, entity_count, word_count). They carry less analytical
+// weight, so the picker surfaces them under a separate "Metadata" group rather
+// than mixed in with sentiment et al. Mirror of the worker's
+// SCALAR_METADATA_METRIC_NAMES (services/analysis-worker/internal/metadata_metrics.py).
+// ---------------------------------------------------------------------------
+
+/** Scalar metadata metrics promoted to Gold by the processor (Phase 133). */
+const SCALAR_METADATA_METRIC_NAMES: ReadonlySet<string> = new Set([
+  'image_count',
+  'paywall_status',
+  'external_citation_count',
+  'comment_count',
+  'reading_time_minutes'
+]);
+
+/** Whether the metric is a promoted scalar-metadata dimension (vs an analytical
+ *  NLP/structural measure) — drives the picker's "Metadata" grouping. */
+export function isMetadataMetric(metricName: string): boolean {
+  return SCALAR_METADATA_METRIC_NAMES.has(metricName);
+}

@@ -129,6 +129,21 @@ describe('encodePillarState / decodePillarState', () => {
     expect(decoded).toEqual(original);
   });
 
+  it('round-trips a per-cell dimension peek override (ADR-038)', () => {
+    const original = makePillarState([
+      makeWindow([
+        makePanel({
+          view: 'categorical_distribution',
+          metric: 'author',
+          cellOverrides: { 's:tagesschau': { metric: 'section' } }
+        })
+      ])
+    ]);
+    const decoded = decodePillarState(encodePillarState(original));
+    expect(decoded).toEqual(original);
+    expect(decoded?.windows[0]?.panels[0]?.cellOverrides?.['s:tagesschau']?.metric).toBe('section');
+  });
+
   it('omits cellOverrides when absent (URL stays clean)', () => {
     const original = makePillarState([makeWindow([makePanel()])]);
     const decoded = decodePillarState(encodePillarState(original));

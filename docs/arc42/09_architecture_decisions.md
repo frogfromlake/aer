@@ -2795,3 +2795,57 @@ Two constraints shaped the design. (1) **The baked alias index (`wikidata_aliase
 * **Cross-lingual topic representation** — relabelling BERTopic topics across languages requires either translation or a cross-lingual topic model; it is a separate, harder open research question (recorded under `docs/methodology/`), not addressed by a QID label-swap.
 * **Machine translation of any free text** — deliberately excluded everywhere in this layer.
 
+---
+
+## ADR-038: Metadata Comparability — Intersection-Default, Uniform Withheld, Drop-Lacking-Source, Per-Cell Peek (Phase 133a)
+
+**Status:** Accepted (Phase 133a).
+**Related ADRs:** ADR-033/034/035 (Workbench surfaces, panel tree, pillar identity — the surface this governs), ADR-036 (degradable enrichments — orthogonal), ADR-024 (Language Capability Manifest — the sentiment-tier availability this now also routes through the same gate).
+**Related Phases:** 122f (metadata coverage signal), 123c (the availability gate / "show withheld" mechanic this generalises), 126 (per-cell override-with-inheritance — the plumbing the per-cell peek extends), 131 (configurable cells / `configurableParams`), 133 (metadata promotion — what made comparability a live problem).
+**Related Working Papers:** WP-003 §3.2 (disclose-never-coerce), WP-004 (cross-cultural equivalence — orthogonal, unchanged), Manifesto §II / Brief §1.3 (no discovery bias).
+**Companion:** `docs/design/workbench_comparability.md` (the living spec + feature matrix).
+
+### Context
+
+Phase 133 promoted metadata into analysable dimensions, but the Workbench's *comparability* across sources/probes became incoherent. The pipeline is correct — the failure was entirely in how the frontend offered and rendered dimensions across an **inherently asymmetric** coverage landscape (an institutional press office emits no `section`/`author`; a large newsroom emits many fields; a small one few). Three compounding inconsistencies produced the chaos:
+
+1. **A metric-class-blind source filter.** `PanelHost` dropped a source lacking a chosen *Gold metric* (clean) but did nothing for a chosen *categorical field* (whose `panel.metric` is a field name, never a Gold metric) — so a thin source rendered a multi-sentence empty essay beside a full neighbour.
+2. **Silent within-frame partials.** Both pickers offered partial dimensions within a single multi-source probe, but the "withheld / show anyway" disclosure was gated on cross-probe — so within-frame partials entered the picker with no hint and no toggle.
+3. **A seed that preferred a partial field** (hard-coded `section`), producing an empty cell on first view.
+
+This had to be fixed **once, uniformly, and without any probe-specific or source-specific code**, because the system scales to many probes and sources.
+
+### Decision
+
+A **three-tier comparability model**, applied identically to metrics and categorical fields, within-frame and cross-probe:
+
+1. **Panel default = the intersection.** The picker offers only dimensions present on **every** scoped source (`available[]`). Default panels are always fully populated — apples-to-apples. This applies to **all** dimensions, including sentiment tiers (a within-frame partial sentiment model now sits behind "show anyway" — the price of one uniform rule; reversible to metadata-only if it proves too strict).
+
+2. **Tier 2 — "show anyway" offers partials, with lacking sources dropped + disclosed.** When partials exist (in *any* multi-source scope), a "N withheld · show anyway" block discloses them and a toggle opts them in. A source lacking the chosen dimension is **dropped from the fan-out and named in a compact panel note** — for metrics *and* categorical fields — never rendered as an empty cell. The source-drop filter consults `/scope/available-metadata` for field views, mirroring the existing `/scope/available-metrics` path for metric views.
+
+3. **Tier 3 — per-cell dimension peek.** A single cell may override its dimension to one valid for **its own source** (same kind as the view — metric→metric, field→field), via the Phase-126 `cellOverrides` plumbing extended with a `metric` lever. Because it breaks comparability by design, the cell renders a **prominent "different dimension — not comparable to the sibling cells" banner** (an escalation of the Phase-126 override signposting). This **amends the Phase-126 rule "metric is panel-wide"**: the *dimension* is now per-cell-overridable; *view* and *scope* remain panel-wide.
+
+4. **The default seed is the first intersection dimension** (deterministic, sorted) — no hard-coded field name, no partial. Fully data-driven.
+
+5. **One shared, compact empty-state.** The genuine-empty cases that remain after drop+note (merged union empty; single source empty-in-window; constant metric) use a single `CellEmptyState` primitive with consistent copy; the WP-003 nuance lives in the cell's "how to read", not a wall of text in the cell body.
+
+### Consequences
+
+* **Comparability is coherent and uniform.** A source lacking a dimension behaves identically across distribution / categorical / time_series and across scope shapes — dropped + named, never an empty essay beside data. The feature-interaction matrix in the companion doc is the standing acceptance checklist.
+* **Default panels always compare like-for-like;** deviation (Tier 2 or Tier 3) is always an explicit, signposted choice.
+* **Scales without code.** Adding probes/sources changes only the availability data; no code path is probe- or source-specific.
+* **Phase-126 "metric = panel-wide" is amended** (dimension per-cell-overridable, same-kind, loudly signposted). View + scope stay panel-wide.
+* **No backend/contract change, no worker rebuild** — pure frontend + docs. Cross-cultural equivalence gating (WP-004) is untouched.
+
+### Validation
+
+* Single source → picker offers exactly that source's dimensions.
+* Multi-source one probe, and cross-probe → default offers only the intersection; partials appear only under "show anyway"; a lacking source is dropped + named in the panel note (metrics and fields alike).
+* Per-cell peek → choosing a different valid dimension for one cell re-renders it with the loud banner, leaves siblings untouched, and survives a URL round-trip.
+* Integer metadata renders as integers (`image_count = 3`, not `3.000`).
+
+### Out of scope / open questions
+
+* Whether the intersection-only default should remain uniform for sentiment tiers or be relaxed to metadata-only — left uniform for now, flagged for review.
+* Cross-cultural equivalence (WP-004) is a separate gate, unchanged here.
+

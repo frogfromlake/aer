@@ -19,6 +19,7 @@ export {
 
 export {
   isIntegerMetric,
+  isMetadataMetric,
   isPureCountMetric,
   metricSupportsPresentation,
   presentationsForMetric

@@ -31,6 +31,7 @@
   } from '$lib/viewmodes/cell-readout';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
 
   let {
@@ -201,19 +202,31 @@
       return [] as Array<{
         center: number;
         width: number;
+        rw: number;
         lower: number;
         upper: number;
         count: number;
         overflow: boolean;
       }>;
-    const rows = d.bins.map((b) => ({
-      center: (b.lower + b.upper) / 2,
-      width: b.upper - b.lower,
-      lower: b.lower,
-      upper: b.upper,
-      count: b.count,
-      overflow: false
-    }));
+    // Phase 133 (Issue 1) — `rw` is the half-width used for RENDERING. A
+    // degenerate bin (lower == upper, the BFF's single-bin response for a
+    // constant metric) has width 0, which draws a zero-width, un-hittable rect
+    // and collapses the x-axis. Give it a nominal render width (1 unit for an
+    // integer metric, 0.5 otherwise) so the bar is finite and centred on the
+    // real value; `lower`/`upper` stay exact for the readout.
+    const nominal = integerValued ? 1 : 0.5;
+    const rows = d.bins.map((b) => {
+      const width = b.upper - b.lower;
+      return {
+        center: (b.lower + b.upper) / 2,
+        width,
+        rw: (width || nominal) / 2,
+        lower: b.lower,
+        upper: b.upper,
+        count: b.count,
+        overflow: false
+      };
+    });
     const cu = d.clampedUpper;
     const last = rows[rows.length - 1];
     if (d.overflowCount > 0 && cu != null && last && !sharedXActive) {
@@ -221,6 +234,7 @@
       rows.push({
         center: cu + w / 2,
         width: w,
+        rw: w / 2,
         lower: cu,
         upper: d.summary.max,
         count: d.overflowCount,
@@ -228,6 +242,20 @@
       });
     }
     return rows;
+  });
+
+  // Phase 133 (Issue 1/2) — a degenerate distribution: every bin is zero-width,
+  // i.e. every in-scope article shares one value (a constant metric like a
+  // paywall flag that is always 0, or image_count that is always 3). Drives an
+  // explicit x-domain (so the axis reads the real value, not an auto-domain "0")
+  // and an honest caption instead of a misleading single full-width bar.
+  const degenerate = $derived(plotRows.length > 0 && plotRows.every((r) => r.width === 0));
+  const degenerateValue = $derived(degenerate ? (plotRows[0]?.lower ?? null) : null);
+  const plotDomain = $derived.by<[number, number] | null>(() => {
+    if (!degenerate) return null;
+    const los = plotRows.map((r) => r.lower);
+    const his = plotRows.map((r) => r.upper);
+    return [Math.min(...los) - 1, Math.max(...his) + 1];
   });
 
   let host: HTMLDivElement | undefined = $state();
@@ -254,13 +282,13 @@
           label: metricName,
           grid: false,
           ...(integerValued ? { tickFormat: 'd' } : {}),
-          ...(sharedX ? { domain: [...sharedX] } : {})
+          ...(sharedX ? { domain: [...sharedX] } : plotDomain ? { domain: plotDomain } : {})
         },
         y: { label: 'articles', grid: true, tickFormat: 'd' },
         marks: [
           Plot.rectY(rows, {
-            x1: (d: { center: number; width: number }) => d.center - d.width / 2,
-            x2: (d: { center: number; width: number }) => d.center + d.width / 2,
+            x1: (d: { center: number; rw: number }) => d.center - d.rw,
+            x2: (d: { center: number; rw: number }) => d.center + d.rw,
             y: 'count',
             // Overflow bar (values above the robust upper bound) gets a
             // distinct amber fill so it never reads as an ordinary bin.
@@ -294,6 +322,10 @@
 
   function fmt(n: number): string {
     if (!Number.isFinite(n)) return '—';
+    // ADR-038 — an integer value renders without decimals (`image_count = 3`,
+    // not `3.000`, which a `.`-thousands reader misreads). Genuinely fractional
+    // values (e.g. an integer metric's mean) keep their decimals.
+    if (Number.isInteger(n)) return String(n);
     return Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(3);
   }
 
@@ -400,7 +432,7 @@
   {:else if isNetworkError}
     <p class="muted">Could not load distribution.</p>
   {:else if activeDist && activeDist.summary.count === 0}
-    <p class="muted">No samples for {metricName} in this window.</p>
+    <CellEmptyState label={metricName} />
   {:else if activeDist}
     {@const s = activeDist.summary}
     {#if showMergedNote}
@@ -418,6 +450,14 @@
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
+    {#if degenerate && degenerateValue != null}
+      <p class="overflow-note">
+        Constant value — all <strong>{fmtValue(s.count)}</strong>
+        article{s.count === 1 ? '' : 's'} in scope share
+        <strong>{metricName} = {fmt(degenerateValue)}</strong>. A distribution has no shape when
+        there is no variation; the single bar marks that value.
+      </p>
+    {/if}
     {#if activeDist.overflowCount > 0 && activeDist.clampedUpper != null}
       <p class="overflow-note">
         Binned up to {fmtBinRange(activeDist.clampedUpper, activeDist.clampedUpper)} (robust upper bound)

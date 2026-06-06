@@ -102,6 +102,12 @@ export interface ResolvedCellConfig {
   scales: ScaleMode | undefined;
   displayLanguage: 'source' | 'viewer' | undefined;
   channels: CellChannelBinding | undefined;
+  /** ADR-038 — the cell's effective dimension (metric name / categorical field):
+   *  the per-cell peek override when set, else the panel default. */
+  metric: string;
+  /** ADR-038 — true when this cell's dimension differs from the panel's, i.e. a
+   *  per-cell peek is active → drives the loud "not comparable" banner. */
+  dimensionOverridden: boolean;
   /** True when this cell carries at least one lever overriding the panel
    *  default — drives the "custom / not directly comparable" marker. */
   isOverridden: boolean;
@@ -112,6 +118,7 @@ export interface ResolvedCellConfig {
  *  scatter axis while inheriting the others. */
 export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellConfig {
   const ov: CellOverride | undefined = panel.cellOverrides?.[cellKey];
+  const metric = ov?.metric ?? panel.metric;
   return {
     bins: ov?.bins ?? panel.bins,
     topN: ov?.topN ?? panel.topN,
@@ -120,6 +127,8 @@ export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellCo
     scales: ov?.scales ?? panel.scales,
     displayLanguage: ov?.displayLanguage ?? panel.displayLanguage,
     channels: mergeCellChannels(panel.channels, ov?.channels),
+    metric,
+    dimensionOverridden: ov?.metric !== undefined && ov.metric !== panel.metric,
     isOverridden: ov !== undefined && Object.keys(ov).length > 0
   };
 }
@@ -131,6 +140,45 @@ function mergeCellChannels(
   if (!base && !ov) return undefined;
   const merged: CellChannelBinding = { ...(base ?? {}), ...(ov ?? {}) };
   return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+/**
+ * ADR-038 — the scope to compute AVAILABILITY over, mirroring the render
+ * fan-out's FILTER semantics. A ScopeGroup that names specific `sourceIds`
+ * scopes to THOSE sources only (its probe's other sources are not included —
+ * exactly what `selectCellRender` renders); only a whole-probe group (no
+ * `sourceIds`) contributes its `probeIds` for the BFF to expand.
+ *
+ * Without this, a "single source" group ({probeIds:[p], sourceIds:[s]}) would be
+ * sent to `/scope/available-*` as BOTH p and s, and the BFF unions p→all-its-
+ * sources ∪ s — so availability is computed over the WHOLE probe while only `s`
+ * renders, wrongly marking the probe's other-source-only dimensions as "partial"
+ * (withheld) and leaving a now-unavailable metric selected after a scope change.
+ */
+export function availabilityScope(scopes: readonly ScopeGroup[]): {
+  probeIds: string[];
+  sourceIds: string[];
+} {
+  const seenP: Record<string, true> = {};
+  const seenS: Record<string, true> = {};
+  const probeIds: string[] = [];
+  const sourceIds: string[] = [];
+  for (const g of scopes) {
+    if (g.sourceIds.length > 0) {
+      for (const s of g.sourceIds)
+        if (!seenS[s]) {
+          seenS[s] = true;
+          sourceIds.push(s);
+        }
+    } else {
+      for (const p of g.probeIds)
+        if (!seenP[p]) {
+          seenP[p] = true;
+          probeIds.push(p);
+        }
+    }
+  }
+  return { probeIds, sourceIds };
 }
 
 /**
