@@ -34,7 +34,12 @@ export interface NetworkNode {
   presenceCount: number;
   presence: string[];
   wikidataQid: string | null;
+  /** Size-channel metric mean (BFF `metricValue`). */
   metricValue: number | null;
+  /** Phase 125 / ISSUE 7 — colour-channel metric mean. Falls back to
+   *  `metricValue` when colour reuses the size metric (the BFF returns
+   *  `metricValueColor` only when the colour metric differs from the size one). */
+  metricColorValue: number | null;
   sizeNorm: number;
 }
 
@@ -107,11 +112,23 @@ export function resolvedSourceCount(data: CoOccurrenceGraphDto): number {
   return Object.keys(names).length;
 }
 
-/** min/max of the per-node metric across the graph, for normalising the metric
- *  size/colour channels. Null when no node carries a finite metric value. */
+/** min/max of the per-node SIZE metric across the graph, for normalising the
+ *  metric size channel. Null when no node carries a finite metric value. */
 export function computeMetricExtent(data: CoOccurrenceGraphDto): MetricExtent | null {
   const vals = data.nodes
     .map((n) => n.metricValue)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  if (vals.length === 0) return null;
+  return { min: Math.min(...vals), max: Math.max(...vals) };
+}
+
+/** Phase 125 / ISSUE 7 — min/max of the per-node COLOUR metric. Reads
+ *  `metricValueColor` (the separate colour metric) and falls back to
+ *  `metricValue` when colour reuses the size metric. Null when no node carries a
+ *  finite colour value. */
+export function computeMetricColorExtent(data: CoOccurrenceGraphDto): MetricExtent | null {
+  const vals = data.nodes
+    .map((n) => n.metricValueColor ?? n.metricValue)
     .filter((v): v is number => v != null && Number.isFinite(v));
   if (vals.length === 0) return null;
   return { min: Math.min(...vals), max: Math.max(...vals) };
@@ -159,6 +176,7 @@ export function buildNetworkNodes(
       presence: n.presence ?? [],
       wikidataQid: n.wikidataQid ?? null,
       metricValue: n.metricValue ?? null,
+      metricColorValue: n.metricValueColor ?? n.metricValue ?? null,
       sizeNorm: maxSize > 0 ? rawSize(n, netSize, metricExtent) / maxSize : 0
     };
   });
@@ -186,6 +204,9 @@ export function nodeRadius(sizeNorm: number, minRadius = 4, span = 22): number {
 interface ColorableNode {
   label: string;
   metricValue?: number | null;
+  /** Phase 125 / ISSUE 7 — colour-channel metric value (falls back to
+   *  metricValue when colour reuses the size metric). */
+  metricColorValue?: number | null;
   presenceCount: number;
   presence: string[];
 }
@@ -198,13 +219,16 @@ export interface NodeColorContext {
 }
 
 /** Node fill bound to the active colour channel. A node with no metric value is
- *  greyed (honest absence, never a fake 0). */
+ *  greyed (honest absence, never a fake 0). For the 'metric' channel, `ctx.metricExtent`
+ *  is the COLOUR metric's extent and the value read is `metricColorValue` (Phase
+ *  125 / ISSUE 7), falling back to `metricValue` when colour reuses the size metric. */
 export function nodeFillColor(n: ColorableNode, ctx: NodeColorContext): string {
   if (ctx.netColor === 'uniform') return '#5283b8';
   if (ctx.netColor === 'metric') {
-    if (n.metricValue == null || !ctx.metricExtent) return '#4a4f57';
+    const cv = n.metricColorValue ?? n.metricValue ?? null;
+    if (cv == null || !ctx.metricExtent) return '#4a4f57';
     const span = ctx.metricExtent.max - ctx.metricExtent.min;
-    const t = span > 0 ? (n.metricValue - ctx.metricExtent.min) / span : 0.5;
+    const t = span > 0 ? (cv - ctx.metricExtent.min) / span : 0.5;
     return rampBlueAmber(t);
   }
   if (ctx.netColor === 'presence') {

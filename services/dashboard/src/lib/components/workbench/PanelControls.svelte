@@ -746,10 +746,12 @@
   );
   const activeBins = $derived(boundPanel?.bins ?? DEFAULT_BINS);
   const activeTopN = $derived(boundPanel?.topN ?? DEFAULT_TOPN);
-  // The Top N lever is shared: co-occurrence accepts up to 500 edges, but the
-  // categorical-distribution endpoint clamps to 200 server-side — match the
-  // ceiling to the active view so the slider never silently does nothing.
-  const topNMax = $derived(viewUsesMetadataField ? 200 : 500);
+  // The Top N lever is shared and per-view: categorical-distribution clamps to
+  // 200 server-side; co-occurrence accepts up to 6000 edges — raising it past
+  // ~500 auto-switches the network to the large-scale WebGL renderer (no
+  // Maximize needed). Other views cap at 500 so the slider never silently noops.
+  const isCooccurrenceView = $derived((boundPanel?.view ?? '') === 'cooccurrence_network');
+  const topNMax = $derived(isCooccurrenceView ? 6000 : viewUsesMetadataField ? 200 : 500);
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
   const activeChannels = $derived<CellChannelBinding>(boundPanel?.channels ?? {});
   const activeForceStrength = $derived(boundPanel?.forceStrength ?? DEFAULT_FORCE_STRENGTH);
@@ -925,11 +927,17 @@
       else (ch[key] as string) = value;
       // Phase 125 — selecting the network 'metric' channel needs a metric to
       // aggregate; seed one if none is bound yet so the cell renders at once.
-      if ((key === 'netSize' || key === 'netColor') && value === 'metric' && !ch.netMetric) {
-        const seed =
-          scalarMetricOptions.find((m) => m.startsWith('sentiment_score')) ??
-          scalarMetricOptions[0];
+      // ISSUE 7: size and colour seed independently (colour reuses the size
+      // metric when none of its own is set, so it only seeds when neither is).
+      const seedMetric = () =>
+        scalarMetricOptions.find((m) => m.startsWith('sentiment_score')) ?? scalarMetricOptions[0];
+      if (key === 'netSize' && value === 'metric' && !ch.netMetric) {
+        const seed = seedMetric();
         if (seed) ch.netMetric = seed;
+      }
+      if (key === 'netColor' && value === 'metric' && !ch.netColorMetric && !ch.netMetric) {
+        const seed = seedMetric();
+        if (seed) ch.netColorMetric = seed;
       }
       const o = { ...p };
       if (Object.keys(ch).length > 0) o.channels = ch;
@@ -1411,17 +1419,36 @@
           </select>
         </div>
         <!-- Phase 125 — when a network channel is bound to 'metric', pick which
-             per-article metric is aggregated onto the nodes. -->
-        {#if activeChannels.netSize === 'metric' || activeChannels.netColor === 'metric'}
-          <div class="ctrl-row config-row" role="group" aria-label="Node metric">
-            <span class="ctrl-eyebrow">Metric</span>
+             per-article metric is aggregated onto the nodes. ISSUE 7: size and
+             colour can bind to DIFFERENT metrics, so each gets its own picker. -->
+        {#if activeChannels.netSize === 'metric'}
+          <div class="ctrl-row config-row" role="group" aria-label="Size metric">
+            <span class="ctrl-eyebrow">Size metric</span>
             <select
               class="config-select"
               value={activeChannels.netMetric ?? ''}
               onchange={(e) =>
                 setChannel('netMetric', (e.currentTarget as HTMLSelectElement).value)}
               onclick={(e) => e.stopPropagation()}
-              aria-label="Node metric"
+              aria-label="Node size metric"
+            >
+              <option value="" disabled>— pick a metric —</option>
+              {#each scalarMetricOptions as m (m)}
+                <option value={m}>{m}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+        {#if activeChannels.netColor === 'metric'}
+          <div class="ctrl-row config-row" role="group" aria-label="Colour metric">
+            <span class="ctrl-eyebrow">Colour metric</span>
+            <select
+              class="config-select"
+              value={activeChannels.netColorMetric ?? activeChannels.netMetric ?? ''}
+              onchange={(e) =>
+                setChannel('netColorMetric', (e.currentTarget as HTMLSelectElement).value)}
+              onclick={(e) => e.stopPropagation()}
+              aria-label="Node colour metric"
             >
               <option value="" disabled>— pick a metric —</option>
               {#each scalarMetricOptions as m (m)}
@@ -1622,7 +1649,12 @@
             {/each}
           </select>
           {#if facetFieldOptions.length === 0}
-            <span class="field-empty">No categorical metadata for this scope.</span>
+            <!-- ISSUE 2 (re-test) — a scope with no categorical fields (e.g.
+                 bundesregierung emits no article metadata at all) is an honest
+                 structural absence, framed as Negative Space — not a defect.
+                 Wording aligned with the other empty-metadata disclosures. -->
+            <span class="field-empty">No categorical metadata for this scope (Negative Space).</span
+            >
           {/if}
         </div>
       {/if}

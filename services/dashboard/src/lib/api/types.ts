@@ -1606,9 +1606,14 @@ export interface components {
                 viewerLabel?: string | null;
                 /**
                  * Format: double
-                 * @description Phase 125 node-metric binding. The mean of the requested `nodeMetric` over the articles where this entity appears, or null when no `nodeMetric` was requested or no article carrying it mentions the entity. Lets the network cell size/colour nodes by a metric (e.g. mean sentiment of the mentioning articles) rather than only graph-intrinsic degree/weight.
+                 * @description Phase 125 node-metric binding. The mean of the requested `nodeMetric` over the articles where this entity appears, or null when no `nodeMetric` was requested or no article carrying it mentions the entity. Lets the network cell size/colour nodes by a metric (e.g. mean sentiment of the mentioning articles) rather than only graph-intrinsic degree/weight. This is the SIZE-channel metric when size and colour bind to different metrics.
                  */
                 metricValue?: number | null;
+                /**
+                 * Format: double
+                 * @description Phase 125 / ISSUE 7 — the mean of the requested `nodeColorMetric` over this entity's articles, present only when a separate colour metric was requested AND it differs from `nodeMetric`. null otherwise (then the colour channel reuses `metricValue`). Lets the colour channel bind to a different metric than the size channel.
+                 */
+                metricValueColor?: number | null;
             }[];
             edges: {
                 /** @description Lexicographically smaller entity text in the pair. */
@@ -3827,8 +3832,10 @@ export interface operations {
                 minWeight?: number;
                 /** @description Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation. */
                 viewerLanguage?: string;
-                /** @description Phase 125 — when set, each node carries `metricValue` = the mean of this per-article metric over the articles where the entity appears, so the network cell can size/colour nodes by a metric. */
+                /** @description Phase 125 — when set, each node carries `metricValue` = the mean of this per-article metric over the articles where the entity appears, so the network cell can size/colour nodes by a metric. This is the SIZE channel metric when size and colour bind to different metrics. */
                 nodeMetric?: string;
+                /** @description Phase 125 / ISSUE 7 — optional SECOND per-article metric for the COLOUR channel, so size (`nodeMetric`) and colour can bind to different metrics. When set and different from `nodeMetric`, each node carries `metricValueColor` = the mean of this metric. Omit (or set equal to `nodeMetric`) to colour by the same metric as size. */
+                nodeColorMetric?: string;
                 /** @description Phase 122d.2 — when `ghost`, each edge carries `nsSupport` = the number of its contributing articles whose timestamp is the crawler fetch time, not a real publication date (`timestamp_source='fetch_at_fallback'`). A reflexive disclosure ("this connection leans on undated articles", WP-005 §3.1) — the edges are NOT filtered out. Default off (`nsSupport`=0). */
                 negativeSpaceOverlay?: "ghost";
             };

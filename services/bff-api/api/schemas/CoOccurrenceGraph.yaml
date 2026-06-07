@@ -85,7 +85,18 @@ properties:
             `nodeMetric` was requested or no article carrying it mentions the
             entity. Lets the network cell size/colour nodes by a metric (e.g.
             mean sentiment of the mentioning articles) rather than only
-            graph-intrinsic degree/weight.
+            graph-intrinsic degree/weight. This is the SIZE-channel metric when
+            size and colour bind to different metrics.
+        metricValueColor:
+          type: number
+          format: double
+          nullable: true
+          description: >
+            Phase 125 / ISSUE 7 — the mean of the requested `nodeColorMetric`
+            over this entity's articles, present only when a separate colour
+            metric was requested AND it differs from `nodeMetric`. null
+            otherwise (then the colour channel reuses `metricValue`). Lets the
+            colour channel bind to a different metric than the size channel.
   edges:
     type: array
     items:

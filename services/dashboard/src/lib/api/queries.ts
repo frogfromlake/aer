@@ -946,6 +946,7 @@ export function entityCoOccurrenceQuery(
     topN?: number;
     viewerLanguage?: string;
     nodeMetric?: string;
+    nodeColorMetric?: string;
     minWeight?: number;
     negativeSpaceOverlay?: 'ghost';
   }
@@ -962,6 +963,10 @@ export function entityCoOccurrenceQuery(
   // Phase 125 — when set, each node carries `metricValue` (mean of this metric
   // over the entity's articles) for the metric size/colour channels.
   if (params.nodeMetric) qs.set('nodeMetric', params.nodeMetric);
+  // Phase 125 / ISSUE 7 — separate colour-channel metric (each node also carries
+  // `metricValueColor`). Sent only when it differs from the size metric.
+  if (params.nodeColorMetric && params.nodeColorMetric !== params.nodeMetric)
+    qs.set('nodeColorMetric', params.nodeColorMetric);
   // Phase 125b — min co-occurrence weight (edge density floor for the at-scale
   // renderer). Omitted when 0 (no thinning).
   if (params.minWeight && params.minWeight > 0) qs.set('minWeight', String(params.minWeight));

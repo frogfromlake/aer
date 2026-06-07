@@ -127,7 +127,13 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 			anyIf(value, metric_name = 'sentiment_score') AS SentimentScore,
 			countIf(metric_name = 'word_count')           AS HasWordCount,
 			countIf(metric_name = 'sentiment_score')      AS HasSentiment,
-			anyLast(timestamp_source)                     AS TimestampSource
+			-- Phase 122d.2 fix: ignore empty timestamp_source. The async
+			-- revision_count metric row is written without it (defaults to
+			-- ''), so a plain anyLast() can non-deterministically pick the
+			-- empty row and drop an article's real provenance. anyIf over
+			-- non-empty rows always returns the real value (all of an
+			-- article's real metric rows share one timestamp_source).
+			anyIf(timestamp_source, timestamp_source != '') AS TimestampSource
 		  FROM aer_gold.metrics
 		 WHERE %s
 		   AND article_id IS NOT NULL

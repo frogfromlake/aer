@@ -160,6 +160,15 @@
   const nsActive = $derived(negativeSpaceActive());
   const nsNote = $derived(nsPolicyNote(presentation.negativeSpacePolicy));
 
+  // Phase 125b — ISSUE 3 (re-test): cross-panel linked brushing was a hidden
+  // feature. Surface a one-line affordance on the two participating views
+  // (scatter, parallel coordinates) whenever a Window selection is wired, so the
+  // click→highlight interaction is discoverable rather than accidental.
+  const brushable = $derived(
+    panel.view === 'metric_scatter' || panel.view === 'parallel_coordinates'
+  );
+  const showBrushHint = $derived(brushable && !!selection);
+
   // Phase 123c (B) — cross-probe source resolution. The threaded `dossier`
   // covers only ONE probe (the pillar's active probe). A split panel whose
   // ScopeGroup spans several probes must fan out EVERY probe's sources, so
@@ -416,15 +425,19 @@
   const fanoutProbeOrder = $derived<readonly string[]>(fanout?.probeOrder ?? []);
   const isMultiProbeFanout = $derived(fanoutProbeOrder.length > 1);
 
-  // Phase 125b — at-scale (WebGL) co-occurrence renderer engages ONLY when the
-  // panel is maximized AND resolves to a single cell (one big focused map,
-  // bounded to one simulation). Split / multi-cell / non-maximized keep the
-  // default capped SVG cell. Lazy-loaded so the sigma chunk ships only on use.
+  // Phase 125b + co-occurrence redesign — the at-scale (WebGL) co-occurrence
+  // renderer auto-engages on a SINGLE cell once the Top-N lever crosses the
+  // threshold where d3-force/SVG stops being comfortable (~500 edges). No
+  // Maximize dependency (that was unreachable on a lone panel). Below the
+  // threshold the familiar capped SVG cell renders; above it, the sigma map.
+  // Co-occurrence is always single-cell (multi-cell is refused below), so this
+  // only ever decides SVG-vs-WebGL for one graph. Lazy-loaded (sigma chunk).
+  const AT_SCALE_TOPN_THRESHOLD = 500;
   const atScaleActive = $derived(
-    isMaximized &&
-      (presentation.supportsAtScale ?? false) &&
+    (presentation.supportsAtScale ?? false) &&
       expandedUnits.length === 1 &&
-      !facetActive
+      !facetActive &&
+      (panel.topN ?? 60) > AT_SCALE_TOPN_THRESHOLD
   );
   let AtScaleComponent = $state<Component<ViewModeCellProps> | null>(null);
   $effect(() => {
@@ -433,6 +446,27 @@
       AtScaleComponent = m.default;
     });
   });
+
+  // Co-occurrence redesign — the network is inherently ONE relational graph, not
+  // a small-multiple grid. When a split composition fans out to >1 cell (several
+  // sources / groups / probes) we refuse rather than render only the first or a
+  // wall of tiny graphs. Merged collapses every source into one graph (allowed);
+  // a single-source split is also one cell (allowed). Count-based, so no
+  // cross-frame equivalence gate applies — Merged de+fr is fine.
+  const cooccurrenceMultiCellRefused = $derived(
+    panel.view === 'cooccurrence_network' && expandedUnits.length > 1
+  );
+  const cooccurrenceRefusal = $derived<RefusalOutcome | null>(
+    cooccurrenceMultiCellRefused
+      ? {
+          kind: 'refusal',
+          refusalKind: 'unspecified',
+          message:
+            'The co-occurrence network renders a single relational graph, not a grid of small multiples. This panel resolves to more than one cell (multiple sources / groups / probes under a Split composition). Switch the composition to Merged (all sources pooled into one graph) or scope a single source.',
+          httpStatus: 422
+        }
+      : null
+  );
 
   // Phase 126 — per-cell overrides are offered only when the panel renders more
   // than one cell (a split / small-multiple), the presentation exposes at least
@@ -824,12 +858,20 @@
 
   <!-- Phase 125a — faceting is set but the panel splits into >1 base scope unit
        (multi-source / multi-group). We refuse to facet rather than silently drop
-       sources, and say so. -->
+       sources, and say so. ISSUE 1 (re-test) — surfaced via the shared yellow
+       MethodologyBanner so the hint is as visible as the other soft refusals,
+       not a faint inline note. -->
   {#if facetUnavailable}
-    <p class="panel-drop-note" role="note">
-      Faceting by <code>{facetField}</code> is unavailable for a multi-source / multi-group panel
-      (it would cover only the first). Use <strong>Merged</strong> composition or a single source to facet.
-    </p>
+    <MethodologyBanner
+      variant="warn"
+      anchorHref="/reflection/wp/wp-004?section=6.3"
+      anchorLabel="WP-004 §6.3"
+    >
+      <strong>Faceting unavailable.</strong> Faceting by <code>{facetField}</code> is unavailable
+      for a multi-source / multi-group panel (it would cover only the first). Use
+      <strong>Merged</strong>
+      composition or a single source to facet.
+    </MethodologyBanner>
   {/if}
 
   <!-- Phase 122d.2 — Negative-Space self-disclosure. When the NS toggle is on,
@@ -840,12 +882,25 @@
     <p class="panel-ns-note" role="note">∅ {nsNote}</p>
   {/if}
 
+  <!-- Phase 125b — ISSUE 3 (re-test): make cross-panel linked brushing
+       discoverable. Shown on scatter / parallel-coordinates panels; clicking a
+       mark selects that article and highlights it in any linked Scatter ↔
+       Parallel-coordinates panel in the same Window. -->
+  {#if showBrushHint}
+    <p class="panel-brush-hint" role="note">
+      ↔ Click a mark to highlight that article in linked <strong>Scatter</strong> ↔
+      <strong>Parallel-coordinates</strong> panels in this window (click again to clear).
+    </p>
+  {/if}
+
   <div
     class="panel-body"
     class:split={isSplitLayout}
     data-split-direction={panel.splitDirection ?? 'horizontal'}
   >
-    {#if crossProbeRefusal}
+    {#if cooccurrenceRefusal}
+      <RefusalSurface refusal={cooccurrenceRefusal} {ctx} />
+    {:else if crossProbeRefusal}
       <RefusalSurface refusal={crossProbeRefusal} {ctx} />
     {:else if atScaleActive}
       <!-- Phase 125b — maximized single-cell co-occurrence → large-scale WebGL
@@ -1414,6 +1469,16 @@
     margin: 0 0 var(--space-2);
     padding: var(--space-1) var(--space-2);
     border-left: 2px dashed var(--color-border);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+  }
+  /* Phase 125b — ISSUE 3: cross-panel brushing discoverability hint. */
+  .panel-brush-hint {
+    margin: 0 0 var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-left: 2px solid var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
     line-height: var(--line-height-loose);

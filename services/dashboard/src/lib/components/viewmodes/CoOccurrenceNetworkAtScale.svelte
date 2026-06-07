@@ -1,11 +1,11 @@
 <script lang="ts">
-  // Phase 125b — large-scale co-occurrence renderer (sigma.js / WebGL). Engaged
-  // ONLY by PanelHost when the panel is maximized AND resolves to a single cell
-  // (one big focused, freely-explorable map; bounded to one simulation at a
-  // time). The default small/capped view stays the d3-force SVG cell
-  // (CoOccurrenceNetworkCell). Both compute identical node sizing / colour /
-  // relabel / export via the SHARED module — this renderer adds only the WebGL
-  // rendering + ForceAtlas2-in-a-worker layout + pan/zoom; it copies no logic.
+  // Phase 125b + co-occurrence redesign — large-scale co-occurrence renderer
+  // (sigma.js / WebGL). PanelHost auto-routes here on a SINGLE cell once the
+  // Top-N lever crosses ~500 edges (no Maximize dependency); below that the
+  // default small/capped d3-force SVG cell (CoOccurrenceNetworkCell) renders.
+  // Both compute identical node sizing / colour / relabel / export via the
+  // SHARED module — this renderer adds only the WebGL rendering +
+  // ForceAtlas2-in-a-worker layout + pan/zoom; it copies no logic.
   //
   // sigma + graphology + the FA2 worker are lazy-imported so their chunk ships
   // only when a user actually opens the at-scale view (Brief §7 bundle budget).
@@ -25,6 +25,7 @@
   import { HIDDEN_READOUT, type ReadoutState } from '$lib/viewmodes/cell-readout';
   import {
     computeMetricExtent,
+    computeMetricColorExtent,
     resolvedSourceCount as resolvedSourceCountOf,
     buildNetworkNodes,
     buildNetworkEdges,
@@ -49,21 +50,31 @@
     windowEnd,
     sources,
     dataLayer = 'gold',
+    topN,
     channels,
     displayLanguage,
     configOverridden
   }: ViewModeCellProps = $props();
 
-  // The at-scale view requests as many edges as the BFF ceiling allows; the
-  // user thins the graph with the minWeight density slider (a visible lever —
-  // the real density control). Kept as LOCAL transient state: it is an
+  // The at-scale view honours the Top-N lever (the auto-switch into this renderer
+  // happens once Top-N crosses ~500), capped at the BFF ceiling; the user further
+  // thins the graph with the minWeight density slider (a visible lever — the real
+  // density control). Kept as LOCAL transient state: it is an
   // exploration knob, not panel configuration (not URL-persisted).
-  const AT_SCALE_TOP_N = 6000;
+  const AT_SCALE_CEILING = 6000;
+  // Honour the Top-N lever (continuous with the SVG cell), capped at the ceiling.
+  const AT_SCALE_TOP_N = $derived(Math.min(AT_SCALE_CEILING, topN ?? AT_SCALE_CEILING));
   let minWeight = $state(0);
 
   const viewerLang = $derived(displayLanguage === 'viewer' ? viewerLabelLanguage() : undefined);
   const netSize = $derived(channels?.netSize ?? 'total_count');
+  // Phase 125 / ISSUE 7 — size + colour can bind to different metrics.
   const netMetric = $derived(channels?.netMetric);
+  const netColorMetric = $derived(channels?.netColorMetric);
+  const sizeMetricReq = $derived(netSize === 'metric' ? netMetric : undefined);
+  const colorMetricReq = $derived(
+    (channels?.netColor ?? '') === 'metric' ? (netColorMetric ?? netMetric) : undefined
+  );
   // Phase 122d.2 — NS overlay: request per-edge nsSupport; dim NS-supported edges.
   const negSpaceOn = $derived(negativeSpaceActive());
 
@@ -72,8 +83,6 @@
     Error,
     QueryOutcome<CoOccurrenceGraphDto>
   >(() => {
-    const useMetric =
-      (netSize === 'metric' || (channels?.netColor ?? '') === 'metric') && netMetric;
     const o = entityCoOccurrenceQuery(ctx, {
       scope,
       scopeId,
@@ -83,7 +92,8 @@
       minWeight,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
       ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
-      ...(useMetric && netMetric ? { nodeMetric: netMetric } : {})
+      ...(sizeMetricReq ? { nodeMetric: sizeMetricReq } : {}),
+      ...(colorMetricReq ? { nodeColorMetric: colorMetricReq } : {})
     });
     return {
       queryKey: [...o.queryKey],
@@ -102,6 +112,10 @@
   const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
   const metricExtent = $derived.by<MetricExtent | null>(() =>
     data ? computeMetricExtent(data) : null
+  );
+  // Phase 125 / ISSUE 7 — separate colour-metric extent.
+  const metricColorExtent = $derived.by<MetricExtent | null>(() =>
+    data ? computeMetricColorExtent(data) : null
   );
 
   // ── sigma / graphology render ─────────────────────────────────────────────
@@ -141,17 +155,20 @@
   $effect(() => {
     // Hoist EVERY reactive read above the await so they register as effect
     // dependencies (Svelte 5 only tracks reads before the first await). This
-    // includes isMergedScope + netMetric, which are otherwise used only deep in
-    // the async closure / event handlers.
+    // includes isMergedScope + the size/colour metric requests, which are
+    // otherwise used only deep in the async closure / event handlers.
     const d = data;
     const ns = netSize;
     const mExt = metricExtent;
+    const mColorExt = metricColorExtent;
     const merged = isMergedScope;
-    const nm = netMetric;
+    const sizeM = sizeMetricReq;
+    const colorM = colorMetricReq;
     const nsOn = negSpaceOn;
     const colorCtx: NodeColorContext = {
       netColor,
-      metricExtent: mExt,
+      // ISSUE 7 — colour channel uses the COLOUR metric's extent.
+      metricExtent: mColorExt,
       maxPresence: 1,
       sourceColorMap: buildSourceColorMap(sources.map((s) => s.name))
     };
@@ -194,7 +211,8 @@
           relabeled: node.relabeled,
           totalCount: node.totalCount,
           degree: node.degree,
-          metricValue: node.metricValue
+          metricValue: node.metricValue,
+          metricColorValue: node.metricColorValue
         });
       });
       for (const e of edges) {
@@ -235,8 +253,11 @@
             { label: 'Type', value: String(a.nerLabel ?? '') },
             { label: 'Co-occurrences', value: String(a.totalCount ?? 0) },
             { label: 'Degree', value: String(a.degree ?? 0) },
-            ...(a.metricValue != null
-              ? [{ label: nm ?? 'metric', value: Number(a.metricValue).toFixed(3) }]
+            ...(sizeM && a.metricValue != null
+              ? [{ label: `size · ${sizeM}`, value: Number(a.metricValue).toFixed(3) }]
+              : []),
+            ...(colorM && colorM !== sizeM && a.metricColorValue != null
+              ? [{ label: `colour · ${colorM}`, value: Number(a.metricColorValue).toFixed(3) }]
               : [])
           ]
         };
@@ -336,8 +357,9 @@
   </header>
 
   <p class="atscale-hint" role="note">
-    Large-scale map (maximized). Up to {AT_SCALE_TOP_N} strongest edges; drag to pan, scroll to zoom.
-    Raise <em>min weight</em> to thin a dense graph.
+    Large-scale WebGL map (Top-N &gt; 500). Up to {AT_SCALE_TOP_N} strongest edges; drag to pan, scroll
+    to zoom. Lower Top-N for the interactive small-graph view. Raise <em>min weight</em> to thin a dense
+    graph.
   </p>
 
   <div class="density-row">

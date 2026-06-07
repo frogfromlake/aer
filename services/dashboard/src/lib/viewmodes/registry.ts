@@ -136,10 +136,11 @@ export interface PresentationDefinition {
    *  parallel coordinates). PanelControls offers the facet picker only when
    *  true; PanelHost ignores `facetField` otherwise. Defaults to false. */
   supportsFaceting?: boolean;
-  /** Phase 125b — whether this presentation has a large-scale (WebGL) renderer
-   *  variant engaged when the panel is maximized AND resolves to a single cell.
-   *  True only for `cooccurrence_network` (the sigma.js at-scale map); PanelHost
-   *  routes to CoOccurrenceNetworkAtScale in that case, else the default cell.
+  /** Phase 125b + co-occurrence redesign — whether this presentation has a
+   *  large-scale (WebGL) renderer variant. True only for `cooccurrence_network`
+   *  (the sigma.js at-scale map). PanelHost auto-routes to
+   *  CoOccurrenceNetworkAtScale on a SINGLE cell once the Top-N lever crosses
+   *  ~500 edges (no Maximize dependency); below that, the default SVG cell.
    *  Defaults to false. */
   supportsAtScale?: boolean;
   /** Phase 122d.2 / ADR-039 — how this presentation treats the Negative-Space

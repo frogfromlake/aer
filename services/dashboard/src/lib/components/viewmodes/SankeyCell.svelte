@@ -35,7 +35,9 @@
       scopeId,
       start: windowStart,
       end: windowEnd,
-      topN: 50
+      // Phase 125 (ISSUE 6) — fewer, thicker bands read far better than 50
+      // hair-thin ones; the long tail is still reachable via hover + export.
+      topN: 30
     });
     return {
       queryKey: [...o.queryKey],
@@ -66,7 +68,9 @@
       const d3sankey = await import('d3-sankey');
       if (!host || token !== renderToken) return;
       const width = host.clientWidth || 720;
-      const height = Math.max(220, Math.min(560, d.nodes.length * 16 + 80));
+      // Phase 125 (ISSUE 6) — more vertical room per node so more bands clear
+      // the label threshold without crowding.
+      const height = Math.max(260, Math.min(680, d.nodes.length * 22 + 80));
 
       // d3-sankey reserves `value` on a node for the computed flow total, so the
       // category value is carried as `label` in the d3 graph.
@@ -128,8 +132,9 @@
         rect.appendChild(title);
         nodeG.appendChild(rect);
 
-        // Label only when the band is tall enough to avoid clutter.
-        if (y1 - y0 >= 9) {
+        // Label only when the band is tall enough to avoid clutter; the rest
+        // are reachable on hover (the rect carries a <title>). (Phase 125 ISSUE 6)
+        if (y1 - y0 >= 7) {
           const text = document.createElementNS(NS, 'text');
           const leftHalf = x0 < width / 2;
           text.setAttribute('x', String(leftHalf ? x1 + 4 : x0 - 4));

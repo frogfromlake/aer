@@ -66,6 +66,12 @@ type CoOccurrenceNode struct {
 	// the network cell size/colour nodes by a metric (e.g. mean sentiment of the
 	// articles mentioning this entity) rather than only graph-intrinsic degree.
 	MetricValue *float64
+	// MetricValueColor is the mean of a SECOND chosen per-article metric (Phase
+	// 125 / ISSUE 7), letting the colour channel bind to a different metric than
+	// the size channel. nil when no separate colour metric was requested. When
+	// the colour metric equals the size metric the client reuses MetricValue, so
+	// this stays nil in that case.
+	MetricValueColor *float64
 }
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
@@ -119,6 +125,7 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	nodeMetric string,
 	minWeight int,
 	nsOverlay bool,
+	colorMetric string,
 ) (CoOccurrenceResult, error) {
 	if topN < 1 {
 		topN = 1
@@ -288,6 +295,13 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	if nodeMetric != "" && len(acc) > 0 {
 		metricMap, _ = s.queryNodeMetric(ctx, acc, nodeMetric, sources, start, end)
 	}
+	// Phase 125 / ISSUE 7: optional SECOND metric for the colour channel, so
+	// size and colour can bind to different metrics. Only queried when it is set
+	// AND differs from the size metric (equal → the client reuses MetricValue).
+	var colorMetricMap map[string]float64
+	if colorMetric != "" && colorMetric != nodeMetric && len(acc) > 0 {
+		colorMetricMap, _ = s.queryNodeMetric(ctx, acc, colorMetric, sources, start, end)
+	}
 
 	var linkedNodeCount, labeledNodeCount int64
 	nodes := make([]CoOccurrenceNode, 0, len(acc))
@@ -305,6 +319,12 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 			if v, ok := metricMap[text]; ok {
 				vc := v
 				n.MetricValue = &vc
+			}
+		}
+		if colorMetricMap != nil {
+			if v, ok := colorMetricMap[text]; ok {
+				vc := v
+				n.MetricValueColor = &vc
 			}
 		}
 		if qidMap != nil {

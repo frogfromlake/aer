@@ -971,6 +971,11 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.NodeMetric != nil {
 		nodeMetric = canonicalMetricNames([]string{*request.Params.NodeMetric})[0]
 	}
+	// Phase 125 / ISSUE 7 — optional separate colour-channel metric.
+	colorMetric := ""
+	if request.Params.NodeColorMetric != nil {
+		colorMetric = canonicalMetricNames([]string{*request.Params.NodeColorMetric})[0]
+	}
 	// Phase 125b — min co-occurrence weight (edge threshold for the at-scale view).
 	minWeight := 0
 	if request.Params.MinWeight != nil {
@@ -980,7 +985,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	// (contributing articles with no real publication date) when requested.
 	nsOverlay := request.Params.NegativeSpaceOverlay != nil && *request.Params.NegativeSpaceOverlay == "ghost"
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight, nsOverlay)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight, nsOverlay, colorMetric)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -1057,14 +1062,15 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, NsSupport: nsSupport, Presence: presence, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
-		Degree      int64     `json:"degree"`
-		Label       string    `json:"label"`
-		MetricValue *float64  `json:"metricValue,omitempty"`
-		Presence    *[]string `json:"presence,omitempty"`
-		Text        string    `json:"text"`
-		TotalCount  int64     `json:"totalCount"`
-		ViewerLabel *string   `json:"viewerLabel,omitempty"`
-		WikidataQid *string   `json:"wikidataQid,omitempty"`
+		Degree           int64     `json:"degree"`
+		Label            string    `json:"label"`
+		MetricValue      *float64  `json:"metricValue,omitempty"`
+		MetricValueColor *float64  `json:"metricValueColor,omitempty"`
+		Presence         *[]string `json:"presence,omitempty"`
+		Text             string    `json:"text"`
+		TotalCount       int64     `json:"totalCount"`
+		ViewerLabel      *string   `json:"viewerLabel,omitempty"`
+		WikidataQid      *string   `json:"wikidataQid,omitempty"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
 		var presence *[]string
@@ -1087,16 +1093,22 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 			mv := safeFloat(*n.MetricValue)
 			metricValue = &mv
 		}
+		var metricValueColor *float64
+		if n.MetricValueColor != nil {
+			mvc := safeFloat(*n.MetricValueColor)
+			metricValueColor = &mvc
+		}
 		resp.Nodes[i] = struct {
-			Degree      int64     `json:"degree"`
-			Label       string    `json:"label"`
-			MetricValue *float64  `json:"metricValue,omitempty"`
-			Presence    *[]string `json:"presence,omitempty"`
-			Text        string    `json:"text"`
-			TotalCount  int64     `json:"totalCount"`
-			ViewerLabel *string   `json:"viewerLabel,omitempty"`
-			WikidataQid *string   `json:"wikidataQid,omitempty"`
-		}{Degree: n.Degree, Label: n.Label, MetricValue: metricValue, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
+			Degree           int64     `json:"degree"`
+			Label            string    `json:"label"`
+			MetricValue      *float64  `json:"metricValue,omitempty"`
+			MetricValueColor *float64  `json:"metricValueColor,omitempty"`
+			Presence         *[]string `json:"presence,omitempty"`
+			Text             string    `json:"text"`
+			TotalCount       int64     `json:"totalCount"`
+			ViewerLabel      *string   `json:"viewerLabel,omitempty"`
+			WikidataQid      *string   `json:"wikidataQid,omitempty"`
+		}{Degree: n.Degree, Label: n.Label, MetricValue: metricValue, MetricValueColor: metricValueColor, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
 	}
 	return resp, nil
 }
@@ -1271,7 +1283,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	// The POST multi-scope path is the merged-graph (SVG) renderer only — the
 	// at-scale WebGL view is single-cell (GET). No minWeight here (topN<=500
 	// already bounds it).
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0, false)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0, false, "")
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
@@ -1344,14 +1356,15 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, NsSupport: nsSupport, Presence: presence, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
-		Degree      int64     `json:"degree"`
-		Label       string    `json:"label"`
-		MetricValue *float64  `json:"metricValue,omitempty"`
-		Presence    *[]string `json:"presence,omitempty"`
-		Text        string    `json:"text"`
-		TotalCount  int64     `json:"totalCount"`
-		ViewerLabel *string   `json:"viewerLabel,omitempty"`
-		WikidataQid *string   `json:"wikidataQid,omitempty"`
+		Degree           int64     `json:"degree"`
+		Label            string    `json:"label"`
+		MetricValue      *float64  `json:"metricValue,omitempty"`
+		MetricValueColor *float64  `json:"metricValueColor,omitempty"`
+		Presence         *[]string `json:"presence,omitempty"`
+		Text             string    `json:"text"`
+		TotalCount       int64     `json:"totalCount"`
+		ViewerLabel      *string   `json:"viewerLabel,omitempty"`
+		WikidataQid      *string   `json:"wikidataQid,omitempty"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
 		var presence *[]string
@@ -1374,16 +1387,22 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 			mv := safeFloat(*n.MetricValue)
 			metricValue = &mv
 		}
+		var metricValueColor *float64
+		if n.MetricValueColor != nil {
+			mvc := safeFloat(*n.MetricValueColor)
+			metricValueColor = &mvc
+		}
 		resp.Nodes[i] = struct {
-			Degree      int64     `json:"degree"`
-			Label       string    `json:"label"`
-			MetricValue *float64  `json:"metricValue,omitempty"`
-			Presence    *[]string `json:"presence,omitempty"`
-			Text        string    `json:"text"`
-			TotalCount  int64     `json:"totalCount"`
-			ViewerLabel *string   `json:"viewerLabel,omitempty"`
-			WikidataQid *string   `json:"wikidataQid,omitempty"`
-		}{Degree: n.Degree, Label: n.Label, MetricValue: metricValue, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
+			Degree           int64     `json:"degree"`
+			Label            string    `json:"label"`
+			MetricValue      *float64  `json:"metricValue,omitempty"`
+			MetricValueColor *float64  `json:"metricValueColor,omitempty"`
+			Presence         *[]string `json:"presence,omitempty"`
+			Text             string    `json:"text"`
+			TotalCount       int64     `json:"totalCount"`
+			ViewerLabel      *string   `json:"viewerLabel,omitempty"`
+			WikidataQid      *string   `json:"wikidataQid,omitempty"`
+		}{Degree: n.Degree, Label: n.Label, MetricValue: metricValue, MetricValueColor: metricValueColor, Presence: presence, Text: n.Text, TotalCount: n.TotalCount, ViewerLabel: viewerLabel, WikidataQid: qid}
 	}
 	return resp, nil
 }

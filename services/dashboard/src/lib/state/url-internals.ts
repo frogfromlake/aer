@@ -155,8 +155,13 @@ export interface CellChannelBinding {
   netSize?: NetworkSizeChannel;
   netColor?: NetworkColorChannel;
   // Phase 125 — the per-article metric name aggregated onto nodes when netSize
-  // or netColor is 'metric' (drives BFF `nodeMetric`).
+  // or netColor is 'metric' (drives BFF `nodeMetric`). This is the SIZE-channel
+  // metric when size and colour bind to different metrics.
   netMetric?: string;
+  // Phase 125 / ISSUE 7 — the COLOUR-channel metric, letting colour bind to a
+  // different metric than size (drives BFF `nodeColorMetric`). When unset and
+  // netColor === 'metric', the colour channel falls back to `netMetric`.
+  netColorMetric?: string;
 }
 
 // Phase 126 — per-cell configuration override. A split / small-multiple panel
@@ -532,7 +537,8 @@ interface CompactChannelBinding {
   co?: string;
   ns?: NetworkSizeChannel;
   nc?: NetworkColorChannel;
-  nm?: string; // netMetric (Phase 125 node-metric name)
+  nm?: string; // netMetric (Phase 125 node-metric name — size channel)
+  ncm?: string; // netColorMetric (Phase 125 / ISSUE 7 — colour channel metric)
 }
 
 // Phase 126 — compact per-cell override. Mirrors CompactPanel's cell-shape
@@ -701,6 +707,7 @@ function compactChannels(ch: CellChannelBinding): CompactChannelBinding | null {
   if (ch.netSize !== undefined) cb.ns = ch.netSize;
   if (ch.netColor !== undefined) cb.nc = ch.netColor;
   if (ch.netMetric !== undefined) cb.nm = ch.netMetric;
+  if (ch.netColorMetric !== undefined) cb.ncm = ch.netColorMetric;
   return Object.keys(cb).length > 0 ? cb : null;
 }
 
@@ -720,6 +727,7 @@ function expandChannels(c: CompactChannelBinding): CellChannelBinding | null {
   )
     cb.netColor = c.nc;
   if (typeof c.nm === 'string' && c.nm.length > 0) cb.netMetric = c.nm;
+  if (typeof c.ncm === 'string' && c.ncm.length > 0) cb.netColorMetric = c.ncm;
   return Object.keys(cb).length > 0 ? cb : null;
 }
 

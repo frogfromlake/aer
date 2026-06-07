@@ -20,6 +20,7 @@
   import type { ExportPayload } from '$lib/viewmodes/cell-export';
   import {
     computeMetricExtent,
+    computeMetricColorExtent,
     resolvedSourceCount as resolvedSourceCountOf,
     buildNetworkNodes,
     buildNetworkEdges,
@@ -71,30 +72,19 @@
   // and visual-channel binding (node size, node colour).
   const TOP_N = $derived(topN ?? 60);
   const netSize = $derived(channels?.netSize ?? 'total_count');
-  // Phase 131a — "merged scope" is decided from the BFF response (the
-  // union of distinct source names across edge.presence / node.presence),
-  // NOT the `sources` prop. A single-probe scope often resolves to
-  // multiple underlying sources on the BFF side ("probe-as-aggregator"),
-  // and the `sources` prop may carry only the probe's primary entry.
-  // The BFF-resolved set is the SoT for the overlay.
-  const resolvedSourceCount = $derived.by(() => {
-    const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    return data ? resolvedSourceCountOf(data) : 0;
-  });
-  const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
-  const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
-  // Phase 125 — the per-article metric aggregated onto nodes, requested only
-  // when a metric channel is actually bound (size or colour = 'metric').
+  // Phase 125 — per-article metric(s) aggregated onto nodes. Size and colour can
+  // bind to DIFFERENT metrics (ISSUE 7): `netMetric` drives the size channel,
+  // `netColorMetric` the colour channel (falling back to `netMetric` when unset).
   const netMetric = $derived(channels?.netMetric);
-  const nodeMetric = $derived(
-    (netSize === 'metric' || netColor === 'metric') && netMetric ? netMetric : undefined
+  const netColorMetric = $derived(channels?.netColorMetric);
+  // The metric requested per channel. Reads the RAW `channels?.netColor` (NOT the
+  // defaulted `netColor` below) to avoid a query→result→query TDZ cycle on
+  // `graphQ`: the default only ever resolves to 'source_overlay'/'label', so
+  // netColor === 'metric' is always an explicit selection.
+  const sizeMetricReq = $derived(netSize === 'metric' ? netMetric : undefined);
+  const colorMetricReq = $derived(
+    channels?.netColor === 'metric' ? (netColorMetric ?? netMetric) : undefined
   );
-  // Phase 125 — min/max of the per-node metric across the returned graph, for
-  // normalising the metric size/colour channels. Null when no node carries it.
-  const metricExtent = $derived.by<MetricExtent | null>(() => {
-    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    return d ? computeMetricExtent(d) : null;
-  });
   // Phase 131 (BUG1.7) — force-layout spread (0..100 → node repulsion).
   // Higher spreads a crowded graph apart so it stays readable.
   const spread = $derived(forceStrength ?? 50);
@@ -118,9 +108,36 @@
       topN: TOP_N,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
       ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
-      ...(nodeMetric ? { nodeMetric } : {})
+      ...(sizeMetricReq ? { nodeMetric: sizeMetricReq } : {}),
+      ...(colorMetricReq ? { nodeColorMetric: colorMetricReq } : {})
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  });
+
+  // Phase 131a — "merged scope" is decided from the BFF response (the
+  // union of distinct source names across edge.presence / node.presence),
+  // NOT the `sources` prop. A single-probe scope often resolves to
+  // multiple underlying sources on the BFF side ("probe-as-aggregator"),
+  // and the `sources` prop may carry only the probe's primary entry.
+  // The BFF-resolved set is the SoT for the overlay. Declared AFTER `graphQ`
+  // (it reads `graphQ.data`).
+  const resolvedSourceCount = $derived.by(() => {
+    const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    return data ? resolvedSourceCountOf(data) : 0;
+  });
+  const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
+  const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
+  // Phase 125 — min/max of the per-node SIZE metric across the returned graph,
+  // for normalising the metric size channel. Null when no node carries it.
+  const metricExtent = $derived.by<MetricExtent | null>(() => {
+    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    return d ? computeMetricExtent(d) : null;
+  });
+  // Phase 125 / ISSUE 7 — separate extent for the COLOUR metric (may differ from
+  // the size metric). Used by the colour ramp + the colour legend.
+  const metricColorExtent = $derived.by<MetricExtent | null>(() => {
+    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    return d ? computeMetricColorExtent(d) : null;
   });
 
   interface SimNode {
@@ -148,9 +165,12 @@
      *  directly without an additional lookup). */
     presence: string[];
     wikidataQid?: string | null;
-    /** Phase 125 — mean per-article metric for the metric size/colour channels;
-     *  null when no node metric was requested or the entity has no such article. */
+    /** Phase 125 — mean per-article SIZE metric; null when no size metric was
+     *  requested or the entity has no such article. */
     metricValue?: number | null;
+    /** Phase 125 / ISSUE 7 — mean per-article COLOUR metric (falls back to the
+     *  size metric when colour reuses it); null when neither applies. */
+    metricColorValue?: number | null;
     x?: number;
     y?: number;
     fx?: number | null;
@@ -353,6 +373,22 @@
     if (n.presenceCount > 0) {
       rows.push({ label: 'in sources', value: fmtValue(n.presenceCount) });
     }
+    // Phase 125 (ISSUE 8 + ISSUE 7) — when a metric channel is bound, surface
+    // that node's metric value so the tooltip reflects the chosen channel(s)
+    // (was always just weight/degree). Size and colour may bind to different
+    // metrics; a node with no such article reads 'no data', never 0.
+    if (sizeMetricReq) {
+      rows.push({
+        label: `size · ${sizeMetricReq}`,
+        value: n.metricValue != null ? fmtValue(n.metricValue) : 'no data'
+      });
+    }
+    if (colorMetricReq && colorMetricReq !== sizeMetricReq) {
+      rows.push({
+        label: `colour · ${colorMetricReq}`,
+        value: n.metricColorValue != null ? fmtValue(n.metricColorValue) : 'no data'
+      });
+    }
     readout = {
       visible: true,
       x: e.clientX,
@@ -456,7 +492,9 @@
   const maxPresence = $derived(nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1));
   const nodeColorCtx = $derived<NodeColorContext>({
     netColor,
-    metricExtent,
+    // ISSUE 7 — the colour channel uses the COLOUR metric's extent (may differ
+    // from the size metric); nodeFillColor reads each node's metricColorValue.
+    metricExtent: metricColorExtent,
     maxPresence,
     sourceColorMap
   });
@@ -737,6 +775,48 @@
         </li>
       </ul>
     {/if}
+    {#if sizeMetricReq || colorMetricReq}
+      <!-- Phase 125 (ISSUE 8 + ISSUE 7) — metric-channel legend. Size and colour
+           can bind to different metrics, each with its own extent; this is the
+           visual key for the size ramp and/or colour ramp, with an honest note
+           about grey (no-data) nodes. -->
+      <div class="metric-legend" aria-label="Metric channel legend">
+        {#if sizeMetricReq}
+          {#if metricExtent}
+            <div class="metric-legend-row">
+              <span class="metric-legend-title">Size · {sizeMetricReq}</span>
+              <span class="metric-legend-min">{fmtValue(metricExtent.min)}</span>
+              <span class="metric-legend-sizes" aria-hidden="true">
+                <span class="size-dot size-dot-sm"></span>
+                <span class="size-dot size-dot-lg"></span>
+              </span>
+              <span class="metric-legend-max">{fmtValue(metricExtent.max)}</span>
+            </div>
+          {:else}
+            <span class="metric-legend-note"
+              >No node carries “{sizeMetricReq}” (size) in this scope — channel inactive (honest
+              absence).</span
+            >
+          {/if}
+        {/if}
+        {#if colorMetricReq}
+          {#if metricColorExtent}
+            <div class="metric-legend-row">
+              <span class="metric-legend-title">Colour · {colorMetricReq}</span>
+              <span class="metric-legend-min">{fmtValue(metricColorExtent.min)}</span>
+              <span class="metric-legend-ramp" aria-hidden="true"></span>
+              <span class="metric-legend-max">{fmtValue(metricColorExtent.max)}</span>
+            </div>
+          {:else}
+            <span class="metric-legend-note"
+              >No node carries “{colorMetricReq}” (colour) in this scope — channel inactive (honest
+              absence).</span
+            >
+          {/if}
+        {/if}
+        <span class="metric-legend-note">Grey nodes have no such article (never a coerced 0).</span>
+      </div>
+    {/if}
     <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
   {:else}
     <p class="muted" aria-busy="true">Laying out…</p>
@@ -1003,6 +1083,58 @@
   }
   .legend-label {
     font-family: var(--font-mono);
+  }
+
+  /* Phase 125 (ISSUE 8) — metric-channel legend (size and/or colour ramp). */
+  .metric-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--color-fg-muted);
+  }
+  .metric-legend-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .metric-legend-title {
+    font-family: var(--font-mono);
+    color: var(--color-fg);
+  }
+  .metric-legend-min,
+  .metric-legend-max {
+    font-family: var(--font-mono);
+  }
+  .metric-legend-ramp {
+    width: 90px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid var(--color-border);
+    /* matches the shared METRIC_LO→METRIC_HI blue→amber ramp */
+    background: linear-gradient(to right, rgb(82, 131, 184), rgb(224, 160, 80));
+  }
+  .metric-legend-sizes {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .size-dot {
+    display: inline-block;
+    border-radius: 50%;
+    background: var(--color-fg-muted);
+  }
+  .size-dot-sm {
+    width: 5px;
+    height: 5px;
+  }
+  .size-dot-lg {
+    width: 13px;
+    height: 13px;
+  }
+  .metric-legend-note {
+    font-style: italic;
   }
 
   .entity-panel {

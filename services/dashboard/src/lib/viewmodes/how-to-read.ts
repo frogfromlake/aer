@@ -177,11 +177,11 @@ export function composeHowToRead(
       break;
     case 'correlation_matrix':
       out.push(
-        'Read off-diagonal cells: a strong warm/cool cell flags two metrics worth inspecting as a scatter (click a cell to drill in). Correlation is not causation, and it only captures straight-line relationships.'
+        'Read off-diagonal cells: a strong warm/cool cell flags two metrics worth inspecting as a scatter (switch this panel to the Scatter view and pick that pair). Correlation is not causation, and it only captures straight-line relationships.'
       );
       if (facts.renderedCount !== undefined) {
         out.push(
-          `${facts.renderedCount} metric${facts.renderedCount === 1 ? '' : 's'} in the matrix (the Metric set lever). Cells with too few overlapping articles are left blank.`
+          `${facts.renderedCount} metric${facts.renderedCount === 1 ? '' : 's'} in the matrix (the Metric set lever). Cells with too few overlapping articles are drawn dashed (honest empty), never as a zero.`
         );
       }
       break;

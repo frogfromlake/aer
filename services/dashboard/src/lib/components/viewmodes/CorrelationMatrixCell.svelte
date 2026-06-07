@@ -95,6 +95,10 @@
       const Plot = await import('@observablehq/plot');
       if (!host || token !== renderToken) return;
       const drawable = rows.filter((c) => c.r !== null);
+      // Phase 125 (ISSUE 3) — cells with too few overlapping buckets are honest
+      // empties, not absent: render them as a dashed placeholder, never blank
+      // space (DISCLOSE-NEVER-COERCE). Hover explains why.
+      const blanks = rows.filter((c) => c.r === null);
       const side = Math.max(220, Math.min(480, order.length * 64 + 120));
       const next = Plot.plot({
         width: host.clientWidth || side,
@@ -111,13 +115,34 @@
           label: 'Pearson r'
         },
         marks: [
-          Plot.cell(drawable, { x: 'col', y: 'row', fill: 'r', inset: 0.5 }),
+          Plot.cell(blanks, {
+            x: 'col',
+            y: 'row',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeOpacity: 0.3,
+            strokeDasharray: '2,2',
+            inset: 0.5,
+            title: (d: CorrCell) => `${d.row} × ${d.col}: too few overlapping buckets`
+          }),
+          Plot.cell(drawable, {
+            x: 'col',
+            y: 'row',
+            fill: 'r',
+            inset: 0.5,
+            // Phase 125 (ISSUE 4) — hover tooltip naming the metric pair + r.
+            title: (d: CorrCell) => `${d.row} × ${d.col}: r = ${(d.r ?? 0).toFixed(2)}`
+          }),
           Plot.text(drawable, {
             x: 'col',
             y: 'row',
             text: (d: CorrCell) => (d.r === null ? '' : d.r.toFixed(2)),
-            fill: (d: CorrCell) => (Math.abs(d.r ?? 0) > 0.55 ? 'white' : 'currentColor'),
-            fontSize: 10
+            // Phase 125 (ISSUE 4) — white on saturated cells, strong fg
+            // (currentColor; see .plot-host { color }) on pale cells. The old
+            // global text-fill override muted these into illegibility.
+            fill: (d: CorrCell) => (Math.abs(d.r ?? 0) > 0.5 ? 'white' : 'currentColor'),
+            fontSize: 11,
+            fontWeight: 600
           })
         ]
       });
@@ -224,9 +249,11 @@
   .plot-host {
     width: 100%;
     min-height: 240px;
+    /* currentColor for axis ticks, the dashed empty-cell stroke, and pale-cell
+       value labels — strong fg so r labels stay legible (Phase 125 ISSUE 4). */
+    color: var(--color-fg);
   }
   .plot-host :global(text) {
-    fill: var(--color-fg-muted);
     font-family: var(--font-mono);
     font-size: 11px;
   }

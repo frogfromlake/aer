@@ -38,7 +38,20 @@ get:
       description: >
         Phase 125 — when set, each node carries `metricValue` = the mean of this
         per-article metric over the articles where the entity appears, so the
-        network cell can size/colour nodes by a metric.
+        network cell can size/colour nodes by a metric. This is the SIZE channel
+        metric when size and colour bind to different metrics.
+      schema:
+        type: string
+        minLength: 1
+    - name: nodeColorMetric
+      in: query
+      required: false
+      description: >
+        Phase 125 / ISSUE 7 — optional SECOND per-article metric for the COLOUR
+        channel, so size (`nodeMetric`) and colour can bind to different metrics.
+        When set and different from `nodeMetric`, each node carries
+        `metricValueColor` = the mean of this metric. Omit (or set equal to
+        `nodeMetric`) to colour by the same metric as size.
       schema:
         type: string
         minLength: 1
