@@ -2849,3 +2849,36 @@ A **three-tier comparability model**, applied identically to metrics and categor
 * Whether the intersection-only default should remain uniform for sentiment tiers or be relaxed to metadata-only — left uniform for now, flagged for review.
 * Cross-cultural equivalence (WP-004) is a separate gate, unchanged here.
 
+
+---
+
+## ADR-039: Negative Space as a Reflexive-Architecture Surface (Phase 122d.2)
+
+**Status:** Accepted (2026-06-07). *(The Phase-122d.2 ROADMAP entry originally numbered this "ADR-037"; that number was already taken by the cross-lingual display layer, as was 038 — this ADR takes the next free number, 039.)*
+
+**Context.** The `?negSpace=1` toggle existed and was discoverable but its effect was a stub: a uniform globe tint + ad-hoc per-cell treatments, no taxonomy, no contract. "Show what AĒR does NOT see" needs to be a coherent reflexive surface, governed by the Working Papers, covering the complete (post-Phase-125) cell inventory.
+
+**Decision.** Negative Space is a single client-side classifier + one badge primitive + a per-cell rendering policy declared in the cell registry + targeted BFF read-side disclosures, all governed by eight invariants.
+
+### The six shipped NS-classes (SoT: `services/dashboard/src/lib/negative-space.ts`)
+1. **Structural-Metadata-Absence** (WP-003 §3.2) — publisher emits no field; source/coverage-level.
+2. **Temporal-Provenance-Absence** (WP-005 §3.1) — `timestamp_source='fetch_at_fallback'`; per-article + per-source.
+3. **Silent-Edit** (WP-003 §5.3.1) — headline change / republication / Wayback gap; per-article.
+4. **Analytical-Capability-Absence** (WP-002/004) — scope language lacks NER/sentiment; query-level.
+5. **k-Anonymity-Suppression** (WP-006 §7.2.2) — withheld for privacy; query-level.
+6. **Equivalence-Refusal** (WP-004 §5.3) — cross-frame normalisation without a grant; query-level.
+
+Four further methodology-recognised classes (Probe/Regional, Platform-Suppression, Demographic, Technical/Legal) are documented as future extensions — no current data path.
+
+### The eight invariants (codified in `negative-space.ts` + enforced by tests)
+DISCLOSE-NEVER-COERCE · DOCUMENT-NEVER-FILTER · PUBLISHER-CHOICE-NOT-DEFECT · DISTINGUISH-STRUCTURAL-FROM-SAMPLING (≥50/30d) · METHODOLOGICAL-NOT-WARNING register (neutral dim, never red) · THE-FRAME-IS-SELF-DISCLOSING · VERSION-THE-ABSENCE (documented, deferred) · PRIVACY≠PUBLISHER-CHOICE.
+
+### Per-cell policy (`PresentationDefinition.negativeSpacePolicy`)
+`overlay` (cooccurrence) · `gap` (time-series, aspirational) · `badge` (per-article metric cells) · `refuse` (aggregate over a structurally-absent field) · `no-op` (topic/revision). PanelHost surfaces a self-disclosing per-panel note from this policy when the toggle is on — **no cell silently no-ops; no cell coerces an absent value to zero**. The data-bearing renderings live where the data exists: the article list (∅ badges), the source dossier (per-source TPA count), and the co-occurrence overlay (`?negativeSpaceOverlay=ghost` → per-edge `nsSupport`, dashed/dim edges). Aggregate cells whose DTOs carry no per-article NS marker self-disclose via the note rather than faking data.
+
+### Two deliberate scope decisions (with the operator)
+1. **No per-cell ghost-edge "re-admission".** The ROADMAP assumed the co-occurrence graph *excluded* NS articles and ghosts would re-admit them. It does not exclude them — so the overlay instead **marks existing edges that lean on undated articles** (a disclosure, not a re-admission). No behaviour change to the counts.
+2. **No globe geographic NS overlay, and no per-glyph NS-density recolour.** A source's discourse *reach* is unmeasurable (e.g. franceinfo may influence La Réunion or francophone Africa); claiming geographic blind spots — or recolouring a probe/source marker by its internal NS-density — would fake a disclosure AĒR cannot make. The globe therefore retires the uniform tint and states honestly that it makes no geographic coverage claim; per-source NS lives in the Dossier (measurable). This is itself an application of DISCLOSE-NEVER-COERCE to the disclosure layer.
+
+### Consequences
+No worker changes, no migrations (every signal already in Gold columns; the BFF read-side exposes `timestampSource` on `ArticleListItem`, `temporalProvenanceAbsentCount` on the dossier source, and `nsSupport` on the co-occurrence edge). One badge token + one classifier SoT keeps the vocabulary consistent.

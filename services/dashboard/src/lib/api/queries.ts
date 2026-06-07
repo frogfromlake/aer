@@ -947,6 +947,7 @@ export function entityCoOccurrenceQuery(
     viewerLanguage?: string;
     nodeMetric?: string;
     minWeight?: number;
+    negativeSpaceOverlay?: 'ghost';
   }
 ): QueryOptions<CoOccurrenceGraphDto> {
   const qs = new URLSearchParams();
@@ -964,6 +965,9 @@ export function entityCoOccurrenceQuery(
   // Phase 125b — min co-occurrence weight (edge density floor for the at-scale
   // renderer). Omitted when 0 (no thinning).
   if (params.minWeight && params.minWeight > 0) qs.set('minWeight', String(params.minWeight));
+  // Phase 122d.2 — Negative-Space overlay: edges carry `nsSupport` (count of
+  // contributing articles with no real publication date) when requested.
+  if (params.negativeSpaceOverlay) qs.set('negativeSpaceOverlay', params.negativeSpaceOverlay);
   return {
     queryKey: ['aer', 'entity-cooccurrence', params] as const,
     queryFn: () =>

@@ -263,7 +263,8 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 			word_count UInt32,
 			raw_entity_count UInt32,
 			ingestion_version UInt64 DEFAULT 0,
-			bronze_object_key String DEFAULT ''
+			bronze_object_key String DEFAULT '',
+			timestamp_source String DEFAULT ''
 		) ENGINE = ReplacingMergeTree(ingestion_version)
 		ORDER BY (timestamp, source, article_id)
 	`)

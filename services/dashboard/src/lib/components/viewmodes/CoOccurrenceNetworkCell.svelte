@@ -15,6 +15,7 @@
   import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
+  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportPayload } from '$lib/viewmodes/cell-export';
   import {
@@ -99,6 +100,10 @@
   const spread = $derived(forceStrength ?? 50);
   const WIDTH = 720;
   const HEIGHT = 500;
+  // Phase 122d.2 — when the NS toggle is on, request the overlay so each edge
+  // carries `nsSupport` (contributing articles with no real publication date);
+  // edges with nsSupport>0 render dashed as a disclosure (never filtered).
+  const negSpaceOn = $derived(negativeSpaceActive());
 
   const graphQ = createQuery<
     QueryOutcome<CoOccurrenceGraphDto>,
@@ -112,6 +117,7 @@
       end: windowEnd,
       topN: TOP_N,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
+      ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
       ...(nodeMetric ? { nodeMetric } : {})
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
@@ -161,6 +167,9 @@
      *  `edge.presence`). Empty array when the BFF did not return per-
      *  edge presence (single-source scope). */
     presence: string[];
+    /** Phase 122d.2 — contributing articles with no real publication date
+     *  (>0 only under the NS overlay). Edges with nsSupport>0 render dashed. */
+    nsSupport: number;
   }
 
   let nodes: SimNode[] = $state([]);
@@ -632,6 +641,8 @@
               y2={nodeY(e.target)}
               stroke={edgeStroke(e)}
               stroke-width={0.4 + 2.4 * (e.weight / maxEdgeWeight)}
+              stroke-dasharray={negSpaceOn && e.nsSupport > 0 ? '3 3' : undefined}
+              stroke-opacity={negSpaceOn && e.nsSupport > 0 ? 0.45 : undefined}
               onpointermove={(ev) => onEdgeHover(ev, e)}
               onpointerleave={() => (readout = HIDDEN_READOUT)}
             />

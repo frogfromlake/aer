@@ -19,6 +19,7 @@
   import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
+  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportPayload } from '$lib/viewmodes/cell-export';
   import { HIDDEN_READOUT, type ReadoutState } from '$lib/viewmodes/cell-readout';
@@ -63,6 +64,8 @@
   const viewerLang = $derived(displayLanguage === 'viewer' ? viewerLabelLanguage() : undefined);
   const netSize = $derived(channels?.netSize ?? 'total_count');
   const netMetric = $derived(channels?.netMetric);
+  // Phase 122d.2 — NS overlay: request per-edge nsSupport; dim NS-supported edges.
+  const negSpaceOn = $derived(negativeSpaceActive());
 
   const graphQ = createQuery<
     QueryOutcome<CoOccurrenceGraphDto>,
@@ -79,6 +82,7 @@
       topN: AT_SCALE_TOP_N,
       minWeight,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
+      ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
       ...(useMetric && netMetric ? { nodeMetric: netMetric } : {})
     });
     return {
@@ -144,6 +148,7 @@
     const mExt = metricExtent;
     const merged = isMergedScope;
     const nm = netMetric;
+    const nsOn = negSpaceOn;
     const colorCtx: NodeColorContext = {
       netColor,
       metricExtent: mExt,
@@ -197,7 +202,11 @@
         if (graph.hasEdge(e.source, e.target)) continue;
         graph.addEdge(e.source, e.target, {
           size: 0.4 + 2 * (e.weight / maxWeight),
-          color: edgeStrokeColor(e, merged, colorCtx.sourceColorMap),
+          // Phase 122d.2 — dim edges supported by undated articles (disclosure).
+          color:
+            nsOn && e.nsSupport > 0
+              ? 'rgba(154,143,184,0.25)'
+              : edgeStrokeColor(e, merged, colorCtx.sourceColorMap),
           weight: e.weight,
           articleCount: e.articleCount
         });

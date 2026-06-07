@@ -4385,6 +4385,38 @@ frame, ADR-038, and push cognitive load past the dashboard's complexity ceiling)
 Panels remain the unit for different views. Linked brushing therefore moves to Phase
 125b as a Window-level transient selection.
 
+## Phase 125b: Co-occurrence at Scale & Cross-Panel Brushing [P1] - [x] DONE (pending manual UI + recrawl)
+
+**Status (2026-06-07).** Built + validated as far as headless allows: fe typecheck/test/lint ·
+fe production build (sigma/graphology code-split into lazy chunks; FA2 `/worker` subpath
+resolves) · BFF `go build`/`go vet`/`go test ./internal/{handler,storage}` (Testcontainers) ·
+`make codegen`/`fe-codegen` idempotent · live curls for the BFF params. 4-angle focused
+code-review: BFF + shared-extraction + brushing clean; 2 at-scale findings fixed (FA2 stop-timer
+now cleared via effect-cleanup; all reactive reads hoisted above the `await`). **The WebGL
+render + Plot click-brushing are manual-only checks** (TESTING.md B1/B4) — the user runs them
+after the worker rebuild + `make reset` + `make crawl`.
+
+* [x] **Co-occurrence at scale (the marquee feature).** Chosen renderer: **Tier 2 — sigma.js
+  (WebGL) + graphology + graphology-layout-forceatlas2 (worker)**, lazy-loaded; engaged ONLY
+  when the panel is **maximized AND resolves to a single cell** (`PanelHost.atScaleActive`,
+  registry `supportsAtScale`). Default small view stays the d3-force **SVG** cell. BFF: `topN`
+  ceiling raised 500→**6000** (`MaxCoOccurrenceTopN`, tunable), new **`minWeight`** edge-density
+  param (`HAVING sum(cooccurrence_count) >= …`) — a **visible density slider** in the at-scale
+  view (the real hairball control). Node sizing/colour/relabel/export come from the SHARED module
+  (`cooccurrence-network-shared.ts`) so the SVG cell and the WebGL renderer never diverge
+  (anti-stale: extraction, not duplication). Folded-in 125a polish: `metric_scatter` cross-frame
+  gate parity. *(The other 125a-deferred item — `queryNodeMetric` time-slice — was already correct;
+  dropped.)* **Renderer-interface seam:** the at-scale renderer is a self-contained component
+  behind the `supportsAtScale` flag; if real data ever exceeds ~100k nodes-in-view (unlikely given
+  Heaps' law + `minWeight`), Tier 3 (cosmos, GPU simulation) is a renderer swap behind the same
+  seam — and needs a streaming/binary transport, not just a higher cap.
+* [x] **Cross-panel linked brushing.** Window-level transient `SvelteSet<articleId>` in
+  `WindowHost` (NOT URL; cleared on active-window change), threaded Window→PanelHost→cell via
+  `ViewModeCellProps.selection`. **Scatter ↔ Parallel-coordinates** participate (per-article
+  identity): click a mark → toggle; selected emphasised, others dimmed. Other cells ignore it.
+  Intra-panel is out of scope (a Panel has one view — 125a decision); per-cell views rejected
+  (preserves the comparability frame + bounds cognitive load).
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -4426,40 +4458,6 @@ Panels remain the unit for different views. Linked brushing therefore moves to P
 
 ---
 
-## Phase 125b: Co-occurrence at Scale & Cross-Panel Brushing [P1] - [x] DONE (pending manual UI + recrawl)
-
-**Status (2026-06-07).** Built + validated as far as headless allows: fe typecheck/test/lint ·
-fe production build (sigma/graphology code-split into lazy chunks; FA2 `/worker` subpath
-resolves) · BFF `go build`/`go vet`/`go test ./internal/{handler,storage}` (Testcontainers) ·
-`make codegen`/`fe-codegen` idempotent · live curls for the BFF params. 4-angle focused
-code-review: BFF + shared-extraction + brushing clean; 2 at-scale findings fixed (FA2 stop-timer
-now cleared via effect-cleanup; all reactive reads hoisted above the `await`). **The WebGL
-render + Plot click-brushing are manual-only checks** (TESTING.md B1/B4) — the user runs them
-after the worker rebuild + `make reset` + `make crawl`.
-
-* [x] **Co-occurrence at scale (the marquee feature).** Chosen renderer: **Tier 2 — sigma.js
-  (WebGL) + graphology + graphology-layout-forceatlas2 (worker)**, lazy-loaded; engaged ONLY
-  when the panel is **maximized AND resolves to a single cell** (`PanelHost.atScaleActive`,
-  registry `supportsAtScale`). Default small view stays the d3-force **SVG** cell. BFF: `topN`
-  ceiling raised 500→**6000** (`MaxCoOccurrenceTopN`, tunable), new **`minWeight`** edge-density
-  param (`HAVING sum(cooccurrence_count) >= …`) — a **visible density slider** in the at-scale
-  view (the real hairball control). Node sizing/colour/relabel/export come from the SHARED module
-  (`cooccurrence-network-shared.ts`) so the SVG cell and the WebGL renderer never diverge
-  (anti-stale: extraction, not duplication). Folded-in 125a polish: `metric_scatter` cross-frame
-  gate parity. *(The other 125a-deferred item — `queryNodeMetric` time-slice — was already correct;
-  dropped.)* **Renderer-interface seam:** the at-scale renderer is a self-contained component
-  behind the `supportsAtScale` flag; if real data ever exceeds ~100k nodes-in-view (unlikely given
-  Heaps' law + `minWeight`), Tier 3 (cosmos, GPU simulation) is a renderer swap behind the same
-  seam — and needs a streaming/binary transport, not just a higher cap.
-* [x] **Cross-panel linked brushing.** Window-level transient `SvelteSet<articleId>` in
-  `WindowHost` (NOT URL; cleared on active-window change), threaded Window→PanelHost→cell via
-  `ViewModeCellProps.selection`. **Scatter ↔ Parallel-coordinates** participate (per-article
-  identity): click a mark → toggle; selected emphasised, others dimmed. Other cells ignore it.
-  Intra-panel is out of scope (a Panel has one view — 125a decision); per-cell views rejected
-  (preserves the comparability frame + bounds cognitive load).
-
----
-
 ## Phase 122d.2: Negative Space Coherence [P1] - [ ] TODO
 
 *Reframes the Negative-Space toggle from a functional-but-incoherent visual gimmick into a methodologically-grounded reflexive-architecture surface. The current implementation tints the globe and inconsistently overlays cells; the toggle's signal — "show me what AĒR is NOT seeing" — has no stable taxonomy and no consistent visual contract. This phase grounds the taxonomy in WP-001 §5.3, WP-003 §2.1/§3.2/§5.3/§6, and WP-006 §4.2/§6/§7; folds the silent-edit signals from 122d.0/122d.1 (republication-trigger, headline-change, fetch_at_fallback) into the taxonomy as first-class markers; and codifies the "disclose, never coerce" invariant as a per-cell rendering policy.*
@@ -4476,7 +4474,7 @@ The methodology recognises multiple distinct classes of "what is not visible / n
 
 1. **Structural-Metadata-Absence** (WP-003 §3.2). Publisher emits no JSON-LD / no `author` / no `dateModified` etc. — already surfaced as Phase 122f `metadata_coverage.structurallyAbsent`. Threshold: ≥50 articles / 30d at 0% population. **Publisher choice, NOT source defect.** Prose register must never read as "source X is broken" — that violates WP-003 §3.2.
 2. **Temporal-Provenance-Absence** (WP-003 §3.2 + WP-005 §3.1). Articles whose timestamp is the crawler fetch time, not a publication date. Sources: `timestamp_source='fetch_at_fallback'`. WP-005 §3.1: "a publication gap is not a discourse gap — it is an observation gap."
-3. **Silent-Edit / Post-hoc Revision** (WP-003 §5.3.1, the "authoritative ground truth (the IA archive)" anchor). Sources: `revision_trigger='republication_trigger'` (Phase 122d.0); `headline_changed=true` (Phase 122d.1); `wayback_lookup_status ∈ {failed, no_snapshots}` (we do not know — distinct from "no edits observed"). Note: the framing of headline-change as the "highest-semantic-shift" signal is **engineering-derived**, not in the WPs; ADR-037 must label it as such and not present it as methodological canon.
+3. **Silent-Edit / Post-hoc Revision** (WP-003 §5.3.1, the "authoritative ground truth (the IA archive)" anchor). Sources: `revision_trigger='republication_trigger'` (Phase 122d.0); `headline_changed=true` (Phase 122d.1); `wayback_lookup_status ∈ {failed, no_snapshots}` (we do not know — distinct from "no edits observed"). Note: the framing of headline-change as the "highest-semantic-shift" signal is **engineering-derived**, not in the WPs; ADR-039 must label it as such and not present it as methodological canon.
 4. **Analytical-Capability Absence** (WP-002 / WP-004 / Language Capability Manifest). The active scope's language has no NER or no sentiment backbone, so the question is structurally unanswerable. Already surfaced as Phase-118a `invalid_language` refusals — but the toggle should make the per-language gap legible in the Workbench, not only as a 400-response.
 5. **k-anonymity Suppression** (WP-006 §7.2.2). Distinct class — "we have data but ethics forbid showing it" is methodologically different from "the publisher chose not to emit." Share a visual register with the others (dim, non-warning), but the prose anchor differs (WP-006 §7.2.2, not WP-003 §3.2).
 6. **Equivalence-Refusal** (WP-004 §5.3 / Phase 115). Cross-frame normalisation requested without a granted `metric_equivalence` row. Already a refusal surface; this phase makes it a first-class NS-class in the toggle vocabulary so the surface is uniform with the other classes.
@@ -4528,12 +4526,12 @@ This phase enforces the following — every implementation choice must satisfy t
   - ArticleRow (every list context — Dossier inline list + Workbench modal)
   - L5EvidenceReader NS-section header (with the headline-before / headline-after diff already landed in 122d.1)
   - Dossier source-card stats row — secondary stat `headline_change_share` next to the existing in-window count
-  - **Caveat (per WP grounding)**: the indicator is engineering-derived. ADR-037 prose must label it as such; it is not presented as a methodological canon, only as a structural signal extracted from the article's `<title>` chain.
+  - **Caveat (per WP grounding)**: the indicator is engineering-derived. ADR-039 prose must label it as such; it is not presented as a methodological canon, only as a structural signal extracted from the article's `<title>` chain.
 * [ ] **Toggle discoverability (WP-006 §3.4 self-disclosure).** The current `?negSpace=1` URL-only toggle is exposed in the chrome — SideRail or a global tray button — with a clear label ("Show what AĒR doesn't see") and a hover tooltip explaining the reflexive-architecture intent. The URL grammar remains the SoT, but the surface is no longer buried.
 
 ### Documentation
 
-* [ ] **ADR-037 — Negative Space as a Reflexive-Architecture Surface.** The six shipped classes + the four documented-but-not-shipped classes; per-cell rendering policy; globe overlay reframing; the eight invariants codified above; verbatim WP-quotes (WP-003 §3.2, WP-006 §4.2, WP-001 §5.3, WP-006 §9, WP-005 §3.1, WP-003 §2.1 — list above is the citation set).
+* [ ] **ADR-039 — Negative Space as a Reflexive-Architecture Surface.** The six shipped classes + the four documented-but-not-shipped classes; per-cell rendering policy; globe overlay reframing; the eight invariants codified above; verbatim WP-quotes (WP-003 §3.2, WP-006 §4.2, WP-001 §5.3, WP-006 §9, WP-005 §3.1, WP-003 §2.1 — list above is the citation set).
 * [ ] **Operations Playbook section** — interpreting NS-density (a source whose Silent-Edit-NS density spikes is a candidate for review; a source moving from `structurallyAbsent=false` → `true` on a Tier-B field is itself a measurement worth noting). Cross-reference WP-006 §4.3 interpretive versioning.
 * [ ] **CLAUDE.md** — Negative-Space taxonomy + the eight invariants in the Design Brief surface notes; SoT pointer to `negativeSpace.ts`.
 * [ ] **Working Paper bridge** (optional, defer if time-bounded) — WP-006 §8.3 Q6 ("How should AĒR visually represent what it cannot observe?") gets a partial answer in this phase; the WP could be amended with a §7.x or §10 section codifying the six shipped classes as the methodological vocabulary. Out of scope as a code task; flag for the operator.

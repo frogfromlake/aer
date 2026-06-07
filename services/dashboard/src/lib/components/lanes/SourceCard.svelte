@@ -17,6 +17,7 @@
   // Phase 122k: url-state imports removed — SourceCard holds local state.
   import { getFunctionDef } from '$lib/discourse-function';
   import FunctionBadge from '$lib/components/base/FunctionBadge.svelte';
+  import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
 
   interface Props {
     source: ProbeDossierSourceDto;
@@ -54,6 +55,14 @@
 
   let primaryMeta = $derived(getFunctionDef(source.primaryFunction));
   let secondaryMeta = $derived(getFunctionDef(source.secondaryFunction));
+
+  // Phase 122d.2 — per-source Temporal-Provenance-Absence (articles with no real
+  // publication date). A reflexive disclosure about the source, never a defect.
+  const nsTemporalCount = $derived(source.temporalProvenanceAbsentCount ?? 0);
+  const nsDenominator = $derived(hasActiveWindow ? source.articlesInWindow : source.articlesTotal);
+  const nsTemporalShare = $derived(
+    nsDenominator > 0 ? Math.round((nsTemporalCount / nsDenominator) * 100) : 0
+  );
 
   // Phase 123 — reflexive per-source content (entityType=source). Two
   // registers: `semantic` = the substantive justification for this source's
@@ -165,6 +174,17 @@
           </dt>
           <dd>{freqDisplay}</dd>
         </div>
+        {#if nsTemporalCount > 0}
+          <div
+            class="stat"
+            title="Temporal-Provenance-Absence: {nsTemporalCount} of {nsDenominator} articles have no real publication date — their timestamp is the crawler fetch time (timestamp_source=fetch_at_fallback). A reflexive disclosure (WP-005 §3.1), not a source defect."
+          >
+            <dt>
+              <NegativeSpaceBadge nsClass="temporal_provenance_absence" size="sm" /> No real date
+            </dt>
+            <dd>{nsTemporalCount.toLocaleString()} ({nsTemporalShare}%)</dd>
+          </div>
+        {/if}
       </dl>
 
       <!-- WP-001 etic/emic classification -->

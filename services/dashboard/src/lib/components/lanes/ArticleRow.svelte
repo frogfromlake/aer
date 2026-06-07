@@ -13,6 +13,9 @@
   // /revisions/articles endpoint. Absent fields collapse to the
   // standard row without badges.
 
+  import { classifyNegativeSpace } from '$lib/negative-space';
+  import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
+
   interface ArticleRowItem {
     articleId: string;
     source?: string;
@@ -20,6 +23,9 @@
     language?: string | null | undefined;
     wordCount?: number | null | undefined;
     sentimentScore?: number | null | undefined;
+    // Phase 122d.2 — timestamp provenance ('fetch_at_fallback' → Temporal-
+    // Provenance-Absence NS-class). Always present for web-crawled rows.
+    timestampSource?: string | null | undefined;
     // Phase 122d.1 — optional revision fields.
     chainLength?: number | null | undefined;
     // Phase 133 — editorial changes (how often the source actually revised
@@ -41,6 +47,13 @@
   }
 
   let { item, onOpen, showSourceCol = false }: Props = $props();
+
+  // Phase 122d.2 — per-article Negative-Space classes (Temporal-Provenance from
+  // timestampSource, Silent-Edit from hasHeadlineChange). The NS Silent-Edit
+  // badge replaces the old ad-hoc "✎ headline" badge (the headline indicator now
+  // ships as the Silent-Edit NS-class). The editorial-change pill is unrelated
+  // (a revision count, not absence) and stays.
+  const nsClasses = $derived(classifyNegativeSpace(item));
 
   function formatTs(iso: string): string {
     try {
@@ -110,15 +123,9 @@
         ✎ {item.editorialChangeCount}
       </span>
     {/if}
-    {#if item.hasHeadlineChange}
-      <span
-        class="badge headline-badge"
-        title="Headline changed at least once in this revision chain"
-        aria-label="Headline changed"
-      >
-        ✎ headline
-      </span>
-    {/if}
+    {#each nsClasses as nsClass (nsClass)}
+      <NegativeSpaceBadge {nsClass} size="sm" />
+    {/each}
   </td>
   <td>
     <button
@@ -216,12 +223,6 @@
   .chain-badge {
     border-color: rgba(154, 143, 184, 0.5);
     color: rgba(154, 143, 184, 0.95);
-  }
-
-  .headline-badge {
-    border-color: rgba(232, 168, 80, 0.55);
-    background: rgba(232, 168, 80, 0.15);
-    color: rgba(232, 168, 80, 0.95);
   }
 
   .view-btn {

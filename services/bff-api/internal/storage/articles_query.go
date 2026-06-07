@@ -39,6 +39,11 @@ type ArticleAggRow struct {
 	HasLanguage    bool
 	HasWordCount   bool
 	HasSentiment   bool
+	// Phase 122d.2 — timestamp provenance. 'fetch_at_fallback' means the
+	// article's timestamp is the crawler fetch time, not a real publication
+	// date (Temporal-Provenance-Absence NS-class). Empty = legacy/non-web row
+	// that predates this provenance dimension; other values are real dates.
+	TimestampSource string
 	// Phase 122d.1 — revision fields. Populated only when
 	// `ArticleQueryFilter.IncludeRevisions=true` AND the article has
 	// at least one row in `aer_gold.article_revisions`.
@@ -121,7 +126,8 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 			anyIf(value, metric_name = 'word_count')      AS WordCount,
 			anyIf(value, metric_name = 'sentiment_score') AS SentimentScore,
 			countIf(metric_name = 'word_count')           AS HasWordCount,
-			countIf(metric_name = 'sentiment_score')      AS HasSentiment
+			countIf(metric_name = 'sentiment_score')      AS HasSentiment,
+			anyLast(timestamp_source)                     AS TimestampSource
 		  FROM aer_gold.metrics
 		 WHERE %s
 		   AND article_id IS NOT NULL
@@ -131,13 +137,14 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 	`, strings.Join(conds, " AND "), limit, offset)
 
 	type row struct {
-		ArticleID      string    `ch:"ArticleID"`
-		Source         string    `ch:"Source"`
-		Timestamp      time.Time `ch:"Timestamp"`
-		WordCount      float64   `ch:"WordCount"`
-		SentimentScore float64   `ch:"SentimentScore"`
-		HasWordCount   uint64    `ch:"HasWordCount"`
-		HasSentiment   uint64    `ch:"HasSentiment"`
+		ArticleID       string    `ch:"ArticleID"`
+		Source          string    `ch:"Source"`
+		Timestamp       time.Time `ch:"Timestamp"`
+		WordCount       float64   `ch:"WordCount"`
+		SentimentScore  float64   `ch:"SentimentScore"`
+		HasWordCount    uint64    `ch:"HasWordCount"`
+		HasSentiment    uint64    `ch:"HasSentiment"`
+		TimestampSource string    `ch:"TimestampSource"`
 	}
 	var raw []row
 	if err := s.conn.Select(ctx, &raw, query, args...); err != nil {
@@ -178,13 +185,14 @@ func (s *ClickHouseStorage) GetSourceArticles(ctx context.Context, sourceName st
 	out := make([]ArticleAggRow, 0, len(raw))
 	for _, r := range raw {
 		row := ArticleAggRow{
-			ArticleID:      r.ArticleID,
-			Source:         r.Source,
-			Timestamp:      r.Timestamp,
-			WordCount:      int64(r.WordCount),
-			SentimentScore: r.SentimentScore,
-			HasWordCount:   r.HasWordCount > 0,
-			HasSentiment:   r.HasSentiment > 0,
+			ArticleID:       r.ArticleID,
+			Source:          r.Source,
+			Timestamp:       r.Timestamp,
+			WordCount:       int64(r.WordCount),
+			SentimentScore:  r.SentimentScore,
+			HasWordCount:    r.HasWordCount > 0,
+			HasSentiment:    r.HasSentiment > 0,
+			TimestampSource: r.TimestampSource,
 		}
 		if lang, ok := languages[r.ArticleID]; ok {
 			row.Language = lang

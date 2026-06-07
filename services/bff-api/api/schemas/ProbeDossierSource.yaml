@@ -36,6 +36,17 @@ properties:
     description: >
       Number of processed documents falling in the requested window. Equal
       to `articlesTotal` when no window was supplied.
+  temporalProvenanceAbsentCount:
+    type: integer
+    nullable: true
+    minimum: 0
+    description: >
+      Phase 122d.2 — number of this source's articles (window-scoped) whose
+      timestamp is the crawler fetch time, not a real publication date
+      (`timestamp_source='fetch_at_fallback'`) — the Temporal-Provenance-Absence
+      Negative-Space class. A reflexive disclosure about the SOURCE ("X of N
+      articles have no real publication date"), never a defect. Null when no
+      window context applies.
   publicationFrequencyPerDay:
     type: number
     nullable: true

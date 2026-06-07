@@ -1227,6 +1227,8 @@ export interface components {
             articlesTotal: number;
             /** @description Number of processed documents falling in the requested window. Equal to `articlesTotal` when no window was supplied. */
             articlesInWindow: number;
+            /** @description Phase 122d.2 — number of this source's articles (window-scoped) whose timestamp is the crawler fetch time, not a real publication date (`timestamp_source='fetch_at_fallback'`) — the Temporal-Provenance-Absence Negative-Space class. A reflexive disclosure about the SOURCE ("X of N articles have no real publication date"), never a defect. Null when no window context applies. */
+            temporalProvenanceAbsentCount?: number | null;
             /** @description Average publications per day across the requested window (or full history when no window is supplied). Null when the source has no processed documents yet. */
             publicationFrequencyPerDay?: number | null;
             /**
@@ -1265,6 +1267,8 @@ export interface components {
              * @description Publication timestamp from SilverCore.
              */
             timestamp: string;
+            /** @description Phase 122d.2 — provenance of `timestamp`. `fetch_at_fallback` means the timestamp is the crawler fetch time, not a real publication date (the Temporal-Provenance-Absence Negative-Space class — WP-005 §3.1: "a publication gap is an observation gap, not a discourse gap"). Other values (`json_ld_published`, `open_graph_published`, …) are real dates; absent/ empty = a legacy/non-web row predating this provenance dimension. */
+            timestampSource?: string | null;
             /** @description Top language detection result for the article (ISO 639-1). */
             language?: string | null;
             /** @description Word count from `aer_gold.metrics`. */
@@ -1622,6 +1626,11 @@ export interface components {
                  * @description Number of distinct articles contributing to this edge.
                  */
                 articleCount: number;
+                /**
+                 * Format: int64
+                 * @description Phase 122d.2 — number of this edge's contributing articles with NO real publication date (`timestamp_source='fetch_at_fallback'`), populated only when `?negativeSpaceOverlay=ghost`. A reflexive disclosure that the connection leans on undated articles (WP-005 §3.1); the edge is NOT filtered. 0 / omitted otherwise.
+                 */
+                nsSupport?: number;
                 /** @description Source names this edge was observed in within the returned window (Phase 131a). Lets the frontend render a source-coloured overlay on a merged multi-source graph without a follow-up call. Populated whenever the scope covers multiple sources; omitted (or a single entry) for single-source scopes. */
                 presence?: string[];
             }[];
@@ -3820,6 +3829,8 @@ export interface operations {
                 viewerLanguage?: string;
                 /** @description Phase 125 — when set, each node carries `metricValue` = the mean of this per-article metric over the articles where the entity appears, so the network cell can size/colour nodes by a metric. */
                 nodeMetric?: string;
+                /** @description Phase 122d.2 — when `ghost`, each edge carries `nsSupport` = the number of its contributing articles whose timestamp is the crawler fetch time, not a real publication date (`timestamp_source='fetch_at_fallback'`). A reflexive disclosure ("this connection leans on undated articles", WP-005 §3.1) — the edges are NOT filtered out. Default off (`nsSupport`=0). */
+                negativeSpaceOverlay?: "ghost";
             };
             header?: never;
             path?: never;

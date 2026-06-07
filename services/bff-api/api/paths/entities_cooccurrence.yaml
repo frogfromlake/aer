@@ -42,6 +42,18 @@ get:
       schema:
         type: string
         minLength: 1
+    - name: negativeSpaceOverlay
+      in: query
+      required: false
+      description: >
+        Phase 122d.2 — when `ghost`, each edge carries `nsSupport` = the number
+        of its contributing articles whose timestamp is the crawler fetch time,
+        not a real publication date (`timestamp_source='fetch_at_fallback'`). A
+        reflexive disclosure ("this connection leans on undated articles", WP-005
+        §3.1) — the edges are NOT filtered out. Default off (`nsSupport`=0).
+      schema:
+        type: string
+        enum: [ghost]
   responses:
     '200':
       description: Top-N co-occurrence subgraph.

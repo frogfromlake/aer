@@ -20,6 +20,16 @@ properties:
     type: string
     format: date-time
     description: Publication timestamp from SilverCore.
+  timestampSource:
+    type: string
+    nullable: true
+    description: >
+      Phase 122d.2 — provenance of `timestamp`. `fetch_at_fallback` means the
+      timestamp is the crawler fetch time, not a real publication date (the
+      Temporal-Provenance-Absence Negative-Space class — WP-005 §3.1: "a
+      publication gap is an observation gap, not a discourse gap"). Other values
+      (`json_ld_published`, `open_graph_published`, …) are real dates; absent/
+      empty = a legacy/non-web row predating this provenance dimension.
   language:
     type: string
     nullable: true

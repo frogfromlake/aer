@@ -976,8 +976,11 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.MinWeight != nil {
 		minWeight = *request.Params.MinWeight
 	}
+	// Phase 122d.2 — Negative-Space overlay: compute per-edge NS-support
+	// (contributing articles with no real publication date) when requested.
+	nsOverlay := request.Params.NegativeSpaceOverlay != nil && *request.Params.NegativeSpaceOverlay == "ghost"
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight, nsOverlay)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -1016,6 +1019,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 		ArticleCount int64     `json:"articleCount"`
 		B            string    `json:"b"`
 		BLabel       *string   `json:"bLabel,omitempty"`
+		NsSupport    *int64    `json:"nsSupport,omitempty"`
 		Presence     *[]string `json:"presence,omitempty"`
 		Weight       int64     `json:"weight"`
 	}, len(res.Edges))
@@ -1034,15 +1038,23 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 			p := e.Presence
 			presence = &p
 		}
+		// Phase 122d.2 — per-edge NS-support, surfaced only when computed (>0;
+		// the overlay is GET-only, so POST edges always omit it).
+		var nsSupport *int64
+		if e.NsSupportCount > 0 {
+			v := e.NsSupportCount
+			nsSupport = &v
+		}
 		resp.Edges[i] = struct {
 			A            string    `json:"a"`
 			ALabel       *string   `json:"aLabel,omitempty"`
 			ArticleCount int64     `json:"articleCount"`
 			B            string    `json:"b"`
 			BLabel       *string   `json:"bLabel,omitempty"`
+			NsSupport    *int64    `json:"nsSupport,omitempty"`
 			Presence     *[]string `json:"presence,omitempty"`
 			Weight       int64     `json:"weight"`
-		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Presence: presence, Weight: e.Weight}
+		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, NsSupport: nsSupport, Presence: presence, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
 		Degree      int64     `json:"degree"`
@@ -1259,7 +1271,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	// The POST multi-scope path is the merged-graph (SVG) renderer only — the
 	// at-scale WebGL view is single-cell (GET). No minWeight here (topN<=500
 	// already bounds it).
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0, false)
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil
@@ -1294,6 +1306,7 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 		ArticleCount int64     `json:"articleCount"`
 		B            string    `json:"b"`
 		BLabel       *string   `json:"bLabel,omitempty"`
+		NsSupport    *int64    `json:"nsSupport,omitempty"`
 		Presence     *[]string `json:"presence,omitempty"`
 		Weight       int64     `json:"weight"`
 	}, len(res.Edges))
@@ -1312,15 +1325,23 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 			p := e.Presence
 			presence = &p
 		}
+		// Phase 122d.2 — per-edge NS-support, surfaced only when computed (>0;
+		// the overlay is GET-only, so POST edges always omit it).
+		var nsSupport *int64
+		if e.NsSupportCount > 0 {
+			v := e.NsSupportCount
+			nsSupport = &v
+		}
 		resp.Edges[i] = struct {
 			A            string    `json:"a"`
 			ALabel       *string   `json:"aLabel,omitempty"`
 			ArticleCount int64     `json:"articleCount"`
 			B            string    `json:"b"`
 			BLabel       *string   `json:"bLabel,omitempty"`
+			NsSupport    *int64    `json:"nsSupport,omitempty"`
 			Presence     *[]string `json:"presence,omitempty"`
 			Weight       int64     `json:"weight"`
-		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, Presence: presence, Weight: e.Weight}
+		}{A: e.A, ALabel: aLabel, ArticleCount: e.ArticleCount, B: e.B, BLabel: bLabel, NsSupport: nsSupport, Presence: presence, Weight: e.Weight}
 	}
 	resp.Nodes = make([]struct {
 		Degree      int64     `json:"degree"`

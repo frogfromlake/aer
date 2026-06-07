@@ -142,6 +142,19 @@ export interface PresentationDefinition {
    *  routes to CoOccurrenceNetworkAtScale in that case, else the default cell.
    *  Defaults to false. */
   supportsAtScale?: boolean;
+  /** Phase 122d.2 / ADR-039 — how this presentation treats the Negative-Space
+   *  toggle, declared so the per-cell contract is uniform (no silent no-op).
+   *    overlay → ghost-render the excluded NS-artefacts (cooccurrence ghost edges)
+   *    gap     → break continuity where NS-density is high (time-series)
+   *    badge   → mark/annotate affected items (per-article cells)
+   *    refuse  → render the refusal surface (aggregate over a structurally-absent
+   *              dimension — runtime condition, not a static default)
+   *    no-op   → the toggle is inert for this view, WITH an explanatory note
+   *  Defaults to 'no-op'. PanelHost surfaces a self-disclosing per-panel note
+   *  from this policy when the toggle is on; the actual data-bearing renderings
+   *  live in the cell (cooccurrence ghost), the article list (∅ badges) and the
+   *  globe/dossier. */
+  negativeSpacePolicy?: 'overlay' | 'badge' | 'gap' | 'refuse' | 'no-op';
 }
 
 /** Common props passed to every cell. The cell decides which subset
@@ -270,6 +283,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     // Overlay (N per-source viridis lines on one canvas) is implemented only
     // here — the per-scope cells render one artefact and ignore it.
     supportsOverlay: true,
+    negativeSpacePolicy: 'gap',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/TimeSeriesCell.svelte')).default
   },
@@ -283,6 +297,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['bins', 'scales'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/DistributionCell.svelte')).default
   },
@@ -298,6 +313,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['topN', 'networkChannels', 'forceStrength', 'displayLanguage'],
     supportsAtScale: true,
+    negativeSpacePolicy: 'overlay',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CoOccurrenceNetworkCell.svelte')).default
   },
@@ -316,6 +332,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['scatterAxes', 'scales'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/ScatterCell.svelte')).default
   },
@@ -466,6 +483,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['topN'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CategoricalDistributionCell.svelte')).default
   },
@@ -484,6 +502,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['metricSet'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CorrelationMatrixCell.svelte')).default
   },
@@ -503,6 +522,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['crossMetric', 'topN'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/CrossTabCell.svelte')).default
   },
@@ -520,6 +540,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['leadLagAxes'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/MetricLeadLagCell.svelte')).default
   },
@@ -537,6 +558,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['metricSet'],
     supportsFaceting: true,
+    negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/viewmodes/ParallelCoordinatesCell.svelte')).default
   },
@@ -554,6 +576,7 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: ['sankeyFields'],
+    negativeSpacePolicy: 'badge',
     loadComponent: async () => (await import('$lib/components/viewmodes/SankeyCell.svelte')).default
   }
 ];

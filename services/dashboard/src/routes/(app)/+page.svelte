@@ -317,19 +317,27 @@
 {#if decision === 'engine'}
   <div
     class="stage"
-    class:neg-space={negSpace}
     aria-hidden="false"
     onpointermove={onPointerMove}
     onpointerleave={() => onProbeHovered(null)}
     role="presentation"
   >
     {#if negSpace}
-      <!-- Surface I — Negative Space mode: coverage boundary banner per WP-001 §5.3 -->
+      <!-- Phase 122d.2 — honest globe-level Negative-Space disclosure. AĒR
+           cannot know which regions a source's discourse actually reaches
+           (reach is unmeasurable), so it deliberately makes NO geographic
+           blind-spot claim here — that would fake a disclosure it cannot
+           measure (the phase's own invariant). Per-source Negative Space
+           (date provenance, silent edits) lives in the Dossier where it is
+           measurable. The old uniform tint is retired. -->
       <aside class="absence-banner" aria-label="Negative Space mode active">
         <span class="absence-glyph" aria-hidden="true">∅</span>
-        <span class="absence-text">Coverage boundary mode — unmonitored regions foregrounded</span>
+        <span class="absence-text"
+          >AĒR cannot measure which regions a source's discourse reaches — so it makes no geographic
+          coverage claim here. Per-source Negative Space is in the Dossier.</span
+        >
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal WP link -->
-        <a class="absence-link" href="/reflection/wp/wp-001?section=5.3">WP-001 §5.3</a>
+        <a class="absence-link" href="/reflection/wp/wp-006?section=4.2">WP-006 §4.2</a>
       </aside>
     {/if}
     <AtmosphereCanvas
@@ -649,11 +657,6 @@
     border-color: var(--color-border-strong);
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
-  }
-
-  /* Negative Space mode — Surface I visual treatment (Phase 112). */
-  .stage.neg-space {
-    filter: saturate(0.6) hue-rotate(20deg) brightness(0.85);
   }
 
   /* Coverage boundary banner — floats above the globe in negSpace mode. */

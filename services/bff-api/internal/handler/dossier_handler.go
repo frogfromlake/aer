@@ -83,19 +83,20 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 	functionsSet := map[string]struct{}{}
 	for _, r := range rows {
 		card := struct {
-			ArticlesInWindow           int                                   `json:"articlesInWindow"`
-			ArticlesTotal              int                                   `json:"articlesTotal"`
-			DocumentationUrl           *string                               `json:"documentationUrl,omitempty"`
-			EmicContext                *string                               `json:"emicContext,omitempty"`
-			EmicDesignation            *string                               `json:"emicDesignation,omitempty"`
-			Name                       string                                `json:"name"`
-			PrimaryFunction            *ProbeDossierSourcesPrimaryFunction   `json:"primaryFunction,omitempty"`
-			PublicationFrequencyPerDay *float32                              `json:"publicationFrequencyPerDay,omitempty"`
-			SecondaryFunction          *ProbeDossierSourcesSecondaryFunction `json:"secondaryFunction,omitempty"`
-			SilverEligible             bool                                  `json:"silverEligible"`
-			SilverReviewDate           *openapi_types.Date                   `json:"silverReviewDate,omitempty"`
-			Type                       string                                `json:"type"`
-			Url                        *string                               `json:"url,omitempty"`
+			ArticlesInWindow              int                                   `json:"articlesInWindow"`
+			ArticlesTotal                 int                                   `json:"articlesTotal"`
+			DocumentationUrl              *string                               `json:"documentationUrl,omitempty"`
+			EmicContext                   *string                               `json:"emicContext,omitempty"`
+			EmicDesignation               *string                               `json:"emicDesignation,omitempty"`
+			Name                          string                                `json:"name"`
+			PrimaryFunction               *ProbeDossierSourcesPrimaryFunction   `json:"primaryFunction,omitempty"`
+			PublicationFrequencyPerDay    *float32                              `json:"publicationFrequencyPerDay,omitempty"`
+			SecondaryFunction             *ProbeDossierSourcesSecondaryFunction `json:"secondaryFunction,omitempty"`
+			SilverEligible                bool                                  `json:"silverEligible"`
+			SilverReviewDate              *openapi_types.Date                   `json:"silverReviewDate,omitempty"`
+			TemporalProvenanceAbsentCount *int                                  `json:"temporalProvenanceAbsentCount,omitempty"`
+			Type                          string                                `json:"type"`
+			Url                           *string                               `json:"url,omitempty"`
 		}{
 			Name:             r.Name,
 			Type:             r.Type,
@@ -115,6 +116,9 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 			v := float32(r.PublicationFreqPerDay.Float64)
 			card.PublicationFrequencyPerDay = &v
 		}
+		// Phase 122d.2 — per-source Temporal-Provenance-Absence count.
+		tpa := int(r.TemporalProvenanceAbsent)
+		card.TemporalProvenanceAbsentCount = &tpa
 		if r.PrimaryFunction.Valid {
 			f := ProbeDossierSourcesPrimaryFunction(r.PrimaryFunction.String)
 			card.PrimaryFunction = &f
@@ -261,6 +265,7 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 			SentimentScore       *float32   `json:"sentimentScore,omitempty"`
 			Source               string     `json:"source"`
 			Timestamp            time.Time  `json:"timestamp"`
+			TimestampSource      *string    `json:"timestampSource,omitempty"`
 			WordCount            *int       `json:"wordCount,omitempty"`
 		}{
 			ArticleId: r.ArticleID,
@@ -270,6 +275,12 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 		if r.HasLanguage {
 			lang := r.Language
 			item.Language = &lang
+		}
+		// Phase 122d.2 — timestamp provenance (Temporal-Provenance-Absence NS-class).
+		// Emitted only when non-empty; absent = legacy/non-web row.
+		if r.TimestampSource != "" {
+			ts := r.TimestampSource
+			item.TimestampSource = &ts
 		}
 		if r.HasWordCount {
 			wc := int(r.WordCount)
@@ -304,6 +315,7 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 			SentimentScore       *float32   `json:"sentimentScore,omitempty"`
 			Source               string     `json:"source"`
 			Timestamp            time.Time  `json:"timestamp"`
+			TimestampSource      *string    `json:"timestampSource,omitempty"`
 			WordCount            *int       `json:"wordCount,omitempty"`
 		}{}
 	}

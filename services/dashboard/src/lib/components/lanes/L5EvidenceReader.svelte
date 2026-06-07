@@ -21,6 +21,8 @@
   } from '$lib/api/queries';
   import { Dialog } from '$lib/components/base';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
+  import { getNSClassDef, type NSClass } from '$lib/negative-space';
 
   interface Props {
     open: boolean;
@@ -106,6 +108,31 @@
   const revisionStatus = $derived(
     revisionsQ.data?.kind === 'success' ? revisionsQ.data.data.lookupStatus : ''
   );
+
+  // Phase 122d.2 — per-article Negative-Space markers for the L5 NS-section.
+  // L5's rich domain is Silent-Edit: it fires when the article was edited after
+  // publication (a headline change), republished under a new URL, or its archive
+  // history could not be established (a Wayback lookup gap = "we don't know",
+  // distinct from "no edits"). Each fired signal is listed so the marker is
+  // self-explaining (WP-003 §5.3.1). (Temporal-Provenance is the row-level
+  // marker — the timestamp's provenance is not carried on the Silver detail.)
+  const silentEditSignals = $derived.by<string[]>(() => {
+    const s: string[] = [];
+    if (revisionList.some((r) => r.diffStatus === 'changed'))
+      s.push('edited after publication (paragraph or headline change)');
+    if (revisionList.some((r) => r.trigger === 'republication_trigger'))
+      s.push('republished under a new URL');
+    if (revisionStatus === 'failed' || revisionStatus === 'no_snapshots')
+      s.push('archive history could not be established (Wayback gap)');
+    return s;
+  });
+  const nsMarkers = $derived<NSClass[]>(silentEditSignals.length > 0 ? ['silent_edit'] : []);
+  let nsSectionOpen = $state(true);
+  // Re-open the section by default whenever a new article with markers loads.
+  $effect(() => {
+    void articleId;
+    nsSectionOpen = true;
+  });
 
   // Phase 133 — Diff tab reworked to step over EDITORIAL versions only.
   // The Wayback chain is captured at raw-HTML granularity, so most
@@ -361,6 +388,34 @@
         <dd><code>{article.schemaVersion}</code></dd>
       </div>
     </dl>
+
+    <!-- Phase 122d.2 — Negative-Space section. Lists every NS-marker that
+         applies to this article (methodological register, never a defect),
+         open-by-default when ≥1 fires. The detailed headline before/after diff
+         lives in the Diff tab below (122d.1). -->
+    {#if nsMarkers.length > 0}
+      <details class="ns-section" bind:open={nsSectionOpen}>
+        <summary class="ns-summary">
+          {#each nsMarkers as nsClass (nsClass)}
+            <NegativeSpaceBadge {nsClass} size="md" showLabel showInfo />
+          {/each}
+          <span class="ns-summary-text">What AĒR cannot fully see for this article</span>
+        </summary>
+        <div class="ns-body">
+          {#each nsMarkers as nsClass (nsClass)}
+            {@const def = getNSClassDef(nsClass)}
+            {#if def}
+              <p class="ns-class-prose">{def.description}</p>
+            {/if}
+          {/each}
+          <ul class="ns-signals">
+            {#each silentEditSignals as sig (sig)}
+              <li>{sig}</li>
+            {/each}
+          </ul>
+        </div>
+      </details>
+    {/if}
 
     <!-- Phase 122d.1 — Article body / Diff tabs. With BUG-11 the
          Diff tab is enabled at chainLength >= 1 (chain-head pair =
@@ -1115,6 +1170,44 @@
 
   .provenance-section,
   .meta-section,
+  /* Phase 122d.2 — Negative-Space section (methodological dim, never warning). */
+  .ns-section {
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+    background: var(--color-surface-2, var(--color-surface));
+  }
+  .ns-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    flex-wrap: wrap;
+  }
+  .ns-summary-text {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+  .ns-body {
+    padding: 0 var(--space-3) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .ns-class-prose {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
+  }
+  .ns-signals {
+    margin: 0;
+    padding-left: var(--space-4);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+
   .revisions-section {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);

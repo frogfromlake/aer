@@ -20,12 +20,15 @@ type DossierSourceRow struct {
 	ArticlesTotal         int64
 	ArticlesInWindow      int64
 	PublicationFreqPerDay sql.NullFloat64
-	PrimaryFunction       sql.NullString
-	SecondaryFunction     sql.NullString
-	EmicDesignation       sql.NullString
-	EmicContext           sql.NullString
-	SilverEligible        bool
-	SilverReviewDate      sql.NullTime
+	// Phase 122d.2 — Temporal-Provenance-Absence count (articles with no real
+	// publication date; window-scoped when a window is supplied).
+	TemporalProvenanceAbsent int64
+	PrimaryFunction          sql.NullString
+	SecondaryFunction        sql.NullString
+	EmicDesignation          sql.NullString
+	EmicContext              sql.NullString
+	SilverEligible           bool
+	SilverReviewDate         sql.NullTime
 }
 
 // ProbeDossierData is the composite per-probe payload built by the BFF.
@@ -135,6 +138,7 @@ func (s *DossierStore) FetchSources(ctx context.Context, sourceNames []string, w
 		if c, ok := counts[r.Name]; ok {
 			r.ArticlesTotal = c.total
 			r.ArticlesInWindow = c.inWindow
+			r.TemporalProvenanceAbsent = c.nsTemporal
 			if c.freqPerDay > 0 {
 				r.PublicationFreqPerDay = sql.NullFloat64{Float64: c.freqPerDay, Valid: true}
 			}
@@ -153,6 +157,9 @@ type sourceCount struct {
 	total      int64
 	inWindow   int64
 	freqPerDay float64
+	// Phase 122d.2 — Temporal-Provenance-Absence count (articles with no real
+	// publication date, window-scoped when a window is supplied).
+	nsTemporal int64
 }
 
 // fetchSourceCounts returns the per-source totals, in-window totals, and
@@ -174,17 +181,26 @@ func (s *DossierStore) fetchSourceCounts(
 	// DateTime, so we branch the predicate textually instead of binding
 	// nil.
 	//
-	// Phase 131a — placeholder order in the rendered query is now:
-	//   (1) sourceNames        — CTE `WHERE d_inner.source IN ?`
-	//   (2) windowStart, windowEnd — projection's `countDistinctIf`
-	//   (3) sourceNames        — outer `WHERE d.source IN ?`
-	// The CTE and outer query each take the IN-list independently because
-	// ClickHouse bind parameters are positional, not named.
+	// Placeholder order in the rendered query (ClickHouse binds are positional,
+	// not named — the CTE and outer query each take the IN-list independently):
+	//   (1) sourceNames            — CTE `WHERE d_inner.source IN ?`
+	//   (2) windowStart, windowEnd — in_window's `countDistinctIf` (Phase 131a)
+	//   (3) windowStart, windowEnd — ns_temporal's `countDistinctIf` (Phase 122d.2)
+	//   (4) sourceNames            — outer `WHERE d.source IN ?`
+	// (2) and (3) are present only when a window is supplied (both branch on the
+	// same window, so they are appended/omitted together).
 	var windowFilter string
 	var args []any
 	args = append(args, sourceNames)
 	if windowStart != nil && windowEnd != nil {
 		windowFilter = "AND timestamp >= ? AND timestamp <= ?"
+		args = append(args, *windowStart, *windowEnd)
+	}
+	// Phase 122d.2 — per-source Temporal-Provenance-Absence count (articles whose
+	// timestamp is the crawler fetch time, not a real publication date). Reuses
+	// the same window filter, so its window args are appended a SECOND time, in
+	// source order (after in_window's, before the outer source IN).
+	if windowStart != nil && windowEnd != nil {
 		args = append(args, *windowStart, *windowEnd)
 	}
 
@@ -214,6 +230,10 @@ func (s *DossierStore) fetchSourceCounts(
 			countDistinctIf(d.article_id, 1=1 %s)             AS in_window,
 			countDistinctIf(
 				d.article_id,
+				d.timestamp_source = 'fetch_at_fallback' %s
+			)                                                 AS ns_temporal,
+			countDistinctIf(
+				d.article_id,
 				d.timestamp >= sm.max_ts - INTERVAL 7 DAY
 			)                                                 AS recent_7d,
 			toUnixTimestamp(min(d.timestamp))                 AS first_ts,
@@ -222,19 +242,20 @@ func (s *DossierStore) fetchSourceCounts(
 		  INNER JOIN source_max sm ON d.source = sm.source
 		 WHERE d.source IN ?
 		 GROUP BY d.source
-	`, windowFilter)
+	`, windowFilter, windowFilter)
 
-	// Outer-query sourceNames IN-list (positional placeholder #3 in
+	// Outer-query sourceNames IN-list (positional placeholder group #4 in
 	// the rendered SQL — see args ordering comment at function top).
 	args = append(args, sourceNames)
 
 	type row struct {
-		Source   string `ch:"source"`
-		Total    uint64 `ch:"total"`
-		InWindow uint64 `ch:"in_window"`
-		Recent7d uint64 `ch:"recent_7d"`
-		FirstTS  uint32 `ch:"first_ts"`
-		LastTS   uint32 `ch:"last_ts"`
+		Source     string `ch:"source"`
+		Total      uint64 `ch:"total"`
+		InWindow   uint64 `ch:"in_window"`
+		NsTemporal uint64 `ch:"ns_temporal"`
+		Recent7d   uint64 `ch:"recent_7d"`
+		FirstTS    uint32 `ch:"first_ts"`
+		LastTS     uint32 `ch:"last_ts"`
 	}
 	var rows []row
 	if err := s.chCn.Select(ctx, &rows, query, args...); err != nil {
@@ -256,8 +277,9 @@ func (s *DossierStore) fetchSourceCounts(
 	out := make(map[string]sourceCount, len(rows))
 	for _, r := range rows {
 		c := sourceCount{
-			total:    int64(r.Total),    //nolint:gosec // bounded by source rowcount
-			inWindow: int64(r.InWindow), //nolint:gosec // bounded by source rowcount
+			total:      int64(r.Total),      //nolint:gosec // bounded by source rowcount
+			inWindow:   int64(r.InWindow),   //nolint:gosec // bounded by source rowcount
+			nsTemporal: int64(r.NsTemporal), //nolint:gosec // bounded by source rowcount
 		}
 		// Publication-frequency-per-day reports the cadence the user is
 		// actually looking at, in two modes:

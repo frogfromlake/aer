@@ -219,6 +219,7 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 		"",
 		"",
 		0,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -280,6 +281,7 @@ func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
 		"",
 		"",
 		0,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -334,6 +336,7 @@ func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
 		"",
 		"",
 		0,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -400,6 +403,7 @@ func TestGetEntityCoOccurrence_ViewerLanguageRelabel(t *testing.T) {
 		"de",
 		"",
 		0,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)
@@ -473,6 +477,7 @@ func TestGetEntityCoOccurrence_NoViewerLanguageNoRelabel(t *testing.T) {
 		"", // no viewer language
 		"",
 		0,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("query: %v", err)

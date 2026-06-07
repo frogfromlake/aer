@@ -111,6 +111,16 @@ properties:
           format: int64
           minimum: 1
           description: Number of distinct articles contributing to this edge.
+        nsSupport:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >
+            Phase 122d.2 — number of this edge's contributing articles with NO
+            real publication date (`timestamp_source='fetch_at_fallback'`),
+            populated only when `?negativeSpaceOverlay=ghost`. A reflexive
+            disclosure that the connection leans on undated articles (WP-005
+            §3.1); the edge is NOT filtered. 0 / omitted otherwise.
         presence:
           type: array
           description: >

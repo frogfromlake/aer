@@ -34,6 +34,10 @@ type CoOccurrenceEdge struct {
 	Weight       int64
 	ArticleCount int64
 	Presence     []string
+	// Phase 122d.2 — Negative-Space overlay: count of this edge's contributing
+	// articles that have NO real publication date (`fetch_at_fallback`). 0 when
+	// the overlay was not requested. A disclosure, not a filter.
+	NsSupportCount int64
 }
 
 // CoOccurrenceNode is one entity vertex derived from the edge set.
@@ -114,6 +118,7 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	viewerLanguage string,
 	nodeMetric string,
 	minWeight int,
+	nsOverlay bool,
 ) (CoOccurrenceResult, error) {
 	if topN < 1 {
 		topN = 1
@@ -149,6 +154,33 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		args = append(args, uint64(minWeight))
 	}
 
+	// Phase 122d.2 — Negative-Space overlay: per edge, how many of its
+	// contributing articles have NO real publication date (`fetch_at_fallback`).
+	// A reflexive disclosure ("this connection leans on undated articles", WP-005
+	// §3.1), NOT a filter — the edge stays in the graph. Computed only when the
+	// overlay is requested (a membership subquery against aer_gold.metrics, which
+	// carries timestamp_source). When off, a constant 0 keeps the column shape.
+	nsCol := "toUInt64(0) AS NsArticleCount"
+	if nsOverlay {
+		startP := fmt.Sprintf("$%d", len(args)+1)
+		args = append(args, start)
+		endP := fmt.Sprintf("$%d", len(args)+1)
+		args = append(args, end)
+		nsSrcClause := ""
+		if len(sources) > 0 {
+			ph := make([]string, len(sources))
+			for i, src := range sources {
+				ph[i] = fmt.Sprintf("$%d", len(args)+1)
+				args = append(args, src)
+			}
+			nsSrcClause = fmt.Sprintf(" AND source IN (%s)", strings.Join(ph, ", "))
+		}
+		nsCol = fmt.Sprintf(
+			"uniqExactIf(article_id, article_id IN (SELECT article_id FROM aer_gold.metrics WHERE timestamp_source = 'fetch_at_fallback' AND timestamp >= %s AND timestamp < %s%s)) AS NsArticleCount",
+			startP, endP, nsSrcClause,
+		)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			entity_a_text  AS A,
@@ -156,22 +188,24 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 			any(entity_a_label) AS ALabel,
 			any(entity_b_label) AS BLabel,
 			sum(cooccurrence_count) AS Weight,
-			uniqExact(article_id) AS ArticleCount
+			uniqExact(article_id) AS ArticleCount,
+			%s
 		FROM aer_gold.entity_cooccurrences FINAL
 		WHERE %s
 		GROUP BY A, B
 		%s
 		ORDER BY Weight DESC, A ASC, B ASC
 		LIMIT %d
-	`, strings.Join(clauses, " AND "), havingClause, topN)
+	`, nsCol, strings.Join(clauses, " AND "), havingClause, topN)
 
 	var rows []struct {
-		A            string
-		B            string
-		ALabel       string
-		BLabel       string
-		Weight       uint64
-		ArticleCount uint64
+		A              string
+		B              string
+		ALabel         string
+		BLabel         string
+		Weight         uint64
+		ArticleCount   uint64
+		NsArticleCount uint64
 	}
 	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
 		slog.Error("Failed to query entity co-occurrence", "error", err)
@@ -181,12 +215,13 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	edges := make([]CoOccurrenceEdge, len(rows))
 	for i, r := range rows {
 		edges[i] = CoOccurrenceEdge{
-			A:            r.A,
-			B:            r.B,
-			ALabel:       r.ALabel,
-			BLabel:       r.BLabel,
-			Weight:       int64(r.Weight),       //nolint:gosec // bounded by aggregation
-			ArticleCount: int64(r.ArticleCount), //nolint:gosec // bounded by aggregation
+			A:              r.A,
+			B:              r.B,
+			ALabel:         r.ALabel,
+			BLabel:         r.BLabel,
+			Weight:         int64(r.Weight),         //nolint:gosec // bounded by aggregation
+			ArticleCount:   int64(r.ArticleCount),   //nolint:gosec // bounded by aggregation
+			NsSupportCount: int64(r.NsArticleCount), //nolint:gosec // bounded by aggregation
 		}
 	}
 

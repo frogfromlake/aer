@@ -1810,3 +1810,13 @@ Phase 120c retired six scripts that targeted data scenarios the supervised wipe-
 | OTel Collector       | `localhost:4317` (gRPC) / `4318`  | none                                           |
 | Arc42 Docs           | `http://localhost:8000`           | none                                           |
 | Swagger UI (dev)     | `http://localhost:8089`           | none — `make swagger-up` to start             |
+## Interpreting Negative-Space density (Phase 122d.2 / ADR-039)
+
+Negative Space discloses what AĒR does not/cannot see. Operationally, two per-source signals are worth watching (both reflexive disclosures, never source defects):
+
+- **Temporal-Provenance-Absence share** (`temporalProvenanceAbsentCount / articlesInWindow`, on the Dossier source card). A high or rising share means many of that source's articles have no real publication date (`timestamp_source='fetch_at_fallback'`) — usually a discovery/extraction gap (the publisher's date metadata is not being parsed). Investigate the source's `discovery:` block + the worker's `WebAdapter` date extraction, not the data. Per WP-005 §3.1 a publication gap is an observation gap, not a discourse gap.
+- **Silent-Edit density** — articles with post-publication headline/content changes (the ∅ SE badge). A spike is a candidate for editorial review, not an error.
+
+A source moving from `structurallyAbsent=false → true` on a Tier-B field is itself a measurement (WP-006 §4.3 interpretive versioning) — note it.
+
+The Negative-Space toggle (`?negSpace=1`, SideRail / Shift-N) is self-disclosing per cell; it never coerces an absent value to zero. The globe deliberately makes **no** geographic coverage claim (a source's discourse reach is unmeasurable).

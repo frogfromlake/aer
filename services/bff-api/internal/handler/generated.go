@@ -623,6 +623,21 @@ func (e GetEntityCoOccurrenceParamsScope) Valid() bool {
 	}
 }
 
+// Defines values for GetEntityCoOccurrenceParamsNegativeSpaceOverlay.
+const (
+	Ghost GetEntityCoOccurrenceParamsNegativeSpaceOverlay = "ghost"
+)
+
+// Valid indicates whether the value is a known member of the GetEntityCoOccurrenceParamsNegativeSpaceOverlay enum.
+func (e GetEntityCoOccurrenceParamsNegativeSpaceOverlay) Valid() bool {
+	switch e {
+	case Ghost:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMetadataSankeyParamsScope.
 const (
 	GetMetadataSankeyParamsScopeProbe  GetMetadataSankeyParamsScope = "probe"
@@ -1332,6 +1347,9 @@ type ArticlesPage struct {
 		// Timestamp Publication timestamp from SilverCore.
 		Timestamp time.Time `json:"timestamp"`
 
+		// TimestampSource Phase 122d.2 — provenance of `timestamp`. `fetch_at_fallback` means the timestamp is the crawler fetch time, not a real publication date (the Temporal-Provenance-Absence Negative-Space class — WP-005 §3.1: "a publication gap is an observation gap, not a discourse gap"). Other values (`json_ld_published`, `open_graph_published`, …) are real dates; absent/ empty = a legacy/non-web row predating this provenance dimension.
+		TimestampSource *string `json:"timestampSource,omitempty"`
+
 		// WordCount Word count from `aer_gold.metrics`.
 		WordCount *int `json:"wordCount,omitempty"`
 	} `json:"items"`
@@ -1646,6 +1664,9 @@ type ProbeDossier struct {
 
 		// SilverReviewDate Date the Silver-access review was completed (null when not reviewed).
 		SilverReviewDate *openapi_types.Date `json:"silverReviewDate,omitempty"`
+
+		// TemporalProvenanceAbsentCount Phase 122d.2 — number of this source's articles (window-scoped) whose timestamp is the crawler fetch time, not a real publication date (`timestamp_source='fetch_at_fallback'`) — the Temporal-Provenance-Absence Negative-Space class. A reflexive disclosure about the SOURCE ("X of N articles have no real publication date"), never a defect. Null when no window context applies.
+		TemporalProvenanceAbsentCount *int `json:"temporalProvenanceAbsentCount,omitempty"`
 
 		// Type Source type discriminator (e.g., "rss").
 		Type string `json:"type"`
@@ -1985,10 +2006,16 @@ type GetEntityCoOccurrenceParams struct {
 
 	// NodeMetric Phase 125 — when set, each node carries `metricValue` = the mean of this per-article metric over the articles where the entity appears, so the network cell can size/colour nodes by a metric.
 	NodeMetric *string `form:"nodeMetric,omitempty" json:"nodeMetric,omitempty"`
+
+	// NegativeSpaceOverlay Phase 122d.2 — when `ghost`, each edge carries `nsSupport` = the number of its contributing articles whose timestamp is the crawler fetch time, not a real publication date (`timestamp_source='fetch_at_fallback'`). A reflexive disclosure ("this connection leans on undated articles", WP-005 §3.1) — the edges are NOT filtered out. Default off (`nsSupport`=0).
+	NegativeSpaceOverlay *GetEntityCoOccurrenceParamsNegativeSpaceOverlay `form:"negativeSpaceOverlay,omitempty" json:"negativeSpaceOverlay,omitempty"`
 }
 
 // GetEntityCoOccurrenceParamsScope defines parameters for GetEntityCoOccurrence.
 type GetEntityCoOccurrenceParamsScope string
+
+// GetEntityCoOccurrenceParamsNegativeSpaceOverlay defines parameters for GetEntityCoOccurrence.
+type GetEntityCoOccurrenceParamsNegativeSpaceOverlay string
 
 // PostEntityCoOccurrenceQueryJSONBody defines parameters for PostEntityCoOccurrenceQuery.
 type PostEntityCoOccurrenceQueryJSONBody struct {
@@ -3509,6 +3536,14 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeMetric", r.URL.Query(), &params.NodeMetric, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeMetric", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "negativeSpaceOverlay" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "negativeSpaceOverlay", r.URL.Query(), &params.NegativeSpaceOverlay, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "negativeSpaceOverlay", Err: err})
 		return
 	}
 
@@ -6649,6 +6684,9 @@ type GetEntityCoOccurrence200JSONResponse struct {
 		B            string  `json:"b"`
 		BLabel       *string `json:"bLabel,omitempty"`
 
+		// NsSupport Phase 122d.2 — number of this edge's contributing articles with NO real publication date (`timestamp_source='fetch_at_fallback'`), populated only when `?negativeSpaceOverlay=ghost`. A reflexive disclosure that the connection leans on undated articles (WP-005 §3.1); the edge is NOT filtered. 0 / omitted otherwise.
+		NsSupport *int64 `json:"nsSupport,omitempty"`
+
 		// Presence Source names this edge was observed in within the returned window (Phase 131a). Lets the frontend render a source-coloured overlay on a merged multi-source graph without a follow-up call. Populated whenever the scope covers multiple sources; omitted (or a single entry) for single-source scopes.
 		Presence *[]string `json:"presence,omitempty"`
 
@@ -6785,6 +6823,9 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 		ArticleCount int64   `json:"articleCount"`
 		B            string  `json:"b"`
 		BLabel       *string `json:"bLabel,omitempty"`
+
+		// NsSupport Phase 122d.2 — number of this edge's contributing articles with NO real publication date (`timestamp_source='fetch_at_fallback'`), populated only when `?negativeSpaceOverlay=ghost`. A reflexive disclosure that the connection leans on undated articles (WP-005 §3.1); the edge is NOT filtered. 0 / omitted otherwise.
+		NsSupport *int64 `json:"nsSupport,omitempty"`
 
 		// Presence Source names this edge was observed in within the returned window (Phase 131a). Lets the frontend render a source-coloured overlay on a merged multi-source graph without a follow-up call. Populated whenever the scope covers multiple sources; omitted (or a single entry) for single-source scopes.
 		Presence *[]string `json:"presence,omitempty"`

@@ -44,6 +44,9 @@ export interface NetworkEdge {
   weight: number;
   articleCount: number;
   presence: string[];
+  /** Phase 122d.2 — contributing articles with no real publication date
+   *  (`fetch_at_fallback`); >0 only when the NS overlay was requested. */
+  nsSupport: number;
 }
 
 // ── Palettes (Phase 131/131a — preserved verbatim from the SVG cell) ──────────
@@ -167,7 +170,8 @@ export function buildNetworkEdges(data: CoOccurrenceGraphDto): NetworkEdge[] {
     target: e.b,
     weight: e.weight,
     articleCount: e.articleCount ?? 0,
-    presence: e.presence ?? []
+    presence: e.presence ?? [],
+    nsSupport: e.nsSupport ?? 0
   }));
 }
 

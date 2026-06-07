@@ -47,6 +47,8 @@
     type CellRenderUnit
   } from '$lib/workbench/panel-queries';
   import { isPureCountMetric } from '$lib/viewmodes/metric-presentation';
+  import { negativeSpaceActive } from '$lib/state/tray.svelte';
+  import { nsPolicyNote } from '$lib/negative-space';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import {
@@ -153,6 +155,10 @@
 
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
   const cellRender = $derived(selectCellRender(panel));
+
+  // Phase 122d.2 — Negative-Space toggle self-disclosure (per-cell policy note).
+  const nsActive = $derived(negativeSpaceActive());
+  const nsNote = $derived(nsPolicyNote(presentation.negativeSpacePolicy));
 
   // Phase 123c (B) — cross-probe source resolution. The threaded `dossier`
   // covers only ONE probe (the pillar's active probe). A split panel whose
@@ -826,6 +832,14 @@
     </p>
   {/if}
 
+  <!-- Phase 122d.2 — Negative-Space self-disclosure. When the NS toggle is on,
+       every panel states what NS means for THIS view (per the cell's policy) so
+       the toggle is never a silent no-op; the data-bearing renderings live in
+       the cell (cooccurrence ghost), the article list (∅) and the globe. -->
+  {#if nsActive}
+    <p class="panel-ns-note" role="note">∅ {nsNote}</p>
+  {/if}
+
   <div
     class="panel-body"
     class:split={isSplitLayout}
@@ -1394,6 +1408,15 @@
     margin: 0 0 var(--space-2);
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
+  }
+  /* Phase 122d.2 — Negative-Space self-disclosure note (methodological dim). */
+  .panel-ns-note {
+    margin: 0 0 var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-left: 2px dashed var(--color-border);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    line-height: var(--line-height-loose);
   }
   .panel-drop-note code {
     font-family: var(--font-mono);
