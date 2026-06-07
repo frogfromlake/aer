@@ -142,7 +142,11 @@ export type NetworkColorChannel =
   | 'source_overlay'
   // Phase 125 — colour nodes by `CellChannelBinding.netMetric` (mean per-article
   // metric over the mentioning articles).
-  | 'metric';
+  | 'metric'
+  // Co-occurrence redesign — colour nodes by detected COMMUNITY (Louvain) so each
+  // theme-cluster gets its own colour (the "David Kriesel" topic-map effect).
+  // Structural (from the edge topology), not user data. Default colour mode.
+  | 'community';
 
 export interface CellChannelBinding {
   // Scatter — metric names bound to the position + optional size/colour
@@ -179,6 +183,7 @@ export interface CellOverride {
   topN?: number;
   forceStrength?: number;
   showBand?: boolean;
+  showEdges?: boolean;
   scales?: ScaleMode;
   displayLanguage?: 'source' | 'viewer';
   channels?: CellChannelBinding;
@@ -203,6 +208,7 @@ export type CellOverridePatch = {
   topN?: number | undefined;
   forceStrength?: number | undefined;
   showBand?: boolean | undefined;
+  showEdges?: boolean | undefined;
   scales?: ScaleMode | undefined;
   displayLanguage?: 'source' | 'viewer' | undefined;
   channels?: CellChannelPatch | undefined;
@@ -229,10 +235,18 @@ export interface Panel {
   bins?: number;
   channels?: CellChannelBinding;
   showBand?: boolean;
+  // Co-occurrence redesign — show/hide the edge (connection) lines. undefined =
+  // shown (default true). A nodes-only view is far more readable for a dense
+  // map; the relational structure still reads from clustering + node placement.
+  showEdges?: boolean;
   // Phase 131 (BUG1.7) — co-occurrence force-layout spread (0..100). Higher =
   // stronger node repulsion = more spread-out graph (less single-cluster
   // crowding). Layout-only, not a metric. Default 50.
   forceStrength?: number;
+  // Co-occurrence redesign — large-scale (WebGL) layout SETTLE time in seconds:
+  // how long the ForceAtlas2 worker runs before freezing. Higher = more time to
+  // relax into clusters. Layout-only. Default 12, lever range 3..60.
+  settleSeconds?: number;
   // Phase 123b — co-occurrence cross-lingual relabel. 'source' (default) keeps
   // each node on its source-language surface form; 'viewer' swaps QID-linked
   // nodes to the viewer-language Wikidata label (unlinked nodes stay on source
@@ -549,6 +563,7 @@ interface CompactCellOverride {
   tN?: number; // topN
   fs?: number; // forceStrength
   sb?: 0 | 1; // showBand (0 = false, 1 = true)
+  se?: 0 | 1; // showEdges (0 = false, 1 = true)
   sc?: 0 | 1; // scales (0 = shared, 1 = free)
   dl?: 0 | 1; // displayLanguage (0 = source, 1 = viewer)
   ch?: CompactChannelBinding; // visual-channel binding
@@ -571,7 +586,9 @@ interface CompactPanel {
   bn?: number; // bins (distribution)
   ch?: CompactChannelBinding; // visual-channel binding
   sb?: 0; // showBand=false (default true → omitted)
+  se?: 1; // showEdges=true (default hidden → omitted)
   fs?: number; // forceStrength (network spread)
+  st?: number; // settleSeconds (large-scale FA2 settle time)
   dl?: 1; // displayLanguage='viewer' (default 'source' → omitted)
   // Phase 122i revision short keys.
   sd?: 'h' | 'v'; // splitDirection (D2)
@@ -681,7 +698,9 @@ function compactPanel(p: Panel): CompactPanel {
     if (cb) c.ch = cb;
   }
   if (p.showBand === false) c.sb = 0;
+  if (p.showEdges === true) c.se = 1;
   if (p.forceStrength !== undefined) c.fs = p.forceStrength;
+  if (p.settleSeconds !== undefined) c.st = p.settleSeconds;
   if (p.displayLanguage === 'viewer') c.dl = 1;
   // Phase 126 — per-cell overrides. Each empty override is dropped; the whole
   // `co` map is omitted when no cell carries one.
@@ -723,7 +742,8 @@ function expandChannels(c: CompactChannelBinding): CellChannelBinding | null {
     c.nc === 'presence' ||
     c.nc === 'uniform' ||
     c.nc === 'source_overlay' ||
-    c.nc === 'metric'
+    c.nc === 'metric' ||
+    c.nc === 'community'
   )
     cb.netColor = c.nc;
   if (typeof c.nm === 'string' && c.nm.length > 0) cb.netMetric = c.nm;
@@ -737,6 +757,7 @@ function compactCellOverride(ov: CellOverride): CompactCellOverride | null {
   if (ov.topN !== undefined) c.tN = ov.topN;
   if (ov.forceStrength !== undefined) c.fs = ov.forceStrength;
   if (ov.showBand !== undefined) c.sb = ov.showBand ? 1 : 0;
+  if (ov.showEdges !== undefined) c.se = ov.showEdges ? 1 : 0;
   if (ov.scales !== undefined) c.sc = ov.scales === 'free' ? 1 : 0;
   if (ov.displayLanguage !== undefined) c.dl = ov.displayLanguage === 'viewer' ? 1 : 0;
   if (ov.channels !== undefined) {
@@ -753,6 +774,7 @@ function expandCellOverride(c: CompactCellOverride): CellOverride {
   if (typeof c.tN === 'number') ov.topN = c.tN;
   if (typeof c.fs === 'number') ov.forceStrength = c.fs;
   if (c.sb === 0 || c.sb === 1) ov.showBand = c.sb === 1;
+  if (c.se === 0 || c.se === 1) ov.showEdges = c.se === 1;
   if (c.sc === 0 || c.sc === 1) ov.scales = c.sc === 1 ? 'free' : 'shared';
   if (c.dl === 0 || c.dl === 1) ov.displayLanguage = c.dl === 1 ? 'viewer' : 'source';
   if (c.ch !== undefined && typeof c.ch === 'object') {
@@ -822,7 +844,9 @@ function expandPanel(c: CompactPanel): Panel {
     if (cb) p.channels = cb;
   }
   if (c.sb === 0) p.showBand = false;
+  if (c.se === 1) p.showEdges = true;
   if (typeof c.fs === 'number') p.forceStrength = c.fs;
+  if (typeof c.st === 'number') p.settleSeconds = c.st;
   if (c.dl === 1) p.displayLanguage = 'viewer';
   // Phase 126 — per-cell overrides. Empty overrides are dropped so a decoded
   // panel never carries a no-op entry.

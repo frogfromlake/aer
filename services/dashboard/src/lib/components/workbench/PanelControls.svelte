@@ -753,8 +753,12 @@
   const isCooccurrenceView = $derived((boundPanel?.view ?? '') === 'cooccurrence_network');
   const topNMax = $derived(isCooccurrenceView ? 6000 : viewUsesMetadataField ? 200 : 500);
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
+  const activeShowEdges = $derived(boundPanel?.showEdges ?? false);
   const activeChannels = $derived<CellChannelBinding>(boundPanel?.channels ?? {});
   const activeForceStrength = $derived(boundPanel?.forceStrength ?? DEFAULT_FORCE_STRENGTH);
+  const activeSettle = $derived(boundPanel?.settleSeconds ?? 12);
+  let liveSettle = $state<number | null>(null);
+  const displaySettle = $derived(liveSettle ?? activeSettle);
   // Phase 125 — the N-metric set for multivariate cells (correlation_matrix,
   // parallel_coordinates), persisted in Panel.metricSet.
   const activeMetricSet = $derived<readonly string[]>(boundPanel?.metricSet ?? []);
@@ -876,6 +880,13 @@
     if (clamped === activeForceStrength) return;
     updatePanel(panelPath, (p) => ({ ...p, forceStrength: clamped }));
   }
+  // Co-occurrence redesign — large-scale layout settle time (seconds).
+  function setSettle(n: number) {
+    if (!panelPath || !Number.isFinite(n)) return;
+    const clamped = Math.min(60, Math.max(3, Math.round(n)));
+    if (clamped === activeSettle) return;
+    updatePanel(panelPath, (p) => ({ ...p, settleSeconds: clamped }));
+  }
   function setShowBand(next: boolean) {
     if (!panelPath || next === activeShowBand) return;
     updatePanel(panelPath, (p) => {
@@ -883,6 +894,18 @@
       // Shown is the default — omit the field to keep the URL clean.
       if (next) delete o.showBand;
       else o.showBand = false;
+      return o;
+    });
+  }
+  // Co-occurrence redesign — show/hide the edge (connection) lines. HIDDEN is the
+  // default, so store only the explicit "shown" state and omit the default.
+  function setShowEdges(next: boolean) {
+    if (!panelPath || next === activeShowEdges) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      if (next)
+        o.showEdges = true; // shown is non-default → store
+      else delete o.showEdges; // hidden is the default → keep URL clean
       return o;
     });
   }
@@ -1345,6 +1368,46 @@
             />
             <output class="config-value">{displayForce}</output>
           </div>
+        </div>
+      {/if}
+
+      {#if configParams.includes('settleTime')}
+        <div class="ctrl-row config-row" role="group" aria-label="Layout settle time">
+          <span class="ctrl-eyebrow">Settle</span>
+          <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
+            <input
+              type="range"
+              min="3"
+              max="60"
+              step="1"
+              value={activeSettle}
+              oninput={(e) => (liveSettle = Number((e.currentTarget as HTMLInputElement).value))}
+              onchange={(e) => {
+                setSettle(Number((e.currentTarget as HTMLInputElement).value));
+                liveSettle = null;
+              }}
+              title="Seconds the large-scale layout runs before it freezes. Raise it to give a big map more time to relax into clusters."
+              aria-label="Layout settle time in seconds"
+            />
+            <output class="config-value">{displaySettle}s</output>
+          </div>
+        </div>
+      {/if}
+
+      {#if configParams.includes('showEdges')}
+        <div class="ctrl-row config-row" role="group" aria-label="Connection lines">
+          <span class="ctrl-eyebrow">Connections</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={activeShowEdges}
+            class="ctrl-btn"
+            class:active={activeShowEdges}
+            onclick={() => setShowEdges(!activeShowEdges)}
+            title="Show or hide the edge lines between nodes. A nodes-only view is clearer for a dense map; clustering still shows the relationships."
+          >
+            {activeShowEdges ? 'lines shown' : 'lines hidden'}
+          </button>
         </div>
       {/if}
 

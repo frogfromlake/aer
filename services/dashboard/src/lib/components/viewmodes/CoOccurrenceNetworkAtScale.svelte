@@ -22,7 +22,7 @@
   import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportPayload } from '$lib/viewmodes/cell-export';
-  import { HIDDEN_READOUT, type ReadoutState } from '$lib/viewmodes/cell-readout';
+  import { HIDDEN_READOUT, fmtValue, type ReadoutState } from '$lib/viewmodes/cell-readout';
   import {
     computeMetricExtent,
     computeMetricColorExtent,
@@ -30,6 +30,8 @@
     buildNetworkNodes,
     buildNetworkEdges,
     buildSourceColorMap,
+    computeCommunities,
+    communityHeads,
     nodeFillColor,
     edgeStrokeColor,
     nodeRadius,
@@ -51,20 +53,30 @@
     sources,
     dataLayer = 'gold',
     topN,
+    forceStrength,
+    showEdges,
+    settleSeconds,
     channels,
     displayLanguage,
     configOverridden
   }: ViewModeCellProps = $props();
 
-  // The at-scale view honours the Top-N lever (the auto-switch into this renderer
-  // happens once Top-N crosses ~500), capped at the BFF ceiling; the user further
-  // thins the graph with the minWeight density slider (a visible lever — the real
-  // density control). Kept as LOCAL transient state: it is an
-  // exploration knob, not panel configuration (not URL-persisted).
+  // Top-N is the single density lever (PanelControls), continuous with the SVG
+  // cell and capped at the BFF ceiling — the renderer auto-switches into this
+  // WebGL view once Top-N crosses ~500. (Min-weight was retired: it overlapped
+  // Top-N and confused the density model.)
   const AT_SCALE_CEILING = 6000;
-  // Honour the Top-N lever (continuous with the SVG cell), capped at the ceiling.
   const AT_SCALE_TOP_N = $derived(Math.min(AT_SCALE_CEILING, topN ?? AT_SCALE_CEILING));
-  let minWeight = $state(0);
+  // Spread (forceStrength 0..100) — shared lever with the SVG cell; mapped to FA2
+  // repulsion/gravity below so the layout responds the same way in both.
+  const spread = $derived(forceStrength ?? 50);
+  // Connection lines on/off — default HIDDEN (a nodes-only theme map reads far
+  // cleaner; clustering + colour carry the structure). Toggle in PanelControls.
+  const edgesShown = $derived(showEdges ?? false);
+  // Layout settle time (seconds) — user-controlled (PanelControls). The FA2
+  // worker runs this long, then freezes. Default 12 s; large maps benefit from
+  // more (the lever goes to 60 s).
+  const settleSec = $derived(settleSeconds ?? 12);
 
   const viewerLang = $derived(displayLanguage === 'viewer' ? viewerLabelLanguage() : undefined);
   const netSize = $derived(channels?.netSize ?? 'total_count');
@@ -89,7 +101,6 @@
       start: windowStart,
       end: windowEnd,
       topN: AT_SCALE_TOP_N,
-      minWeight,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
       ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
       ...(sizeMetricReq ? { nodeMetric: sizeMetricReq } : {}),
@@ -109,7 +120,8 @@
 
   const resolvedSourceCount = $derived(data ? resolvedSourceCountOf(data) : 0);
   const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
-  const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
+  // Kriesel default — colour by detected theme cluster (Louvain community).
+  const netColor = $derived(channels?.netColor ?? 'community');
   const metricExtent = $derived.by<MetricExtent | null>(() =>
     data ? computeMetricExtent(data) : null
   );
@@ -165,6 +177,12 @@
     const sizeM = sizeMetricReq;
     const colorM = colorMetricReq;
     const nsOn = negSpaceOn;
+    // Spread drives FA2 repulsion → re-layout on change (NOT edgesShown: that is
+    // a pure render toggle handled by the edge reducer + a refresh effect, so
+    // hiding lines never reshuffles the map).
+    const spr = spread;
+    const settle = settleSec;
+    const nc = netColor;
     const colorCtx: NodeColorContext = {
       netColor,
       // ISSUE 7 — colour channel uses the COLOUR metric's extent.
@@ -179,38 +197,55 @@
     }
     let cancelled = false;
     let stopTimer: ReturnType<typeof setTimeout> | undefined;
+    let convergeTimer: ReturnType<typeof setInterval> | undefined;
+    let detachWheel: (() => void) | undefined;
     const container = host;
     (async () => {
-      const [{ default: Graph }, { default: Sigma }, { default: FA2Layout }] = await Promise.all([
-        import('graphology'),
-        import('sigma'),
-        import('graphology-layout-forceatlas2/worker')
-      ]);
+      const [{ default: Graph }, { default: Sigma }, { default: FA2Layout }, fa2base] =
+        await Promise.all([
+          import('graphology'),
+          import('sigma'),
+          import('graphology-layout-forceatlas2/worker'),
+          import('graphology-layout-forceatlas2')
+        ]);
+      if (cancelled || !container) return;
+
+      // Kriesel effect — detect theme clusters (Louvain) when colouring by
+      // community (the default), so each topic region gets its own colour + a
+      // labelled head node. Best-effort; empty map → grey nodes.
+      const communities = nc === 'community' ? await computeCommunities(d) : null;
       if (cancelled || !container) return;
       teardown();
 
-      const nodes = buildNetworkNodes(d, ns, mExt);
+      const nodes = buildNetworkNodes(d, ns, mExt, communities);
       const edges = buildNetworkEdges(d);
+      const heads = communities ? communityHeads(nodes) : null;
       colorCtx.maxPresence = nodes.reduce((m, n) => Math.max(m, n.presenceCount), 1);
       const maxWeight = edges.reduce((m, e) => Math.max(m, e.weight), 1);
 
       const graph = new Graph({ multi: false, type: 'undirected' });
       const n = nodes.length;
-      nodes.forEach((node, i) => {
-        // Circular seed positions — FA2 needs distinct, non-coincident starts.
-        const angle = (2 * Math.PI * i) / n;
+      // RANDOM seed in a box scaled by √n. A symmetric (spiral/ring) seed tends
+      // to be *preserved* by FA2 as a ring; random starts let the layout break
+      // symmetry and relax into genuine theme clusters.
+      const seedR = Math.max(150, 16 * Math.sqrt(n));
+      nodes.forEach((node) => {
         graph.addNode(node.id, {
-          x: Math.cos(angle) * 100,
-          y: Math.sin(angle) * 100,
+          x: (Math.random() - 0.5) * 2 * seedR,
+          y: (Math.random() - 0.5) * 2 * seedR,
           size: nodeRadius(node.sizeNorm, 2, 14),
           color: nodeFillColor(node, colorCtx),
           label: node.displayName,
+          // Kriesel effect — always label each theme cluster's representative
+          // (largest) node so the topic regions read as named areas.
+          forceLabel: heads?.has(node.id) ?? false,
           // carried for the click → article modal + hover readout
           nerLabel: node.label,
           wikidataQid: node.wikidataQid,
           relabeled: node.relabeled,
           totalCount: node.totalCount,
           degree: node.degree,
+          community: node.community,
           metricValue: node.metricValue,
           metricColorValue: node.metricColorValue
         });
@@ -225,7 +260,13 @@
             nsOn && e.nsSupport > 0
               ? 'rgba(154,143,184,0.25)'
               : edgeStrokeColor(e, merged, colorCtx.sourceColorMap),
-          weight: e.weight,
+          // LAYOUT weight is LOG-DAMPENED. graphology FA2 derives node mass as
+          // 1 + Σ(edge weight), and repulsion ∝ mass_i · mass_j — so raw, skewed
+          // co-occurrence weights gave hub nodes enormous mass → big empty voids
+          // around them ("clusters within clusters"). log() flattens that mass so
+          // small nodes sit next to their big hub, while still keeping a weighted
+          // signal for attraction. (Edge THICKNESS above still uses raw weight.)
+          weight: 1 + Math.log(Math.max(1, e.weight)),
           articleCount: e.articleCount
         });
       }
@@ -237,8 +278,29 @@
         labelRenderedSizeThreshold: 8,
         defaultEdgeColor: 'rgba(180,200,220,0.4)',
         minCameraRatio: 0.05,
-        maxCameraRatio: 12
+        maxCameraRatio: 12,
+        // Connections toggle — edges stay in the graph for the FA2 layout but are
+        // hidden from rendering when `edgesShown` is off. Reading the reactive
+        // value inside the reducer + a refresh effect (below) toggles lines
+        // WITHOUT a rebuild/re-layout.
+        edgeReducer: (_edge: string, attrs: Record<string, unknown>) =>
+          edgesShown ? attrs : { ...attrs, hidden: true }
       });
+
+      // Zoom only with Ctrl/⌘ held (mirrors the SVG cell) so a plain wheel
+      // scrolls the page instead of being swallowed by the map. Capture-phase on
+      // the container: without the modifier we stop the event before sigma's
+      // canvas handler sees it (page scrolls); with it we let sigma zoom and
+      // block the browser's ctrl-wheel page-zoom.
+      const onWheelCapture = (e: WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          return;
+        }
+        e.stopPropagation();
+      };
+      container.addEventListener('wheel', onWheelCapture, { capture: true, passive: false });
+      detachWheel = () => container.removeEventListener('wheel', onWheelCapture, { capture: true });
 
       // Hover readout (cursor-anchored via the container's own pointer position,
       // decoupled from sigma's event coordinate shape for robustness).
@@ -279,16 +341,90 @@
         };
       });
 
-      // ForceAtlas2 layout in a Web Worker — keeps the UI thread responsive.
-      // Run bounded, then stop (a settled map; the user pans/zooms, not waits).
+      // ForceAtlas2 in a Web Worker (UI stays responsive). LinLog dense-cluster
+      // recipe — the strongest lever for tight theme clusters with no hub voids:
+      //  • linLogMode: true — LOGARITHMIC attraction: cluster members pull very
+      //    close together (dense topic blobs) and small nodes hug their big hub
+      //    (fills the voids that mass-weighted repulsion otherwise leaves). The
+      //    earlier "ring/line" came from gravity 0.25, not from linLog itself.
+      //  • outboundAttractionDistribution: false — hubs attract at FULL strength
+      //    so same-theme neighbours sit close to them.
+      //  • adjustSizes: false — no collision jitter; the layout settles.
+      //  • edgeWeightInfluence: 0.65 — co-occurrence strength tightens themes.
+      //  • gravity: 1 — in linLog this compacts clusters without collapsing the
+      //    whole graph (log attraction balances it); Spread sets the (small,
+      //    linLog-scale) repulsion that holds clusters apart.
+      //  • barnesHut from inferSettings (size-aware) for 6k-node performance.
+      const inferred = fa2base.inferSettings(graph);
       fa2 = new FA2Layout(graph, {
-        settings: { gravity: 1, scalingRatio: 10, slowDown: 1 + Math.log(Math.max(2, n)) }
+        settings: {
+          barnesHutOptimize: inferred.barnesHutOptimize ?? n > 1000,
+          barnesHutTheta: inferred.barnesHutTheta ?? 0.5,
+          linLogMode: true,
+          outboundAttractionDistribution: false,
+          adjustSizes: false,
+          edgeWeightInfluence: 0.65,
+          // gravity 1.5 — pulls cluster centroids toward the middle so themes sit
+          // CLOSER together (linLog keeps each cluster internally dense, so this
+          // closes the inter-cluster gaps without re-collapsing into one blob).
+          gravity: 1.5,
+          scalingRatio: 0.5 + spr / 100,
+          // Half the damping of before → bigger steps → linLog reaches its rest
+          // point much faster (it converges slower than linear; the auto-stop
+          // then fires sooner). Settle lever stays the safety cap.
+          slowDown: 1 + Math.log(Math.max(2, n)) / 2
+        }
       });
+
+      // Stop the worker + both timers (idempotent).
+      const stopLayout = () => {
+        if (stopTimer) {
+          clearTimeout(stopTimer);
+          stopTimer = undefined;
+        }
+        if (convergeTimer) {
+          clearInterval(convergeTimer);
+          convergeTimer = undefined;
+        }
+        try {
+          fa2?.stop();
+        } catch {
+          /* already stopped */
+        }
+      };
+
       fa2.start();
-      const stopAfterMs = Math.min(6000, 1500 + n * 2);
-      stopTimer = setTimeout(() => {
-        if (!cancelled) fa2?.stop();
-      }, stopAfterMs);
+      // AUTO-STOP at the rest point: poll mean node movement; once it falls below
+      // a small fraction of the layout scale for two consecutive checks, the map
+      // has settled — stop immediately (no waiting). The Settle lever is the
+      // SAFETY CAP ("run until settled, but at most N seconds").
+      const capMs = Math.max(2000, Math.min(120000, settle * 1000));
+      stopTimer = setTimeout(stopLayout, capMs);
+      const convEps = 0.004 * seedR;
+      // Plain object (not Map) — a non-reactive local position cache; the Svelte
+      // reactivity lint rule rightly forbids a mutable Map in component scope.
+      const prevPos: Record<string, [number, number]> = {};
+      let calmStreak = 0;
+      convergeTimer = setInterval(() => {
+        let sum = 0;
+        let count = 0;
+        graph.forEachNode((id: string, attrs: { x?: number; y?: number }) => {
+          const x = attrs.x ?? 0;
+          const y = attrs.y ?? 0;
+          const p = prevPos[id];
+          if (p) {
+            sum += Math.hypot(x - p[0], y - p[1]);
+            count++;
+          }
+          prevPos[id] = [x, y];
+        });
+        const meanMove = count > 0 ? sum / count : Infinity;
+        if (meanMove < convEps) {
+          if (++calmStreak >= 2) stopLayout();
+        } else {
+          calmStreak = 0;
+        }
+      }, 600);
     })();
     // Effect cleanup — runs on every re-run AND on destroy: cancel the in-flight
     // async build, clear the FA2 stop-timer (no timer-after-destroy retention),
@@ -296,8 +432,17 @@
     return () => {
       cancelled = true;
       if (stopTimer) clearTimeout(stopTimer);
+      if (convergeTimer) clearInterval(convergeTimer);
+      detachWheel?.();
       teardown();
     };
+  });
+
+  // Connections toggle — re-render sigma (re-runs the edge reducer) when
+  // `edgesShown` flips, WITHOUT rebuilding the graph or restarting FA2.
+  $effect(() => {
+    void edgesShown;
+    sigmaInstance?.refresh();
   });
 
   // ── how-to-read + export (shared contract) ────────────────────────────────
@@ -357,27 +502,16 @@
   </header>
 
   <p class="atscale-hint" role="note">
-    Large-scale WebGL map (Top-N &gt; 500). Up to {AT_SCALE_TOP_N} strongest edges; drag to pan, scroll
-    to zoom. Lower Top-N for the interactive small-graph view. Raise <em>min weight</em> to thin a dense
-    graph.
-  </p>
-
-  <div class="density-row">
-    <label class="density-label" for="minweight">Min weight</label>
-    <input
-      id="minweight"
-      type="range"
-      min="0"
-      max="50"
-      step="1"
-      bind:value={minWeight}
-      aria-label="Minimum co-occurrence weight"
-    />
-    <span class="density-value">{minWeight}</span>
+    Large-scale WebGL map. <strong>Ctrl/⌘ + scroll to zoom</strong> · drag to pan · click a node for
+    its articles. Colour = detected <strong>theme cluster</strong> (the labelled node names each
+    region). The layout settles automatically (Settle = the max wait); Top N sets how many
+    connections appear, Spread how far they fan out.
     {#if data}
-      <span class="muted density-count">{renderedNodeCount} nodes · {data.edges.length} edges</span>
+      <span class="muted density-count"
+        >· {renderedNodeCount} nodes · {data.edges.length} edges</span
+      >
     {/if}
-  </div>
+  </p>
 
   {#if dataLayer === 'silver'}
     <p class="muted">Co-occurrence is a Gold-layer artefact — not available on the Silver layer.</p>
@@ -408,6 +542,44 @@
   {/if}
 
   <CellReadout {readout} />
+
+  {#if sizeMetricReq || colorMetricReq}
+    <!-- Metric-channel legend — parity with the SVG cell (ISSUE 8). -->
+    <div class="metric-legend" aria-label="Metric channel legend">
+      {#if sizeMetricReq}
+        {#if metricExtent}
+          <div class="metric-legend-row">
+            <span class="metric-legend-title">Size · {sizeMetricReq}</span>
+            <span class="metric-legend-min">{fmtValue(metricExtent.min)}</span>
+            <span class="metric-legend-sizes" aria-hidden="true">
+              <span class="size-dot size-dot-sm"></span>
+              <span class="size-dot size-dot-lg"></span>
+            </span>
+            <span class="metric-legend-max">{fmtValue(metricExtent.max)}</span>
+          </div>
+        {:else}
+          <span class="metric-legend-note"
+            >No node carries “{sizeMetricReq}” (size) in this scope — channel inactive.</span
+          >
+        {/if}
+      {/if}
+      {#if colorMetricReq}
+        {#if metricColorExtent}
+          <div class="metric-legend-row">
+            <span class="metric-legend-title">Colour · {colorMetricReq}</span>
+            <span class="metric-legend-min">{fmtValue(metricColorExtent.min)}</span>
+            <span class="metric-legend-ramp" aria-hidden="true"></span>
+            <span class="metric-legend-max">{fmtValue(metricColorExtent.max)}</span>
+          </div>
+        {:else}
+          <span class="metric-legend-note"
+            >No node carries “{colorMetricReq}” (colour) in this scope — channel inactive.</span
+          >
+        {/if}
+      {/if}
+      <span class="metric-legend-note">Grey nodes have no such article (never a coerced 0).</span>
+    </div>
+  {/if}
 
   <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
 </section>
@@ -481,17 +653,58 @@
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted, #888);
   }
-  .density-row {
+  .density-count {
+    white-space: nowrap;
+  }
+  /* Metric-channel legend — parity with the SVG cell. */
+  .metric-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--color-fg-muted);
+  }
+  .metric-legend-row {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-xs);
+    gap: 6px;
+    flex-wrap: wrap;
   }
-  .density-row input[type='range'] {
-    flex: 0 0 180px;
+  .metric-legend-title {
+    font-family: var(--font-mono);
+    color: var(--color-fg);
   }
-  .density-count {
-    margin-left: auto;
+  .metric-legend-min,
+  .metric-legend-max {
+    font-family: var(--font-mono);
+  }
+  .metric-legend-ramp {
+    width: 90px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid var(--color-border);
+    background: linear-gradient(to right, rgb(82, 131, 184), rgb(224, 160, 80));
+  }
+  .metric-legend-sizes {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .size-dot {
+    display: inline-block;
+    border-radius: 50%;
+    background: var(--color-fg-muted);
+  }
+  .size-dot-sm {
+    width: 5px;
+    height: 5px;
+  }
+  .size-dot-lg {
+    width: 13px;
+    height: 13px;
+  }
+  .metric-legend-note {
+    font-style: italic;
   }
   .sigma-host {
     flex: 1;

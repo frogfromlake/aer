@@ -12,7 +12,13 @@ import type { ExportPayload, ExportRow } from './cell-export';
 import { composeHowToRead } from './how-to-read';
 
 export type NetSizeChannel = 'total_count' | 'degree' | 'metric';
-export type NetColorChannel = 'uniform' | 'label' | 'presence' | 'source_overlay' | 'metric';
+export type NetColorChannel =
+  | 'uniform'
+  | 'label'
+  | 'presence'
+  | 'source_overlay'
+  | 'metric'
+  | 'community';
 
 export interface MetricExtent {
   min: number;
@@ -40,6 +46,9 @@ export interface NetworkNode {
    *  `metricValue` when colour reuses the size metric (the BFF returns
    *  `metricValueColor` only when the colour metric differs from the size one). */
   metricColorValue: number | null;
+  /** Co-occurrence redesign — Louvain community id (theme cluster), or null when
+   *  not computed. Drives the 'community' colour channel. */
+  community: number | null;
   sizeNorm: number;
 }
 
@@ -71,6 +80,36 @@ export const SHARED_COLOR = '#9aa1ab';
 export const UNKNOWN_PROVENANCE_COLOR = '#3b3f47';
 const METRIC_LO = [82, 131, 184];
 const METRIC_HI = [224, 160, 80];
+
+// Co-occurrence redesign — a wide categorical palette for theme-cluster
+// (Louvain community) colouring. 16 perceptually-distinct hues so adjacent
+// topic regions read apart; communities beyond 16 wrap (acceptable — the big
+// clusters get distinct colours, the long tail rarely matters).
+const COMMUNITY_PALETTE = [
+  '#5283b8',
+  '#b87a52',
+  '#52b885',
+  '#a058b8',
+  '#b85265',
+  '#7f8a4e',
+  '#3c9aa0',
+  '#a07b3c',
+  '#6d6fb8',
+  '#b85299',
+  '#52b8a0',
+  '#b89752',
+  '#8a5fb8',
+  '#5ba36f',
+  '#b8525f',
+  '#4e7f8a'
+];
+
+/** Colour for a Louvain community id; grey when the node has no community
+ *  (unconnected / not computed yet) — honest absence, never a fake cluster. */
+export function communityColor(id: number | null | undefined): string {
+  if (id == null) return UNKNOWN_PROVENANCE_COLOR;
+  return COMMUNITY_PALETTE[Math.abs(id) % COMMUNITY_PALETTE.length] ?? COMMUNITY_PALETTE[0]!;
+}
 
 export function labelColor(label: string): string {
   let h = 0;
@@ -154,7 +193,8 @@ function rawSize(
 export function buildNetworkNodes(
   data: CoOccurrenceGraphDto,
   netSize: NetSizeChannel,
-  metricExtent: MetricExtent | null
+  metricExtent: MetricExtent | null,
+  communities?: Map<string, number> | null
 ): NetworkNode[] {
   const maxSize =
     netSize === 'metric'
@@ -177,9 +217,50 @@ export function buildNetworkNodes(
       wikidataQid: n.wikidataQid ?? null,
       metricValue: n.metricValue ?? null,
       metricColorValue: n.metricValueColor ?? n.metricValue ?? null,
+      community: communities?.get(n.text) ?? null,
       sizeNorm: maxSize > 0 ? rawSize(n, netSize, metricExtent) / maxSize : 0
     };
   });
+}
+
+/** Co-occurrence redesign — detect theme clusters (Louvain communities) from the
+ *  edge topology. Lazy-imports graphology + the Louvain module so they ship only
+ *  when community colouring is used. Returns node-text → community id. Weighted
+ *  (co-occurrence strength) so frequent partners group. Best-effort: any failure
+ *  returns an empty map (→ grey nodes, honest absence — never a fake cluster). */
+export async function computeCommunities(data: CoOccurrenceGraphDto): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (data.nodes.length === 0 || data.edges.length === 0) return out;
+  try {
+    const [{ default: Graph }, louvainMod] = await Promise.all([
+      import('graphology'),
+      import('graphology-communities-louvain')
+    ]);
+    const louvain = louvainMod.default;
+    const g = new Graph({ multi: false, type: 'undirected' });
+    for (const n of data.nodes) if (!g.hasNode(n.text)) g.addNode(n.text);
+    for (const e of data.edges) {
+      if (!g.hasNode(e.a) || !g.hasNode(e.b) || g.hasEdge(e.a, e.b)) continue;
+      g.addEdge(e.a, e.b, { weight: e.weight });
+    }
+    const mapping = louvain(g, { getEdgeWeight: 'weight' }) as Record<string, number>;
+    for (const [node, comm] of Object.entries(mapping)) out.set(node, comm);
+  } catch {
+    /* best-effort — leave empty so nodes render grey, never a fabricated cluster */
+  }
+  return out;
+}
+
+/** The representative (largest by total co-occurrence count) node per community —
+ *  so each theme cluster can be labelled with one name (the Kriesel map effect). */
+export function communityHeads(nodes: NetworkNode[]): Set<string> {
+  const best = new Map<number, { id: string; total: number }>();
+  for (const n of nodes) {
+    if (n.community == null) continue;
+    const cur = best.get(n.community);
+    if (!cur || n.totalCount > cur.total) best.set(n.community, { id: n.id, total: n.totalCount });
+  }
+  return new Set([...best.values()].map((b) => b.id));
 }
 
 export function buildNetworkEdges(data: CoOccurrenceGraphDto): NetworkEdge[] {
@@ -207,6 +288,8 @@ interface ColorableNode {
   /** Phase 125 / ISSUE 7 — colour-channel metric value (falls back to
    *  metricValue when colour reuses the size metric). */
   metricColorValue?: number | null;
+  /** Co-occurrence redesign — Louvain community id for the 'community' channel. */
+  community?: number | null;
   presenceCount: number;
   presence: string[];
 }
@@ -224,6 +307,7 @@ export interface NodeColorContext {
  *  125 / ISSUE 7), falling back to `metricValue` when colour reuses the size metric. */
 export function nodeFillColor(n: ColorableNode, ctx: NodeColorContext): string {
   if (ctx.netColor === 'uniform') return '#5283b8';
+  if (ctx.netColor === 'community') return communityColor(n.community);
   if (ctx.netColor === 'metric') {
     const cv = n.metricColorValue ?? n.metricValue ?? null;
     if (cv == null || !ctx.metricExtent) return '#4a4f57';

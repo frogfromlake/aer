@@ -21,6 +21,9 @@ export const NET_SIZE_CHANNELS: ReadonlyArray<{ id: NetworkSizeChannel; label: s
   { id: 'metric', label: 'Metric' }
 ];
 export const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: string }> = [
+  // Co-occurrence redesign — colour by detected theme-cluster (Louvain). The
+  // default: each topic-region gets its own colour (the "Kriesel" map effect).
+  { id: 'community', label: 'Theme cluster' },
   { id: 'label', label: 'Entity type' },
   { id: 'presence', label: 'Source presence' },
   { id: 'source_overlay', label: 'Source overlay' },

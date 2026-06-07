@@ -21,6 +21,7 @@
   import {
     computeMetricExtent,
     computeMetricColorExtent,
+    computeCommunities,
     resolvedSourceCount as resolvedSourceCountOf,
     buildNetworkNodes,
     buildNetworkEdges,
@@ -58,6 +59,7 @@
     topN,
     channels,
     forceStrength,
+    showEdges,
     displayLanguage,
     configOverridden
   }: ViewModeCellProps = $props();
@@ -88,6 +90,10 @@
   // Phase 131 (BUG1.7) — force-layout spread (0..100 → node repulsion).
   // Higher spreads a crowded graph apart so it stays readable.
   const spread = $derived(forceStrength ?? 50);
+  // Co-occurrence redesign — show/hide edge (connection) lines; default HIDDEN
+  // (nodes-only reads cleaner; clustering carries the structure). The force
+  // layout still uses the edges — only rendering is toggled.
+  const edgesShown = $derived(showEdges ?? false);
   const WIDTH = 720;
   const HEIGHT = 500;
   // Phase 122d.2 — when the NS toggle is on, request the overlay so each edge
@@ -126,7 +132,25 @@
     return data ? resolvedSourceCountOf(data) : 0;
   });
   const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
-  const netColor = $derived(channels?.netColor ?? (isMergedScope ? 'source_overlay' : 'label'));
+  // Kriesel default — colour by detected theme cluster (Louvain community).
+  const netColor = $derived(channels?.netColor ?? 'community');
+  // Theme-cluster (Louvain) map, loaded async when community colouring is active.
+  let communities = $state<Map<string, number> | null>(null);
+  $effect(() => {
+    const want = netColor === 'community';
+    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    if (!want || !d) {
+      communities = null;
+      return;
+    }
+    let cancelled = false;
+    void computeCommunities(d).then((m) => {
+      if (!cancelled) communities = m;
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
   // Phase 125 — min/max of the per-node SIZE metric across the returned graph,
   // for normalising the metric size channel. Null when no node carries it.
   const metricExtent = $derived.by<MetricExtent | null>(() => {
@@ -171,6 +195,8 @@
     /** Phase 125 / ISSUE 7 — mean per-article COLOUR metric (falls back to the
      *  size metric when colour reuses it); null when neither applies. */
     metricColorValue?: number | null;
+    /** Louvain community id (theme cluster) for the 'community' colour channel. */
+    community?: number | null;
     x?: number;
     y?: number;
     fx?: number | null;
@@ -206,10 +232,12 @@
     // relabel, presence) so the SVG cell and the at-scale renderer stay in
     // lock-step. The radius range (4..26) is this renderer's mapping of the
     // shared 0..1 `sizeNorm`.
-    const seedNodes: SimNode[] = buildNetworkNodes(data, netSize, metricExtent).map((b) => ({
-      ...b,
-      radius: nodeRadius(b.sizeNorm)
-    }));
+    const seedNodes: SimNode[] = buildNetworkNodes(data, netSize, metricExtent, communities).map(
+      (b) => ({
+        ...b,
+        radius: nodeRadius(b.sizeNorm)
+      })
+    );
     const seedEdges: SimEdge[] = buildNetworkEdges(data);
     (async () => {
       const d3 = await import('d3-force');
@@ -670,21 +698,23 @@
       />
       <g transform="translate({tx},{ty}) scale({scale})">
         <g class="edges">
-          {#each edges as e (edgeKey(e))}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <line
-              x1={nodeX(e.source)}
-              y1={nodeY(e.source)}
-              x2={nodeX(e.target)}
-              y2={nodeY(e.target)}
-              stroke={edgeStroke(e)}
-              stroke-width={0.4 + 2.4 * (e.weight / maxEdgeWeight)}
-              stroke-dasharray={negSpaceOn && e.nsSupport > 0 ? '3 3' : undefined}
-              stroke-opacity={negSpaceOn && e.nsSupport > 0 ? 0.45 : undefined}
-              onpointermove={(ev) => onEdgeHover(ev, e)}
-              onpointerleave={() => (readout = HIDDEN_READOUT)}
-            />
-          {/each}
+          {#if edgesShown}
+            {#each edges as e (edgeKey(e))}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <line
+                x1={nodeX(e.source)}
+                y1={nodeY(e.source)}
+                x2={nodeX(e.target)}
+                y2={nodeY(e.target)}
+                stroke={edgeStroke(e)}
+                stroke-width={0.4 + 2.4 * (e.weight / maxEdgeWeight)}
+                stroke-dasharray={negSpaceOn && e.nsSupport > 0 ? '3 3' : undefined}
+                stroke-opacity={negSpaceOn && e.nsSupport > 0 ? 0.45 : undefined}
+                onpointermove={(ev) => onEdgeHover(ev, e)}
+                onpointerleave={() => (readout = HIDDEN_READOUT)}
+              />
+            {/each}
+          {/if}
         </g>
         <g class="nodes">
           {#each nodes as n (n.id)}

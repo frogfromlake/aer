@@ -52,6 +52,14 @@ export type CellParamKind =
   | 'networkChannels'
   | 'scatterAxes'
   | 'forceStrength'
+  // Co-occurrence redesign — show/hide the edge (connection) lines. A nodes-only
+  // view is far more readable for a dense map; relational structure still reads
+  // from clustering + node placement.
+  | 'showEdges'
+  // Co-occurrence redesign — large-scale layout settle time (seconds): how long
+  // ForceAtlas2 runs before freezing. Lets the user give a big map more time to
+  // relax into clusters.
+  | 'settleTime'
   | 'displayLanguage'
   // Phase 124 — axis-scale mode (shared vs free) for multi-cell value-axis
   // panels. PanelControls renders the toggle for the presentations that carry
@@ -226,6 +234,9 @@ export interface ViewModeCellProps {
     | undefined;
   /** Time-series ±1σ uncertainty band; undefined = shown. */
   showBand?: boolean | undefined;
+  /** Co-occurrence — show/hide edge (connection) lines; undefined = shown.
+   *  Network cells only. */
+  showEdges?: boolean | undefined;
   /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
    *  the time-series cell previously read the global URL resolution, ignoring
    *  the panel control. */
@@ -236,6 +247,9 @@ export interface ViewModeCellProps {
   /** Co-occurrence force-layout spread (0..100; default 50). Higher = stronger
    *  repulsion = more spread-out graph. Network cell only. */
   forceStrength?: number | undefined;
+  /** Co-occurrence large-scale (WebGL) layout settle time in seconds; how long
+   *  ForceAtlas2 runs before freezing. Default 12. At-scale renderer only. */
+  settleSeconds?: number | undefined;
   /** Phase 123b — co-occurrence cross-lingual relabel. 'viewer' relabels
    *  QID-linked nodes to the reader's language; 'source' / undefined keeps the
    *  source surface form. Network cell only. */
@@ -312,7 +326,14 @@ const PRESENTATIONS: readonly PresentationDefinition[] = [
     // metric is not consumed.
     usesMetric: false,
     usesResolution: false,
-    configurableParams: ['topN', 'networkChannels', 'forceStrength', 'displayLanguage'],
+    configurableParams: [
+      'topN',
+      'networkChannels',
+      'forceStrength',
+      'settleTime',
+      'showEdges',
+      'displayLanguage'
+    ],
     supportsAtScale: true,
     negativeSpacePolicy: 'overlay',
     loadComponent: async () =>

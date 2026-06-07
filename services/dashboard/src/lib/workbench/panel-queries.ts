@@ -104,7 +104,9 @@ export interface ResolvedCellConfig {
   bins: number | undefined;
   topN: number | undefined;
   forceStrength: number | undefined;
+  settleSeconds: number | undefined;
   showBand: boolean | undefined;
+  showEdges: boolean | undefined;
   scales: ScaleMode | undefined;
   displayLanguage: 'source' | 'viewer' | undefined;
   channels: CellChannelBinding | undefined;
@@ -129,7 +131,9 @@ export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellCo
     bins: ov?.bins ?? panel.bins,
     topN: ov?.topN ?? panel.topN,
     forceStrength: ov?.forceStrength ?? panel.forceStrength,
+    settleSeconds: panel.settleSeconds,
     showBand: ov?.showBand ?? panel.showBand,
+    showEdges: ov?.showEdges ?? panel.showEdges,
     scales: ov?.scales ?? panel.scales,
     displayLanguage: ov?.displayLanguage ?? panel.displayLanguage,
     channels: mergeCellChannels(panel.channels, ov?.channels),

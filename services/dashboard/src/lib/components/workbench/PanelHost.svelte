@@ -920,6 +920,10 @@
             metricName={cfg.metric}
             sources={sourcesForUnit(unit)}
             {dataLayer}
+            topN={cfg.topN}
+            forceStrength={cfg.forceStrength}
+            showEdges={cfg.showEdges}
+            settleSeconds={cfg.settleSeconds}
             channels={cfg.channels}
             displayLanguage={cfg.displayLanguage}
             configOverridden={cfg.isOverridden}

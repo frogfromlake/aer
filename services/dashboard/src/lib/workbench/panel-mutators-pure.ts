@@ -286,6 +286,7 @@ export function applyCellOverride(panel: Panel, cellKey: string, patch: CellOver
   if ('topN' in patch) setOrDelete(next, 'topN', patch.topN);
   if ('forceStrength' in patch) setOrDelete(next, 'forceStrength', patch.forceStrength);
   if ('showBand' in patch) setOrDelete(next, 'showBand', patch.showBand);
+  if ('showEdges' in patch) setOrDelete(next, 'showEdges', patch.showEdges);
   if ('scales' in patch) setOrDelete(next, 'scales', patch.scales);
   if ('displayLanguage' in patch) setOrDelete(next, 'displayLanguage', patch.displayLanguage);
   if ('metric' in patch) setOrDelete(next, 'metric', patch.metric); // ADR-038 per-cell peek

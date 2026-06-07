@@ -70,6 +70,7 @@
     "d3-sankey": "0.12.3",
     "diff": "9.0.0",
     "graphology": "0.26.0",
+    "graphology-communities-louvain": "2.0.2",
     "graphology-layout-forceatlas2": "0.10.1",
     "graphology-types": "0.24.8",
     "html-to-image": "1.11.13",
