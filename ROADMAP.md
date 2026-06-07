@@ -4417,48 +4417,7 @@ after the worker rebuild + `make reset` + `make crawl`.
   Intra-panel is out of scope (a Panel has one view — 125a decision); per-cell views rejected
   (preserves the comparability frame + bounds cognitive load).
 
-# Open Phases
-
-*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
-
-*Cross-cutting decisions that shape every phase below:*
-
-- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
-- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
-- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
-- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
-- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
-- ***Disclose, never coerce (interim guardrail until Phase 122d.2).*** The full Negative-Space surface is consolidated late (Phase 122d.2, repositioned behind Phase 125 — see its note). Until it lands, no phase may bake in "absent → 0" coercion: a cell aggregating over a structurally-absent field must reuse the existing refusal/methodology surface rather than emit a misleading zero. This avoids debt the consolidated NS phase would have to unwind (WP-003 §3.2 / WP-006 §6.2).
-- ***No silent permanent gaps — enrichment completeness & periodic re-attempt (ADR-036, landed in 123c hardening).*** Every per-article enrichment that can fail or be incomplete MUST (a) record a queryable completeness status that distinguishes "we know" (incl. a real negative) from "we do NOT know", and (b) register a `ReAttemptTask` with the general re-attempt framework (the periodic in-worker loop, `corpus.py` pattern — runs at boot + every interval, idempotent). A transient failure (e.g. Wayback/IA unreachable) or a later-improvable extraction must self-heal on a later tick, never depend on a manual re-crawl. **Any NEW external, degradable, or later-improvable enrichment added by any phase below MUST register a task + a status, or it silently reintroduces the gap this guardrail closes.** Wayback is the first registered task; Phase 133's `custom_extractors` is the next (a re-extract-from-Bronze task).
-
----
-
-## Implementation protocol (every phase)
-
-*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
-
-1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
-2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
-3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
-4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
-5. **Definition of Done (applies to every phase, on top of its specific Validation):**
-   - phase-specific **Validation** checks pass;
-   - run the **`code-review`** skill on the diff;
-   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
-   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
-   - **hand back to the operator to commit — never auto-commit.**
-
----
-
-# Iteration 9 — Analytical Depth (Composition Complex)
-
-*Where AĒR becomes a genuinely powerful research instrument: arbitrarily many metrics AND metadata chained into publication-ready, always-explained analyses. Built on the Phase-131 configurable-cell foundation. There is no separate "composition canvas" — the Workbench is the single, uniform analytical surface; these phases extend its cell system.*
-
-> **Verify-first (review before starting this iteration).** The Workbench changed substantially after these phases were drafted — Phase 123c added cross-probe panels (per-(probe,source) split fan-out, per-probe accents, 2×2 horizontal split), the `/scope/available-metrics` availability discipline + "show anyway" toggle, the scope-aware default metric, and Phase 124 adds the shared-axis comparison discipline. Re-ground 125's faceting/small-multiples + 133's metadata-as-dimension against the THEN-current cell/scope model (it overlaps the shared-axis work and the show-anyway source-narrowing); confirm nothing here re-implements what 123c/124 already shipped. **Implementation order: 126 (per-cell-override foundation) → 133 + 125 as one coherent block (133's metadata dimensions flow into 125's chaining/faceting; do NOT split 133 backend/frontend) → 122d.2 last (cross-cutting, needs the complete cell/signal inventory).***
-
----
-
-## Phase 122d.2: Negative Space Coherence [P1] - [ ] TODO
+## Phase 122d.2: Negative Space Coherence [P1] - [x] DONE
 
 *Reframes the Negative-Space toggle from a functional-but-incoherent visual gimmick into a methodologically-grounded reflexive-architecture surface. The current implementation tints the globe and inconsistently overlays cells; the toggle's signal — "show me what AĒR is NOT seeing" — has no stable taxonomy and no consistent visual contract. This phase grounds the taxonomy in WP-001 §5.3, WP-003 §2.1/§3.2/§5.3/§6, and WP-006 §4.2/§6/§7; folds the silent-edit signals from 122d.0/122d.1 (republication-trigger, headline-change, fetch_at_fallback) into the taxonomy as first-class markers; and codifies the "disclose, never coerce" invariant as a per-cell rendering policy.*
 
@@ -4502,51 +4461,80 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ### Backend
 
-* [ ] **Per-row NS classification is client-side.** Every signal needed is already in the existing columns (`timestamp_source`, `revision_trigger`, `headline_changed`, `validation_status`, equivalence-state, capability manifest). No new BFF endpoint for classification itself.
-* [ ] **`GET /probes/{id}/dossier` extension** — declare per-probe NS-class densities (counts per class over the active window) so the Atmosphäre globe + the Dossier render without N round-trips.
-* [ ] **Cooccurrence-network NS-overlay** — optional `?negativeSpaceOverlay=ghost` on the existing entity-cooccurrence endpoint returns the ghost edges (the cooccurrence edges that would exist if NS-articles were re-admitted). Default off; toggle-ON in the cell triggers it. Distinct from filtering — the NS articles were excluded from the cooccurrence count *because cooccurrence over `fetch_at_fallback` rows is methodologically meaningless* (per WP-005 §3.1), but the user is entitled to see what was excluded.
-* [ ] OpenAPI + `make codegen`.
+* [x] **Per-row NS classification is client-side.** Every signal needed is already in the existing columns (`timestamp_source`, `revision_trigger`, `headline_changed`, `validation_status`, equivalence-state, capability manifest). No new BFF endpoint for classification itself.
+* [x] **`GET /probes/{id}/dossier` extension** — declare per-probe NS-class densities (counts per class over the active window) so the Atmosphäre globe + the Dossier render without N round-trips.
+* [x] **Cooccurrence-network NS-overlay** — optional `?negativeSpaceOverlay=ghost` on the existing entity-cooccurrence endpoint returns the ghost edges (the cooccurrence edges that would exist if NS-articles were re-admitted). Default off; toggle-ON in the cell triggers it. Distinct from filtering — the NS articles were excluded from the cooccurrence count *because cooccurrence over `fetch_at_fallback` rows is methodologically meaningless* (per WP-005 §3.1), but the user is entitled to see what was excluded.
+* [x] OpenAPI + `make codegen`.
 
 ### Frontend
 
-* [ ] **`negativeSpace.ts` pure classifier** — `classifyNegativeSpace(row): NSClass[]` (a row can belong to multiple classes — e.g. a republication-trigger article with headline_changed=true is in both Temporal-Provenance-Absence and Silent-Edit). Vitest-pinned vocabulary. One source of truth.
-* [ ] **`NegativeSpaceBadge.svelte`** — visual primitive, matches `FunctionBadge`. One class → one badge. Tooltip carries the methodological anchor (WP-§) and the class-specific prose. Same component everywhere (ArticleRow, L5, cell overlays).
-* [ ] **Cell-level NS rendering policy via the Phase-131 registry.** Each `PresentationDefinition` declares `negativeSpacePolicy: 'overlay' | 'badge' | 'gap' | 'refuse' | 'no-op'`:
+* [x] **`negativeSpace.ts` pure classifier** — `classifyNegativeSpace(row): NSClass[]` (a row can belong to multiple classes — e.g. a republication-trigger article with headline_changed=true is in both Temporal-Provenance-Absence and Silent-Edit). Vitest-pinned vocabulary. One source of truth.
+* [x] **`NegativeSpaceBadge.svelte`** — visual primitive, matches `FunctionBadge`. One class → one badge. Tooltip carries the methodological anchor (WP-§) and the class-specific prose. Same component everywhere (ArticleRow, L5, cell overlays).
+* [x] **Cell-level NS rendering policy via the Phase-131 registry.** Each `PresentationDefinition` declares `negativeSpacePolicy: 'overlay' | 'badge' | 'gap' | 'refuse' | 'no-op'`:
   - `overlay` (cooccurrence, scatter): ghost-render NS-points/edges when toggle is ON.
   - `gap` (TimeSeries): dashed segments for buckets with ≥50% NS density; explicit gap (not zero) when 100%.
   - `badge` (Distribution, ArticleRow, L5): badges on the affected items; aggregate stats split into "observed" and "absent" rows.
   - `refuse` (Cells that aggregate over a structurally-absent field): the cell renders the refusal surface in place, not a misleading zero.
   - `no-op` (Topic Distribution, Topic Evolution, where the NS signal has no meaningful in-cell rendering): the toggle is visually inert with a methodological tooltip explaining why ("Topic modeling operates on cleaned text; the per-article NS-classes do not change the topic structure").
-* [ ] **Atmosphäre globe overlay — reframed.** Per WP-001 §5.3 + WP-003 §6.2, regional probe-absence (instrument-design choice) and per-cell analytical absence (per-query) are visually distinct:
+* [x] **Atmosphäre globe overlay — reframed.** Per WP-001 §5.3 + WP-003 §6.2, regional probe-absence (instrument-design choice) and per-cell analytical absence (per-query) are visually distinct:
   - **Persistent layer (mode-independent):** the dim methodological-register caption "AĒR has no source emitting from this region" stays visible at all times. This is the WP-001 §5.3 Probe-Coverage-Map signal.
   - **`?negSpace=1` toggle:** flips the source-glyph render-mode from analytical-mode (current sentiment colouring) to NS-class density mode — each glyph shows its dominant NS-class as colour, magnitude as size. Tooltip discloses the per-class breakdown.
   - The current uniform globe-tint behaviour is retired.
-* [ ] **L5EvidenceReader NS-section.** Collapsible header above the article body listing every NS-marker that applies to this article + the methodological anchor (WP-§-link). Open-by-default when ≥1 marker fires.
-* [ ] **Headline-change indicator (deferred from 122d.1) shipped here as part of Silent-Edit NS class.** `headlineChanged=true` articles surface a `NegativeSpaceBadge` (class=`silent_edit_headline`) in:
+* [x] **L5EvidenceReader NS-section.** Collapsible header above the article body listing every NS-marker that applies to this article + the methodological anchor (WP-§-link). Open-by-default when ≥1 marker fires.
+* [x] **Headline-change indicator (deferred from 122d.1) shipped here as part of Silent-Edit NS class.** `headlineChanged=true` articles surface a `NegativeSpaceBadge` (class=`silent_edit_headline`) in:
   - ArticleRow (every list context — Dossier inline list + Workbench modal)
   - L5EvidenceReader NS-section header (with the headline-before / headline-after diff already landed in 122d.1)
   - Dossier source-card stats row — secondary stat `headline_change_share` next to the existing in-window count
   - **Caveat (per WP grounding)**: the indicator is engineering-derived. ADR-039 prose must label it as such; it is not presented as a methodological canon, only as a structural signal extracted from the article's `<title>` chain.
-* [ ] **Toggle discoverability (WP-006 §3.4 self-disclosure).** The current `?negSpace=1` URL-only toggle is exposed in the chrome — SideRail or a global tray button — with a clear label ("Show what AĒR doesn't see") and a hover tooltip explaining the reflexive-architecture intent. The URL grammar remains the SoT, but the surface is no longer buried.
+* [x] **Toggle discoverability (WP-006 §3.4 self-disclosure).** The current `?negSpace=1` URL-only toggle is exposed in the chrome — SideRail or a global tray button — with a clear label ("Show what AĒR doesn't see") and a hover tooltip explaining the reflexive-architecture intent. The URL grammar remains the SoT, but the surface is no longer buried.
 
 ### Documentation
 
-* [ ] **ADR-039 — Negative Space as a Reflexive-Architecture Surface.** The six shipped classes + the four documented-but-not-shipped classes; per-cell rendering policy; globe overlay reframing; the eight invariants codified above; verbatim WP-quotes (WP-003 §3.2, WP-006 §4.2, WP-001 §5.3, WP-006 §9, WP-005 §3.1, WP-003 §2.1 — list above is the citation set).
-* [ ] **Operations Playbook section** — interpreting NS-density (a source whose Silent-Edit-NS density spikes is a candidate for review; a source moving from `structurallyAbsent=false` → `true` on a Tier-B field is itself a measurement worth noting). Cross-reference WP-006 §4.3 interpretive versioning.
-* [ ] **CLAUDE.md** — Negative-Space taxonomy + the eight invariants in the Design Brief surface notes; SoT pointer to `negativeSpace.ts`.
-* [ ] **Working Paper bridge** (optional, defer if time-bounded) — WP-006 §8.3 Q6 ("How should AĒR visually represent what it cannot observe?") gets a partial answer in this phase; the WP could be amended with a §7.x or §10 section codifying the six shipped classes as the methodological vocabulary. Out of scope as a code task; flag for the operator.
+* [x] **ADR-039 — Negative Space as a Reflexive-Architecture Surface.** The six shipped classes + the four documented-but-not-shipped classes; per-cell rendering policy; globe overlay reframing; the eight invariants codified above; verbatim WP-quotes (WP-003 §3.2, WP-006 §4.2, WP-001 §5.3, WP-006 §9, WP-005 §3.1, WP-003 §2.1 — list above is the citation set).
+* [x] **Operations Playbook section** — interpreting NS-density (a source whose Silent-Edit-NS density spikes is a candidate for review; a source moving from `structurallyAbsent=false` → `true` on a Tier-B field is itself a measurement worth noting). Cross-reference WP-006 §4.3 interpretive versioning.
+* [x] **CLAUDE.md** — Negative-Space taxonomy + the eight invariants in the Design Brief surface notes; SoT pointer to `negativeSpace.ts`.
+* [x] **Working Paper bridge** (optional, defer if time-bounded) — WP-006 §8.3 Q6 ("How should AĒR visually represent what it cannot observe?") gets a partial answer in this phase; the WP could be amended with a §7.x or §10 section codifying the six shipped classes as the methodological vocabulary. Out of scope as a code task; flag for the operator.
 
 ### Validation
 
-* [ ] Each of the six shipped NS-classes is detectable on a known Probe-0 article (e.g., a republication-trigger article fires Temporal-Provenance + Silent-Edit; a tagesschau article missing `editor` fires Structural-Metadata-Absence; a cross-frame normalisation request fires Equivalence-Refusal).
-* [ ] `?negSpace=1` toggle produces a visually distinct, semantically consistent rendering in every cell type per the per-cell policy — no cell silently no-ops without an explanatory tooltip; no cell coerces an absent value to zero.
-* [ ] A `headline_changed=true` article shows the same `NegativeSpaceBadge` in L5, in every ArticleRow context, and in the Dossier source-card stats — same visual token, same methodological tooltip everywhere.
-* [ ] The Atmosphäre globe shows the persistent "no source from this region" caption regardless of toggle state; the `?negSpace=1` toggle flips source-glyphs from sentiment-colouring to NS-class-density-colouring (and back); the current uniform tint is gone.
-* [ ] An aggregate over a structurally-absent field renders the refusal surface in place — does NOT coerce the missing value to zero.
-* [ ] Per-cell NS prose never reads as a source-quality complaint; every NS surface carries a methodological-anchor link (WP-§).
-* [ ] The toggle is discoverable from the chrome (not URL-only).
+* [x] Each of the six shipped NS-classes is detectable on a known Probe-0 article (e.g., a republication-trigger article fires Temporal-Provenance + Silent-Edit; a tagesschau article missing `editor` fires Structural-Metadata-Absence; a cross-frame normalisation request fires Equivalence-Refusal).
+* [x] `?negSpace=1` toggle produces a visually distinct, semantically consistent rendering in every cell type per the per-cell policy — no cell silently no-ops without an explanatory tooltip; no cell coerces an absent value to zero.
+* [x] A `headline_changed=true` article shows the same `NegativeSpaceBadge` in L5, in every ArticleRow context, and in the Dossier source-card stats — same visual token, same methodological tooltip everywhere.
+* [x] The Atmosphäre globe shows the persistent "no source from this region" caption regardless of toggle state; the `?negSpace=1` toggle flips source-glyphs from sentiment-colouring to NS-class-density-colouring (and back); the current uniform tint is gone.
+* [x] An aggregate over a structurally-absent field renders the refusal surface in place — does NOT coerce the missing value to zero.
+* [x] Per-cell NS prose never reads as a source-quality complaint; every NS surface carries a methodological-anchor link (WP-§).
+* [x] The toggle is discoverable from the chrome (not URL-only).
+
+# Open Phases
+
+*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
+
+*Cross-cutting decisions that shape every phase below:*
+
+- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
+- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
+- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
+- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
+- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
+- ***Disclose, never coerce (interim guardrail until Phase 122d.2).*** The full Negative-Space surface is consolidated late (Phase 122d.2, repositioned behind Phase 125 — see its note). Until it lands, no phase may bake in "absent → 0" coercion: a cell aggregating over a structurally-absent field must reuse the existing refusal/methodology surface rather than emit a misleading zero. This avoids debt the consolidated NS phase would have to unwind (WP-003 §3.2 / WP-006 §6.2).
+- ***No silent permanent gaps — enrichment completeness & periodic re-attempt (ADR-036, landed in 123c hardening).*** Every per-article enrichment that can fail or be incomplete MUST (a) record a queryable completeness status that distinguishes "we know" (incl. a real negative) from "we do NOT know", and (b) register a `ReAttemptTask` with the general re-attempt framework (the periodic in-worker loop, `corpus.py` pattern — runs at boot + every interval, idempotent). A transient failure (e.g. Wayback/IA unreachable) or a later-improvable extraction must self-heal on a later tick, never depend on a manual re-crawl. **Any NEW external, degradable, or later-improvable enrichment added by any phase below MUST register a task + a status, or it silently reintroduces the gap this guardrail closes.** Wayback is the first registered task; Phase 133's `custom_extractors` is the next (a re-extract-from-Bronze task).
 
 ---
+
+## Implementation protocol (every phase)
+
+*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
+
+1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
+2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
+3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
+4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
+5. **Definition of Done (applies to every phase, on top of its specific Validation):**
+   - phase-specific **Validation** checks pass;
+   - run the **`code-review`** skill on the diff;
+   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
+   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
+   - **hand back to the operator to commit — never auto-commit.**
 
 ---
 
