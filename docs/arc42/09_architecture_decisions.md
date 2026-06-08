@@ -2882,3 +2882,51 @@ DISCLOSE-NEVER-COERCE · DOCUMENT-NEVER-FILTER · PUBLISHER-CHOICE-NOT-DEFECT ·
 
 ### Consequences
 No worker changes, no migrations (every signal already in Gold columns; the BFF read-side exposes `timestampSource` on `ArticleListItem`, `temporalProvenanceAbsentCount` on the dossier source, and `nsSupport` on the co-occurrence edge). One badge token + one classifier SoT keeps the vocabulary consistent.
+
+---
+
+## ADR-040: Access Control Architecture — BFF-Driven Sessions, No Tokens in the Client (Phase 134)
+
+**Date:** 2026-06-08
+**Status:** Accepted
+
+*(The Phase-134 ROADMAP entry originally named this "ADR-036"; that number was already taken by Enrichment Completeness & Periodic Re-Attempt. This ADR takes the next free number, 040. It extends ADR-011 (BFF static API-key auth) and ADR-018 (constant-time comparison); it does not retire them — the API key is demoted to a machine credential, see below.)*
+
+### Context
+
+Until Phase 134 the whole application is open behind a single shared API key that Traefik injects server-side into every browser request (ADR-011) — there is no notion of a user, a session, or a role. The LICENSE makes this untenable for any deployment serving external researchers: §3.2 permits scientific use only with explicit prior consent, ethics-board approval, and a recorded responsible-use agreement; §3.3 demands *immediate* revocation on violation; §4c forbids operating the system without consent. Authentication is therefore the technical enforcement of a legal access-control regime, not primarily a collaboration feature.
+
+Two project invariants constrain the design hard. First, the dashboard is a **static SvelteKit bundle** (no server adapter, no `hooks.server.ts`, no `+server.ts`) served by nginx behind Traefik — there is no server-side render layer to hold a session, so the **BFF must be the sole auth authority**. Second, the Manifesto (§VI) commits AĒR to being an anti-surveillance instrument that *does not surveil its own users*: user-identity data must be minimal and must never be enriched with a record of what a user analyses.
+
+The contemporary security consensus for browser-based apps (IETF `draft-ietf-oauth-browser-based-apps`, Curity's Token-Handler pattern, Duende BFF) is unambiguous: the strongest architecture keeps **all credentials off the client** and lets a confidential backend hold session state, exposing only an opaque `httpOnly` cookie that cannot be exfiltrated by XSS. AĒR is even better-positioned than the canonical pattern: it has **no external authorization server**, so it self-issues opaque sessions and there are *no tokens anywhere to leak*.
+
+### Decision
+
+**The BFF is the confidential auth authority. The browser holds nothing but an opaque, server-meaningless session id.**
+
+**1. Session model.** On successful authentication the BFF creates a server-side `sessions` row (Postgres) keyed by a random 256-bit id and sets a cookie carrying only that id: `httpOnly` + `Secure` + `SameSite=Strict` + the **`__Host-` prefix** (which forces Secure, host-only, `Path=/`). JavaScript cannot read the cookie; the id means nothing without the server row. Because state is server-side, **revocation is immediate** (delete/flag the row) — the technical realisation of LICENSE §3.3. Sessions slide: each authenticated request advances `last_seen_at` and the **idle timeout** (silent stateful refresh — there is no token to rotate, so the UX benefit of "silent refresh" is obtained with strictly less risk), bounded by an **absolute timeout** that forces periodic re-auth. Session ids may be rotated server-side on privilege change as defence-in-depth.
+
+**2. The API key is demoted, not removed.** Traefik **stops injecting `X-API-Key` on the public path**. The BFF middleware accepts **a valid session cookie OR a valid `X-API-Key`**; the key survives only as a **machine credential** for CI/Testcontainers and internal scripts that reach the BFF directly on the backend network, never through Traefik. A public caller therefore has no key path and must hold a session — the whole app is gated — while the internal test surface keeps working unchanged. Both comparisons stay constant-time (ADR-018).
+
+**3. Credentials.** Passwords are hashed with **argon2id** (OWASP parameters). **WebAuthn/passkeys are a first-class second factor** from the outset (NIST SP 800-63-4 recognises passkeys as AAL2; phishing-resistant public-key auth), with the argon2id password as the recoverable baseline — deliberately *not* passwordless-only, to avoid lock-out for a non-technical, globally distributed research audience. The authentication *method* is pluggable; the session layer issued afterwards is uniform regardless of how identity was proven.
+
+**4. CSRF & XSS hardening.** Primary CSRF defence is **Fetch Metadata** (`Sec-Fetch-Site` must be `same-origin` for state-changing requests — listed by the OWASP CSRF Cheat Sheet as a complete standalone method), reinforced by `SameSite=Strict` and a double-submit token. XSS — the only residual threat to cookie auth — is attacked at the root with **CSP Level 3 + Trusted Types**, plus HSTS.
+
+**5. Gatekeeping (license-driven).** No open self-registration. Accounts are created by **invite/approval** only. The invite is a **single-use, hashed, short-lived token** (`auth_tokens`, `purpose ∈ {invite, password_reset}`); the invitee sets their own password (no password ever travels by mail) and **records the responsible-use agreement at activation** (LICENSE §3.2.b). Email delivery sits behind a **pluggable sender seam**: a manual/log sender (link shown in the admin UI) ships now with no SMTP dependency, and an SMTP sender becomes a config switch later — the same channel will carry future user communication. **Forgot-password** reuses this machinery: identical-response (no user enumeration), short expiry, and **all of the user's sessions are invalidated on reset**.
+
+**6. RBAC.** Two roles, `admin` and `researcher`. Admins suspend/revoke accounts and reach the internal documentation build; researchers analyse and own their saved analyses (Phase 135). The **first admin** is created by a one-shot bootstrap command (reads `ADMIN_BOOTSTRAP_EMAIL`, emits an invite) — it reuses the invite flow rather than seeding a password hash in SQL.
+
+**7. Least-privilege persistence.** The BFF keeps its read-only `bff_readonly` pool for all analytics. Auth gets a **second pool under a new `bff_auth` role** with write access scoped to the auth tables only (`users`, `sessions`, `auth_tokens`, and the Phase-135 `saved_analyses`/`saved_analysis_shares`). Schema is added as golang-migrate migrations `000024+`, run by the ingestion-api as today (Hard Rule 5 / ADR-014 unchanged); the grants are added in `infra/postgres/init-roles.sh`.
+
+**8. Privacy (Manifesto §VI / WP-006 §7).** The user store holds only email, argon2id hash, optional WebAuthn credential, role, status, and the responsible-use flag. **No record is kept of what a user views** — only explicitly saved analyses (Phase 135). DSGVO is first-class: self-service export and delete, consent captured at activation.
+
+**9. Frontend.** The static deployment is preserved: client-only routes (`/login`, `/accept-invite`, `/forgot-password`, `/reset-password`, a minimal user area, an admin area), a profile menu (top-right) and SideRail entry. The request layer gains a **401 → `/login`** redirect; **403 is split by payload** — a methodological refusal envelope still renders as an explained refusal (the existing `400`/methodological-`403` refusal path is untouched), while an auth-`403` (`forbidden_role` / `forbidden_not_shared`) routes to an explained access surface consistent with the no-error-pages ethos.
+
+**10. Documentation split.** The single MkDocs build is split into a **Public** build (Working Papers, manifesto, per-probe/per-source descriptions, data caveats — what an external researcher needs) and an **Internal** build (Arc42, ADRs, Operations Playbook, security defaults), the latter admin-gated. Source-card "Documentation" links route to Public.
+
+**Non-goals / deferred seams.** This ADR does **not** introduce: an external IdP / SSO now; SMTP now; mTLS enforcement now; passwordless-only auth. Two seams are provisioned so they land later without rework: (a) **SSO** — `users` carries nullable `external_idp` + `external_subject`; a future ORCID/eduGAIN/OIDC login binds a verified external identity to an *already-approved* account. SSO will be **authentication only, never authorization** — the invite/consent gate (LICENSE §3.2) always stays in front; it must never become open self-registration. (b) **mTLS** — client-certificate enforcement at Traefik remains an **optional deploy-time layer** (no application code), available for a small, highly sensitive cohort.
+
+### Consequences
+
+* **Positive:** The browser holds no secret of any kind — the maximal form of "nothing in the client", and strictly stronger than the canonical BFF pattern because AĒR self-issues opaque sessions and has no OAuth tokens to hide. Revocation is immediate (LICENSE §3.3); the whole app is gated (LICENSE §4c) while CI/Testcontainers keep working through the demoted machine key. The auth method is upgradeable (passkeys today, SSO later) without touching the uniform session layer. Least-privilege and Hard Rule 5 are preserved (second scoped role, migrations still ingestion-api-run). Privacy is architectural, not policy: no analytical-activity tracking, DSGVO export/delete built in.
+* **Negative:** The BFF gains write paths for the first time, widening its responsibility beyond a read-only analytical gateway — a deliberate, ADR-sanctioned shift. Traefik must be reconfigured to stop injecting the public API key in lockstep with the middleware change, or the gate is a no-op; this coupling is called out in the Operations Playbook. WebAuthn adds registration/recovery surface from day one. The public/internal docs split adds a second MkDocs build to maintain.

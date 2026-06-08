@@ -226,6 +226,8 @@ services:
       - PGDATABASE=${POSTGRES_DB}
       - BFF_DB_USER=${BFF_DB_USER}
       - BFF_DB_PASSWORD=${BFF_DB_PASSWORD}
+      - BFF_AUTH_DB_USER=${BFF_AUTH_DB_USER}
+      - BFF_AUTH_DB_PASSWORD=${BFF_AUTH_DB_PASSWORD}
     volumes:
       - ./infra/postgres/init-roles.sh:/init-roles.sh:ro
     entrypoint: /bin/sh /init-roles.sh

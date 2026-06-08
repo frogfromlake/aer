@@ -20,6 +20,9 @@ set -eu
 : "${PGDATABASE:?PGDATABASE is required}"
 : "${BFF_DB_USER:?BFF_DB_USER is required}"
 : "${BFF_DB_PASSWORD:?BFF_DB_PASSWORD is required}"
+# Phase 134 (ADR-040): the BFF's write role for the auth tables.
+: "${BFF_AUTH_DB_USER:?BFF_AUTH_DB_USER is required}"
+: "${BFF_AUTH_DB_PASSWORD:?BFF_AUTH_DB_PASSWORD is required}"
 
 export PGHOST PGUSER PGPASSWORD PGDATABASE
 
@@ -78,6 +81,58 @@ GRANT SELECT ON TABLE public.ingestion_jobs TO :"bff_user";
 GRANT SELECT ON TABLE public.source_classifications TO :"bff_user";
 GRANT SELECT ON TABLE public.crawler_discovery_runs TO :"bff_user";
 GRANT SELECT ON TABLE public.crawler_discovery_alerts TO :"bff_user";
+SQL
+
+# ---------------------------------------------------------------------------
+# Phase 134 (ADR-040): the BFF's auth WRITE role.
+#
+# The BFF is the confidential auth authority and needs read+write on the
+# auth tables (migration 000024). This is a SEPARATE role from the
+# read-only `bff_readonly` above: the BFF opens a second, small pool under
+# this role so the analytics read path keeps zero write authority
+# (least-privilege preserved — CLAUDE.md Security Defaults). The scope is
+# the auth tables ONLY; analytics tables stay off-limits to this role.
+#
+# Phase 135 will extend the grants here to saved_analyses / shares. Like
+# the read-only whitelist above, this is the single point of truth for the
+# bff_auth role's Postgres permissions — do not grant elsewhere.
+echo "postgres-init-roles: waiting for auth schema (migration 000024) to be created by ingestion-api..."
+ATTEMPTS=60
+while [ "$ATTEMPTS" -gt 0 ]; do
+    if psql -v ON_ERROR_STOP=1 -tAc "SELECT to_regclass('public.users') IS NOT NULL" | grep -q '^t$'; then
+        break
+    fi
+    ATTEMPTS=$((ATTEMPTS - 1))
+    sleep 1
+done
+
+if [ "$ATTEMPTS" -eq 0 ]; then
+    echo "postgres-init-roles: auth schema (public.users) did not appear in time — aborting" >&2
+    exit 1
+fi
+
+echo "postgres-init-roles: ensuring role '${BFF_AUTH_DB_USER}' exists with write access to the auth tables..."
+
+psql -q -v ON_ERROR_STOP=1 \
+     -v auth_user="${BFF_AUTH_DB_USER}" \
+     -v auth_password="${BFF_AUTH_DB_PASSWORD}" \
+     -v pg_database="${PGDATABASE}" \
+     <<'SQL'
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'auth_user', :'auth_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'auth_user') \gexec
+
+ALTER ROLE :"auth_user" WITH LOGIN PASSWORD :'auth_password';
+
+GRANT CONNECT ON DATABASE :"pg_database" TO :"auth_user";
+GRANT USAGE ON SCHEMA public TO :"auth_user";
+
+-- Whitelist: full DML on the auth tables only. No sequences to grant
+-- (UUID/text primary keys, no SERIAL). Analytics tables are deliberately
+-- NOT granted to this role.
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM :"auth_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.users TO :"auth_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.sessions TO :"auth_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.auth_tokens TO :"auth_user";
 SQL
 
 echo "postgres-init-roles: done."
