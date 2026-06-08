@@ -231,6 +231,20 @@ func main() {
 	})
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
+	// Periodically drop idle login-throttle keys (security review M-3).
+	go func() {
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				serverLogic.LoginThrottle().Sweep()
+			}
+		}
+	}()
+
 	r := chi.NewRouter()
 
 	// Recovery runs on every request (including /metrics) so a panic in any
@@ -259,6 +273,10 @@ func main() {
 		// are unaffected.
 		r.Use(auth.SecurityHeaders)
 		r.Use(auth.FetchMetadataCSRF)
+
+		// Inject the client IP so the login throttle (security review M-3) can
+		// key by IP from inside the strict handler.
+		r.Use(auth.ClientIP)
 
 		// OTel: wraps each request in a span and propagates the trace context
 		r.Use(func(next http.Handler) http.Handler {

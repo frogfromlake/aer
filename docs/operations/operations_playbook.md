@@ -1398,6 +1398,15 @@ Phase 84 pinned the stack's external dependencies to specific hashes: every `FRO
 | `govulncheck` or `pip-audit` flags a vulnerable transitive dep | Same day |
 | Monthly maintenance cadence, regardless of signals | Monthly |
 | Before cutting a release tag | Always |
+
+> **Open security debt (Phase 134 review, M-2): bump the Go toolchain to ≥ 1.26.4.**
+> `govulncheck` on the BFF reports 3 reachable `crypto/x509` advisories (e.g.
+> `GO-2026-5037`) present in go 1.26.3 and fixed in 1.26.4 — newly reachable
+> because the Phase-134 WebAuthn attestation/assertion path verifies x509
+> certificates. Bump `.tool-versions` (`GO_VERSION`/toolchain), the `go`/`toolchain`
+> directives in each `go.mod`, the Go builder base images in `services/*/Dockerfile`,
+> and CI, then `make deps-refresh`. Not urgent while undeployed; do it before any
+> deployment.
 | After editing `services/analysis-worker/requirements.txt` | Always (lockfile drift) |
 | After bumping a `FROM image:tag` in any Dockerfile | Always (digest drift) |
 

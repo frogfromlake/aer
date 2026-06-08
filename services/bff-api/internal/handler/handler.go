@@ -174,7 +174,13 @@ type Server struct {
 	// WebAuthn / passkeys (Phase 134 / ADR-040). Nil when WebAuthn is not wired.
 	webAuthn        *webauthn.WebAuthn
 	webAuthnBackend WebAuthnBackend
+	// loginThrottle is the brute-force backoff for /auth/login (security review
+	// M-3). Always non-nil (initialised in NewServer).
+	loginThrottle *auth.LoginThrottle
 }
+
+// LoginThrottle exposes the throttle so main can sweep it on the cleanup tick.
+func (s *Server) LoginThrottle() *auth.LoginThrottle { return s.loginThrottle }
 
 // WebAuthnBackend is the passkey persistence surface, satisfied by
 // *storage.WebAuthnStore.
@@ -246,7 +252,12 @@ type ServerOptions struct {
 // dependencies. Tests that do not exercise the Phase 101 endpoints use
 // this constructor unchanged.
 func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog, probes config.ProbeRegistry) *Server {
-	return &Server{db: db, provenance: provenance, sources: sources, catalog: catalog, probes: probes}
+	return &Server{
+		db: db, provenance: provenance, sources: sources, catalog: catalog, probes: probes,
+		// Brute-force throttle: 5 free attempts, then 1s→…→5m exponential
+		// backoff, auto-resetting after 15m idle (security review M-3).
+		loginThrottle: auth.NewLoginThrottle(5, time.Second, 5*time.Minute, 15*time.Minute),
+	}
 }
 
 // NewServerWithOptions wires the Phase 101 endpoints alongside the

@@ -4,10 +4,39 @@ import (
 	"context"
 	"crypto/subtle"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 )
+
+type clientIPCtxKey struct{}
+
+// ClientIP injects the client IP into the request context so strict handlers
+// (which receive no *http.Request) can key the login throttle by IP. Traefik is
+// the sole ingress and sets X-Forwarded-For; the left-most entry is the
+// original client. Falls back to RemoteAddr.
+func ClientIP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), clientIPCtxKey{}, clientIPFromRequest(r))))
+	})
+}
+
+// ClientIPFromContext returns the injected client IP, or "" if absent.
+func ClientIPFromContext(ctx context.Context) string {
+	ip, _ := ctx.Value(clientIPCtxKey{}).(string)
+	return ip
+}
+
+func clientIPFromRequest(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return strings.TrimSpace(strings.Split(xff, ",")[0])
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
 
 // SessionValidator validates a session by its hashed id and slides its idle
 // expiry, returning the authenticated identity. storage.AuthStore implements

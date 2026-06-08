@@ -112,13 +112,26 @@ func (s *Server) PostAuthLogin(ctx context.Context, request PostAuthLoginRequest
 		return PostAuthLogin400JSONResponse{Code: "invalid_request", Message: "missing request body"}, nil
 	}
 	email := strings.TrimSpace(string(request.Body.Email))
+	// Brute-force throttle (security review M-3): exponential backoff keyed by
+	// account + client IP. Checked before any work.
+	keys := s.loginKeys(ctx, email)
+	if blocked, _ := s.loginThrottle.Blocked(keys...); blocked {
+		return PostAuthLogin429JSONResponse{Code: "too_many_attempts", Message: "too many failed attempts; please try again later"}, nil
+	}
+
 	user, err := s.authBackend.GetUserByEmail(ctx, email)
 	if err != nil {
 		slog.Error("login: get user", "error", err)
 		return PostAuthLogin500JSONResponse{Message: genericInternalError}, nil
 	}
 	// Generic failure for unknown user / no password / inactive — no enumeration.
+	// Anti-timing: ALWAYS run one argon2id operation so the response time does
+	// not reveal whether the account exists or is active. For a real active
+	// account we verify the stored hash; otherwise we hash the candidate and
+	// discard it (same dominant argon2.IDKey cost).
 	if user == nil || !user.PasswordHash.Valid || user.Status != "active" {
+		_, _ = auth.HashPassword(request.Body.Password, s.authConfig.Argon2)
+		s.loginThrottle.Fail(keys...)
 		return PostAuthLogin401JSONResponse{Code: "invalid_credentials", Message: "invalid email or password"}, nil
 	}
 	ok, err := auth.VerifyPassword(request.Body.Password, user.PasswordHash.String)
@@ -127,6 +140,7 @@ func (s *Server) PostAuthLogin(ctx context.Context, request PostAuthLoginRequest
 		return PostAuthLogin500JSONResponse{Message: genericInternalError}, nil
 	}
 	if !ok {
+		s.loginThrottle.Fail(keys...)
 		return PostAuthLogin401JSONResponse{Code: "invalid_credentials", Message: "invalid email or password"}, nil
 	}
 	cookie, err := s.establishSession(ctx, user.ID)
@@ -134,7 +148,18 @@ func (s *Server) PostAuthLogin(ctx context.Context, request PostAuthLoginRequest
 		slog.Error("login: establish session", "error", err)
 		return PostAuthLogin500JSONResponse{Message: genericInternalError}, nil
 	}
+	s.loginThrottle.Succeed(keys...)
 	return loginCookieResponse{cookie: cookie, inner: loginUserResponse(user)}, nil
+}
+
+// loginKeys builds the throttle keys for a login attempt: the account (email)
+// and, when available, the client IP.
+func (s *Server) loginKeys(ctx context.Context, email string) []string {
+	keys := []string{"email:" + strings.ToLower(email)}
+	if ip := auth.ClientIPFromContext(ctx); ip != "" {
+		keys = append(keys, "ip:"+ip)
+	}
+	return keys
 }
 
 // PostAuthLogout revokes the current session and clears the cookie. Idempotent.

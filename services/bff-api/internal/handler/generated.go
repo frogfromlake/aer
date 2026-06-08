@@ -7762,6 +7762,21 @@ func (response PostAuthLogin401JSONResponse) VisitPostAuthLoginResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PostAuthLogin429JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthLogin429JSONResponse) VisitPostAuthLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type PostAuthLogin500JSONResponse struct {
 	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
 	Alternatives *[]string `json:"alternatives,omitempty"`

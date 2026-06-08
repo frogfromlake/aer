@@ -139,8 +139,9 @@ func (m *mockAuth) DeleteUser(_ context.Context, id string) (bool, error) {
 
 func authTestServer(m *mockAuth) *Server {
 	return &Server{
-		authBackend: m,
-		mailer:      stubMailer{},
+		authBackend:   m,
+		mailer:        stubMailer{},
+		loginThrottle: auth.NewLoginThrottle(5, time.Second, 5*time.Minute, 15*time.Minute),
 		authConfig: AuthConfig{
 			CookieName:      "aer_session",
 			SecureCookies:   false,
@@ -238,6 +239,24 @@ func TestLoginUnknownUserIsGeneric401(t *testing.T) {
 	_ = resp.VisitPostAuthLoginResponse(rec)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for unknown user (no enumeration), got %d", rec.Code)
+	}
+}
+
+func TestLoginThrottleReturns429AfterRepeatedFailures(t *testing.T) {
+	s := authTestServer(newMockAuth()) // no users → every attempt fails
+	req := PostAuthLoginRequestObject{
+		Body: &PostAuthLoginJSONRequestBody{Email: openapi_types.Email("target@example.org"), Password: "wrongwrongwrong"},
+	}
+	// 5 free failures (all 401), then the 6th is throttled (429).
+	var lastCode int
+	for i := 0; i < 7; i++ {
+		resp, _ := s.PostAuthLogin(context.Background(), req)
+		rec := httptest.NewRecorder()
+		_ = resp.VisitPostAuthLoginResponse(rec)
+		lastCode = rec.Code
+	}
+	if lastCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after repeated failures, got %d", lastCode)
 	}
 }
 
