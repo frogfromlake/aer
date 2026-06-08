@@ -88,6 +88,12 @@ type Config struct {
 	// https://aer.example). Empty yields relative links (fine for the manual
 	// log sender used until SMTP lands).
 	PublicBaseURL string `mapstructure:"BFF_PUBLIC_BASE_URL"`
+	// WebAuthn relying-party (Phase 134 / ADR-040). RPID is the registrable
+	// domain (e.g. "localhost" or "aer.example"); RPOrigins is a comma-separated
+	// list of full browser origins (e.g. "https://localhost").
+	WebAuthnRPID          string `mapstructure:"BFF_WEBAUTHN_RP_ID"`
+	WebAuthnRPDisplayName string `mapstructure:"BFF_WEBAUTHN_RP_DISPLAY_NAME"`
+	WebAuthnRPOrigins     string `mapstructure:"BFF_WEBAUTHN_RP_ORIGINS"`
 }
 
 // Load reads configuration from environment variables and the local .env file.
@@ -135,6 +141,9 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_PASSWORD_RESET_TTL_SECONDS", 3600) // 1 h
 	v.SetDefault("BFF_INVITE_TTL_SECONDS", 259200)       // 72 h
 	v.SetDefault("BFF_PUBLIC_BASE_URL", "")
+	v.SetDefault("BFF_WEBAUTHN_RP_ID", "localhost")
+	v.SetDefault("BFF_WEBAUTHN_RP_DISPLAY_NAME", "AĒR")
+	v.SetDefault("BFF_WEBAUTHN_RP_ORIGINS", "https://localhost")
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

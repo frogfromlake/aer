@@ -1,0 +1,6 @@
+type: object
+additionalProperties: true
+description: >
+  Opaque WebAuthn ceremony response (ADR-040) — the raw credential the browser
+  returns from `navigator.credentials.create()` / `.get()`. Parsed and verified
+  by the go-webauthn library server-side.

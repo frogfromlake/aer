@@ -1,0 +1,29 @@
+post:
+  tags: [Auth]
+  summary: Begin a passkey assertion / step-up (ADR-040)
+  description: >
+    Starts a WebAuthn assertion ceremony for the authenticated user (second-
+    factor step-up) and returns the opaque assertion options. Requires a session
+    and at least one registered passkey.
+  operationId: postAuthWebauthnAssertBegin
+  responses:
+    '200':
+      description: Assertion options (pass to navigator.credentials.get).
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/WebAuthnOptions.yaml'
+    '400':
+      description: The user has no registered passkeys.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

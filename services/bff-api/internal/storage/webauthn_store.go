@@ -29,18 +29,24 @@ type CredentialMeta struct {
 	LastUsedAt sql.NullTime
 }
 
-// SaveCredential stores a freshly registered credential.
-func (s *WebAuthnStore) SaveCredential(ctx context.Context, userID string, cred *webauthn.Credential, name string) error {
+// SaveCredential stores a freshly registered credential and returns its
+// display metadata (row id + timestamps).
+func (s *WebAuthnStore) SaveCredential(ctx context.Context, userID string, cred *webauthn.Credential, name string) (CredentialMeta, error) {
 	raw, err := json.Marshal(cred)
 	if err != nil {
-		return fmt.Errorf("marshal credential: %w", err)
+		return CredentialMeta{}, fmt.Errorf("marshal credential: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx,
+	var m CredentialMeta
+	err = s.db.QueryRowContext(ctx,
 		`INSERT INTO webauthn_credentials (user_id, credential_id, credential, name, sign_count)
-		 VALUES ($1::uuid, $2, $3, $4, $5)`,
+		 VALUES ($1::uuid, $2, $3, $4, $5)
+		 RETURNING id::text, name, created_at, last_used_at`,
 		userID, cred.ID, raw, sql.NullString{String: name, Valid: name != ""},
-		int64(cred.Authenticator.SignCount))
-	return err
+		int64(cred.Authenticator.SignCount)).Scan(&m.ID, &m.Name, &m.CreatedAt, &m.LastUsedAt)
+	if err != nil {
+		return CredentialMeta{}, fmt.Errorf("save credential: %w", err)
+	}
+	return m, nil
 }
 
 // CredentialsByUser returns the user's registered credentials (for the ceremony

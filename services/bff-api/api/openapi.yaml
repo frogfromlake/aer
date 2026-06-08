@@ -49,6 +49,18 @@ paths:
     $ref: './paths/auth_reset_password.yaml'
   /auth/change-password:
     $ref: './paths/auth_change_password.yaml'
+  /auth/webauthn/register/begin:
+    $ref: './paths/auth_webauthn_register_begin.yaml'
+  /auth/webauthn/register/finish:
+    $ref: './paths/auth_webauthn_register_finish.yaml'
+  /auth/webauthn/credentials:
+    $ref: './paths/auth_webauthn_credentials.yaml'
+  /auth/webauthn/credentials/{id}:
+    $ref: './paths/auth_webauthn_credential_delete.yaml'
+  /auth/webauthn/assert/begin:
+    $ref: './paths/auth_webauthn_assert_begin.yaml'
+  /auth/webauthn/assert/finish:
+    $ref: './paths/auth_webauthn_assert_finish.yaml'
   /admin/users:
     $ref: './paths/admin_users.yaml'
   /admin/users/{id}/suspend:
@@ -284,3 +296,13 @@ components:
       $ref: './schemas/AdminActionLink.yaml'
     UserDataExport:
       $ref: './schemas/UserDataExport.yaml'
+    WebAuthnOptions:
+      $ref: './schemas/WebAuthnOptions.yaml'
+    WebAuthnResponse:
+      $ref: './schemas/WebAuthnResponse.yaml'
+    WebAuthnCredential:
+      $ref: './schemas/WebAuthnCredential.yaml'
+    WebAuthnCredentialsList:
+      $ref: './schemas/WebAuthnCredentialsList.yaml'
+    AssertionResult:
+      $ref: './schemas/AssertionResult.yaml'

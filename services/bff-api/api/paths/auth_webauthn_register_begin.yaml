@@ -1,0 +1,23 @@
+post:
+  tags: [Auth]
+  summary: Begin passkey registration (ADR-040)
+  description: >
+    Starts a WebAuthn registration ceremony for the authenticated user and
+    returns the opaque credential-creation options. The challenge is held
+    server-side until finish. Requires a session.
+  operationId: postAuthWebauthnRegisterBegin
+  responses:
+    '200':
+      description: Credential-creation options (pass to navigator.credentials.create).
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/WebAuthnOptions.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

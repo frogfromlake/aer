@@ -1,0 +1,34 @@
+post:
+  tags: [Auth]
+  summary: Finish passkey registration (ADR-040)
+  description: >
+    Completes a WebAuthn registration ceremony: verifies the attestation against
+    the stored challenge and persists the credential. Requires a session.
+  operationId: postAuthWebauthnRegisterFinish
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/WebAuthnResponse.yaml'
+  responses:
+    '201':
+      description: Passkey registered.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/WebAuthnCredential.yaml'
+    '400':
+      description: Invalid or expired ceremony / attestation.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

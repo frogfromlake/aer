@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/descope/virtualwebauthn v1.0.5
 	github.com/docker/go-connections v0.6.0
 	github.com/frogfromlake/aer/pkg v0.0.0-20260401175103-bdfb018eb1ce
 	github.com/go-chi/chi/v5 v5.2.5

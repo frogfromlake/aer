@@ -155,6 +155,18 @@ func main() {
 		}
 	}()
 	authStore := storage.NewAuthStore(authPool)
+	webAuthnStore := storage.NewWebAuthnStore(authPool)
+
+	// WebAuthn relying-party (Phase 134 / ADR-040).
+	webAuthn, err := auth.NewWebAuthn(
+		cfg.WebAuthnRPID,
+		cfg.WebAuthnRPDisplayName,
+		strings.Split(cfg.WebAuthnRPOrigins, ","),
+	)
+	if err != nil {
+		slog.Error("Failed to initialise WebAuthn", "error", err)
+		os.Exit(1)
+	}
 
 	// Cookie name: the `__Host-` prefix requires Secure; drop it for local
 	// http / Testcontainers (BFF_SECURE_COOKIES=false).
@@ -214,6 +226,8 @@ func main() {
 		Auth:                authStore,
 		AuthConfig:          authConfig,
 		Mailer:              notify.LogSender{},
+		WebAuthn:            webAuthn,
+		WebAuthnBE:          webAuthnStore,
 	})
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 

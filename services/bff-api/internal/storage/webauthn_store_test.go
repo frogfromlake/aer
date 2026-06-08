@@ -17,8 +17,12 @@ func TestWebAuthnStore_CredentialRoundTrip(t *testing.T) {
 		PublicKey: []byte{0xaa, 0xbb},
 	}
 	cred.Authenticator.SignCount = 5
-	if err := ws.SaveCredential(ctx, uid, cred, "My Yubikey"); err != nil {
+	meta0, err := ws.SaveCredential(ctx, uid, cred, "My Yubikey")
+	if err != nil {
 		t.Fatalf("save: %v", err)
+	}
+	if meta0.ID == "" || !meta0.Name.Valid {
+		t.Fatalf("expected returned meta with id + name, got %+v", meta0)
 	}
 
 	has, err := ws.HasCredentials(ctx, uid)

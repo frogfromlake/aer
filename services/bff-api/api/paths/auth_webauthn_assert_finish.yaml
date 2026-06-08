@@ -1,0 +1,29 @@
+post:
+  tags: [Auth]
+  summary: Finish a passkey assertion / step-up (ADR-040)
+  description: >
+    Completes a WebAuthn assertion ceremony: verifies the signed assertion
+    against the stored challenge and the user's credential, updating the sign
+    counter. Requires a session.
+  operationId: postAuthWebauthnAssertFinish
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/WebAuthnResponse.yaml'
+  responses:
+    '200':
+      description: Assertion verified.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AssertionResult.yaml'
+    '401':
+      description: No valid session, or the assertion failed.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

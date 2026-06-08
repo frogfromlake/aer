@@ -1,0 +1,6 @@
+type: object
+additionalProperties: true
+description: >
+  Opaque WebAuthn ceremony options (ADR-040). The BFF passes the go-webauthn
+  CredentialCreation / CredentialAssertion options straight through to the
+  browser's `navigator.credentials` API; the schema is intentionally freeform.

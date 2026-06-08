@@ -1951,6 +1951,12 @@ type PostAuthResetPasswordJSONBody struct {
 	Token string `json:"token"`
 }
 
+// PostAuthWebauthnAssertFinishJSONBody defines parameters for PostAuthWebauthnAssertFinish.
+type PostAuthWebauthnAssertFinishJSONBody map[string]interface{}
+
+// PostAuthWebauthnRegisterFinishJSONBody defines parameters for PostAuthWebauthnRegisterFinish.
+type PostAuthWebauthnRegisterFinishJSONBody map[string]interface{}
+
 // GetContentParams defines parameters for GetContent.
 type GetContentParams struct {
 	// Locale The language of the content to return. Defaults to "en".
@@ -2752,6 +2758,12 @@ type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
 // PostAuthResetPasswordJSONRequestBody defines body for PostAuthResetPassword for application/json ContentType.
 type PostAuthResetPasswordJSONRequestBody PostAuthResetPasswordJSONBody
 
+// PostAuthWebauthnAssertFinishJSONRequestBody defines body for PostAuthWebauthnAssertFinish for application/json ContentType.
+type PostAuthWebauthnAssertFinishJSONRequestBody PostAuthWebauthnAssertFinishJSONBody
+
+// PostAuthWebauthnRegisterFinishJSONRequestBody defines body for PostAuthWebauthnRegisterFinish for application/json ContentType.
+type PostAuthWebauthnRegisterFinishJSONRequestBody PostAuthWebauthnRegisterFinishJSONBody
+
 // PostEntityCoOccurrenceQueryJSONRequestBody defines body for PostEntityCoOccurrenceQuery for application/json ContentType.
 type PostEntityCoOccurrenceQueryJSONRequestBody PostEntityCoOccurrenceQueryJSONBody
 
@@ -2808,6 +2820,24 @@ type ServerInterface interface {
 	// Complete a password reset (ADR-040)
 	// (POST /auth/reset-password)
 	PostAuthResetPassword(w http.ResponseWriter, r *http.Request)
+	// Begin a passkey assertion / step-up (ADR-040)
+	// (POST /auth/webauthn/assert/begin)
+	PostAuthWebauthnAssertBegin(w http.ResponseWriter, r *http.Request)
+	// Finish a passkey assertion / step-up (ADR-040)
+	// (POST /auth/webauthn/assert/finish)
+	PostAuthWebauthnAssertFinish(w http.ResponseWriter, r *http.Request)
+	// List the current user's passkeys (ADR-040)
+	// (GET /auth/webauthn/credentials)
+	GetAuthWebauthnCredentials(w http.ResponseWriter, r *http.Request)
+	// Delete one of the current user's passkeys (ADR-040)
+	// (DELETE /auth/webauthn/credentials/{id})
+	DeleteAuthWebauthnCredential(w http.ResponseWriter, r *http.Request, id string)
+	// Begin passkey registration (ADR-040)
+	// (POST /auth/webauthn/register/begin)
+	PostAuthWebauthnRegisterBegin(w http.ResponseWriter, r *http.Request)
+	// Finish passkey registration (ADR-040)
+	// (POST /auth/webauthn/register/finish)
+	PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r *http.Request)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
@@ -3030,6 +3060,42 @@ func (_ Unimplemented) GetAuthMeExport(w http.ResponseWriter, r *http.Request) {
 // Complete a password reset (ADR-040)
 // (POST /auth/reset-password)
 func (_ Unimplemented) PostAuthResetPassword(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Begin a passkey assertion / step-up (ADR-040)
+// (POST /auth/webauthn/assert/begin)
+func (_ Unimplemented) PostAuthWebauthnAssertBegin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Finish a passkey assertion / step-up (ADR-040)
+// (POST /auth/webauthn/assert/finish)
+func (_ Unimplemented) PostAuthWebauthnAssertFinish(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the current user's passkeys (ADR-040)
+// (GET /auth/webauthn/credentials)
+func (_ Unimplemented) GetAuthWebauthnCredentials(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete one of the current user's passkeys (ADR-040)
+// (DELETE /auth/webauthn/credentials/{id})
+func (_ Unimplemented) DeleteAuthWebauthnCredential(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Begin passkey registration (ADR-040)
+// (POST /auth/webauthn/register/begin)
+func (_ Unimplemented) PostAuthWebauthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Finish passkey registration (ADR-040)
+// (POST /auth/webauthn/register/finish)
+func (_ Unimplemented) PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3669,6 +3735,137 @@ func (siw *ServerInterfaceWrapper) PostAuthResetPassword(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthResetPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthWebauthnAssertBegin operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthWebauthnAssertBegin(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthWebauthnAssertBegin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthWebauthnAssertFinish operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthWebauthnAssertFinish(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthWebauthnAssertFinish(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthWebauthnCredentials operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthWebauthnCredentials(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthWebauthnCredentials(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAuthWebauthnCredential operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAuthWebauthnCredential(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAuthWebauthnCredential(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthWebauthnRegisterBegin operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthWebauthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthWebauthnRegisterBegin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthWebauthnRegisterFinish operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthWebauthnRegisterFinish(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6611,6 +6808,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/auth/reset-password", wrapper.PostAuthResetPassword)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/webauthn/assert/begin", wrapper.PostAuthWebauthnAssertBegin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/webauthn/assert/finish", wrapper.PostAuthWebauthnAssertFinish)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/webauthn/credentials", wrapper.GetAuthWebauthnCredentials)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/auth/webauthn/credentials/{id}", wrapper.DeleteAuthWebauthnCredential)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/webauthn/register/begin", wrapper.PostAuthWebauthnRegisterBegin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/webauthn/register/finish", wrapper.PostAuthWebauthnRegisterFinish)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
 	})
 	r.Group(func(r chi.Router) {
@@ -7830,6 +8045,384 @@ type PostAuthResetPassword500JSONResponse struct {
 }
 
 func (response PostAuthResetPassword500JSONResponse) VisitPostAuthResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertBeginRequestObject struct {
+}
+
+type PostAuthWebauthnAssertBeginResponseObject interface {
+	VisitPostAuthWebauthnAssertBeginResponse(w http.ResponseWriter) error
+}
+
+type PostAuthWebauthnAssertBegin200JSONResponse map[string]interface{}
+
+func (response PostAuthWebauthnAssertBegin200JSONResponse) VisitPostAuthWebauthnAssertBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertBegin400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthWebauthnAssertBegin400JSONResponse) VisitPostAuthWebauthnAssertBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertBegin401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthWebauthnAssertBegin401JSONResponse) VisitPostAuthWebauthnAssertBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertBegin500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthWebauthnAssertBegin500JSONResponse) VisitPostAuthWebauthnAssertBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertFinishRequestObject struct {
+	Body *PostAuthWebauthnAssertFinishJSONRequestBody
+}
+
+type PostAuthWebauthnAssertFinishResponseObject interface {
+	VisitPostAuthWebauthnAssertFinishResponse(w http.ResponseWriter) error
+}
+
+type PostAuthWebauthnAssertFinish200JSONResponse struct {
+	// Verified True when the passkey assertion verified successfully.
+	Verified bool `json:"verified"`
+}
+
+func (response PostAuthWebauthnAssertFinish200JSONResponse) VisitPostAuthWebauthnAssertFinishResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertFinish401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthWebauthnAssertFinish401JSONResponse) VisitPostAuthWebauthnAssertFinishResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnAssertFinish500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthWebauthnAssertFinish500JSONResponse) VisitPostAuthWebauthnAssertFinishResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthWebauthnCredentialsRequestObject struct {
+}
+
+type GetAuthWebauthnCredentialsResponseObject interface {
+	VisitGetAuthWebauthnCredentialsResponse(w http.ResponseWriter) error
+}
+
+type GetAuthWebauthnCredentials200JSONResponse struct {
+	Credentials []struct {
+		CreatedAt time.Time `json:"createdAt"`
+
+		// Id Opaque credential row id (used to delete it).
+		Id         string     `json:"id"`
+		LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+		Name       *string    `json:"name,omitempty"`
+	} `json:"credentials"`
+}
+
+func (response GetAuthWebauthnCredentials200JSONResponse) VisitGetAuthWebauthnCredentialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthWebauthnCredentials401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAuthWebauthnCredentials401JSONResponse) VisitGetAuthWebauthnCredentialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthWebauthnCredentials500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAuthWebauthnCredentials500JSONResponse) VisitGetAuthWebauthnCredentialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAuthWebauthnCredentialRequestObject struct {
+	Id string `json:"id"`
+}
+
+type DeleteAuthWebauthnCredentialResponseObject interface {
+	VisitDeleteAuthWebauthnCredentialResponse(w http.ResponseWriter) error
+}
+
+type DeleteAuthWebauthnCredential204Response struct {
+}
+
+func (response DeleteAuthWebauthnCredential204Response) VisitDeleteAuthWebauthnCredentialResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAuthWebauthnCredential401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAuthWebauthnCredential401JSONResponse) VisitDeleteAuthWebauthnCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAuthWebauthnCredential404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAuthWebauthnCredential404JSONResponse) VisitDeleteAuthWebauthnCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAuthWebauthnCredential500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response DeleteAuthWebauthnCredential500JSONResponse) VisitDeleteAuthWebauthnCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterBeginRequestObject struct {
+}
+
+type PostAuthWebauthnRegisterBeginResponseObject interface {
+	VisitPostAuthWebauthnRegisterBeginResponse(w http.ResponseWriter) error
+}
+
+type PostAuthWebauthnRegisterBegin200JSONResponse map[string]interface{}
+
+func (response PostAuthWebauthnRegisterBegin200JSONResponse) VisitPostAuthWebauthnRegisterBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterBegin401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthWebauthnRegisterBegin401JSONResponse) VisitPostAuthWebauthnRegisterBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterBegin500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthWebauthnRegisterBegin500JSONResponse) VisitPostAuthWebauthnRegisterBeginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterFinishRequestObject struct {
+	Body *PostAuthWebauthnRegisterFinishJSONRequestBody
+}
+
+type PostAuthWebauthnRegisterFinishResponseObject interface {
+	VisitPostAuthWebauthnRegisterFinishResponse(w http.ResponseWriter) error
+}
+
+type PostAuthWebauthnRegisterFinish201JSONResponse struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id Opaque credential row id (used to delete it).
+	Id         string     `json:"id"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	Name       *string    `json:"name,omitempty"`
+}
+
+func (response PostAuthWebauthnRegisterFinish201JSONResponse) VisitPostAuthWebauthnRegisterFinishResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterFinish400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthWebauthnRegisterFinish400JSONResponse) VisitPostAuthWebauthnRegisterFinishResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterFinish401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthWebauthnRegisterFinish401JSONResponse) VisitPostAuthWebauthnRegisterFinishResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthWebauthnRegisterFinish500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthWebauthnRegisterFinish500JSONResponse) VisitPostAuthWebauthnRegisterFinishResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -11373,6 +11966,24 @@ type StrictServerInterface interface {
 	// Complete a password reset (ADR-040)
 	// (POST /auth/reset-password)
 	PostAuthResetPassword(ctx context.Context, request PostAuthResetPasswordRequestObject) (PostAuthResetPasswordResponseObject, error)
+	// Begin a passkey assertion / step-up (ADR-040)
+	// (POST /auth/webauthn/assert/begin)
+	PostAuthWebauthnAssertBegin(ctx context.Context, request PostAuthWebauthnAssertBeginRequestObject) (PostAuthWebauthnAssertBeginResponseObject, error)
+	// Finish a passkey assertion / step-up (ADR-040)
+	// (POST /auth/webauthn/assert/finish)
+	PostAuthWebauthnAssertFinish(ctx context.Context, request PostAuthWebauthnAssertFinishRequestObject) (PostAuthWebauthnAssertFinishResponseObject, error)
+	// List the current user's passkeys (ADR-040)
+	// (GET /auth/webauthn/credentials)
+	GetAuthWebauthnCredentials(ctx context.Context, request GetAuthWebauthnCredentialsRequestObject) (GetAuthWebauthnCredentialsResponseObject, error)
+	// Delete one of the current user's passkeys (ADR-040)
+	// (DELETE /auth/webauthn/credentials/{id})
+	DeleteAuthWebauthnCredential(ctx context.Context, request DeleteAuthWebauthnCredentialRequestObject) (DeleteAuthWebauthnCredentialResponseObject, error)
+	// Begin passkey registration (ADR-040)
+	// (POST /auth/webauthn/register/begin)
+	PostAuthWebauthnRegisterBegin(ctx context.Context, request PostAuthWebauthnRegisterBeginRequestObject) (PostAuthWebauthnRegisterBeginResponseObject, error)
+	// Finish passkey registration (ADR-040)
+	// (POST /auth/webauthn/register/finish)
+	PostAuthWebauthnRegisterFinish(ctx context.Context, request PostAuthWebauthnRegisterFinishRequestObject) (PostAuthWebauthnRegisterFinishResponseObject, error)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
@@ -11978,6 +12589,166 @@ func (sh *strictHandler) PostAuthResetPassword(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthResetPasswordResponseObject); ok {
 		if err := validResponse.VisitPostAuthResetPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthWebauthnAssertBegin operation middleware
+func (sh *strictHandler) PostAuthWebauthnAssertBegin(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthWebauthnAssertBeginRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthWebauthnAssertBegin(ctx, request.(PostAuthWebauthnAssertBeginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthWebauthnAssertBegin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthWebauthnAssertBeginResponseObject); ok {
+		if err := validResponse.VisitPostAuthWebauthnAssertBeginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthWebauthnAssertFinish operation middleware
+func (sh *strictHandler) PostAuthWebauthnAssertFinish(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthWebauthnAssertFinishRequestObject
+
+	var body PostAuthWebauthnAssertFinishJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthWebauthnAssertFinish(ctx, request.(PostAuthWebauthnAssertFinishRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthWebauthnAssertFinish")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthWebauthnAssertFinishResponseObject); ok {
+		if err := validResponse.VisitPostAuthWebauthnAssertFinishResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthWebauthnCredentials operation middleware
+func (sh *strictHandler) GetAuthWebauthnCredentials(w http.ResponseWriter, r *http.Request) {
+	var request GetAuthWebauthnCredentialsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthWebauthnCredentials(ctx, request.(GetAuthWebauthnCredentialsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthWebauthnCredentials")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthWebauthnCredentialsResponseObject); ok {
+		if err := validResponse.VisitGetAuthWebauthnCredentialsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAuthWebauthnCredential operation middleware
+func (sh *strictHandler) DeleteAuthWebauthnCredential(w http.ResponseWriter, r *http.Request, id string) {
+	var request DeleteAuthWebauthnCredentialRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAuthWebauthnCredential(ctx, request.(DeleteAuthWebauthnCredentialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAuthWebauthnCredential")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAuthWebauthnCredentialResponseObject); ok {
+		if err := validResponse.VisitDeleteAuthWebauthnCredentialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthWebauthnRegisterBegin operation middleware
+func (sh *strictHandler) PostAuthWebauthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthWebauthnRegisterBeginRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthWebauthnRegisterBegin(ctx, request.(PostAuthWebauthnRegisterBeginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthWebauthnRegisterBegin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthWebauthnRegisterBeginResponseObject); ok {
+		if err := validResponse.VisitPostAuthWebauthnRegisterBeginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthWebauthnRegisterFinish operation middleware
+func (sh *strictHandler) PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthWebauthnRegisterFinishRequestObject
+
+	var body PostAuthWebauthnRegisterFinishJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthWebauthnRegisterFinish(ctx, request.(PostAuthWebauthnRegisterFinishRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthWebauthnRegisterFinish")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthWebauthnRegisterFinishResponseObject); ok {
+		if err := validResponse.VisitPostAuthWebauthnRegisterFinishResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

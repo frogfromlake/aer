@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/frogfromlake/aer/services/bff-api/internal/auth"
@@ -170,6 +171,22 @@ type Server struct {
 	authBackend AuthBackend
 	authConfig  AuthConfig
 	mailer      notify.LinkSender
+	// WebAuthn / passkeys (Phase 134 / ADR-040). Nil when WebAuthn is not wired.
+	webAuthn        *webauthn.WebAuthn
+	webAuthnBackend WebAuthnBackend
+}
+
+// WebAuthnBackend is the passkey persistence surface, satisfied by
+// *storage.WebAuthnStore.
+type WebAuthnBackend interface {
+	CredentialsByUser(ctx context.Context, userID string) ([]webauthn.Credential, error)
+	HasCredentials(ctx context.Context, userID string) (bool, error)
+	SaveCredential(ctx context.Context, userID string, cred *webauthn.Credential, name string) (storage.CredentialMeta, error)
+	UpdateCredential(ctx context.Context, cred *webauthn.Credential) error
+	ListCredentialMeta(ctx context.Context, userID string) ([]storage.CredentialMeta, error)
+	DeleteCredential(ctx context.Context, userID, credentialRowID string) (bool, error)
+	SaveCeremony(ctx context.Context, userID, purpose string, sd *webauthn.SessionData, expires time.Time) error
+	ConsumeCeremony(ctx context.Context, userID, purpose string) (*webauthn.SessionData, error)
 }
 
 // AuthBackend is the auth write/read surface the /auth handlers depend on,
@@ -221,6 +238,8 @@ type ServerOptions struct {
 	Auth       AuthBackend
 	AuthConfig AuthConfig
 	Mailer     notify.LinkSender
+	WebAuthn   *webauthn.WebAuthn
+	WebAuthnBE WebAuthnBackend
 }
 
 // NewServer creates a new API server instance with only the legacy
@@ -246,6 +265,8 @@ func NewServerWithOptions(db Store, provenance config.MetricProvenanceMap, sourc
 	s.authBackend = opts.Auth
 	s.authConfig = opts.AuthConfig
 	s.mailer = opts.Mailer
+	s.webAuthn = opts.WebAuthn
+	s.webAuthnBackend = opts.WebAuthnBE
 	return s
 }
 
