@@ -1,0 +1,38 @@
+post:
+  tags: [Auth]
+  summary: Log in with email + password (ADR-040)
+  description: >
+    Verifies the email/password against the argon2id hash and, on success,
+    creates a server-side session and sets the opaque `__Host-` session
+    cookie (httpOnly, Secure, SameSite=Strict). No token is ever returned in
+    the body — the browser holds only the opaque cookie (BFF token-handler
+    pattern). Pre-auth endpoint.
+  operationId: postAuthLogin
+  security: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/LoginRequest.yaml'
+  responses:
+    '200':
+      description: Authenticated. Sets the session cookie; returns the user.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthUser.yaml'
+    '400':
+      description: Malformed request body.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '401':
+      description: Invalid credentials, or the account is not active.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

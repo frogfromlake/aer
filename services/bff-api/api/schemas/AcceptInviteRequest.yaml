@@ -1,0 +1,23 @@
+type: object
+description: >
+  Invite acceptance (ADR-040). The single-use invite token is exchanged for
+  an activated account: the invitee sets their own password and records the
+  responsible-use agreement (LICENSE §3.2.b). No password ever travels by
+  email — only the token does.
+required:
+  - token
+  - password
+  - acceptResponsibleUse
+properties:
+  token:
+    type: string
+    description: The single-use invite token from the invitation link.
+  password:
+    type: string
+    minLength: 12
+    description: The password the invitee chooses. Minimum length re-checked server-side.
+  acceptResponsibleUse:
+    type: boolean
+    description: >
+      Must be true. Records the LICENSE §3.2.b responsible-use consent at
+      activation. A false/absent value returns 400 `consent_required`.

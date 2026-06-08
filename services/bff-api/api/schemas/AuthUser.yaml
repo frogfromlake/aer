@@ -1,0 +1,23 @@
+type: object
+description: >
+  The authenticated user, as returned by /auth/login, /auth/accept-invite
+  and /auth/me. Privacy-minimal (ADR-040): identity only — never any record
+  of what the user analyses.
+required:
+  - id
+  - email
+  - role
+  - status
+properties:
+  id:
+    type: string
+    description: Opaque user id (server-side UUID, surfaced as a string).
+  email:
+    type: string
+    format: email
+  role:
+    type: string
+    description: RBAC role (ADR-040) — one of `admin`, `researcher`.
+  status:
+    type: string
+    description: Account status — one of `invited`, `active`, `suspended`.

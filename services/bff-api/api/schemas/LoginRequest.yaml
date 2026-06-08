@@ -1,0 +1,12 @@
+type: object
+required:
+  - email
+  - password
+properties:
+  email:
+    type: string
+    format: email
+  password:
+    type: string
+    minLength: 1
+    description: Plaintext password, verified against the argon2id hash server-side.

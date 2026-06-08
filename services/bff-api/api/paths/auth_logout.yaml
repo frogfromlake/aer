@@ -1,0 +1,12 @@
+post:
+  tags: [Auth]
+  summary: Log out — revoke the current session (ADR-040)
+  description: >
+    Revokes the server-side session and clears the session cookie. Idempotent:
+    returns 204 even if no valid session was present.
+  operationId: postAuthLogout
+  responses:
+    '204':
+      description: Logged out. Clears the session cookie.
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

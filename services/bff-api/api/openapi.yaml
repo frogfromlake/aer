@@ -21,8 +21,27 @@ tags:
     description: Source registry and static reference data.
   - name: Health
     description: Liveness and readiness probes (no authentication required).
+  - name: Auth
+    description: >
+      Session-based access control (ADR-040). BFF-driven opaque sessions; no
+      token ever reaches the client. login/accept-invite/forgot-password/
+      reset-password are pre-auth; the rest require a session.
 
 paths:
+  /auth/login:
+    $ref: './paths/auth_login.yaml'
+  /auth/logout:
+    $ref: './paths/auth_logout.yaml'
+  /auth/me:
+    $ref: './paths/auth_me.yaml'
+  /auth/accept-invite:
+    $ref: './paths/auth_accept_invite.yaml'
+  /auth/forgot-password:
+    $ref: './paths/auth_forgot_password.yaml'
+  /auth/reset-password:
+    $ref: './paths/auth_reset_password.yaml'
+  /auth/change-password:
+    $ref: './paths/auth_change_password.yaml'
   /metrics:
     $ref: './paths/metrics.yaml'
   /metrics/available:
@@ -116,8 +135,21 @@ components:
       name: X-API-Key
       description: >
         Static API key. Compared via `crypto/subtle.ConstantTimeCompare` in
-        `pkg/middleware/apikey.go`. Required on all data endpoints; health
-        probes are exempt.
+        `pkg/middleware/apikey.go`. Phase 134 / ADR-040 demoted this to a
+        MACHINE credential (CI / internal callers reaching the BFF directly):
+        Traefik no longer injects it for browsers, which authenticate by the
+        session cookie below. The BFF middleware accepts a valid session
+        cookie OR a valid X-API-Key; health probes are exempt.
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-aer_session
+      description: >
+        Opaque, server-side session id (ADR-040). httpOnly + Secure +
+        SameSite=Strict + the `__Host-` prefix; JavaScript cannot read it.
+        The session state lives in Postgres so revocation is immediate
+        (LICENSE §3.3). This is how browsers authenticate; the name drops the
+        `__Host-` prefix when BFF_SECURE_COOKIES is false (local http / tests).
   schemas:
     ValidationStatus:
       $ref: './schemas/ValidationStatus.yaml'
@@ -213,3 +245,17 @@ components:
       $ref: './schemas/ArticleRevisionDiff.yaml'
     RevisionsArticlesPage:
       $ref: './schemas/RevisionsArticlesPage.yaml'
+    AuthUser:
+      $ref: './schemas/AuthUser.yaml'
+    AuthError:
+      $ref: './schemas/AuthError.yaml'
+    LoginRequest:
+      $ref: './schemas/LoginRequest.yaml'
+    AcceptInviteRequest:
+      $ref: './schemas/AcceptInviteRequest.yaml'
+    ForgotPasswordRequest:
+      $ref: './schemas/ForgotPasswordRequest.yaml'
+    ResetPasswordRequest:
+      $ref: './schemas/ResetPasswordRequest.yaml'
+    ChangePasswordRequest:
+      $ref: './schemas/ChangePasswordRequest.yaml'

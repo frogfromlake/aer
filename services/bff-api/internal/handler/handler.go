@@ -9,7 +9,9 @@ import (
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/frogfromlake/aer/services/bff-api/internal/auth"
 	"github.com/frogfromlake/aer/services/bff-api/internal/config"
+	"github.com/frogfromlake/aer/services/bff-api/internal/notify"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
@@ -162,6 +164,41 @@ type Server struct {
 	// language gate with a nil manifest get the same 500 path as a
 	// misconfigured stack.
 	languageManifest *config.LanguageManifest
+
+	// Access control (Phase 134 / ADR-040). Nil in legacy test constructors
+	// that do not exercise the /auth/* endpoints.
+	authBackend AuthBackend
+	authConfig  AuthConfig
+	mailer      notify.LinkSender
+}
+
+// AuthBackend is the auth write/read surface the /auth handlers depend on,
+// satisfied by *storage.AuthStore. An interface keeps the handlers testable.
+type AuthBackend interface {
+	GetUserByEmail(ctx context.Context, email string) (*storage.AuthUser, error)
+	GetUserByID(ctx context.Context, id string) (*storage.AuthUser, error)
+	CreateSession(ctx context.Context, idHash, userID string, idleExp, absExp time.Time, userAgent string) error
+	ValidateAndTouchSession(ctx context.Context, idHash string, idleTTL time.Duration) (*auth.Identity, error)
+	RevokeSession(ctx context.Context, idHash string) error
+	RevokeAllUserSessions(ctx context.Context, userID string) error
+	RevokeOtherUserSessions(ctx context.Context, userID, keepIDHash string) error
+	CreateToken(ctx context.Context, userID, purpose, tokenHash string, exp time.Time) error
+	ConsumeToken(ctx context.Context, tokenHash, purpose string) (string, error)
+	ActivateUser(ctx context.Context, id, passwordHash string) error
+	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
+}
+
+// AuthConfig carries the cookie + session + hashing parameters the auth
+// handlers need (derived from config.Config in main).
+type AuthConfig struct {
+	CookieName      string
+	SecureCookies   bool
+	SessionIdle     time.Duration
+	SessionAbsolute time.Duration
+	Argon2          auth.Argon2Params
+	ResetTTL        time.Duration
+	InviteTTL       time.Duration
+	PublicBaseURL   string
 }
 
 // ServerOptions carries the optional, Phase 101-introduced dependencies
@@ -173,6 +210,10 @@ type ServerOptions struct {
 	Silver              SilverFetcher
 	KAnonymityThreshold int
 	LanguageManifest    *config.LanguageManifest
+	// Access control (Phase 134 / ADR-040).
+	Auth       AuthBackend
+	AuthConfig AuthConfig
+	Mailer     notify.LinkSender
 }
 
 // NewServer creates a new API server instance with only the legacy
@@ -195,6 +236,9 @@ func NewServerWithOptions(db Store, provenance config.MetricProvenanceMap, sourc
 		s.kAnonymityThreshold = 10
 	}
 	s.languageManifest = opts.LanguageManifest
+	s.authBackend = opts.Auth
+	s.authConfig = opts.AuthConfig
+	s.mailer = opts.Mailer
 	return s
 }
 

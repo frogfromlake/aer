@@ -1,0 +1,23 @@
+get:
+  tags: [Auth]
+  summary: The currently authenticated user (ADR-040)
+  description: >
+    Returns the user bound to the session cookie. Used by the dashboard to
+    hydrate the current-user store and gate the UI. Returns 401 when there is
+    no valid session (e.g. a machine X-API-Key caller has no user identity).
+  operationId: getAuthMe
+  responses:
+    '200':
+      description: The authenticated user.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthUser.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

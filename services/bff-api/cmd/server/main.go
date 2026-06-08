@@ -25,8 +25,10 @@ import (
 	"github.com/frogfromlake/aer/pkg/logger"
 	mw "github.com/frogfromlake/aer/pkg/middleware"
 	"github.com/frogfromlake/aer/pkg/telemetry"
+	"github.com/frogfromlake/aer/services/bff-api/internal/auth"
 	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/handler"
+	"github.com/frogfromlake/aer/services/bff-api/internal/notify"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
@@ -138,6 +140,63 @@ func main() {
 	sourceStore := storage.NewSourceStore(pgDB, sourcesTTL)
 	dossierStore := storage.NewDossierStore(pgDB, chStore.Conn())
 
+	// 6f. Open the auth write pool (Phase 134 / ADR-040). A second, small
+	// Postgres pool under the dedicated `bff_auth` role (DML on the auth
+	// tables only) — kept separate from the read-only analytics pool so the
+	// analytics path retains zero write authority.
+	authPool, err := openAuthPool(ctx, cfg)
+	if err != nil {
+		slog.Error("Failed to connect to Postgres for auth", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := authPool.Close(); err != nil {
+			slog.Error("Error closing auth Postgres pool", "error", err)
+		}
+	}()
+	authStore := storage.NewAuthStore(authPool)
+
+	// Cookie name: the `__Host-` prefix requires Secure; drop it for local
+	// http / Testcontainers (BFF_SECURE_COOKIES=false).
+	cookieName := "__Host-aer_session"
+	if !cfg.SecureCookies {
+		cookieName = "aer_session"
+	}
+	authConfig := handler.AuthConfig{
+		CookieName:      cookieName,
+		SecureCookies:   cfg.SecureCookies,
+		SessionIdle:     time.Duration(cfg.SessionIdleSeconds) * time.Second,
+		SessionAbsolute: time.Duration(cfg.SessionAbsoluteSeconds) * time.Second,
+		Argon2: auth.Argon2Params{
+			MemoryKiB:   uint32(cfg.Argon2MemoryKiB),
+			Iterations:  uint32(cfg.Argon2Iterations),
+			Parallelism: uint8(cfg.Argon2Parallelism),
+			SaltLen:     16,
+			KeyLen:      32,
+		},
+		ResetTTL:      time.Duration(cfg.PasswordResetTTLSeconds) * time.Second,
+		InviteTTL:     time.Duration(cfg.InviteTTLSeconds) * time.Second,
+		PublicBaseURL: cfg.PublicBaseURL,
+	}
+
+	// Periodic expired-session cleanup (best-effort housekeeping).
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n, err := authStore.DeleteExpiredSessions(context.Background()); err != nil {
+					slog.Warn("session cleanup failed", "error", err)
+				} else if n > 0 {
+					slog.Info("session cleanup", "deleted", n)
+				}
+			}
+		}
+	}()
+
 	// Phase 101: read-only Silver access for L5 Evidence article-detail.
 	silverStore, err := storage.NewSilverStore(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
 	if err != nil {
@@ -152,6 +211,9 @@ func main() {
 		Silver:              silverStore,
 		KAnonymityThreshold: cfg.KAnonymityThreshold,
 		LanguageManifest:    languageManifest,
+		Auth:                authStore,
+		AuthConfig:          authConfig,
+		Mailer:              notify.LogSender{},
 	})
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 
@@ -171,9 +233,10 @@ func main() {
 		// Request Timeout: limits each request to 30s to prevent hanging ClickHouse queries
 		r.Use(middleware.Timeout(30 * time.Second))
 
-		// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var
+		// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var.
+		// POST is required for the /auth/* endpoints (Phase 134 / ADR-040).
 		allowedOrigins := strings.Split(cfg.CORSOrigins, ",")
-		r.Use(mw.NewCORSHandler(allowedOrigins, []string{"GET", "OPTIONS"}))
+		r.Use(mw.NewCORSHandler(allowedOrigins, []string{"GET", "POST", "OPTIONS"}))
 
 		// OTel: wraps each request in a span and propagates the trace context
 		r.Use(func(next http.Handler) http.Handler {
@@ -187,8 +250,23 @@ func main() {
 		limiter := rate.NewLimiter(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
 		r.Use(rateLimiter(limiter))
 
-		// API Key Auth: protects all routes except /healthz and /readyz
-		r.Use(mw.APIKeyAuth(cfg.APIKey))
+		// Access control (Phase 134 / ADR-040): every request must carry a
+		// valid session cookie OR a valid X-API-Key (the demoted machine
+		// credential). The pre-auth endpoints (login, accept-invite,
+		// forgot/reset password) and the health probes are exempt.
+		r.Use(auth.SessionOrAPIKey(authStore, auth.MiddlewareConfig{
+			APIKey:     cfg.APIKey,
+			CookieName: cookieName,
+			IdleTTL:    time.Duration(cfg.SessionIdleSeconds) * time.Second,
+			ExemptSuffixes: []string{
+				"/healthz",
+				"/readyz",
+				"/auth/login",
+				"/auth/accept-invite",
+				"/auth/forgot-password",
+				"/auth/reset-password",
+			},
+		}))
 
 		// Phase 122j J3: long browser cache for `/content/*` responses.
 		// The catalog is loaded from versioned YAML at startup and only
@@ -271,6 +349,36 @@ func openSourcesPool(ctx context.Context, cfg *config.Config) (*sql.DB, error) {
 	if err := db.PingContext(pingCtx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
+	}
+	return db, nil
+}
+
+// openAuthPool opens the small write pool dedicated to the auth tables
+// (Phase 134 / ADR-040). The BFF connects as the `bff_auth` role, which holds
+// DML on users/sessions/auth_tokens only — any escalation is caught at the
+// database layer, not in Go. Kept separate from the read-only analytics pool.
+func openAuthPool(ctx context.Context, cfg *config.Config) (*sql.DB, error) {
+	dsn := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		url.QueryEscape(cfg.BFFAuthDBUser),
+		url.QueryEscape(cfg.BFFAuthDBPassword),
+		cfg.PostgresHost,
+		cfg.PostgresPort,
+		cfg.PostgresDB,
+	)
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open auth pgx pool: %w", err)
+	}
+	db.SetMaxOpenConns(6)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(30 * time.Minute)
+
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("ping auth postgres: %w", err)
 	}
 	return db, nil
 }

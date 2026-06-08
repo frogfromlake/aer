@@ -1903,6 +1903,46 @@ type GetArticleDetailParams struct {
 	MetricName *string `form:"metricName,omitempty" json:"metricName,omitempty"`
 }
 
+// PostAuthAcceptInviteJSONBody defines parameters for PostAuthAcceptInvite.
+type PostAuthAcceptInviteJSONBody struct {
+	// AcceptResponsibleUse Must be true. Records the LICENSE §3.2.b responsible-use consent at activation. A false/absent value returns 400 `consent_required`.
+	AcceptResponsibleUse bool `json:"acceptResponsibleUse"`
+
+	// Password The password the invitee chooses. Minimum length re-checked server-side.
+	Password string `json:"password"`
+
+	// Token The single-use invite token from the invitation link.
+	Token string `json:"token"`
+}
+
+// PostAuthChangePasswordJSONBody defines parameters for PostAuthChangePassword.
+type PostAuthChangePasswordJSONBody struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// PostAuthForgotPasswordJSONBody defines parameters for PostAuthForgotPassword.
+type PostAuthForgotPasswordJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+}
+
+// PostAuthLoginJSONBody defines parameters for PostAuthLogin.
+type PostAuthLoginJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Password Plaintext password, verified against the argon2id hash server-side.
+	Password string `json:"password"`
+}
+
+// PostAuthResetPasswordJSONBody defines parameters for PostAuthResetPassword.
+type PostAuthResetPasswordJSONBody struct {
+	// Password The new password. Minimum length re-checked server-side.
+	Password string `json:"password"`
+
+	// Token The single-use password-reset token from the reset link.
+	Token string `json:"token"`
+}
+
 // GetContentParams defines parameters for GetContent.
 type GetContentParams struct {
 	// Locale The language of the content to return. Defaults to "en".
@@ -2686,6 +2726,21 @@ type GetTopicDistributionParams struct {
 // GetTopicDistributionParamsScope defines parameters for GetTopicDistribution.
 type GetTopicDistributionParamsScope string
 
+// PostAuthAcceptInviteJSONRequestBody defines body for PostAuthAcceptInvite for application/json ContentType.
+type PostAuthAcceptInviteJSONRequestBody PostAuthAcceptInviteJSONBody
+
+// PostAuthChangePasswordJSONRequestBody defines body for PostAuthChangePassword for application/json ContentType.
+type PostAuthChangePasswordJSONRequestBody PostAuthChangePasswordJSONBody
+
+// PostAuthForgotPasswordJSONRequestBody defines body for PostAuthForgotPassword for application/json ContentType.
+type PostAuthForgotPasswordJSONRequestBody PostAuthForgotPasswordJSONBody
+
+// PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
+type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
+
+// PostAuthResetPasswordJSONRequestBody defines body for PostAuthResetPassword for application/json ContentType.
+type PostAuthResetPasswordJSONRequestBody PostAuthResetPasswordJSONBody
+
 // PostEntityCoOccurrenceQueryJSONRequestBody defines body for PostEntityCoOccurrenceQuery for application/json ContentType.
 type PostEntityCoOccurrenceQueryJSONRequestBody PostEntityCoOccurrenceQueryJSONBody
 
@@ -2700,6 +2755,27 @@ type ServerInterface interface {
 	// Per-pair paragraph-aligned diff between two snapshots
 	// (GET /articles/{id}/revisions/{revisionIndex}/diff)
 	GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request, id string, revisionIndex int)
+	// Accept an invitation — set password + record consent (ADR-040)
+	// (POST /auth/accept-invite)
+	PostAuthAcceptInvite(w http.ResponseWriter, r *http.Request)
+	// Change password (authenticated, knows current password) (ADR-040)
+	// (POST /auth/change-password)
+	PostAuthChangePassword(w http.ResponseWriter, r *http.Request)
+	// Request a password reset (ADR-040)
+	// (POST /auth/forgot-password)
+	PostAuthForgotPassword(w http.ResponseWriter, r *http.Request)
+	// Log in with email + password (ADR-040)
+	// (POST /auth/login)
+	PostAuthLogin(w http.ResponseWriter, r *http.Request)
+	// Log out — revoke the current session (ADR-040)
+	// (POST /auth/logout)
+	PostAuthLogout(w http.ResponseWriter, r *http.Request)
+	// The currently authenticated user (ADR-040)
+	// (GET /auth/me)
+	GetAuthMe(w http.ResponseWriter, r *http.Request)
+	// Complete a password reset (ADR-040)
+	// (POST /auth/reset-password)
+	PostAuthResetPassword(w http.ResponseWriter, r *http.Request)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
@@ -2838,6 +2914,48 @@ func (_ Unimplemented) GetArticleRevisions(w http.ResponseWriter, r *http.Reques
 // Per-pair paragraph-aligned diff between two snapshots
 // (GET /articles/{id}/revisions/{revisionIndex}/diff)
 func (_ Unimplemented) GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request, id string, revisionIndex int) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Accept an invitation — set password + record consent (ADR-040)
+// (POST /auth/accept-invite)
+func (_ Unimplemented) PostAuthAcceptInvite(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Change password (authenticated, knows current password) (ADR-040)
+// (POST /auth/change-password)
+func (_ Unimplemented) PostAuthChangePassword(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Request a password reset (ADR-040)
+// (POST /auth/forgot-password)
+func (_ Unimplemented) PostAuthForgotPassword(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Log in with email + password (ADR-040)
+// (POST /auth/login)
+func (_ Unimplemented) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Log out — revoke the current session (ADR-040)
+// (POST /auth/logout)
+func (_ Unimplemented) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// The currently authenticated user (ADR-040)
+// (GET /auth/me)
+func (_ Unimplemented) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Complete a password reset (ADR-040)
+// (POST /auth/reset-password)
+func (_ Unimplemented) PostAuthResetPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3188,6 +3306,122 @@ func (siw *ServerInterfaceWrapper) GetArticleRevisionDiff(w http.ResponseWriter,
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetArticleRevisionDiff(w, r, id, revisionIndex)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthAcceptInvite operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthAcceptInvite(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthAcceptInvite(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthChangePassword(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthChangePassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthForgotPassword operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthForgotPassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthForgotPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthLogin operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthLogout operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthLogout(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthMe operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthResetPassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthResetPassword(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6088,6 +6322,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/articles/{id}/revisions/{revisionIndex}/diff", wrapper.GetArticleRevisionDiff)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/accept-invite", wrapper.PostAuthAcceptInvite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/change-password", wrapper.PostAuthChangePassword)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/forgot-password", wrapper.PostAuthForgotPassword)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/login", wrapper.PostAuthLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/logout", wrapper.PostAuthLogout)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/me", wrapper.GetAuthMe)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/reset-password", wrapper.PostAuthResetPassword)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/content/{entityType}/{entityId}", wrapper.GetContent)
 	})
 	r.Group(func(r chi.Router) {
@@ -6408,6 +6663,404 @@ type GetArticleRevisionDiff500JSONResponse struct {
 }
 
 func (response GetArticleRevisionDiff500JSONResponse) VisitGetArticleRevisionDiffResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthAcceptInviteRequestObject struct {
+	Body *PostAuthAcceptInviteJSONRequestBody
+}
+
+type PostAuthAcceptInviteResponseObject interface {
+	VisitPostAuthAcceptInviteResponse(w http.ResponseWriter) error
+}
+
+type PostAuthAcceptInvite200JSONResponse struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Id Opaque user id (server-side UUID, surfaced as a string).
+	Id string `json:"id"`
+
+	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
+	Role string `json:"role"`
+
+	// Status Account status — one of `invited`, `active`, `suspended`.
+	Status string `json:"status"`
+}
+
+func (response PostAuthAcceptInvite200JSONResponse) VisitPostAuthAcceptInviteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthAcceptInvite400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthAcceptInvite400JSONResponse) VisitPostAuthAcceptInviteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthAcceptInvite500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthAcceptInvite500JSONResponse) VisitPostAuthAcceptInviteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthChangePasswordRequestObject struct {
+	Body *PostAuthChangePasswordJSONRequestBody
+}
+
+type PostAuthChangePasswordResponseObject interface {
+	VisitPostAuthChangePasswordResponse(w http.ResponseWriter) error
+}
+
+type PostAuthChangePassword204Response struct {
+}
+
+func (response PostAuthChangePassword204Response) VisitPostAuthChangePasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostAuthChangePassword400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthChangePassword400JSONResponse) VisitPostAuthChangePasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthChangePassword401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthChangePassword401JSONResponse) VisitPostAuthChangePasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthChangePassword500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthChangePassword500JSONResponse) VisitPostAuthChangePasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthForgotPasswordRequestObject struct {
+	Body *PostAuthForgotPasswordJSONRequestBody
+}
+
+type PostAuthForgotPasswordResponseObject interface {
+	VisitPostAuthForgotPasswordResponse(w http.ResponseWriter) error
+}
+
+type PostAuthForgotPassword202Response struct {
+}
+
+func (response PostAuthForgotPassword202Response) VisitPostAuthForgotPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(202)
+	return nil
+}
+
+type PostAuthForgotPassword500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthForgotPassword500JSONResponse) VisitPostAuthForgotPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthLoginRequestObject struct {
+	Body *PostAuthLoginJSONRequestBody
+}
+
+type PostAuthLoginResponseObject interface {
+	VisitPostAuthLoginResponse(w http.ResponseWriter) error
+}
+
+type PostAuthLogin200JSONResponse struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Id Opaque user id (server-side UUID, surfaced as a string).
+	Id string `json:"id"`
+
+	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
+	Role string `json:"role"`
+
+	// Status Account status — one of `invited`, `active`, `suspended`.
+	Status string `json:"status"`
+}
+
+func (response PostAuthLogin200JSONResponse) VisitPostAuthLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthLogin400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthLogin400JSONResponse) VisitPostAuthLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthLogin401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthLogin401JSONResponse) VisitPostAuthLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthLogin500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthLogin500JSONResponse) VisitPostAuthLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthLogoutRequestObject struct {
+}
+
+type PostAuthLogoutResponseObject interface {
+	VisitPostAuthLogoutResponse(w http.ResponseWriter) error
+}
+
+type PostAuthLogout204Response struct {
+}
+
+func (response PostAuthLogout204Response) VisitPostAuthLogoutResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostAuthLogout500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthLogout500JSONResponse) VisitPostAuthLogoutResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthMeRequestObject struct {
+}
+
+type GetAuthMeResponseObject interface {
+	VisitGetAuthMeResponse(w http.ResponseWriter) error
+}
+
+type GetAuthMe200JSONResponse struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Id Opaque user id (server-side UUID, surfaced as a string).
+	Id string `json:"id"`
+
+	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
+	Role string `json:"role"`
+
+	// Status Account status — one of `invited`, `active`, `suspended`.
+	Status string `json:"status"`
+}
+
+func (response GetAuthMe200JSONResponse) VisitGetAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthMe401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAuthMe401JSONResponse) VisitGetAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthMe500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAuthMe500JSONResponse) VisitGetAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthResetPasswordRequestObject struct {
+	Body *PostAuthResetPasswordJSONRequestBody
+}
+
+type PostAuthResetPasswordResponseObject interface {
+	VisitPostAuthResetPasswordResponse(w http.ResponseWriter) error
+}
+
+type PostAuthResetPassword204Response struct {
+}
+
+func (response PostAuthResetPassword204Response) VisitPostAuthResetPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostAuthResetPassword400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAuthResetPassword400JSONResponse) VisitPostAuthResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAuthResetPassword500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAuthResetPassword500JSONResponse) VisitPostAuthResetPasswordResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -9909,6 +10562,27 @@ type StrictServerInterface interface {
 	// Per-pair paragraph-aligned diff between two snapshots
 	// (GET /articles/{id}/revisions/{revisionIndex}/diff)
 	GetArticleRevisionDiff(ctx context.Context, request GetArticleRevisionDiffRequestObject) (GetArticleRevisionDiffResponseObject, error)
+	// Accept an invitation — set password + record consent (ADR-040)
+	// (POST /auth/accept-invite)
+	PostAuthAcceptInvite(ctx context.Context, request PostAuthAcceptInviteRequestObject) (PostAuthAcceptInviteResponseObject, error)
+	// Change password (authenticated, knows current password) (ADR-040)
+	// (POST /auth/change-password)
+	PostAuthChangePassword(ctx context.Context, request PostAuthChangePasswordRequestObject) (PostAuthChangePasswordResponseObject, error)
+	// Request a password reset (ADR-040)
+	// (POST /auth/forgot-password)
+	PostAuthForgotPassword(ctx context.Context, request PostAuthForgotPasswordRequestObject) (PostAuthForgotPasswordResponseObject, error)
+	// Log in with email + password (ADR-040)
+	// (POST /auth/login)
+	PostAuthLogin(ctx context.Context, request PostAuthLoginRequestObject) (PostAuthLoginResponseObject, error)
+	// Log out — revoke the current session (ADR-040)
+	// (POST /auth/logout)
+	PostAuthLogout(ctx context.Context, request PostAuthLogoutRequestObject) (PostAuthLogoutResponseObject, error)
+	// The currently authenticated user (ADR-040)
+	// (GET /auth/me)
+	GetAuthMe(ctx context.Context, request GetAuthMeRequestObject) (GetAuthMeResponseObject, error)
+	// Complete a password reset (ADR-040)
+	// (POST /auth/reset-password)
+	PostAuthResetPassword(ctx context.Context, request PostAuthResetPasswordRequestObject) (PostAuthResetPasswordResponseObject, error)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
 	GetContent(ctx context.Context, request GetContentRequestObject) (GetContentResponseObject, error)
@@ -10130,6 +10804,209 @@ func (sh *strictHandler) GetArticleRevisionDiff(w http.ResponseWriter, r *http.R
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetArticleRevisionDiffResponseObject); ok {
 		if err := validResponse.VisitGetArticleRevisionDiffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthAcceptInvite operation middleware
+func (sh *strictHandler) PostAuthAcceptInvite(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthAcceptInviteRequestObject
+
+	var body PostAuthAcceptInviteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthAcceptInvite(ctx, request.(PostAuthAcceptInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthAcceptInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthAcceptInviteResponseObject); ok {
+		if err := validResponse.VisitPostAuthAcceptInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthChangePassword operation middleware
+func (sh *strictHandler) PostAuthChangePassword(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthChangePasswordRequestObject
+
+	var body PostAuthChangePasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthChangePassword(ctx, request.(PostAuthChangePasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthChangePassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthChangePasswordResponseObject); ok {
+		if err := validResponse.VisitPostAuthChangePasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthForgotPassword operation middleware
+func (sh *strictHandler) PostAuthForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthForgotPasswordRequestObject
+
+	var body PostAuthForgotPasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthForgotPassword(ctx, request.(PostAuthForgotPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthForgotPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthForgotPasswordResponseObject); ok {
+		if err := validResponse.VisitPostAuthForgotPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthLogin operation middleware
+func (sh *strictHandler) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthLoginRequestObject
+
+	var body PostAuthLoginJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthLogin(ctx, request.(PostAuthLoginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthLogin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthLoginResponseObject); ok {
+		if err := validResponse.VisitPostAuthLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthLogout operation middleware
+func (sh *strictHandler) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthLogoutRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthLogout(ctx, request.(PostAuthLogoutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthLogout")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthLogoutResponseObject); ok {
+		if err := validResponse.VisitPostAuthLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthMe operation middleware
+func (sh *strictHandler) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+	var request GetAuthMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthMe(ctx, request.(GetAuthMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthMeResponseObject); ok {
+		if err := validResponse.VisitGetAuthMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthResetPassword operation middleware
+func (sh *strictHandler) PostAuthResetPassword(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthResetPasswordRequestObject
+
+	var body PostAuthResetPasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthResetPassword(ctx, request.(PostAuthResetPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthResetPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthResetPasswordResponseObject); ok {
+		if err := validResponse.VisitPostAuthResetPasswordResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

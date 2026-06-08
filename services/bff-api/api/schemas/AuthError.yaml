@@ -1,0 +1,21 @@
+type: object
+description: >
+  Machine-readable authentication / authorization error (ADR-040). Distinct
+  from RefusalPayload / Error: the presence of a `code` and the absence of a
+  methodological-refusal envelope (gate / workingPaperAnchor) is how the
+  dashboard tells an auth error apart from a methodological 4xx refusal. A
+  401 routes the client to /login; a 403 `forbidden_*` renders an explained
+  access surface.
+required:
+  - code
+  - message
+properties:
+  code:
+    type: string
+    description: >
+      Machine-readable auth error code, e.g. `invalid_credentials`,
+      `unauthenticated`, `forbidden_role`, `forbidden_not_shared`,
+      `invalid_token`, `consent_required`, `weak_password`.
+  message:
+    type: string
+    description: Human-readable, non-leaking explanation.
