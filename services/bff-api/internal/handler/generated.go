@@ -2796,9 +2796,15 @@ type ServerInterface interface {
 	// Log out — revoke the current session (ADR-040)
 	// (POST /auth/logout)
 	PostAuthLogout(w http.ResponseWriter, r *http.Request)
+	// Delete the current user's account (DSGVO right to erasure) (ADR-040)
+	// (DELETE /auth/me)
+	DeleteAuthMe(w http.ResponseWriter, r *http.Request)
 	// The currently authenticated user (ADR-040)
 	// (GET /auth/me)
 	GetAuthMe(w http.ResponseWriter, r *http.Request)
+	// Export all data AĒR holds about the current user (DSGVO) (ADR-040)
+	// (GET /auth/me/export)
+	GetAuthMeExport(w http.ResponseWriter, r *http.Request)
 	// Complete a password reset (ADR-040)
 	// (POST /auth/reset-password)
 	PostAuthResetPassword(w http.ResponseWriter, r *http.Request)
@@ -3003,9 +3009,21 @@ func (_ Unimplemented) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Delete the current user's account (DSGVO right to erasure) (ADR-040)
+// (DELETE /auth/me)
+func (_ Unimplemented) DeleteAuthMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // The currently authenticated user (ADR-040)
 // (GET /auth/me)
 func (_ Unimplemented) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Export all data AĒR holds about the current user (DSGVO) (ADR-040)
+// (GET /auth/me/export)
+func (_ Unimplemented) GetAuthMeExport(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3586,6 +3604,26 @@ func (siw *ServerInterfaceWrapper) PostAuthLogout(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteAuthMe operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAuthMe(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAuthMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAuthMe operation middleware
 func (siw *ServerInterfaceWrapper) GetAuthMe(w http.ResponseWriter, r *http.Request) {
 
@@ -3597,6 +3635,26 @@ func (siw *ServerInterfaceWrapper) GetAuthMe(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthMeExport operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthMeExport(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthMeExport(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6541,7 +6599,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/auth/logout", wrapper.PostAuthLogout)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/auth/me", wrapper.DeleteAuthMe)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth/me", wrapper.GetAuthMe)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/me/export", wrapper.GetAuthMeExport)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/reset-password", wrapper.PostAuthResetPassword)
@@ -7540,6 +7604,57 @@ func (response PostAuthLogout500JSONResponse) VisitPostAuthLogoutResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type DeleteAuthMeRequestObject struct {
+}
+
+type DeleteAuthMeResponseObject interface {
+	VisitDeleteAuthMeResponse(w http.ResponseWriter) error
+}
+
+type DeleteAuthMe204Response struct {
+}
+
+func (response DeleteAuthMe204Response) VisitDeleteAuthMeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAuthMe401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAuthMe401JSONResponse) VisitDeleteAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAuthMe500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response DeleteAuthMe500JSONResponse) VisitDeleteAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetAuthMeRequestObject struct {
 }
 
@@ -7597,6 +7712,72 @@ type GetAuthMe500JSONResponse struct {
 }
 
 func (response GetAuthMe500JSONResponse) VisitGetAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthMeExportRequestObject struct {
+}
+
+type GetAuthMeExportResponseObject interface {
+	VisitGetAuthMeExportResponse(w http.ResponseWriter) error
+}
+
+type GetAuthMeExport200JSONResponse struct {
+	// ActiveSessionCount Count of the user's current non-revoked, unexpired sessions.
+	ActiveSessionCount int                 `json:"activeSessionCount"`
+	CreatedAt          time.Time           `json:"createdAt"`
+	Email              openapi_types.Email `json:"email"`
+	Id                 string              `json:"id"`
+
+	// LastSeenAt Most recent activity across the user's sessions; null if none.
+	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
+
+	// ResponsibleUseAcceptedAt LICENSE §3.2.b consent timestamp; null if never activated.
+	ResponsibleUseAcceptedAt *time.Time `json:"responsibleUseAcceptedAt,omitempty"`
+	Role                     string     `json:"role"`
+	Status                   string     `json:"status"`
+}
+
+func (response GetAuthMeExport200JSONResponse) VisitGetAuthMeExportResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthMeExport401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAuthMeExport401JSONResponse) VisitGetAuthMeExportResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthMeExport500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAuthMeExport500JSONResponse) VisitGetAuthMeExportResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -11180,9 +11361,15 @@ type StrictServerInterface interface {
 	// Log out — revoke the current session (ADR-040)
 	// (POST /auth/logout)
 	PostAuthLogout(ctx context.Context, request PostAuthLogoutRequestObject) (PostAuthLogoutResponseObject, error)
+	// Delete the current user's account (DSGVO right to erasure) (ADR-040)
+	// (DELETE /auth/me)
+	DeleteAuthMe(ctx context.Context, request DeleteAuthMeRequestObject) (DeleteAuthMeResponseObject, error)
 	// The currently authenticated user (ADR-040)
 	// (GET /auth/me)
 	GetAuthMe(ctx context.Context, request GetAuthMeRequestObject) (GetAuthMeResponseObject, error)
+	// Export all data AĒR holds about the current user (DSGVO) (ADR-040)
+	// (GET /auth/me/export)
+	GetAuthMeExport(ctx context.Context, request GetAuthMeExportRequestObject) (GetAuthMeExportResponseObject, error)
 	// Complete a password reset (ADR-040)
 	// (POST /auth/reset-password)
 	PostAuthResetPassword(ctx context.Context, request PostAuthResetPasswordRequestObject) (PostAuthResetPasswordResponseObject, error)
@@ -11695,6 +11882,30 @@ func (sh *strictHandler) PostAuthLogout(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// DeleteAuthMe operation middleware
+func (sh *strictHandler) DeleteAuthMe(w http.ResponseWriter, r *http.Request) {
+	var request DeleteAuthMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAuthMe(ctx, request.(DeleteAuthMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAuthMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAuthMeResponseObject); ok {
+		if err := validResponse.VisitDeleteAuthMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAuthMe operation middleware
 func (sh *strictHandler) GetAuthMe(w http.ResponseWriter, r *http.Request) {
 	var request GetAuthMeRequestObject
@@ -11712,6 +11923,30 @@ func (sh *strictHandler) GetAuthMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAuthMeResponseObject); ok {
 		if err := validResponse.VisitGetAuthMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthMeExport operation middleware
+func (sh *strictHandler) GetAuthMeExport(w http.ResponseWriter, r *http.Request) {
+	var request GetAuthMeExportRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthMeExport(ctx, request.(GetAuthMeExportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthMeExport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthMeExportResponseObject); ok {
+		if err := validResponse.VisitGetAuthMeExportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

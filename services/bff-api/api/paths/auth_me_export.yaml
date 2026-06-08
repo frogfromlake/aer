@@ -1,0 +1,23 @@
+get:
+  tags: [Auth]
+  summary: Export all data AĒR holds about the current user (DSGVO) (ADR-040)
+  description: >
+    Right of access + portability (DSGVO Art. 15 / 20). Returns the complete,
+    privacy-minimal record AĒR stores about the authenticated user. Requires a
+    session.
+  operationId: getAuthMeExport
+  responses:
+    '200':
+      description: The user's data export.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/UserDataExport.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

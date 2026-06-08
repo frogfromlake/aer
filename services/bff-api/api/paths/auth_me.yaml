@@ -21,3 +21,22 @@ get:
             $ref: '../schemas/AuthError.yaml'
     '500':
       $ref: '../responses/InternalServerError.yaml'
+delete:
+  tags: [Auth]
+  summary: Delete the current user's account (DSGVO right to erasure) (ADR-040)
+  description: >
+    Right to erasure (DSGVO Art. 17). Permanently deletes the authenticated
+    user; sessions and pending tokens cascade-delete. Clears the session cookie.
+    Irreversible. Requires a session.
+  operationId: deleteAuthMe
+  responses:
+    '204':
+      description: Account deleted; session cookie cleared.
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

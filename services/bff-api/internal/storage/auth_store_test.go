@@ -281,6 +281,60 @@ func TestAuthStore_ActivateAndResetRevoke(t *testing.T) {
 	}
 }
 
+func TestAuthStore_ExportUser(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	uid := seedUser(t, s, ctx, "a@b.c", "active")
+	now := time.Now()
+	_ = s.CreateSession(ctx, "sx", uid, now.Add(time.Hour), now.Add(24*time.Hour), "")
+
+	e, err := s.ExportUser(ctx, uid)
+	if err != nil || e == nil {
+		t.Fatalf("export: e=%v err=%v", e, err)
+	}
+	if e.Email != "a@b.c" || e.ActiveSessionCount != 1 {
+		t.Fatalf("unexpected export: %+v", e)
+	}
+	if !e.ResponsibleUseAcceptedAt.Valid {
+		t.Fatal("expected consent timestamp (seedUser sets it)")
+	}
+	// Unknown / malformed id → nil, nil.
+	if got, _ := s.ExportUser(ctx, "not-a-uuid"); got != nil {
+		t.Fatal("expected nil for malformed uuid")
+	}
+}
+
+func TestAuthStore_DeleteUserCascades(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	uid := seedUser(t, s, ctx, "a@b.c", "active")
+	now := time.Now()
+	_ = s.CreateSession(ctx, "s1", uid, now.Add(time.Hour), now.Add(24*time.Hour), "")
+	_ = s.CreateToken(ctx, uid, "password_reset", "tk", now.Add(time.Hour))
+
+	deleted, err := s.DeleteUser(ctx, uid)
+	if err != nil || !deleted {
+		t.Fatalf("delete: deleted=%v err=%v", deleted, err)
+	}
+	// User gone.
+	if u, _ := s.GetUserByID(ctx, uid); u != nil {
+		t.Fatal("expected user removed")
+	}
+	// Sessions + tokens cascade-deleted.
+	var sessions, tokens int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM sessions WHERE user_id=$1::uuid`, uid).Scan(&sessions); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM auth_tokens WHERE user_id=$1::uuid`, uid).Scan(&tokens); err != nil {
+		t.Fatalf("count tokens: %v", err)
+	}
+	if sessions != 0 || tokens != 0 {
+		t.Fatalf("expected cascade delete, sessions=%d tokens=%d", sessions, tokens)
+	}
+	// Deleting again → no-op.
+	if again, _ := s.DeleteUser(ctx, uid); again {
+		t.Fatal("expected second delete to be a no-op")
+	}
+}
+
 func TestAuthStore_CreateInvitedUserAndDuplicate(t *testing.T) {
 	s, ctx := setupAuthStore(t)
 

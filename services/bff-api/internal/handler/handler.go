@@ -190,6 +190,9 @@ type AuthBackend interface {
 	CreateInvitedUser(ctx context.Context, email, role string) (string, error)
 	ListUsers(ctx context.Context) ([]storage.AdminUserRow, error)
 	SetUserStatus(ctx context.Context, id, status string) (bool, error)
+	// DSGVO (Phase 134 / ADR-040).
+	ExportUser(ctx context.Context, id string) (*storage.UserExport, error)
+	DeleteUser(ctx context.Context, id string) (bool, error)
 }
 
 // AuthConfig carries the cookie + session + hashing parameters the auth

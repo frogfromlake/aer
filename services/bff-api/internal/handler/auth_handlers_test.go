@@ -118,6 +118,22 @@ func (m *mockAuth) SetUserStatus(_ context.Context, id, status string) (bool, er
 	u.Status = status
 	return true, nil
 }
+func (m *mockAuth) ExportUser(_ context.Context, id string) (*storage.UserExport, error) {
+	u, ok := m.byID[id]
+	if !ok {
+		return nil, nil
+	}
+	return &storage.UserExport{ID: u.ID, Email: u.Email, Role: u.Role, Status: u.Status}, nil
+}
+func (m *mockAuth) DeleteUser(_ context.Context, id string) (bool, error) {
+	u, ok := m.byID[id]
+	if !ok {
+		return false, nil
+	}
+	delete(m.byID, id)
+	delete(m.byEmail, strings.ToLower(u.Email))
+	return true, nil
+}
 
 // --- test scaffolding --------------------------------------------------------
 

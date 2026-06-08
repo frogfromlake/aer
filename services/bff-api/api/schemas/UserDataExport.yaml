@@ -1,0 +1,40 @@
+type: object
+description: >
+  Everything AĒR stores about a user (DSGVO Art. 15 / 20 — right of access +
+  portability). Privacy-minimal by design (ADR-040 / Manifesto §VI / WP-006 §7):
+  identity + consent + session metadata only. AĒR keeps NO record of what a user
+  analyses beyond explicitly saved analyses (Phase 135) — the sparseness of this
+  export is the point.
+required:
+  - id
+  - email
+  - role
+  - status
+  - createdAt
+  - activeSessionCount
+properties:
+  id:
+    type: string
+  email:
+    type: string
+    format: email
+  role:
+    type: string
+  status:
+    type: string
+  createdAt:
+    type: string
+    format: date-time
+  responsibleUseAcceptedAt:
+    type: string
+    format: date-time
+    nullable: true
+    description: LICENSE §3.2.b consent timestamp; null if never activated.
+  activeSessionCount:
+    type: integer
+    description: Count of the user's current non-revoked, unexpired sessions.
+  lastSeenAt:
+    type: string
+    format: date-time
+    nullable: true
+    description: Most recent activity across the user's sessions; null if none.

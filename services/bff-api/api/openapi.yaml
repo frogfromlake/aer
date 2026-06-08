@@ -39,6 +39,8 @@ paths:
     $ref: './paths/auth_logout.yaml'
   /auth/me:
     $ref: './paths/auth_me.yaml'
+  /auth/me/export:
+    $ref: './paths/auth_me_export.yaml'
   /auth/accept-invite:
     $ref: './paths/auth_accept_invite.yaml'
   /auth/forgot-password:
@@ -280,3 +282,5 @@ components:
       $ref: './schemas/CreateUserRequest.yaml'
     AdminActionLink:
       $ref: './schemas/AdminActionLink.yaml'
+    UserDataExport:
+      $ref: './schemas/UserDataExport.yaml'

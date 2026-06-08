@@ -204,6 +204,55 @@ func (s *AuthStore) DeleteExpiredSessions(ctx context.Context) (int64, error) {
 	return res.RowsAffected()
 }
 
+// --- DSGVO (Phase 134 / ADR-040) --------------------------------------------
+
+// UserExport is the complete, privacy-minimal record AĒR holds about a user
+// (DSGVO Art. 15 / 20). No analytical-activity data exists to export.
+type UserExport struct {
+	ID                       string
+	Email                    string
+	Role                     string
+	Status                   string
+	CreatedAt                time.Time
+	ResponsibleUseAcceptedAt sql.NullTime
+	ActiveSessionCount       int
+	LastSeenAt               sql.NullTime
+}
+
+// ExportUser returns everything stored about the user, or (nil, nil) if absent.
+func (s *AuthStore) ExportUser(ctx context.Context, id string) (*UserExport, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT u.id::text, u.email, u.role, u.status, u.created_at, u.responsible_use_accepted_at,
+		       (SELECT count(*) FROM sessions s
+		         WHERE s.user_id = u.id AND s.revoked_at IS NULL
+		           AND s.idle_expires_at > now() AND s.absolute_expires_at > now()),
+		       (SELECT max(s.last_seen_at) FROM sessions s WHERE s.user_id = u.id)
+		FROM users u WHERE u.id = $1::uuid`, id)
+	var e UserExport
+	if err := row.Scan(&e.ID, &e.Email, &e.Role, &e.Status, &e.CreatedAt,
+		&e.ResponsibleUseAcceptedAt, &e.ActiveSessionCount, &e.LastSeenAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) || isInvalidUUIDErr(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("export user: %w", err)
+	}
+	return &e, nil
+}
+
+// DeleteUser permanently deletes a user (DSGVO Art. 17). Sessions and pending
+// auth_tokens cascade-delete via their FK. Reports whether a row was deleted.
+func (s *AuthStore) DeleteUser(ctx context.Context, id string) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1::uuid`, id)
+	if err != nil {
+		if isInvalidUUIDErr(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("delete user: %w", err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 // --- admin (Phase 134 / ADR-040) --------------------------------------------
 
 // AdminUserRow is the admin projection of a user (no password material).
