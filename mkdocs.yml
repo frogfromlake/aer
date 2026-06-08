@@ -14,6 +14,12 @@ site_description: >-
   societal discourses — functioning as a digital macroscope.
 site_author: "AĒR Project"
 
+# The public landing page belongs only to the PUBLIC build (mkdocs.public.yml);
+# exclude it here so the internal build's --strict pass does not flag it as an
+# orphan page (ADR-040 docs split).
+exclude_docs: |
+  public_index.md
+
 # =============================================================================
 # Theme Configuration
 # =============================================================================
@@ -258,6 +264,7 @@ nav:
   - "Operations":
       - "Developer Quickstart": operations/developer_quickstart.md
       - "Operations Playbook": operations/operations_playbook.md
+      - "GitHub Repository Configuration": operations/github_repository_configuration.md
       - "Scientific Operations Guide": operations/scientific_operations_guide.md
       - "Scheduled Work Inventory": operations/scheduled_work.md
       - "Wikidata Index Runbook": operations/wikidata_index_runbook.md

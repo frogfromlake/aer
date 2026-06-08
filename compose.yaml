@@ -2,6 +2,11 @@ services:
   # ----------------------------------------------------
   # 1. DOCUMENTATION
   # ----------------------------------------------------
+  # PUBLIC docs build (Phase 134 / ADR-040). Serves only methodology, per-probe
+  # descriptions and the manifesto — what an external researcher needs. The
+  # source-card `documentation_url` points here (:8000), so the split is
+  # transparent to that link. The engineering internals are served by the
+  # separate `docs-internal` service below.
   docs:
     image: squidfunk/mkdocs-material:9.7.6
     container_name: aer_docs
@@ -10,7 +15,29 @@ services:
       - "8000:8000"
     volumes:
       - .:/docs
-    command: serve --dev-addr=0.0.0.0:8000 --livereload --watch /docs
+    command: serve -f mkdocs.public.yml --dev-addr=0.0.0.0:8000 --livereload --watch /docs
+    networks:
+      - aer-backend
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
+  # INTERNAL docs build (Phase 134 / ADR-040): Arc42, ADRs, design, extending
+  # guides, operations runbooks, security model. On :8001. In a real deployment
+  # this MUST be access-controlled to the admin role (Traefik forward-auth to
+  # the BFF) and not publicly routed — that gating is deferred until deploy; for
+  # local/dev it is a plain second build.
+  docs-internal:
+    image: squidfunk/mkdocs-material:9.7.6
+    container_name: aer_docs_internal
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/docs
+    command: serve -f mkdocs.yml --dev-addr=0.0.0.0:8001 --livereload --watch /docs
     networks:
       - aer-backend
     deploy:

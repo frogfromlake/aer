@@ -3,7 +3,7 @@
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
-.PHONY: bff-up bff-down bff-restart bff-image-build create-admin
+.PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
@@ -256,6 +256,17 @@ bff-restart:
 # reachable (e.g. `make debug-up`) and the bff_auth role provisioned.
 create-admin:
 	@go run ./services/bff-api/cmd/bootstrap-admin
+
+# Build BOTH docs sites with --strict (Phase 134 / ADR-040 split): the public
+# build (mkdocs.public.yml) and the internal build (mkdocs.yml). Uses the same
+# pinned mkdocs-material image as the `docs` service; no local mkdocs needed.
+DOCS_IMG := squidfunk/mkdocs-material:9.7.6
+docs-build:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Building PUBLIC docs (mkdocs.public.yml) --strict...$(RESET)"
+	@docker run --rm -v "$(PWD)":/docs $(DOCS_IMG) build -f mkdocs.public.yml --strict --site-dir /tmp/site_public
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Building INTERNAL docs (mkdocs.yml) --strict...$(RESET)"
+	@docker run --rm -v "$(PWD)":/docs $(DOCS_IMG) build -f mkdocs.yml --strict --site-dir /tmp/site_internal
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Both docs builds passed --strict.$(RESET)"
 
 # ==========================================
 # 3. APPLICATION SERVICES (ALL TOGETHER)

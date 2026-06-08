@@ -1,0 +1,84 @@
+# =============================================================================
+# AĒR — PUBLIC documentation build (Phase 134 / ADR-040)
+# =============================================================================
+# The access-controlled split of the docs (ADR-040). This PUBLIC build serves
+# only what an external researcher needs to interpret the visible data:
+# methodology Working Papers, per-probe descriptions, and the manifesto. The
+# engineering internals (Arc42 ch. 1–13, ADRs, design, extending guides,
+# operations runbooks, security model) are EXCLUDED from this build entirely —
+# they are not merely hidden from the nav, they are not rendered — and are
+# served by the separate internal build (mkdocs.yml), access-controlled to the
+# admin role at deployment.
+#
+# INHERIT pulls theme / markdown extensions / plugins from mkdocs.yml so the two
+# builds render identically; only site identity, the nav, the exclusions, and
+# link-validation policy differ.
+#
+# Build:  mkdocs build  -f mkdocs.public.yml --strict
+# Serve:  mkdocs serve  -f mkdocs.public.yml   (compose `docs` service, :8000)
+# =============================================================================
+
+INHERIT: mkdocs.yml
+
+site_name: "AĒR — Public Methodology"
+site_description: >-
+  Public methodology portal for Project AĒR: the scientific Working Papers,
+  per-probe descriptions, and ethical commitment an external researcher needs
+  to interpret the system's published discourse metrics.
+
+# Do not render the internal docs in the public build. Patterns are relative to
+# docs_dir (gitignore-style). arc42/00_manifesto.md is deliberately KEPT; only
+# chapters 01–13 are excluded.
+exclude_docs: |
+  index.md
+  arc42/0[1-9]_*.md
+  arc42/1[0-3]_*.md
+  design/
+  extending/
+  operations/
+  templates/
+
+# The public build intentionally retains a few prose references from the probe
+# descriptions into operator/operations docs that are NOT part of this build.
+# Those links resolve in the internal build (where they are fully validated);
+# here they are inert. Demote not-found links to INFO so the public build still
+# passes `--strict`. The internal build keeps the default (strict) validation,
+# so genuinely broken links in shared content are still caught there.
+validation:
+  links:
+    not_found: info
+
+nav:
+  - "Home": public_index.md
+
+  - "Manifesto": arc42/00_manifesto.md
+
+  - "Methodology (EN)":
+      - "WP-001: Functional Probe Taxonomy": methodology/en/WP-001-en-toward_a_culturally_agnostic_probe_catalog-a_functional_taxonomy_for_global_discourse_observation.md
+      - "WP-002: Metric Validity & Sentiment Calibration": methodology/en/WP-002-en-metric_validity_and_sentiment_calibration.md
+      - "WP-003: Platform Bias & Non-Human Actors": methodology/en/WP-003-en-platform_bias_algorithmic_amplification_and_the_detection_of_non-human_actors.md
+      - "WP-004: Cross-Cultural Comparability": methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md
+      - "WP-005: Temporal Granularity": methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md
+      - "WP-006: Observer Effect & Reflexivity": methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
+
+  - "Methodik (DE)":
+      - "WP-001: Funktionale Sondentaxonomie": methodology/de/WP-001-de-auf_dem_weg_zu_einem_kulturell_agnostischen_sondenkatalog-eine_funktionale_taxonomie_fuer_die_globale_diskursbeobachtung.md
+      - "WP-002: Metrik-Validität & Sentiment-Kalibrierung": methodology/de/WP-002-de-metrik_validitaet_und_sentiment_kalibrierung.md
+      - "WP-003: Plattform-Bias & nicht-menschliche Akteure": methodology/de/WP-003-de-plattform_bias_algorithmische_verstaerkung_und_die_erkennung_nicht-menschlicher_akteure.md
+      - "WP-004: Interkulturelle Vergleichbarkeit": methodology/de/WP-004-de-interkulturelle_vergleichbarkeit_von_diskursmetriken.md
+      - "WP-005: Temporale Granularität": methodology/de/WP-005-de-temporale_granularitaet_von_diskursverschiebungen.md
+      - "WP-006: Beobachtereffekt & Reflexivität": methodology/de/WP-006-de-beobachtereffekt_reflexivitaet_und_die_ethik_der_diskursmessung.md
+
+  - "Probes":
+      - "Probe 0 — DE Institutional Web":
+          - "Overview": probes/probe-0-de-institutional-web/README.md
+          - "Classification (WP-001)": probes/probe-0-de-institutional-web/classification.md
+          - "Bias Assessment (WP-003)": probes/probe-0-de-institutional-web/bias_assessment.md
+          - "Temporal Profile (WP-005)": probes/probe-0-de-institutional-web/temporal_profile.md
+          - "Observer Effect (WP-006)": probes/probe-0-de-institutional-web/observer_effect.md
+      - "Probe 1 — FR Institutional Web":
+          - "Overview": probes/probe-1-fr-institutional-web/README.md
+          - "Classification (WP-001)": probes/probe-1-fr-institutional-web/classification.md
+          - "Bias Assessment (WP-003)": probes/probe-1-fr-institutional-web/bias_assessment.md
+          - "Temporal Profile (WP-005)": probes/probe-1-fr-institutional-web/temporal_profile.md
+          - "Observer Effect (WP-006)": probes/probe-1-fr-institutional-web/observer_effect.md

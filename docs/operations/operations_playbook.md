@@ -1211,18 +1211,30 @@ The Probe Dossier Pattern groups all per-probe scientific documentation under a 
 
 ---
 
-## Arc42 Documentation Server
+## Documentation Servers (Public / Internal split — ADR-040)
 
-| Property       | Value                                |
-| :------------- | :----------------------------------- |
-| URL            | `http://localhost:8000`              |
-| Live reload    | Yes (auto-refreshes on `.md` edits)  |
+Phase 134 splits the docs into two MkDocs builds (ADR-040). Both serve from the
+same `docs/` tree with live reload; they differ only in config + nav.
+
+| Build | Config | URL | Contents |
+| :---- | :----- | :-- | :------- |
+| **Public** (`docs` service) | `mkdocs.public.yml` | `http://localhost:8000` | Methodology Working Papers, per-probe descriptions, manifesto. What an external researcher needs. The source-card `documentation_url` points here. |
+| **Internal** (`docs-internal` service) | `mkdocs.yml` | `http://localhost:8001` | Arc42, ADRs, design, extending guides, operations runbooks, security model. |
 
 ```bash
-open http://localhost:8000
+open http://localhost:8000   # public methodology portal
+open http://localhost:8001   # internal engineering docs
 ```
 
-The MkDocs Material container mounts the repository root and serves `docs/` with live reload. Editing any `.md` file triggers an immediate refresh.
+`make docs-build` builds **both** with `--strict` (the same check Phase 129
+runs). The public build *excludes* the internal directories entirely (they are
+not rendered, not merely hidden), so the engineering internals never ship in
+the public site.
+
+> **Deployment (deferred).** The internal build MUST be access-controlled to the
+> `admin` role (Traefik forward-auth to the BFF) and not publicly routed. That
+> gating lands with deployment; locally it is a plain second build on `:8001`.
+> Do not expose `:8001` publicly.
 
 ---
 
@@ -1658,7 +1670,7 @@ make reset
 make crawl
 ```
 
-Validator output ([`scripts/operations/reset_validate.sh`](../../scripts/operations/reset_validate.sh)) prints `✔` / `·` / `✗` per layer:
+Validator output (`scripts/operations/reset_validate.sh`) prints `✔` / `·` / `✗` per layer:
 
 | Symbol | Meaning |
 | :--- | :--- |
