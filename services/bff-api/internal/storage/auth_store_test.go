@@ -57,17 +57,19 @@ func setupAuthStore(t *testing.T) (*AuthStore, context.Context) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	// Apply the real migration, resolved relative to this test file so the
-	// path is stable regardless of the test's working directory.
+	// Apply the real auth migrations, resolved relative to this test file so
+	// the path is stable regardless of the test's working directory.
 	_, thisFile, _, _ := runtime.Caller(0)
-	migPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..",
-		"infra", "postgres", "migrations", "000024_auth_schema.up.sql")
-	migSQL, err := os.ReadFile(migPath)
-	if err != nil {
-		t.Fatalf("read migration %s: %v", migPath, err)
-	}
-	if _, err := db.ExecContext(ctx, string(migSQL)); err != nil {
-		t.Fatalf("apply auth migration: %v", err)
+	migDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..",
+		"infra", "postgres", "migrations")
+	for _, name := range []string{"000024_auth_schema.up.sql", "000025_webauthn.up.sql"} {
+		migSQL, err := os.ReadFile(filepath.Join(migDir, name))
+		if err != nil {
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		if _, err := db.ExecContext(ctx, string(migSQL)); err != nil {
+			t.Fatalf("apply migration %s: %v", name, err)
+		}
 	}
 
 	return NewAuthStore(db), ctx
