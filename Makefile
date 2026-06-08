@@ -3,7 +3,7 @@
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
 .PHONY: worker-up worker-down worker-restart
-.PHONY: bff-up bff-down bff-restart bff-image-build
+.PHONY: bff-up bff-down bff-restart bff-image-build create-admin
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
@@ -249,6 +249,13 @@ bff-down:
 bff-restart:
 	@docker compose build bff-api
 	@docker compose up -d --no-deps --wait bff-api
+
+# Bootstrap the first admin account (Phase 134 / ADR-040). Self-registration
+# is closed, so the first admin is seeded out of band: this prints an
+# accept-invite link for ADMIN_BOOTSTRAP_EMAIL. Reads .env; requires Postgres
+# reachable (e.g. `make debug-up`) and the bff_auth role provisioned.
+create-admin:
+	@go run ./services/bff-api/cmd/bootstrap-admin
 
 # ==========================================
 # 3. APPLICATION SERVICES (ALL TOGETHER)

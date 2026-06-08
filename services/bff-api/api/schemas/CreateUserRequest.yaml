@@ -1,0 +1,14 @@
+type: object
+description: >
+  Admin-initiated account creation (ADR-040). Creates an invited user and
+  issues a single-use invite token. No open self-registration (LICENSE §3.2).
+required:
+  - email
+  - role
+properties:
+  email:
+    type: string
+    format: email
+  role:
+    type: string
+    description: One of `admin`, `researcher`. Validated server-side.

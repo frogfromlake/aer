@@ -26,6 +26,11 @@ tags:
       Session-based access control (ADR-040). BFF-driven opaque sessions; no
       token ever reaches the client. login/accept-invite/forgot-password/
       reset-password are pre-auth; the rest require a session.
+  - name: Admin
+    description: >
+      Admin-only user management (ADR-040). Invite/approval-based account
+      creation, suspend/reactivate, admin-initiated reset. Requires the
+      `admin` role.
 
 paths:
   /auth/login:
@@ -42,6 +47,14 @@ paths:
     $ref: './paths/auth_reset_password.yaml'
   /auth/change-password:
     $ref: './paths/auth_change_password.yaml'
+  /admin/users:
+    $ref: './paths/admin_users.yaml'
+  /admin/users/{id}/suspend:
+    $ref: './paths/admin_user_suspend.yaml'
+  /admin/users/{id}/reactivate:
+    $ref: './paths/admin_user_reactivate.yaml'
+  /admin/users/{id}/reset-password:
+    $ref: './paths/admin_user_reset.yaml'
   /metrics:
     $ref: './paths/metrics.yaml'
   /metrics/available:
@@ -259,3 +272,11 @@ components:
       $ref: './schemas/ResetPasswordRequest.yaml'
     ChangePasswordRequest:
       $ref: './schemas/ChangePasswordRequest.yaml'
+    AdminUser:
+      $ref: './schemas/AdminUser.yaml'
+    AdminUsersList:
+      $ref: './schemas/AdminUsersList.yaml'
+    CreateUserRequest:
+      $ref: './schemas/CreateUserRequest.yaml'
+    AdminActionLink:
+      $ref: './schemas/AdminActionLink.yaml'

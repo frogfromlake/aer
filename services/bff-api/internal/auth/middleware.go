@@ -78,6 +78,25 @@ func SessionOrAPIKey(v SessionValidator, cfg MiddlewareConfig) func(http.Handler
 	}
 }
 
+// RequireAdminForSegment gates any request whose path contains `segment` (e.g.
+// "/admin/") behind the admin role. It runs AFTER SessionOrAPIKey, so the
+// identity is already in context. Machine (X-API-Key) callers are NOT admins —
+// admin is a user concept; user management requires an admin session.
+func RequireAdminForSegment(segment string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, segment) {
+				id, ok := IdentityFromContext(r.Context())
+				if !ok || id.Machine || id.Role != RoleAdmin {
+					writeJSON(w, http.StatusForbidden, `{"code":"forbidden_role","message":"admin role required"}`)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // apiKeyFromRequest extracts the key from X-API-Key or `Authorization: Bearer`,
 // mirroring pkg/middleware/apikey.go.
 func apiKeyFromRequest(r *http.Request) string {

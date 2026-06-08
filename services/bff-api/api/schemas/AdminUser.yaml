@@ -1,0 +1,24 @@
+type: object
+description: A user row as seen by an admin (ADR-040, Phase 134).
+required:
+  - id
+  - email
+  - role
+  - status
+  - createdAt
+properties:
+  id:
+    type: string
+    description: Opaque user id.
+  email:
+    type: string
+    format: email
+  role:
+    type: string
+    description: One of `admin`, `researcher`.
+  status:
+    type: string
+    description: One of `invited`, `active`, `suspended`.
+  createdAt:
+    type: string
+    format: date-time

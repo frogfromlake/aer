@@ -268,6 +268,10 @@ func main() {
 			},
 		}))
 
+		// RBAC: /admin/* requires the admin role (runs after auth so the
+		// identity is in context). Phase 134 / ADR-040.
+		r.Use(auth.RequireAdminForSegment("/admin/"))
+
 		// Phase 122j J3: long browser cache for `/content/*` responses.
 		// The catalog is loaded from versioned YAML at startup and only
 		// changes when an operator restarts the service; the response

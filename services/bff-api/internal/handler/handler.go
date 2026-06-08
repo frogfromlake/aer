@@ -186,6 +186,10 @@ type AuthBackend interface {
 	ConsumeToken(ctx context.Context, tokenHash, purpose string) (string, error)
 	ActivateUser(ctx context.Context, id, passwordHash string) error
 	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
+	// Admin (Phase 134 / ADR-040).
+	CreateInvitedUser(ctx context.Context, email, role string) (string, error)
+	ListUsers(ctx context.Context) ([]storage.AdminUserRow, error)
+	SetUserStatus(ctx context.Context, id, status string) (bool, error)
 }
 
 // AuthConfig carries the cookie + session + hashing parameters the auth

@@ -1,0 +1,37 @@
+post:
+  tags: [Admin]
+  summary: Suspend a user (admin only) (ADR-040)
+  description: >
+    Suspends an account. The user's sessions stop validating immediately
+    (LICENSE §3.3) — the session check requires an active user. An admin
+    cannot suspend their own account. Requires the `admin` role.
+  operationId: postAdminUserSuspend
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: User suspended.
+    '400':
+      description: An admin cannot suspend their own account.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '403':
+      description: Caller is not an admin.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '404':
+      description: No such user.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

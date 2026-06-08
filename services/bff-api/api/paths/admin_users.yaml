@@ -1,0 +1,61 @@
+get:
+  tags: [Admin]
+  summary: List users (admin only) (ADR-040)
+  description: Lists all user accounts. Requires the `admin` role.
+  operationId: getAdminUsers
+  responses:
+    '200':
+      description: The user list.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AdminUsersList.yaml'
+    '403':
+      description: Caller is not an admin.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
+post:
+  tags: [Admin]
+  summary: Create an invited user (admin only) (ADR-040)
+  description: >
+    Creates an account in the `invited` state and issues a single-use invite
+    token. Returns the accept-invite link (also dispatched through the email
+    sender). Requires the `admin` role. No open self-registration.
+  operationId: postAdminUsers
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/CreateUserRequest.yaml'
+  responses:
+    '201':
+      description: User invited. Returns the accept-invite link.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AdminActionLink.yaml'
+    '400':
+      description: Malformed body or invalid role.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '403':
+      description: Caller is not an admin.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '409':
+      description: A user with this email already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

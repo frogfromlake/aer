@@ -1897,6 +1897,14 @@ type Source struct {
 	Url *string `json:"url,omitempty"`
 }
 
+// PostAdminUsersJSONBody defines parameters for PostAdminUsers.
+type PostAdminUsersJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Role One of `admin`, `researcher`. Validated server-side.
+	Role string `json:"role"`
+}
+
 // GetArticleDetailParams defines parameters for GetArticleDetail.
 type GetArticleDetailParams struct {
 	// MetricName Metric whose aggregation group is consulted for the k-anonymity gate. Defaults to `word_count` — the metric every processed document contributes to, so the gate degenerates to "minimum document count for the article's source/window."
@@ -2726,6 +2734,9 @@ type GetTopicDistributionParams struct {
 // GetTopicDistributionParamsScope defines parameters for GetTopicDistribution.
 type GetTopicDistributionParamsScope string
 
+// PostAdminUsersJSONRequestBody defines body for PostAdminUsers for application/json ContentType.
+type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
+
 // PostAuthAcceptInviteJSONRequestBody defines body for PostAuthAcceptInvite for application/json ContentType.
 type PostAuthAcceptInviteJSONRequestBody PostAuthAcceptInviteJSONBody
 
@@ -2746,6 +2757,21 @@ type PostEntityCoOccurrenceQueryJSONRequestBody PostEntityCoOccurrenceQueryJSONB
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List users (admin only) (ADR-040)
+	// (GET /admin/users)
+	GetAdminUsers(w http.ResponseWriter, r *http.Request)
+	// Create an invited user (admin only) (ADR-040)
+	// (POST /admin/users)
+	PostAdminUsers(w http.ResponseWriter, r *http.Request)
+	// Reactivate a suspended user (admin only) (ADR-040)
+	// (POST /admin/users/{id}/reactivate)
+	PostAdminUserReactivate(w http.ResponseWriter, r *http.Request, id string)
+	// Admin-initiated password reset (admin only) (ADR-040)
+	// (POST /admin/users/{id}/reset-password)
+	PostAdminUserResetPassword(w http.ResponseWriter, r *http.Request, id string)
+	// Suspend a user (admin only) (ADR-040)
+	// (POST /admin/users/{id}/suspend)
+	PostAdminUserSuspend(w http.ResponseWriter, r *http.Request, id string)
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams)
@@ -2898,6 +2924,36 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// List users (admin only) (ADR-040)
+// (GET /admin/users)
+func (_ Unimplemented) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create an invited user (admin only) (ADR-040)
+// (POST /admin/users)
+func (_ Unimplemented) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reactivate a suspended user (admin only) (ADR-040)
+// (POST /admin/users/{id}/reactivate)
+func (_ Unimplemented) PostAdminUserReactivate(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Admin-initiated password reset (admin only) (ADR-040)
+// (POST /admin/users/{id}/reset-password)
+func (_ Unimplemented) PostAdminUserResetPassword(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Suspend a user (admin only) (ADR-040)
+// (POST /admin/users/{id}/suspend)
+func (_ Unimplemented) PostAdminUserSuspend(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // L5 Evidence — article detail with k-anonymity gate
 // (GET /articles/{id})
@@ -3201,6 +3257,139 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminUserReactivate operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminUserReactivate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminUserReactivate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminUserResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminUserResetPassword(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminUserResetPassword(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminUserSuspend operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminUserSuspend(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminUserSuspend(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetArticleDetail operation middleware
 func (siw *ServerInterfaceWrapper) GetArticleDetail(w http.ResponseWriter, r *http.Request) {
@@ -6313,6 +6502,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/users", wrapper.GetAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/users", wrapper.PostAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/users/{id}/reactivate", wrapper.PostAdminUserReactivate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/users/{id}/reset-password", wrapper.PostAdminUserResetPassword)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/users/{id}/suspend", wrapper.PostAdminUserSuspend)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/articles/{id}", wrapper.GetArticleDetail)
 	})
 	r.Group(func(r chi.Router) {
@@ -6461,6 +6665,390 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type GetAdminUsersRequestObject struct {
+}
+
+type GetAdminUsersResponseObject interface {
+	VisitGetAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUsers200JSONResponse struct {
+	Users []struct {
+		CreatedAt time.Time           `json:"createdAt"`
+		Email     openapi_types.Email `json:"email"`
+
+		// Id Opaque user id.
+		Id string `json:"id"`
+
+		// Role One of `admin`, `researcher`.
+		Role string `json:"role"`
+
+		// Status One of `invited`, `active`, `suspended`.
+		Status string `json:"status"`
+	} `json:"users"`
+}
+
+func (response GetAdminUsers200JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAdminUsers403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAdminUsers403JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAdminUsers500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAdminUsers500JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUsersRequestObject struct {
+	Body *PostAdminUsersJSONRequestBody
+}
+
+type PostAdminUsersResponseObject interface {
+	VisitPostAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type PostAdminUsers201JSONResponse struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Kind One of `invite`, `password_reset`.
+	Kind string `json:"kind"`
+
+	// Link The accept-invite / reset-password link carrying the single-use token.
+	Link   string `json:"link"`
+	UserId string `json:"userId"`
+}
+
+func (response PostAdminUsers201JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUsers400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUsers400JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUsers403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUsers403JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUsers409JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUsers409JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUsers500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAdminUsers500JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserReactivateRequestObject struct {
+	Id string `json:"id"`
+}
+
+type PostAdminUserReactivateResponseObject interface {
+	VisitPostAdminUserReactivateResponse(w http.ResponseWriter) error
+}
+
+type PostAdminUserReactivate204Response struct {
+}
+
+func (response PostAdminUserReactivate204Response) VisitPostAdminUserReactivateResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostAdminUserReactivate403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserReactivate403JSONResponse) VisitPostAdminUserReactivateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserReactivate404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserReactivate404JSONResponse) VisitPostAdminUserReactivateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserReactivate500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAdminUserReactivate500JSONResponse) VisitPostAdminUserReactivateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserResetPasswordRequestObject struct {
+	Id string `json:"id"`
+}
+
+type PostAdminUserResetPasswordResponseObject interface {
+	VisitPostAdminUserResetPasswordResponse(w http.ResponseWriter) error
+}
+
+type PostAdminUserResetPassword200JSONResponse struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Kind One of `invite`, `password_reset`.
+	Kind string `json:"kind"`
+
+	// Link The accept-invite / reset-password link carrying the single-use token.
+	Link   string `json:"link"`
+	UserId string `json:"userId"`
+}
+
+func (response PostAdminUserResetPassword200JSONResponse) VisitPostAdminUserResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserResetPassword403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserResetPassword403JSONResponse) VisitPostAdminUserResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserResetPassword404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserResetPassword404JSONResponse) VisitPostAdminUserResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserResetPassword500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAdminUserResetPassword500JSONResponse) VisitPostAdminUserResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserSuspendRequestObject struct {
+	Id string `json:"id"`
+}
+
+type PostAdminUserSuspendResponseObject interface {
+	VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error
+}
+
+type PostAdminUserSuspend204Response struct {
+}
+
+func (response PostAdminUserSuspend204Response) VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostAdminUserSuspend400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserSuspend400JSONResponse) VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserSuspend403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserSuspend403JSONResponse) VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserSuspend404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAdminUserSuspend404JSONResponse) VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAdminUserSuspend500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAdminUserSuspend500JSONResponse) VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type GetArticleDetailRequestObject struct {
@@ -10553,6 +11141,21 @@ func (response GetTopicDistribution500JSONResponse) VisitGetTopicDistributionRes
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// List users (admin only) (ADR-040)
+	// (GET /admin/users)
+	GetAdminUsers(ctx context.Context, request GetAdminUsersRequestObject) (GetAdminUsersResponseObject, error)
+	// Create an invited user (admin only) (ADR-040)
+	// (POST /admin/users)
+	PostAdminUsers(ctx context.Context, request PostAdminUsersRequestObject) (PostAdminUsersResponseObject, error)
+	// Reactivate a suspended user (admin only) (ADR-040)
+	// (POST /admin/users/{id}/reactivate)
+	PostAdminUserReactivate(ctx context.Context, request PostAdminUserReactivateRequestObject) (PostAdminUserReactivateResponseObject, error)
+	// Admin-initiated password reset (admin only) (ADR-040)
+	// (POST /admin/users/{id}/reset-password)
+	PostAdminUserResetPassword(ctx context.Context, request PostAdminUserResetPasswordRequestObject) (PostAdminUserResetPasswordResponseObject, error)
+	// Suspend a user (admin only) (ADR-040)
+	// (POST /admin/users/{id}/suspend)
+	PostAdminUserSuspend(ctx context.Context, request PostAdminUserSuspendRequestObject) (PostAdminUserSuspendResponseObject, error)
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(ctx context.Context, request GetArticleDetailRequestObject) (GetArticleDetailResponseObject, error)
@@ -10729,6 +11332,139 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminUsers operation middleware
+func (sh *strictHandler) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminUsersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUsers(ctx, request.(GetAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUsersResponseObject); ok {
+		if err := validResponse.VisitGetAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminUsers operation middleware
+func (sh *strictHandler) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminUsersRequestObject
+
+	var body PostAdminUsersJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminUsers(ctx, request.(PostAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminUsersResponseObject); ok {
+		if err := validResponse.VisitPostAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminUserReactivate operation middleware
+func (sh *strictHandler) PostAdminUserReactivate(w http.ResponseWriter, r *http.Request, id string) {
+	var request PostAdminUserReactivateRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminUserReactivate(ctx, request.(PostAdminUserReactivateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminUserReactivate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminUserReactivateResponseObject); ok {
+		if err := validResponse.VisitPostAdminUserReactivateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminUserResetPassword operation middleware
+func (sh *strictHandler) PostAdminUserResetPassword(w http.ResponseWriter, r *http.Request, id string) {
+	var request PostAdminUserResetPasswordRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminUserResetPassword(ctx, request.(PostAdminUserResetPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminUserResetPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminUserResetPasswordResponseObject); ok {
+		if err := validResponse.VisitPostAdminUserResetPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminUserSuspend operation middleware
+func (sh *strictHandler) PostAdminUserSuspend(w http.ResponseWriter, r *http.Request, id string) {
+	var request PostAdminUserSuspendRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminUserSuspend(ctx, request.(PostAdminUserSuspendRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminUserSuspend")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminUserSuspendResponseObject); ok {
+		if err := validResponse.VisitPostAdminUserSuspendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetArticleDetail operation middleware

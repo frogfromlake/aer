@@ -1,0 +1,36 @@
+post:
+  tags: [Admin]
+  summary: Admin-initiated password reset (admin only) (ADR-040)
+  description: >
+    Issues a single-use password-reset token for the user and returns the
+    reset link (also dispatched through the email sender). Works without SMTP
+    — the operator delivers the surfaced link manually. Requires the `admin`
+    role.
+  operationId: postAdminUserResetPassword
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Reset token issued. Returns the reset link.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AdminActionLink.yaml'
+    '403':
+      description: Caller is not an admin.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '404':
+      description: No such user.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

@@ -1,0 +1,23 @@
+type: object
+description: >
+  The one-time link produced by an admin action (invite or admin-initiated
+  password reset). Returned to the admin so it can be delivered manually while
+  the email seam runs the LogSender; the same link is also dispatched through
+  the configured sender. Once SMTP is wired, the UI can stop surfacing it.
+required:
+  - userId
+  - email
+  - kind
+  - link
+properties:
+  userId:
+    type: string
+  email:
+    type: string
+    format: email
+  kind:
+    type: string
+    description: One of `invite`, `password_reset`.
+  link:
+    type: string
+    description: The accept-invite / reset-password link carrying the single-use token.

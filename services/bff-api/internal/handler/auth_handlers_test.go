@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,6 +30,7 @@ type mockAuth struct {
 	tokens     map[string]*mockToken // tokenHash -> token
 	sessions   map[string]string     // idHash -> userID
 	revokedAll []string
+	idSeq      int
 }
 
 func newMockAuth() *mockAuth {
@@ -91,6 +93,30 @@ func (m *mockAuth) UpdateUserPassword(_ context.Context, id, passwordHash string
 		u.PasswordHash = sql.NullString{String: passwordHash, Valid: true}
 	}
 	return nil
+}
+func (m *mockAuth) CreateInvitedUser(_ context.Context, email, role string) (string, error) {
+	if _, exists := m.byEmail[strings.ToLower(email)]; exists {
+		return "", storage.ErrEmailExists
+	}
+	m.idSeq++
+	id := fmt.Sprintf("u%d", m.idSeq)
+	m.addUser(&storage.AuthUser{ID: id, Email: email, Role: role, Status: "invited"})
+	return id, nil
+}
+func (m *mockAuth) ListUsers(_ context.Context) ([]storage.AdminUserRow, error) {
+	out := make([]storage.AdminUserRow, 0, len(m.byID))
+	for _, u := range m.byID {
+		out = append(out, storage.AdminUserRow{ID: u.ID, Email: u.Email, Role: u.Role, Status: u.Status})
+	}
+	return out, nil
+}
+func (m *mockAuth) SetUserStatus(_ context.Context, id, status string) (bool, error) {
+	u, ok := m.byID[id]
+	if !ok {
+		return false, nil
+	}
+	u.Status = status
+	return true, nil
 }
 
 // --- test scaffolding --------------------------------------------------------

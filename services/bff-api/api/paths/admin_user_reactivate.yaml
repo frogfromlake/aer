@@ -1,0 +1,28 @@
+post:
+  tags: [Admin]
+  summary: Reactivate a suspended user (admin only) (ADR-040)
+  description: Returns a suspended account to the `active` state. Requires the `admin` role.
+  operationId: postAdminUserReactivate
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: User reactivated.
+    '403':
+      description: Caller is not an admin.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '404':
+      description: No such user.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

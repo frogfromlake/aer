@@ -7,8 +7,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/frogfromlake/aer/services/bff-api/internal/auth"
 )
+
+// ErrEmailExists is returned by CreateInvitedUser when the email is already
+// registered (Postgres unique-violation 23505).
+var ErrEmailExists = errors.New("email already exists")
+
+// isInvalidUUIDErr reports whether err is a Postgres invalid-text-representation
+// (22P02) — i.e. a malformed UUID path parameter. The caller maps it to "not
+// found" rather than a 500.
+func isInvalidUUIDErr(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "22P02"
+}
 
 // AuthStore is the write path for the Phase-134 auth tables (ADR-040). It runs
 // under the dedicated `bff_auth` Postgres role (DML on users / sessions /
@@ -53,7 +67,8 @@ func (s *AuthStore) GetUserByID(ctx context.Context, id string) (*AuthUser, erro
 func scanUser(row *sql.Row) (*AuthUser, error) {
 	var u AuthUser
 	if err := row.Scan(&u.ID, &u.Email, &u.Role, &u.Status, &u.PasswordHash); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		// No row, or a malformed UUID path parameter — both "not found".
+		if errors.Is(err, sql.ErrNoRows) || isInvalidUUIDErr(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("scan user: %w", err)
@@ -187,4 +202,67 @@ func (s *AuthStore) DeleteExpiredSessions(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// --- admin (Phase 134 / ADR-040) --------------------------------------------
+
+// AdminUserRow is the admin projection of a user (no password material).
+type AdminUserRow struct {
+	ID        string
+	Email     string
+	Role      string
+	Status    string
+	CreatedAt time.Time
+}
+
+// CreateInvitedUser inserts an invited (not-yet-activated) user with the given
+// role and returns its id. Returns ErrEmailExists on a duplicate email.
+func (s *AuthStore) CreateInvitedUser(ctx context.Context, email, role string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO users (email, role, status) VALUES ($1, $2, 'invited') RETURNING id::text`,
+		email, role).Scan(&id)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return "", ErrEmailExists
+		}
+		return "", fmt.Errorf("create invited user: %w", err)
+	}
+	return id, nil
+}
+
+// ListUsers returns all users, oldest first.
+func (s *AuthStore) ListUsers(ctx context.Context) ([]AdminUserRow, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id::text, email, role, status, created_at FROM users ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []AdminUserRow
+	for rows.Next() {
+		var u AdminUserRow
+		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.Status, &u.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan user row: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// SetUserStatus updates a user's status and reports whether a row was affected
+// (false → no such user / malformed id, which the handler maps to 404).
+func (s *AuthStore) SetUserStatus(ctx context.Context, id, status string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET status = $2, updated_at = now() WHERE id = $1::uuid`, id, status)
+	if err != nil {
+		if isInvalidUUIDErr(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("set user status: %w", err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
