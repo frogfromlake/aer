@@ -1,7 +1,13 @@
 <script lang="ts">
   import '$lib/design/global.css';
   import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
+  import { setUnauthenticatedHandler } from '$lib/api/queries';
+  import { handleUnauthenticated } from '$lib/state/auth.svelte';
   let { children } = $props();
+
+  // Phase 134 / ADR-040: route any data-layer 401 to the auth redirect, without
+  // the data layer importing the auth/navigation modules.
+  setUnauthenticatedHandler(handleUnauthenticated);
 
   // One QueryClient for the lifetime of the shell. Defaults:
   //  - Refusals are returned as success data, so `retry` on errors stays

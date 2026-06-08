@@ -199,6 +199,21 @@
       <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
     </div>
   </div>
+
+  <!-- Section 4: Account (Phase 134 / ADR-040) -->
+  <div class="section">
+    <span class="section-eyebrow">Account</span>
+    <a
+      href="/account"
+      class="surface-link"
+      aria-label="Your account"
+      title="Your account, password, passkeys and privacy"
+      data-sveltekit-preload-data="hover"
+    >
+      <span class="glyph" aria-hidden="true">⊙</span>
+      <span class="rail-label">Your account</span>
+    </a>
+  </div>
 </nav>
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->

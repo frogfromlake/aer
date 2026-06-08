@@ -16,6 +16,14 @@
 
 import type { paths, components } from './types';
 
+// 401 handler hook (Phase 134 / ADR-040). Decoupled via registration so the
+// data layer does not import the auth/navigation modules (keeps it unit-
+// testable). The app registers `handleUnauthenticated` in the root layout.
+let onUnauthenticated: (() => void) | null = null;
+export function setUnauthenticatedHandler(fn: () => void): void {
+  onUnauthenticated = fn;
+}
+
 export type ProbeDto = components['schemas']['Probe'];
 export type EmissionPointDto = components['schemas']['EmissionPoint'];
 export type ContentResponseDto = components['schemas']['ContentResponse'];
@@ -185,6 +193,19 @@ async function fetchJson<T>(
     // Transport-level failure (DNS, offline, CORS preflight): no status.
     const message = err instanceof Error ? err.message : 'network request failed';
     throw { kind: 'network-error', message } satisfies NetworkErrorOutcome;
+  }
+
+  // 401 (Phase 134 / ADR-040): the session is missing or expired. NOT a
+  // methodological refusal — clear the cached identity and bounce to /login.
+  // (400 stays a refusal by design; auth-403 is handled by the auth-specific
+  // clients, not here.)
+  if (response.status === 401) {
+    onUnauthenticated?.();
+    throw {
+      kind: 'network-error',
+      message: 'unauthenticated',
+      httpStatus: 401
+    } satisfies NetworkErrorOutcome;
   }
 
   // Methodological gates → surfaced as refusals, not errors.
