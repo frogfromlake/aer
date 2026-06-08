@@ -4583,7 +4583,8 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-# Closure — Polish, Audit, Documentation
+
+# Iteration 11 - Closure — Polish, Audit, Documentation
 
 *The "ready for first external user" gate, run against the final post-Iteration-10 surface. Coherence is checked continuously (after each major complex) plus a final pass; then accessibility/performance; then the documentation sweep.*
 
@@ -4649,7 +4650,6 @@ This phase enforces the following — every implementation choice must satisfy t
 # Deferred Phases
 
 *Recorded decisions, not committed work. Each carries explicit trigger conditions so the deferral is not silent.*
-
 ---
 
 ## Deferred: Phase 122a.0: Per-Article Discourse Function — Backend [P2]
