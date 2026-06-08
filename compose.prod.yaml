@@ -31,8 +31,9 @@ services:
       - "traefik.http.routers.bff-api.entrypoints=websecure"
       - "traefik.http.routers.bff-api.tls.certresolver=myresolver"
       - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
-      - "traefik.http.routers.bff-api.middlewares=bff-api-key@docker"
-      - "traefik.http.middlewares.bff-api-key.headers.customrequestheaders.X-API-Key=${BFF_API_KEY}"
+      # Phase 134 / ADR-040: NO gateway-injected API key (mirrors compose.yaml).
+      # Browsers authenticate by the opaque session cookie; the X-API-Key is a
+      # machine-only credential sent directly to the BFF on the backend network.
 
   dashboard:
     labels:

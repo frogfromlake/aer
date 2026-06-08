@@ -90,6 +90,13 @@ jobs:
           sed -i "s|^BFF_MINIO_ACCESS_KEY=.*|BFF_MINIO_ACCESS_KEY=${{ secrets.BFF_MINIO_ACCESS_KEY }}|" .env
           sed -i "s|^BFF_MINIO_SECRET_KEY=.*|BFF_MINIO_SECRET_KEY=${{ secrets.BFF_MINIO_SECRET_KEY }}|" .env
           sed -i "s|^BFF_DB_PASSWORD=.*|BFF_DB_PASSWORD=${{ secrets.BFF_DB_PASSWORD }}|" .env
+
+          # Phase 134 / ADR-040: the BFF auth write role. BFF_AUTH_DB_USER
+          # defaults to bff_auth (a workflow convention, already in
+          # .env.example — not a secret); only the password is a secret.
+          # postgres-init-roles provisions the role with this password and the
+          # BFF connects with it, so both sides read the same .env value.
+          sed -i "s|^BFF_AUTH_DB_PASSWORD=.*|BFF_AUTH_DB_PASSWORD=${{ secrets.BFF_AUTH_DB_PASSWORD }}|" .env
           sed -i "s|^GF_SECURITY_ADMIN_PASSWORD=.*|GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}|" .env
 
       - name: Run E2E smoke test

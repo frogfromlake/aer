@@ -64,15 +64,16 @@ Since Phase 75, the Go services validate a small set of required secrets at star
 
 | Variable | Consumed by | Where to set |
 |----------|-------------|--------------|
-| `BFF_API_KEY` | `bff-api` (`X-API-Key` header auth) | `.env` for local/compose, GitHub Actions secret for CI, secret manager for prod |
+| `BFF_API_KEY` | `bff-api` — **machine credential** (ADR-040): session-OR-key gate; no longer gateway-injected for browsers | `.env` for local/compose, GitHub Actions secret for CI, secret manager for prod |
+| `BFF_AUTH_DB_PASSWORD` | `bff-api` (`bff_auth` write role) + `postgres-init-roles` (Phase 134 / ADR-040) | same as above |
 | `CLICKHOUSE_PASSWORD` | `bff-api` (ClickHouse client) | same as above |
 | `INGESTION_API_KEY` | `ingestion-api` (`X-API-Key` header auth) | same as above |
 | `DB_URL` | `ingestion-api` (Postgres client; embeds `POSTGRES_PASSWORD`) | same as above |
 | `POSTGRES_PASSWORD` | Postgres init + `DB_URL` | same as above |
 
-**Generate API keys** with `openssl rand -base64 32`.
+**Generate API keys / passwords** with `openssl rand -base64 32`.
 
-**CI (GitHub Actions):** add the four secrets above in `Settings → Secrets and variables → Actions` and surface them as env vars in any job that boots the services (integration and e2e jobs). Unit tests that never call `config.Load()` are unaffected.
+**CI / deployment GitHub configuration** is enumerated in `docs/operations/github_repository_configuration.md` (the authoritative ledger of Actions Secrets and Variables). Unit tests that never call `config.Load()` need no secrets; only the nightly e2e smoke (`e2e_smoke_nightly.yml`) and deployment consume them.
 
 ---
 
@@ -100,11 +101,22 @@ make test-e2e            # Run Docker Compose end-to-end smoke test
 > debug port forwarder), gated by service healthchecks. For frontend
 > iteration, `make backend-up` skips the dashboard container and `make fe-dev`
 > serves the SvelteKit dev server on `:5173`, proxying `/api` through Traefik
-> on `https://localhost`. The browser never sees `BFF_API_KEY`: Traefik
-> attaches it as `X-API-Key` to every `/api/*` request server-side (see the
-> `bff-api-key` middleware in `compose.yaml`). Non-browser callers (crawlers,
-> `scripts/build/e2e_smoke_test.sh`) keep sending `X-API-Key` directly to the BFF
-> on `:8080`.
+> on `https://localhost`.
+>
+> **Auth posture (Phase 134 / ADR-040).** Traefik **no longer injects an API
+> key** for browsers. Browsers authenticate with the opaque `__Host-` session
+> cookie; the BFF gate accepts **a valid session OR a valid `X-API-Key`**, so a
+> browser with neither is rejected (401) — this is the whole-app gate. The
+> `X-API-Key` is demoted to a **machine credential**: non-browser callers
+> (crawlers, `scripts/build/e2e_smoke_test.sh`) send it directly to the BFF on
+> `:8080` on the backend network, never through the public Traefik router.
+> **Do not re-add a gateway-injected key middleware** in `compose.yaml` /
+> `compose.prod.yaml` — it would defeat the gate. The Traefik label change and
+> the BFF middleware (`internal/auth/middleware.go`) must move in lockstep.
+>
+> **Bootstrap the first admin** with `make create-admin` (prints an
+> accept-invite link for `ADMIN_BOOTSTRAP_EMAIL`); self-registration is closed
+> (LICENSE §3.2).
 
 ### Build Cache Headroom
 

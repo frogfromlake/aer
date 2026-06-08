@@ -647,13 +647,14 @@ services:
       - "traefik.http.routers.bff-api.entrypoints=websecure"
       - "traefik.http.routers.bff-api.tls=true"
       - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
-      # Gateway-injected API key. Browsers never see BFF_API_KEY: Traefik
-      # adds the header to every /api/* request server-side, and the
-      # static bundle ships with no secret. Non-browser callers (crawlers,
-      # smoke tests) keep sending X-API-Key directly to the BFF on :8080.
-      # Replace with proper session auth once a login surface exists.
-      - "traefik.http.routers.bff-api.middlewares=bff-api-key@docker"
-      - "traefik.http.middlewares.bff-api-key.headers.customrequestheaders.X-API-Key=${BFF_API_KEY}"
+      # Phase 134 / ADR-040: Traefik NO LONGER injects an API key. Browsers
+      # authenticate with the opaque `__Host-` session cookie (BFF token-
+      # handler pattern); the BFF gate (session OR X-API-Key) means a browser
+      # with no session and no key is rejected. The X-API-Key is demoted to a
+      # MACHINE credential: non-browser callers (crawlers, CI / smoke tests)
+      # send it directly to the BFF on :8080 on the backend network, never via
+      # this public router. Re-adding a gateway-injected key here would defeat
+      # the gate — do not.
     networks:
       - aer-frontend
       - aer-backend

@@ -238,6 +238,14 @@ func main() {
 		allowedOrigins := strings.Split(cfg.CORSOrigins, ",")
 		r.Use(mw.NewCORSHandler(allowedOrigins, []string{"GET", "POST", "OPTIONS"}))
 
+		// Security hardening (Phase 134 / ADR-040): HSTS on every response, and
+		// Fetch-Metadata CSRF rejection of cross-site state-changing requests
+		// (defense-in-depth on the SameSite=Strict session cookie). Both are
+		// frontend-free; machine X-API-Key callers send no Sec-Fetch-Site and
+		// are unaffected.
+		r.Use(auth.SecurityHeaders)
+		r.Use(auth.FetchMetadataCSRF)
+
 		// OTel: wraps each request in a span and propagates the trace context
 		r.Use(func(next http.Handler) http.Handler {
 			return otelhttp.NewHandler(next, "bff-api")
