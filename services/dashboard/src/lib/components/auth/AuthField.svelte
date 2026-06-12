@@ -86,6 +86,20 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
+  /* Browsers paint a yellow/blue background on autofilled fields. Override it
+     with the dark AĒR input background (the box-shadow trick is the only way to
+     repaint an autofilled field). */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--color-bg) inset;
+    box-shadow: 0 0 0 1000px var(--color-bg) inset;
+    -webkit-text-fill-color: var(--color-fg);
+    caret-color: var(--color-fg);
+    border-color: var(--color-border);
+    transition: background-color 9999s ease-in-out 0s;
+  }
   .hint {
     font-size: var(--font-size-xs);
     color: var(--color-fg-subtle);

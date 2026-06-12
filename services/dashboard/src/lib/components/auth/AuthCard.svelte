@@ -105,19 +105,23 @@
     text-transform: uppercase;
   }
 
+  /* Left-aligned section heading so it reads as a form title, not a second
+     centred wordmark. A hairline rule separates the brand block from the form. */
   .title {
     font-family: var(--font-ui);
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
     color: var(--color-fg);
     margin: 0;
-    text-align: center;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: left;
   }
   .subtitle {
     margin: calc(-1 * var(--space-2)) 0 0;
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
-    text-align: center;
+    text-align: left;
     line-height: var(--line-height-base);
   }
 

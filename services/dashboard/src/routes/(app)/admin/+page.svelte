@@ -5,6 +5,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import GlobeBackdrop from '$lib/components/atmosphere/GlobeBackdrop.svelte';
 
   const admin = $derived(isAdmin());
 
@@ -67,6 +68,8 @@
 </script>
 
 <svelte:head><title>Administration · AĒR</title></svelte:head>
+
+<GlobeBackdrop />
 
 <main class="settings">
   <header class="page-head"><h1>Administration</h1></header>
@@ -157,6 +160,8 @@
 
 <style>
   .settings {
+    position: relative;
+    z-index: 1;
     padding: var(--space-6) var(--space-6) var(--space-8);
     padding-left: calc(var(--rail-width) + var(--space-6));
     max-width: calc(var(--rail-width) + 56rem);
@@ -172,13 +177,16 @@
     margin: 0;
   }
   .panel {
-    background: var(--color-surface);
+    background: color-mix(in oklab, var(--color-surface) 80%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-5);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    box-shadow: var(--elevation-2);
   }
   .panel h2 {
     font-size: var(--font-size-md);

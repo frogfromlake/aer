@@ -25,6 +25,7 @@
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
+  import AccountMenu from '$lib/components/chrome/AccountMenu.svelte';
   import { getPillar } from '$lib/viewmodes';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import type { ViewingMode } from '$lib/state/url-internals';
@@ -200,19 +201,9 @@
     </div>
   </div>
 
-  <!-- Section 4: Account (Phase 134 / ADR-040) -->
+  <!-- Section 4: Account (Phase 134 / ADR-040) — the account button + submenu. -->
   <div class="section">
-    <span class="section-eyebrow">Account</span>
-    <a
-      href="/account"
-      class="surface-link"
-      aria-label="Your account"
-      title="Your account, password, passkeys and privacy"
-      data-sveltekit-preload-data="hover"
-    >
-      <span class="glyph" aria-hidden="true">⊙</span>
-      <span class="rail-label">Your account</span>
-    </a>
+    <AccountMenu />
   </div>
 </nav>
 

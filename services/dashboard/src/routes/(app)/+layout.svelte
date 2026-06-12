@@ -23,7 +23,6 @@
   import { onMount } from 'svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { SideRail } from '$lib/components/chrome';
-  import ProfileMenu from '$lib/components/chrome/ProfileMenu.svelte';
   import DossierOverlay from '$lib/components/dossier/DossierOverlay.svelte';
   import { rehydrateUrlState } from '$lib/state/url.svelte';
   import { user, authChecked, refreshMe } from '$lib/state/auth.svelte';
@@ -53,7 +52,6 @@
 
 {#if ready && user()}
   <SideRail />
-  <ProfileMenu />
   {#if children}{@render children()}{/if}
   <DossierOverlay />
 {/if}

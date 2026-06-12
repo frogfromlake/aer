@@ -1,8 +1,9 @@
 <script lang="ts">
   /* eslint-disable svelte/no-navigation-without-resolve -- internal account/admin routes */
-  // Top-right profile menu (Phase 134 / ADR-040): identity, account, admin
-  // (admins only), and sign-out. Reads the cached current user; renders nothing
-  // until a user is known (the (app) layout guards the route).
+  // SideRail account control (Phase 134 / ADR-040). One button — the user's
+  // initial avatar + email — that opens the account submenu (role, Your
+  // account, Administration, Sign out). Replaces the former top-right profile
+  // menu; the popup opens upward since the button sits at the foot of the rail.
   import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
 
   let open = $state(false);
@@ -28,25 +29,25 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKeydown} />
 
 {#if current}
-  <div class="profile" bind:this={rootEl}>
+  <div class="account" bind:this={rootEl}>
     <button
       type="button"
-      class="avatar"
+      class="account-btn"
+      class:open
       aria-haspopup="menu"
       aria-expanded={open}
       aria-label="Account menu"
       onclick={toggle}
     >
-      {initial}
+      <span class="avatar" aria-hidden="true">{initial}</span>
+      <span class="email" title={current.email}>{current.email}</span>
     </button>
 
     {#if open}
       <div class="menu" role="menu">
         <div class="identity">
-          <span class="email" title={current.email}>{current.email}</span>
           <span class="role">{current.role}</span>
         </div>
-        <div class="divider"></div>
         <a class="item" role="menuitem" href="/account" onclick={close}>Your account</a>
         {#if isAdmin()}
           <a class="item" role="menuitem" href="/admin" onclick={close}>Administration</a>
@@ -61,41 +62,58 @@
 {/if}
 
 <style>
-  .profile {
-    position: fixed;
-    top: var(--space-2);
-    right: var(--space-4);
-    z-index: 500;
+  .account {
+    position: relative;
+  }
+  .account-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--color-fg-muted);
+    transition:
+      background var(--motion-duration-fast),
+      color var(--motion-duration-fast);
+  }
+  .account-btn:hover,
+  .account-btn:focus-visible,
+  .account-btn.open {
+    background: var(--color-surface-hover);
+    color: var(--color-fg);
+    outline: none;
   }
   .avatar {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
     border-radius: var(--radius-pill);
     border: 1px solid var(--color-border-strong);
     background: var(--color-surface);
     color: var(--color-fg);
-    font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
-    cursor: pointer;
     display: grid;
     place-items: center;
-    transition:
-      background var(--motion-duration-fast),
-      border-color var(--motion-duration-fast);
   }
-  .avatar:hover,
-  .avatar:focus-visible {
-    background: var(--color-surface-hover);
-    border-color: var(--color-accent);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+  .email {
+    font-size: 12px;
+    font-family: var(--font-ui);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+
   .menu {
     position: absolute;
-    top: calc(100% + var(--space-2));
-    right: 0;
+    bottom: calc(100% + var(--space-2));
+    left: 0;
     min-width: 13rem;
+    z-index: 500;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -106,18 +124,7 @@
     gap: 2px;
   }
   .identity {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--space-2) var(--space-3);
-  }
-  .email {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 14rem;
+    padding: var(--space-1) var(--space-3) var(--space-2);
   }
   .role {
     font-size: var(--font-size-xs);
