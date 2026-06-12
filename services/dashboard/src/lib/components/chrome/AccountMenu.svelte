@@ -1,12 +1,21 @@
 <script lang="ts">
-  /* eslint-disable svelte/no-navigation-without-resolve -- internal account/admin routes */
   // SideRail account control (Phase 134 / ADR-040). One button — the user's
   // initial avatar + email — that opens the account submenu (role, Your
   // account, Administration, Sign out). Replaces the former top-right profile
   // menu; the popup opens upward since the button sits at the foot of the rail.
   import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
+  import { setUrl } from '$lib/state/url.svelte';
 
   let open = $state(false);
+
+  function openAccount() {
+    setUrl({ account: 'open' });
+    close();
+  }
+  function openAdmin() {
+    setUrl({ admin: 'open' });
+    close();
+  }
   let rootEl: HTMLElement | undefined = $state();
 
   const current = $derived(user());
@@ -48,9 +57,13 @@
         <div class="identity">
           <span class="role">{current.role}</span>
         </div>
-        <a class="item" role="menuitem" href="/account" onclick={close}>Your account</a>
+        <button type="button" class="item" role="menuitem" onclick={openAccount}
+          >Your account</button
+        >
         {#if isAdmin()}
-          <a class="item" role="menuitem" href="/admin" onclick={close}>Administration</a>
+          <button type="button" class="item" role="menuitem" onclick={openAdmin}
+            >Administration</button
+          >
         {/if}
         <div class="divider"></div>
         <button type="button" class="item signout" role="menuitem" onclick={() => doLogout()}>

@@ -374,6 +374,10 @@ export interface UrlState {
   // via `?dossier=open` (round-trips for deep-linking). Probe focus is
   // carried by `?selectedProbes=`, not a separate param.
   dossier: 'open' | null;
+  // Phase 134 / ADR-040 — account + admin as global overlays over the globe
+  // (same model as the Dossier), so the globe never remounts on open/close.
+  account: 'open' | null;
+  admin: 'open' | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -390,7 +394,9 @@ export const EMPTY_URL_STATE: UrlState = {
   activePillar: null,
   pillars: null,
   selectedProbes: [],
-  dossier: null
+  dossier: null,
+  account: null,
+  admin: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
@@ -457,7 +463,9 @@ export function readFromSearch(search: string): UrlState {
     activePillar: parseEnum(p.get('activePillar'), VIEWING_MODES),
     pillars: hasPillars ? { aleph, episteme, rhizome } : null,
     selectedProbes: parseIdList(p.get('selectedProbes')),
-    dossier: p.get('dossier') === 'open' ? 'open' : null
+    dossier: p.get('dossier') === 'open' ? 'open' : null,
+    account: p.get('account') === 'open' ? 'open' : null,
+    admin: p.get('admin') === 'open' ? 'open' : null
   };
 }
 
@@ -500,6 +508,9 @@ export function writeToSearch(state: UrlState): string {
   }
   // Phase 123a — Dossier overlay state.
   if (state.dossier === 'open') p.set('dossier', 'open');
+  // Phase 134 — account / admin overlays.
+  if (state.account === 'open') p.set('account', 'open');
+  if (state.admin === 'open') p.set('admin', 'open');
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }
