@@ -1,0 +1,27 @@
+delete:
+  tags: [Analyses]
+  summary: Revoke a grantee from an analysis (owner only) (Phase 135)
+  operationId: deleteAnalysisShare
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string } }
+    - { name: granteeId, in: path, required: true, schema: { type: string } }
+  responses:
+    '204':
+      description: Revoked.
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '403':
+      description: Only the owner can manage shares.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '404':
+      description: No such grant.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

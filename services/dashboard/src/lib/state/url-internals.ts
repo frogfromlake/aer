@@ -378,6 +378,14 @@ export interface UrlState {
   // (same model as the Dossier), so the globe never remounts on open/close.
   account: 'open' | null;
   admin: 'open' | null;
+  // Phase 135 — saved-analyses overlay. `save` opens it directly in the
+  // save-current-view flow (a discoverable affordance from the Workbench).
+  analyses: 'open' | 'save' | null;
+  // Phase 135 — the saved analysis the current Workbench view was opened from
+  // (set by "Open in Workbench"). A first-class field so it survives panel
+  // mutations (writeToSearch rebuilds the query) and lets "Save" offer an
+  // in-place update. Never part of a saved deep-link (stripped on capture).
+  savedAnalysis: string | null;
 }
 
 // SSoT default lookback used when ?from/?to are absent. Both the page
@@ -396,7 +404,9 @@ export const EMPTY_URL_STATE: UrlState = {
   selectedProbes: [],
   dossier: null,
   account: null,
-  admin: null
+  admin: null,
+  analyses: null,
+  savedAnalysis: null
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
@@ -465,7 +475,9 @@ export function readFromSearch(search: string): UrlState {
     selectedProbes: parseIdList(p.get('selectedProbes')),
     dossier: p.get('dossier') === 'open' ? 'open' : null,
     account: p.get('account') === 'open' ? 'open' : null,
-    admin: p.get('admin') === 'open' ? 'open' : null
+    admin: p.get('admin') === 'open' ? 'open' : null,
+    analyses: p.get('analyses') === 'open' ? 'open' : p.get('analyses') === 'save' ? 'save' : null,
+    savedAnalysis: p.get('savedAnalysis') || null
   };
 }
 
@@ -511,6 +523,10 @@ export function writeToSearch(state: UrlState): string {
   // Phase 134 — account / admin overlays.
   if (state.account === 'open') p.set('account', 'open');
   if (state.admin === 'open') p.set('admin', 'open');
+  // Phase 135 — analyses overlay.
+  if (state.analyses) p.set('analyses', state.analyses);
+  // Phase 135 — preserve the "loaded saved analysis" marker across mutations.
+  if (state.savedAnalysis) p.set('savedAnalysis', state.savedAnalysis);
   const qs = p.toString();
   return qs.length === 0 ? '' : `?${qs}`;
 }

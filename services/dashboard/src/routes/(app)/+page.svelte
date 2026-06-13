@@ -42,7 +42,7 @@
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { ScopeBar } from '$lib/components/chrome';
-  import { urlState, setUrl } from '$lib/state/url.svelte';
+  import { urlState, setUrl, toggleOverlay } from '$lib/state/url.svelte';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
@@ -414,7 +414,7 @@
           <span class="compose-count"
             >⊗ {url.selectedProbes.length} probe{url.selectedProbes.length === 1 ? '' : 's'} selected</span
           >
-          <button type="button" class="compose-btn" onclick={() => setUrl({ dossier: 'open' })}>
+          <button type="button" class="compose-btn" onclick={() => toggleOverlay('dossier')}>
             Open Dossier
           </button>
           <button

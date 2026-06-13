@@ -1905,6 +1905,29 @@ type PostAdminUsersJSONBody struct {
 	Role string `json:"role"`
 }
 
+// PostAnalysesJSONBody defines parameters for PostAnalyses.
+type PostAnalysesJSONBody struct {
+	Description *string `json:"description,omitempty"`
+	Name        string  `json:"name"`
+
+	// State The serialized Workbench URL query to persist.
+	State string `json:"state"`
+}
+
+// PatchAnalysisJSONBody defines parameters for PatchAnalysis.
+type PatchAnalysisJSONBody struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	State       *string `json:"state,omitempty"`
+}
+
+// PostAnalysisShareJSONBody defines parameters for PostAnalysisShare.
+type PostAnalysisShareJSONBody struct {
+	// CanEdit True grants edit; default read-only.
+	CanEdit *bool               `json:"canEdit,omitempty"`
+	Email   openapi_types.Email `json:"email"`
+}
+
 // GetArticleDetailParams defines parameters for GetArticleDetail.
 type GetArticleDetailParams struct {
 	// MetricName Metric whose aggregation group is consulted for the k-anonymity gate. Defaults to `word_count` — the metric every processed document contributes to, so the gate degenerates to "minimum document count for the article's source/window."
@@ -2743,6 +2766,15 @@ type GetTopicDistributionParamsScope string
 // PostAdminUsersJSONRequestBody defines body for PostAdminUsers for application/json ContentType.
 type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
 
+// PostAnalysesJSONRequestBody defines body for PostAnalyses for application/json ContentType.
+type PostAnalysesJSONRequestBody PostAnalysesJSONBody
+
+// PatchAnalysisJSONRequestBody defines body for PatchAnalysis for application/json ContentType.
+type PatchAnalysisJSONRequestBody PatchAnalysisJSONBody
+
+// PostAnalysisShareJSONRequestBody defines body for PostAnalysisShare for application/json ContentType.
+type PostAnalysisShareJSONRequestBody PostAnalysisShareJSONBody
+
 // PostAuthAcceptInviteJSONRequestBody defines body for PostAuthAcceptInvite for application/json ContentType.
 type PostAuthAcceptInviteJSONRequestBody PostAuthAcceptInviteJSONBody
 
@@ -2784,6 +2816,30 @@ type ServerInterface interface {
 	// Suspend a user (admin only) (ADR-040)
 	// (POST /admin/users/{id}/suspend)
 	PostAdminUserSuspend(w http.ResponseWriter, r *http.Request, id string)
+	// List saved analyses visible to the current user (Phase 135)
+	// (GET /analyses)
+	GetAnalyses(w http.ResponseWriter, r *http.Request)
+	// Save the current analysis (Phase 135)
+	// (POST /analyses)
+	PostAnalyses(w http.ResponseWriter, r *http.Request)
+	// Delete a saved analysis (owner only) (Phase 135)
+	// (DELETE /analyses/{id})
+	DeleteAnalysis(w http.ResponseWriter, r *http.Request, id string)
+	// Get one saved analysis incl. its state (Phase 135)
+	// (GET /analyses/{id})
+	GetAnalysis(w http.ResponseWriter, r *http.Request, id string)
+	// Update a saved analysis (Phase 135)
+	// (PATCH /analyses/{id})
+	PatchAnalysis(w http.ResponseWriter, r *http.Request, id string)
+	// List the grantees of an analysis (owner only) (Phase 135)
+	// (GET /analyses/{id}/shares)
+	GetAnalysisShares(w http.ResponseWriter, r *http.Request, id string)
+	// Share an analysis with a specific user by email (owner only) (Phase 135)
+	// (POST /analyses/{id}/shares)
+	PostAnalysisShare(w http.ResponseWriter, r *http.Request, id string)
+	// Revoke a grantee from an analysis (owner only) (Phase 135)
+	// (DELETE /analyses/{id}/shares/{granteeId})
+	DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeId string)
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams)
@@ -2988,6 +3044,54 @@ func (_ Unimplemented) PostAdminUserResetPassword(w http.ResponseWriter, r *http
 // Suspend a user (admin only) (ADR-040)
 // (POST /admin/users/{id}/suspend)
 func (_ Unimplemented) PostAdminUserSuspend(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List saved analyses visible to the current user (Phase 135)
+// (GET /analyses)
+func (_ Unimplemented) GetAnalyses(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Save the current analysis (Phase 135)
+// (POST /analyses)
+func (_ Unimplemented) PostAnalyses(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete a saved analysis (owner only) (Phase 135)
+// (DELETE /analyses/{id})
+func (_ Unimplemented) DeleteAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get one saved analysis incl. its state (Phase 135)
+// (GET /analyses/{id})
+func (_ Unimplemented) GetAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a saved analysis (Phase 135)
+// (PATCH /analyses/{id})
+func (_ Unimplemented) PatchAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the grantees of an analysis (owner only) (Phase 135)
+// (GET /analyses/{id}/shares)
+func (_ Unimplemented) GetAnalysisShares(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Share an analysis with a specific user by email (owner only) (Phase 135)
+// (POST /analyses/{id}/shares)
+func (_ Unimplemented) PostAnalysisShare(w http.ResponseWriter, r *http.Request, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Revoke a grantee from an analysis (owner only) (Phase 135)
+// (DELETE /analyses/{id}/shares/{granteeId})
+func (_ Unimplemented) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3466,6 +3570,241 @@ func (siw *ServerInterfaceWrapper) PostAdminUserSuspend(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAdminUserSuspend(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAnalyses operation middleware
+func (siw *ServerInterfaceWrapper) GetAnalyses(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAnalyses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAnalyses operation middleware
+func (siw *ServerInterfaceWrapper) PostAnalyses(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAnalyses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAnalysis operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAnalysis(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAnalysis(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAnalysis operation middleware
+func (siw *ServerInterfaceWrapper) GetAnalysis(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAnalysis(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchAnalysis operation middleware
+func (siw *ServerInterfaceWrapper) PatchAnalysis(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchAnalysis(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAnalysisShares operation middleware
+func (siw *ServerInterfaceWrapper) GetAnalysisShares(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAnalysisShares(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAnalysisShare operation middleware
+func (siw *ServerInterfaceWrapper) PostAnalysisShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAnalysisShare(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAnalysisShare operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "granteeId" -------------
+	var granteeId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "granteeId", chi.URLParam(r, "granteeId"), &granteeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granteeId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAnalysisShare(w, r, id, granteeId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6772,6 +7111,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/admin/users/{id}/suspend", wrapper.PostAdminUserSuspend)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/analyses", wrapper.GetAnalyses)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/analyses", wrapper.PostAnalyses)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/analyses/{id}", wrapper.DeleteAnalysis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/analyses/{id}", wrapper.GetAnalysis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/analyses/{id}", wrapper.PatchAnalysis)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/analyses/{id}/shares", wrapper.GetAnalysisShares)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/analyses/{id}/shares", wrapper.PostAnalysisShare)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/analyses/{id}/shares/{granteeId}", wrapper.DeleteAnalysisShare)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/articles/{id}", wrapper.GetArticleDetail)
 	})
 	r.Group(func(r chi.Router) {
@@ -7324,6 +7687,652 @@ type PostAdminUserSuspend500JSONResponse struct {
 }
 
 func (response PostAdminUserSuspend500JSONResponse) VisitPostAdminUserSuspendResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysesRequestObject struct {
+}
+
+type GetAnalysesResponseObject interface {
+	VisitGetAnalysesResponse(w http.ResponseWriter) error
+}
+
+type GetAnalyses200JSONResponse struct {
+	Analyses []struct {
+		CreatedAt   time.Time `json:"createdAt"`
+		Description string    `json:"description"`
+		Id          string    `json:"id"`
+		Name        string    `json:"name"`
+
+		// Owned True when the viewer is the owner.
+		Owned bool `json:"owned"`
+
+		// OwnerEmail The creator's email.
+		OwnerEmail openapi_types.Email `json:"ownerEmail"`
+
+		// Permission The viewer's effective permission — `editable` or `readable`.
+		Permission string    `json:"permission"`
+		UpdatedAt  time.Time `json:"updatedAt"`
+	} `json:"analyses"`
+}
+
+func (response GetAnalyses200JSONResponse) VisitGetAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalyses401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAnalyses401JSONResponse) VisitGetAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalyses500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAnalyses500JSONResponse) VisitGetAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysesRequestObject struct {
+	Body *PostAnalysesJSONRequestBody
+}
+
+type PostAnalysesResponseObject interface {
+	VisitPostAnalysesResponse(w http.ResponseWriter) error
+}
+
+type PostAnalyses201JSONResponse struct {
+	CreatedAt   time.Time `json:"createdAt"`
+	Description string    `json:"description"`
+	Id          string    `json:"id"`
+	Name        string    `json:"name"`
+
+	// Owned True when the viewer is the owner.
+	Owned bool `json:"owned"`
+
+	// OwnerEmail The creator's email.
+	OwnerEmail openapi_types.Email `json:"ownerEmail"`
+
+	// Permission The viewer's effective permission — `editable` or `readable`.
+	Permission string    `json:"permission"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+func (response PostAnalyses201JSONResponse) VisitPostAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalyses400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAnalyses400JSONResponse) VisitPostAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalyses401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAnalyses401JSONResponse) VisitPostAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalyses500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAnalyses500JSONResponse) VisitPostAnalysesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysisRequestObject struct {
+	Id string `json:"id"`
+}
+
+type DeleteAnalysisResponseObject interface {
+	VisitDeleteAnalysisResponse(w http.ResponseWriter) error
+}
+
+type DeleteAnalysis204Response struct {
+}
+
+func (response DeleteAnalysis204Response) VisitDeleteAnalysisResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAnalysis401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAnalysis401JSONResponse) VisitDeleteAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysis403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAnalysis403JSONResponse) VisitDeleteAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysis500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response DeleteAnalysis500JSONResponse) VisitDeleteAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysisRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetAnalysisResponseObject interface {
+	VisitGetAnalysisResponse(w http.ResponseWriter) error
+}
+
+type GetAnalysis200JSONResponse struct {
+	CreatedAt   time.Time           `json:"createdAt"`
+	Description string              `json:"description"`
+	Id          string              `json:"id"`
+	Name        string              `json:"name"`
+	Owned       bool                `json:"owned"`
+	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
+
+	// Permission `editable` or `readable`.
+	Permission string `json:"permission"`
+
+	// State The serialized Workbench URL query
+	State     string    `json:"state"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (response GetAnalysis200JSONResponse) VisitGetAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysis401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAnalysis401JSONResponse) VisitGetAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysis404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAnalysis404JSONResponse) VisitGetAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysis500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAnalysis500JSONResponse) VisitGetAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAnalysisRequestObject struct {
+	Id   string `json:"id"`
+	Body *PatchAnalysisJSONRequestBody
+}
+
+type PatchAnalysisResponseObject interface {
+	VisitPatchAnalysisResponse(w http.ResponseWriter) error
+}
+
+type PatchAnalysis200JSONResponse struct {
+	CreatedAt   time.Time           `json:"createdAt"`
+	Description string              `json:"description"`
+	Id          string              `json:"id"`
+	Name        string              `json:"name"`
+	Owned       bool                `json:"owned"`
+	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
+
+	// Permission `editable` or `readable`.
+	Permission string `json:"permission"`
+
+	// State The serialized Workbench URL query
+	State     string    `json:"state"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (response PatchAnalysis200JSONResponse) VisitPatchAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAnalysis401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PatchAnalysis401JSONResponse) VisitPatchAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAnalysis403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PatchAnalysis403JSONResponse) VisitPatchAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAnalysis500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PatchAnalysis500JSONResponse) VisitPatchAnalysisResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysisSharesRequestObject struct {
+	Id string `json:"id"`
+}
+
+type GetAnalysisSharesResponseObject interface {
+	VisitGetAnalysisSharesResponse(w http.ResponseWriter) error
+}
+
+type GetAnalysisShares200JSONResponse struct {
+	Shares []struct {
+		// CanEdit True grants edit; false is read-only.
+		CanEdit   bool                `json:"canEdit"`
+		Email     openapi_types.Email `json:"email"`
+		GranteeId string              `json:"granteeId"`
+	} `json:"shares"`
+}
+
+func (response GetAnalysisShares200JSONResponse) VisitGetAnalysisSharesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysisShares401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAnalysisShares401JSONResponse) VisitGetAnalysisSharesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysisShares403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAnalysisShares403JSONResponse) VisitGetAnalysisSharesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAnalysisShares500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAnalysisShares500JSONResponse) VisitGetAnalysisSharesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysisShareRequestObject struct {
+	Id   string `json:"id"`
+	Body *PostAnalysisShareJSONRequestBody
+}
+
+type PostAnalysisShareResponseObject interface {
+	VisitPostAnalysisShareResponse(w http.ResponseWriter) error
+}
+
+type PostAnalysisShare201JSONResponse struct {
+	// CanEdit True grants edit; false is read-only.
+	CanEdit   bool                `json:"canEdit"`
+	Email     openapi_types.Email `json:"email"`
+	GranteeId string              `json:"granteeId"`
+}
+
+func (response PostAnalysisShare201JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysisShare400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAnalysisShare400JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysisShare401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAnalysisShare401JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysisShare403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAnalysisShare403JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysisShare404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PostAnalysisShare404JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostAnalysisShare500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PostAnalysisShare500JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysisShareRequestObject struct {
+	Id        string `json:"id"`
+	GranteeId string `json:"granteeId"`
+}
+
+type DeleteAnalysisShareResponseObject interface {
+	VisitDeleteAnalysisShareResponse(w http.ResponseWriter) error
+}
+
+type DeleteAnalysisShare204Response struct {
+}
+
+func (response DeleteAnalysisShare204Response) VisitDeleteAnalysisShareResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAnalysisShare401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAnalysisShare401JSONResponse) VisitDeleteAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysisShare403JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAnalysisShare403JSONResponse) VisitDeleteAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysisShare404JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAnalysisShare404JSONResponse) VisitDeleteAnalysisShareResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAnalysisShare500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response DeleteAnalysisShare500JSONResponse) VisitDeleteAnalysisShareResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -11945,6 +12954,30 @@ type StrictServerInterface interface {
 	// Suspend a user (admin only) (ADR-040)
 	// (POST /admin/users/{id}/suspend)
 	PostAdminUserSuspend(ctx context.Context, request PostAdminUserSuspendRequestObject) (PostAdminUserSuspendResponseObject, error)
+	// List saved analyses visible to the current user (Phase 135)
+	// (GET /analyses)
+	GetAnalyses(ctx context.Context, request GetAnalysesRequestObject) (GetAnalysesResponseObject, error)
+	// Save the current analysis (Phase 135)
+	// (POST /analyses)
+	PostAnalyses(ctx context.Context, request PostAnalysesRequestObject) (PostAnalysesResponseObject, error)
+	// Delete a saved analysis (owner only) (Phase 135)
+	// (DELETE /analyses/{id})
+	DeleteAnalysis(ctx context.Context, request DeleteAnalysisRequestObject) (DeleteAnalysisResponseObject, error)
+	// Get one saved analysis incl. its state (Phase 135)
+	// (GET /analyses/{id})
+	GetAnalysis(ctx context.Context, request GetAnalysisRequestObject) (GetAnalysisResponseObject, error)
+	// Update a saved analysis (Phase 135)
+	// (PATCH /analyses/{id})
+	PatchAnalysis(ctx context.Context, request PatchAnalysisRequestObject) (PatchAnalysisResponseObject, error)
+	// List the grantees of an analysis (owner only) (Phase 135)
+	// (GET /analyses/{id}/shares)
+	GetAnalysisShares(ctx context.Context, request GetAnalysisSharesRequestObject) (GetAnalysisSharesResponseObject, error)
+	// Share an analysis with a specific user by email (owner only) (Phase 135)
+	// (POST /analyses/{id}/shares)
+	PostAnalysisShare(ctx context.Context, request PostAnalysisShareRequestObject) (PostAnalysisShareResponseObject, error)
+	// Revoke a grantee from an analysis (owner only) (Phase 135)
+	// (DELETE /analyses/{id}/shares/{granteeId})
+	DeleteAnalysisShare(ctx context.Context, request DeleteAnalysisShareRequestObject) (DeleteAnalysisShareResponseObject, error)
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(ctx context.Context, request GetArticleDetailRequestObject) (GetArticleDetailResponseObject, error)
@@ -12273,6 +13306,232 @@ func (sh *strictHandler) PostAdminUserSuspend(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAdminUserSuspendResponseObject); ok {
 		if err := validResponse.VisitPostAdminUserSuspendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAnalyses operation middleware
+func (sh *strictHandler) GetAnalyses(w http.ResponseWriter, r *http.Request) {
+	var request GetAnalysesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAnalyses(ctx, request.(GetAnalysesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAnalyses")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAnalysesResponseObject); ok {
+		if err := validResponse.VisitGetAnalysesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAnalyses operation middleware
+func (sh *strictHandler) PostAnalyses(w http.ResponseWriter, r *http.Request) {
+	var request PostAnalysesRequestObject
+
+	var body PostAnalysesJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAnalyses(ctx, request.(PostAnalysesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAnalyses")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAnalysesResponseObject); ok {
+		if err := validResponse.VisitPostAnalysesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAnalysis operation middleware
+func (sh *strictHandler) DeleteAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	var request DeleteAnalysisRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAnalysis(ctx, request.(DeleteAnalysisRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAnalysis")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAnalysisResponseObject); ok {
+		if err := validResponse.VisitDeleteAnalysisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAnalysis operation middleware
+func (sh *strictHandler) GetAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetAnalysisRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAnalysis(ctx, request.(GetAnalysisRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAnalysis")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAnalysisResponseObject); ok {
+		if err := validResponse.VisitGetAnalysisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchAnalysis operation middleware
+func (sh *strictHandler) PatchAnalysis(w http.ResponseWriter, r *http.Request, id string) {
+	var request PatchAnalysisRequestObject
+
+	request.Id = id
+
+	var body PatchAnalysisJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchAnalysis(ctx, request.(PatchAnalysisRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchAnalysis")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchAnalysisResponseObject); ok {
+		if err := validResponse.VisitPatchAnalysisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAnalysisShares operation middleware
+func (sh *strictHandler) GetAnalysisShares(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetAnalysisSharesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAnalysisShares(ctx, request.(GetAnalysisSharesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAnalysisShares")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAnalysisSharesResponseObject); ok {
+		if err := validResponse.VisitGetAnalysisSharesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAnalysisShare operation middleware
+func (sh *strictHandler) PostAnalysisShare(w http.ResponseWriter, r *http.Request, id string) {
+	var request PostAnalysisShareRequestObject
+
+	request.Id = id
+
+	var body PostAnalysisShareJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAnalysisShare(ctx, request.(PostAnalysisShareRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAnalysisShare")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAnalysisShareResponseObject); ok {
+		if err := validResponse.VisitPostAnalysisShareResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAnalysisShare operation middleware
+func (sh *strictHandler) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeId string) {
+	var request DeleteAnalysisShareRequestObject
+
+	request.Id = id
+	request.GranteeId = granteeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAnalysisShare(ctx, request.(DeleteAnalysisShareRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAnalysisShare")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAnalysisShareResponseObject); ok {
+		if err := validResponse.VisitDeleteAnalysisShareResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -2,7 +2,6 @@
   // Your-account as a global overlay (Phase 134 / ADR-040). Same model as the
   // Dossier: a dimmed scrim over the persistent globe + a solid panel. Driven
   // by `?account=open`, so the globe behind never remounts on open/close.
-  import { onMount } from 'svelte';
   import * as authApi from '$lib/api/auth';
   import { registerPasskey } from '$lib/api/webauthn-browser';
   import { user, setUser, doLogout } from '$lib/state/auth.svelte';
@@ -59,7 +58,9 @@
 
   async function loadPasskeys() {
     const res = await authApi.passkeyList();
-    if (res.ok) passkeys = res.data.credentials;
+    // The BFF returns `credentials: null` for an empty list (Go nil slice);
+    // coalesce to [] so `.length` / `{#each}` never see null.
+    if (res.ok) passkeys = res.data.credentials ?? [];
   }
   async function addPasskey() {
     pkBusy = true;
@@ -107,7 +108,14 @@
     }
   }
 
-  onMount(loadPasskeys);
+  // Load passkeys the first time the overlay opens (not on every page load).
+  let loaded = false;
+  $effect(() => {
+    if (isOpen && !loaded) {
+      loaded = true;
+      void loadPasskeys();
+    }
+  });
 </script>
 
 <svelte:window onkeydown={onKeydown} />

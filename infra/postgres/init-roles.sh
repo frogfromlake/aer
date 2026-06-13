@@ -135,6 +135,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.sessions TO :"auth_user";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.auth_tokens TO :"auth_user";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.webauthn_credentials TO :"auth_user";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.webauthn_ceremonies TO :"auth_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saved_analyses TO :"auth_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saved_analysis_shares TO :"auth_user";
 SQL
 
 echo "postgres-init-roles: done."

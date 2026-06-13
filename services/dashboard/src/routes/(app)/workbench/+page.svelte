@@ -9,7 +9,7 @@
   // affordance.
   import { createQuery } from '@tanstack/svelte-query';
   import { beforeNavigate } from '$app/navigation';
-  import { pushUrl, urlState } from '$lib/state/url.svelte';
+  import { pushUrl, urlState, openOverlay } from '$lib/state/url.svelte';
   import { defaultViewModeForPillar, getPillar } from '$lib/viewmodes';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
   import {
@@ -173,7 +173,19 @@
       {/if}
     </div>
   {:else}
-    <PillarSwitch />
+    <div class="workbench-header">
+      <PillarSwitch />
+      <!-- Phase 135 — save THIS configuration. Lives where the analysis is
+           built; the SideRail "Saved analyses" entry is the library (browse). -->
+      <button
+        type="button"
+        class="save-analysis-btn"
+        onclick={() => openOverlay('analyses', 'save')}
+        title="Save this Workbench configuration as a re-openable, shareable analysis"
+      >
+        <span aria-hidden="true">★</span> Save analysis
+      </button>
+    </div>
     <div class="pillar-body">
       {#if activePillar.id === 'aleph'}
         <AlephShell probeIds={[]} />
@@ -243,6 +255,39 @@
   .reopen-btn:hover,
   .reopen-btn:focus-visible {
     background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
+  }
+
+  /* Phase 135 — header row: PillarSwitch grows, the Save-analysis action sits
+     to its right. align-items:flex-start keeps the button at the top while the
+     active pillar tile's explanation line makes the switch taller. */
+  .workbench-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+  .workbench-header > :global(.pillar-switch) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .save-analysis-btn {
+    flex-shrink: 0;
+    appearance: none;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .save-analysis-btn:hover,
+  .save-analysis-btn:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .pillar-body {

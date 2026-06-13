@@ -278,7 +278,7 @@
        modal layers above this overlay. */
     z-index: 40;
     display: grid;
-    place-items: start center;
+    place-items: center;
     padding: var(--space-5);
     overflow-y: auto;
   }

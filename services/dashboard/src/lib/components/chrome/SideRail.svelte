@@ -22,7 +22,7 @@
   // browser-default focus handling. `prefers-reduced-motion` suppresses
   // all transitions.
   import { page } from '$app/state';
-  import { urlState, setUrl } from '$lib/state/url.svelte';
+  import { urlState, toggleOverlay } from '$lib/state/url.svelte';
   import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
   import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
   import AccountMenu from '$lib/components/chrome/AccountMenu.svelte';
@@ -41,7 +41,15 @@
   // surfaces the current selection count. Replaces the Phase-122k
   // Probe-Filter Modal trigger; probe selection now lives in the overlay.
   function openDossier() {
-    setUrl({ dossier: 'open' });
+    toggleOverlay('dossier');
+  }
+
+  // Phase 135 — saved analyses are a global overlay (`?analyses=open`), the
+  // same model as the Dossier. Reachable here and from the account submenu.
+  // Saving the *current* Workbench view lives in the Workbench header (where the
+  // analysis is built), not here — this entry is the library (browse/load).
+  function openAnalyses() {
+    toggleOverlay('analyses');
   }
 
   // Active probe — from the route path param (legacy per-probe routes) OR
@@ -188,6 +196,21 @@
           ? `Dossier · ${url.selectedProbes.length} selected`
           : 'Open Dossier'}
       </span>
+    </button>
+  </div>
+
+  <!-- Phase 135 — Saved analyses overlay trigger (re-openable Workbench
+       deep links, shareable by identity). Same overlay model as the Dossier. -->
+  <div class="section section-probe">
+    <span class="section-eyebrow">Library</span>
+    <button
+      type="button"
+      class="probe-filter-btn"
+      onclick={openAnalyses}
+      title="Open your saved analyses — re-openable & shareable Workbench views"
+    >
+      <span class="probe-filter-glyph" aria-hidden="true">★</span>
+      <span class="probe-filter-label">Saved analyses</span>
     </button>
   </div>
 

@@ -107,3 +107,31 @@ export function pushUrl(next: Partial<UrlState>): void {
   const url = `${window.location.pathname}${search}${window.location.hash}`;
   window.history.pushState(window.history.state, '', url);
 }
+
+// Phase 135 — global overlays (account / admin / analyses / dossier) are
+// MUTUALLY EXCLUSIVE: only one window may be open at a time. Opening one always
+// clears the others and pushes a history entry, so browser back/forward steps
+// through the window stack. Closing/toggling-shut replaces (no new entry).
+export type OverlayName = 'account' | 'admin' | 'analyses' | 'dossier';
+const OVERLAYS_CLEARED = {
+  account: null,
+  admin: null,
+  analyses: null,
+  dossier: null
+} satisfies Pick<UrlState, OverlayName>;
+
+/** True when `which` is the currently-open overlay. */
+export function isOverlayOpen(which: OverlayName): boolean {
+  return internalState[which] != null;
+}
+
+/** Open exactly `which` (clearing any other overlay); pushes a history entry. */
+export function openOverlay(which: OverlayName, value: string = 'open'): void {
+  pushUrl({ ...OVERLAYS_CLEARED, [which]: value });
+}
+
+/** Re-click behaviour: open `which` if closed, close it if already open. */
+export function toggleOverlay(which: OverlayName, value: string = 'open'): void {
+  if (internalState[which] != null) setUrl({ [which]: null });
+  else openOverlay(which, value);
+}

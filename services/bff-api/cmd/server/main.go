@@ -156,6 +156,7 @@ func main() {
 	}()
 	authStore := storage.NewAuthStore(authPool)
 	webAuthnStore := storage.NewWebAuthnStore(authPool)
+	analysesStore := storage.NewAnalysesStore(authPool)
 
 	// WebAuthn relying-party (Phase 134 / ADR-040).
 	webAuthn, err := auth.NewWebAuthn(
@@ -228,6 +229,7 @@ func main() {
 		Mailer:              notify.LogSender{},
 		WebAuthn:            webAuthn,
 		WebAuthnBE:          webAuthnStore,
+		Analyses:            analysesStore,
 	})
 	strictHandler := handler.NewStrictHandler(serverLogic, nil)
 

@@ -1,0 +1,6 @@
+type: object
+description: Grant a specific user (by email) access to an analysis (Phase 135). No share-with-all.
+required: [email]
+properties:
+  email: { type: string, format: email }
+  canEdit: { type: boolean, default: false, description: True grants edit; default read-only. }

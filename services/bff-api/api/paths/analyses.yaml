@@ -1,0 +1,46 @@
+get:
+  tags: [Analyses]
+  summary: List saved analyses visible to the current user (Phase 135)
+  description: Returns the analyses the user owns plus those shared with them, newest activity first. No state blob (see GET /analyses/{id}).
+  operationId: getAnalyses
+  responses:
+    '200':
+      description: The visible analyses.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/SavedAnalysisList.yaml' }
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
+post:
+  tags: [Analyses]
+  summary: Save the current analysis (Phase 135)
+  description: Creates a saved analysis owned by the current user from a name + serialized Workbench state.
+  operationId: postAnalyses
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema: { $ref: '../schemas/CreateAnalysisRequest.yaml' }
+  responses:
+    '201':
+      description: Created.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/SavedAnalysisListItem.yaml' }
+    '400':
+      description: Malformed body.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

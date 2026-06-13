@@ -4,16 +4,22 @@
   // account, Administration, Sign out). Replaces the former top-right profile
   // menu; the popup opens upward since the button sits at the foot of the rail.
   import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
-  import { setUrl } from '$lib/state/url.svelte';
+  import { toggleOverlay } from '$lib/state/url.svelte';
 
   let open = $state(false);
 
+  // Each entry toggles its window: re-selecting closes it. Only one global
+  // overlay is ever open at a time (toggleOverlay clears the others).
   function openAccount() {
-    setUrl({ account: 'open' });
+    toggleOverlay('account');
     close();
   }
   function openAdmin() {
-    setUrl({ admin: 'open' });
+    toggleOverlay('admin');
+    close();
+  }
+  function openAnalyses() {
+    toggleOverlay('analyses');
     close();
   }
   let rootEl: HTMLElement | undefined = $state();
@@ -57,6 +63,9 @@
         <div class="identity">
           <span class="role">{current.role}</span>
         </div>
+        <button type="button" class="item" role="menuitem" onclick={openAnalyses}
+          >Saved analyses</button
+        >
         <button type="button" class="item" role="menuitem" onclick={openAccount}
           >Your account</button
         >

@@ -1,0 +1,13 @@
+type: object
+description: A saved Workbench analysis with its serialized state (Phase 135).
+required: [id, name, description, state, ownerEmail, createdAt, updatedAt, permission, owned]
+properties:
+  id: { type: string }
+  name: { type: string }
+  description: { type: string }
+  state: { type: string, description: The serialized Workbench URL query, restored verbatim. }
+  ownerEmail: { type: string, format: email }
+  createdAt: { type: string, format: date-time }
+  updatedAt: { type: string, format: date-time }
+  permission: { type: string, description: "`editable` or `readable`." }
+  owned: { type: boolean }

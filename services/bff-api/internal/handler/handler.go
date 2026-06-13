@@ -177,6 +177,8 @@ type Server struct {
 	// loginThrottle is the brute-force backoff for /auth/login (security review
 	// M-3). Always non-nil (initialised in NewServer).
 	loginThrottle *auth.LoginThrottle
+	// Saved analyses (Phase 135). Nil in legacy test constructors.
+	analysesBackend AnalysesBackend
 }
 
 // LoginThrottle exposes the throttle so main can sweep it on the cleanup tick.
@@ -246,6 +248,7 @@ type ServerOptions struct {
 	Mailer     notify.LinkSender
 	WebAuthn   *webauthn.WebAuthn
 	WebAuthnBE WebAuthnBackend
+	Analyses   AnalysesBackend
 }
 
 // NewServer creates a new API server instance with only the legacy
@@ -278,6 +281,7 @@ func NewServerWithOptions(db Store, provenance config.MetricProvenanceMap, sourc
 	s.mailer = opts.Mailer
 	s.webAuthn = opts.WebAuthn
 	s.webAuthnBackend = opts.WebAuthnBE
+	s.analysesBackend = opts.Analyses
 	return s
 }
 

@@ -1,7 +1,6 @@
 <script lang="ts">
   // Administration as a global overlay (Phase 134 / ADR-040). Dimmed scrim over
   // the persistent globe + solid panel, driven by `?admin=open`.
-  import { onMount } from 'svelte';
   import * as authApi from '$lib/api/auth';
   import { isAdmin } from '$lib/state/auth.svelte';
   import { urlState, setUrl } from '$lib/state/url.svelte';
@@ -32,7 +31,7 @@
   async function loadUsers() {
     const res = await authApi.adminListUsers();
     if (res.ok) {
-      users = res.data.users;
+      users = res.data.users ?? [];
       loadError = null;
     } else {
       loadError = res.code === 'forbidden_role' ? 'Administrator access required.' : res.message;
@@ -78,8 +77,6 @@
       void loadUsers();
     }
   });
-
-  onMount(() => {});
 </script>
 
 <svelte:window onkeydown={onKeydown} />

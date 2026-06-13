@@ -1,0 +1,6 @@
+type: object
+required: [granteeId, email, canEdit]
+properties:
+  granteeId: { type: string }
+  email: { type: string, format: email }
+  canEdit: { type: boolean, description: True grants edit; false is read-only. }

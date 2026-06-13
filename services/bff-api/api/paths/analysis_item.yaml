@@ -1,0 +1,76 @@
+get:
+  tags: [Analyses]
+  summary: Get one saved analysis incl. its state (Phase 135)
+  description: Returns the full analysis (with the serialized Workbench state) if the user owns it or is a grantee.
+  operationId: getAnalysis
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string } }
+  responses:
+    '200':
+      description: The analysis.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/SavedAnalysis.yaml' }
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '404':
+      description: Not found or not shared with you.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
+patch:
+  tags: [Analyses]
+  summary: Update a saved analysis (Phase 135)
+  description: Updates name/description/state. Allowed for the owner or a grantee with edit permission.
+  operationId: patchAnalysis
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string } }
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema: { $ref: '../schemas/UpdateAnalysisRequest.yaml' }
+  responses:
+    '200':
+      description: Updated analysis.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/SavedAnalysis.yaml' }
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '403':
+      description: Not allowed to edit this analysis.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
+delete:
+  tags: [Analyses]
+  summary: Delete a saved analysis (owner only) (Phase 135)
+  operationId: deleteAnalysis
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string } }
+  responses:
+    '204':
+      description: Deleted.
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '403':
+      description: Only the owner can delete.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

@@ -31,6 +31,11 @@ tags:
       Admin-only user management (ADR-040). Invite/approval-based account
       creation, suspend/reactivate, admin-initiated reset. Requires the
       `admin` role.
+  - name: Analyses
+    description: >
+      Saved Workbench analyses + identity-based sharing (Phase 135 / ADR-040).
+      Owner-scoped CRUD; shares grant named users readable/editable access —
+      never a capability link, never share-with-all.
 
 paths:
   /auth/login:
@@ -69,6 +74,14 @@ paths:
     $ref: './paths/admin_user_reactivate.yaml'
   /admin/users/{id}/reset-password:
     $ref: './paths/admin_user_reset.yaml'
+  /analyses:
+    $ref: './paths/analyses.yaml'
+  /analyses/{id}:
+    $ref: './paths/analysis_item.yaml'
+  /analyses/{id}/shares:
+    $ref: './paths/analysis_shares.yaml'
+  /analyses/{id}/shares/{granteeId}:
+    $ref: './paths/analysis_share_item.yaml'
   /metrics:
     $ref: './paths/metrics.yaml'
   /metrics/available:
@@ -306,3 +319,19 @@ components:
       $ref: './schemas/WebAuthnCredentialsList.yaml'
     AssertionResult:
       $ref: './schemas/AssertionResult.yaml'
+    SavedAnalysisListItem:
+      $ref: './schemas/SavedAnalysisListItem.yaml'
+    SavedAnalysisList:
+      $ref: './schemas/SavedAnalysisList.yaml'
+    SavedAnalysis:
+      $ref: './schemas/SavedAnalysis.yaml'
+    CreateAnalysisRequest:
+      $ref: './schemas/CreateAnalysisRequest.yaml'
+    UpdateAnalysisRequest:
+      $ref: './schemas/UpdateAnalysisRequest.yaml'
+    AnalysisShare:
+      $ref: './schemas/AnalysisShare.yaml'
+    AnalysisShareList:
+      $ref: './schemas/AnalysisShareList.yaml'
+    CreateShareRequest:
+      $ref: './schemas/CreateShareRequest.yaml'

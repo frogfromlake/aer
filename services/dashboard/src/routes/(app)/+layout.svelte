@@ -26,6 +26,7 @@
   import DossierOverlay from '$lib/components/dossier/DossierOverlay.svelte';
   import AccountOverlay from '$lib/components/account/AccountOverlay.svelte';
   import AdminOverlay from '$lib/components/account/AdminOverlay.svelte';
+  import AnalysesOverlay from '$lib/components/account/AnalysesOverlay.svelte';
   import { rehydrateUrlState } from '$lib/state/url.svelte';
   import { user, authChecked, refreshMe } from '$lib/state/auth.svelte';
 
@@ -58,4 +59,5 @@
   <DossierOverlay />
   <AccountOverlay />
   <AdminOverlay />
+  <AnalysesOverlay />
 {/if}

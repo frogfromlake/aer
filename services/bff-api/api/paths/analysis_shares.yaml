@@ -1,0 +1,64 @@
+get:
+  tags: [Analyses]
+  summary: List the grantees of an analysis (owner only) (Phase 135)
+  operationId: getAnalysisShares
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string } }
+  responses:
+    '200':
+      description: The grantees.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AnalysisShareList.yaml' }
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '403':
+      description: Only the owner can manage shares.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
+post:
+  tags: [Analyses]
+  summary: Share an analysis with a specific user by email (owner only) (Phase 135)
+  description: Grants the named user readable or editable access. No share-with-all; a forwarded link never grants access.
+  operationId: postAnalysisShare
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string } }
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema: { $ref: '../schemas/CreateShareRequest.yaml' }
+  responses:
+    '201':
+      description: Shared.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AnalysisShare.yaml' }
+    '400':
+      description: "Malformed, or cannot share with yourself (`cannot_share_with_self`)."
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '403':
+      description: Only the owner can share.
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '404':
+      description: "No account exists for that email (`grantee_not_found`)."
+      content:
+        application/json:
+          schema: { $ref: '../schemas/AuthError.yaml' }
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

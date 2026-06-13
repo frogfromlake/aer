@@ -4505,6 +4505,67 @@ This phase enforces the following — every implementation choice must satisfy t
 * [x] Per-cell NS prose never reads as a source-quality complaint; every NS surface carries a methodological-anchor link (WP-§).
 * [x] The toggle is discoverable from the chrome (not URL-only).
 
+
+# Iteration 10 — Access Control & Persistence
+
+*Closes the POC as a controlled-access, usable research instrument. Driven by the LICENSE: §3.2 permits scientific use only with explicit prior consent + ethics-board approval + a responsible-use agreement; §3.3 requires immediate revocation on violation; §4c forbids operation without consent. Auth is the technical enforcement of that access control — not primarily collaboration. Privacy-minimal throughout: an anti-surveillance instrument does not surveil its own users.*
+
+---
+
+## Phase 134: Access Control & User Management (Auth-1) [P0] - [x] DONE
+
+*The gate. The whole application sits behind authentication.*
+
+**Grounding.** Read first: `pkg/middleware/apikey.go` (constant-time pattern to extend), the BFF server setup + the Security Defaults section of CLAUDE.md, the Postgres migration dir + `postgres-init-roles`, `services/dashboard` auth-less request layer, Phase 55 (Privacy Architecture), LICENSE.md §3. Preserve: ALL existing security defaults (HTTP timeouts, body caps, generic 5xx, graceful shutdown, least-privilege roles), the static-dashboard deployment model (BFF is the auth authority — no SvelteKit server adapter), the zero-trust network posture. Verify-first: enumerate every data endpoint that must move from X-API-Key to session auth.
+
+### Architecture (BFF auth pattern)
+* [x] **No tokens in the client** — `httpOnly`+`Secure`+`SameSite` cookie with an opaque session id. **BFF holds state server-side** (Postgres `sessions`); tokens never leave the server. **Silent stateful refresh.** **Stateful** enables immediate revocation (LICENSE §3.3). **Session store: Postgres** (not Redis — indexed point query at this scale, and better for queryable revocation/audit; reassess only on evidence: measurable session DB load or a feature that independently justifies Redis). argon2id passwords; CSRF tokens; constant-time comparisons.
+
+### Gatekeeping (license-driven)
+* [x] **No open self-registration** — invite/approval-based; responsible-use agreement recorded at account creation (§3.2.b). **Whole app gated** (data endpoints require session, not only X-API-Key). **RBAC** admin/researcher; admin suspend/revoke.
+
+### Privacy (DSGVO + identity)
+* [x] Store only email + argon2id hash + minimal profile + responsible-use flag. No tracking of what users analyse beyond explicitly-saved analyses. DSGVO: deletion, export, consent.
+
+### Frontend + Docs
+* [x] Login/logout + minimal user area (dashboard stays static). **ADR-036 — Access Control Architecture**; align with Phase 55; CLAUDE.md Security Defaults updated.
+* [x] **Public/Internal docs split (Phase 131a follow-up).** Today the dossier's "Documentation" link on each source card points at the full MkDocs build (`http://localhost:8000/probes/{id}/`), which exposes Arc42, ADRs, Operations Playbook etc. — fine for the engineering-POC stage with one operator, but inappropriate once the app gates auth and serves external researchers. Split into (a) a **Public docs build** (Methodology Working Papers, per-probe and per-source descriptions, the manifesto, the published-data caveats — what an external researcher needs to interpret the visible data) and (b) an **Internal docs build** (Arc42, ADRs, Operations Playbook, security defaults — RBAC-gated to `admin` role). The source-card "Documentation" link routes to (a); a separate admin-only entry routes to (b). Re-link from `services/bff-api/configs/probes/` and `infra/postgres/migrations/000016_probe0_documentation_url_refresh.up.sql` accordingly.
+
+### Validation
+* [x] All data endpoints require a valid session; admin revocation invalidates a session immediately; no token reachable from client JS; argon2id verified; DSGVO delete/export work. **If AĒR is deployed (even staging) before later phases — LICENSE §4c — this phase must precede that deployment.**
+
+---
+
+## Phase 135: Saved Analyses & Sharing (Auth-2) [P1] - [x] DONE
+
+*The persistence feature on top of the gate. Save a configured analysis and (optionally) share it — solving "lose your work on browser-back" server-side.*
+
+**Grounding.** Read first: Phase-134 session/RBAC + the `bff_auth` write role (ADR-040), the Workbench URL-state grammar (`?activePillar=&{aleph,episteme,rhizome}=<base64url-json>` in `url-internals.ts`), the Phase-134 overlay model (account/admin/dossier as `?<name>=open` overlays over the persistent globe, driven by `urlState`), the Postgres migration dir (highest is `000025`; Phase 135 = `000026`). Preserve: the URL-state encoding (a saved analysis serializes the Workbench query verbatim), RBAC scoping, the overlay-not-route pattern, the design tokens / overlay shell used by Account/Admin. Verify-first: confirm the Workbench state fully round-trips through the URL grammar before persisting it.
+
+**Decisions carried from the Phase-134/135 design discussion (binding):**
+- ***Identity-based sharing only — NO capability links.*** An analysis is shared by granting access to a specific user (by email / username), recorded in `saved_analysis_shares`. Access is checked server-side by identity; a non-grantee gets 403 even with the id/URL. There is **no "share with all"** and **no unguessable bearer/share-link** (a forwarded link must never grant access — anti-surveillance / LICENSE posture). A future email channel only *notifies* ("X shared an analysis with you — sign in"), carrying no token.
+- ***Raw Workbench deep-links stay shareable*** — the `?{aleph,…}=` URL encodes only view-state (no secret, no saved record), so copy-pasting it just reconstructs the view client-side. That is unrelated to (and unaffected by) the access-controlled saved record.
+- ***`readable` / `editable` is the viewer's effective permission, derived — not a stored field.*** Owner ⇒ `editable`; a grantee ⇒ `editable` iff their share has `can_edit`, else `readable`. The owner sets per-grantee `can_edit` when sharing.
+- ***Reachable as a global overlay*** (`?analyses=open`) over the globe, like Account/Admin — opened from the SideRail account menu AND a SideRail entry. Not a route.
+
+### Backend — schema + API (`bff_auth` role; OpenAPI-first + `make codegen`)
+* [x] **Migration `000026`** — `saved_analyses` (id UUID PK, owner_id UUID FK→users ON DELETE CASCADE, name, description, state TEXT [the serialized Workbench query], created_at, updated_at) + `saved_analysis_shares` (analysis_id FK→saved_analyses ON DELETE CASCADE, grantee_user_id FK→users ON DELETE CASCADE, can_edit BOOL, created_at, PK(analysis_id, grantee_user_id)). Grant DML on both to `bff_auth` in `init-roles.sh`.
+* [x] **Endpoints** (RBAC-scoped to the session user): `GET /analyses` (own + shared-with-me; per row: id, name, description, ownerEmail, createdAt, updatedAt, permission `editable|readable`, shareCount/own flag), `POST /analyses` (create from name+description+state), `GET /analyses/{id}` (owner or grantee → full incl. `state`), `PATCH /analyses/{id}` (name/description/state; owner or `can_edit` grantee), `DELETE /analyses/{id}` (owner only), `GET/POST /analyses/{id}/shares` (owner lists/adds grantee by email + can_edit; 404 if email unknown), `DELETE /analyses/{id}/shares/{granteeId}`. `forbidden_not_shared` 403 for non-grantees.
+
+### Frontend — `AnalysesOverlay` (overlay, design matches Account/Admin)
+* [x] **`?analyses=open` overlay** (urlState param, mounted in the `(app)` layout) — dimmed scrim + solid panel, opened from the SideRail account menu + a SideRail entry (`★ Saved analyses`, `Library` section).
+* [x] **Table** — columns Name · Description · Owner · Created · Updated · access badge (`Owner`/`Editable`/`Read-only`), per-row **Open in Workbench** (in the drawer). Shared analyses appear with the foreign owner's email. **Live render, no full refresh** (`$derived` over the in-memory list).
+* [x] **Search across columns** (name/description/owner) + per-column controls: native date-range filter on `created`, alphanumeric sort (name/owner) + date sort (created/updated) via clickable headers, owner search folded into the global search, `editable`/`read-only` + `owned`/`shared-with-me` checkbox filters.
+* [x] **Row-click → sidedrawer** that toggles shut on re-click/Esc: **Edit** (name/description, editable only), **Share** (add grantee by email + `can edit`, list + remove — owner only), **Delete** (owner only), Save / Cancel.
+* [x] **Save current analysis** — "Save current view" captures the current relative deep-link (path + search minus overlay params) as a new `saved_analyses` row (name + description).
+* [x] **Load** — restore a saved `state` **byte-identically** via `goto(state)` (the full path+search is stored verbatim; round-trip confirmed against the Workbench URL grammar before persisting).
+* [ ] **Leave-guard** — *deferred*: the "unsaved Workbench changes" guard is recorded against Phase 127 (localStorage quick-save) rather than built here; saved-analyses provides the explicit server-side persistence it depended on.
+
+### Validation
+* [x] A configured analysis saves, lists, restores byte-identically into the Workbench, and is visible to a shared user (by identity) but 403 to a non-grantee. Search + every per-column filter work live. The sidedrawer edits/saves/cancels; sharing by email grants `readable`/`editable`; a non-existent email is refused. `make lint`/`test`/`audit` green; `code-review` + `verify`; hand back to commit.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
@@ -4537,52 +4598,6 @@ This phase enforces the following — every implementation choice must satisfy t
    - **hand back to the operator to commit — never auto-commit.**
 
 ---
-
-# Iteration 10 — Access Control & Persistence
-
-*Closes the POC as a controlled-access, usable research instrument. Driven by the LICENSE: §3.2 permits scientific use only with explicit prior consent + ethics-board approval + a responsible-use agreement; §3.3 requires immediate revocation on violation; §4c forbids operation without consent. Auth is the technical enforcement of that access control — not primarily collaboration. Privacy-minimal throughout: an anti-surveillance instrument does not surveil its own users.*
-
----
-
-## Phase 134: Access Control & User Management (Auth-1) [P0] - [ ] TODO
-
-*The gate. The whole application sits behind authentication.*
-
-**Grounding.** Read first: `pkg/middleware/apikey.go` (constant-time pattern to extend), the BFF server setup + the Security Defaults section of CLAUDE.md, the Postgres migration dir + `postgres-init-roles`, `services/dashboard` auth-less request layer, Phase 55 (Privacy Architecture), LICENSE.md §3. Preserve: ALL existing security defaults (HTTP timeouts, body caps, generic 5xx, graceful shutdown, least-privilege roles), the static-dashboard deployment model (BFF is the auth authority — no SvelteKit server adapter), the zero-trust network posture. Verify-first: enumerate every data endpoint that must move from X-API-Key to session auth.
-
-### Architecture (BFF auth pattern)
-* [ ] **No tokens in the client** — `httpOnly`+`Secure`+`SameSite` cookie with an opaque session id. **BFF holds state server-side** (Postgres `sessions`); tokens never leave the server. **Silent stateful refresh.** **Stateful** enables immediate revocation (LICENSE §3.3). **Session store: Postgres** (not Redis — indexed point query at this scale, and better for queryable revocation/audit; reassess only on evidence: measurable session DB load or a feature that independently justifies Redis). argon2id passwords; CSRF tokens; constant-time comparisons.
-
-### Gatekeeping (license-driven)
-* [ ] **No open self-registration** — invite/approval-based; responsible-use agreement recorded at account creation (§3.2.b). **Whole app gated** (data endpoints require session, not only X-API-Key). **RBAC** admin/researcher; admin suspend/revoke.
-
-### Privacy (DSGVO + identity)
-* [ ] Store only email + argon2id hash + minimal profile + responsible-use flag. No tracking of what users analyse beyond explicitly-saved analyses. DSGVO: deletion, export, consent.
-
-### Frontend + Docs
-* [ ] Login/logout + minimal user area (dashboard stays static). **ADR-036 — Access Control Architecture**; align with Phase 55; CLAUDE.md Security Defaults updated.
-* [ ] **Public/Internal docs split (Phase 131a follow-up).** Today the dossier's "Documentation" link on each source card points at the full MkDocs build (`http://localhost:8000/probes/{id}/`), which exposes Arc42, ADRs, Operations Playbook etc. — fine for the engineering-POC stage with one operator, but inappropriate once the app gates auth and serves external researchers. Split into (a) a **Public docs build** (Methodology Working Papers, per-probe and per-source descriptions, the manifesto, the published-data caveats — what an external researcher needs to interpret the visible data) and (b) an **Internal docs build** (Arc42, ADRs, Operations Playbook, security defaults — RBAC-gated to `admin` role). The source-card "Documentation" link routes to (a); a separate admin-only entry routes to (b). Re-link from `services/bff-api/configs/probes/` and `infra/postgres/migrations/000016_probe0_documentation_url_refresh.up.sql` accordingly.
-
-### Validation
-* [ ] All data endpoints require a valid session; admin revocation invalidates a session immediately; no token reachable from client JS; argon2id verified; DSGVO delete/export work. **If AĒR is deployed (even staging) before later phases — LICENSE §4c — this phase must precede that deployment.**
-
----
-
-## Phase 135: Saved Analyses & Sharing (Auth-2) [P1] - [ ] TODO
-
-*The persistence feature on top of the gate. Save a configured analysis and (optionally) share it — solving "lose your work on browser-back" server-side.*
-
-**Grounding.** Read first: Phase-134 session/RBAC, the Workbench URL-state grammar (`?{aleph,episteme,rhizome}=`), the Phase-127 leave-guard (localStorage), the Postgres migration dir. Preserve: the URL-state encoding (a saved analysis serializes it), RBAC scoping. Verify-first: confirm the Workbench state fully round-trips through the URL grammar before persisting it.
-
-### Backend + Frontend
-* [ ] **`saved_analyses`** (Postgres: owner, visibility private/shared, serialized analysis state) + RBAC-scoped CRUD. OpenAPI + `make codegen`.
-* [ ] Saved-analyses list in the user area; **seed a saved analysis into the Workbench** (full state restore); upgrade the Phase-127 leave-guard from localStorage to server-side; private/shared toggle.
-
-### Validation
-* [ ] A configured analysis saves, lists, restores byte-identically into the Workbench, and shares per its visibility.
-
----
-
 
 # Iteration 11 - Closure — Polish, Audit, Documentation
 
@@ -4645,7 +4660,12 @@ This phase enforces the following — every implementation choice must satisfy t
 ### Validation
 * [ ] `mkdocs build --strict` passes; all cross-references resolve; terminology PR opened; Completed-Phases index current.
 
+
 ---
+###
+
+
+
 
 # Deferred Phases
 
