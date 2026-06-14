@@ -237,12 +237,6 @@ OG_ONLY_HTML = """\
 """
 
 
-# NOTE: the body is deliberately long + multi-paragraph. trafilatura 2.0 is
-# stricter than earlier releases and returns an EMPTY cleaned_text on
-# borderline-short HTML (seen as a flaky ExtractionFailedError in
-# test_timestamp_source_falls_back_to_fetch_at_when_nothing_else). Keep enough
-# real prose here that extraction stays comfortably above trafilatura's
-# threshold — do not trim it back to one or two short paragraphs.
 HEURISTIC_HTML = """\
 <!DOCTYPE html>
 <html lang="de">
@@ -253,27 +247,12 @@ HEURISTIC_HTML = """\
   <body>
     <article>
       <p>Der Artikel enthaelt nur ein Datum im einfachen Meta-Tag, keine
-         JSON-LD-Daten und keine OpenGraph-Tags. Der Body ist bewusst
-         ausreichend lang fuer trafilatura, damit der cleaned_text-Pfad
-         deterministisch und erfolgreich durchlaeuft. Es geht hier um eine
-         Pruefung, dass die heuristische htmldate-Aufloesung als letzter
-         Schritt wirkt, wenn keine strukturierten Datumsangaben vorliegen.</p>
-      <p>Der zweite Absatz erlaeutert ausfuehrlich den thematischen Kontext:
-         die institutionelle Kommunikationsstelle veroeffentlicht eine
-         Mitteilung zu laufenden Vorhaben, ohne ein maschinenlesbares
-         Veroeffentlichungsdatum bereitzustellen. Genau dieser Fall soll die
-         mehrstufige Zeitstempel-Aufloesung des WebAdapters auf die Probe
-         stellen.</p>
-      <p>Im dritten Absatz werden weitere Details genannt, damit der
-         Wortzahl-Schwellwert sicher ueberschritten wird und trafilatura den
-         Hauptinhalt zuverlaessig als zusammenhaengenden Fliesstext erkennt.
-         Die Saetze sind bewusst informativ und vermeiden reine Fuellwoerter,
-         damit die Extraktionsheuristik verlaesslich greift.</p>
-      <p>Ein vierter Absatz rundet den Beitrag ab und beschreibt die erwartete
-         Reihenfolge der Aufloesung: zuerst strukturierte Quellen, dann
-         Meta-Tags, danach Sitemap- und HTTP-Header, und schliesslich der
-         Rueckfall auf den Abrufzeitpunkt. Diese Reihenfolge ist der
-         eigentliche Gegenstand der zugehoerigen Tests.</p>
+         JSON-LD-Daten und keine OpenGraph-Tags. Der Body ist hinreichend
+         lang fuer trafilatura, damit der cleaned_text-Pfad erfolgreich
+         durchlaeuft. Es geht hier um eine Pruefung, dass die heuristische
+         htmldate-Aufloesung als letzter Schritt wirkt.</p>
+      <p>Eine zweite Absatz, der nochmals die zwei wichtigsten Themen
+         erwaehnt, damit der Wortzahl-Schwellwert sicher ueberschritten wird.</p>
     </article>
   </body>
 </html>
