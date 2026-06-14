@@ -81,6 +81,15 @@ func (s *ClickHouseStorage) Ping(ctx context.Context) error {
 	return s.conn.Ping(ctx)
 }
 
+// Close releases the underlying ClickHouse connection pool. Safe to call on a
+// nil receiver so graceful-shutdown paths can call it unconditionally.
+func (s *ClickHouseStorage) Close() error {
+	if s == nil || s.conn == nil {
+		return nil
+	}
+	return s.conn.Close()
+}
+
 // Conn returns the underlying ClickHouse connection. Exposed so cross-
 // store callers (e.g. DossierStore for ADR-022 article resolution) can
 // share the pool rather than opening a second one.

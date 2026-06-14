@@ -5,52 +5,50 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/frogfromlake/aer/pkg/testutils"
-	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
+
+// resetSchema drops and recreates the aer_gold + aer_silver databases on the
+// shared ClickHouse container so each test starts from a pristine schema. The
+// production queries under test hard-code the aer_gold/aer_silver database
+// names, so isolation is achieved by resetting those databases per test rather
+// than by using a unique database name per test.
+func resetSchema(t *testing.T, ctx context.Context, store *ClickHouseStorage) {
+	t.Helper()
+	for _, ddl := range []string{
+		`DROP DATABASE IF EXISTS aer_gold`,
+		`CREATE DATABASE aer_gold`,
+		`DROP DATABASE IF EXISTS aer_silver`,
+		`CREATE DATABASE aer_silver`,
+	} {
+		if err := store.conn.Exec(ctx, ddl); err != nil {
+			t.Fatalf("reset schema (%s): %v", ddl, err)
+		}
+	}
+}
+
+// newSharedCHStore connects a store to the shared ClickHouse container (started
+// once in TestMain) and resets the schema. The caller creates whatever tables
+// it needs afterwards. metricsCacheTTL is a parameter so cache-behaviour tests
+// can choose their own TTL.
+func newSharedCHStore(t *testing.T, ctx context.Context, metricsCacheTTL time.Duration) *ClickHouseStorage {
+	t.Helper()
+	store, err := NewClickHouseStorage(ctx, sharedCHAddr, "aer_admin", "aer_secret", "aer_gold", 10000, metricsCacheTTL)
+	if err != nil {
+		t.Fatalf("failed to connect to shared clickhouse: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	resetSchema(t, ctx, store)
+	return store
+}
 
 func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 	t.Helper()
 	ctx := context.Background()
 
-	chImage, err := testutils.GetImageFromCompose("clickhouse")
-	if err != nil {
-		t.Fatalf("failed to get clickhouse image from compose: %v", err)
-	}
-
-	chContainer, err := tcclickhouse.Run(ctx, chImage,
-		tcclickhouse.WithDatabase("aer_gold"),
-		tcclickhouse.WithUsername("aer_admin"),
-		tcclickhouse.WithPassword("aer_secret"),
-	)
-	if err != nil {
-		t.Fatalf("failed to start clickhouse container: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := chContainer.Terminate(ctx); err != nil {
-			t.Fatalf("failed to terminate clickhouse container: %v", err)
-		}
-	})
-
-	host, err := chContainer.Host(ctx)
-	if err != nil {
-		t.Fatalf("failed to get container host: %v", err)
-	}
-	port, err := chContainer.MappedPort(ctx, "9000/tcp")
-	if err != nil {
-		t.Fatalf("failed to get container port: %v", err)
-	}
-
-	addr := host + ":" + port.Port()
-
-	store, err := NewClickHouseStorage(ctx, addr, "aer_admin", "aer_secret", "aer_gold", 10000, 60*time.Second)
-	if err != nil {
-		t.Fatalf("failed to initialize clickhouse storage: %v", err)
-	}
+	store := newSharedCHStore(t, ctx, 60*time.Second)
 
 	// Create test tables with Memory engine for fast ephemeral testing
-	err = store.conn.Exec(ctx, `
+	err := store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
 			timestamp DateTime,
 			value Float64,

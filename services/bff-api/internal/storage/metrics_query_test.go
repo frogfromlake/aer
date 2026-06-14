@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/frogfromlake/aer/pkg/testutils"
-	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
 
 func TestGetMetrics(t *testing.T) {
@@ -132,27 +129,8 @@ func TestGetAvailableMetrics(t *testing.T) {
 func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 	// Use a dedicated store with a long TTL so the cache never expires mid-test.
 	ctx := context.Background()
-	chImage, err := testutils.GetImageFromCompose("clickhouse")
-	if err != nil {
-		t.Fatalf("failed to get clickhouse image: %v", err)
-	}
-	chContainer, err := tcclickhouse.Run(ctx, chImage,
-		tcclickhouse.WithDatabase("aer_gold"),
-		tcclickhouse.WithUsername("aer_admin"),
-		tcclickhouse.WithPassword("aer_secret"),
-	)
-	if err != nil {
-		t.Fatalf("failed to start clickhouse container: %v", err)
-	}
-	t.Cleanup(func() { _ = chContainer.Terminate(ctx) })
-
-	host, _ := chContainer.Host(ctx)
-	port, _ := chContainer.MappedPort(ctx, "9000/tcp")
-	store, err := NewClickHouseStorage(ctx, host+":"+port.Port(), "aer_admin", "aer_secret", "aer_gold", 10000, 5*time.Minute)
-	if err != nil {
-		t.Fatalf("failed to init store: %v", err)
-	}
-	err = store.conn.Exec(ctx, `
+	store := newSharedCHStore(t, ctx, 5*time.Minute)
+	err := store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
 			timestamp DateTime, value Float64,
 			source String DEFAULT '', metric_name String DEFAULT '',
@@ -217,28 +195,9 @@ func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
 // triggers a fresh ClickHouse query.
 func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 	ctx := context.Background()
-	chImage, err := testutils.GetImageFromCompose("clickhouse")
-	if err != nil {
-		t.Fatalf("failed to get clickhouse image: %v", err)
-	}
-	chContainer, err := tcclickhouse.Run(ctx, chImage,
-		tcclickhouse.WithDatabase("aer_gold"),
-		tcclickhouse.WithUsername("aer_admin"),
-		tcclickhouse.WithPassword("aer_secret"),
-	)
-	if err != nil {
-		t.Fatalf("failed to start clickhouse container: %v", err)
-	}
-	t.Cleanup(func() { _ = chContainer.Terminate(ctx) })
-
-	host, _ := chContainer.Host(ctx)
-	port, _ := chContainer.MappedPort(ctx, "9000/tcp")
 	// Use a very short TTL so we can expire it without sleeping long.
-	store, err := NewClickHouseStorage(ctx, host+":"+port.Port(), "aer_admin", "aer_secret", "aer_gold", 10000, 50*time.Millisecond)
-	if err != nil {
-		t.Fatalf("failed to init store: %v", err)
-	}
-	err = store.conn.Exec(ctx, `
+	store := newSharedCHStore(t, ctx, 50*time.Millisecond)
+	err := store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
 			timestamp DateTime, value Float64,
 			source String DEFAULT '', metric_name String DEFAULT '',

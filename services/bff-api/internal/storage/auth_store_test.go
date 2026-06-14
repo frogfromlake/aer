@@ -7,51 +7,48 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/docker/go-connections/nat"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
-
-	"github.com/frogfromlake/aer/pkg/testutils"
 )
 
-// setupAuthStore starts a Postgres testcontainer, applies the REAL Phase-134
-// auth migration (so this test is a regression guard on the migration itself,
-// not a hand-mirrored DDL copy), and returns a store wired to it.
+// pgDBCounter hands each setupAuthStore call a unique database name on the
+// shared Postgres container (started once in TestMain).
+var pgDBCounter int64
+
+// setupAuthStore creates a fresh, isolated database on the shared Postgres
+// container, applies the REAL Phase-134 auth migrations (so this test is a
+// regression guard on the migrations themselves, not a hand-mirrored DDL copy),
+// and returns a store wired to it. A per-test database gives full isolation
+// without paying for a container start per test.
 func setupAuthStore(t *testing.T) (*AuthStore, context.Context) {
 	t.Helper()
 	ctx := context.Background()
 
-	pgImage, err := testutils.GetImageFromCompose("postgres")
-	if err != nil {
-		t.Fatalf("get postgres image from compose: %v", err)
-	}
+	dbName := fmt.Sprintf("authtest_%d", atomic.AddInt64(&pgDBCounter, 1))
 
-	pgContainer, err := postgres.Run(ctx,
-		pgImage,
-		postgres.WithDatabase("aer_test"),
-		postgres.WithUsername("testuser"),
-		postgres.WithPassword("testpass"),
-		testcontainers.WithWaitStrategy(
-			wait.ForSQL("5432/tcp", "pgx/v5", func(host string, port nat.Port) string {
-				return fmt.Sprintf("host=%s port=%s user=testuser password=testpass dbname=aer_test sslmode=disable", host, port.Port())
-			}).WithStartupTimeout(30*time.Second),
-		),
-	)
+	adminDSN := fmt.Sprintf("host=%s port=%s user=testuser password=testpass dbname=aer_test sslmode=disable",
+		sharedPGHost, sharedPGPort)
+	admin, err := sql.Open("pgx", adminDSN)
 	if err != nil {
-		t.Fatalf("start postgres container: %v", err)
+		t.Fatalf("open admin postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = pgContainer.Terminate(ctx) })
+	if _, err := admin.ExecContext(ctx, "CREATE DATABASE "+dbName); err != nil {
+		_ = admin.Close()
+		t.Fatalf("create test database %s: %v", dbName, err)
+	}
+	t.Cleanup(func() {
+		// Runs after the db.Close() cleanup below (t.Cleanup is LIFO), so no
+		// connections remain; FORCE terminates any lingering backend anyway.
+		_, _ = admin.ExecContext(ctx, "DROP DATABASE IF EXISTS "+dbName+" WITH (FORCE)")
+		_ = admin.Close()
+	})
 
-	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatalf("connection string: %v", err)
-	}
-	db, err := sql.Open("pgx", connStr)
+	testDSN := fmt.Sprintf("host=%s port=%s user=testuser password=testpass dbname=%s sslmode=disable",
+		sharedPGHost, sharedPGPort, dbName)
+	db, err := sql.Open("pgx", testDSN)
 	if err != nil {
 		t.Fatalf("open pgx: %v", err)
 	}
