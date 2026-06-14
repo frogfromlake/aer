@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_fixtures';
 
 test('landing page mounts the atmosphere canvas (WebGL2 path)', async ({ page }) => {
   await page.goto('/');

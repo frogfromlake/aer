@@ -4566,9 +4566,43 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 136: CI/CD Restoration — Green Pipelines & E2E Repair [P0] - [x] DONE (2026-06-14 — main CI green; finish-up folded into Phase 137)
+
+*Nothing else in this iteration is safe until CI is green: refactoring on a red pipeline removes the only safety net the later phases depend on. Today several CI jobs fail and the E2E suite is believed entirely non-functional (operator report, 2026-06-14). This phase makes every pipeline green and the E2E suite actually runnable AND understood, and is an absolute prerequisite for Phases 137–144 and all of Iteration 12.*
+
+**Grounding.** Read first: `.github/workflows/` (the three pipelines — python / go / security + any frontend/e2e job), the Makefile test targets (`test`, `test-go`, `test-go-pkg`, `test-python`, `test-e2e`, `fe-test`), `scripts/build/e2e_smoke_test.sh`, the dashboard Playwright config + `services/dashboard` test setup, `pkg/testutils/compose.go` + the Python `get_compose_image()` (Testcontainer tag extraction), `scripts/hooks/pre-push`. Preserve: the SSoT image-tag extraction (no hardcoded tags), the contract-first OpenAPI sync check, the touched-service pre-push subset. Verify-first: reproduce each failure locally and record the actual root cause before changing anything — never paper over a flake by disabling it.
+
+### Diagnose (write findings before fixing)
+* [ ] **Per-job failure census.** For each CI job record the *actual* failure: command, error, root cause (env, tag drift, code regression, missing secret, flake). One table; no fixes yet.
+* [ ] **E2E reality check.** Establish whether the Playwright suite runs at all locally and in CI: browser install, base-URL/stack dependency, visual-regression baselines. Capture *why* the whole suite currently fails.
+
+### Workflow inventory & cleanup
+* [ ] **Inventory all `.github/workflows/`** — for each (`ci.yml`, `web-crawler-build.yml`, `wikidata_index_rebuild.yml`, `bandwidth_probe.yml`, `e2e_smoke_nightly.yml`): trigger · purpose · is-it-wired · keep/remove decision. One table. A workflow nobody triggers and nothing consumes is debt.
+* [ ] **Remove obsolete** — `bandwidth_probe.yml` (Wikimedia bandwidth probe, one-off `workflow_dispatch` diagnostic) deleted; any other unreferenced workflow likewise.
+* [ ] **Justify or remove the build workflows** — confirm `web-crawler-build.yml` (GHCR image build, per the ADR-028 extension pattern) and `wikidata_index_rebuild.yml` (manual index rebuild) are actually consumed by the deploy/run flow; if not wired, remove or document why they exist.
+* [x] **`e2e_smoke_nightly.yml` — partially repaired, cron parked, full rework tracked to Iteration 13.** The GHCR-login gap is fixed (the stack can now pull the private `aer-wikidata-index` image). But the nightly is **doubly-broken and not a quick fix** (measured 2026-06-14): (1) `e2e_smoke_test.sh` runs `docker compose up --build`, rebuilding the 10+ GB analysis-worker image from scratch (compose has `build:` and **no published `image:`** for the core services) → ~25 min timeout; (2) the smoke script still asserts the **retired RSS flow** (Phase 122 migrated to web-crawling), so it likely cannot pass on current code regardless. **Decision: the cron is parked** (manual-dispatch only — no permanently-red nightly) and the real fix is tracked to **Iteration 13 / Phase 149**, where the GHCR image-publish pipeline makes the stack **pull-based** (fast), paired with a **smoke-script rewrite RSS→web-crawler**. This is the honest coupling (publishing images is Iter-13's job anyway), not a silent deferral.
+
+### Repair
+* [ ] **Go pipeline green** — golangci-lint clean, Testcontainer integration tests pass, OpenAPI sync (`make codegen && git diff --exit-code`) clean.
+* [ ] **Python pipeline green** — ruff clean, pytest green.
+* [ ] **Security pipeline green** — Trivy (HIGH/CRITICAL) + govulncheck + pip-audit pass, or carry a justified, tracked suppression (per the suppression rules — never in the Makefile).
+* [ ] **Frontend + E2E green** — `fe-test` (Vitest) green; the Playwright E2E suite runs end-to-end against the stack and passes. Flaky tests are fixed or quarantined with an explicit tracking ticket, never silently skipped.
+* [ ] **Playwright demystified (operator deliverable).** A `services/dashboard/TESTING.md` (or Operations-Playbook section) explaining the dashboard E2E model in plain terms: what the suite covers, how visual-regression screenshots/baselines work, how to run a single test, how to *intentionally* update a baseline, and what a screenshot-diff failure means. Resolves the "book with seven seals" gap so the operator can maintain it.
+
+### Validation
+* [ ] Every CI job green on a fresh branch push; the E2E suite runs and passes locally via a documented one-command path; the Playwright doc lets the operator run + update a test unaided. No test disabled without a tracked re-enable ticket.
+
+### Status (2026-06-14)
+* [x] **All 7 CI jobs green** (run `27505701658`, 8m27s) — per-PR pipeline restored. Root causes fixed: Go version via `go-version-file: go.work`; `codegen` decoupled from the pydantic scaffold; **Python 3.14 scientific stack now installs from cp314 wheels** (scikit-learn 1.7.2 + a py3.14 lock regen capturing the wheel hashes — killed the 20–28 min source builds); worker image excluded from the per-PR Trivy scan (10+ GB model bake → disk/30-min long-pole gone); `.env.example` UA quoted; security audits (govulncheck/pip-audit/Trivy) made **advisory** (report, don't block). Wall-clock ~28 min → ~6–8 min; the HF model-cache self-heals from this first green run.
+* [x] **E2E repaired** — shared `/auth/me` auth-mock fixture (works around the Phase-134 gate); 3 obsolete `/lanes/*` tests quarantined, re-enable tracked above in Phase 127.
+* [x] **Real worker bug fixed (surfaced by the test repair).** An order-dependent flake traced to `trafilatura.extract(deduplicate=True)` — a PROCESS-GLOBAL dedup LRU that silently drops recurring paragraphs across articles in the long-running worker (false `ExtractionFailedError` → DLQ, or silent `cleaned_text` truncation → contaminated Gold metrics). Set `deduplicate=False` (the crawler is the dedup-state SoT). **Corpus healing decision (operator, 2026-06-14): the next `make reset` + `make crawl` runs on the Dedup-fixed worker** — no special re-crawl needed (Bronze stores raw HTML verbatim; a Bronze re-extract via `reextract_silver.py` would also heal, but reset+crawl is chosen for a clean baseline). **The final pre-deployment crawl MUST run on the fixed worker.**
+* **Finish-up folded into Phase 137** (same workflow / scripts / CI-maintainability scope), non-PR-blocking: delete the obsolete `bandwidth_probe.yml` + justify-or-remove `web-crawler-build.yml` / `wikidata_index_rebuild.yml`; the Playwright/visual-regression `TESTING.md` operator doc; the formal per-job failure-census write-up; (cleanup) `lxml` still source-builds (no cp314 wheel at 5.4.0) — a 6.1.0 bump would add the wheel **and** close CVE-2026-41066 (transitively `<6`-capped — needs a constraint check).
+
+---
+
 # Open Phases
 
-*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through Phase 129, then stop (the Deferred block is not sequential work).*
+*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
 
 *Cross-cutting decisions that shape every phase below:*
 
@@ -4599,9 +4633,226 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-# Iteration 11 - Closure — Polish, Audit, Documentation
+# Iteration 11 — Consolidation, Quality & Closure
 
-*The "ready for first external user" gate, run against the final post-Iteration-10 surface. Coherence is checked continuously (after each major complex) plus a final pass; then accessibility/performance; then the documentation sweep.*
+*Reframed 2026-06-14 on operator request. The engineering POC is feature-complete (through Iteration 10), but before AĒR is shown to the first invited researchers the operator wants it at target **code quality** AND demonstrably **maintainable** — not merely feature-complete. This iteration is therefore front-loaded with a code-quality & CI consolidation pass (Phases 136–144) that runs BEFORE the original closure phases (127 coherence, 128 a11y/perf, 129 docs) and before the security/deployment reviews of Iteration 12 — so those reviews run against a clean, green, localized, documented baseline and "some things are already done" by the time they start. **Deployment target (binding, 2026-06-14 planning session):** invited, authenticated researchers on a controlled domain (no open self-registration) — internet-exposed but not a public launch; this sets the threat model Iteration 12 reviews against.*
+
+*Two disciplines govern the consolidation pass:*
+- ***Assess → fix.*** The quality work is inventoried first (Phase 138) into a counted register, then remediated against it — never "refactor by feeling". Same two-stage pattern Iteration 12 uses for security.
+- ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
+
+*Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
+
+---
+
+## Phase 137: CI & Build Performance Budget + Makefile Maintainability [P1] - [ ] TODO
+
+*Green is necessary but not sufficient: the pipeline must stay fast and the developer Makefile must stay usable. The operator wants the PR pipeline well under 30 min, and several Makefile targets are operationally painful — `make deps-refresh` and `make audit` "run forever". This phase sets an enforced wall-clock budget, tames the long poles (the ~3–5 GB HuggingFace worker-image build chief among them), and restructures the heavy targets so routine work never waits on a rotation-grade operation.*
+
+**Grounding.** Read first: `.github/workflows/` job timings + caching config, the worker Dockerfile (the `--mount=type=cache,id=aer-analysis-worker-hf-models` model bake), `compose.yaml` (SSoT tags), `scripts/build/deps_refresh.sh`, the `audit` / `audit-python` Makefile targets + `services/<svc>/pip-audit-ignores.txt`, Hard Rule 7 (Buildkit cache is operator-managed; prune is prohibited). Preserve: Hard Rule 7 (never prune the HF cache mount), the SSoT tag model, the CI-as-authoritative-gatekeeper split (pre-push runs the touched subset only). Verify-first: measure the real current wall-clock per job before optimising — optimise the actual long pole, not a guess.
+
+### CI performance budget (ratchet)
+* [ ] **Explicit wall-clock budget.** Set and document a PR-pipeline target (≤10–12 min; confirm against the measured baseline) enforced as a CI signal that fails on regression. Record the per-job breakdown in the Operations Playbook.
+* [ ] **Tame the long poles.** Keep the worker image's HF-model bake off the PR hot path (layer/registry caching; rebuild only when worker deps change, not every PR). Parallelise independent jobs; cache Go build/test, pip, and node_modules; reuse Testcontainer images via the SSoT tags.
+
+### CI gating policy (blocking vs. advisory — solo-dev maintainable)
+* [ ] **Classify every CI step blocking vs. advisory.** A *blocking* step gates merge; an *advisory* step reports but does not fail the pipeline (`continue-on-error` / a non-required job). Document the policy + the rationale per step. **Goal:** a red pipeline always means "something a solo dev must act on now", never "a slow or flaky non-critical check tripped". Audit which steps currently fail the whole run.
+* [ ] **Move slow/flaky non-gating checks off the blocking path** — candidates per operator request: full `make audit`, the E2E suite, heavy image builds → advisory and/or scheduled (nightly), not PR-blocking.
+* [ ] **Security caveat (deliberate, not silent).** Advisory ≠ unwatched: a security check (govulncheck / pip-audit / Trivy) demoted from PR-blocking MUST still run on a schedule AND surface failures the operator actually sees (nightly job + notification), so "non-blocking" never becomes "unnoticed". Record the chosen tradeoff against CLAUDE.md's "CI is the authoritative gatekeeper" line.
+
+### Makefile maintainability
+* [ ] **`make deps-refresh` restructured.** Split the monolith into per-ecosystem sub-targets (Go digests, Python lockfiles, image digests, SentiWS hash) so a single ecosystem can rotate without the full run; document expected runtime + that it is a deliberate, rare, bandwidth-heavy rotation (Hard Rule 7 / playbook). It stays the *only* sanctioned Buildkit entry point.
+* [ ] **`make audit` made overseeable.** Keep it CI-authoritative and off every hot path; locally profile it, cache what is cacheable, split fast vs. slow audit sub-targets, and document the expected runtime so "it ran forever" becomes "it takes N minutes, here's why".
+* [ ] **Target inventory sweep.** Every Makefile target either works or is removed; each carries a one-line `help` description; the slow ones declare their expected runtime. No dead targets.
+
+### `scripts/` inventory & cleanup
+* [ ] **Classify every file under `scripts/`** into exactly one justified home: Makefile-wired (`build/deps_refresh.sh`, `build/e2e_smoke_test.sh`, `build/openapi_bundle.py`, `build/openapi_ref_style_check.sh`, `build/generate_metric_validity_scaffold.py`, `operations/clean.sh`, `operations/clean_infra.sh`, `operations/reset_validate.sh`) · git-hook (`hooks/pre-commit`, `hooks/pre-push`) · CI/workflow-used (`build/build_wikidata_index.py`, `build/wikidata_validate.sh` + `wikidata_fixtures/`, `build/e2e_helpers.sh` + `e2e_fixtures/`) · documented one-shot op (`operations/compute_baselines.py`, `operations/reextract_silver.py`) · audit one-off (`audit/*`) · **dead** → remove. One table; nothing unclassified.
+* [ ] **Remove committed build artefacts** — `scripts/**/__pycache__/*.pyc` are currently checked in; delete them and add a `.gitignore` rule so bytecode never re-enters the tree.
+* [ ] **Stale-script check** — the `audit/` one-offs (`bump_content_version_and_wp005_anchor.py`, `inject_composition_notes.py`, `methodology_coverage.sh`) and the `operations/` scripts verified still-correct against the current schema/content (or updated); obsolete ones removed. Every surviving raw-script invocation is documented in the Operations Playbook as a deliberate exception — the Phase-120c invariant (routine ops go through the Makefile) holds.
+
+### Dev vs. prod stack clarity (`up`/`down`/`restart`)
+* [ ] **One obvious dev path, one obvious prod path.** Dev `make up`/`down`/`restart` brings up the FULL local stack incl. the operator-facing extras (Swagger UI, the observability stack, MkDocs) so every service is testable locally; the prod path (`compose.prod.yaml`) excludes dev-only extras + debug ports. It works today but is confusing — the goal is that *which target does what* is obvious, and that `down` tears everything (incl. swagger/telemetry/profiles) cleanly back down with no orphaned containers or volumes.
+* [ ] **Consistent `profiles:` + docs** — dev extras gated by Compose `profiles:` (clear opt-in/out, not ad-hoc); `make help` + a short playbook note state what dev brings up, how to reach each extra (Swagger / Grafana URLs), and how prod differs.
+
+### Validation
+* [ ] PR pipeline runs within budget and fails on regression; `deps-refresh` can rotate one ecosystem in isolation; `make audit` has a documented, bounded runtime; `make help` lists every target with a description and a runtime hint for the heavy ones; every `scripts/` file is wired/documented or removed and no `__pycache__` is tracked; the dev↔prod target split is obvious and dev `up`/`down` brings up/tears down the full stack (incl. Swagger + telemetry) with no orphans. (Bandwidth-heavy validation runs scheduled for real-internet availability.)
+
+### Status (2026-06-14) — partially advanced during the Phase-136 CI restoration
+*Already shipped in the Phase-136 green-up — do NOT re-do:*
+* [x] Worker image taken off the per-PR scan path (the ~30-min long pole).
+* [x] Security audits (govulncheck / pip-audit / Trivy) made **advisory** (report, don't block) — the gating-policy core.
+* [x] **Big speed win:** the Python scientific stack now installs from cp314 wheels (scikit-learn 1.7.2 + a py3.14 lock regen) → `python-pipeline` + `dependency-audit` fell from 20–28 min to ~5–8 min.
+
+*Still open — the bulk of Phase 137:* an **enforced** wall-clock budget ratchet (time improved, but no failing check yet); the advisory-security **nightly + notification** (so demoted findings aren't silent); **Makefile maintainability** (`deps-refresh` per-ecosystem split, `make audit` overseeable, target sweep); **`scripts/` cleanup** (first-pass audit only — `__pycache__` still tracked, `audit/` scripts unreviewed); **dev-vs-prod stack clarity**; plus the Phase-136 finish-up folded in here (`bandwidth_probe.yml` delete, build-workflow justify/remove, Playwright `TESTING.md`, `lxml` 6.1.0 bump). **→ Phase 137 is NOT complete.**
+
+---
+
+## Phase 154: Observability Verification — Traces, Trace-IDs & Operator Dashboard [P1] - [ ] TODO
+
+*The OTel → Tempo/Prometheus/Grafana stack exists (Phases 5/18/36) but has not been exercised in a while. Before deployment — and so the operator can actually debug the rest of Iteration 11/12 — telemetry must work end-to-end and present a clean, curated view of the key signals with a documented way to reach and use it. (Prod alerting on top of these dashboards is Phase 146; this phase builds the dashboards + trace plumbing they depend on.)*
+
+**Grounding.** Read first: the OTel collector config under `infra/observability`, the backend telemetry init (`pkg/telemetry`), how/whether trace context propagates across the NATS + MinIO async hops (W3C `traceparent` breaks across async boundaries unless propagated in message metadata), the existing Grafana provisioning/dashboards, the Operations Playbook observability section. Preserve: the OTel-collector-as-sole-egress + internal-only network posture (no backend port exposure beyond `make debug-up`). Verify-first: confirm what actually emits traces/metrics today vs. what is dark before designing the dashboard.
+
+### Traces + correlation
+* [ ] **End-to-end traces** — a representative flow yields a connected trace across the services that synchronously connect; the async medallion hops (NATS/MinIO) either carry propagated trace context in message metadata or are documented as explicit span boundaries (AĒR is NATS/MinIO-coordinated, so "distributed trace" = linked spans via propagated context, not an HTTP call chain).
+* [ ] **Trace-IDs in backend logs** — every backend logs the active trace-id (logs ↔ traces correlation); the trace-id (or a request-id) is surfaced on error responses so the operator can pivot from a 5xx to its trace.
+
+### Operator view + docs
+* [ ] **One curated Grafana dashboard**, provisioned-as-code — the key signals only: per-service request rate / latency / error rate, NATS consumer lag + DLQ depth, worker throughput, ClickHouse / MinIO / Postgres health. No hand-built, unversioned panels.
+* [ ] **How to reach/use it** — documented: the Grafana URL (dev), login, which dashboard, what each panel means, and how to search a trace by trace-id (Tempo/Jaeger).
+* [ ] **Operations Playbook section** — a "symptom → trace → root cause" runbook using the dashboard + traces.
+
+### Validation
+* [ ] A sample flow produces a trace findable by its trace-id; that same trace-id appears in the backend logs; the curated dashboard shows the key signals live; the playbook walks an operator from symptom to root cause unaided.
+
+---
+
+## Phase 138: Quality Inventory & Worklists [P1] - [ ] TODO
+
+*The assessment stage for the quality pass — cheap, tool-driven, fixes nothing. It turns "the code quality can be better" into concrete, counted worklists so Phases 139–143 remediate against evidence, not vibes, and so progress is measurable. Mirrors the assess→fix pattern Iteration 12 uses for security.*
+
+**Grounding.** Read first: the repo layout (`services/*`, `pkg/`, `crawlers/*`, `services/dashboard/src`), existing lint configs (golangci-lint, ruff, eslint/svelte-check), `.tool-versions`. Preserve: existing lint baselines (extend, don't fork). Verify-first: prefer tools already pinnable via `.tool-versions` / existing dev deps before adding new ones (no overengineering).
+
+### Inventories (each → a counted list in the register)
+* [ ] **Long-file census.** Every file over an agreed threshold (propose Go/Python > ~500 LOC, Svelte component > ~400 LOC — confirm against current norms), ranked, with a split hypothesis per file. Feeds Phase 141.
+* [ ] **Dead-code scan.** Per language: Go (`deadcode`/`staticcheck` unused), Python (`vulture`/`ruff` unused), TS/Svelte (`knip`/`ts-prune`; unused exports/components/assets). Candidate list with confidence. Feeds Phase 139.
+* [ ] **Naming-inconsistency scan.** Catalogue divergent conventions (casing, abbreviations, domain-term drift — probe/source/panel/cell vocabulary) across each language. Feeds Phase 140.
+* [ ] **Comment/doc-coverage gaps.** Exported-symbol doc coverage (Go doc comments, Python docstrings, JSDoc/Svelte) + a TODO/FIXME/commented-out-code census. Feeds Phase 143.
+* [ ] **Stale-docs list.** Sweep `/docs` (Arc42, ADRs, methodology, design, operations, extending) for references to removed/renamed features (`/compose`, "Function Lane", RSS crawler, four-surface vocabulary). Feeds Phase 129.
+
+### Register
+* [ ] **`docs/operations/quality_register.md`** — one living register; each item tagged scope · effort · ratchet-target, grouped by the consuming phase. The SoT the remediation phases check off against.
+
+### Validation
+* [ ] The register exists with counted items in every category; each downstream phase (139/140/141/143/129) has a concrete, non-empty worklist (or a justified "nothing found").
+
+---
+
+## Phase 139: Dead-Code Elimination [P2] - [ ] TODO
+
+*First remediation step, before any refactor: deleting unused code shrinks the surface every later phase must touch. Runs against Phase 138's dead-code worklist.*
+
+**Grounding.** Read first: Phase-138 dead-code list, the build graph (`go.work`, `__init__.py` exports, Svelte component imports, asset references). Preserve: anything reachable only via reflection/dynamic dispatch, config-string registries (the `AdapterRegistry`/extractor registries), or generated code — verify reachability before deleting. Verify-first: a "dead" symbol that is actually an extension seam (registry entry, public `pkg/` API) is NOT dead — confirm against the registries before removal.
+
+### Remove
+* [ ] **Confirmed dead code deleted** per language, each deletion validated by green build + green tests (relies on Phase 136). Retired one-shot/backfill utilities stay retired.
+* [ ] **Unused assets / exports / dependencies** pruned (unused npm/go/pip deps removed from manifests; unused static assets removed).
+* [ ] **Ratchet.** Wire the dead-code check into CI (or the lint stage) so re-introduction fails the build.
+
+### Validation
+* [ ] Build + full test suite green after removal; the dead-code CI check is active and fails on a planted unused symbol; the register's dead-code section is fully checked off or items are explicitly reclassified as live-with-reason.
+
+---
+
+## Phase 140: Naming & Code-Convention Unification [P2] - [ ] TODO
+
+*Codify the conventions, then apply them — in that order, so the pass is consistent rather than another layer of drift. Runs against Phase 138's naming worklist.*
+
+**Grounding.** Read first: Phase-138 naming list, the implicit conventions across each language, the domain vocabulary in CLAUDE.md (probe / source / pillar / panel / cell / scope) and `discourse-function.ts`. Preserve: the **machine `probeId` as the stable load-bearing identifier** and all other load-bearing identifiers — rename display/local names, never wire-contract / DB / URL-grammar keys without an explicit migration. Verify-first: a name that crosses a boundary (OpenAPI field, ClickHouse column, URL key, NATS subject) is a contract, out of scope for a pure rename.
+
+### Codify
+* [ ] **`docs/development/conventions.md`** — naming + style conventions per language (Go, Python, TS/Svelte), domain-term canon (one spelling per concept), file/module naming. The reference the rename checks against.
+
+### Apply
+* [ ] **Local/internal renames** applied per the convention doc (variables, private functions, local components), each behind green tests. Cross-boundary identifiers explicitly listed as deferred-with-reason.
+* [ ] **Ratchet.** Enforce the mechanically enforceable subset via linters (naming rules, import ordering, formatter settings) in CI.
+
+### Validation
+* [ ] The convention doc exists and CI enforces the mechanical subset; the naming worklist is checked off or deferred-with-reason; no contract/identifier broken (OpenAPI sync + tests green).
+
+---
+
+## Phase 141: File Decomposition — Long-File Refactor [P2] - [ ] TODO
+
+*Split the over-long files from Phase 138's census into coherent units along existing architectural seams — Clean Architecture for Go (`cmd`→`config`→`core`→`storage`), extractor/adapter boundaries for the worker, component/store boundaries for the dashboard. Structural only: no behaviour change.*
+
+**Grounding.** Read first: Phase-138 long-file census + split hypotheses, the Clean-Architecture layering (CLAUDE.md), the worker `MetricExtractor`/`SourceAdapter` boundaries, the dashboard component/`$lib` structure, the `panel-mutators` pure/rune split (an existing good decomposition to mirror). Preserve: public APIs, the pure/impure split pattern (`panel-mutators-pure.ts` vs rune-wrapped), import graphs. Verify-first: decompose along an existing seam, never invent a parallel structure beside the established one (brownfield rule).
+
+### Refactor
+* [ ] **Top long-files split** into cohesive modules following the established seams; behaviour-preserving (tests unchanged green before/after). Prioritise the highest-LOC + highest-churn files first.
+* [ ] **Ratchet.** A file-length lint/CI check at the agreed threshold so regressions fail the build.
+
+### Validation
+* [ ] Full test suite green before and after each split (no behaviour change); the file-length check is active; the census's targeted files are under threshold or carry a justified exception.
+
+---
+
+## Phase 142: Test Suite Health & 80% Coverage Floor [P1] - [ ] TODO
+
+*Raise and lock a coverage floor, and bring the test code itself to the same quality bar as production code. Operator requirement (2026-06-14): **≥80% coverage for every service** — Go services, the Svelte/dashboard app, and the 3D engine module explicitly named, with Python services held to the same bar. Placed after the structural refactors (139–141) so new tests target the final structure, not code about to move.*
+
+**Grounding.** Read first: current coverage per service (`go test -cover`, Vitest coverage, pytest-cov), the long-test-file entries from Phase 138, the Testcontainer + Playwright setup, the `engine-3d` test surface. Preserve: the test-as-contract value (no assertion-free coverage padding), the Testcontainer image-tag SSoT. Verify-first: measure the real per-service baseline before setting the ratchet threshold.
+
+### Coverage to floor
+* [ ] **≥80% per scope** — Go (`ingestion-api`, `bff-api`, `pkg`), Python (`analysis-worker`, `web-crawler`), dashboard (Svelte components + `$lib`), and the **3D engine** module. Meaningful tests on real behaviour and edge cases, not coverage-padding.
+* [ ] **Coverage ratchet in CI.** Per-scope minimum enforced; CI fails below floor. (Initial gate at the measured baseline where already >80%, never below 80% where required.)
+
+### Test-code health
+* [ ] **Long / unwieldy test files refactored** (Phase-138 list) — table-driven where it fits, shared fixtures/helpers extracted, duplicated setup removed. Test code held to the production conventions (Phase 140).
+
+### Validation
+* [ ] Every named scope reports ≥80%; the CI coverage gate is active and fails a planted regression; refactored test files are green and the suite runtime stays within the Phase-137 budget.
+
+---
+
+## Phase 143: In-Code Documentation & Comment Consistency [P2] - [ ] TODO
+
+*Bring comments and in-code documentation to a uniform, professional standard — exported-symbol docs where they carry meaning, dead comments and commented-out code removed, English-only enforced. Runs against Phase 138's comment/doc-gap list.*
+
+**Grounding.** Read first: Phase-138 comment/doc-gap list, the English-only rule (CLAUDE.md), the existing doc-comment style per language. Preserve: the English-only invariant for all code/comments/docs, and genuinely useful explanatory comments (the *why*, not the *what*). Verify-first: do not add ceremonial doc-comments that restate the signature — document intent and non-obvious constraints only.
+
+### Sweep
+* [ ] **Exported-symbol docs** added where meaningful (Go doc comments, Python docstrings, JSDoc/Svelte) — intent, invariants, units, gotchas; not signature restatements.
+* [ ] **Dead comments & commented-out code removed**; stale TODO/FIXME either actioned, ticketed, or deleted.
+* [ ] **English-only enforced** across all comments/identifiers (a lint check if feasible).
+
+### Validation
+* [ ] The comment/doc worklist is checked off; no commented-out code blocks remain; English-only holds repo-wide; doc-lint (if added) is green.
+
+---
+
+## Phase 144: UI Localization — German (DE) [P1] - [ ] TODO
+
+*The app is currently English-only at the UI-shell level (`APP_CONTENT_LANGUAGE` clamp; "English-only for now, the seam a future locale selector replaces"). This phase makes the UI available in German alongside English — a real feature, not cleanup — building on the partial DE infrastructure already present (content-catalog `{en,de}` for refusals/sources, `viewer-language.ts`). It is the prerequisite that makes Phase 128's EN/DE-parity audit actually testable.*
+
+**Grounding.** Read first: `APP_CONTENT_LANGUAGE` + `src/lib/viewmodes/viewer-language.ts`, the content-catalog `{en,de}` structure (`configs/content/{en,de}`), every hardcoded UI-string surface (chrome, Workbench, Dossier overlay, auth surfaces, refusals, how-to-read), the design brief's language stance. Preserve: the distinction between **app UI language** and **content/viewer language** (the latter already exists for QID relabelling — do not conflate); the static-SvelteKit deployment model (no server adapter). Verify-first: inventory which surfaces already read from the `{en,de}` catalog vs. carry hardcoded English before choosing the i18n mechanism.
+
+### Mechanism
+* [ ] **i18n library decision** — choose the shell-i18n approach (e.g. Paraglide/inlang vs. svelte-i18n) compatible with static SvelteKit + the existing content-catalog; record the choice (short ADR or design-brief note). Reuse the catalog pattern where it already serves; don't fork a parallel string store.
+* [ ] **Locale selector** — the UI-language toggle the `APP_CONTENT_LANGUAGE` seam was reserved for; persists per session; sensible default.
+
+### Coverage
+* [ ] **All UI strings externalised** (chrome, Workbench, Dossier, auth, overlays, refusals, how-to-read, error/empty states) with DE + EN. No hardcoded English left in a user-visible surface.
+* [ ] **Locale-aware formatting** (dates/numbers) where surfaced.
+
+### Validation
+* [ ] Every reachable surface renders fully in DE and EN via the selector; no missing-key fallbacks in normal flows; sets up Phase 128's EN/DE-parity audit. `make lint`/`test` green.
+
+---
+
+## Phase 151: Dashboard Design & UX Iteration (feature-preserving) [P1] - [ ] TODO
+
+*A deliberate, whole-dashboard design + UX pass to raise the visual and interaction quality of the frontend before the coherence/a11y audits and the external launch. The operator iterates the design with Claude's design tool (claude.ai/design — feed the whole app, get per-touchpoint design proposals to prompt against); the load-bearing risk is **feature regression** — a restyle that silently breaks behaviour, state, deep-links, or the reflexive surfaces. This phase therefore pairs the design work with an explicit feature-preservation harness and a documented working method. Positioned AFTER the refactor (139–141) and localization (144) so design iterates on the final structure, and BEFORE the closure audits (127 coherence / 128 a11y) so those validate the post-design surface.*
+
+**Grounding.** Read first: `docs/design/design_brief.md` (the visual-token authority) + the Visualization Guidelines, the component inventory under `services/dashboard/src/lib/components/`, the three-surface + Pillar architecture, the URL-state grammar, the Negative-Space / refusal / how-to-read surfaces (the reflexive contract that must survive any restyle). Preserve: **every behavioural contract** — URL deep-linkability, per-Panel/Window/Pillar state, the reflexive surfaces (Negative Space, refusals, "how to read"), the design-token SoT, the static-SvelteKit model. Verify-first: the design brief is the authority — a redesign updates the brief, it does not silently diverge from it.
+
+### Working method
+* [ ] **claude.ai/design for direction, the codebase for truth.** Treat the tool's per-touchpoint output as *design proposals* — decide visual direction there, then implement in-code deliberately (Claude Code + the harness below); never blind-paste a generated component over a behaviourally load-bearing one. Feed it the design brief + tokens + the non-negotiable constraints (reflexive surfaces, static-SvelteKit, the WCAG-AA target) so proposals respect them. Sequence: shared primitives/tokens first (typography, spacing, buttons, FunctionBadge/NegativeSpaceBadge, cards), then the three surfaces, then auth/overlays — so consistency propagates instead of being re-litigated per screen. A short per-touchpoint decision log keeps the design brief the SoT.
+* [ ] **Scope = chrome, not analytical encoding.** Design iterates layout, spacing, typography, affordances, empty/loading/error states — NOT the data-viz semantics (pillar geometries, no-shared-axis-for-scaled-metrics, the ±1σ band), which are governed by the Visualization Guidelines + WPs, not aesthetics.
+* [ ] **Feature-preservation harness** — before restyling, the behavioural contract per touched component is captured (the Phase-142 tests + the Playwright E2E + a per-component "what must still work" checklist) so a regression is caught, not shipped.
+
+### Design pass
+* [ ] **Component-by-component UX/design iteration** against the (possibly updated) design brief — visual hierarchy, spacing, typography, interaction affordances, empty/loading/error states — never at the cost of a behavioural contract or the reflexive surfaces.
+* [ ] **Design-brief reconciliation** — the brief is updated to match the shipped design (it stays the SoT); design tokens remain centralised.
+
+### Validation
+* [ ] Every touched component passes its preserved behavioural contract (tests + E2E green; deep-links round-trip; reflexive surfaces intact); the design brief matches the shipped UI; the workflow guide exists and was followed.
+
+---
+
+## Closure block (Phases 127–129 + 152 README) — run last, against the consolidated surface
+
+*The three original Iteration-11 closure phases keep their scope but move **after** the consolidation pass (136–144): coherence, accessibility/performance, and documentation are verified against the cleaned, localized, green-CI surface — so the audit is not invalidated by a later refactor. They are also the bridge into Iteration 12: a coherent, documented, accessible app is the baseline the security/deployment reviews assume.*
 
 ---
 
@@ -4613,6 +4864,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ### Routing & state
 * [ ] **Back/forward state preservation** — from any view, back AND forward preserve charts/panels/configuration/Dossier filters. **"Your work will be lost" guard** (`beforeunload`/navigation guard) + localStorage quick-save (server-side from Phase 135). Every reachable state in the URL; deep-links round-trip byte-identically.
+* [ ] **Re-enable the Phase-136 quarantined E2E tests (MUST).** During the Phase-136 CI restoration, 3 dashboard E2E tests were `test.skip`-quarantined because they assert the **retired `/lanes/{id}/…?viewMode=` grammar + Surface-I/II DOM**: `atmosphere.spec.ts` (deep-linked probe → Dossier descent), `topic-views.spec.ts` (`topic_distribution` cell renders + fires `/topics/distribution`), `iteration6-closure.spec.ts` (cooccurrence node → Wikidata external link). They are **real feature coverage that moved to the new surfaces** (Atmosphäre overlay `?dossier=open`/`?selectedProbes=`; Workbench Episteme/Rhizome cells under `?{aleph,episteme,rhizome}=<base64url-json>`). Rewrite each against the three-surface grammar + current cell DOM (`.plot-host`, `svg.graph g.node`, `[data-testid="entity-external-links"]`) and **un-skip** — do not delete the coverage. Search marker: `QUARANTINED (Phase 136 → rewrite in 127)`.
 
 ### Coherence audit (three surfaces)
 * [ ] Pillar-identity coherence; metric+metadata inventory coherence (all in the picker, EN+DE explanations); "always explained" coherence; configurable-cell coherence.
@@ -4628,6 +4880,8 @@ This phase enforces the following — every implementation choice must satisfy t
 ## Phase 128: Accessibility + Performance Verification [P1] - [ ] TODO
 
 *Full WCAG 2.2 AA + Lighthouse CI + High-Fi hardware performance across the complete post-Iteration-10 surface and both content languages (DE+FR alongside EN/DE UI).*
+
+*Runs after Phase 144 — the EN/DE UI-parity check below is now backed by a real localized UI (Phase 144), not aspirational; the Lighthouse/bundle budgets compose with the Phase-137 CI performance budget.*
 
 **Grounding.** Read first: existing Lighthouse/bundle-budget config + the a11y E2E setup, Brief §10 (performance budgets), the engine-3d reduced-motion path. Preserve: existing bundle budgets (shell), the reduced-motion contract. Verify-first: Phase 127 substantially in place (this audits the coherent surface).
 
@@ -4645,7 +4899,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ## Phase 129: Documentation Sweep + Terminology Reconciliation [P-Docs] - [ ] TODO
 
-*Final consolidation against post-Iteration-10 reality.*
+*Final consolidation against post-Iteration-10 reality. **Absorbs the Phase-138 stale-docs worklist** — the operator's "go over all `/docs` files and check they are correct" is this phase, now evidence-driven from the inventory rather than ad-hoc.*
 
 **Grounding.** Read first: all ADRs in `docs/arc42/09_architecture_decisions.md`, CLAUDE.md, the extending guides, the Operations Playbook, `mkdocs.yml`. Preserve: the MkDocs strict-build constraint (cross-references resolve), the English-only documentation rule. Verify-first: which ADRs actually landed vs. planned before writing the coherence pass.
 
@@ -4655,10 +4909,26 @@ This phase enforces the following — every implementation choice must satisfy t
 * [ ] **Working-Paper cross-link audit**; **Operations Playbook** end-to-end; **extending guides** review; auto-generated `add-a-language.md` cutover.
 * [ ] **RSS-crawler retirement** — delete archived `crawlers/_archived/rss-crawler/`.
 * [ ] **Terminology reconciliation** — the "Probe/Source" rename question (Path A vs B), now more concrete with the user/auth layer; opens as a review PR, does not land here.
-* [ ] **Completed-Phases index** reflects all landed phases.
 
 ### Validation
 * [ ] `mkdocs build --strict` passes; all cross-references resolve; terminology PR opened; Completed-Phases index current.
+
+---
+
+## Phase 152: Public README & Project Entry Point [P-Docs] - [ ] TODO
+
+*The README is the front door for external people who discover the project — researchers, collaborators, the curious. Today it is outdated. This phase produces a current, well-presented README as the entry point, positioned at the END of the closure block so it reflects the final coherent, localized, designed (Phase 151) surface. Supplemented with the real deployment/install section after Iteration 13 (Phase 149).*
+
+**Grounding.** Read first: the current `README.md`, CLAUDE.md (project identity + architecture), the Arc42 manifesto + scientific-foundations chapter, the provisional-metrics + Negative-Space sections (the honesty surfaces), the Working Papers (for the POC caveats), the design brief (for visual consistency of any diagram). Preserve: the English-only rule, the manifesto framing (atmospheric sensor, not surveillance instrument), the provisional/POC honesty. Verify-first: every claim in the README is checked against shipped reality — no aspirational features.
+
+* [ ] **Rewrite the README** — what AĒR is (the manifesto framing in brief), the medallion architecture, the three surfaces + Pillars, how to run it locally (Makefile), where the docs live. Current, concise, well-structured.
+* [ ] **Architecture diagram** — a clean, precise, good-looking diagram of the medallion data flow (Crawler → Ingestion → Bronze → NATS → Worker → Silver/Gold → BFF → Dashboard) + infra. Source-controlled (committed SVG / Mermaid) so it stays maintainable.
+* [ ] **Dashboard screenshots** — a few representative, current screenshots (Atmosphäre globe, a Workbench Pillar, the Dossier overlay) captured from the post-design (Phase 151) surface.
+* [ ] **POC honesty banner (non-negotiable).** The README states clearly, up front, that this is an **engineering proof-of-concept** whose metrics are **provisional** and whose **scientific validity is limited / not yet peer-validated** (per the provisional-metrics discipline + the Working Papers). External readers must not mistake the POC for a validated instrument.
+* [ ] **Deployment placeholder** — a "Deployment" section stub that Iteration 13 (Phase 149) fills with the real install / run-in-prod instructions.
+
+### Validation
+* [ ] README renders cleanly on the git host; every feature claim matches shipped reality; the architecture diagram + screenshots are current; the POC / limited-validity statement is prominent; all links resolve.
 
 
 ---
@@ -4666,6 +4936,154 @@ This phase enforces the following — every implementation choice must satisfy t
 
 
 
+
+# Iteration 12 — Production Readiness & Deployment Hardening
+
+*The deployment gate for the first invited researchers. **Target (binding, 2026-06-14):** invited, authenticated researchers on a controlled domain — internet-exposed, no open self-registration. Runs AFTER Iteration 11: the reviews assume a clean, green, localized, documented baseline, so "some findings are already closed" by the time they start. Two stages, the professional assess → triage → remediate pattern: **Stage A** produces a single findings register (the reviews fix nothing); a **triage gate** classifies every finding BLOCKER / SHOULD / LATER against the invite-researcher Definition-of-Done; **Stage B** remediation phases are derived from the register and numbered post-triage (their content is not knowable until the audit runs — this is deliberate, not under-specified). Ends with a Go/No-Go launch checklist.*
+
+*Threat model (Stage-A input).* Internet-exposed surface (bots scan everything) + a small set of authenticated, semi-trusted researchers behind invite-only auth (Phase 134/135). STRIDE the BFF / Traefik / auth surface; assume no open registration; assume the operator is the only admin initially. Code-quality refactoring is NOT a deployment gate here (it was Iteration 11) — Stage B closes security/ops BLOCKERs only; CLEAN/DRY refinements surfaced in review go to the standing backlog (LATER).
+
+---
+
+## Phase 145: Security Review, Threat Model & Pentest [P0] - [ ] TODO
+
+*Stage A. The internet-facing surface under adversarial review. Produces findings, fixes nothing.*
+
+**Grounding.** Read first: the BFF auth middleware (`internal/auth/`), the ingestion-api `pkg/middleware/apikey.go`, the Traefik config (TLS, headers, sole-ingress posture), the Security Defaults section of CLAUDE.md, Phase 75 (BFF security hardening), ADR-040 (session model). Preserve: every existing security default — this is a review, not a rewrite. Verify-first: enumerate the actual internet-reachable surface (Traefik routes, BFF endpoints, MkDocs) before testing.
+
+* [ ] **Threat model (STRIDE)** of the auth / session / BFF / Traefik surface; documented.
+* [ ] **Auth/session pentest** — session fixation/rotation, CSRF (`Sec-Fetch-Site` + SameSite), cookie flags (`__Host-`/httpOnly/Secure), invite/accept/reset flows, RBAC boundary (researcher→admin escalation), brute-force/rate-limiting on login.
+* [ ] **Web surface** — OWASP-class checks on every BFF endpoint (authz on every data route, input validation, body caps, error leakage, injection on the ClickHouse/Postgres query paths), security headers (HSTS, CSP, frame/`nosniff`), TLS config.
+* [ ] **Secrets posture** — boot-time validation coverage; no secret reachable from client JS or logs; `.env.example` completeness; **GitHub Actions secrets audit** (which secrets CI needs vs. which are set — the operator's open question).
+* [ ] **Findings → register** with severity (CVSS-ish) + repro + fix sketch. No fixes here.
+
+### Validation
+* [ ] Threat model documented; every internet-reachable endpoint exercised; findings register populated + triaged BLOCKER/SHOULD/LATER.
+
+---
+
+## Phase 146: Infrastructure & Deployment Readiness Review [P0] - [ ] TODO
+
+*Stage A. Everything a POC never needed but a deployment does — prod compose, secrets, backups, monitoring-in-anger, recovery.*
+
+**Grounding.** Read first: `compose.yaml` + `compose.prod.yaml`, `.env.example`, the infra init containers (`minio-init`, `nats-init`, `clickhouse-init`, `postgres-init-roles`), the observability stack (OTel→Tempo/Prometheus/Grafana), the Operations Playbook, the `make reset`/backup story, the GitHub secrets set. Preserve: IaC-only provisioning (Hard Rule 5), the SSoT tag model, zero-trust network posture. Verify-first: inventory what `compose.prod.yaml` actually changes vs. dev before reviewing.
+
+* [ ] **Prod compose review + `compose.yaml`↔`compose.prod.yaml` drift.** First reconcile the two files: confirm `compose.prod.yaml` is still current against `compose.yaml` (the SSoT for image tags) — no stale/missing services, tags, env, or overrides; the prod overlay only *adds/overrides* deliberately, never silently diverges. Then review the prod config itself — TLS/Traefik prod config, resource limits, restart policies, log handling, no debug ports exposed, secret-injection model.
+* [ ] **Secrets management** — full required-secret inventory across services; GitHub Actions + deployment secrets reconciled with the boot-time validators and `.env.example`; rotation story.
+* [ ] **Backup & restore** — Postgres (auth + metadata), ClickHouse Gold, MinIO buckets: documented, **tested** restore (not just "we take backups"). Recovery runbook.
+* [ ] **Monitoring/alerting in anger** — which signals page the operator (service down, DLQ growth, disk, cert expiry); dashboards + alert rules; the observability stack wired for prod.
+* [ ] **Deployment runbook** — first deploy, upgrade, rollback, the `make create-admin` bootstrap, the public/internal docs split (Phase 134).
+* [ ] **Findings → register**, triaged.
+
+### Validation
+* [ ] A restore from backup succeeds in a clean environment; the secret inventory is complete; the deployment runbook is followed end-to-end on a staging target; findings registered + triaged.
+
+---
+
+## Phase 147: Per-Service Code & Robustness Review [P1] - [ ] TODO
+
+*Stage A. Each service under `/services/` (+ `pkg/`, the crawler) reviewed for robustness, error handling, resource safety, and CLEAN-architecture adherence — beyond the mechanical quality pass of Iteration 11 (dead code, naming, file length). This is the senior-eyes review of each service's correctness and failure behaviour.*
+
+**Grounding.** Read first: each service's `cmd`→`config`→`core`→`storage` layering, the worker extractor/adapter pipeline + graceful-degradation contract, the BFF query paths, the ingestion-api body/timeout caps, the crawler politeness/state model. Preserve: the load-bearing constraints in CLAUDE.md (SilverEnvelope contract, language-detection-first ordering, extractors must not mutate core, graceful-degradation vs DLQ rules). Verify-first: review against the documented constraints — flag any drift as a finding.
+
+* [ ] **ingestion-api** — body caps, timeouts, error paths, auth, MinIO/Postgres failure handling.
+* [ ] **bff-api** — query robustness, authz coverage, input validation, ClickHouse/Postgres pool + timeout handling, generic-5xx discipline.
+* [ ] **analysis-worker** — extractor graceful-degradation, DLQ-boundary correctness, pool timeouts, idempotency (ReplacingMergeTree dedup), re-attempt-framework health.
+* [ ] **web-crawler** — politeness defaults, conditional-GET/state correctness, discovery-channel telemetry, failure isolation.
+* [ ] **pkg/ + dashboard** — shared-code soundness; dashboard error/empty/loading states, request-layer resilience, no secret leakage.
+* [ ] **Findings → register**, triaged (CLEAN/DRY refinements that are not blockers → LATER).
+
+### Validation
+* [ ] Every service has a recorded review with findings triaged; load-bearing-constraint drift is fixed-now (if BLOCKER) or registered.
+
+---
+
+## Phase 153: Transactional Email for Invites & Password Reset [P0] - [ ] TODO
+
+*The deployment target is **invited** researchers, but auth today is bound to `make create-admin` and has **no real email channel** — invite / accept-invite / forgot-password / reset-password flows exist as endpoints (ADR-040) but cannot actually reach a human. Without email delivery the invite-only model is inoperable, so this is a launch prerequisite, not a nice-to-have. The phase first determines the best free, low-dependency, stable solution, then wires it.*
+
+**Grounding.** Read first: the BFF auth flows (`internal/auth/`, the `/auth/*` endpoints — accept-invite, forgot/reset-password), ADR-040, the boot-time secret validator + `.env.example`, the privacy-minimal posture (Phase 55 — only email + hash stored), the EU-residency requirement. Preserve: the no-token-in-link sharing posture (a notification email carries no bearer access — ADR-040), the secret-validation discipline, DSGVO minimalism. Verify-first: confirm exactly which flows need outbound email and what each message must (and must not) contain.
+
+### Assess (free · stable · low-dependency · EU/DSGVO)
+* [ ] **Evaluate transactional-email options** against the constraints — must work permanently, be as free as possible, add no fragile dependency, and be DSGVO-appropriate (the provider processes user email addresses → EU residency / DPA matters). Compare hosted free-tier transactional-email providers vs. an SMTP relay; **explicitly reject self-hosted SMTP** as the default (deliverability / spam / maintenance burden is hostile to a solo dev). Record the decision (short ADR or playbook note) with the free-tier limits + the failure/abuse story.
+
+### Implement
+* [ ] **Email delivery wired** for invite, accept-invite, and forgot/reset-password — minimal templates, English (+ DE per Phase 144), no tracking pixels (anti-surveillance posture). Provider credentials go through the boot-time secret validator + `.env.example` (REPLACE-ME placeholder).
+* [ ] **Graceful failure** — a send failure is logged + surfaced to the admin, never a silent drop of an invite; the `make create-admin` path stays as the break-glass admin bootstrap (documented fallback).
+
+### Validation
+* [ ] An admin can invite a researcher by email; the invitee receives a working accept-invite mail and activates (consent captured); forgot/reset-password delivers; a provider outage degrades gracefully with operator visibility; credentials validated at boot.
+
+---
+
+## Stage B — Remediation (derived) + Go/No-Go [ ] TODO
+
+*Numbered after the triage gate. The remediation phases are generated from the BLOCKER + SHOULD items in the findings register (Phases 145–147), grouped by service/area, each with its own Grounding + Validation written at that point against the concrete findings. **Deliberately not pre-written:** their content is the audit's output, and inventing it now would be speculative (CLAUDE.md "no overengineering"). LATER items go to a standing backlog, never a deployment gate.*
+
+*Definition of Done for the iteration (the launch gate):* every BLOCKER closed; every SHOULD closed-or-explicitly-accepted with a rationale; backups tested; the **email invite flow works end-to-end** (Phase 153); the **Go/No-Go launch checklist** signed; first invited researcher can be onboarded.
+
+---
+
+# Iteration 13 — Deployment & Infrastructure (Infra Epic)
+
+*The actual "where and how is it deployed", gated by Iteration 12's Go/No-Go. **Binding constraints (2026-06-14):** a single solo operator, minimal-to-no budget, the app must nonetheless run stably, AND it is a data-retention-heavy system — the medallion layers (Bronze→Silver→Gold) grow fast, and the analysis-worker is compute-heavy (baked-in BERT/BERTopic weights, ~3–5 GB). Cheap + stable + data-growing are in direct tension; this epic's job is to resolve that tension explicitly, not hand-wave it. **EU data residency** is required (DSGVO + the anti-surveillance posture — Phase 55, ADR-040). Design-first: topology, cost and capacity are decided (an ADR) BEFORE anything is provisioned; the concrete provisioning/deploy phases (149+) are partly derived from that decision, like Iteration 12's Stage B.*
+
+---
+
+## Phase 148: Deployment Topology, Cost & Capacity Decision (ADR) [P0] - [ ] TODO
+
+*The load-bearing decision the rest of the epic derives from. No provisioning until this ADR is signed.*
+
+**Grounding.** Read first: `compose.yaml` (the full component set + resource hints), `compose.prod.yaml`, the Data-Lifecycle (ILM) table in CLAUDE.md (Bronze 90 d / Silver 365 d / Gold 365 d + MVs), the analysis-worker model bake (Dockerfile HF cache mount), Hard Rule 7, the observability stack, ADR-040 + Phase 55 (privacy/EU). Preserve: the medallion architecture, IaC-only provisioning (Hard Rule 5), zero-trust network posture, the SSoT tag model. Verify-first: measure the *current* on-disk footprint per layer + per-probe daily growth from the running POC before modelling — extrapolate from real numbers, not guesses.
+
+### Topology + cost
+* [ ] **Hosting target decided** — single VPS vs. small multi-node vs. selective managed services, under an **explicit € / month ceiling**. EU-based provider (data residency). Candidates evaluated against cost + the worker/ClickHouse/MinIO footprint (not pre-decided here).
+* [ ] **Component placement** — map every stack service (Traefik, BFF, static dashboard, ingestion-api, analysis-worker, MinIO, ClickHouse, NATS, Postgres, OTel→Tempo/Prometheus/Grafana) onto the topology with its CPU/RAM/disk footprint; identify the heavy three (worker compute, ClickHouse, MinIO) and what is safely co-located.
+* [ ] **Observability footprint decision** — the full Tempo/Prometheus/Grafana stack may exceed the budget box; decide what survives in prod (metrics + alerting essential; trace retention trimmed/sampled) so observability does not starve the data plane.
+
+### Capacity + growth (the data-retention reality)
+* [ ] **Growth model** — Bronze/Silver/Gold bytes per probe per day (from live measurement), the ILM TTLs as the steady-state bound, disk sizing for the current probe set + headroom; the point at which a single box breaks as probes scale toward the hundreds (the scale-ambition note: validation labour scales, engineering is O(1) per probe — but storage/compute are not).
+* [ ] **Worker compute budget** — CPU-inference throughput vs. crawl volume (no-GPU assumption at this budget); behaviour under backlog; the model-bake disk cost; graceful degradation if the worker falls behind rather than silent loss.
+* [ ] **Stability model** — explicit single-point-of-failure acknowledgement at this budget; restart policies + healthchecks (already present) + backup/restore (Phase 146) as the resilience story; a clear statement of what "stable" means and does NOT mean at this cost.
+
+### Output
+* [ ] **ADR — Deployment Architecture** (topology, placement, cost sheet, capacity/growth model, stability + scaling triggers) recorded in `docs/arc42/09_architecture_decisions.md`. The SoT Phases 149+ implement.
+
+### Validation
+* [ ] The ADR is signed; the cost sheet is within the ceiling; the capacity model is grounded in measured per-layer growth and states the single-box scaling limit.
+
+---
+
+## Phase 149: Provisioning & First Deploy [P0] - [ ] TODO
+
+*Execute the Phase-148 ADR: provision the target, deploy the stack, onboard the first admin.*
+
+**Grounding.** Read first: the Phase-148 ADR, `compose.prod.yaml` (hardened in Phase 146), the infra init containers, the Phase-146 deployment runbook + secret inventory, `make create-admin`, the public/internal docs split (Phase 134). Preserve: IaC-only provisioning, the single-SSoT compose-tag discipline (no drift reintroduced), zero-trust ports. Verify-first: the Phase-146 readiness findings are closed before provisioning.
+
+* [ ] **Provision the target** per the ADR (IaC where possible), EU region, TLS/domain via Traefik, secrets injected (not baked).
+* [ ] **First deploy + bootstrap** — stack up, healthchecks green, `make create-admin` first admin, public docs vs. internal (admin-gated) docs split live.
+* [ ] **Publish service images to GHCR + un-park the nightly smoke.** Provisioning needs pre-built images: publish ingestion / bff / analysis-worker / dashboard to GHCR (the worker-image build must solve the 10+ GB model-bake disk/time problem *here, once* — same constraint Phase-136 hit) so `compose` can reference `image:` (pull) instead of `build:`. With that, flip `e2e_smoke_nightly.yml` to **pull** (fast), **rewrite `scripts/build/e2e_smoke_test.sh` from the retired RSS flow to the web-crawler path**, and **re-enable its cron** (Phase 136 parked it). The nightly's unique value (compose-wiring / init-container / healthcheck-graph) is restored cheaply on top of the deployment image pipeline.
+* [ ] **Deployment runbook executed end-to-end** (first deploy / upgrade / rollback) and corrected against reality; a tested restore from backup on the real target.
+
+### Validation
+* [ ] The app is reachable over TLS on the EU target, gated by auth; an admin can log in; a backup restores; the runbook matches what was actually done.
+
+---
+
+## Phase 150: Capacity & Growth Guardrails [P1] - [ ] TODO
+
+*The data-retention system must not silently fill its disk or fall behind. Operationalise the Phase-148 capacity model as live guardrails.*
+
+**Grounding.** Read first: the Phase-148 capacity model, the ILM TTL config (MinIO lifecycle + ClickHouse TTLs), the alerting decided in 148, the worker throughput signals, the DLQ. Preserve: the ILM TTLs as the steady-state bound; the re-attempt framework. Verify-first: confirm the TTLs are actually *enforcing* (objects/rows really expire) before relying on them as the capacity bound.
+
+* [ ] **Storage alerting** — disk + per-bucket/table growth alerts that fire *before* Bronze/Silver/MinIO/ClickHouse fill; ILM TTL enforcement verified live (not just configured).
+* [ ] **Worker throughput guardrail** — crawl-volume vs. processing-rate monitored; backlog / DLQ-growth alert; documented response when the worker falls behind.
+* [ ] **Cost + scale runbook** — "data grew faster than expected" and "scale to the next probe tier" procedures (the single-box-limit trigger from Phase 148) in the Operations Playbook.
+
+### Validation
+* [ ] A simulated disk-pressure / backlog condition fires the right alert with a documented response; TTL enforcement confirmed on real data; the scale-trigger runbook exists.
+
+---
 
 # Deferred Phases
 

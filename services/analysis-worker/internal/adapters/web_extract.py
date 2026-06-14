@@ -999,7 +999,15 @@ def _extract_body(html: str) -> tuple[str, Optional[str]]:
                     include_comments=False,
                     include_tables=False,
                     favor_precision=True,
-                    deduplicate=True,
+                    # deduplicate=False: extract every article independently.
+                    # trafilatura's dedup keeps a PROCESS-GLOBAL LRU of seen text
+                    # segments, so in the long-running worker a legitimate article
+                    # whose paragraphs recur across articles (institutional
+                    # boilerplate) gets silently discarded -> empty cleaned_text
+                    # -> a false ExtractionFailedError -> DLQ. Article-level dedup
+                    # is the crawler's job (the crawler is the dedup-state SoT,
+                    # see web.py). Surfaced by an order-dependent unit-test flake.
+                    deduplicate=False,
                 )
                 or ""
             )

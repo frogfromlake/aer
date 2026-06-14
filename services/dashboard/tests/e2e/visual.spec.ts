@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './_fixtures';
 
 const storyRoutes = [
   { path: '/stories', slug: 'index' },
