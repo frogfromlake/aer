@@ -91,10 +91,12 @@ readability-lxml==0.8.4
 w3lib==2.3.1
 # htmldate 1.9.4 (released 2026-04) dropped its `lxml<6` constraint to
 # just `lxml>=5.3.0`, unblocking the lxml 6.1.0 upgrade that fixes
-# CVE-2026-41066 (escaper bypass → XSS in `lxml.html.clean`). lxml is
-# transitively resolved through htmldate/trafilatura/readability-lxml,
-# so the bump cascades via `make deps-refresh`. The corresponding
-# `PIP_AUDIT_IGNORE_VULNS` entry has been removed from the Makefile.
+# CVE-2026-41066 (escaper bypass → XSS in `lxml.html.clean`). The transitive
+# resolution still landed on lxml 5.4.0 (no cp314 wheel → CI source build), so
+# it is pinned EXPLICITLY here (Phase 137) to force 6.1.0: it ships a cp314
+# wheel AND closes the CVE. The `[html_clean]` extra satisfies readability-lxml
+# 0.8.4, which now requires `lxml[html_clean]` rather than capping `lxml<6`.
+lxml[html_clean]==6.1.0
 
 # --- Phase 120: Topic Modeling (BERTopic) ---
 # E5-large (~2.2 GB) is baked into the worker image at build time per the

@@ -10,6 +10,11 @@ jobs:
   python-pipeline:
     name: Python Lint & Test
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -83,6 +88,11 @@ jobs:
   go-lint:
     name: Go Lint
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -124,6 +134,11 @@ jobs:
   go-codegen-sync:
     name: Go OpenAPI Contract Sync
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -163,6 +178,11 @@ jobs:
   go-test:
     name: Go Integration Tests
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -222,6 +242,11 @@ jobs:
   frontend-pipeline:
     name: Frontend Lint, Test & Bundle-Size Gate
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -283,6 +308,11 @@ jobs:
   dependency-audit:
     name: Dependency Auditing
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -358,6 +388,11 @@ jobs:
   container-security-scan:
     name: Container Security Scanning
     runs-on: ubuntu-latest
+    # Phase 137 — wall-clock budget ratchet. Exceeding this means a runaway
+    # (hung test / pathological build), not a normal run: fail fast instead of
+    # burning 30+ min. Tighten as the pipeline speeds up; never raise without a
+    # recorded reason.
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6

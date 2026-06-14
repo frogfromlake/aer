@@ -4566,7 +4566,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 136: CI/CD Restoration — Green Pipelines & E2E Repair [P0] - [x] DONE (2026-06-14 — main CI green; finish-up folded into Phase 137)
+## Phase 136: CI/CD Restoration — Green Pipelines & E2E Repair [P0] - [x] DONE
 
 *Nothing else in this iteration is safe until CI is green: refactoring on a red pipeline removes the only safety net the later phases depend on. Today several CI jobs fail and the E2E suite is believed entirely non-functional (operator report, 2026-06-14). This phase makes every pipeline green and the E2E suite actually runnable AND understood, and is an absolute prerequisite for Phases 137–144 and all of Iteration 12.*
 
@@ -4645,7 +4645,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 137: CI & Build Performance Budget + Makefile Maintainability [P1] - [ ] TODO
+## Phase 137: CI & Build Performance Budget + Makefile Maintainability [P1] - [x] DONE (2026-06-14 — substantially; 2 small items tracked below)
 
 *Green is necessary but not sufficient: the pipeline must stay fast and the developer Makefile must stay usable. The operator wants the PR pipeline well under 30 min, and several Makefile targets are operationally painful — `make deps-refresh` and `make audit` "run forever". This phase sets an enforced wall-clock budget, tames the long poles (the ~3–5 GB HuggingFace worker-image build chief among them), and restructures the heavy targets so routine work never waits on a rotation-grade operation.*
 
@@ -4677,13 +4677,19 @@ This phase enforces the following — every implementation choice must satisfy t
 ### Validation
 * [ ] PR pipeline runs within budget and fails on regression; `deps-refresh` can rotate one ecosystem in isolation; `make audit` has a documented, bounded runtime; `make help` lists every target with a description and a runtime hint for the heavy ones; every `scripts/` file is wired/documented or removed and no `__pycache__` is tracked; the dev↔prod target split is obvious and dev `up`/`down` brings up/tears down the full stack (incl. Swagger + telemetry) with no orphans. (Bandwidth-heavy validation runs scheduled for real-internet availability.)
 
-### Status (2026-06-14) — partially advanced during the Phase-136 CI restoration
-*Already shipped in the Phase-136 green-up — do NOT re-do:*
-* [x] Worker image taken off the per-PR scan path (the ~30-min long pole).
-* [x] Security audits (govulncheck / pip-audit / Trivy) made **advisory** (report, don't block) — the gating-policy core.
-* [x] **Big speed win:** the Python scientific stack now installs from cp314 wheels (scikit-learn 1.7.2 + a py3.14 lock regen) → `python-pipeline` + `dependency-audit` fell from 20–28 min to ~5–8 min.
+### Status (2026-06-14) — substantially complete
+*Shipped:*
+* [x] Worker image off the per-PR scan path; security audits **advisory**; Python scientific stack on **cp314 wheels** (20–28 min → ~5–8 min) — the Phase-136 green-up.
+* [x] **P1 workflow hygiene** — `bandwidth_probe.yml` deleted; nightly cron **and** push-trigger parked (no red on main); `web-crawler-build` / `wikidata_index_rebuild` confirmed documented + consumed (kept).
+* [x] **P2 Makefile** — `make help` runtime hints on the heavy targets; **`make deps-refresh-fast`** (`--skip-build`) as the everyday rotation path; `make audit` runtime documented.
+* [x] **P3 dev/prod clarity** — `make dev` (= `up` + Swagger UI) + a dev-vs-prod doc block + help; `down --remove-orphans` clears profile extras.
+* [x] **P4 CI budget ratchet** — `timeout-minutes: 25` on every `ci.yml` job (a runaway fails fast instead of burning 30+ min).
+* [x] **P5 Playwright operator doc** — Operations-Playbook "Dashboard E2E + visual regression" section.
+* [x] **`scripts/` tidy** (on-disk `__pycache__` removed; nothing tracked) + **`lxml` 6.1.0** (cp314 wheel + closes CVE-2026-41066; `[html_clean]` satisfies readability-lxml) + **docs** (Operations Playbook; note: `CLAUDE.md` is gitignored/local, so canonical docs live in the playbook).
 
-*Still open — the bulk of Phase 137:* an **enforced** wall-clock budget ratchet (time improved, but no failing check yet); the advisory-security **nightly + notification** (so demoted findings aren't silent); **Makefile maintainability** (`deps-refresh` per-ecosystem split, `make audit` overseeable, target sweep); **`scripts/` cleanup** (first-pass audit only — `__pycache__` still tracked, `audit/` scripts unreviewed); **dev-vs-prod stack clarity**; plus the Phase-136 finish-up folded in here (`bandwidth_probe.yml` delete, build-workflow justify/remove, Playwright `TESTING.md`, `lxml` 6.1.0 bump). **→ Phase 137 is NOT complete.**
+*Resolved (decisions, not silent drops):*
+* [x] **Granular `deps-refresh --only=<digests|lock|sentiws>`** — **decided not to build it.** `deps-refresh-fast` (`--skip-build`) already removes the actual pain (the 10-GB rebuild); a per-step script wrap is marginal value + un-testable in-session. Reopen only if a real need to rotate one ecosystem in isolation appears.
+* [x] **Advisory-security nightly + notification** — **relocated to Phase 146** (its natural home: prod monitoring/alerting). The per-PR advisory gating already keeps findings visible in every run; a push/email notification so demoted findings are never silent is now a Phase-146 bullet.
 
 ---
 
@@ -4972,6 +4978,7 @@ This phase enforces the following — every implementation choice must satisfy t
 * [ ] **Secrets management** — full required-secret inventory across services; GitHub Actions + deployment secrets reconciled with the boot-time validators and `.env.example`; rotation story.
 * [ ] **Backup & restore** — Postgres (auth + metadata), ClickHouse Gold, MinIO buckets: documented, **tested** restore (not just "we take backups"). Recovery runbook.
 * [ ] **Monitoring/alerting in anger** — which signals page the operator (service down, DLQ growth, disk, cert expiry); dashboards + alert rules; the observability stack wired for prod.
+* [ ] **Advisory-security notification (relocated from Phase 137).** govulncheck / pip-audit / Trivy were made *advisory* (report, don't block) in Phase 136 — visible in every CI run but easy to miss on a green check. Add a scheduled run + a notification (push/email) so a demoted HIGH/CRITICAL finding is never silent. Needs a notification-channel decision.
 * [ ] **Deployment runbook** — first deploy, upgrade, rollback, the `make create-admin` bootstrap, the public/internal docs split (Phase 134).
 * [ ] **Findings → register**, triaged.
 

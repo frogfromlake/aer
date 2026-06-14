@@ -1384,11 +1384,29 @@ make codegen         # Regenerate OpenAPI stubs, then check for drift
 
 **E2E smoke test** (`scripts/build/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
 
+### Dashboard E2E + visual regression (Playwright)
+
+The dashboard has two test layers: **Vitest** (`make fe-test` — unit, jsdom) and **Playwright** (`make fe-test-e2e` — E2E + visual + axe-a11y in a real Chromium).
+
+- **No backend needed.** Playwright starts its own server (`pnpm build && pnpm preview` on `localhost:4173` — the static production build) and **mocks every BFF call** with `page.route('**/api/v1/...')`. The Phase-134 auth gate is mocked centrally in `tests/e2e/_fixtures.ts` (a `page` fixture stubs `GET /auth/me` as an active researcher); **specs import `test`/`expect` from `./_fixtures`**, not from `@playwright/test`.
+- **Pinned browser image.** `make fe-test-e2e` runs inside the `playwright-runner` image pinned in `compose.yaml`, so screenshots are byte-reproducible against CI — you do not install browsers locally.
+- **Visual baselines** are committed under `services/dashboard/tests/e2e/__snapshots__/`. A `toHaveScreenshot` diff failure means either a **regression** (fix the code) or an **intended UI change** (regenerate the baseline). On failure the actual / expected / diff PNGs land in `playwright-report/` (uploaded as a CI artefact).
+
+```bash
+make fe-test-e2e             # full E2E + visual + a11y gate (pinned image)
+make fe-test-e2e-update      # regenerate committed baselines after an INTENDED UI change, then commit the diff
+cd services/dashboard && pnpm exec playwright test -g "some title" --headed   # run + watch a single test locally
+```
+
+> Quarantined specs carry a `QUARANTINED (Phase 136 → rewrite in 127)` marker — they assert the retired `/lanes/*` grammar and are rewritten against the three-surface Workbench grammar in Phase 127. Don't delete them.
+
 ---
 
 ## Dependency Refresh (Supply-Chain Baseline)
 
 Phase 84 pinned the stack's external dependencies to specific hashes: every `FROM` line in `services/*/Dockerfile` uses `image:tag@sha256:digest`, `services/analysis-worker/requirements.lock.txt` is generated with `pip-compile --generate-hashes --require-hashes`, and the SentiWS lexicon download is guarded by `SENTIWS_SHA256`. This is how we keep the supply chain reproducible, but it means those hashes are frozen in time and must be rotated deliberately. Phase 88 turns that rotation into a single command.
+
+> **Fast path (Phase 137).** The full `make deps-refresh` rebuilds every image with `--no-cache` (multi-GB, ~20–40 min). For the everyday case use **`make deps-refresh-fast`** (= `deps_refresh.sh --skip-build`): it rotates the base-image digests, the pip lock, and the SentiWS hash but skips the local no-cache rebuild + e2e — **CI validates the new pins on push**, so you only pay the local rebuild when you actually need to test the image build itself.
 
 ### When to run it
 

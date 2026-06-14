@@ -1,4 +1,4 @@
-.PHONY: help up down stop restart
+.PHONY: help up dev down stop restart
 .PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse reset reset-state reset-validate
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
@@ -69,6 +69,23 @@ down:
 stop: down
 
 restart: down up
+
+# ---------------------------------------------------------------------------
+# Dev vs. prod (Phase 137 — make the boundary obvious).
+#   make up    Full LOCAL dev stack: infra + app services + observability
+#              (Grafana / Tempo / Prometheus / OTel) + MkDocs + dashboard.
+#              The everyday command. Reach it at: dashboard https://localhost/,
+#              docs http://localhost:8000, Grafana through the observability
+#              stack. Swagger UI is an opt-in extra (started separately).
+#   make dev   `up` PLUS Swagger UI (http://localhost:8089) — "everything to
+#              test locally in one command".
+#   make down  Tears the stack down; --remove-orphans also clears profile
+#              extras (swagger, debug-ports, crawler) so nothing lingers.
+#   PROD is the compose.prod.yaml overlay (TLS, lean service set) driven by the
+#   deployment runbook — NEVER these dev targets. See docs/operations.
+# ---------------------------------------------------------------------------
+dev: up swagger-up
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Full dev stack up — incl. Swagger UI at http://localhost:8089$(RESET)"
 
 # Backend-only flow for the frontend iteration loop:
 #   make backend-up && make fe-dev
@@ -734,8 +751,9 @@ help:
 	@echo -e "$(BOLD)$(CYAN)AĒR Stack - Makefile Commands$(RESET)"
 	@echo -e "$(GRAY)================================================================================$(RESET)"
 	@echo -e "$(BOLD)Global Commands:$(RESET)"
-	@echo -e "  $(GREEN)up$(RESET)                  $(GRAY)Start the entire stack (infrastructure + services)$(RESET)"
-	@echo -e "  $(GOLD)down$(RESET)                $(GRAY)Stop the entire stack (alias: stop)$(RESET)"
+	@echo -e "  $(GREEN)up$(RESET)                  $(GRAY)Full LOCAL dev stack: infra + services + observability + docs + dashboard (dashboard https://localhost/, docs :8000)$(RESET)"
+	@echo -e "  $(GREEN)dev$(RESET)                 $(GRAY)up + Swagger UI (:8089) — everything to test locally. PROD is the compose.prod.yaml overlay, not these targets.$(RESET)"
+	@echo -e "  $(GOLD)down$(RESET)                $(GRAY)Stop the entire stack (alias: stop; --remove-orphans clears profile extras)$(RESET)"
 	@echo -e "  $(CYAN)restart$(RESET)             $(GRAY)Restart the entire stack$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Infrastructure:$(RESET)"
