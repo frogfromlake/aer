@@ -21,7 +21,7 @@ import {
   Vector3,
   WebGLRenderer
 } from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GlobeControls } from './GlobeControls';
 
 import {
   CORE_BRIGHTNESS_FLOOR,
@@ -138,7 +138,7 @@ class Engine implements AtmosphereEngine {
   private renderer: WebGLRenderer | null = null;
   private scene: Scene | null = null;
   private camera: PerspectiveCamera | null = null;
-  private controls: OrbitControls | null = null;
+  private controls: GlobeControls | null = null;
   private oceanMesh: Mesh | null = null;
   private haloMesh: Mesh | null = null;
 
@@ -260,14 +260,14 @@ class Engine implements AtmosphereEngine {
     this.camera = new PerspectiveCamera(35, aspect, 0.01, 100);
     this.camera.position.set(0, 0, INITIAL_DISTANCE);
 
-    this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.enablePan = false;
-    this.controls.minDistance = MIN_DISTANCE;
-    this.controls.maxDistance = MAX_DISTANCE;
-    this.controls.rotateSpeed = 0.4;
-    this.controls.zoomSpeed = 0.6;
+    // Phase 135 — custom quaternion turntable + zoom-to-cursor controller (see
+    // GlobeControls). It owns drag-rotation AND the wheel; the pivot stays at the
+    // globe centre and nothing gimbal-locks at the poles.
+    this.controls = new GlobeControls(this.camera, canvas, {
+      minDistance: MIN_DISTANCE,
+      maxDistance: MAX_DISTANCE,
+      sphereRadius: SPHERE_RADIUS
+    });
 
     this.installReducedMotionListener();
 
@@ -556,7 +556,9 @@ class Engine implements AtmosphereEngine {
   private tick = (): void => {
     if (this.disposed) return;
     this.applyFlyTween();
-    this.controls?.update();
+    // While a flyTo tween runs it owns the camera (and syncs the controller); the
+    // controller drives drag + zoom only on the other frames.
+    if (!this.flyTween) this.controls?.update();
     this.updateSunUniform();
 
     if (this.haloMaterial?.uniforms.uCameraDistance && this.camera) {
@@ -594,6 +596,9 @@ class Engine implements AtmosphereEngine {
       this.camera.position.lerpVectors(this.flyTween.from, this.flyTween.to, eased);
     }
     this.camera.lookAt(0, 0, 0);
+    // Keep the controller in sync with the flyTo-driven camera so it resumes
+    // from here without a jump once the tween ends.
+    this.controls.syncFromCamera();
   }
 
   private updateSunUniform(): void {

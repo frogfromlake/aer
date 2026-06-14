@@ -28,9 +28,12 @@
     /** TanStack fetch context — used to resolve probe display names so the
      *  scope chips never show the raw machine id (Phase 123c). */
     ctx: FetchContext;
+    /** Re-open the ScopeEditor — invoked when a quick-remove empties the scope
+     *  (all probes or all sources gone), so the panel never ends up scopeless. */
+    onEditScope?: () => void;
   }
 
-  let { panel, dossier, panelPath, ctx }: Props = $props();
+  let { panel, dossier, panelPath, ctx, onEditScope }: Props = $props();
 
   // Phase 123c — expanded by default (TESTING.md Issue 4.2): a freshly composed
   // panel should reveal its probes/sources scope chips, not hide them behind a
@@ -48,22 +51,40 @@
     return probeList.find((p) => p.probeId === probeId)?.displayName ?? probeId;
   }
 
+  // Phase 123c (B) parity — the threaded `dossier` covers ONLY one probe, so its
+  // `sources` list is just that probe's. A multi-probe panel must resolve every
+  // in-scope probe's sources from the probe registry (already cached), mirroring
+  // PanelHost.sourceNamesForProbe — otherwise the strip shows only the first
+  // probe's sources while the cells correctly fan out all of them.
+  function probeSources(probeId: string): string[] {
+    if (probeId === dossier.probeId) return dossier.sources.map((s) => s.name);
+    return probeList.find((p) => p.probeId === probeId)?.sources ?? [];
+  }
+
   const shape = $derived.by(() => {
-    const probeList: string[] = [];
-    const sourceList: string[] = [];
-    let anyEmptySourceList = false;
+    const probeIds: string[] = [];
+    const sourceNames: string[] = [];
+    const addSource = (s: string) => {
+      if (!sourceNames.includes(s)) sourceNames.push(s);
+    };
     for (const g of panel.scopes) {
-      for (const p of g.probeIds) if (!probeList.includes(p)) probeList.push(p);
-      if (g.sourceIds.length === 0) anyEmptySourceList = true;
-      else for (const s of g.sourceIds) if (!sourceList.includes(s)) sourceList.push(s);
+      for (const p of g.probeIds) if (!probeIds.includes(p)) probeIds.push(p);
+      // Empty sourceIds = "whole probe" → expand to every source of the group's
+      // probes; an explicit list narrows to exactly those.
+      if (g.sourceIds.length === 0) {
+        for (const p of g.probeIds) for (const s of probeSources(p)) addSource(s);
+      } else {
+        for (const s of g.sourceIds) addSource(s);
+      }
     }
-    const resolvedSources = anyEmptySourceList
-      ? dossier.sources
-      : dossier.sources.filter((s) => sourceList.includes(s.name));
-    const articleCount = resolvedSources.reduce((sum, s) => sum + (s.articlesInWindow ?? 0), 0);
+    // Article counts are only known for the threaded dossier's probe — sum where
+    // available (single-probe panels are unaffected; multi-probe is best-effort).
+    const articleCount = dossier.sources
+      .filter((s) => sourceNames.includes(s.name))
+      .reduce((sum, s) => sum + (s.articlesInWindow ?? 0), 0);
     return {
-      probes: probeList,
-      sources: resolvedSources.map((s) => s.name),
+      probes: probeIds,
+      sources: sourceNames,
       articlesInWindow: articleCount,
       language: dossier.language,
       coverage: dossier.functionCoverage,
@@ -85,27 +106,38 @@
       }))
       .filter((g) => g.probeIds.length > 0);
     if (remainingScopes.length === 0) {
-      // Removing the last probe would leave the panel scopeless. Treat
-      // it as a group-removal: keep the panel structurally but reset
-      // the scope to a single empty group so the user can refill via
-      // the ScopeEditor.
-      updatePanel(panelPath, (p) => ({
-        ...p,
-        scopes: [{ probeIds: [], sourceIds: [] }]
-      }));
+      // Removing the last probe leaves the panel scopeless — re-open the
+      // ScopeEditor instead of committing an empty scope (the panel keeps its
+      // current scope until the user applies a new one).
+      onEditScope?.();
       return;
     }
     updatePanel(panelPath, (p) => ({ ...p, scopes: remainingScopes }));
   }
 
   function removeSource(sourceName: string) {
-    updatePanel(panelPath, (p) => ({
-      ...p,
-      scopes: p.scopes.map((g) => ({
-        probeIds: g.probeIds,
-        sourceIds: g.sourceIds.filter((s) => s !== sourceName)
-      }))
-    }));
+    // The chips show the RESOLVED sources: a group with an empty `sourceIds`
+    // means "whole probe (all sources)", so removing a chip must first
+    // materialise that group to its probes' full source set — across ALL the
+    // group's probes, not just the dossier probe — then drop the source.
+    let anyRemaining = false;
+    const nextScopes = panel.scopes.map((g) => {
+      const effective =
+        g.sourceIds.length > 0 ? g.sourceIds : [...new Set(g.probeIds.flatMap(probeSources))];
+      if (!effective.includes(sourceName)) {
+        if (effective.length > 0) anyRemaining = true;
+        return g;
+      }
+      const sourceIds = effective.filter((s) => s !== sourceName);
+      if (sourceIds.length > 0) anyRemaining = true;
+      return { probeIds: g.probeIds, sourceIds };
+    });
+    if (!anyRemaining) {
+      // All sources removed → re-open the ScopeEditor (keep current scope).
+      onEditScope?.();
+      return;
+    }
+    updatePanel(panelPath, (p) => ({ ...p, scopes: nextScopes }));
   }
 
   function clearLockedFunction() {

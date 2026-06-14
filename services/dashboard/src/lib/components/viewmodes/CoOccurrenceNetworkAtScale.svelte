@@ -9,6 +9,7 @@
   //
   // sigma + graphology + the FA2 worker are lazy-imported so their chunk ships
   // only when a user actually opens the at-scale view (Brief §7 bundle budget).
+  import { untrack } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import {
     entityCoOccurrenceQuery,
@@ -19,7 +20,6 @@
   import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportPayload } from '$lib/viewmodes/cell-export';
   import { HIDDEN_READOUT, fmtValue, type ReadoutState } from '$lib/viewmodes/cell-readout';
@@ -87,8 +87,8 @@
   const colorMetricReq = $derived(
     (channels?.netColor ?? '') === 'metric' ? (netColorMetric ?? netMetric) : undefined
   );
-  // Phase 122d.2 — NS overlay: request per-edge nsSupport; dim NS-supported edges.
-  const negSpaceOn = $derived(negativeSpaceActive());
+  // Phase 122d.2 — NS overlay: always request per-edge nsSupport and dim
+  // NS-supported edges (the former Negative-Space toggle is gone).
 
   const graphQ = createQuery<
     QueryOutcome<CoOccurrenceGraphDto>,
@@ -102,7 +102,7 @@
       end: windowEnd,
       topN: AT_SCALE_TOP_N,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
-      ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
+      negativeSpaceOverlay: 'ghost' as const,
       ...(sizeMetricReq ? { nodeMetric: sizeMetricReq } : {}),
       ...(colorMetricReq ? { nodeColorMetric: colorMetricReq } : {})
     });
@@ -176,19 +176,25 @@
     const merged = isMergedScope;
     const sizeM = sizeMetricReq;
     const colorM = colorMetricReq;
-    const nsOn = negSpaceOn;
+    const nsOn = true;
     // Spread drives FA2 repulsion → re-layout on change (NOT edgesShown: that is
     // a pure render toggle handled by the edge reducer + a refresh effect, so
     // hiding lines never reshuffles the map).
     const spr = spread;
     const settle = settleSec;
     const nc = netColor;
+    // `sources` is a FRESH array on every parent re-render (PanelHost rebuilds it
+    // via `sourcesForUnit`), so reading it TRACKED would re-run this expensive
+    // FA2 re-layout on unrelated panel mutations — e.g. collapsing/expanding
+    // PanelControls. Read it UNTRACKED: a real source-set change always arrives
+    // WITH a `data` change (the scope re-query), which is tracked above.
+    const srcNames = untrack(() => sources.map((s) => s.name));
     const colorCtx: NodeColorContext = {
       netColor,
       // ISSUE 7 — colour channel uses the COLOUR metric's extent.
       metricExtent: mColorExt,
       maxPresence: 1,
-      sourceColorMap: buildSourceColorMap(sources.map((s) => s.name))
+      sourceColorMap: buildSourceColorMap(srcNames)
     };
     if (!host || !d || d.nodes.length === 0) {
       teardown();

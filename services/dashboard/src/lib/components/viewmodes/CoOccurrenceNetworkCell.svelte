@@ -15,7 +15,6 @@
   import ArticleListModal from '$lib/components/lanes/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { ViewModeCellProps } from '$lib/viewmodes';
   import type { ExportPayload } from '$lib/viewmodes/cell-export';
   import {
@@ -98,8 +97,8 @@
   const HEIGHT = 500;
   // Phase 122d.2 — when the NS toggle is on, request the overlay so each edge
   // carries `nsSupport` (contributing articles with no real publication date);
-  // edges with nsSupport>0 render dashed as a disclosure (never filtered).
-  const negSpaceOn = $derived(negativeSpaceActive());
+  // edges with nsSupport>0 render dashed as a disclosure (never filtered). The
+  // ghost overlay is always requested (the former Negative-Space toggle is gone).
 
   const graphQ = createQuery<
     QueryOutcome<CoOccurrenceGraphDto>,
@@ -113,12 +112,22 @@
       end: windowEnd,
       topN: TOP_N,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
-      ...(negSpaceOn ? { negativeSpaceOverlay: 'ghost' as const } : {}),
+      negativeSpaceOverlay: 'ghost' as const,
       ...(sizeMetricReq ? { nodeMetric: sizeMetricReq } : {}),
       ...(colorMetricReq ? { nodeColorMetric: colorMetricReq } : {})
     });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
+
+  // Intermediate derived that ABSORBS TanStack churn: `createQuery`'s reactive
+  // result re-emits whenever the options closure re-runs — e.g. a fresh `scope`
+  // object reference on ANY panel mutation, including collapsing/expanding
+  // PanelControls — even when the underlying graph is unchanged. Reading
+  // `graphQ.data` directly in the force-layout effect / metric extents would
+  // then re-run them and pointlessly re-settle the simulation. This derived
+  // returns the SAME reference when the data is unchanged, so Svelte halts the
+  // propagation (mirrors CoOccurrenceNetworkAtScale's `data` derived).
+  const graphData = $derived(graphQ.data?.kind === 'success' ? graphQ.data.data : null);
 
   // Phase 131a — "merged scope" is decided from the BFF response (the
   // union of distinct source names across edge.presence / node.presence),
@@ -127,10 +136,7 @@
   // and the `sources` prop may carry only the probe's primary entry.
   // The BFF-resolved set is the SoT for the overlay. Declared AFTER `graphQ`
   // (it reads `graphQ.data`).
-  const resolvedSourceCount = $derived.by(() => {
-    const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    return data ? resolvedSourceCountOf(data) : 0;
-  });
+  const resolvedSourceCount = $derived(graphData ? resolvedSourceCountOf(graphData) : 0);
   const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
   // Kriesel default — colour by detected theme cluster (Louvain community).
   const netColor = $derived(channels?.netColor ?? 'community');
@@ -138,7 +144,7 @@
   let communities = $state<Map<string, number> | null>(null);
   $effect(() => {
     const want = netColor === 'community';
-    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    const d = graphData;
     if (!want || !d) {
       communities = null;
       return;
@@ -153,16 +159,14 @@
   });
   // Phase 125 — min/max of the per-node SIZE metric across the returned graph,
   // for normalising the metric size channel. Null when no node carries it.
-  const metricExtent = $derived.by<MetricExtent | null>(() => {
-    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    return d ? computeMetricExtent(d) : null;
-  });
+  const metricExtent = $derived.by<MetricExtent | null>(() =>
+    graphData ? computeMetricExtent(graphData) : null
+  );
   // Phase 125 / ISSUE 7 — separate extent for the COLOUR metric (may differ from
   // the size metric). Used by the colour ramp + the colour legend.
-  const metricColorExtent = $derived.by<MetricExtent | null>(() => {
-    const d = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
-    return d ? computeMetricColorExtent(d) : null;
-  });
+  const metricColorExtent = $derived.by<MetricExtent | null>(() =>
+    graphData ? computeMetricColorExtent(graphData) : null
+  );
 
   interface SimNode {
     id: string;
@@ -225,7 +229,7 @@
   let simulation: any = null;
 
   $effect(() => {
-    const data = graphQ.data?.kind === 'success' ? graphQ.data.data : null;
+    const data = graphData;
     if (!data) return;
     const t = ++token;
     // Phase 125b — node/edge models come from the shared module (size channel,
@@ -558,7 +562,7 @@
   // QID (the relabel-eligible subset); labeledNodeCount = those that actually
   // got a viewer-language label. Surfaced so the reader sees how much of a
   // foreign-language graph the toggle can relabel (no silent gaps, WP-006).
-  const graphData = $derived(graphQ.data?.kind === 'success' ? graphQ.data.data : null);
+  // `graphData` is declared once near the top (it absorbs TanStack churn).
   const totalNodeCount = $derived(graphData?.nodes.length ?? 0);
   const linkedNodeCount = $derived(graphData?.linkedNodeCount ?? 0);
   const labeledNodeCount = $derived(graphData?.labeledNodeCount ?? 0);
@@ -708,8 +712,8 @@
                 y2={nodeY(e.target)}
                 stroke={edgeStroke(e)}
                 stroke-width={0.4 + 2.4 * (e.weight / maxEdgeWeight)}
-                stroke-dasharray={negSpaceOn && e.nsSupport > 0 ? '3 3' : undefined}
-                stroke-opacity={negSpaceOn && e.nsSupport > 0 ? 0.45 : undefined}
+                stroke-dasharray={e.nsSupport > 0 ? '3 3' : undefined}
+                stroke-opacity={e.nsSupport > 0 ? 0.45 : undefined}
                 onpointermove={(ev) => onEdgeHover(ev, e)}
                 onpointerleave={() => (readout = HIDDEN_READOUT)}
               />

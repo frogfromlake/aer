@@ -540,17 +540,15 @@ describe('writeToSearch — pillar form (Phase 122i)', () => {
     expect(parsed.resolution).toBe('hourly');
   });
 
-  it('preserves negSpace and normalization alongside pillar state', () => {
+  it('preserves normalization alongside pillar state', () => {
     const aleph = makePillarState();
     const qs = writeToSearch(
       state({
         activePillar: 'aleph',
         pillars: { aleph, episteme: null, rhizome: null },
-        negSpace: true,
         normalization: 'zscore'
       })
     );
-    expect(qs).toContain('negSpace=1');
     expect(qs).toContain('normalization=zscore');
   });
 });

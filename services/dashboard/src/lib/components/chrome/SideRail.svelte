@@ -22,10 +22,9 @@
   // browser-default focus handling. `prefers-reduced-motion` suppresses
   // all transitions.
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import { urlState, toggleOverlay } from '$lib/state/url.svelte';
-  import { negativeSpaceActive, setNegativeSpaceActive } from '$lib/state/tray.svelte';
-  import NegativeSpaceToggle from '$lib/components/NegativeSpaceToggle.svelte';
-  import AccountMenu from '$lib/components/chrome/AccountMenu.svelte';
+  import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
   import { getPillar } from '$lib/viewmodes';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import type { ViewingMode } from '$lib/state/url-internals';
@@ -33,7 +32,6 @@
   const url = $derived(urlState());
   const activePillarId = $derived<ViewingMode>(url.activePillar ?? 'aleph');
   const activePillar = $derived(getPillar(activePillarId));
-  const negSpace = $derived(negativeSpaceActive());
 
   // Phase 123a — the Dossier is a global overlay (ADR-033 amendment), not
   // a surface route. The rail exposes it as a button that opens the
@@ -51,6 +49,17 @@
   function openAnalyses() {
     toggleOverlay('analyses');
   }
+
+  // Phase 135 — the account submenu is retired: its items live as standalone,
+  // bottom-anchored rail buttons. Your account / Administration stay toggles.
+  function openAccount() {
+    toggleOverlay('account');
+  }
+  function openAdmin() {
+    toggleOverlay('admin');
+  }
+  const currentUser = $derived(user());
+  const userInitial = $derived((currentUser?.email ?? '?').trim().charAt(0).toUpperCase());
 
   // Active probe — from the route path param (legacy per-probe routes) OR
   // from the multi-probe selection cart. Drives the Workbench rail anchor's
@@ -112,6 +121,17 @@
     }
   ]);
 
+  // Phase 135 — surface buttons toggle: clicking the surface you are already on
+  // returns to the Atmosphere (the persistent globe). Atmosphere itself is the
+  // globe, so it has nothing to toggle back to.
+  function onSurfaceClick(event: MouseEvent, href: string): void {
+    if (href !== '/' && isActiveSurface(href)) {
+      event.preventDefault();
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal back-to-globe
+      void goto('/');
+    }
+  }
+
   function isActiveSurface(href: string): boolean {
     const p = page.url.pathname;
     if (href === '/') return p === '/';
@@ -155,6 +175,7 @@
               aria-current={isActiveSurface(s.href) ? 'page' : undefined}
               title={s.hint}
               data-sveltekit-preload-data="hover"
+              onclick={(e) => onSurfaceClick(e, s.href)}
             >
               <span class="glyph" aria-hidden="true">{s.glyph}</span>
               <span class="rail-label">{s.label}</span>
@@ -216,18 +237,33 @@
 
   <div class="flex-spacer" aria-hidden="true"></div>
 
-  <!-- Section 3: Persistent view toggles -->
-  <div class="section">
-    <span class="section-eyebrow">View</span>
-    <div class="ns-wrap">
-      <NegativeSpaceToggle active={negSpace} onToggle={setNegativeSpaceActive} />
+  <!-- User menu (Phase 135) — the former account submenu, flattened into
+       standalone bottom-anchored rail buttons. The avatar + email is a static
+       display (not a button); Your account / Administration stay overlay
+       toggles; Sign out ends the session. -->
+  {#if currentUser}
+    <div class="section user-section">
+      <span class="section-eyebrow">User menu</span>
+      <div class="user-display">
+        <span class="user-avatar" aria-hidden="true">{userInitial}</span>
+        <span class="user-email" title={currentUser.email}>{currentUser.email}</span>
+      </div>
+      <button type="button" class="rail-menu-btn" onclick={openAccount}>
+        <span class="rail-menu-glyph" aria-hidden="true">◐</span>
+        <span class="rail-menu-label">Your account</span>
+      </button>
+      {#if isAdmin()}
+        <button type="button" class="rail-menu-btn" onclick={openAdmin}>
+          <span class="rail-menu-glyph" aria-hidden="true">⛨</span>
+          <span class="rail-menu-label">Administration</span>
+        </button>
+      {/if}
+      <button type="button" class="rail-menu-btn signout" onclick={() => doLogout()}>
+        <span class="rail-menu-glyph" aria-hidden="true">⎋</span>
+        <span class="rail-menu-label">Sign out</span>
+      </button>
     </div>
-  </div>
-
-  <!-- Section 4: Account (Phase 134 / ADR-040) — the account button + submenu. -->
-  <div class="section">
-    <AccountMenu />
-  </div>
+  {/if}
 </nav>
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
@@ -450,10 +486,82 @@
     text-align: left;
   }
 
-  .ns-wrap {
+  /* Unified bottom rail buttons (Negative Space + user-menu items). Same
+     look as the Library/Dossier buttons so the bottom reads as one menu. */
+  .rail-menu-btn {
     display: flex;
-    justify-content: flex-start;
-    padding: 0 var(--space-2);
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    appearance: none;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+    padding: var(--space-2);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    text-align: left;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .rail-menu-btn:hover,
+  .rail-menu-btn:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .rail-menu-btn.signout {
+    color: var(--color-status-expired);
+  }
+  .rail-menu-btn.signout:hover,
+  .rail-menu-btn.signout:focus-visible {
+    color: var(--color-status-expired);
+    border-color: var(--color-status-expired);
+  }
+  .rail-menu-glyph {
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+  }
+  .rail-menu-label {
+    flex: 1 1 auto;
+    text-align: left;
+  }
+
+  /* User identity — static display, NOT interactive. */
+  .user-section {
+    gap: var(--space-2);
+  }
+  .user-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-2) var(--space-2);
+  }
+  .user-avatar {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface);
+    color: var(--color-fg);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    display: grid;
+    place-items: center;
+  }
+  .user-email {
+    font-size: 12px;
+    font-family: var(--font-ui);
+    color: var(--color-fg-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   @media (prefers-reduced-motion: reduce) {

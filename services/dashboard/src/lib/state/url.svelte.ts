@@ -9,7 +9,7 @@
 //   ?selectedProbes=a,b,c     — cross-surface probe-selection cart
 //   ?resolution=<r>           — temporal aggregation resolution
 //   ?activePillar= & ?aleph=/?episteme=/?rhizome=  — Workbench pillar state
-//   ?negSpace=1 / ?normalization=<m>               — global overlays
+//   ?normalization=<m>                              — global overlay
 //
 // Two constraints:
 //   1. Reads must be cheap and reactive (stories and the time scrubber

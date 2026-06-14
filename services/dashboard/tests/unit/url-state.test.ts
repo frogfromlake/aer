@@ -10,7 +10,7 @@ import {
 // Phase 122k — URL grammar reduced to a single canonical form. The
 // Phase-122h flat reader (?probeId=&sourceId=&viewingMode=&view=&metric=
 // &viewMode=&layer=) was retired entirely; the only fields the URL
-// surface carries are `?from`, `?to`, `?resolution`, `?negSpace`,
+// surface carries are `?from`, `?to`, `?resolution`,
 // `?normalization`, `?activePillar`, `?aleph`/`?episteme`/`?rhizome`
 // (pillar-state base64url), and `?selectedProbes`.
 
@@ -43,13 +43,6 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?activePillar=episteme').activePillar).toBe('episteme');
     expect(readFromSearch('?activePillar=rhizome').activePillar).toBe('rhizome');
     expect(readFromSearch('?activePillar=ghosts').activePillar).toBeNull();
-  });
-
-  it('parses negSpace=1 as true and absent/other values as null', () => {
-    expect(readFromSearch('?negSpace=1').negSpace).toBe(true);
-    expect(readFromSearch('?negSpace=0').negSpace).toBeNull();
-    expect(readFromSearch('?negSpace=true').negSpace).toBeNull();
-    expect(readFromSearch('').negSpace).toBeNull();
   });
 
   it('parses comma-separated selectedProbes into an array', () => {
@@ -98,7 +91,6 @@ describe('writeToSearch', () => {
     expect(qs).toContain('resolution=hourly');
     expect(qs).not.toContain('viewingMode');
     expect(qs).not.toContain('layer=');
-    expect(qs).not.toContain('negSpace=');
   });
 
   it('emits activePillar when set', () => {
@@ -112,11 +104,6 @@ describe('writeToSearch', () => {
       )
     ).toContain('selectedProbes=probe-0-de-institutional-web%2Cprobe-1-de-public-rss');
     expect(writeToSearch(state())).not.toContain('selectedProbes=');
-  });
-
-  it('emits negSpace=1 when true, omits when null', () => {
-    expect(writeToSearch(state({ negSpace: true }))).toContain('negSpace=1');
-    expect(writeToSearch(state())).not.toContain('negSpace=');
   });
 
   it('normalization roundtrips zscore and percentile, omits raw', () => {
@@ -136,11 +123,10 @@ describe('writeToSearch', () => {
     expect(readFromSearch(writeToSearch(original))).toEqual(original);
   });
 
-  it('round-trips activePillar + selectedProbes + negSpace through readFromSearch', () => {
+  it('round-trips activePillar + selectedProbes + normalization through readFromSearch', () => {
     const original = state({
       activePillar: 'rhizome',
       selectedProbes: ['probe-0-de-institutional-web'],
-      negSpace: true,
       normalization: 'zscore'
     });
     expect(readFromSearch(writeToSearch(original))).toEqual(original);

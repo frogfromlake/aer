@@ -347,10 +347,6 @@ export interface UrlState {
   from: string | null;
   to: string | null;
   resolution: Resolution | null;
-  // Negative Space overlay (Phase 112). `null` and `false` are equivalent;
-  // only `true` is serialised as `negSpace=1`. When active, all three
-  // surfaces shift into "what AĒR doesn't see" mode per Design Brief §4.4.
-  negSpace: boolean | null;
   // Normalization mode (Phase 115). `null` and `raw` are equivalent.
   normalization: Normalization | null;
   // Phase 122i / ADR-034 — Multi-Panel Workbench state.
@@ -397,7 +393,6 @@ export const EMPTY_URL_STATE: UrlState = {
   from: null,
   to: null,
   resolution: null,
-  negSpace: null,
   normalization: null,
   activePillar: null,
   pillars: null,
@@ -468,7 +463,6 @@ export function readFromSearch(search: string): UrlState {
     from: parseIso(p.get('from')),
     to: parseIso(p.get('to')),
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
-    negSpace: p.get('negSpace') === '1' ? true : null,
     normalization: parseEnum(p.get('normalization'), NORMALIZATIONS),
     activePillar: parseEnum(p.get('activePillar'), VIEWING_MODES),
     pillars: hasPillars ? { aleph, episteme, rhizome } : null,
@@ -506,9 +500,6 @@ export function writeToSearch(state: UrlState): string {
     // future Workbench will open into) — emit it so a reload restores it.
     p.set('activePillar', state.activePillar);
   }
-  // `negSpace=1` when the Negative Space overlay is active. Not scoped to
-  // a probe — the overlay applies globally across all surfaces.
-  if (state.negSpace === true) p.set('negSpace', '1');
   // Normalization is omitted when raw (the default) so the URL stays
   // clean for the Level-1 view.
   if (state.normalization && state.normalization !== 'raw') {

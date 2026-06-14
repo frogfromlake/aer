@@ -11,7 +11,6 @@
   import { onMount } from 'svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import InlineChart from '$lib/components/reflection/InlineChart.svelte';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
   import type { PageData } from './$types';
 
   interface Props {
@@ -52,8 +51,6 @@
     params.set('viewingMode', fromPillar ?? 'aleph');
     return `/workbench?${params.toString()}`;
   });
-
-  const negSpace = $derived(negativeSpaceActive());
 
   // Scroll to the requested section after mount
   onMount(() => {
@@ -106,27 +103,26 @@
   {/if}
 </ScopeBar>
 
-<div class="wp-layout" class:neg-space={negSpace} id="main-reflection-wp">
+<div class="wp-layout neg-space" id="main-reflection-wp">
   <!-- Table of contents / absence margin (sticky sidebar on wide screens) -->
   {#if mainSections.length > 0}
     <nav class="toc" aria-label="Table of contents">
-      {#if negSpace}
-        <!-- Surface III — Negative Space mode: scope boundary annotation (Phase 112).
-             Absence-prose scrolls alongside the paper body per Design Brief §5.4. -->
-        <aside class="absence-margin" aria-label="Scope boundary notes">
-          <p class="absence-margin-heading">
-            <span aria-hidden="true">∅</span> Scope boundary
-          </p>
-          <p class="absence-margin-text">
-            This Working Paper documents the methodological boundaries of what AĒR observes. The
-            system does not capture demographic variation, informal discourse, or sources outside
-            active probes. Absence is data.
-          </p>
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a class="absence-margin-ref" href="/reflection/wp/wp-001?section=5.3">WP-001 §5.3</a>
-        </aside>
-        <hr class="absence-divider" aria-hidden="true" />
-      {/if}
+      <!-- Surface III — scope boundary annotation (Phase 112), shown by default
+           now that the Negative-Space toggle is retired. Absence-prose scrolls
+           alongside the paper body per Design Brief §5.4. -->
+      <aside class="absence-margin" aria-label="Scope boundary notes">
+        <p class="absence-margin-heading">
+          <span aria-hidden="true">∅</span> Scope boundary
+        </p>
+        <p class="absence-margin-text">
+          This Working Paper documents the methodological boundaries of what AĒR observes. The
+          system does not capture demographic variation, informal discourse, or sources outside
+          active probes. Absence is data.
+        </p>
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a class="absence-margin-ref" href="/reflection/wp/wp-001?section=5.3">WP-001 §5.3</a>
+      </aside>
+      <hr class="absence-divider" aria-hidden="true" />
       <p class="toc-heading">Contents</p>
       <ol class="toc-list">
         {#each mainSections as s (s.id)}
@@ -261,7 +257,9 @@
     display: grid;
     grid-template-columns: 200px 1fr;
     overflow: hidden;
-    background: var(--color-bg);
+    background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
   }
 
   @media (max-width: 900px) {

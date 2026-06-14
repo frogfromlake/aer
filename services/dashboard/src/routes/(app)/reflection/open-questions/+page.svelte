@@ -87,7 +87,9 @@
     top: var(--scope-bar-height);
     right: var(--tray-right-edge, var(--tray-closed-width));
     overflow-y: auto;
-    background: var(--color-bg);
+    background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
   }
 
   .oq-inner {

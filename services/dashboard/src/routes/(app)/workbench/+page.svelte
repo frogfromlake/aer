@@ -8,7 +8,7 @@
   // leaves the user on a minimal empty-state placeholder with a re-open
   // affordance.
   import { createQuery } from '@tanstack/svelte-query';
-  import { beforeNavigate } from '$app/navigation';
+  import { beforeNavigate, goto } from '$app/navigation';
   import { pushUrl, urlState, openOverlay } from '$lib/state/url.svelte';
   import { defaultViewModeForPillar, getPillar } from '$lib/viewmodes';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
@@ -131,11 +131,26 @@
   }
 
   function dismissCreateEditor() {
-    editorDismissed = true;
+    // Cancelling the create-mode editor (the initial, no-scope entry) abandons
+    // the Workbench → fall back to the Atmosphere, rather than stranding the
+    // user on a bare "No scope configured yet" placeholder.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal back-to-globe
+    void goto('/');
   }
 
   function reopenCreateEditor() {
     editorDismissed = false;
+  }
+
+  // Phase 135 — "New analysis": wipe the whole Workbench (all pillar state) and
+  // re-open the create-mode ScopeEditor — the explicit equivalent of clicking
+  // the SideRail "Workbench" link again. `pushUrl` so browser-back restores the
+  // previous analysis; `clearDraft` so the editor starts blank (not a resumed
+  // draft). The probe selection cart is kept so the editor seeds from it.
+  function newAnalysis() {
+    clearDraft();
+    editorDismissed = false;
+    pushUrl({ pillars: null, activePillar: null });
   }
 
   // Phase 122k §11 — leaving the Workbench (SideRail Atmosphere /
@@ -157,34 +172,48 @@
   <title>AĒR — Workbench · {activePillar.label}</title>
 </svelte:head>
 
-<main class="workbench-main" id="main-workbench">
+<!-- Phase 135 — the initial (no-scope) Workbench is transparent so the
+     layout's persistent globe shows through (the create-mode ScopeEditor's own
+     scrim dims it); a configured scope switches to the opaque work area. -->
+<main class="workbench-main" id="main-workbench" class:scope-empty={!hasScope}>
   {#if !hasScope}
-    <div class="empty-scope">
-      <h1>Workbench</h1>
-      {#if seedProbeId === ''}
-        <p class="muted">Loading probe catalogue…</p>
-      {:else if !editorDismissed}
-        <p class="muted">Configure a scope to begin.</p>
-      {:else}
+    <!-- While the create-mode editor is on its way (showCreateEditor), render
+         NOTHING behind it — otherwise the placeholder text flashes for a frame
+         before the ScopeEditor mounts. The placeholder only appears if the
+         editor is genuinely not opening (a defensive fallback). -->
+    {#if !showCreateEditor}
+      <div class="empty-scope">
+        <h1>Workbench</h1>
         <p class="muted">No scope configured yet.</p>
         <button type="button" class="reopen-btn" onclick={reopenCreateEditor}>
           Configure scope →
         </button>
-      {/if}
-    </div>
+      </div>
+    {/if}
   {:else}
     <div class="workbench-header">
       <PillarSwitch />
-      <!-- Phase 135 — save THIS configuration. Lives where the analysis is
-           built; the SideRail "Saved analyses" entry is the library (browse). -->
-      <button
-        type="button"
-        class="save-analysis-btn"
-        onclick={() => openOverlay('analyses', 'save')}
-        title="Save this Workbench configuration as a re-openable, shareable analysis"
-      >
-        <span aria-hidden="true">★</span> Save analysis
-      </button>
+      <!-- Phase 135 — header actions. Save THIS configuration; or start a fresh
+           analysis (wipe + re-open the create editor). Both live where the
+           analysis is built; the SideRail "Saved analyses" entry is the library. -->
+      <div class="header-actions">
+        <button
+          type="button"
+          class="save-analysis-btn"
+          onclick={() => openOverlay('analyses', 'save')}
+          title="Save this Workbench configuration as a re-openable, shareable analysis"
+        >
+          <span aria-hidden="true">★</span> Save analysis
+        </button>
+        <button
+          type="button"
+          class="new-analysis-btn"
+          onclick={newAnalysis}
+          title="Clear the Workbench and start a new analysis from the scope editor"
+        >
+          <span aria-hidden="true">＋</span> New analysis
+        </button>
+      </div>
     </div>
     <div class="pillar-body">
       {#if activePillar.id === 'aleph'}
@@ -216,12 +245,18 @@
     left: var(--rail-width);
     top: 0;
     right: 0;
+    z-index: 1;
     overflow-y: auto;
     background: var(--color-bg);
     display: flex;
     flex-direction: column;
     padding: var(--space-5);
     gap: var(--space-4);
+  }
+  /* Initial (no-scope) entry: let the layout's persistent globe show through;
+     the ScopeEditor's own scrim provides the glassy dim. */
+  .workbench-main.scope-empty {
+    background: transparent;
   }
 
   .empty-scope {
@@ -262,30 +297,56 @@
      active pillar tile's explanation line makes the switch taller. */
   .workbench-header {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     gap: var(--space-4);
   }
   .workbench-header > :global(.pillar-switch) {
     flex: 1 1 auto;
     min-width: 0;
   }
-  .save-analysis-btn {
+  .header-actions {
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: stretch;
+  }
+  .save-analysis-btn,
+  .new-analysis-btn {
+    flex: 1;
     appearance: none;
-    background: var(--color-accent);
-    color: var(--color-bg);
-    border: 1px solid var(--color-accent);
     border-radius: var(--radius-sm);
     padding: var(--space-2) var(--space-4);
     font-size: var(--font-size-sm);
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .save-analysis-btn {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border: 1px solid var(--color-accent);
   }
   .save-analysis-btn:hover,
   .save-analysis-btn:focus-visible {
     background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  /* Secondary (ghost) — distinct from the primary Save action. */
+  .new-analysis-btn {
+    background: transparent;
+    color: var(--color-fg-muted);
+    border: 1px solid var(--color-border);
+  }
+  .new-analysis-btn:hover,
+  .new-analysis-btn:focus-visible {
+    color: var(--color-fg);
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-hover);
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
   }

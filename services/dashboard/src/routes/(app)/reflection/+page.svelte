@@ -1,7 +1,9 @@
 <script lang="ts">
+  /* eslint-disable svelte/no-navigation-without-resolve -- internal back-to-globe navigation */
   // Surface III — Reflection landing (Phase 109).
   // Presents the WP index, primer entry, and open-questions entry.
   // Replaces the Phase 105 stub.
+  import { goto } from '$app/navigation';
   import { ScopeBar } from '$lib/components/chrome';
   import { getAllPapers } from '$lib/reflection/papers';
   import { OPEN_QUESTIONS } from '$lib/reflection/open-questions';
@@ -14,10 +16,22 @@
   <title>AĒR — Reflection</title>
 </svelte:head>
 
+<!-- Phase 135 — the Reflection landing reads as a glassy surface over the
+     layout's persistent globe, matching the global overlays. -->
 <ScopeBar label="Reflection surface navigation">
   <span class="surface-label">Reflection</span>
   <span class="surface-sub">Working Papers · Primers · Open Questions</span>
 </ScopeBar>
+
+<button
+  type="button"
+  class="reflection-close"
+  onclick={() => goto('/')}
+  aria-label="Close Reflection"
+  title="Back to the globe"
+>
+  ×
+</button>
 
 <main class="reflection-landing" id="main-reflection">
   <div class="landing-inner">
@@ -99,8 +113,31 @@
     left: var(--rail-width);
     top: var(--scope-bar-height);
     right: var(--tray-right-edge, var(--tray-closed-width));
+    z-index: 1;
     overflow-y: auto;
-    background: var(--color-bg);
+    /* Glassy dim over the layout's persistent globe — same feel as the overlays. */
+    background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+
+  .reflection-close {
+    position: fixed;
+    top: calc(var(--scope-bar-height) + var(--space-3));
+    right: calc(var(--tray-right-edge, var(--tray-closed-width)) + var(--space-4));
+    z-index: 5;
+    background: transparent;
+    border: none;
+    color: var(--color-fg-muted);
+    font-size: var(--font-size-2xl);
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 var(--space-2);
+  }
+  .reflection-close:hover,
+  .reflection-close:focus-visible {
+    color: var(--color-fg);
+    outline: none;
   }
 
   .landing-inner {

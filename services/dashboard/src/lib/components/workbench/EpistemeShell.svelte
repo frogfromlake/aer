@@ -48,13 +48,21 @@
   // time axis. The window is explicit + reversible — set a panel window (or
   // global from/to) to widen toward the full history. This is a declared
   // analysis window, not hidden filtering: every article stays queryable.
+  // Snapshot "now" ONCE per mount. Reading `Date.now()` inside the derived made
+  // the default window drift on every reactive re-eval — and the derived re-runs
+  // on ANY `url` change, including opening a global overlay (account/dossier/…).
+  // That produced fresh windowStart/End ISO strings → new cell query keys → the
+  // panels silently re-fetched. A stable snapshot keeps the default window fixed
+  // across re-evals (it only advances on a real remount/refresh).
+  const nowAtInit = Date.now();
   const windowMs = $derived.by<{ start: string; end: string }>(() => {
-    const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = url.to ? Date.parse(url.to) : now;
+    const fromMs = url.from ? Date.parse(url.from) : nowAtInit - DEFAULT_LOOKBACK_MS;
+    const toMs = url.to ? Date.parse(url.to) : nowAtInit;
     return {
-      start: new Date(Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS).toISOString(),
-      end: new Date(Number.isFinite(toMs) ? toMs : now).toISOString()
+      start: new Date(
+        Number.isFinite(fromMs) ? fromMs : nowAtInit - DEFAULT_LOOKBACK_MS
+      ).toISOString(),
+      end: new Date(Number.isFinite(toMs) ? toMs : nowAtInit).toISOString()
     };
   });
   // Whether the active window is the default 7-day horizon (no explicit

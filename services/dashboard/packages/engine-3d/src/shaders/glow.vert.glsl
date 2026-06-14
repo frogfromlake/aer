@@ -24,6 +24,11 @@ varying float vBrightness;
 varying float vPulseRate;
 varying float vHover;
 varying float vSelected;
+// Phase 135 — rasterised point diameter in device pixels, so the fragment
+// shader can keep the selection reticle's lines ≥ 1 px at every camera distance
+// (fixed fine line-widths go sub-pixel when the point shrinks far away → the
+// reticle aliases / "pixelates").
+varying float vPointSize;
 
 void main() {
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -38,4 +43,5 @@ void main() {
   vPulseRate = aPulseRate;
   vHover = aHover;
   vSelected = aSelected;
+  vPointSize = gl_PointSize;
 }

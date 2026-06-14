@@ -23,6 +23,7 @@
   import { onMount } from 'svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { SideRail } from '$lib/components/chrome';
+  import AtmosphereSurface from '$lib/components/atmosphere/AtmosphereSurface.svelte';
   import DossierOverlay from '$lib/components/dossier/DossierOverlay.svelte';
   import AccountOverlay from '$lib/components/account/AccountOverlay.svelte';
   import AdminOverlay from '$lib/components/account/AdminOverlay.svelte';
@@ -55,6 +56,11 @@
 
 {#if ready && user()}
   <SideRail />
+  <!-- Phase 135 — the Atmosphere globe is rendered persistently here so it
+       survives navigation between surfaces and never remounts (it only reloads
+       on a full page refresh). Its interactive chrome shows only on `/`; on the
+       Workbench / Reflection it is a glassy backdrop behind the page content. -->
+  <AtmosphereSurface />
   {#if children}{@render children()}{/if}
   <DossierOverlay />
   <AccountOverlay />

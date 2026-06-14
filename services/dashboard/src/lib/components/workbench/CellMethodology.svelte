@@ -34,7 +34,6 @@
   import type { ViewMode } from '$lib/state/url-internals';
   import { page } from '$app/state';
   import { urlState } from '$lib/state/url.svelte';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
 
   interface Props {
     metricName: string;
@@ -49,7 +48,9 @@
 
   // Default open — methodology IS the dashboard's distinguishing feature
   // (Brief §5.8 Epistemic Weight + WP-006 §6 Reflexive Architecture).
-  let expanded = $state(true);
+  // Collapsed by default — the methodology is large; the reader expands it on
+  // demand (the per-section blocks inside then default to expanded).
+  let expanded = $state(false);
 
   const provenanceQ = createQuery<
     QueryOutcome<MetricProvenanceDto>,
@@ -126,8 +127,6 @@
   const wpHref = $derived(
     rawWpHref ? `${rawWpHref}${rawWpHref.includes('?') ? '&' : '?'}${referrerParams}` : null
   );
-
-  const negSpace = $derived(negativeSpaceActive());
 </script>
 
 <section
@@ -159,35 +158,31 @@
   </button>
 
   {#if expanded}
-    <div
-      class="meth-body"
-      class:limitations-first={negSpace}
-      id="meth-body-{metricName}-{viewMode}"
-    >
+    <div class="meth-body" id="meth-body-{metricName}-{viewMode}">
       {#if provenanceQ.isPending || metricContentQ.isPending}
         <p class="muted" aria-busy="true">Loading methodology…</p>
       {:else}
         {#if hasLimitations && provenance}
-          <section class="meth-block" data-section="limitations">
-            <h4>Known limitations</h4>
+          <details class="meth-block" data-section="limitations" open>
+            <summary class="meth-block-summary">Known limitations</summary>
             <ul class="limitations-list">
               {#each provenance.knownLimitations as lim (lim)}
                 <li>{lim}</li>
               {/each}
             </ul>
-          </section>
+          </details>
         {/if}
 
         {#if metricContent}
-          <section class="meth-block" data-section="dual-register">
-            <h4>What this metric measures</h4>
+          <details class="meth-block" data-section="dual-register" open>
+            <summary class="meth-block-summary">What this metric measures</summary>
             <ProgressiveSemantics registers={metricContent.registers} emphasis="methodological" />
-          </section>
+          </details>
         {/if}
 
         {#if provenance}
-          <section class="meth-block" data-section="provenance">
-            <h4>Provenance</h4>
+          <details class="meth-block" data-section="provenance" open>
+            <summary class="meth-block-summary">Provenance</summary>
             <dl class="provenance-dl">
               <dt>Tier</dt>
               <dd><Badge tier={badgeTier} /></dd>
@@ -203,14 +198,14 @@
             {#if provenance.culturalContextNotes}
               <p class="cultural-notes">{provenance.culturalContextNotes}</p>
             {/if}
-          </section>
+          </details>
         {/if}
 
         {#if viewModeContent}
-          <section class="meth-block" data-section="cell-method">
-            <h4>{viewLabel} × {metricName}</h4>
+          <details class="meth-block" data-section="cell-method" open>
+            <summary class="meth-block-summary">{viewLabel} × {metricName}</summary>
             <p class="cell-method-text">{viewModeContent.registers.methodological.long}</p>
-          </section>
+          </details>
         {/if}
 
         <div class="meth-links">
@@ -338,23 +333,40 @@
     border-top: 1px solid var(--color-border);
   }
 
-  .meth-body.limitations-first :global([data-section='limitations']) {
-    order: -1;
-  }
-
   .meth-block {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
   }
 
-  .meth-block h4 {
+  /* Each block is independently collapsible (default expanded). */
+  .meth-block-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     margin: 0;
+    list-style: none;
+    cursor: pointer;
     font-size: var(--font-size-xs);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: var(--font-weight-semibold);
     color: var(--color-fg-subtle);
+  }
+  .meth-block-summary::-webkit-details-marker {
+    display: none;
+  }
+  .meth-block-summary::before {
+    content: '›';
+    display: inline-block;
+    color: var(--color-fg-subtle);
+    transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .meth-block[open] > .meth-block-summary::before {
+    transform: rotate(90deg);
+  }
+  .meth-block-summary:hover {
+    color: var(--color-fg);
   }
 
   .limitations-list {

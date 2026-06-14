@@ -26,6 +26,7 @@ varying float vBrightness;
 varying float vPulseRate;
 varying float vHover;
 varying float vSelected;
+varying float vPointSize;
 
 void main() {
   // gl_PointCoord is (0..1, 0..1) across the disc; recentre to (-1..1).
@@ -89,9 +90,17 @@ void main() {
     // reads as blurry when the glyph is large at close zoom; a thin band with
     // a minimal antialias edge (smoothstep) holds a sharp boundary at every
     // size. `aa` is the only soft part (1–2 px of anti-aliasing).
-    float aa = 0.010;
-    float ringHW  = 0.009;  // ring half-width — very fine lines
-    float dotHW   = 0.020;  // dot radial half-width — minimally fine points
+    // Phase 135 — keep the reticle SHARP at every camera distance. The widths
+    // below are in point-coord units, where r spans the point's `vPointSize`
+    // device pixels (1 px ≈ 2/vPointSize in r). At max camera distance the
+    // point shrinks to ~20 px, so the fine fixed widths (0.009 ≈ 0.09 px) fall
+    // far below one pixel and the rasteriser aliases them ("pixelated"). Floor
+    // each width to a minimum SCREEN size so lines stay ≥ ~1–2 px when far,
+    // while still collapsing to the original fine lines when close (large point).
+    float pxToR = 2.0 / max(1.0, vPointSize);  // r-units per device pixel
+    float aa      = max(0.010, 1.0  * pxToR);  // ≥ 1 px antialias
+    float ringHW  = max(0.009, 0.75 * pxToR);  // ≥ ~1.5 px ring line
+    float dotHW   = max(0.020, 1.0  * pxToR);  // ≥ 2 px dot band
     float ringInner = smoothstep(ringHW + aa, ringHW, abs(r - 0.60));
     float ringOuter = smoothstep(ringHW + aa, ringHW, abs(r - 0.86));
     // Four dots at the cardinal angles (0/90/180/270°): a crisp radial band

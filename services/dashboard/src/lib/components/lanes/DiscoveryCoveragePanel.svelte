@@ -32,7 +32,6 @@
     type DiscoveryCoveragePerChannelDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
 
   interface Props {
     sourceId: string;
@@ -50,8 +49,6 @@
     const o = sourceDiscoveryCoverageQuery(ctx, sourceId, windowDays);
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
-
-  let negSpace = $derived(negativeSpaceActive());
 
   // Channel display order: highest-volume first by convention, with
   // platform-agnostic channels (sitemap, rss) before web-specific
@@ -188,7 +185,7 @@
               <span class="muted">avg {channel.averageUrlsDiscoveredPerRun.toFixed(1)}</span>
             </span>
           </div>
-          {#if channel.underflowAlertActive && negSpace}
+          {#if channel.underflowAlertActive}
             <p class="negative-space-prose">
               {UNDERFLOW_PROSE[channel.channel] ?? 'Discovery underflow active for this channel.'}
             </p>
@@ -196,13 +193,6 @@
         </li>
       {/each}
     </ul>
-
-    {#if payload.underflowAlertActive && !negSpace}
-      <p class="alert-hint">
-        A channel underflow alert is active for this source. Enable Negative Space to see the
-        methodological cause.
-      </p>
-    {/if}
   {:else}
     <p class="empty">No discovery telemetry yet — first crawl run pending.</p>
   {/if}
@@ -310,11 +300,6 @@
     color: var(--text-muted, #aaa);
     font-size: 0.85rem;
     font-style: italic;
-  }
-  .alert-hint {
-    margin: 1rem 0 0 0;
-    font-size: 0.85rem;
-    color: var(--alert-color, #c04040);
   }
   .loading,
   .error,

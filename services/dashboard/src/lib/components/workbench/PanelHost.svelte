@@ -47,8 +47,7 @@
     type CellRenderUnit
   } from '$lib/workbench/panel-queries';
   import { isPureCountMetric } from '$lib/viewmodes/metric-presentation';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
-  import { nsPolicyNote } from '$lib/negative-space';
+  import CellMethodology from './CellMethodology.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import {
@@ -155,10 +154,6 @@
 
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
   const cellRender = $derived(selectCellRender(panel));
-
-  // Phase 122d.2 — Negative-Space toggle self-disclosure (per-cell policy note).
-  const nsActive = $derived(negativeSpaceActive());
-  const nsNote = $derived(nsPolicyNote(presentation.negativeSpacePolicy));
 
   // Phase 125b — ISSUE 3 (re-test): cross-panel linked brushing was a hidden
   // feature. Surface a one-line affordance on the two participating views
@@ -801,7 +796,13 @@
   </header>
 
   {#if path}
-    <PanelMetaStrip {panel} {dossier} panelPath={path} {ctx} />
+    <PanelMetaStrip
+      {panel}
+      {dossier}
+      panelPath={path}
+      {ctx}
+      onEditScope={() => (scopeEditorOpen = true)}
+    />
   {/if}
 
   {#if focused && path}
@@ -872,14 +873,6 @@
       <strong>Merged</strong>
       composition or a single source to facet.
     </MethodologyBanner>
-  {/if}
-
-  <!-- Phase 122d.2 — Negative-Space self-disclosure. When the NS toggle is on,
-       every panel states what NS means for THIS view (per the cell's policy) so
-       the toggle is never a silent no-op; the data-bearing renderings live in
-       the cell (cooccurrence ghost), the article list (∅) and the globe. -->
-  {#if nsActive}
-    <p class="panel-ns-note" role="note">∅ {nsNote}</p>
   {/if}
 
   <!-- Phase 125b — ISSUE 3 (re-test): make cross-panel linked brushing
@@ -1079,10 +1072,30 @@
             configOverridden={cfg.isOverridden}
             {selection}
           />
+          {#if cfg.dimensionOverridden}
+            <!-- Phase 135 — this cell peeks a DIFFERENT metric than the panel
+                 (ADR-038), so it carries its OWN methodology keyed on the
+                 cell's effective metric. Cells that match the panel are covered
+                 by the panel-level methodology below. -->
+            <CellMethodology
+              metricName={cfg.metric}
+              viewMode={presentation.id}
+              viewLabel={presentation.label}
+            />
+          {/if}
         </div>
       {/each}
     {/if}
   </div>
+
+  <!-- Phase 135 — panel-level methodology (provenance + view-mode notes) for the
+       panel's own metric + presentation. One per panel; cells that override the
+       metric carry their own (above). Collapsed by default. -->
+  <CellMethodology
+    metricName={panel.metric}
+    viewMode={presentation.id}
+    viewLabel={presentation.label}
+  />
 </article>
 
 {#if scopeEditorOpen && path}
@@ -1467,15 +1480,6 @@
     margin: 0 0 var(--space-2);
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
-  }
-  /* Phase 122d.2 — Negative-Space self-disclosure note (methodological dim). */
-  .panel-ns-note {
-    margin: 0 0 var(--space-2);
-    padding: var(--space-1) var(--space-2);
-    border-left: 2px dashed var(--color-border);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    line-height: var(--line-height-loose);
   }
   /* Phase 125b — ISSUE 3: cross-panel brushing discoverability hint. */
   .panel-brush-hint {

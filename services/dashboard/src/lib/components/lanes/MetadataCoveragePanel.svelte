@@ -22,7 +22,6 @@
     type MetadataCoverageFieldDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import { negativeSpaceActive } from '$lib/state/tray.svelte';
 
   interface Props {
     probeId: string;
@@ -39,8 +38,6 @@
     const o = probeMetadataCoverageQuery(ctx, probeId);
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
-
-  let negSpace = $derived(negativeSpaceActive());
 
   // Field display order — Tier-B before Tier-C, mirroring the
   // worker's `metadata_coverage.COVERAGE_FIELDS` enumeration so the
@@ -210,7 +207,7 @@
                   <li
                     class="mc-field"
                     class:absent={f.structurallyAbsent}
-                    class:absent-revealed={f.structurallyAbsent && negSpace}
+                    class:absent-revealed={f.structurallyAbsent}
                   >
                     <div class="mc-field-head">
                       <span class="mc-field-name" title={f.field}>{f.field}</span>
@@ -225,7 +222,7 @@
                       {/if}
                     </div>
 
-                    {#if f.structurallyAbsent && negSpace}
+                    {#if f.structurallyAbsent}
                       <p class="mc-prose">{fieldProse(f.field, src.name)}</p>
                     {:else if f.totalArticles > 0}
                       <div
@@ -264,13 +261,6 @@
         </li>
       {/each}
     </ul>
-
-    {#if negSpace}
-      <p class="mc-overlay-note">
-        Negative Space overlay active — structurally-absent cells carry the methodological-register
-        prose. Toggle off to collapse to compact rendering.
-      </p>
-    {/if}
   {/if}
 </section>
 
@@ -504,12 +494,5 @@
     color: var(--color-fg);
     line-height: var(--line-height-loose);
     font-style: italic;
-  }
-
-  .mc-overlay-note {
-    margin: var(--space-2) 0 0 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-    font-family: var(--font-mono);
   }
 </style>
