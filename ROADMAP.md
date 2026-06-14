@@ -4664,8 +4664,32 @@ This phase enforces the following — every implementation choice must satisfy t
 * [ ] **Remove committed build artefacts** — `scripts/**/__pycache__/*.pyc` are currently checked in; delete them and add a `.gitignore` rule so bytecode never re-enters the tree.
 * [ ] **Stale-script check** — the `audit/` one-offs (`bump_content_version_and_wp005_anchor.py`, `inject_composition_notes.py`, `methodology_coverage.sh`) and the `operations/` scripts verified still-correct against the current schema/content (or updated); obsolete ones removed. Every surviving raw-script invocation is documented in the Operations Playbook as a deliberate exception — the Phase-120c invariant (routine ops go through the Makefile) holds.
 
+### Dev vs. prod stack clarity (`up`/`down`/`restart`)
+* [ ] **One obvious dev path, one obvious prod path.** Dev `make up`/`down`/`restart` brings up the FULL local stack incl. the operator-facing extras (Swagger UI, the observability stack, MkDocs) so every service is testable locally; the prod path (`compose.prod.yaml`) excludes dev-only extras + debug ports. It works today but is confusing — the goal is that *which target does what* is obvious, and that `down` tears everything (incl. swagger/telemetry/profiles) cleanly back down with no orphaned containers or volumes.
+* [ ] **Consistent `profiles:` + docs** — dev extras gated by Compose `profiles:` (clear opt-in/out, not ad-hoc); `make help` + a short playbook note state what dev brings up, how to reach each extra (Swagger / Grafana URLs), and how prod differs.
+
 ### Validation
-* [ ] PR pipeline runs within budget and fails on regression; `deps-refresh` can rotate one ecosystem in isolation; `make audit` has a documented, bounded runtime; `make help` lists every target with a description and a runtime hint for the heavy ones; every `scripts/` file is wired/documented or removed and no `__pycache__` is tracked. (Bandwidth-heavy validation runs scheduled for real-internet availability.)
+* [ ] PR pipeline runs within budget and fails on regression; `deps-refresh` can rotate one ecosystem in isolation; `make audit` has a documented, bounded runtime; `make help` lists every target with a description and a runtime hint for the heavy ones; every `scripts/` file is wired/documented or removed and no `__pycache__` is tracked; the dev↔prod target split is obvious and dev `up`/`down` brings up/tears down the full stack (incl. Swagger + telemetry) with no orphans. (Bandwidth-heavy validation runs scheduled for real-internet availability.)
+
+---
+
+## Phase 154: Observability Verification — Traces, Trace-IDs & Operator Dashboard [P1] - [ ] TODO
+
+*The OTel → Tempo/Prometheus/Grafana stack exists (Phases 5/18/36) but has not been exercised in a while. Before deployment — and so the operator can actually debug the rest of Iteration 11/12 — telemetry must work end-to-end and present a clean, curated view of the key signals with a documented way to reach and use it. (Prod alerting on top of these dashboards is Phase 146; this phase builds the dashboards + trace plumbing they depend on.)*
+
+**Grounding.** Read first: the OTel collector config under `infra/observability`, the backend telemetry init (`pkg/telemetry`), how/whether trace context propagates across the NATS + MinIO async hops (W3C `traceparent` breaks across async boundaries unless propagated in message metadata), the existing Grafana provisioning/dashboards, the Operations Playbook observability section. Preserve: the OTel-collector-as-sole-egress + internal-only network posture (no backend port exposure beyond `make debug-up`). Verify-first: confirm what actually emits traces/metrics today vs. what is dark before designing the dashboard.
+
+### Traces + correlation
+* [ ] **End-to-end traces** — a representative flow yields a connected trace across the services that synchronously connect; the async medallion hops (NATS/MinIO) either carry propagated trace context in message metadata or are documented as explicit span boundaries (AĒR is NATS/MinIO-coordinated, so "distributed trace" = linked spans via propagated context, not an HTTP call chain).
+* [ ] **Trace-IDs in backend logs** — every backend logs the active trace-id (logs ↔ traces correlation); the trace-id (or a request-id) is surfaced on error responses so the operator can pivot from a 5xx to its trace.
+
+### Operator view + docs
+* [ ] **One curated Grafana dashboard**, provisioned-as-code — the key signals only: per-service request rate / latency / error rate, NATS consumer lag + DLQ depth, worker throughput, ClickHouse / MinIO / Postgres health. No hand-built, unversioned panels.
+* [ ] **How to reach/use it** — documented: the Grafana URL (dev), login, which dashboard, what each panel means, and how to search a trace by trace-id (Tempo/Jaeger).
+* [ ] **Operations Playbook section** — a "symptom → trace → root cause" runbook using the dashboard + traces.
+
+### Validation
+* [ ] A sample flow produces a trace findable by its trace-id; that same trace-id appears in the backend logs; the curated dashboard shows the key signals live; the playbook walks an operator from symptom to root cause unaided.
 
 ---
 
