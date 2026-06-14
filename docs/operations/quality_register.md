@@ -14,7 +14,7 @@
 
 | Inventory | Consuming phase | Counted result |
 |---|---|---|
-| Long-file census | **141** | **35 production** files over threshold (Svelte 18, Go 5, Py 6, TS 6 — 2 of which are data-file exemptions) + 7 long test files (→142) |
+| Long-file census | **141** | **33 production** files over threshold (Svelte 16, Go 5, Py 6, TS 6; 1 data-file exemption) + 7 long test files (→142). *Paths refreshed post-Phase-140.* |
 | Dead-code scan | **139** | ✅ **DONE** — 8 dead FE files + 2 unused deps removed; 3 ratchets proven (knip/golangci-`unused`/ruff-`F`); ~127 TS export backlog deferred (rules off) |
 | Naming-inconsistency | **140** | ✅ **DONE** — Go initialisms via codegen normalizer (wire contract intact) + gofmt ratchet; ~250 retired-vocabulary renames (ViewMode→Presentation, viewmodes/→presentations/, lanes/ split); 3 ratchets active. Surface II/III deferred |
 | Comment/doc gaps | **143** | Doc coverage Go **89.9%** / Py **76.8%** / TS **43.2%**; **0** TODO/FIXME; **0** commented-out blocks; **2** English-only violations |
@@ -36,40 +36,44 @@ Proposed thresholds (~500 Go/Py, ~400 Svelte, ~500 TS) **match current norms** �
 |---|---|---|---|---|
 | 300–400 | 3 | 3 | 14 | 4 |
 | 400–500 | 4 | 1 | 9 | 0 |
-| 500–700 | 2 | 3 | 9 | 2 |
+| 500–700 | 2 | 3 | 9 | 1 |
 | 700–1000 | 0 | 0 | 3 | 4 |
 | >1000 | 3 | 3 | 4 | 1 |
 
+*(>500 rows re-verified post-Phase-140; the only change is TS 500–700 dropping 2→1 after `viridis.ts` was deleted in Phase 139. The 300–500 rows are the original pre-140 snapshot — unaffected by the path moves, which preserve LOC.)*
+
 ### Production files over threshold (ranked) — split hypotheses anchor on existing seams
+
+> **Paths refreshed 2026-06-14 (post-Phase-140).** Phase 140 moved `src/lib/viewmodes/`→`presentations/`, `src/lib/components/viewmodes/`→`components/presentations/`, and split `components/lanes/` into `source/`/`article/`/`evidence/`/`charts/`. Paths + LOC below are re-verified against the current tree. `viridis.ts` (a former exemption candidate) was deleted in Phase 139, so the count dropped from 35→33.
 
 **Svelte (ratchet 500):**
 - [ ] `src/lib/components/workbench/PanelControls.svelte` — **2208** · extract per-lever sub-components (`MetricPicker`/`ViewPicker`/`CompositionToggle`/`WindowControls`/`ChannelBinding`) → `controls/`; lift `$derived` into pure `panel-controls-derive.ts` · workbench · **L** · 500
 - [ ] `src/lib/components/workbench/PanelHost.svelte` — **1427** · extract layout/composition decisions to pure `panel-host-layout.ts`; move cell-dispatch table out · workbench · **L** · 500
-- [ ] `src/lib/components/lanes/L5EvidenceReader.svelte` — **1286** · markup-dominated; extract revision-row / metadata-strip / diff-segment child components → `lanes/evidence/` · lanes · **M** · 500
-- [ ] `src/lib/components/viewmodes/CoOccurrenceNetworkCell.svelte` — **1222** · push node-sizing/colour-channel + relabel into existing `cooccurrence-network-shared.ts`; keep SVG/interaction · viewmodes · **M** · 500
+- [ ] `src/lib/components/evidence/L5EvidenceReader.svelte` — **1286** · markup-dominated; extract revision-row / metadata-strip / diff-segment child components → `evidence/` · evidence · **M** · 500
+- [ ] `src/lib/components/presentations/CoOccurrenceNetworkCell.svelte` — **1222** · push node-sizing/colour-channel + relabel into existing `presentations/cooccurrence-network-shared.ts`; keep SVG/interaction · presentations · **M** · 500
 - [ ] `src/lib/components/workbench/ScopeEditor.svelte` — **997** · move group-mutation/validation into `scope-editor-draft.ts`; extract `ScopeGroupCard` · workbench · **M** · 500
 - [ ] `src/lib/components/account/AnalysesOverlay.svelte` — **974** · extract list-row + per-analysis-action sub-components; lift API-orchestration · account · **M** · 500
-- [ ] `src/lib/components/viewmodes/CoOccurrenceNetworkAtScale.svelte` — **728** · share the extracted force/relabel module from CoOccurrenceNetworkCell · viewmodes · **M** · 500
-- [ ] `src/lib/components/viewmodes/TopicEvolutionCell.svelte` — **691** · extract stream/stack layout math into `topic-internals.ts` · viewmodes · **S/M** · 500
+- [ ] `src/lib/components/presentations/CoOccurrenceNetworkAtScale.svelte` — **728** · share the extracted force/relabel module from CoOccurrenceNetworkCell · presentations · **M** · 500
+- [ ] `src/lib/components/presentations/TopicEvolutionCell.svelte` — **691** · extract stream/stack layout math into `presentations/topic-internals.ts` · presentations · **S/M** · 500
 - [ ] `src/lib/components/atmosphere/AtmosphereSurface.svelte` — **682** · extract probe-selection + flyTo/banner handlers from engine-3d glue · atmosphere · **M** · 500
 - [ ] `src/lib/components/workbench/CellConfigPopover.svelte` — **660** · extract per-`configurableParams` field renderers · workbench · **S/M** · 500
 - [ ] `src/routes/(app)/reflection/wp/[id]/+page.svelte` — **642** · move markdown/section rendering to a component · routes · **S** · 500
-- [ ] `src/lib/components/viewmodes/DistributionCell.svelte` — **587** · bin-axis math → pure helper · viewmodes · **S** · 500
+- [ ] `src/lib/components/presentations/DistributionCell.svelte` — **587** · bin-axis math → pure helper · presentations · **S** · 500
 - [ ] `src/lib/components/dossier/ProbeCard.svelte` — **568** · extract capability-matrix sub-component · dossier · **S** · 500
 - [ ] `src/lib/components/chrome/SideRail.svelte` — **533** · extract anchor list · chrome · **S** · 500
-- [ ] `src/lib/components/lanes/SourceCard.svelte` — **526** · extract register/authorship block · lanes · **S** · 500
-- [ ] `src/lib/components/lanes/ArticleListModal.svelte` — **502** · extract row component · lanes · **S** · 500
+- [ ] `src/lib/components/source/SourceCard.svelte` — **526** · extract register/authorship block · source · **S** · 500
+- [ ] `src/lib/components/article/ArticleListModal.svelte` — **502** · extract row component · article · **S** · 500
 
-**Go (ratchet 500):**
-- [ ] `services/bff-api/internal/handler/view_mode_handlers.go` — **1334** · split per presentation family (`distribution_handlers.go`/`heatmap_correlation_handlers.go`/`cooccurrence_handlers.go`) + shared `view_mode_shared.go` · bff/handler · **M** · 500
-- [ ] `services/bff-api/internal/storage/metrics_query.go` — **1163** · split `equivalence_query.go` + `scope_metrics_query.go` off `metrics_query.go` · bff/storage · **M** · 500
-- [ ] `services/bff-api/internal/handler/handler.go` — **1110** · keep `NewServer`/health; move metrics/probes/content handlers to own files · bff/handler · **M** · 500
-- [ ] `services/bff-api/internal/storage/cooccurrence_query.go` — **669** · extract `queryNode*`/`queryEdge*` to `cooccurrence_subqueries.go` · bff/storage · **S** · 500
-- [ ] `services/bff-api/internal/handler/revisions_handler.go` — **505** · collapse repeated resolution-triplet helpers into `revisions_resolution.go` · bff/handler · **S** · 500
+**Go (ratchet 500):** — ✅ all split (golangci clean, bff tests green incl. Testcontainers)
+- [x] `view_mode_handlers.go` 1334 → `view_mode_handlers.go` (132, shared scope/window) + `distribution_handlers.go` (384) + `heatmap_correlation_handlers.go` (381) + `cooccurrence_handlers.go` (455)
+- [x] `metrics_query.go` 1163 → `metrics_query.go` (465) + `equivalence_query.go` (252) + `scope_equivalence_query.go` (462)
+- [x] `handler.go` 1110 → `handler.go` (426, server+health+gate) + `metrics_handler.go` (287) + `probes_handler.go` (372) + `content_handler.go` (46)
+- [x] `cooccurrence_query.go` 669 → `cooccurrence_query.go` (338) + `cooccurrence_subqueries.go` (339)
+- [x] `revisions_handler.go` 505 → `revisions_handler.go` (433) + `revisions_resolution.go` (78)
 
 **Python (ratchet 500):**
 - [ ] `crawlers/web-crawler/audit_source.py` — **1825** · split `audit_probe.py`/`audit_pattern.py`/`audit_yaml.py`/`cli.py` · crawler · **L** · 500
-- [ ] `services/analysis-worker/internal/corpus.py` — **1279** · one module per sweep: `corpus_cooccurrence.py`/`corpus_baseline.py`/`corpus_topic.py`/`corpus_revision_diff.py` · worker · **L** · 500
+- [x] `services/analysis-worker/internal/corpus.py` — **1279** → `corpus.py` (383, shared+cooccurrence) + `corpus_baseline_topic.py` (323) + `corpus_revision_io.py` (362) + `corpus_revision_diff.py` (248). main.py imports rewired. ruff clean, 326 worker tests green.
 - [ ] `services/analysis-worker/internal/adapters/web_extract.py` — **1078** · `web_extract_fields.py` (field resolvers) + `web_extract_sources.py` (jsonld/og/microdata) · worker/adapters · **L** · 500
 - [ ] `services/analysis-worker/main.py` — **671** · move extractor-registry assembly to `internal/extractor_registry.py` · worker · **M** · 500
 - [ ] `services/analysis-worker/internal/processor.py` — **642** · marginal; extract Gold-row enrichment helpers only if it grows · worker · **S** · 500
@@ -78,17 +82,17 @@ Proposed thresholds (~500 Go/Py, ~400 Svelte, ~500 TS) **match current norms** �
 **TS (ratchet 500):**
 - [ ] `src/lib/api/queries.ts` — **1239** · split by domain into `queries/{metrics,revisions,cooccurrence,probes,articles}.ts` + barrel · api · **M** · 500
 - [ ] `src/lib/state/url-internals.ts` — **985** · split `url-codec.ts` + `url-guards.ts` off the read/write core · state · **M** · 500
-- [ ] `src/lib/viewmodes/registry.ts` — **783** · move data tables to `registry-data.ts`, keep types+accessors (CLAUDE.md SoT — preserve export surface exactly) · viewmodes · **M** · 500
+- [ ] `src/lib/presentations/registry.ts` — **784** · move data tables to `registry-data.ts`, keep types+accessors (CLAUDE.md SoT — preserve export surface exactly) · presentations · **M** · 500
 - [ ] `packages/engine-3d/src/engine.ts` — **937** · split `engine-scene.ts` + `engine-loop.ts` (camera/marker/glow already seam'd) · engine-3d · **M** · 500
 - [ ] `src/lib/workbench/panel-queries.ts` — **526** · marginal; cohesive — low priority · workbench · **S** · 500
-- [~] `src/lib/reflection/open-questions.ts` — **743** · **data-dominated, recommend EXEMPT from ratchet** (content array); relocate to `.json`/generated table rather than decompose · dashboard · **S (exempt)** · n/a · *(NB: `viridis.ts` 570 was the other exemption candidate — it turned out fully dead and was DELETED in Phase 139, see §2)*
+- [~] `src/lib/reflection/open-questions.ts` — **743** · **data-dominated, recommend EXEMPT from ratchet** (content array); relocate to `.json`/generated table rather than decompose · dashboard · **S (exempt)** · n/a · *(NB: `viridis.ts` 570, the other exemption candidate, turned out fully dead and was DELETED in Phase 139, see §2)*
 
 ### Long test files (→ Phase 142, listed only — NOT Phase 141)
 - [ ] Go: `bff-api/internal/handler/metrics_handler_test.go` 988 · `…/storage/metrics_query_test.go` 944 · `…/handler/view_mode_handlers_test.go` 671 · `…/storage/view_mode_queries_test.go` 637
 - [ ] Python: `crawlers/web-crawler/tests/test_audit_source.py` 749 · `…/tests/test_main.py` 547
 - [ ] TS: `dashboard/tests/unit/url-panels.test.ts` 504
 
-**Count: 35 production files (2 exemptions) + 7 test files.** Ratchet recommendation: 500 all languages.
+**Count (post-Phase-140): 33 production files over threshold (1 exemption: `open-questions.ts`) — Svelte 16, Go 5, Python 6, TS 6 — + 7 long test files (→142).** Ratchet recommendation: 500 all languages. *(Was 35/2-exemptions pre-Phase-139; `viridis.ts` deleted.)*
 
 ---
 

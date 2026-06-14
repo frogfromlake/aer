@@ -41,13 +41,15 @@ from internal.extractors import (
 from internal.corpus import (
     BaselineConfig,
     CorpusConfig,
-    RevisionDiffConfig,
     TopicConfig,
-    baseline_extraction_loop,
     corpus_extraction_loop,
-    revision_diff_extraction_loop,
+)
+from internal.corpus_baseline_topic import (
+    baseline_extraction_loop,
     topic_extraction_loop,
 )
+from internal.corpus_revision_diff import revision_diff_extraction_loop
+from internal.corpus_revision_io import RevisionDiffConfig
 from internal.reattempt import ReAttemptConfig, enrichment_reattempt_loop
 from internal.wayback_reattempt import WaybackReAttemptTask
 from internal.models.probe_scope import ProbeLanguageScope

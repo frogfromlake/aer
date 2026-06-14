@@ -4715,6 +4715,24 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 140: Naming & Code-Convention Unification [P2] - [x] DONE
+
+*Codify the conventions, then apply them — in that order, so the pass is consistent rather than another layer of drift. Runs against Phase 138's naming worklist.*
+
+**Grounding.** Read first: Phase-138 naming list, the implicit conventions across each language, the domain vocabulary in CLAUDE.md (probe / source / pillar / panel / cell / scope) and `discourse-function.ts`. Preserve: the **machine `probeId` as the stable load-bearing identifier** and all other load-bearing identifiers — rename display/local names, never wire-contract / DB / URL-grammar keys without an explicit migration. Verify-first: a name that crosses a boundary (OpenAPI field, ClickHouse column, URL key, NATS subject) is a contract, out of scope for a pure rename.
+
+### Codify
+* [x] **`docs/development/conventions.md`** — naming + style conventions per language (Go, Python, TS/Svelte), domain-term canon (one spelling per concept), file/module naming, the contract-boundary rule, and the enforced (ratchet) subset table.
+
+### Apply
+* [x] **Local/internal renames** applied per the convention doc, each behind green compiler/tests. → **Go initialisms** via oapi-codegen `name-normalizer` (the per-field renames were impossible — anonymous structs structurally mirror generated types; json wire tags 100% unchanged, ~119 refs chased, codegen deterministic). **TS**: `ViewMode`→`Presentation` (163), `viewmodes/`→`presentations/` (82 paths), `ViewingMode`→`PillarId` (50), `lanes/` split into `source/`/`article/`/`evidence/`/`charts/` (+ Lane→Line chart renames), user-facing "Function Lane"/"Surface II" strings → Workbench. Cross-boundary identifiers (OpenAPI fields, `view_mode` catalog key, URL keys, DB names, machine `probeId`) preserved; **"Surface II/III" numbering deferred-with-reason** (33 occ incl. generated `types.ts` from OpenAPI descriptions).
+* [x] **Ratchet.** → **Go** `.golangci.yml` (`stylecheck ST1003` + `gofmt`); **Python** `ruff N` in both services (targeted ignores for defensible FPs); **TS** eslint `no-restricted-syntax` vocabulary ban. All three proven with planted-symbol tests. (Register's "81 safe Go renames" + "Python N = 0 violations" assumptions were both wrong — corrected in register §3.)
+
+### Validation
+* [x] Convention doc exists; CI enforces the mechanical subset (3 ratchets active + proven); naming worklist checked off or deferred-with-reason; no contract broken — **OpenAPI sync verified** (codegen deterministic, json tags unchanged), `make lint` green (Go ×3, Python ×2, fe), svelte-check 0 errors, **Go tests green incl. Testcontainers**, fe-test 294/294.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4757,24 +4775,6 @@ This phase enforces the following — every implementation choice must satisfy t
 - ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
 
 *Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
-
----
-
-## Phase 140: Naming & Code-Convention Unification [P2] - [x] DONE
-
-*Codify the conventions, then apply them — in that order, so the pass is consistent rather than another layer of drift. Runs against Phase 138's naming worklist.*
-
-**Grounding.** Read first: Phase-138 naming list, the implicit conventions across each language, the domain vocabulary in CLAUDE.md (probe / source / pillar / panel / cell / scope) and `discourse-function.ts`. Preserve: the **machine `probeId` as the stable load-bearing identifier** and all other load-bearing identifiers — rename display/local names, never wire-contract / DB / URL-grammar keys without an explicit migration. Verify-first: a name that crosses a boundary (OpenAPI field, ClickHouse column, URL key, NATS subject) is a contract, out of scope for a pure rename.
-
-### Codify
-* [x] **`docs/development/conventions.md`** — naming + style conventions per language (Go, Python, TS/Svelte), domain-term canon (one spelling per concept), file/module naming, the contract-boundary rule, and the enforced (ratchet) subset table.
-
-### Apply
-* [x] **Local/internal renames** applied per the convention doc, each behind green compiler/tests. → **Go initialisms** via oapi-codegen `name-normalizer` (the per-field renames were impossible — anonymous structs structurally mirror generated types; json wire tags 100% unchanged, ~119 refs chased, codegen deterministic). **TS**: `ViewMode`→`Presentation` (163), `viewmodes/`→`presentations/` (82 paths), `ViewingMode`→`PillarId` (50), `lanes/` split into `source/`/`article/`/`evidence/`/`charts/` (+ Lane→Line chart renames), user-facing "Function Lane"/"Surface II" strings → Workbench. Cross-boundary identifiers (OpenAPI fields, `view_mode` catalog key, URL keys, DB names, machine `probeId`) preserved; **"Surface II/III" numbering deferred-with-reason** (33 occ incl. generated `types.ts` from OpenAPI descriptions).
-* [x] **Ratchet.** → **Go** `.golangci.yml` (`stylecheck ST1003` + `gofmt`); **Python** `ruff N` in both services (targeted ignores for defensible FPs); **TS** eslint `no-restricted-syntax` vocabulary ban. All three proven with planted-symbol tests. (Register's "81 safe Go renames" + "Python N = 0 violations" assumptions were both wrong — corrected in register §3.)
-
-### Validation
-* [x] Convention doc exists; CI enforces the mechanical subset (3 ratchets active + proven); naming worklist checked off or deferred-with-reason; no contract broken — **OpenAPI sync verified** (codegen deterministic, json tags unchanged), `make lint` green (Go ×3, Python ×2, fe), svelte-check 0 errors, **Go tests green incl. Testcontainers**, fe-test 294/294.
 
 ---
 
