@@ -1,4 +1,4 @@
-import { expect, test, type Route, type Request } from '@playwright/test';
+import { expect, test, type Route, type Request } from './_fixtures';
 
 // Phase 121 — Topic view-mode E2E coverage.
 //

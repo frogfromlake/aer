@@ -1,4 +1,4 @@
-import { expect, test, type Route } from '@playwright/test';
+import { expect, test, type Route } from './_fixtures';
 
 // End-to-end coverage for Phase 99b (ROADMAP "Surface I — First Contact").
 // The full pipeline — BFF → typed client → Svelte state → engine API →

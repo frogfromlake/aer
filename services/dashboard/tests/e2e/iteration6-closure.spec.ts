@@ -1,4 +1,4 @@
-import { expect, test, type Route } from '@playwright/test';
+import { expect, test, type Route } from './_fixtures';
 
 // Phase 121b — Iteration 6 dashboard closure E2E coverage.
 //

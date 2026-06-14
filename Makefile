@@ -323,7 +323,7 @@ swagger-down:
 	@docker compose --profile dev rm --stop --force swagger-ui 2>/dev/null || true
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Swagger UI stopped.$(RESET)"
 
-codegen: scaffold-metric-validity
+codegen:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running oapi-codegen for BFF API...$(RESET)"
 	@cd services/bff-api && oapi-codegen -config api/codegen.yaml api/openapi.yaml
 	@if [ -f services/ingestion-api/api/codegen.yaml ]; then \

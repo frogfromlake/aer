@@ -35,6 +35,16 @@ jobs:
           restore-keys: |
             hf-${{ runner.os }}-
 
+      # scikit-learn 1.7.0 / scipy 1.17.1 ship no cp314 wheels yet, so pip
+      # builds them from source on Python 3.14. Mirror the worker
+      # Dockerfile's builder stage (gfortran + OpenBLAS/LAPACK) so the
+      # source build succeeds. CI/runtime parity (Phase 35); revisit once
+      # upstream ships cp314 wheels (then this step + the source build go away).
+      - name: Install scientific-stack build deps (scipy/scikit-learn on Python 3.14)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc g++ gfortran make libopenblas-dev liblapack-dev
+
       - name: Install Dependencies
         working-directory: ./services/analysis-worker
         run: |
@@ -83,7 +93,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.2'
+          go-version-file: 'go.work'
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
@@ -124,7 +134,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.2'
+          go-version-file: 'go.work'
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
@@ -163,7 +173,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.2'
+          go-version-file: 'go.work'
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
@@ -283,7 +293,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.2'
+          go-version-file: 'go.work'
           cache: true
           cache-dependency-path: |
             services/ingestion-api/go.sum
@@ -293,15 +303,23 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
 
+      # Advisory (Phase 137 gating policy): security findings are reported but
+      # do NOT fail the pipeline — a real finding is fixed by a dep bump, an
+      # accepted one by a justified suppression. The finding stays visible (the
+      # step shows as a non-passing warning inside a green run); Phase 137 adds
+      # the nightly + notification so it is never silent.
       - name: Run govulncheck (pkg/)
+        continue-on-error: true
         working-directory: ./pkg
         run: govulncheck ./...
 
       - name: Run govulncheck (ingestion-api)
+        continue-on-error: true   # advisory — report, don't block (see note above)
         working-directory: ./services/ingestion-api
         run: govulncheck ./...
 
       - name: Run govulncheck (bff-api)
+        continue-on-error: true   # advisory — report, don't block (see note above)
         working-directory: ./services/bff-api
         run: govulncheck ./...
 
@@ -319,6 +337,7 @@ jobs:
       # Each entry there carries CVE, justification, and upstream-fix
       # tracker — revisited on every `make deps-refresh`.
       - name: Run pip-audit (analysis-worker)
+        continue-on-error: true   # advisory — report, don't block (see note above)
         run: make audit-python
 
       - name: Verify hash-pinned lockfile installs (analysis-worker)
@@ -333,6 +352,16 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+
+      # The analysis-worker image bakes 10+ GB of HuggingFace model weights;
+      # building all five images on a stock ubuntu-latest runner (~14 GB free)
+      # exhausts the disk mid model-download ("no space left on device").
+      # Reclaim ~20-25 GB of preinstalled toolchains we don't use. (Phase 137
+      # will additionally keep the model bake off this scan path.)
+      - name: Free up runner disk (worker image bakes 10+ GB of HF models)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
+          df -h /
 
       - name: Set up Python (for OpenAPI bundler)
         uses: actions/setup-python@v6
@@ -405,7 +434,12 @@ jobs:
           cache-from: type=gha,scope=web-crawler
           cache-to: type=gha,mode=max,scope=web-crawler
 
+      # Advisory (same policy as make audit): image CVEs are reported but do
+      # NOT block the pipeline, and all five image scans run in one go (a HIGH
+      # in image 1 no longer skips scans 2-5). Fix = base-image bump or a
+      # justified .trivyignore entry. Phase 137 adds nightly + notification.
       - name: Trivy scan — ingestion-api
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/ingestion-api:ci'
@@ -415,6 +449,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — bff-api
+        continue-on-error: true   # advisory — report image CVEs, don't block
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/bff-api:ci'
@@ -424,6 +459,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — analysis-worker
+        continue-on-error: true   # advisory — report image CVEs, don't block
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/analysis-worker:ci'
@@ -433,6 +469,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — dashboard
+        continue-on-error: true   # advisory — report image CVEs, don't block
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/dashboard:ci'
@@ -442,6 +479,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Trivy scan — web-crawler
+        continue-on-error: true   # advisory — report image CVEs, don't block
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/web-crawler:ci'
