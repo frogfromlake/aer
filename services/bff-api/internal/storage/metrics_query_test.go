@@ -932,13 +932,13 @@ func TestGetMetrics_ResolutionRouting(t *testing.T) {
 	}
 
 	cases := []struct {
-		name        string
-		resolution  Resolution
-		bucket      time.Time
-		source      string
-		metric      string
-		wantValue   float64
-		wantCount   uint64
+		name       string
+		resolution Resolution
+		bucket     time.Time
+		source     string
+		metric     string
+		wantValue  float64
+		wantCount  uint64
 	}{
 		{"hourly routes to metrics_hourly", ResolutionHourly, hourlyBucket, "src_hourly", "metric_h", 15.0, 2},
 		{"daily routes to metrics_daily", ResolutionDaily, dailyBucket, "src_daily", "metric_d", 7.0, 3},

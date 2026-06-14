@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
-	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 	"github.com/testcontainers/testcontainers-go"
+	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
