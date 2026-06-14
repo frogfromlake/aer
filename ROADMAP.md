@@ -4668,6 +4668,43 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 138: Quality Inventory & Worklists [P1] - [x] DONE
+
+*The assessment stage for the quality pass — cheap, tool-driven, fixes nothing. It turns "the code quality can be better" into concrete, counted worklists so Phases 139–143 remediate against evidence, not vibes, and so progress is measurable. Mirrors the assess→fix pattern Iteration 12 uses for security.*
+
+**Grounding.** Read first: the repo layout (`services/*`, `pkg/`, `crawlers/*`, `services/dashboard/src`), existing lint configs (golangci-lint, ruff, eslint/svelte-check), `.tool-versions`. Preserve: existing lint baselines (extend, don't fork). Verify-first: prefer tools already pinnable via `.tool-versions` / existing dev deps before adding new ones (no overengineering).
+
+### Inventories (each → a counted list in the register)
+* [x] **Long-file census.** Every file over an agreed threshold (propose Go/Python > ~500 LOC, Svelte component > ~400 LOC — confirm against current norms), ranked, with a split hypothesis per file. Feeds Phase 141. → register §1: 35 production files (Svelte 18, Go 5, Py 6, TS 6 incl. 2 data-file exemptions) + 7 long test files (→142). **Operator decision pending:** recommend ratchet at 500 for all four languages (Svelte 400 advisory only — 12 files in 400–500).
+* [x] **Dead-code scan.** Per language: Go (`deadcode`/`staticcheck` unused), Python (`vulture`/`ruff` unused), TS/Svelte (`knip`/`ts-prune`; unused exports/components/assets). Candidate list with confidence. Feeds Phase 139. → register §2: 7 dead FE files/barrels + 2 unused deps; Go 0 / Python 0 real; ~127-item TS manual-review backlog (mostly FPs).
+* [x] **Naming-inconsistency scan.** Catalogue divergent conventions (casing, abbreviations, domain-term drift — probe/source/panel/cell vocabulary) across each language. Feeds Phase 140. → register §3: 81 safe Go initialism renames + ~250 occurrences of retired Function-Lane/view-mode/Surface-II vocabulary in the dashboard.
+* [x] **Comment/doc-coverage gaps.** Exported-symbol doc coverage (Go doc comments, Python docstrings, JSDoc/Svelte) + a TODO/FIXME/commented-out-code census. Feeds Phase 143. → register §4: coverage Go 89.9% / Py 76.8% / TS 43.2%; 0 TODO/FIXME; 0 commented-out blocks; 2 English-only violations.
+* [x] **Stale-docs list.** Sweep `/docs` (Arc42, ADRs, methodology, design, operations, extending) for references to removed/renamed features (`/compose`, "Function Lane", RSS crawler, four-surface vocabulary). Feeds Phase 129. → register §5: 23 definitely-stale + 3 to-verify; 5 legitimate-historical groups preserved.
+
+### Register
+* [x] **`docs/operations/quality_register.md`** — one living register; each item tagged scope · effort · ratchet-target, grouped by the consuming phase. The SoT the remediation phases check off against.
+
+### Validation
+* [x] The register exists with counted items in every category; each downstream phase (139/140/141/143/129) has a concrete, non-empty worklist (or a justified "nothing found").
+
+---
+
+## Phase 139: Dead-Code Elimination [P2] - [x] DONE
+
+*First remediation step, before any refactor: deleting unused code shrinks the surface every later phase must touch. Runs against Phase 138's dead-code worklist.*
+
+**Grounding.** Read first: Phase-138 dead-code list, the build graph (`go.work`, `__init__.py` exports, Svelte component imports, asset references). Preserve: anything reachable only via reflection/dynamic dispatch, config-string registries (the `AdapterRegistry`/extractor registries), or generated code — verify reachability before deleting. Verify-first: a "dead" symbol that is actually an extension seam (registry entry, public `pkg/` API) is NOT dead — confirm against the registries before removal.
+
+### Remove
+* [x] **Confirmed dead code deleted** per language, each deletion validated by green build + green tests (relies on Phase 136). Retired one-shot/backfill utilities stay retired. → 8 dead FE files deleted (each verified independently unreferenced before deletion); Go 0 / Python 0 (the lone Go candidate `DefaultArgon2Params` is a test fixture → kept-with-reason; 2 Python vulture hits are Protocol contracts → kept). `make fe-lint` + `make fe-test` (294) green.
+* [x] **Unused assets / exports / dependencies** pruned (unused npm/go/pip deps removed from manifests; unused static assets removed). → `@opentelemetry/context-zone` + `@types/diff` removed (lockfile pruned, zero download). The ~127 unused-export candidates were mostly FPs → deferred (not a sweep; see register §2). CLAUDE.md stale `WorkbenchDatasetShape` line corrected.
+* [x] **Ratchet.** Wire the dead-code check into CI (or the lint stage) so re-introduction fails the build. → **Go** golangci-lint `unused`/`staticcheck`/`ineffassign` (already default-active) · **Python** `ruff` default `F401/F811/F841` (already active) · **TS** new `knip` + `knip.json` wired into `make fe-lint` (⇒ CI). All three proven with a planted-symbol test (exit 1 dirty / 0 clean).
+
+### Validation
+* [x] Build + full test suite green after removal; the dead-code CI check is active and fails on a planted unused symbol; the register's dead-code section is fully checked off or items are explicitly reclassified as live-with-reason. → FE suite green; all 3 ratchets pass the planted-symbol test; register §2 fully checked off. *Note: Go/Python Testcontainer + Playwright E2E not re-run locally — zero backend-source change in this phase; CI runs the full suite on push.*
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4710,43 +4747,6 @@ This phase enforces the following — every implementation choice must satisfy t
 - ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
 
 *Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
-
----
-
-## Phase 138: Quality Inventory & Worklists [P1] - [ ] TODO
-
-*The assessment stage for the quality pass — cheap, tool-driven, fixes nothing. It turns "the code quality can be better" into concrete, counted worklists so Phases 139–143 remediate against evidence, not vibes, and so progress is measurable. Mirrors the assess→fix pattern Iteration 12 uses for security.*
-
-**Grounding.** Read first: the repo layout (`services/*`, `pkg/`, `crawlers/*`, `services/dashboard/src`), existing lint configs (golangci-lint, ruff, eslint/svelte-check), `.tool-versions`. Preserve: existing lint baselines (extend, don't fork). Verify-first: prefer tools already pinnable via `.tool-versions` / existing dev deps before adding new ones (no overengineering).
-
-### Inventories (each → a counted list in the register)
-* [ ] **Long-file census.** Every file over an agreed threshold (propose Go/Python > ~500 LOC, Svelte component > ~400 LOC — confirm against current norms), ranked, with a split hypothesis per file. Feeds Phase 141.
-* [ ] **Dead-code scan.** Per language: Go (`deadcode`/`staticcheck` unused), Python (`vulture`/`ruff` unused), TS/Svelte (`knip`/`ts-prune`; unused exports/components/assets). Candidate list with confidence. Feeds Phase 139.
-* [ ] **Naming-inconsistency scan.** Catalogue divergent conventions (casing, abbreviations, domain-term drift — probe/source/panel/cell vocabulary) across each language. Feeds Phase 140.
-* [ ] **Comment/doc-coverage gaps.** Exported-symbol doc coverage (Go doc comments, Python docstrings, JSDoc/Svelte) + a TODO/FIXME/commented-out-code census. Feeds Phase 143.
-* [ ] **Stale-docs list.** Sweep `/docs` (Arc42, ADRs, methodology, design, operations, extending) for references to removed/renamed features (`/compose`, "Function Lane", RSS crawler, four-surface vocabulary). Feeds Phase 129.
-
-### Register
-* [ ] **`docs/operations/quality_register.md`** — one living register; each item tagged scope · effort · ratchet-target, grouped by the consuming phase. The SoT the remediation phases check off against.
-
-### Validation
-* [ ] The register exists with counted items in every category; each downstream phase (139/140/141/143/129) has a concrete, non-empty worklist (or a justified "nothing found").
-
----
-
-## Phase 139: Dead-Code Elimination [P2] - [ ] TODO
-
-*First remediation step, before any refactor: deleting unused code shrinks the surface every later phase must touch. Runs against Phase 138's dead-code worklist.*
-
-**Grounding.** Read first: Phase-138 dead-code list, the build graph (`go.work`, `__init__.py` exports, Svelte component imports, asset references). Preserve: anything reachable only via reflection/dynamic dispatch, config-string registries (the `AdapterRegistry`/extractor registries), or generated code — verify reachability before deleting. Verify-first: a "dead" symbol that is actually an extension seam (registry entry, public `pkg/` API) is NOT dead — confirm against the registries before removal.
-
-### Remove
-* [ ] **Confirmed dead code deleted** per language, each deletion validated by green build + green tests (relies on Phase 136). Retired one-shot/backfill utilities stay retired.
-* [ ] **Unused assets / exports / dependencies** pruned (unused npm/go/pip deps removed from manifests; unused static assets removed).
-* [ ] **Ratchet.** Wire the dead-code check into CI (or the lint stage) so re-introduction fails the build.
-
-### Validation
-* [ ] Build + full test suite green after removal; the dead-code CI check is active and fails on a planted unused symbol; the register's dead-code section is fully checked off or items are explicitly reclassified as live-with-reason.
 
 ---
 

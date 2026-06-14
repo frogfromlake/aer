@@ -15,6 +15,7 @@
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "codegen": "openapi-typescript ../bff-api/api/openapi.bundle.yaml -o src/lib/api/types.ts",
+    "knip": "knip",
     "bundle-size": "node scripts/check-bundle-size.mjs",
     "bake-landmass": "node scripts/bake-landmass.mjs"
   },
@@ -37,6 +38,7 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-svelte": "3.17.0",
     "globals": "17.5.0",
+    "knip": "5.88.1",
     "openapi-typescript": "7.13.0",
     "pngjs": "7.0.0",
     "prettier": "3.8.3",
@@ -56,7 +58,6 @@
   "dependencies": {
     "@observablehq/plot": "0.6.17",
     "@opentelemetry/api": "1.9.1",
-    "@opentelemetry/context-zone": "2.7.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.215.0",
     "@opentelemetry/instrumentation": "0.215.0",
     "@opentelemetry/instrumentation-fetch": "0.215.0",
@@ -65,7 +66,6 @@
     "@opentelemetry/sdk-trace-web": "2.7.0",
     "@opentelemetry/semantic-conventions": "1.40.0",
     "@tanstack/svelte-query": "6.1.18",
-    "@types/diff": "8.0.0",
     "d3-force": "3.0.0",
     "d3-sankey": "0.12.3",
     "diff": "9.0.0",

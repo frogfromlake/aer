@@ -611,9 +611,10 @@ fe-format:
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend sources formatted.$(RESET)"
 
 fe-lint:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend linters (ESLint + Prettier + svelte-check)...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend linters (ESLint + Prettier + svelte-check + knip dead-code ratchet)...$(RESET)"
 	@cd $(FE_DIR) && pnpm run lint
 	@cd $(FE_DIR) && pnpm run check
+	@cd $(FE_DIR) && pnpm run knip
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend lint passed!$(RESET)"
 
 fe-lint-fix:
