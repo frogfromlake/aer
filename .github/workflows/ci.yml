@@ -43,7 +43,7 @@ jobs:
       - name: Install scientific-stack build deps (scipy/scikit-learn on Python 3.14)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc g++ gfortran make libopenblas-dev liblapack-dev
+          sudo apt-get install -y --no-install-recommends gcc g++ gfortran make libopenblas-dev liblapack-dev libxml2-dev libxslt1-dev
 
       - name: Install Dependencies
         working-directory: ./services/analysis-worker
@@ -347,7 +347,7 @@ jobs:
       - name: Install scientific-stack build deps (scipy/scikit-learn on Python 3.14)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc g++ gfortran make libopenblas-dev liblapack-dev
+          sudo apt-get install -y --no-install-recommends gcc g++ gfortran make libopenblas-dev liblapack-dev libxml2-dev libxslt1-dev
 
       - name: Verify hash-pinned lockfile installs (analysis-worker)
         working-directory: ./services/analysis-worker

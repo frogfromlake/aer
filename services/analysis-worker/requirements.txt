@@ -4,6 +4,11 @@ argon2-cffi-bindings==25.1.0
 certifi==2026.2.25
 cffi==2.0.0
 charset-normalizer==3.4.6
+# click: transitive (pinned in requirements.lock.txt @ 8.3.2) but the loose
+# requirements.txt resolve on Python 3.14 stopped pulling it, which breaks
+# pytest collection (the conftest import chain needs it). Pinned explicitly to
+# the lock value — same self-documenting pattern as w3lib further down.
+click==8.3.2
 clickhouse-connect==0.15.1
 Deprecated==1.3.1
 googleapis-common-protos==1.73.1
