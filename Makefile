@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -540,6 +540,15 @@ deps-refresh:
 	@./scripts/build/deps_refresh.sh $(ARGS)
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)deps-refresh done — review 'git diff' before committing.$(RESET)"
 
+# Fast path: refresh digests + pip lock + SentiWS hash, but SKIP the no-cache
+# image rebuild + e2e (the multi-GB / tens-of-minutes part — Step 4). CI
+# validates the new pins on push, so this is the everyday "rotate deps, let CI
+# check" command. Use plain `deps-refresh` only when you need the local rebuild.
+deps-refresh-fast:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running dependency refresh (fast: --skip-build; CI validates on push)...$(RESET)"
+	@./scripts/build/deps_refresh.sh --skip-build $(ARGS)
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)deps-refresh-fast done — review 'git diff' before committing.$(RESET)"
+
 # ==========================================
 # 7b. FRONTEND (services/dashboard/)
 # ==========================================
@@ -771,10 +780,11 @@ help:
 	@echo -e "  $(GREEN)test-e2e$(RESET)            $(GRAY)Docker Compose end-to-end smoke test$(RESET)"
 	@echo -e "  $(CYAN)lint$(RESET)                $(GRAY)All linters: ruff (Python) + golangci-lint (all Go modules) + openapi-lint$(RESET)"
 	@echo -e "  $(CYAN)lint-go-pkg$(RESET)         $(GRAY)golangci-lint for shared pkg/ only$(RESET)"
-	@echo -e "  $(GREEN)audit$(RESET)               $(GRAY)Dependency vulnerability scanners: govulncheck + pip-audit$(RESET)"
+	@echo -e "  $(GREEN)audit$(RESET)               $(GRAY)Dependency vuln scanners: govulncheck + pip-audit (~2-5 min). CI is the authoritative gate — run locally mainly on dependency changes.$(RESET)"
 	@echo -e "  $(CYAN)audit-go$(RESET)            $(GRAY)govulncheck across all Go modules$(RESET)"
 	@echo -e "  $(CYAN)audit-python$(RESET)        $(GRAY)pip-audit for analysis-worker$(RESET)"
-	@echo -e "  $(GREEN)deps-refresh$(RESET)        $(GRAY)Rotate base image digests, pip lock, SentiWS hash (see playbook)$(RESET)"
+	@echo -e "  $(GREEN)deps-refresh$(RESET)        $(GRAY)Rotate base-image digests + pip lock + SentiWS hash. SLOW (multi-GB, ~20-40 min — rebuilds all images). See playbook.$(RESET)"
+	@echo -e "  $(GREEN)deps-refresh-fast$(RESET)   $(GRAY)Same, but --skip-build (no local image rebuild; CI validates on push) — the everyday fast path.$(RESET)"
 	@echo -e "  $(GREEN)setup$(RESET)               $(GRAY)Install all developer tools pinned to .tool-versions$(RESET)"
 	@echo -e ""
 	@echo -e "$(BOLD)Frontend (services/dashboard/):$(RESET)"

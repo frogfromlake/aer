@@ -34,18 +34,21 @@ on:
   # checks on a non-trivial change.
   workflow_dispatch:
 
-  # Path-triggered runs on main. Edits to Compose wiring, init scripts, or
-  # the smoke script itself bypass the nightly cadence and verify on merge.
-  push:
-    branches: [ "main" ]
-    paths:
-      - 'compose.yaml'
-      - 'compose.prod.yaml'
-      - 'infra/**'
-      - 'scripts/build/e2e_smoke_test.sh'
-      - 'scripts/build/e2e_helpers.sh'
-      - 'scripts/build/e2e_fixtures/**'
-      - '.github/workflows/e2e_smoke_nightly.yml'
+  # Path-trigger ALSO PARKED (Phase 137): while the smoke is broken (heavy
+  # build / stale RSS script — see the cron note above), a push to main that
+  # touched these paths fired this workflow and produced a red run on main.
+  # Re-enable together with the cron once the Iteration-13 image-publish
+  # pipeline + script rewrite land. Until then: manual workflow_dispatch only.
+  #  push:
+  #    branches: [ "main" ]
+  #    paths:
+  #      - 'compose.yaml'
+  #      - 'compose.prod.yaml'
+  #      - 'infra/**'
+  #      - 'scripts/build/e2e_smoke_test.sh'
+  #      - 'scripts/build/e2e_helpers.sh'
+  #      - 'scripts/build/e2e_fixtures/**'
+  #      - '.github/workflows/e2e_smoke_nightly.yml'
 
 jobs:
   e2e-smoke:
