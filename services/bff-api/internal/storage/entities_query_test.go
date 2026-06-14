@@ -95,7 +95,7 @@ func TestGetLanguageDetections(t *testing.T) {
 		rank   uint8
 	}{
 		{now.Add(-1 * time.Hour), "tagesschau", "de", 0.9999, 1},
-		{now.Add(-1 * time.Hour), "tagesschau", "en", 0.0001, 2},   // rank 2, should be excluded from aggregation
+		{now.Add(-1 * time.Hour), "tagesschau", "en", 0.0001, 2}, // rank 2, should be excluded from aggregation
 		{now.Add(-30 * time.Minute), "bundesregierung", "de", 0.985, 1},
 		{now.Add(-30 * time.Minute), "tagesschau", "en", 0.92, 1},
 		{now.Add(-3 * time.Hour), "tagesschau", "de", 0.99, 1}, // outside range

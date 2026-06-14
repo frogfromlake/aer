@@ -58,36 +58,36 @@ var (
 	errSilverNotEligible    = errors.New("source not silver eligible")
 )
 
-// GetSourceById handles GET /sources/{id} — returns the source detail
+// GetSourceByID handles GET /sources/{id} — returns the source detail
 // with Silver-eligibility metadata. No eligibility gate here: the
 // endpoint exists precisely so reviewers/operators can see *whether* a
 // source is eligible and on what grounds.
-func (s *Server) GetSourceById(ctx context.Context, request GetSourceByIdRequestObject) (GetSourceByIdResponseObject, error) {
+func (s *Server) GetSourceByID(ctx context.Context, request GetSourceByIDRequestObject) (GetSourceByIDResponseObject, error) {
 	if s.dossier == nil {
-		slog.Error("handler failure", "op", "GetSourceById", "error", "dossier store not configured")
-		return GetSourceById500JSONResponse{Message: genericInternalError}, nil
+		slog.Error("handler failure", "op", "GetSourceByID", "error", "dossier store not configured")
+		return GetSourceByID500JSONResponse{Message: genericInternalError}, nil
 	}
-	row, err := s.dossier.ResolveSourceWithEligibility(ctx, request.Id)
+	row, err := s.dossier.ResolveSourceWithEligibility(ctx, request.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
-			return GetSourceById404JSONResponse{Message: "source not found"}, nil
+			return GetSourceByID404JSONResponse{Message: "source not found"}, nil
 		}
-		slog.Error("handler failure", "op", "GetSourceById", "error", err)
-		return GetSourceById500JSONResponse{Message: genericInternalError}, nil
+		slog.Error("handler failure", "op", "GetSourceByID", "error", err)
+		return GetSourceByID500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	resp := GetSourceById200JSONResponse{
+	resp := GetSourceByID200JSONResponse{
 		Name:           row.Name,
 		Type:           row.Type,
 		SilverEligible: row.SilverEligible,
 	}
 	if row.URL.Valid {
 		v := row.URL.String
-		resp.Url = &v
+		resp.URL = &v
 	}
 	if row.DocumentationURL.Valid {
 		v := row.DocumentationURL.String
-		resp.DocumentationUrl = &v
+		resp.DocumentationURL = &v
 	}
 	if row.SilverReviewReviewer.Valid {
 		v := row.SilverReviewReviewer.String
@@ -123,7 +123,7 @@ func (s *Server) ListSilverDocuments(ctx context.Context, request ListSilverDocu
 		return ListSilverDocuments500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	row, err := s.requireSilverEligible(ctx, request.Params.SourceId)
+	row, err := s.requireSilverEligible(ctx, request.Params.SourceID)
 	if response, ok := mapSilverGateError(err); ok {
 		switch r := response.(type) {
 		case ListSilverDocuments404JSONResponse:
@@ -183,13 +183,13 @@ func (s *Server) ListSilverDocuments(ctx context.Context, request ListSilverDocu
 	}
 	for _, r := range rows {
 		item := struct {
-			ArticleId string     `json:"articleId"`
-			Language  *string    `json:"language,omitempty"`
-			Source    string     `json:"source"`
-			Timestamp time.Time  `json:"timestamp"`
-			WordCount *int       `json:"wordCount,omitempty"`
+			ArticleID string    `json:"articleId"`
+			Language  *string   `json:"language,omitempty"`
+			Source    string    `json:"source"`
+			Timestamp time.Time `json:"timestamp"`
+			WordCount *int      `json:"wordCount,omitempty"`
 		}{
-			ArticleId: r.ArticleID,
+			ArticleID: r.ArticleID,
 			Source:    r.Source,
 			Timestamp: r.Timestamp,
 		}
@@ -205,11 +205,11 @@ func (s *Server) ListSilverDocuments(ctx context.Context, request ListSilverDocu
 	}
 	if page.Items == nil {
 		page.Items = []struct {
-			ArticleId string     `json:"articleId"`
-			Language  *string    `json:"language,omitempty"`
-			Source    string     `json:"source"`
-			Timestamp time.Time  `json:"timestamp"`
-			WordCount *int       `json:"wordCount,omitempty"`
+			ArticleID string    `json:"articleId"`
+			Language  *string   `json:"language,omitempty"`
+			Source    string    `json:"source"`
+			Timestamp time.Time `json:"timestamp"`
+			WordCount *int      `json:"wordCount,omitempty"`
 		}{}
 	}
 	return page, nil
@@ -225,7 +225,7 @@ func (s *Server) GetSilverDocumentDetail(ctx context.Context, request GetSilverD
 		return GetSilverDocumentDetail500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	res, err := s.dossier.ResolveArticle(ctx, request.Id)
+	res, err := s.dossier.ResolveArticle(ctx, request.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetSilverDocumentDetail404JSONResponse{Message: "article not found"}, nil
@@ -263,7 +263,7 @@ func (s *Server) GetSilverDocumentDetail(ctx context.Context, request GetSilverD
 	}
 
 	resp := GetSilverDocumentDetail200JSONResponse{
-		ArticleId:     envelope.Core.DocumentID,
+		ArticleID:     envelope.Core.DocumentID,
 		Source:        envelope.Core.Source,
 		Timestamp:     timestamp,
 		CleanedText:   envelope.Core.CleanedText,
@@ -276,7 +276,7 @@ func (s *Server) GetSilverDocumentDetail(ctx context.Context, request GetSilverD
 	}
 	if envelope.Core.URL != "" {
 		u := envelope.Core.URL
-		resp.Url = &u
+		resp.URL = &u
 	}
 	if envelope.Core.Language != "" {
 		l := envelope.Core.Language
@@ -379,7 +379,7 @@ func (s *Server) GetSilverAggregation(ctx context.Context, request GetSilverAggr
 		return GetSilverAggregation400JSONResponse{Message: msg}, nil
 	}
 
-	row, err := s.requireSilverEligible(ctx, request.Params.SourceId)
+	row, err := s.requireSilverEligible(ctx, request.Params.SourceID)
 	if err != nil {
 		switch {
 		case errors.Is(err, errSilverNotEligible):

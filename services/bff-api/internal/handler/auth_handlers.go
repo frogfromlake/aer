@@ -181,7 +181,7 @@ func (s *Server) GetAuthMe(ctx context.Context, _ GetAuthMeRequestObject) (GetAu
 		return GetAuthMe401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
 	return GetAuthMe200JSONResponse{
-		Id:     id.UserID,
+		ID:     id.UserID,
 		Email:  openapi_types.Email(id.Email),
 		Role:   string(id.Role),
 		Status: "active",
@@ -340,7 +340,7 @@ func (s *Server) PostAuthChangePassword(ctx context.Context, request PostAuthCha
 
 func loginUserResponse(u *storage.AuthUser) PostAuthLogin200JSONResponse {
 	return PostAuthLogin200JSONResponse{
-		Id:     u.ID,
+		ID:     u.ID,
 		Email:  openapi_types.Email(u.Email),
 		Role:   u.Role,
 		Status: u.Status,
@@ -349,7 +349,7 @@ func loginUserResponse(u *storage.AuthUser) PostAuthLogin200JSONResponse {
 
 func acceptInviteUserResponse(u *storage.AuthUser) PostAuthAcceptInvite200JSONResponse {
 	return PostAuthAcceptInvite200JSONResponse{
-		Id:     u.ID,
+		ID:     u.ID,
 		Email:  openapi_types.Email(u.Email),
 		Role:   u.Role,
 		Status: u.Status,

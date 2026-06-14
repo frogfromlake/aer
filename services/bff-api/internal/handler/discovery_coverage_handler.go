@@ -34,7 +34,7 @@ func (s *Server) GetSourceDiscoveryCoverage(
 		return GetSourceDiscoveryCoverage500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	id, name, err := s.dossier.ResolveSource(ctx, request.SourceId)
+	id, name, err := s.dossier.ResolveSource(ctx, request.SourceID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetSourceDiscoveryCoverage404JSONResponse{Message: "source not found"}, nil
@@ -58,11 +58,11 @@ func (s *Server) GetSourceDiscoveryCoverage(
 	}
 
 	resp := GetSourceDiscoveryCoverage200JSONResponse{
-		SourceId:                   name,
-		WindowDays:                 windowDays,
-		TotalUrlsDiscoveredLastRun: int(summary.TotalDiscoveredLastRun),  //nolint:gosec // bounded
+		SourceID:                    name,
+		WindowDays:                  windowDays,
+		TotalUrlsDiscoveredLastRun:  int(summary.TotalDiscoveredLastRun),  //nolint:gosec // bounded
 		UniqueUrlsAfterDedupLastRun: int(summary.UniqueAfterDedupLastRun), //nolint:gosec // bounded
-		UnderflowAlertActive:       summary.UnderflowAlertActive,
+		UnderflowAlertActive:        summary.UnderflowAlertActive,
 	}
 	if summary.ExpectedFloorPerRun.Valid {
 		v := int(summary.ExpectedFloorPerRun.Int64)
@@ -85,8 +85,8 @@ func (s *Server) GetSourceDiscoveryCoverage(
 		}{
 			AverageUrlsDiscoveredPerRun: float32(row.AverageDiscoveredPerRun),
 			Channel:                     row.Channel,
-			LastRunUrlsAfterDedup:       int(row.LastRunAfterDedup),  //nolint:gosec // bounded
-			LastRunUrlsDiscovered:       int(row.LastRunDiscovered),  //nolint:gosec // bounded
+			LastRunUrlsAfterDedup:       int(row.LastRunAfterDedup), //nolint:gosec // bounded
+			LastRunUrlsDiscovered:       int(row.LastRunDiscovered), //nolint:gosec // bounded
 			// The source-level alert state is the OR across channels;
 			// per-channel telemetry today fires the alert at source
 			// granularity (the underflow gate compares total dedup-

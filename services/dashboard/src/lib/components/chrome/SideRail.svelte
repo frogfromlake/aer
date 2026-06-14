@@ -25,12 +25,12 @@
   import { goto } from '$app/navigation';
   import { urlState, toggleOverlay } from '$lib/state/url.svelte';
   import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
-  import { getPillar } from '$lib/viewmodes';
+  import { getPillar } from '$lib/presentations';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
-  import type { ViewingMode } from '$lib/state/url-internals';
+  import type { PillarId } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
-  const activePillarId = $derived<ViewingMode>(url.activePillar ?? 'aleph');
+  const activePillarId = $derived<PillarId>(url.activePillar ?? 'aleph');
   const activePillar = $derived(getPillar(activePillarId));
 
   // Phase 123a — the Dossier is a global overlay (ADR-033 amendment), not

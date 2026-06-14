@@ -133,7 +133,9 @@ func TestGetSourceById_NotEligibleStillReturnsRecord(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	var resp struct{ SilverEligible bool `json:"silverEligible"` }
+	var resp struct {
+		SilverEligible bool `json:"silverEligible"`
+	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp.SilverEligible {
 		t.Fatalf("ineligible source must report silverEligible=false")
@@ -183,7 +185,7 @@ func TestListSilverDocuments_HappyPath(t *testing.T) {
 		Source  string `json:"source"`
 		HasMore bool   `json:"hasMore"`
 		Items   []struct {
-			ArticleID string `json:"articleId"`
+			ArticleID string  `json:"articleId"`
 			Language  *string `json:"language,omitempty"`
 			WordCount *int    `json:"wordCount,omitempty"`
 		} `json:"items"`
@@ -315,13 +317,13 @@ func TestGetSilverDocumentDetail_HappyPath(t *testing.T) {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
 	}
 	var resp struct {
-		ArticleId            string             `json:"articleId"`
-		CleanedText          string             `json:"cleanedText"`
-		Meta                 map[string]any     `json:"meta"`
-		ExtractionProvenance map[string]string  `json:"extractionProvenance"`
+		ArticleID            string            `json:"articleId"`
+		CleanedText          string            `json:"cleanedText"`
+		Meta                 map[string]any    `json:"meta"`
+		ExtractionProvenance map[string]string `json:"extractionProvenance"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
-	if resp.ArticleId != "art-1" || resp.CleanedText != "raw" {
+	if resp.ArticleID != "art-1" || resp.CleanedText != "raw" {
 		t.Fatalf("unexpected response: %+v", resp)
 	}
 	if resp.ExtractionProvenance["sentiment"] != "abc123" {
@@ -421,7 +423,9 @@ func TestGetSilverAggregation_Distribution(t *testing.T) {
 		Source          string `json:"source"`
 		Distribution    *struct {
 			Bins    []any `json:"bins"`
-			Summary struct{ Count int64 `json:"count"` } `json:"summary"`
+			Summary struct {
+				Count int64 `json:"count"`
+			} `json:"summary"`
 		} `json:"distribution"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
@@ -437,7 +441,7 @@ func TestGetSilverAggregation_Distribution(t *testing.T) {
 
 func TestGetSilverAggregation_Heatmap(t *testing.T) {
 	store := &mockStore{
-		silverHeatmap: []storage.HeatmapCell{{X: "1", Y: "10", Value: 200, Count: 4}},
+		silverHeatmap:     []storage.HeatmapCell{{X: "1", Y: "10", Value: 200, Count: 4}},
 		silverHeatmapXDim: "dayOfWeek",
 		silverHeatmapYDim: "hour",
 	}
@@ -456,7 +460,9 @@ func TestGetSilverAggregation_Heatmap(t *testing.T) {
 		Heatmap *struct {
 			XDimension string `json:"xDimension"`
 			YDimension string `json:"yDimension"`
-			Cells      []struct{ Count int64 `json:"count"` } `json:"cells"`
+			Cells      []struct {
+				Count int64 `json:"count"`
+			} `json:"cells"`
 		} `json:"heatmap"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
@@ -547,4 +553,3 @@ func TestGetSilverAggregation_BadWindow400(t *testing.T) {
 }
 
 func ptrFloat(v float64) *float64 { return &v }
-

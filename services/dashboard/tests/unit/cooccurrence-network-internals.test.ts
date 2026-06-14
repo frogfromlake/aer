@@ -4,7 +4,7 @@ import {
   hasExternalLinks,
   wikidataHref,
   wikipediaHref
-} from '../../src/lib/components/viewmodes/cooccurrence-network-internals';
+} from '../../src/lib/components/presentations/cooccurrence-network-internals';
 
 // Phase 118 / 121b — pin the Wikidata + Wikipedia URL shape so a future
 // refactor of the cooccurrence cell cannot silently drop or rewrite the

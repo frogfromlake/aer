@@ -8,7 +8,7 @@
   //     probe scope.
   //   - Body: a single focus Cell occupying the full width. Cells are
   //     restricted to Aleph-allowed presentations (`time_series`,
-  //     `distribution`) per `viewmodes/registry.ts:PILLAR_DEFINITIONS`.
+  //     `distribution`) per `presentations/registry.ts:PILLAR_DEFINITIONS`.
   //   - Per-Cell controls (Metric, Darstellung, Layer, Vergleich) live as
   //     a header strip directly above the Cell body.
   //
@@ -22,7 +22,11 @@
     type ProbeDossierDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
+  import {
+    DEFAULT_METRIC_NAME,
+    resolvePresentation,
+    type PresentationCellProps
+  } from '$lib/presentations';
   import { urlState } from '$lib/state/url.svelte';
   import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
@@ -160,7 +164,7 @@
 
   // Cell component lazy-load — same pattern as the legacy FunctionLaneShell.
   // Each Cell ships its own chunk so heavy chart libraries land on demand.
-  let CellComponent = $state<Component<ViewModeCellProps> | null>(null);
+  let CellComponent = $state<Component<PresentationCellProps> | null>(null);
   let loadError = $state<string | null>(null);
   let loadToken = 0;
 

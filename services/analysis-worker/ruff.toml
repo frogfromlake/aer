@@ -1,0 +1,16 @@
+# Ruff configuration for the analysis-worker service.
+#
+# Phase 140 naming ratchet: pep8-naming (N) on top of ruff's default E/F rules.
+# N806 (local-variable casing) is ignored repo-wide — it conflicts with the
+# legitimate local UPPER_SNAKE constants (e.g. EXPECTED_DATETIME test fixtures),
+# local stub *classes* in tests (PascalCase is correct), and lazy class imports
+# (e.g. BERTopic). N814 covers the deliberate `Client as NATS` import alias.
+# N802 is relaxed in tests (descriptive test names embed JSON field names like
+# contentUrl). The valuable N rules (N801 class names, N803 args, N818
+# exception suffix) stay enforced — currently zero violations.
+[lint]
+extend-select = ["N"]
+ignore = ["N806", "N814"]
+
+[lint.per-file-ignores]
+"tests/**" = ["N802"]

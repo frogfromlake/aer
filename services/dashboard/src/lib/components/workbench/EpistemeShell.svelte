@@ -19,7 +19,11 @@
     type ProbeDossierDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
+  import {
+    DEFAULT_METRIC_NAME,
+    resolvePresentation,
+    type PresentationCellProps
+  } from '$lib/presentations';
   import { urlState } from '$lib/state/url.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import PanelControls from './PanelControls.svelte';
@@ -109,9 +113,9 @@
   // Phase 122h Findings round 3 update: Resolution control was hoisted
   // into PanelControls (it is a per-Cell capability, not a per-Pillar
   // global). EpistemeShell no longer manages resolution state; the cell
-  // honours `url.resolution` directly via SourceLaneChart.
+  // honours `url.resolution` directly via SourceLineChart.
 
-  let CellComponent = $state<Component<ViewModeCellProps> | null>(null);
+  let CellComponent = $state<Component<PresentationCellProps> | null>(null);
   let loadError = $state<string | null>(null);
   let loadToken = 0;
 

@@ -9,20 +9,20 @@ import (
 
 // Config holds the environment variables required for the Ingestion API.
 type Config struct {
-	Environment    string `mapstructure:"APP_ENV"`
-	LogLevel       string `mapstructure:"LOG_LEVEL"`
-	IngestionPort  string `mapstructure:"INGESTION_PORT"`
-	DBUrl          string `mapstructure:"DB_URL"`
-	MinioEndpoint  string `mapstructure:"MINIO_ENDPOINT"`
-	MinioAccessKey string `mapstructure:"INGESTION_MINIO_ACCESS_KEY"`
-	MinioSecretKey string `mapstructure:"INGESTION_MINIO_SECRET_KEY"`
-	MinioUseSSL    bool   `mapstructure:"MINIO_USE_SSL"`
-	OTelEndpoint      string  `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	OTelSampleRate    float64 `mapstructure:"OTEL_TRACE_SAMPLE_RATE"`
-	MigrationsPath string `mapstructure:"MIGRATIONS_PATH"`
-	APIKey         string `mapstructure:"INGESTION_API_KEY"`
-	CORSOrigins    string `mapstructure:"CORS_ALLOWED_ORIGINS"`
-	BronzeBucket   string `mapstructure:"INGESTION_BRONZE_BUCKET"`
+	Environment    string  `mapstructure:"APP_ENV"`
+	LogLevel       string  `mapstructure:"LOG_LEVEL"`
+	IngestionPort  string  `mapstructure:"INGESTION_PORT"`
+	DBUrl          string  `mapstructure:"DB_URL"`
+	MinioEndpoint  string  `mapstructure:"MINIO_ENDPOINT"`
+	MinioAccessKey string  `mapstructure:"INGESTION_MINIO_ACCESS_KEY"`
+	MinioSecretKey string  `mapstructure:"INGESTION_MINIO_SECRET_KEY"`
+	MinioUseSSL    bool    `mapstructure:"MINIO_USE_SSL"`
+	OTelEndpoint   string  `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelSampleRate float64 `mapstructure:"OTEL_TRACE_SAMPLE_RATE"`
+	MigrationsPath string  `mapstructure:"MIGRATIONS_PATH"`
+	APIKey         string  `mapstructure:"INGESTION_API_KEY"`
+	CORSOrigins    string  `mapstructure:"CORS_ALLOWED_ORIGINS"`
+	BronzeBucket   string  `mapstructure:"INGESTION_BRONZE_BUCKET"`
 	// MaxBodyBytes caps the size of the JSON body accepted by POST /api/v1/ingest.
 	// A request larger than this is rejected with 413 before the decoder runs,
 	// so a malicious or buggy client cannot drive the process into OOM.
@@ -33,9 +33,9 @@ type Config struct {
 	ShutdownTimeoutSeconds int `mapstructure:"INGESTION_SHUTDOWN_TIMEOUT_SECONDS"`
 	// PostgreSQL connection pool sizing. Defaults aligned with typical
 	// hot-path ingestion throughput; tune via env when scaling horizontally.
-	DBMaxOpenConns     int `mapstructure:"INGESTION_DB_MAX_OPEN_CONNS"`
-	DBMaxIdleConns     int `mapstructure:"INGESTION_DB_MAX_IDLE_CONNS"`
-	DBConnMaxLifeMin   int `mapstructure:"INGESTION_DB_CONN_MAX_LIFETIME_MINUTES"`
+	DBMaxOpenConns   int `mapstructure:"INGESTION_DB_MAX_OPEN_CONNS"`
+	DBMaxIdleConns   int `mapstructure:"INGESTION_DB_MAX_IDLE_CONNS"`
+	DBConnMaxLifeMin int `mapstructure:"INGESTION_DB_CONN_MAX_LIFETIME_MINUTES"`
 	// MinioUploadConcurrency caps the number of parallel MinIO uploads per
 	// ingest batch. 8 balances round-trip latency reduction against MinIO
 	// connection pressure at typical batch sizes.

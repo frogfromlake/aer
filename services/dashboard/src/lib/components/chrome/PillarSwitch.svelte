@@ -17,9 +17,9 @@
   // URL viewMode so deep-linked Cell-views recover correctly.
   import { onMount } from 'svelte';
   import { urlState } from '$lib/state/url.svelte';
-  import { PILLAR_DEFINITIONS, getPillar } from '$lib/viewmodes';
+  import { PILLAR_DEFINITIONS, getPillar } from '$lib/presentations';
   import { pickPillar, PILLAR_QUESTIONS, PILLAR_PLAIN_LANGUAGE } from '$lib/pillar';
-  import type { ViewingMode } from '$lib/state/url-internals';
+  import type { PillarId } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
   // Phase 122i revision (A5): match the Workbench-page priority order —
@@ -27,7 +27,7 @@
   // flat URLs in `?viewingMode=`. Reading only `viewingMode` (Phase-122h
   // behaviour) made the tiles permanently show Aleph as active under
   // pillar-state URLs.
-  const activeId = $derived<ViewingMode>(url.activePillar ?? 'aleph');
+  const activeId = $derived<PillarId>(url.activePillar ?? 'aleph');
   const activeDef = $derived(getPillar(activeId));
 
   // Keyboard shortcuts. Only active when no input/textarea has focus —

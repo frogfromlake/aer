@@ -13,7 +13,7 @@ import {
   type Panel,
   type PillarState,
   type ScopeGroup,
-  type ViewingMode,
+  type PillarId,
   type WorkbenchWindow
 } from '$lib/state/url-internals';
 import {
@@ -35,7 +35,7 @@ export type { PanelPath, WindowPath } from './panel-mutators-pure';
 export { EMPTY_URL_STATE };
 
 /** Read the active pillar's PillarState, or `null` if none in scope. */
-export function activePillarState(): { pillar: ViewingMode | null; state: PillarState | null } {
+export function activePillarState(): { pillar: PillarId | null; state: PillarState | null } {
   const url = urlState();
   const pillar = url.activePillar;
   if (!pillar) return { pillar: null, state: null };
@@ -50,7 +50,7 @@ export function updatePanel(path: PanelPath, update: (prev: Panel) => Panel): vo
 }
 
 /** Append a new Panel (cloned from `template`) to the focused window of `pillar`. */
-export function addPanel(pillar: ViewingMode, template?: Panel): void {
+export function addPanel(pillar: PillarId, template?: Panel): void {
   const next = addPanelPure(urlState().pillars, pillar, template);
   if (next) setUrl({ pillars: next });
 }
@@ -75,7 +75,7 @@ export function focusPanel(path: PanelPath): void {
 }
 
 /** Append a new ScopeGroup to the focused panel of `pillar`. */
-export function addScopeGroupToFocused(pillar: ViewingMode, template?: ScopeGroup): void {
+export function addScopeGroupToFocused(pillar: PillarId, template?: ScopeGroup): void {
   const next = addScopeGroupPure(urlState().pillars, pillar, template);
   if (next) setUrl({ pillars: next });
 }
@@ -108,7 +108,7 @@ export function resetAllCellOverrides(path: PanelPath): void {
 }
 
 /** Reserved for future Window-Tab UI. */
-export function addWindow(pillar: ViewingMode, template?: WorkbenchWindow): void {
+export function addWindow(pillar: PillarId, template?: WorkbenchWindow): void {
   const next = addWindowPure(urlState().pillars, pillar, template);
   if (next) setUrl({ pillars: next });
 }
@@ -116,7 +116,7 @@ export function addWindow(pillar: ViewingMode, template?: WorkbenchWindow): void
 /** Phase 122i revision (C3) — set or clear the maximized panel pointer
  *  on a window. Passing `null` clears. */
 export function setMaximizedPanel(
-  pillar: ViewingMode,
+  pillar: PillarId,
   windowIndex: number,
   panelIndex: number | null
 ): void {
@@ -126,7 +126,7 @@ export function setMaximizedPanel(
 
 /** Phase 122i revision (C3) — toggle the maximize state on a panel. */
 export function toggleMaximizedPanel(
-  pillar: ViewingMode,
+  pillar: PillarId,
   windowIndex: number,
   panelIndex: number
 ): void {
@@ -137,7 +137,7 @@ export function toggleMaximizedPanel(
 /** Phase 122k §14 finding 6 — set or clear the panels-per-row override
  *  on a window. Passing `null` clears (auto-fill heuristic resumes). */
 export function setPanelsPerRow(
-  pillar: ViewingMode,
+  pillar: PillarId,
   windowIndex: number,
   panelsPerRow: number | null
 ): void {
@@ -162,7 +162,7 @@ export function setPanelsPerRow(
 /** Initialise an empty Workbench at `pillar` with a single panel built
  *  from `template`. Used when the user adds the first panel without
  *  going through a Dossier entry path. */
-export function ensurePillar(pillar: ViewingMode, template: Panel): void {
+export function ensurePillar(pillar: PillarId, template: Panel): void {
   const url = urlState();
   if (url.pillars?.[pillar]) return;
   const pillarState: PillarState = {

@@ -30,7 +30,7 @@ func TestGetProbeLeadLag_RefusesWithoutGrant(t *testing.T) {
 	s := NewServer(store, nil, nil, nil, twoProbeRegistry())
 
 	resp, err := s.GetProbeLeadLag(context.Background(), GetProbeLeadLagRequestObject{
-		ProbeId: "probe-0-de-institutional-web",
+		ProbeID: "probe-0-de-institutional-web",
 		Params:  GetProbeLeadLagParams{ComparedTo: "probe-1-fr-institutional-web"},
 	})
 	if err != nil {
@@ -73,7 +73,7 @@ func TestGetProbeLeadLag_ReturnsResultWhenGranted(t *testing.T) {
 	s := NewServer(store, nil, nil, nil, twoProbeRegistry())
 
 	resp, err := s.GetProbeLeadLag(context.Background(), GetProbeLeadLagRequestObject{
-		ProbeId: "probe-0-de-institutional-web",
+		ProbeID: "probe-0-de-institutional-web",
 		Params:  GetProbeLeadLagParams{ComparedTo: "probe-1-fr-institutional-web"},
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func TestGetProbeLeadLag_404ForUnknownComparedTo(t *testing.T) {
 	s := NewServer(store, nil, nil, nil, twoProbeRegistry())
 
 	resp, err := s.GetProbeLeadLag(context.Background(), GetProbeLeadLagRequestObject{
-		ProbeId: "probe-0-de-institutional-web",
+		ProbeID: "probe-0-de-institutional-web",
 		Params:  GetProbeLeadLagParams{ComparedTo: "probe-9-xx-nonexistent"},
 	})
 	if err != nil {
@@ -124,7 +124,7 @@ func TestGetProbeLeadLag_RejectsIdenticalProbes(t *testing.T) {
 	s := NewServer(store, nil, nil, nil, twoProbeRegistry())
 
 	resp, err := s.GetProbeLeadLag(context.Background(), GetProbeLeadLagRequestObject{
-		ProbeId: "probe-0-de-institutional-web",
+		ProbeID: "probe-0-de-institutional-web",
 		Params:  GetProbeLeadLagParams{ComparedTo: "probe-0-de-institutional-web"},
 	})
 	if err != nil {
@@ -146,7 +146,7 @@ func TestGetProbeEquivalence_ComparedToUnionsSources(t *testing.T) {
 
 	comparedTo := "probe-1-fr-institutional-web"
 	resp, err := s.GetProbeEquivalence(context.Background(), GetProbeEquivalenceRequestObject{
-		ProbeId: "probe-0-de-institutional-web",
+		ProbeID: "probe-0-de-institutional-web",
 		Params:  GetProbeEquivalenceParams{ComparedTo: &comparedTo},
 	})
 	if err != nil {

@@ -18,19 +18,19 @@ import {
   type Panel,
   type PillarState,
   type ScopeGroup,
-  type ViewingMode,
+  type PillarId,
   type WorkbenchPillarsState,
   type WorkbenchWindow
 } from '../state/url-internals';
 
 export interface PanelPath {
-  pillar: ViewingMode;
+  pillar: PillarId;
   windowIndex: number;
   panelIndex: number;
 }
 
 export interface WindowPath {
-  pillar: ViewingMode;
+  pillar: PillarId;
   windowIndex: number;
 }
 
@@ -40,7 +40,7 @@ function pillarsOrEmpty(state: WorkbenchPillarsState | null): WorkbenchPillarsSt
 
 function setPillar(
   state: WorkbenchPillarsState | null,
-  pillar: ViewingMode,
+  pillar: PillarId,
   next: PillarState | null
 ): WorkbenchPillarsState {
   const base = pillarsOrEmpty(state);
@@ -111,7 +111,7 @@ export function updatePanelPure(
 
 export function addPanelPure(
   pillars: WorkbenchPillarsState | null,
-  pillar: ViewingMode,
+  pillar: PillarId,
   template?: Panel
 ): WorkbenchPillarsState | null {
   const base = pillarsOrEmpty(pillars);
@@ -174,7 +174,7 @@ export function focusPanelPure(
 
 export function addScopeGroupPure(
   pillars: WorkbenchPillarsState | null,
-  pillar: ViewingMode,
+  pillar: PillarId,
   template?: ScopeGroup
 ): WorkbenchPillarsState | null {
   const base = pillarsOrEmpty(pillars);
@@ -204,7 +204,7 @@ export function addScopeGroupPure(
  */
 export function setMaximizedPanelPure(
   pillars: WorkbenchPillarsState | null,
-  pillar: ViewingMode,
+  pillar: PillarId,
   windowIndex: number,
   panelIndex: number | null
 ): WorkbenchPillarsState | null {
@@ -233,7 +233,7 @@ export function setMaximizedPanelPure(
  *  maximize it. */
 export function toggleMaximizedPanelPure(
   pillars: WorkbenchPillarsState | null,
-  pillar: ViewingMode,
+  pillar: PillarId,
   windowIndex: number,
   panelIndex: number
 ): WorkbenchPillarsState | null {
@@ -334,7 +334,7 @@ export function clearCellOverrides(panel: Panel): Panel {
 
 export function addWindowPure(
   pillars: WorkbenchPillarsState | null,
-  pillar: ViewingMode,
+  pillar: PillarId,
   template?: WorkbenchWindow
 ): WorkbenchPillarsState | null {
   const base = pillarsOrEmpty(pillars);

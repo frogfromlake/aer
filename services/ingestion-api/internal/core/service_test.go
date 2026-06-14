@@ -33,17 +33,17 @@ func counterValue(t *testing.T, c prometheus.Counter) float64 {
 // --- Mock implementations ---
 
 type mockMetadataStore struct {
-	mu                 sync.Mutex
-	createJobFn        func(ctx context.Context, sourceID int) (int, error)
-	updateJobStatusFn  func(ctx context.Context, jobID int, status string) error
-	logDocumentFn      func(ctx context.Context, jobID int, key, traceID string) error
-	updateDocStatusFn  func(ctx context.Context, key, status string) error
-	getSourceByNameFn  func(ctx context.Context, name string) (int, string, error)
-	pingFn             func(ctx context.Context) error
+	mu                sync.Mutex
+	createJobFn       func(ctx context.Context, sourceID int) (int, error)
+	updateJobStatusFn func(ctx context.Context, jobID int, status string) error
+	logDocumentFn     func(ctx context.Context, jobID int, key, traceID string) error
+	updateDocStatusFn func(ctx context.Context, key, status string) error
+	getSourceByNameFn func(ctx context.Context, name string) (int, string, error)
+	pingFn            func(ctx context.Context) error
 
 	// recorded calls
-	jobStatuses  []string
-	docStatuses  map[string]string
+	jobStatuses []string
+	docStatuses map[string]string
 }
 
 func newMockDB() *mockMetadataStore {
@@ -353,7 +353,7 @@ func TestJobStatusTransitions(t *testing.T) {
 			wantStatus:     "completed",
 		},
 		{
-			name:           "running -> completed_with_errors",
+			name: "running -> completed_with_errors",
 			uploadBehavior: func(calls int) error {
 				if calls == 1 {
 					return errors.New("err")
@@ -416,9 +416,9 @@ func TestJobStatusTransitions(t *testing.T) {
 // silently serial loop would still pass.
 func TestIngestDocuments_ConcurrentUploadsPreserveOrdering(t *testing.T) {
 	const (
-		batchSize          = 16
-		uploadConcurrency  = 4
-		stepDelay          = 2 * time.Millisecond
+		batchSize           = 16
+		uploadConcurrency   = 4
+		stepDelay           = 2 * time.Millisecond
 		failEveryNthByIndex = 3 // indices 0, 3, 6, 9, 12, 15
 	)
 

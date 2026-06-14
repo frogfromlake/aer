@@ -12,8 +12,8 @@
     HIDDEN_READOUT,
     type ReadoutRow,
     type ReadoutState
-  } from '$lib/viewmodes/cell-readout';
-  import CellReadout from '$lib/components/viewmodes/CellReadout.svelte';
+  } from '$lib/presentations/cell-readout';
+  import CellReadout from '$lib/components/presentations/CellReadout.svelte';
 
   interface Props {
     /** Seconds-epoch x-axis values. */

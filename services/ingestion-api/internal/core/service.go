@@ -84,8 +84,8 @@ func NewIngestionService(db MetadataStore, minio ObjectStore, bucket string, upl
 	return &IngestionService{
 		db:                db,
 		minio:             minio,
-		bucket:             bucket,
-		uploadConcurrency:  uploadConcurrency,
+		bucket:            bucket,
+		uploadConcurrency: uploadConcurrency,
 	}
 }
 

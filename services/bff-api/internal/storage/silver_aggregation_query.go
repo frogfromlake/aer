@@ -14,12 +14,12 @@ import (
 type SilverAggregationKind string
 
 const (
-	SilverAggCleanedTextLength         SilverAggregationKind = "cleaned_text_length"
-	SilverAggWordCount                 SilverAggregationKind = "word_count"
-	SilverAggRawEntityCount            SilverAggregationKind = "raw_entity_count"
-	SilverAggCleanedTextLengthByHour   SilverAggregationKind = "cleaned_text_length_by_hour"
-	SilverAggWordCountBySource         SilverAggregationKind = "word_count_by_source"
-	SilverAggCleanedTextLengthVsWords  SilverAggregationKind = "cleaned_text_length_vs_word_count"
+	SilverAggCleanedTextLength        SilverAggregationKind = "cleaned_text_length"
+	SilverAggWordCount                SilverAggregationKind = "word_count"
+	SilverAggRawEntityCount           SilverAggregationKind = "raw_entity_count"
+	SilverAggCleanedTextLengthByHour  SilverAggregationKind = "cleaned_text_length_by_hour"
+	SilverAggWordCountBySource        SilverAggregationKind = "word_count_by_source"
+	SilverAggCleanedTextLengthVsWords SilverAggregationKind = "cleaned_text_length_vs_word_count"
 )
 
 // SilverCorrelationResult is the payload for the
@@ -245,8 +245,8 @@ func (s *ClickHouseStorage) GetSilverCorrelation(
 	start, end time.Time,
 ) (SilverCorrelationResult, error) {
 	var rows []struct {
-		Sample uint64
-		Corr   float64
+		Sample  uint64
+		Corr    float64
 		HasCorr uint8
 	}
 	query := `

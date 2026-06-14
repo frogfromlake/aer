@@ -4,16 +4,16 @@
 // re-exports these for component-side use.
 
 export type Resolution = '5min' | 'hourly' | 'daily' | 'weekly' | 'monthly';
-export type ViewingMode = 'aleph' | 'episteme' | 'rhizome';
+export type PillarId = 'aleph' | 'episteme' | 'rhizome';
 // Phase 130 / ADR-035 — the Rhizome entry-question enum (`RhizomeView`:
 // actors-topics / source-resonance / concept-migration / free-composition)
 // was removed. Rhizome now uses the universal panels+cells model like Aleph
-// and Episteme; its relational cells are ordinary `ViewMode` choices.
+// and Episteme; its relational cells are ordinary `Presentation` choices.
 // Presentation-form axis of the View-Mode Matrix (Brief §4.2.3 /
 // reframing-note §3.2). MVP cells in Phase 107: time_series,
 // distribution, cooccurrence_network. The catalog is extensible —
-// new presentations are added here and registered in $lib/viewmodes/.
-export type ViewMode =
+// new presentations are added here and registered in $lib/presentations/.
+export type Presentation =
   | 'time_series'
   | 'distribution'
   | 'cooccurrence_network'
@@ -218,7 +218,7 @@ export type CellOverridePatch = {
 export interface Panel {
   scopes: ScopeGroup[]; // 1..M scope-groups
   composition: Composition;
-  view: ViewMode;
+  view: Presentation;
   metric: string;
   layer: DataLayer;
   resolution?: Resolution;
@@ -356,7 +356,7 @@ export interface UrlState {
   // The Phase-122h legacy flat form (`?probeId=&sourceId=&view=&metric=
   // &viewingMode=&layer=`) has been retired entirely — no bookmarks exist
   // to preserve. All per-Panel state lives inside the pillar payload.
-  activePillar: ViewingMode | null;
+  activePillar: PillarId | null;
   pillars: WorkbenchPillarsState | null;
   // Phase 122k — Probe Selection State. Populated by Atmos SHIFT-click
   // on probe glyphs and by the Probe-Filter Modal. Consumed by:
@@ -405,8 +405,8 @@ export const EMPTY_URL_STATE: UrlState = {
 };
 
 const RESOLUTIONS: readonly Resolution[] = ['5min', 'hourly', 'daily', 'weekly', 'monthly'];
-const VIEWING_MODES: readonly ViewingMode[] = ['aleph', 'episteme', 'rhizome'];
-const VIEW_MODES: readonly ViewMode[] = [
+const VIEWING_MODES: readonly PillarId[] = ['aleph', 'episteme', 'rhizome'];
+const VIEW_MODES: readonly Presentation[] = [
   'time_series',
   'distribution',
   'cooccurrence_network',
@@ -591,7 +591,7 @@ interface CompactCellOverride {
 interface CompactPanel {
   s: CompactScopeGroup[];
   c: 'm' | 's' | 'o';
-  v: ViewMode;
+  v: Presentation;
   m: string;
   l: 'g' | 's';
   r?: Resolution;

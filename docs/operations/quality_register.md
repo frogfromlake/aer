@@ -16,7 +16,7 @@
 |---|---|---|
 | Long-file census | **141** | **35 production** files over threshold (Svelte 18, Go 5, Py 6, TS 6 — 2 of which are data-file exemptions) + 7 long test files (→142) |
 | Dead-code scan | **139** | ✅ **DONE** — 8 dead FE files + 2 unused deps removed; 3 ratchets proven (knip/golangci-`unused`/ruff-`F`); ~127 TS export backlog deferred (rules off) |
-| Naming-inconsistency | **140** | **81** safe Go initialism renames (`Id`→`ID`/`Url`→`URL`) + **~250** occurrences of retired "Function Lane / view-mode / Surface-II" vocabulary in the dashboard |
+| Naming-inconsistency | **140** | ✅ **DONE** — Go initialisms via codegen normalizer (wire contract intact) + gofmt ratchet; ~250 retired-vocabulary renames (ViewMode→Presentation, viewmodes/→presentations/, lanes/ split); 3 ratchets active. Surface II/III deferred |
 | Comment/doc gaps | **143** | Doc coverage Go **89.9%** / Py **76.8%** / TS **43.2%**; **0** TODO/FIXME; **0** commented-out blocks; **2** English-only violations |
 | Stale-docs | **129** | **23** definitely-stale doc references + **3** to-verify; 5 groups of legitimate-historical (do NOT correct) |
 
@@ -135,38 +135,45 @@ AdapterRegistry + MetricExtractor registry + `extractors/__init__.py` exports; a
 
 ---
 
-## 3. Naming-inconsistency scan (→ Phase 140)
+## 3. Naming-inconsistency scan (→ Phase 140) — ✅ REMEDIATED 2026-06-14
+
+> **Phase 140 outcome.** Codified `docs/development/conventions.md`, then applied the renames in compiler-verified tranches. **Two register assumptions were wrong and are corrected below (verify-first paid off):**
+> 1. *"81 safe Go renames"* — WRONG. The `Id`/`Url` fields are anonymous structs that **structurally mirror oapi-codegen output**; renaming one breaks the build (`append` type-mismatch). The real fix was to set oapi-codegen `name-normalizer: ToCamelCaseWithInitialisms` (both `codegen.yaml`), regenerate, and chase ~119 references — **json tags (the wire contract) are 100% unchanged**, codegen is deterministic, all Go tests green.
+> 2. *"Python ruff N = 0 violations, free ratchet"* — WRONG. `ruff N` found 23 violations, all defensible false positives (local UPPER_SNAKE constants, test stub classes, `Client as NATS` alias, descriptive test names). Enabled `N` with targeted ignores (N806/N814 global, N802 in tests) so the valuable rules (N801/N803/N818) stay sharp at 0 violations.
+>
+> Deferred-with-reason: **"Surface II/III" numbering** (33 occ incl. generated `types.ts` from OpenAPI descriptions + the descent-model) — distinct from the retired "Function Lanes" surface *name*; purging it would require openapi.yaml contract-description edits. Validation: `make lint` green (Go ×3, Python ×2, fe) · svelte-check 0 errors · fe-test 294 · Go tests green incl. Testcontainers · all three ratchets proven with planted-symbol tests.
 
 *Per-language discipline is strong; the real surface is Go initialism drift + retired Phase-106 vocabulary in the dashboard.*
 
 ### Per-language convention drift
 **Go:**
-- [ ] `Id` → `ID` on exported identifiers — **75 hand-written occurrences** (bff-api handler/storage 68 + ingestion-api 3); the other 59 `Id` are in `generated.go` (contract). Canonical **`ID`**. · bff+ingestion · M · golangci `stylecheck ST1003`
-- [ ] `Url` → `URL` — **6 hand-written** (`silver_handlers.go` 2, `handler.go` 1, `dossier_handler.go` 3); 7 more are generated (contract). · bff · S · ST1003
-- [~] `API`/`JSON`/`HTTP`/`SQL` already canonical; receivers consistent; `Err*` vars consistent; package/import grouping clean — no action.
+- [x] `Id`→`ID` / `Url`→`URL` across the BFF + ingestion — done via the **codegen name-normalizer** (not per-field renames, which were impossible — see outcome note). `ProbeID`/`SourceID`/`ScopeID`/`ArticleID`/`DocumentationURL`/`ArchiveURL`/`GetSourceByID` etc. now idiomatic in generated AND hand-written mirrors; one hand-written `scopeId` param also fixed. Ratchet: `stylecheck ST1003` (`.golangci.yml`).
+- [x] **Bonus (in-scope per phase "formatter settings"):** 16 pre-existing gofmt-dirty files formatted; `gofmt` added to golangci-lint as a ratchet (drift had accumulated because the default set doesn't check formatting).
+- [~] `API`/`JSON`/`HTTP`/`SQL` already canonical; receivers consistent; `Err*` vars consistent — no action.
 
-**Python:** [~] 0 violations across snake_case/PascalCase/module/constant/`_private` axes (1 cosmetic `Literal` type-alias note, not worth a rename). `ruff` `N` ruleset = free ratchet.
+**Python:** [x] `ruff` `N` (pep8-naming) enabled in both services with targeted ignores (see outcome note — the "0 violations" claim was wrong). N801/N803/N818 enforced at 0 violations; proven (planted N801 caught).
 
-**TS/Svelte:** [~] 0 drift on filenames (106 PascalCase Svelte, kebab `.ts`), `$lib` imports (311/4), camelCase locals, constants. `type` vs `interface` split is domain-aligned — cosmetic only.
+**TS/Svelte:** [~] 0 drift on filenames, `$lib` imports, camelCase locals, constants — confirmed, no action needed (the drift was domain-term, below).
 
-### Domain-term drift (the real work — ~250 occurrences of retired vocabulary)
-- [ ] `viewMode`/`ViewMode` identifiers (~85) + `viewmodes/` dir (31 files) → canonical **"presentation"/`view`** (CLAUDE.md). **Safe-rename.** Fence off the content-catalog `view_mode` key (contract). · dashboard · L · eslint token-ban
-- [ ] `ViewingMode` type (~50) → **`PillarId`** ("viewing mode" retired). Safe-rename. · dashboard · M
-- [ ] Live user-facing **"Function Lane(s)"** strings (9) in `ScopeBar.svelte`, `primer/globe/+page.svelte`, side-rail story + "Surface II/III" (~50) → three surfaces **Atmosphäre / Workbench / Reflexion**. Safe-rename (UI copy + comments). · dashboard · M · eslint token-ban
-- [ ] `lanes/` component dir (12 files) + `routes/(app)/lanes/` (4 retired-redirect shells) → canon `/workbench`. Dir rename safe (internal); `/lanes` URL is a retired-redirect (low contract weight — judgment call). · dashboard · M
-- [ ] Stale comment refs: `WorkbenchScopeBar` (5, removed Phase 123), `ProbeFilterModal` (1) → scrub. `scopeGroup` (1 outlier) → `ScopeGroup`. · dashboard · S
-- [ ] Go `probeId` **local vars** (88) → fine as-is (idiomatic); exported `ProbeID` is canon, `ProbeId` from generated is contract. · S
-- [~] `cooccurrence` (code) vs `co-occurrence` (prose) — legitimate, no action.
+### Domain-term drift (the real work — ~250 occurrences of retired vocabulary) — DONE
+- [x] `ViewMode` type (163 occ across state/registry/queries/components) → **`Presentation`** (`ViewModeCellProps`→`PresentationCellProps`, `pillarForViewMode`→`pillarForPresentation`, etc.). Lowercase URL key `'viewMode'` (legacy redirect contract) preserved.
+- [x] `src/lib/viewmodes/` + `src/lib/components/viewmodes/` (32 files) → **`presentations/`** (82 import paths updated). 
+- [x] `ViewingMode` type (50 occ) → **`PillarId`**. URL key `viewingMode`/`activePillar` preserved.
+- [x] Live user-facing **"Function Lane(s)"** / "Surface II" strings (globe primer, ScopeBar, side-rail story) → **Workbench** / surface names. ScopeBar's dead `/lanes/` breadcrumb branches removed.
+- [x] `components/lanes/` (the grab-bag) **split** into coherent dirs: `source/` (SourceCard, MetadataCoveragePanel, DiscoveryCoveragePanel), `article/` (ArticleListModal, ArticlePreviewList, ArticleRow), `evidence/` (L5EvidenceReader), `charts/` (`OverlayLaneChart`→`OverlayLineChart`, `SourceLaneChart`→`SourceLineChart`). [operator decision — no clean single rename existed]
+- [x] Stale `WorkbenchScopeBar` comments scrubbed where present-tense-wrong (legit "retired X" historical notes kept).
+- [~] `scopeGroup` (1, lowercase prose in a tree-hierarchy comment) — consistent prose, left as-is. Go `probeId` local vars — idiomatic, no change. `cooccurrence` vs `co-occurrence` — legitimate.
+- [~] **Deferred:** "Surface II/III" numbering (33 occ, incl. generated `types.ts` + descent-model) — see outcome note.
 
 ### Contract identifiers — deferred-with-reason (do NOT rename)
 OpenAPI/JSON fields (`probeId`/`sourceId`/`scopeId`/`comparedTo`/`viewerLanguage`); all of `generated.go`; content-catalog `entityType` keys (`view_mode`/`empty_lane`/`discourse_function`/`open_research_question`); URL-grammar keys (`bn`/`ch`/`sb`/`fs`/`dl`, `aleph`/`episteme`/`rhizome`, `selectedProbes`, `dossier`, `activePillar`); DB/storage identifiers (ClickHouse table/column names, Postgres `primary_function` enum, the machine `probeId`); discourse-function enum keys.
 
-### Mechanically-enforceable ratchet (Phase 140)
-- **Go** (highest value): golangci-lint `revive`/`stylecheck ST1003` initialisms, with a `generated.go`-only exclusion — locks all 81 renames + future drift.
-- **TS**: eslint `no-restricted-syntax` / CI grep banning `Function Lane`, `viewMode`/`ViewMode`, `ViewingMode`, `WorkbenchScopeBar`, `Surface II/III` in non-comment code (allowlist content-catalog `view_mode` + `cooccurrence` prose).
-- **Python**: enable `ruff` `N` (pep8-naming) — zero current violations, free ratchet.
+### Ratchets — IMPLEMENTED & proven (planted-symbol test passed for all three)
+- [x] **Go**: `.golangci.yml` enables `stylecheck ST1003` (initialisms) + `gofmt`, on top of the default set. No `generated.go` exclusion needed (the normalizer makes generated names idiomatic). Proven (planted `Id` field / unformatted file → fail).
+- [x] **TS**: eslint `no-restricted-syntax` bans `ViewMode`/`ViewingMode`/`WorkbenchScopeBar` identifiers + `Function Lane` string/template literals (comments untouched, so legit historical notes survive; the config file is exempt from its own rule). Proven (planted identifier + string → fail).
+- [x] **Python**: `ruff N` in both services with targeted ignores. Proven (planted N801 class → fail).
 
-**Count: 81 safe Go renames + ~250 retired-vocabulary occurrences (the bulk of Phase 140); contract identifiers deferred by design.**
+**Count: Go initialism unification via codegen normalizer (~119 refs, wire contract intact) + gofmt ratchet; ~250 retired-vocabulary occurrences renamed (ViewMode→Presentation, viewmodes/→presentations/, lanes/ split, ViewingMode→PillarId); 3 ratchets active. "Surface II/III" deferred-with-reason.**
 
 ---
 

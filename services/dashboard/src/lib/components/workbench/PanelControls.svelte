@@ -30,14 +30,14 @@
     metricSupportsPresentation,
     presentationsForPillar,
     resolvePresentation
-  } from '$lib/viewmodes';
+  } from '$lib/presentations';
   import {
     DEFAULT_LOOKBACK_MS,
     type CellChannelBinding,
     type Normalization,
     type Resolution,
-    type ViewMode,
-    type ViewingMode
+    type Presentation,
+    type PillarId
   } from '$lib/state/url-internals';
   import {
     resetAllCellOverrides,
@@ -45,7 +45,7 @@
     type PanelPath
   } from '$lib/workbench/panel-mutators';
   import { availabilityScope, defaultMetricForScopes } from '$lib/workbench/panel-queries';
-  import { viewerLabelLanguage } from '$lib/viewmodes/viewer-language';
+  import { viewerLabelLanguage } from '$lib/presentations/viewer-language';
   // Phase 126 — shared lever constants (defaults + network channel tables) so
   // the panel controls and the per-cell override popover cannot drift.
   import {
@@ -57,7 +57,7 @@
   } from '$lib/workbench/cell-levers';
 
   interface Props {
-    pillar: ViewingMode;
+    pillar: PillarId;
     /** Phase 122i — when set, the controls bind to the addressed Panel
      *  in the new Pillar→Window→Panel state instead of the legacy flat
      *  URL params. The pillar prop must match `panelPath.pillar`. */
@@ -326,7 +326,7 @@
     { id: 'monthly', label: 'Monthly' }
   ];
 
-  const presentations = $derived(presentationsForPillar(pillar as ViewingMode));
+  const presentations = $derived(presentationsForPillar(pillar as PillarId));
   const activePresentation = $derived(resolvePresentation(boundPanel?.view ?? null, pillar));
 
   // Per-view capability flags (Phase 122h Findings round 3). Cells that
@@ -415,14 +415,14 @@
   // the canonical default. Used to reconcile a Panel whose current metric is
   // incompatible with a newly-chosen view (e.g. switching a `publication_hour`
   // distribution to a time-series, which the cyclic metric cannot render).
-  function firstMetricSupporting(view: ViewMode): string {
+  function firstMetricSupporting(view: Presentation): string {
     if (metricSupportsPresentation(DEFAULT_METRIC_NAME, view)) return DEFAULT_METRIC_NAME;
     return (
       availableMetricNames.find((m) => metricSupportsPresentation(m, view)) ?? DEFAULT_METRIC_NAME
     );
   }
 
-  function pickView(id: ViewMode) {
+  function pickView(id: Presentation) {
     if (id === activePresentation.id) return;
     if (!panelPath) return;
     updatePanel(panelPath, (p) => {

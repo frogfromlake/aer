@@ -33,7 +33,7 @@
     FUNCTION_DEFINITIONS,
     type DiscourseFunction
   } from '$lib/discourse-function';
-  import SourceCard from '$lib/components/lanes/SourceCard.svelte';
+  import SourceCard from '$lib/components/source/SourceCard.svelte';
   import MetadataCoverageModal from './MetadataCoverageModal.svelte';
 
   interface Props {

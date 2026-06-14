@@ -9,8 +9,8 @@
 // set as the scope filter. (Phase 130 / ADR-035 removed the Rhizome
 // entry-question sub-view, so cooccurrence_network maps to the pillar only.)
 import { redirect } from '@sveltejs/kit';
-import { pillarForViewMode } from '$lib/viewmodes';
-import type { ViewMode } from '$lib/state/url-internals';
+import { pillarForPresentation } from '$lib/presentations';
+import type { Presentation } from '$lib/state/url-internals';
 import type { PageLoad } from './$types';
 
 export const prerender = false;
@@ -23,16 +23,18 @@ export const load: PageLoad = ({ params, url }) => {
   const out = new URLSearchParams();
   out.set('probeId', probeId);
 
-  // Derive the pillar from the registry SoT (`pillarForViewMode` over
+  // Derive the pillar from the registry SoT (`pillarForPresentation` over
   // `PILLAR_DEFINITIONS`) rather than a parallel map, so the redirect
   // tracks Phase 130 / ADR-035 placement automatically. Unknown legacy
   // view-modes fall back to the default Aleph pillar.
-  const legacyViewMode = url.searchParams.get('viewMode');
-  const pillar = legacyViewMode ? pillarForViewMode(legacyViewMode as ViewMode) : null;
+  const legacyPresentation = url.searchParams.get('viewMode');
+  const pillar = legacyPresentation
+    ? pillarForPresentation(legacyPresentation as Presentation)
+    : null;
   if (pillar) {
     out.set('viewingMode', pillar);
     // Keep viewMode for downstream Cells that still read it directly.
-    out.set('viewMode', legacyViewMode!);
+    out.set('viewMode', legacyPresentation!);
   } else {
     out.set('viewingMode', 'aleph');
   }

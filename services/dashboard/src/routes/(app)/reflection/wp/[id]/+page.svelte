@@ -27,7 +27,7 @@
   // Active section from URL ?section= param
   const sectionParam = $derived(page.url.searchParams.get('section') ?? null);
 
-  // Phase 113c — back-link hint when arrived from a Function Lane.
+  // Phase 113c — back-link hint when arrived from the Workbench.
   // Set by the lane header's "Read the full Working Paper" anchor.
   // Phase 122h: referrer params come from either the legacy `from=lane`
   // (kept for old bookmarks) or the new `from=workbench` (CellMethodology

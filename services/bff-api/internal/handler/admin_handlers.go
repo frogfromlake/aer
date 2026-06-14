@@ -43,13 +43,13 @@ func (s *Server) GetAdminUsers(ctx context.Context, _ GetAdminUsersRequestObject
 		out.Users = append(out.Users, struct {
 			CreatedAt time.Time           `json:"createdAt"`
 			Email     openapi_types.Email `json:"email"`
-			Id        string              `json:"id"`
+			ID        string              `json:"id"`
 			Role      string              `json:"role"`
 			Status    string              `json:"status"`
 		}{
 			CreatedAt: r.CreatedAt,
 			Email:     openapi_types.Email(r.Email),
-			Id:        r.ID,
+			ID:        r.ID,
 			Role:      r.Role,
 			Status:    r.Status,
 		})
@@ -87,7 +87,7 @@ func (s *Server) PostAdminUsers(ctx context.Context, request PostAdminUsersReque
 		_ = s.mailer.SendInvite(ctx, email, link)
 	}
 	return PostAdminUsers201JSONResponse{
-		UserId: userID,
+		UserID: userID,
 		Email:  openapi_types.Email(email),
 		Kind:   "invite",
 		Link:   link,
@@ -96,10 +96,10 @@ func (s *Server) PostAdminUsers(ctx context.Context, request PostAdminUsersReque
 
 // PostAdminUserSuspend suspends a user. An admin cannot suspend themselves.
 func (s *Server) PostAdminUserSuspend(ctx context.Context, request PostAdminUserSuspendRequestObject) (PostAdminUserSuspendResponseObject, error) {
-	if id, ok := auth.IdentityFromContext(ctx); ok && id.UserID == request.Id {
+	if id, ok := auth.IdentityFromContext(ctx); ok && id.UserID == request.ID {
 		return PostAdminUserSuspend400JSONResponse{Code: "cannot_suspend_self", Message: "an admin cannot suspend their own account"}, nil
 	}
-	updated, err := s.authBackend.SetUserStatus(ctx, request.Id, "suspended")
+	updated, err := s.authBackend.SetUserStatus(ctx, request.ID, "suspended")
 	if err != nil {
 		slog.Error("admin: suspend", "error", err)
 		return PostAdminUserSuspend500JSONResponse{Message: genericInternalError}, nil
@@ -112,7 +112,7 @@ func (s *Server) PostAdminUserSuspend(ctx context.Context, request PostAdminUser
 
 // PostAdminUserReactivate returns a suspended user to active.
 func (s *Server) PostAdminUserReactivate(ctx context.Context, request PostAdminUserReactivateRequestObject) (PostAdminUserReactivateResponseObject, error) {
-	updated, err := s.authBackend.SetUserStatus(ctx, request.Id, "active")
+	updated, err := s.authBackend.SetUserStatus(ctx, request.ID, "active")
 	if err != nil {
 		slog.Error("admin: reactivate", "error", err)
 		return PostAdminUserReactivate500JSONResponse{Message: genericInternalError}, nil
@@ -125,7 +125,7 @@ func (s *Server) PostAdminUserReactivate(ctx context.Context, request PostAdminU
 
 // PostAdminUserResetPassword issues a reset token for a user and returns the link.
 func (s *Server) PostAdminUserResetPassword(ctx context.Context, request PostAdminUserResetPasswordRequestObject) (PostAdminUserResetPasswordResponseObject, error) {
-	user, err := s.authBackend.GetUserByID(ctx, request.Id)
+	user, err := s.authBackend.GetUserByID(ctx, request.ID)
 	if err != nil {
 		slog.Error("admin: reset lookup", "error", err)
 		return PostAdminUserResetPassword500JSONResponse{Message: genericInternalError}, nil
@@ -142,7 +142,7 @@ func (s *Server) PostAdminUserResetPassword(ctx context.Context, request PostAdm
 		_ = s.mailer.SendPasswordReset(ctx, user.Email, link)
 	}
 	return PostAdminUserResetPassword200JSONResponse{
-		UserId: user.ID,
+		UserID: user.ID,
 		Email:  openapi_types.Email(user.Email),
 		Kind:   "password_reset",
 		Link:   link,

@@ -27,7 +27,7 @@ func (s *Server) GetAuthMeExport(ctx context.Context, _ GetAuthMeExportRequestOb
 		return GetAuthMeExport401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
 	resp := GetAuthMeExport200JSONResponse{
-		Id:                 e.ID,
+		ID:                 e.ID,
 		Email:              openapi_types.Email(e.Email),
 		Role:               e.Role,
 		Status:             e.Status,

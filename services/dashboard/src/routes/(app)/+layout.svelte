@@ -3,7 +3,7 @@
   // Application chrome layout (authenticated surfaces).
   //
   // Renders the persistent left side rail (SideRail) + the top-right profile
-  // menu. The per-surface chrome (PillarSwitch, WorkbenchScopeBar) is mounted
+  // menu. The per-surface chrome (PillarSwitch) is mounted
   // by the route page that owns them (e.g. /workbench/+page.svelte).
   //
   // Phase 134 / ADR-040: the whole app is gated. This layout checks the session

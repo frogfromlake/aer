@@ -1090,8 +1090,8 @@ func TestGetMetricScatter_MapsPointsAndChannels(t *testing.T) {
 	if got.Points[0].Size == nil || *got.Points[0].Size != 3.0 {
 		t.Errorf("expected size channel 3.0, got %v", got.Points[0].Size)
 	}
-	if got.Points[0].ArticleId == nil || *got.Points[0].ArticleId != "a1" {
-		t.Errorf("expected articleId a1, got %v", got.Points[0].ArticleId)
+	if got.Points[0].ArticleID == nil || *got.Points[0].ArticleID != "a1" {
+		t.Errorf("expected articleId a1, got %v", got.Points[0].ArticleID)
 	}
 	if store.capturedScatterX != "word_count" {
 		t.Errorf("storage should receive xMetric word_count, got %q", store.capturedScatterX)

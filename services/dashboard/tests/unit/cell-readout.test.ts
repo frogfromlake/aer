@@ -5,7 +5,7 @@ import {
   fmtTimestamp,
   clampReadoutPosition,
   HIDDEN_READOUT
-} from '../../src/lib/viewmodes/cell-readout';
+} from '../../src/lib/presentations/cell-readout';
 
 // `markIndexFromEvent` is DOM-bound (closest / ownerSVGElement /
 // querySelectorAll); the unit environment is `node` with no DOM lib, so it is

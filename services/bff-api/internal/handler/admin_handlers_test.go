@@ -88,7 +88,7 @@ func TestAdminSuspendAndReactivate(t *testing.T) {
 	// Caller is a different admin.
 	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "admin1", Role: auth.RoleAdmin})
 
-	resp, _ := s.PostAdminUserSuspend(ctx, PostAdminUserSuspendRequestObject{Id: "u2"})
+	resp, _ := s.PostAdminUserSuspend(ctx, PostAdminUserSuspendRequestObject{ID: "u2"})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitPostAdminUserSuspendResponse(rec)
 	if rec.Code != http.StatusNoContent {
@@ -98,7 +98,7 @@ func TestAdminSuspendAndReactivate(t *testing.T) {
 		t.Fatalf("expected suspended, got %s", m.byID["u2"].Status)
 	}
 
-	resp2, _ := s.PostAdminUserReactivate(ctx, PostAdminUserReactivateRequestObject{Id: "u2"})
+	resp2, _ := s.PostAdminUserReactivate(ctx, PostAdminUserReactivateRequestObject{ID: "u2"})
 	rec = httptest.NewRecorder()
 	_ = resp2.VisitPostAdminUserReactivateResponse(rec)
 	if rec.Code != http.StatusNoContent {
@@ -112,7 +112,7 @@ func TestAdminSuspendAndReactivate(t *testing.T) {
 func TestAdminSuspendUnknownIs404(t *testing.T) {
 	s := authTestServer(newMockAuth())
 	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "admin1", Role: auth.RoleAdmin})
-	resp, _ := s.PostAdminUserSuspend(ctx, PostAdminUserSuspendRequestObject{Id: "ghost"})
+	resp, _ := s.PostAdminUserSuspend(ctx, PostAdminUserSuspendRequestObject{ID: "ghost"})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitPostAdminUserSuspendResponse(rec)
 	if rec.Code != http.StatusNotFound {
@@ -126,7 +126,7 @@ func TestAdminCannotSuspendSelf(t *testing.T) {
 	s := authTestServer(m)
 	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "admin1", Role: auth.RoleAdmin})
 
-	resp, _ := s.PostAdminUserSuspend(ctx, PostAdminUserSuspendRequestObject{Id: "admin1"})
+	resp, _ := s.PostAdminUserSuspend(ctx, PostAdminUserSuspendRequestObject{ID: "admin1"})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitPostAdminUserSuspendResponse(rec)
 	if rec.Code != http.StatusBadRequest {
@@ -142,7 +142,7 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	m.addUser(&storage.AuthUser{ID: "u2", Email: "b@example.org", Role: "researcher", Status: "active"})
 	s := authTestServer(m)
 
-	resp, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{Id: "u2"})
+	resp, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{ID: "u2"})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitPostAdminUserResetPasswordResponse(rec)
 	if rec.Code != http.StatusOK {
@@ -153,7 +153,7 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	}
 
 	// Unknown user → 404.
-	resp2, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{Id: "ghost"})
+	resp2, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{ID: "ghost"})
 	rec = httptest.NewRecorder()
 	_ = resp2.VisitPostAdminUserResetPasswordResponse(rec)
 	if rec.Code != http.StatusNotFound {

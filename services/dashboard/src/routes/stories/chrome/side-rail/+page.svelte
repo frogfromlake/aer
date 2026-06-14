@@ -18,7 +18,7 @@
       <h3>States</h3>
       <ul>
         <li>
-          <strong>Surface anchors</strong> — Atmosphere (●), Function Lanes (≡), Reflection (¶)
+          <strong>Surface anchors</strong> — Atmosphere (●), Workbench (≡), Reflection (¶)
         </li>
         <li>
           <strong>Active surface</strong> — highlighted when URL matches /stories/chrome/side-rail

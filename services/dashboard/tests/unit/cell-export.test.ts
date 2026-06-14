@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { csvField, toCsv, exportSlug } from '../../src/lib/viewmodes/cell-export';
+import { csvField, toCsv, exportSlug } from '../../src/lib/presentations/cell-export';
 
 // Phase 131 — publication-ready data export (pure pieces).
 

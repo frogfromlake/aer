@@ -157,7 +157,7 @@ const (
 	AvailableMetricMinMeaningfulResolutionDaily   AvailableMetricMinMeaningfulResolution = "daily"
 	AvailableMetricMinMeaningfulResolutionHourly  AvailableMetricMinMeaningfulResolution = "hourly"
 	AvailableMetricMinMeaningfulResolutionMonthly AvailableMetricMinMeaningfulResolution = "monthly"
-	AvailableMetricMinMeaningfulResolutionN5min   AvailableMetricMinMeaningfulResolution = "5min"
+	AvailableMetricMinMeaningfulResolutionN5Min   AvailableMetricMinMeaningfulResolution = "5min"
 	AvailableMetricMinMeaningfulResolutionWeekly  AvailableMetricMinMeaningfulResolution = "weekly"
 )
 
@@ -170,7 +170,7 @@ func (e AvailableMetricMinMeaningfulResolution) Valid() bool {
 		return true
 	case AvailableMetricMinMeaningfulResolutionMonthly:
 		return true
-	case AvailableMetricMinMeaningfulResolutionN5min:
+	case AvailableMetricMinMeaningfulResolutionN5Min:
 		return true
 	case AvailableMetricMinMeaningfulResolutionWeekly:
 		return true
@@ -327,7 +327,7 @@ func (e ProbeDossierFunctionCoverageFunctions) Valid() bool {
 const (
 	ProbeDossierSourcesPrimaryFunctionCohesionIdentity   ProbeDossierSourcesPrimaryFunction = "cohesion_identity"
 	ProbeDossierSourcesPrimaryFunctionEpistemicAuthority ProbeDossierSourcesPrimaryFunction = "epistemic_authority"
-	ProbeDossierSourcesPrimaryFunctionLessThannil        ProbeDossierSourcesPrimaryFunction = "<nil>"
+	ProbeDossierSourcesPrimaryFunctionLessThanNil        ProbeDossierSourcesPrimaryFunction = "<nil>"
 	ProbeDossierSourcesPrimaryFunctionPowerLegitimation  ProbeDossierSourcesPrimaryFunction = "power_legitimation"
 	ProbeDossierSourcesPrimaryFunctionSubversionFriction ProbeDossierSourcesPrimaryFunction = "subversion_friction"
 )
@@ -339,7 +339,7 @@ func (e ProbeDossierSourcesPrimaryFunction) Valid() bool {
 		return true
 	case ProbeDossierSourcesPrimaryFunctionEpistemicAuthority:
 		return true
-	case ProbeDossierSourcesPrimaryFunctionLessThannil:
+	case ProbeDossierSourcesPrimaryFunctionLessThanNil:
 		return true
 	case ProbeDossierSourcesPrimaryFunctionPowerLegitimation:
 		return true
@@ -354,7 +354,7 @@ func (e ProbeDossierSourcesPrimaryFunction) Valid() bool {
 const (
 	CohesionIdentity   ProbeDossierSourcesSecondaryFunction = "cohesion_identity"
 	EpistemicAuthority ProbeDossierSourcesSecondaryFunction = "epistemic_authority"
-	LessThannil        ProbeDossierSourcesSecondaryFunction = "<nil>"
+	LessThanNil        ProbeDossierSourcesSecondaryFunction = "<nil>"
 	PowerLegitimation  ProbeDossierSourcesSecondaryFunction = "power_legitimation"
 	SubversionFriction ProbeDossierSourcesSecondaryFunction = "subversion_friction"
 )
@@ -366,7 +366,7 @@ func (e ProbeDossierSourcesSecondaryFunction) Valid() bool {
 		return true
 	case EpistemicAuthority:
 		return true
-	case LessThannil:
+	case LessThanNil:
 		return true
 	case PowerLegitimation:
 		return true
@@ -718,7 +718,7 @@ const (
 	GetMetricsParamsResolutionDaily   GetMetricsParamsResolution = "daily"
 	GetMetricsParamsResolutionHourly  GetMetricsParamsResolution = "hourly"
 	GetMetricsParamsResolutionMonthly GetMetricsParamsResolution = "monthly"
-	GetMetricsParamsResolutionN5min   GetMetricsParamsResolution = "5min"
+	GetMetricsParamsResolutionN5Min   GetMetricsParamsResolution = "5min"
 	GetMetricsParamsResolutionWeekly  GetMetricsParamsResolution = "weekly"
 )
 
@@ -731,7 +731,7 @@ func (e GetMetricsParamsResolution) Valid() bool {
 		return true
 	case GetMetricsParamsResolutionMonthly:
 		return true
-	case GetMetricsParamsResolutionN5min:
+	case GetMetricsParamsResolutionN5Min:
 		return true
 	case GetMetricsParamsResolutionWeekly:
 		return true
@@ -1171,7 +1171,7 @@ func (e GetTopicDistributionParamsScope) Valid() bool {
 
 // ArticleDetail Full article payload for L5 Evidence (Design Brief §4.5.5 in the Iteration 5 rewrite). Includes Bronze cleaned text, Silver metadata, and per-extractor provenance. Subject to a k-anonymity gate (WP-006 §7): if the article's aggregation group for the referenced metric is below the configured threshold, the BFF returns 403 with a methodological refusal payload instead of the article body.
 type ArticleDetail struct {
-	ArticleId string `json:"articleId"`
+	ArticleID string `json:"articleId"`
 
 	// CleanedText Cleaned text from SilverCore — the text the extractors operated on.
 	CleanedText string `json:"cleanedText"`
@@ -1191,7 +1191,7 @@ type ArticleDetail struct {
 	Source        string    `json:"source"`
 	SourceType    *string   `json:"sourceType,omitempty"`
 	Timestamp     time.Time `json:"timestamp"`
-	Url           *string   `json:"url,omitempty"`
+	URL           *string   `json:"url,omitempty"`
 	WordCount     int       `json:"wordCount"`
 }
 
@@ -1206,8 +1206,8 @@ type ArticleDetail struct {
 //
 // Equal paragraphs are intentionally not included — the payload is sparse; the consumer should not expect a complete document reconstruction. When the two snapshots parse to identical paragraph content, `identical=true` and `diffParagraphs` is empty (BUG-10 distinct from `404 pending`).
 type ArticleRevisionDiff struct {
-	// ArticleId SHA-256 article identifier.
-	ArticleId string `json:"articleId"`
+	// ArticleID SHA-256 article identifier.
+	ArticleID string `json:"articleId"`
 
 	// DiffParagraphs Ordered list of paragraph-level ops. Equal paragraphs are not included — the payload is sparse. Op vocabulary: `add` (paragraph inserted), `del` (paragraph removed), `mod` (paragraph modified — similarity ≥ 0.4 between before and after).
 	DiffParagraphs []struct {
@@ -1254,16 +1254,16 @@ type ArticleRevisionDiffPairKind string
 
 // ArticleRevisionsResponse Per-article revision chain for the L5 Evidence Reader (Phase 122d.0). Returns the ordered list of detected revisions for one article — Wayback CDX snapshots and publisher-side republication-trigger events. The endpoint is subject to the Silver-eligibility gate inherited from `GET /articles/{id}`: a source whose `silver_eligible=false` returns 403 with the same refusal payload.
 type ArticleRevisionsResponse struct {
-	// ArticleId SHA-256 article identifier.
-	ArticleId string `json:"articleId"`
+	// ArticleID SHA-256 article identifier.
+	ArticleID string `json:"articleId"`
 
 	// LookupStatus Wayback CDX coverage signal for THIS article. `ok` = ≥ 1 CDX snapshot was captured; `no_snapshots` = the URL is not yet archived; `failed` = the lookup attempted but errored (timeout, rate-limit, network); `skipped` = canonical URL missing; `disabled` = the worker had the CDX integration off; empty string = pre-Phase-122d.0 data with no provenance recorded.
 	LookupStatus ArticleRevisionsResponseLookupStatus `json:"lookupStatus"`
 
 	// Revisions Ordered list of revisions (snapshot_at ascending). An article with a republication-trigger but no CDX snapshots still emits one entry whose `trigger='republication_trigger'`. An article with `lookupStatus='no_snapshots'` and no republication trigger returns an empty list.
 	Revisions []struct {
-		// ArchiveUrl Internet Archive playback URL for CDX snapshots. Empty string for republication-trigger rows (no archive page exists yet).
-		ArchiveUrl *string `json:"archiveUrl,omitempty"`
+		// ArchiveURL Internet Archive playback URL for CDX snapshots. Empty string for republication-trigger rows (no archive page exists yet).
+		ArchiveURL *string `json:"archiveUrl,omitempty"`
 
 		// ContentHash Content-body digest at this snapshot. For CDX snapshots, the value the Wayback Machine recorded (SHA-1 hex). For republication-trigger rows, the SHA-1 of the current cleaned-text.
 		ContentHash string `json:"contentHash"`
@@ -1320,8 +1320,8 @@ type ArticlesPage struct {
 	// HasMore True when more results exist beyond this page.
 	HasMore bool `json:"hasMore"`
 	Items   []struct {
-		// ArticleId SHA-256 hash of source + bronze_object_key (worker-derived).
-		ArticleId string `json:"articleId"`
+		// ArticleID SHA-256 hash of source + bronze_object_key (worker-derived).
+		ArticleID string `json:"articleId"`
 
 		// ChainLength Number of archived CAPTURES detected for this article (Wayback CDX snapshots + republication triggers) — a coverage/tooling count, NOT a revision count (most captures are identical re-archivals). Only present when the request opts in via `?includeRevisions=true`. For "how often the article was actually edited", use `editorialChangeCount`.
 		ChainLength *int `json:"chainLength,omitempty"`
@@ -1406,8 +1406,8 @@ type ContentResponse struct {
 	// ContentVersion Semver-style version string for the content record, e.g. "v2026-04-a". Incremented on every editorial update so consumers can detect staleness.
 	ContentVersion string `json:"contentVersion"`
 
-	// EntityId Canonical identifier of the entity.
-	EntityId string `json:"entityId"`
+	// EntityID Canonical identifier of the entity.
+	EntityID string `json:"entityId"`
 
 	// EntityType Category of the entity.
 	EntityType ContentResponseEntityType `json:"entityType"`
@@ -1476,8 +1476,8 @@ type DiscoveryCoverageResponse struct {
 		UnderflowAlertActive bool `json:"underflowAlertActive"`
 	} `json:"perChannel"`
 
-	// SourceId Canonical source identifier (e.g. `tagesschau`).
-	SourceId string `json:"sourceId"`
+	// SourceID Canonical source identifier (e.g. `tagesschau`).
+	SourceID string `json:"sourceId"`
 
 	// TotalUrlsDiscoveredLastRun Sum of `urls_discovered` across every channel for the most recent discovery pass (pre-dedup).
 	TotalUrlsDiscoveredLastRun int `json:"totalUrlsDiscoveredLastRun"`
@@ -1578,8 +1578,8 @@ type Probe struct {
 	// Language Primary publication language as an ISO 639-1 code. Used by the client for content catalog locale fallback and for future language-scoped aggregations. Not a reach claim.
 	Language string `json:"language"`
 
-	// ProbeId Canonical machine identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key. Stable and load-bearing (URL state, content keys); follows the convention `probe-<n>-<iso2>-<corpus-class>`. Not intended for display — use `displayName` / `shortName` in the UI.
-	ProbeId string `json:"probeId"`
+	// ProbeID Canonical machine identifier, matching the dossier directory under `docs/probes/` and the `probe` content-catalog key. Stable and load-bearing (URL state, content keys); follows the convention `probe-<n>-<iso2>-<corpus-class>`. Not intended for display — use `displayName` / `shortName` in the UI.
+	ProbeID string `json:"probeId"`
 
 	// ShortName Compact label for dense UI (globe markers, comparison chips). The server falls back to `displayName` (then `probeId`) when omitted.
 	ShortName string `json:"shortName"`
@@ -1624,8 +1624,8 @@ type ProbeDossier struct {
 	// Language Primary publication language (ISO 639-1).
 	Language string `json:"language"`
 
-	// ProbeId Canonical machine probe identifier (matches `/probes` and `/content/probe/{probeId}`). Not for display — use `displayName` / `shortName`.
-	ProbeId string `json:"probeId"`
+	// ProbeID Canonical machine probe identifier (matches `/probes` and `/content/probe/{probeId}`). Not for display — use `displayName` / `shortName`.
+	ProbeID string `json:"probeId"`
 
 	// ShortName Compact probe label; server falls back to `displayName` (then `probeId`).
 	ShortName string `json:"shortName"`
@@ -1638,8 +1638,8 @@ type ProbeDossier struct {
 		// ArticlesTotal Total number of processed documents for this source.
 		ArticlesTotal int `json:"articlesTotal"`
 
-		// DocumentationUrl Probe dossier directory under `docs/probes/`.
-		DocumentationUrl *string `json:"documentationUrl,omitempty"`
+		// DocumentationURL Probe dossier directory under `docs/probes/`.
+		DocumentationURL *string `json:"documentationUrl,omitempty"`
 
 		// EmicContext WP-001 emic context — the cultural/discursive frame of the source.
 		EmicContext *string `json:"emicContext,omitempty"`
@@ -1671,8 +1671,8 @@ type ProbeDossier struct {
 		// Type Source type discriminator (e.g., "rss").
 		Type string `json:"type"`
 
-		// Url Origin URL.
-		Url *string `json:"url,omitempty"`
+		// URL Origin URL.
+		URL *string `json:"url,omitempty"`
 	} `json:"sources"`
 
 	// WindowEnd End of the article-count window. Null when no window was supplied.
@@ -1741,8 +1741,8 @@ type RevisionActivityResponse struct {
 	// Scope Echoed scope of the request.
 	Scope RevisionActivityResponseScope `json:"scope"`
 
-	// ScopeId Echoed scope identifier.
-	ScopeId string `json:"scopeId"`
+	// ScopeID Echoed scope identifier.
+	ScopeID string `json:"scopeId"`
 
 	// WindowEnd Echoed exclusive window end.
 	WindowEnd *time.Time `json:"windowEnd,omitempty"`
@@ -1792,8 +1792,8 @@ type RevisionDiscourseShiftResponse struct {
 	// Scope Echoed scope of the request.
 	Scope RevisionDiscourseShiftResponseScope `json:"scope"`
 
-	// ScopeId Echoed scope identifier.
-	ScopeId string `json:"scopeId"`
+	// ScopeID Echoed scope identifier.
+	ScopeID string `json:"scopeId"`
 
 	// WindowEnd Echoed exclusive window end.
 	WindowEnd *time.Time `json:"windowEnd,omitempty"`
@@ -1837,8 +1837,8 @@ type RevisionEditClustersResponse struct {
 	// Scope Echoed scope of the request.
 	Scope RevisionEditClustersResponseScope `json:"scope"`
 
-	// ScopeId Echoed scope identifier.
-	ScopeId string `json:"scopeId"`
+	// ScopeID Echoed scope identifier.
+	ScopeID string `json:"scopeId"`
 
 	// WindowEnd Echoed exclusive window end.
 	WindowEnd *time.Time `json:"windowEnd,omitempty"`
@@ -1857,7 +1857,7 @@ type RevisionEditClustersResponseScope string
 type RevisionsArticlesPage struct {
 	HasMore bool `json:"hasMore"`
 	Items   []struct {
-		ArticleId string `json:"articleId"`
+		ArticleID string `json:"articleId"`
 
 		// ChainLength Total archived CAPTURES detected for this article in the window (Wayback CDX snapshots + republication triggers). This is a tooling/coverage count — most captures are identical re-archivals, NOT source edits. For "how often was the article actually changed", use `editorialChangeCount`.
 		ChainLength int `json:"chainLength"`
@@ -1884,8 +1884,8 @@ type RevisionsArticlesPage struct {
 
 // Source defines model for Source.
 type Source struct {
-	// DocumentationUrl Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
-	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+	// DocumentationURL Link to the probe dossier directory for this source (under docs/probes/<probe-id>/). The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe to which this source belongs. Null when no dossier has been written.
+	DocumentationURL *string `json:"documentationUrl,omitempty"`
 
 	// Name Canonical source identifier.
 	Name string `json:"name"`
@@ -1893,8 +1893,8 @@ type Source struct {
 	// Type Source type discriminator (e.g., "rss", "scraper").
 	Type string `json:"type"`
 
-	// Url Origin URL (feed, API, or seed page).
-	Url *string `json:"url,omitempty"`
+	// URL Origin URL (feed, API, or seed page).
+	URL *string `json:"url,omitempty"`
 }
 
 // PostAdminUsersJSONBody defines parameters for PostAdminUsers.
@@ -2003,8 +2003,8 @@ type GetCorrelationLeadLagParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetCorrelationLeadLagParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2057,8 +2057,8 @@ type GetEntityCoOccurrenceParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetEntityCoOccurrenceParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2149,8 +2149,8 @@ type GetMetadataSankeyParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetadataSankeyParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2176,8 +2176,8 @@ type GetMetadataCrossTabParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetadataCrossTabParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2209,8 +2209,8 @@ type GetMetadataDistributionParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetadataDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2287,8 +2287,8 @@ type GetMetricCorrelationParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricCorrelationParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2320,8 +2320,8 @@ type GetMetricParallelCoordsParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricParallelCoordsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2365,8 +2365,8 @@ type GetMetricScatterParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricScatterParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2398,8 +2398,8 @@ type GetMetricDistributionParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2437,8 +2437,8 @@ type GetMetricHeatmapParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetMetricHeatmapParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2509,8 +2509,8 @@ type GetRevisionActivityParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetRevisionActivityParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeID Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeID string `form:"scopeId" json:"scopeId"`
 
 	// StartDate Inclusive start of the analysis window (RFC 3339).
 	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
@@ -2533,8 +2533,8 @@ type GetRevisionsArticlesParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetRevisionsArticlesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeID Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeID string `form:"scopeId" json:"scopeId"`
 
 	// StartDate Inclusive start of the analysis window (RFC 3339).
 	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
@@ -2563,8 +2563,8 @@ type GetRevisionDiscourseShiftParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetRevisionDiscourseShiftParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeID Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeID string `form:"scopeId" json:"scopeId"`
 
 	// StartDate Inclusive start of the analysis window (RFC 3339).
 	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
@@ -2587,8 +2587,8 @@ type GetRevisionEditClustersParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetRevisionEditClustersParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
-	ScopeId string `form:"scopeId" json:"scopeId"`
+	// ScopeID Identifier of the scope target. For `scope=probe`, a probe id (e.g. `probe-0-de-institutional-web`); for `scope=source`, a source name (e.g. `tagesschau`). Required.
+	ScopeID string `form:"scopeId" json:"scopeId"`
 
 	// StartDate Inclusive start of the analysis window (RFC 3339).
 	StartDate *time.Time `form:"startDate,omitempty" json:"startDate,omitempty"`
@@ -2614,8 +2614,8 @@ type GetScopeAvailableMetadataParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetScopeAvailableMetadataParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2638,8 +2638,8 @@ type GetScopeAvailableMetricsParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetScopeAvailableMetricsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2659,8 +2659,8 @@ type GetScopeAvailableMetricsParamsScope string
 
 // GetSilverAggregationParams defines parameters for GetSilverAggregation.
 type GetSilverAggregationParams struct {
-	// SourceId Source identifier — canonical name or integer id.
-	SourceId string `form:"sourceId" json:"sourceId"`
+	// SourceID Source identifier — canonical name or integer id.
+	SourceID string `form:"sourceId" json:"sourceId"`
 
 	// Start Inclusive start of the timestamp window (RFC 3339).
 	Start time.Time `form:"start" json:"start"`
@@ -2677,8 +2677,8 @@ type GetSilverAggregationParamsAggregationType string
 
 // ListSilverDocumentsParams defines parameters for ListSilverDocuments.
 type ListSilverDocumentsParams struct {
-	// SourceId Source identifier — canonical name or integer id.
-	SourceId string `form:"sourceId" json:"sourceId"`
+	// SourceID Source identifier — canonical name or integer id.
+	SourceID string `form:"sourceId" json:"sourceId"`
 
 	// Start Inclusive start of the timestamp window (RFC 3339).
 	Start *time.Time `form:"start,omitempty" json:"start,omitempty"`
@@ -2735,8 +2735,8 @@ type GetTopicDistributionParams struct {
 	// Scope Scope of the query. `probe` resolves the scopeId against the probe registry and applies the probe's full source list. `source` filters by a single source. Defaults to `probe` per Design Brief §4.2.4.
 	Scope *GetTopicDistributionParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// ScopeId Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
-	ScopeId *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
+	// ScopeID Single scope target (probe id or source name). Required when `probeIds` and `sourceIds` are absent; optional otherwise.
+	ScopeID *string `form:"scopeId,omitempty" json:"scopeId,omitempty"`
 
 	// ProbeIds Comma-separated probe IDs (e.g. `probe-0-de-institutional-web,probe-1-de-diasporic-rss`). Each probe's full source list is resolved via the Probe Registry and added to the scope union. Compatible with `scopeId` and `sourceIds` — all resolved source sets are merged and deduplicated. When `segmentBy=probe` is set, each probe forms its own independent stream in the response.
 	ProbeIds *string `form:"probeIds,omitempty" json:"probeIds,omitempty"`
@@ -2839,7 +2839,7 @@ type ServerInterface interface {
 	PostAnalysisShare(w http.ResponseWriter, r *http.Request, id string)
 	// Revoke a grantee from an analysis (owner only) (Phase 135)
 	// (DELETE /analyses/{id}/shares/{granteeId})
-	DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeId string)
+	DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeID string)
 	// L5 Evidence — article detail with k-anonymity gate
 	// (GET /articles/{id})
 	GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams)
@@ -2896,7 +2896,7 @@ type ServerInterface interface {
 	PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r *http.Request)
 	// Get Dual-Register content for an entity
 	// (GET /content/{entityType}/{entityId})
-	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams)
+	GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityID string, params GetContentParams)
 	// Generalised metric lead-lag — lagged cross-correlation of two metrics over time
 	// (GET /correlation/lead-lag)
 	GetCorrelationLeadLag(w http.ResponseWriter, r *http.Request, params GetCorrelationLeadLagParams)
@@ -2956,13 +2956,13 @@ type ServerInterface interface {
 	GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams)
 	// Per-probe equivalence summary
 	// (GET /probes/{probeId}/equivalence)
-	GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeEquivalenceParams)
+	GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeID string, params GetProbeEquivalenceParams)
 	// Cross-probe temporal lead-lag
 	// (GET /probes/{probeId}/lead-lag)
-	GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeLeadLagParams)
+	GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeID string, params GetProbeLeadLagParams)
 	// Per-source-per-field metadata coverage for a probe
 	// (GET /probes/{probeId}/metadata-coverage)
-	GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string)
+	GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeID string)
 	// Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
@@ -2998,16 +2998,16 @@ type ServerInterface interface {
 	GetSources(w http.ResponseWriter, r *http.Request, params GetSourcesParams)
 	// Source detail with Silver-eligibility metadata
 	// (GET /sources/{id})
-	GetSourceById(w http.ResponseWriter, r *http.Request, id string)
+	GetSourceByID(w http.ResponseWriter, r *http.Request, id string)
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams)
 	// Per-channel discovery telemetry for one source
 	// (GET /sources/{sourceId}/discovery-coverage)
-	GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceId string, params GetSourceDiscoveryCoverageParams)
+	GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceID string, params GetSourceDiscoveryCoverageParams)
 	// Per-field metadata coverage for a single source
 	// (GET /sources/{sourceId}/metadata-coverage)
-	GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string)
+	GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceID string)
 	// Per-scope topic distribution (Episteme x ridgeline / stream-graph)
 	// (GET /topics/distribution)
 	GetTopicDistribution(w http.ResponseWriter, r *http.Request, params GetTopicDistributionParams)
@@ -3091,7 +3091,7 @@ func (_ Unimplemented) PostAnalysisShare(w http.ResponseWriter, r *http.Request,
 
 // Revoke a grantee from an analysis (owner only) (Phase 135)
 // (DELETE /analyses/{id}/shares/{granteeId})
-func (_ Unimplemented) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeId string) {
+func (_ Unimplemented) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeID string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3205,7 +3205,7 @@ func (_ Unimplemented) PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r *
 
 // Get Dual-Register content for an entity
 // (GET /content/{entityType}/{entityId})
-func (_ Unimplemented) GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams) {
+func (_ Unimplemented) GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityID string, params GetContentParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3325,19 +3325,19 @@ func (_ Unimplemented) GetProbeDossier(w http.ResponseWriter, r *http.Request, i
 
 // Per-probe equivalence summary
 // (GET /probes/{probeId}/equivalence)
-func (_ Unimplemented) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeEquivalenceParams) {
+func (_ Unimplemented) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeID string, params GetProbeEquivalenceParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Cross-probe temporal lead-lag
 // (GET /probes/{probeId}/lead-lag)
-func (_ Unimplemented) GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeLeadLagParams) {
+func (_ Unimplemented) GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeID string, params GetProbeLeadLagParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Per-source-per-field metadata coverage for a probe
 // (GET /probes/{probeId}/metadata-coverage)
-func (_ Unimplemented) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string) {
+func (_ Unimplemented) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeID string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3409,7 +3409,7 @@ func (_ Unimplemented) GetSources(w http.ResponseWriter, r *http.Request, params
 
 // Source detail with Silver-eligibility metadata
 // (GET /sources/{id})
-func (_ Unimplemented) GetSourceById(w http.ResponseWriter, r *http.Request, id string) {
+func (_ Unimplemented) GetSourceByID(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3421,13 +3421,13 @@ func (_ Unimplemented) GetSourceArticles(w http.ResponseWriter, r *http.Request,
 
 // Per-channel discovery telemetry for one source
 // (GET /sources/{sourceId}/discovery-coverage)
-func (_ Unimplemented) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceId string, params GetSourceDiscoveryCoverageParams) {
+func (_ Unimplemented) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceID string, params GetSourceDiscoveryCoverageParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Per-field metadata coverage for a single source
 // (GET /sources/{sourceId}/metadata-coverage)
-func (_ Unimplemented) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string) {
+func (_ Unimplemented) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceID string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3789,9 +3789,9 @@ func (siw *ServerInterfaceWrapper) DeleteAnalysisShare(w http.ResponseWriter, r 
 	}
 
 	// ------------- Path parameter "granteeId" -------------
-	var granteeId string
+	var granteeID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "granteeId", chi.URLParam(r, "granteeId"), &granteeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "granteeId", chi.URLParam(r, "granteeId"), &granteeID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granteeId", Err: err})
 		return
@@ -3804,7 +3804,7 @@ func (siw *ServerInterfaceWrapper) DeleteAnalysisShare(w http.ResponseWriter, r 
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteAnalysisShare(w, r, id, granteeId)
+		siw.Handler.DeleteAnalysisShare(w, r, id, granteeID)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4229,9 +4229,9 @@ func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Req
 	}
 
 	// ------------- Path parameter "entityId" -------------
-	var entityId string
+	var entityID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "entityId", chi.URLParam(r, "entityId"), &entityId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "entityId", chi.URLParam(r, "entityId"), &entityID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "entityId", Err: err})
 		return
@@ -4255,7 +4255,7 @@ func (siw *ServerInterfaceWrapper) GetContent(w http.ResponseWriter, r *http.Req
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetContent(w, r, entityType, entityId, params)
+		siw.Handler.GetContent(w, r, entityType, entityID, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4319,7 +4319,7 @@ func (siw *ServerInterfaceWrapper) GetCorrelationLeadLag(w http.ResponseWriter, 
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -4489,7 +4489,7 @@ func (siw *ServerInterfaceWrapper) GetEntityCoOccurrence(w http.ResponseWriter, 
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -4732,7 +4732,7 @@ func (siw *ServerInterfaceWrapper) GetMetadataSankey(w http.ResponseWriter, r *h
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -4831,7 +4831,7 @@ func (siw *ServerInterfaceWrapper) GetMetadataCrossTab(w http.ResponseWriter, r 
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -4937,7 +4937,7 @@ func (siw *ServerInterfaceWrapper) GetMetadataDistribution(w http.ResponseWriter
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -5179,7 +5179,7 @@ func (siw *ServerInterfaceWrapper) GetMetricCorrelation(w http.ResponseWriter, r
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -5283,7 +5283,7 @@ func (siw *ServerInterfaceWrapper) GetMetricParallelCoords(w http.ResponseWriter
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -5426,7 +5426,7 @@ func (siw *ServerInterfaceWrapper) GetMetricScatter(w http.ResponseWriter, r *ht
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -5532,7 +5532,7 @@ func (siw *ServerInterfaceWrapper) GetMetricDistribution(w http.ResponseWriter, 
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -5646,7 +5646,7 @@ func (siw *ServerInterfaceWrapper) GetMetricHeatmap(w http.ResponseWriter, r *ht
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -5840,9 +5840,9 @@ func (siw *ServerInterfaceWrapper) GetProbeEquivalence(w http.ResponseWriter, r 
 	var err error
 
 	// ------------- Path parameter "probeId" -------------
-	var probeId string
+	var probeID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeId", Err: err})
 		return
@@ -5866,7 +5866,7 @@ func (siw *ServerInterfaceWrapper) GetProbeEquivalence(w http.ResponseWriter, r 
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProbeEquivalence(w, r, probeId, params)
+		siw.Handler.GetProbeEquivalence(w, r, probeID, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5882,9 +5882,9 @@ func (siw *ServerInterfaceWrapper) GetProbeLeadLag(w http.ResponseWriter, r *htt
 	var err error
 
 	// ------------- Path parameter "probeId" -------------
-	var probeId string
+	var probeID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeId", Err: err})
 		return
@@ -5939,7 +5939,7 @@ func (siw *ServerInterfaceWrapper) GetProbeLeadLag(w http.ResponseWriter, r *htt
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProbeLeadLag(w, r, probeId, params)
+		siw.Handler.GetProbeLeadLag(w, r, probeID, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5955,9 +5955,9 @@ func (siw *ServerInterfaceWrapper) GetProbeMetadataCoverage(w http.ResponseWrite
 	var err error
 
 	// ------------- Path parameter "probeId" -------------
-	var probeId string
+	var probeID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "probeId", chi.URLParam(r, "probeId"), &probeID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "probeId", Err: err})
 		return
@@ -5970,7 +5970,7 @@ func (siw *ServerInterfaceWrapper) GetProbeMetadataCoverage(w http.ResponseWrite
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProbeMetadataCoverage(w, r, probeId)
+		siw.Handler.GetProbeMetadataCoverage(w, r, probeID)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6025,7 +6025,7 @@ func (siw *ServerInterfaceWrapper) GetRevisionActivity(w http.ResponseWriter, r 
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -6097,7 +6097,7 @@ func (siw *ServerInterfaceWrapper) GetRevisionsArticles(w http.ResponseWriter, r
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -6193,7 +6193,7 @@ func (siw *ServerInterfaceWrapper) GetRevisionDiscourseShift(w http.ResponseWrit
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -6265,7 +6265,7 @@ func (siw *ServerInterfaceWrapper) GetRevisionEditClusters(w http.ResponseWriter
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -6338,7 +6338,7 @@ func (siw *ServerInterfaceWrapper) GetScopeAvailableMetadata(w http.ResponseWrit
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -6411,7 +6411,7 @@ func (siw *ServerInterfaceWrapper) GetScopeAvailableMetrics(w http.ResponseWrite
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -6492,7 +6492,7 @@ func (siw *ServerInterfaceWrapper) GetSilverAggregation(w http.ResponseWriter, r
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "sourceId", r.URL.Query(), &params.SourceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "sourceId", r.URL.Query(), &params.SourceID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
 		return
@@ -6570,7 +6570,7 @@ func (siw *ServerInterfaceWrapper) ListSilverDocuments(w http.ResponseWriter, r 
 		return
 	}
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "sourceId", r.URL.Query(), &params.SourceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "sourceId", r.URL.Query(), &params.SourceID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
 		return
@@ -6683,8 +6683,8 @@ func (siw *ServerInterfaceWrapper) GetSources(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
-// GetSourceById operation middleware
-func (siw *ServerInterfaceWrapper) GetSourceById(w http.ResponseWriter, r *http.Request) {
+// GetSourceByID operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceByID(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -6704,7 +6704,7 @@ func (siw *ServerInterfaceWrapper) GetSourceById(w http.ResponseWriter, r *http.
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSourceById(w, r, id)
+		siw.Handler.GetSourceByID(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6818,9 +6818,9 @@ func (siw *ServerInterfaceWrapper) GetSourceDiscoveryCoverage(w http.ResponseWri
 	var err error
 
 	// ------------- Path parameter "sourceId" -------------
-	var sourceId string
+	var sourceID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", chi.URLParam(r, "sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", chi.URLParam(r, "sourceId"), &sourceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
 		return
@@ -6844,7 +6844,7 @@ func (siw *ServerInterfaceWrapper) GetSourceDiscoveryCoverage(w http.ResponseWri
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSourceDiscoveryCoverage(w, r, sourceId, params)
+		siw.Handler.GetSourceDiscoveryCoverage(w, r, sourceID, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6860,9 +6860,9 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadataCoverage(w http.ResponseWrit
 	var err error
 
 	// ------------- Path parameter "sourceId" -------------
-	var sourceId string
+	var sourceID string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", chi.URLParam(r, "sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", chi.URLParam(r, "sourceId"), &sourceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
 		return
@@ -6875,7 +6875,7 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadataCoverage(w http.ResponseWrit
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetSourceMetadataCoverage(w, r, sourceId)
+		siw.Handler.GetSourceMetadataCoverage(w, r, sourceID)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6909,7 +6909,7 @@ func (siw *ServerInterfaceWrapper) GetTopicDistribution(w http.ResponseWriter, r
 
 	// ------------- Optional query parameter "scopeId" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scopeId", r.URL.Query(), &params.ScopeID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scopeId", Err: err})
 		return
@@ -7291,7 +7291,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/sources", wrapper.GetSources)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/sources/{id}", wrapper.GetSourceById)
+		r.Get(options.BaseURL+"/sources/{id}", wrapper.GetSourceByID)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/sources/{id}/articles", wrapper.GetSourceArticles)
@@ -7321,8 +7321,8 @@ type GetAdminUsers200JSONResponse struct {
 		CreatedAt time.Time           `json:"createdAt"`
 		Email     openapi_types.Email `json:"email"`
 
-		// Id Opaque user id.
-		Id string `json:"id"`
+		// ID Opaque user id.
+		ID string `json:"id"`
 
 		// Role One of `admin`, `researcher`.
 		Role string `json:"role"`
@@ -7391,7 +7391,7 @@ type PostAdminUsers201JSONResponse struct {
 
 	// Link The accept-invite / reset-password link carrying the single-use token.
 	Link   string `json:"link"`
-	UserId string `json:"userId"`
+	UserID string `json:"userId"`
 }
 
 func (response PostAdminUsers201JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
@@ -7468,7 +7468,7 @@ func (response PostAdminUsers500JSONResponse) VisitPostAdminUsersResponse(w http
 }
 
 type PostAdminUserReactivateRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type PostAdminUserReactivateResponseObject interface {
@@ -7535,7 +7535,7 @@ func (response PostAdminUserReactivate500JSONResponse) VisitPostAdminUserReactiv
 }
 
 type PostAdminUserResetPasswordRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type PostAdminUserResetPasswordResponseObject interface {
@@ -7550,7 +7550,7 @@ type PostAdminUserResetPassword200JSONResponse struct {
 
 	// Link The accept-invite / reset-password link carrying the single-use token.
 	Link   string `json:"link"`
-	UserId string `json:"userId"`
+	UserID string `json:"userId"`
 }
 
 func (response PostAdminUserResetPassword200JSONResponse) VisitPostAdminUserResetPasswordResponse(w http.ResponseWriter) error {
@@ -7612,7 +7612,7 @@ func (response PostAdminUserResetPassword500JSONResponse) VisitPostAdminUserRese
 }
 
 type PostAdminUserSuspendRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type PostAdminUserSuspendResponseObject interface {
@@ -7704,7 +7704,7 @@ type GetAnalyses200JSONResponse struct {
 	Analyses []struct {
 		CreatedAt   time.Time `json:"createdAt"`
 		Description string    `json:"description"`
-		Id          string    `json:"id"`
+		ID          string    `json:"id"`
 		Name        string    `json:"name"`
 
 		// Owned True when the viewer is the owner.
@@ -7773,7 +7773,7 @@ type PostAnalysesResponseObject interface {
 type PostAnalyses201JSONResponse struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	Description string    `json:"description"`
-	Id          string    `json:"id"`
+	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 
 	// Owned True when the viewer is the owner.
@@ -7846,7 +7846,7 @@ func (response PostAnalyses500JSONResponse) VisitPostAnalysesResponse(w http.Res
 }
 
 type DeleteAnalysisRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type DeleteAnalysisResponseObject interface {
@@ -7913,7 +7913,7 @@ func (response DeleteAnalysis500JSONResponse) VisitDeleteAnalysisResponse(w http
 }
 
 type GetAnalysisRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type GetAnalysisResponseObject interface {
@@ -7923,7 +7923,7 @@ type GetAnalysisResponseObject interface {
 type GetAnalysis200JSONResponse struct {
 	CreatedAt   time.Time           `json:"createdAt"`
 	Description string              `json:"description"`
-	Id          string              `json:"id"`
+	ID          string              `json:"id"`
 	Name        string              `json:"name"`
 	Owned       bool                `json:"owned"`
 	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
@@ -7995,7 +7995,7 @@ func (response GetAnalysis500JSONResponse) VisitGetAnalysisResponse(w http.Respo
 }
 
 type PatchAnalysisRequestObject struct {
-	Id   string `json:"id"`
+	ID   string `json:"id"`
 	Body *PatchAnalysisJSONRequestBody
 }
 
@@ -8006,7 +8006,7 @@ type PatchAnalysisResponseObject interface {
 type PatchAnalysis200JSONResponse struct {
 	CreatedAt   time.Time           `json:"createdAt"`
 	Description string              `json:"description"`
-	Id          string              `json:"id"`
+	ID          string              `json:"id"`
 	Name        string              `json:"name"`
 	Owned       bool                `json:"owned"`
 	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
@@ -8078,7 +8078,7 @@ func (response PatchAnalysis500JSONResponse) VisitPatchAnalysisResponse(w http.R
 }
 
 type GetAnalysisSharesRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type GetAnalysisSharesResponseObject interface {
@@ -8090,7 +8090,7 @@ type GetAnalysisShares200JSONResponse struct {
 		// CanEdit True grants edit; false is read-only.
 		CanEdit   bool                `json:"canEdit"`
 		Email     openapi_types.Email `json:"email"`
-		GranteeId string              `json:"granteeId"`
+		GranteeID string              `json:"granteeId"`
 	} `json:"shares"`
 }
 
@@ -8153,7 +8153,7 @@ func (response GetAnalysisShares500JSONResponse) VisitGetAnalysisSharesResponse(
 }
 
 type PostAnalysisShareRequestObject struct {
-	Id   string `json:"id"`
+	ID   string `json:"id"`
 	Body *PostAnalysisShareJSONRequestBody
 }
 
@@ -8165,7 +8165,7 @@ type PostAnalysisShare201JSONResponse struct {
 	// CanEdit True grants edit; false is read-only.
 	CanEdit   bool                `json:"canEdit"`
 	Email     openapi_types.Email `json:"email"`
-	GranteeId string              `json:"granteeId"`
+	GranteeID string              `json:"granteeId"`
 }
 
 func (response PostAnalysisShare201JSONResponse) VisitPostAnalysisShareResponse(w http.ResponseWriter) error {
@@ -8257,8 +8257,8 @@ func (response PostAnalysisShare500JSONResponse) VisitPostAnalysisShareResponse(
 }
 
 type DeleteAnalysisShareRequestObject struct {
-	Id        string `json:"id"`
-	GranteeId string `json:"granteeId"`
+	ID        string `json:"id"`
+	GranteeID string `json:"granteeId"`
 }
 
 type DeleteAnalysisShareResponseObject interface {
@@ -8340,7 +8340,7 @@ func (response DeleteAnalysisShare500JSONResponse) VisitDeleteAnalysisShareRespo
 }
 
 type GetArticleDetailRequestObject struct {
-	Id     string `json:"id"`
+	ID     string `json:"id"`
 	Params GetArticleDetailParams
 }
 
@@ -8409,7 +8409,7 @@ func (response GetArticleDetail500JSONResponse) VisitGetArticleDetailResponse(w 
 }
 
 type GetArticleRevisionsRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type GetArticleRevisionsResponseObject interface {
@@ -8477,7 +8477,7 @@ func (response GetArticleRevisions500JSONResponse) VisitGetArticleRevisionsRespo
 }
 
 type GetArticleRevisionDiffRequestObject struct {
-	Id            string `json:"id"`
+	ID            string `json:"id"`
 	RevisionIndex int    `json:"revisionIndex"`
 }
 
@@ -8556,8 +8556,8 @@ type PostAuthAcceptInviteResponseObject interface {
 type PostAuthAcceptInvite200JSONResponse struct {
 	Email openapi_types.Email `json:"email"`
 
-	// Id Opaque user id (server-side UUID, surfaced as a string).
-	Id string `json:"id"`
+	// ID Opaque user id (server-side UUID, surfaced as a string).
+	ID string `json:"id"`
 
 	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
 	Role string `json:"role"`
@@ -8724,8 +8724,8 @@ type PostAuthLoginResponseObject interface {
 type PostAuthLogin200JSONResponse struct {
 	Email openapi_types.Email `json:"email"`
 
-	// Id Opaque user id (server-side UUID, surfaced as a string).
-	Id string `json:"id"`
+	// ID Opaque user id (server-side UUID, surfaced as a string).
+	ID string `json:"id"`
 
 	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
 	Role string `json:"role"`
@@ -8904,8 +8904,8 @@ type GetAuthMeResponseObject interface {
 type GetAuthMe200JSONResponse struct {
 	Email openapi_types.Email `json:"email"`
 
-	// Id Opaque user id (server-side UUID, surfaced as a string).
-	Id string `json:"id"`
+	// ID Opaque user id (server-side UUID, surfaced as a string).
+	ID string `json:"id"`
 
 	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
 	Role string `json:"role"`
@@ -8969,7 +8969,7 @@ type GetAuthMeExport200JSONResponse struct {
 	ActiveSessionCount int                 `json:"activeSessionCount"`
 	CreatedAt          time.Time           `json:"createdAt"`
 	Email              openapi_types.Email `json:"email"`
-	Id                 string              `json:"id"`
+	ID                 string              `json:"id"`
 
 	// LastSeenAt Most recent activity across the user's sessions; null if none.
 	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
@@ -9209,8 +9209,8 @@ type GetAuthWebauthnCredentials200JSONResponse struct {
 	Credentials []struct {
 		CreatedAt time.Time `json:"createdAt"`
 
-		// Id Opaque credential row id (used to delete it).
-		Id         string     `json:"id"`
+		// ID Opaque credential row id (used to delete it).
+		ID         string     `json:"id"`
 		LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 		Name       *string    `json:"name,omitempty"`
 	} `json:"credentials"`
@@ -9260,7 +9260,7 @@ func (response GetAuthWebauthnCredentials500JSONResponse) VisitGetAuthWebauthnCr
 }
 
 type DeleteAuthWebauthnCredentialRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type DeleteAuthWebauthnCredentialResponseObject interface {
@@ -9389,8 +9389,8 @@ type PostAuthWebauthnRegisterFinishResponseObject interface {
 type PostAuthWebauthnRegisterFinish201JSONResponse struct {
 	CreatedAt time.Time `json:"createdAt"`
 
-	// Id Opaque credential row id (used to delete it).
-	Id         string     `json:"id"`
+	// ID Opaque credential row id (used to delete it).
+	ID         string     `json:"id"`
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 	Name       *string    `json:"name,omitempty"`
 }
@@ -9455,7 +9455,7 @@ func (response PostAuthWebauthnRegisterFinish500JSONResponse) VisitPostAuthWebau
 
 type GetContentRequestObject struct {
 	EntityType GetContentParamsEntityType `json:"entityType"`
-	EntityId   string                     `json:"entityId"`
+	EntityID   string                     `json:"entityId"`
 	Params     GetContentParams
 }
 
@@ -9559,7 +9559,7 @@ type GetCorrelationLeadLag200JSONResponse struct {
 		LagHours    int      `json:"lagHours"`
 	} `json:"points"`
 	Scope       *string    `json:"scope,omitempty"`
-	ScopeId     *string    `json:"scopeId,omitempty"`
+	ScopeID     *string    `json:"scopeId,omitempty"`
 	WindowEnd   *time.Time `json:"windowEnd,omitempty"`
 	WindowStart *time.Time `json:"windowStart,omitempty"`
 	XMetric     string     `json:"xMetric"`
@@ -9774,7 +9774,7 @@ type GetEntityCoOccurrence200JSONResponse struct {
 		WikidataQid *string `json:"wikidataQid,omitempty"`
 	} `json:"nodes"`
 	Scope   *string `json:"scope,omitempty"`
-	ScopeId *string `json:"scopeId,omitempty"`
+	ScopeID *string `json:"scopeId,omitempty"`
 
 	// TopN The effective top-N applied (post-clamp).
 	TopN int64 `json:"topN"`
@@ -9917,7 +9917,7 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 		WikidataQid *string `json:"wikidataQid,omitempty"`
 	} `json:"nodes"`
 	Scope   *string `json:"scope,omitempty"`
-	ScopeId *string `json:"scopeId,omitempty"`
+	ScopeID *string `json:"scopeId,omitempty"`
 
 	// TopN The effective top-N applied (post-clamp).
 	TopN int64 `json:"topN"`
@@ -10152,13 +10152,13 @@ type GetMetadataSankey200JSONResponse struct {
 	Nodes []struct {
 		Field string `json:"field"`
 
-		// Id Layer-namespaced node id (`<layer>::<value>`).
-		Id    string `json:"id"`
+		// ID Layer-namespaced node id (`<layer>::<value>`).
+		ID    string `json:"id"`
 		Layer int    `json:"layer"`
 		Value string `json:"value"`
 	} `json:"nodes"`
 	Scope       *string    `json:"scope,omitempty"`
-	ScopeId     *string    `json:"scopeId,omitempty"`
+	ScopeID     *string    `json:"scopeId,omitempty"`
 	WindowEnd   *time.Time `json:"windowEnd,omitempty"`
 	WindowStart *time.Time `json:"windowStart,omitempty"`
 }
@@ -10261,7 +10261,7 @@ type GetMetadataCrossTab200JSONResponse struct {
 	Field          string     `json:"field"`
 	Metric         string     `json:"metric"`
 	Scope          *string    `json:"scope,omitempty"`
-	ScopeId        *string    `json:"scopeId,omitempty"`
+	ScopeID        *string    `json:"scopeId,omitempty"`
 	WindowEnd      *time.Time `json:"windowEnd,omitempty"`
 	WindowStart    *time.Time `json:"windowStart,omitempty"`
 }
@@ -10367,8 +10367,8 @@ type GetMetadataDistribution200JSONResponse struct {
 	// Scope Resolved scope kind ("probe" or "source").
 	Scope *string `json:"scope,omitempty"`
 
-	// ScopeId Resolved scope identifier, when a single scopeId was supplied.
-	ScopeId *string `json:"scopeId,omitempty"`
+	// ScopeID Resolved scope identifier, when a single scopeId was supplied.
+	ScopeID *string `json:"scopeId,omitempty"`
 
 	// TotalArticles Distinct in-scope articles that carry ANY value for this field.
 	TotalArticles int        `json:"totalArticles"`
@@ -10607,7 +10607,7 @@ type GetMetricCorrelation200JSONResponse struct {
 	// Resolution Bucket resolution used (e.g. `5m`).
 	Resolution string  `json:"resolution"`
 	Scope      *string `json:"scope,omitempty"`
-	ScopeId    *string `json:"scopeId,omitempty"`
+	ScopeID    *string `json:"scopeId,omitempty"`
 
 	// WindowEnd Resolved upper window bound; null when unbounded.
 	WindowEnd *time.Time `json:"windowEnd,omitempty"`
@@ -10698,12 +10698,12 @@ type GetMetricParallelCoords200JSONResponse struct {
 	// Metrics The metric axes, in order; each row's `values` aligns to this.
 	Metrics []string `json:"metrics"`
 	Rows    []struct {
-		ArticleId string    `json:"articleId"`
+		ArticleID string    `json:"articleId"`
 		Source    string    `json:"source"`
 		Values    []float64 `json:"values"`
 	} `json:"rows"`
 	Scope   *string `json:"scope,omitempty"`
-	ScopeId *string `json:"scopeId,omitempty"`
+	ScopeID *string `json:"scopeId,omitempty"`
 
 	// Truncated True when the per-article cap bit (showing the first N).
 	Truncated   bool       `json:"truncated"`
@@ -10795,8 +10795,8 @@ type GetMetricScatter200JSONResponse struct {
 
 	// Points Per-article points, ordered by article id for determinism.
 	Points []struct {
-		// ArticleId The article identifier, when available (used for the publication-ready data export so a point traces back to its document).
-		ArticleId *string `json:"articleId,omitempty"`
+		// ArticleID The article identifier, when available (used for the publication-ready data export so a point traces back to its document).
+		ArticleID *string `json:"articleId,omitempty"`
 
 		// Color Value of the request's `colorMetric` for this article. Absent when the colour channel is unbound or the article lacks that metric.
 		Color *float64 `json:"color,omitempty"`
@@ -10819,7 +10819,7 @@ type GetMetricScatter200JSONResponse struct {
 
 	// Scope Resolved scope kind (`probe` or `source`).
 	Scope   *string `json:"scope,omitempty"`
-	ScopeId *string `json:"scopeId,omitempty"`
+	ScopeID *string `json:"scopeId,omitempty"`
 
 	// SizeMetric Echo of the requested size-channel metric, when bound.
 	SizeMetric *string `json:"sizeMetric,omitempty"`
@@ -10943,8 +10943,8 @@ type GetMetricDistribution200JSONResponse struct {
 	// Scope The resolved scope (`probe` or `source`).
 	Scope *string `json:"scope,omitempty"`
 
-	// ScopeId The resolved scope identifier.
-	ScopeId *string `json:"scopeId,omitempty"`
+	// ScopeID The resolved scope identifier.
+	ScopeID *string `json:"scopeId,omitempty"`
 
 	// Streams Per-segment payloads populated when `segmentBy` is set. Absent when `segmentBy` is not requested. The aggregate `bins` and `summary` are always present and reflect the full union scope (Phase 114).
 	Streams *[]struct {
@@ -10955,8 +10955,8 @@ type GetMetricDistribution200JSONResponse struct {
 			Upper float64 `json:"upper"`
 		} `json:"bins"`
 
-		// Id Segment identifier (source name or probe id).
-		Id string `json:"id"`
+		// ID Segment identifier (source name or probe id).
+		ID string `json:"id"`
 
 		// Label Display label for the segment.
 		Label string `json:"label"`
@@ -11092,7 +11092,7 @@ type GetMetricHeatmap200JSONResponse struct {
 	} `json:"cells"`
 	MetricName string  `json:"metricName"`
 	Scope      *string `json:"scope,omitempty"`
-	ScopeId    *string `json:"scopeId,omitempty"`
+	ScopeID    *string `json:"scopeId,omitempty"`
 
 	// Streams Per-segment payloads populated when `segmentBy` is set. Absent when `segmentBy` is not requested. The aggregate `cells` are always present and reflect the full union scope (Phase 114).
 	Streams *[]struct {
@@ -11104,8 +11104,8 @@ type GetMetricHeatmap200JSONResponse struct {
 			Y     string  `json:"y"`
 		} `json:"cells"`
 
-		// Id Segment identifier (source name or probe id).
-		Id string `json:"id"`
+		// ID Segment identifier (source name or probe id).
+		ID string `json:"id"`
 
 		// Label Display label for the segment.
 		Label string `json:"label"`
@@ -11290,7 +11290,7 @@ func (response GetProbes500JSONResponse) VisitGetProbesResponse(w http.ResponseW
 }
 
 type GetProbeDossierRequestObject struct {
-	Id     string `json:"id"`
+	ID     string `json:"id"`
 	Params GetProbeDossierParams
 }
 
@@ -11371,7 +11371,7 @@ func (response GetProbeDossier500JSONResponse) VisitGetProbeDossierResponse(w ht
 }
 
 type GetProbeEquivalenceRequestObject struct {
-	ProbeId string `json:"probeId"`
+	ProbeID string `json:"probeId"`
 	Params  GetProbeEquivalenceParams
 }
 
@@ -11410,8 +11410,8 @@ type GetProbeEquivalence200JSONResponse struct {
 		MetricName      string `json:"metricName"`
 	} `json:"metrics"`
 
-	// ProbeId The probe whose source set was evaluated (the reference probe).
-	ProbeId string `json:"probeId"`
+	// ProbeID The probe whose source set was evaluated (the reference probe).
+	ProbeID string `json:"probeId"`
 
 	// Sources The resolved source set evaluated (union of both probes when paired).
 	Sources *[]string `json:"sources,omitempty"`
@@ -11467,7 +11467,7 @@ func (response GetProbeEquivalence500JSONResponse) VisitGetProbeEquivalenceRespo
 }
 
 type GetProbeLeadLagRequestObject struct {
-	ProbeId string `json:"probeId"`
+	ProbeID string `json:"probeId"`
 	Params  GetProbeLeadLagParams
 }
 
@@ -11588,7 +11588,7 @@ func (response GetProbeLeadLag500JSONResponse) VisitGetProbeLeadLagResponse(w ht
 }
 
 type GetProbeMetadataCoverageRequestObject struct {
-	ProbeId string `json:"probeId"`
+	ProbeID string `json:"probeId"`
 }
 
 type GetProbeMetadataCoverageResponseObject interface {
@@ -12338,7 +12338,7 @@ type ListSilverDocumentsResponseObject interface {
 type ListSilverDocuments200JSONResponse struct {
 	HasMore bool `json:"hasMore"`
 	Items   []struct {
-		ArticleId string    `json:"articleId"`
+		ArticleID string    `json:"articleId"`
 		Language  *string   `json:"language,omitempty"`
 		Source    string    `json:"source"`
 		Timestamp time.Time `json:"timestamp"`
@@ -12430,7 +12430,7 @@ func (response ListSilverDocuments500JSONResponse) VisitListSilverDocumentsRespo
 }
 
 type GetSilverDocumentDetailRequestObject struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type GetSilverDocumentDetailResponseObject interface {
@@ -12438,7 +12438,7 @@ type GetSilverDocumentDetailResponseObject interface {
 }
 
 type GetSilverDocumentDetail200JSONResponse struct {
-	ArticleId            string                  `json:"articleId"`
+	ArticleID            string                  `json:"articleId"`
 	CleanedText          string                  `json:"cleanedText"`
 	ExtractionProvenance *map[string]string      `json:"extractionProvenance,omitempty"`
 	Language             *string                 `json:"language,omitempty"`
@@ -12448,7 +12448,7 @@ type GetSilverDocumentDetail200JSONResponse struct {
 	Source               string                  `json:"source"`
 	SourceType           *string                 `json:"sourceType,omitempty"`
 	Timestamp            time.Time               `json:"timestamp"`
-	Url                  *string                 `json:"url,omitempty"`
+	URL                  *string                 `json:"url,omitempty"`
 	WordCount            int                     `json:"wordCount"`
 }
 
@@ -12548,16 +12548,16 @@ func (response GetSources500JSONResponse) VisitGetSourcesResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetSourceByIdRequestObject struct {
-	Id string `json:"id"`
+type GetSourceByIDRequestObject struct {
+	ID string `json:"id"`
 }
 
-type GetSourceByIdResponseObject interface {
-	VisitGetSourceByIdResponse(w http.ResponseWriter) error
+type GetSourceByIDResponseObject interface {
+	VisitGetSourceByIDResponse(w http.ResponseWriter) error
 }
 
-type GetSourceById200JSONResponse struct {
-	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+type GetSourceByID200JSONResponse struct {
+	DocumentationURL *string `json:"documentationUrl,omitempty"`
 
 	// Name Canonical source identifier.
 	Name string `json:"name"`
@@ -12577,17 +12577,17 @@ type GetSourceById200JSONResponse struct {
 
 	// Type Source type discriminator (e.g. `rss`, `scraper`).
 	Type string  `json:"type"`
-	Url  *string `json:"url,omitempty"`
+	URL  *string `json:"url,omitempty"`
 }
 
-func (response GetSourceById200JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
+func (response GetSourceByID200JSONResponse) VisitGetSourceByIDResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetSourceById404JSONResponse struct {
+type GetSourceByID404JSONResponse struct {
 	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
 	Alternatives *[]string `json:"alternatives,omitempty"`
 
@@ -12601,14 +12601,14 @@ type GetSourceById404JSONResponse struct {
 	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
-func (response GetSourceById404JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
+func (response GetSourceByID404JSONResponse) VisitGetSourceByIDResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetSourceById500JSONResponse struct {
+type GetSourceByID500JSONResponse struct {
 	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
 	Alternatives *[]string `json:"alternatives,omitempty"`
 
@@ -12622,7 +12622,7 @@ type GetSourceById500JSONResponse struct {
 	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
 }
 
-func (response GetSourceById500JSONResponse) VisitGetSourceByIdResponse(w http.ResponseWriter) error {
+func (response GetSourceByID500JSONResponse) VisitGetSourceByIDResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -12630,7 +12630,7 @@ func (response GetSourceById500JSONResponse) VisitGetSourceByIdResponse(w http.R
 }
 
 type GetSourceArticlesRequestObject struct {
-	Id     string `json:"id"`
+	ID     string `json:"id"`
 	Params GetSourceArticlesParams
 }
 
@@ -12711,7 +12711,7 @@ func (response GetSourceArticles500JSONResponse) VisitGetSourceArticlesResponse(
 }
 
 type GetSourceDiscoveryCoverageRequestObject struct {
-	SourceId string `json:"sourceId"`
+	SourceID string `json:"sourceId"`
 	Params   GetSourceDiscoveryCoverageParams
 }
 
@@ -12771,7 +12771,7 @@ func (response GetSourceDiscoveryCoverage500JSONResponse) VisitGetSourceDiscover
 }
 
 type GetSourceMetadataCoverageRequestObject struct {
-	SourceId string `json:"sourceId"`
+	SourceID string `json:"sourceId"`
 }
 
 type GetSourceMetadataCoverageResponseObject interface {
@@ -12841,7 +12841,7 @@ type GetTopicDistribution200JSONResponse struct {
 	// Language The language filter actually applied. Empty when no `language` parameter was supplied — in that case the `topics` array contains one entry per (language, topic_id) pair, sorted by `articleCount` across all languages.
 	Language *string `json:"language,omitempty"`
 	Scope    *string `json:"scope,omitempty"`
-	ScopeId  *string `json:"scopeId,omitempty"`
+	ScopeID  *string `json:"scopeId,omitempty"`
 
 	// Topics Topic entries sorted by `articleCount` descending. Capped at 50. The outlier topic (`topicId == -1`) is omitted unless the request sets `includeOutlier=true`; when present, its `label` is "uncategorised" per the Phase 121 frontend convention.
 	Topics []struct {
@@ -12860,8 +12860,8 @@ type GetTopicDistribution200JSONResponse struct {
 		// ModelHash BERTopic model-provenance hash (Phase 120). When the topic was assigned by more than one model in the window, the most-recent hash is reported — clients should treat a non-unique value as a signal that topic identity has rotated within the window.
 		ModelHash *string `json:"modelHash,omitempty"`
 
-		// TopicId BERTopic numeric identifier; `-1` is the outlier class.
-		TopicId int32 `json:"topicId"`
+		// TopicID BERTopic numeric identifier; `-1` is the outlier class.
+		TopicID int32 `json:"topicId"`
 	} `json:"topics"`
 	WindowEnd   time.Time `json:"windowEnd"`
 	WindowStart time.Time `json:"windowStart"`
@@ -13136,7 +13136,7 @@ type StrictServerInterface interface {
 	GetSources(ctx context.Context, request GetSourcesRequestObject) (GetSourcesResponseObject, error)
 	// Source detail with Silver-eligibility metadata
 	// (GET /sources/{id})
-	GetSourceById(ctx context.Context, request GetSourceByIdRequestObject) (GetSourceByIdResponseObject, error)
+	GetSourceByID(ctx context.Context, request GetSourceByIDRequestObject) (GetSourceByIDResponseObject, error)
 	// Paginated article listing for a source
 	// (GET /sources/{id}/articles)
 	GetSourceArticles(ctx context.Context, request GetSourceArticlesRequestObject) (GetSourceArticlesResponseObject, error)
@@ -13239,7 +13239,7 @@ func (sh *strictHandler) PostAdminUsers(w http.ResponseWriter, r *http.Request) 
 func (sh *strictHandler) PostAdminUserReactivate(w http.ResponseWriter, r *http.Request, id string) {
 	var request PostAdminUserReactivateRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostAdminUserReactivate(ctx, request.(PostAdminUserReactivateRequestObject))
@@ -13265,7 +13265,7 @@ func (sh *strictHandler) PostAdminUserReactivate(w http.ResponseWriter, r *http.
 func (sh *strictHandler) PostAdminUserResetPassword(w http.ResponseWriter, r *http.Request, id string) {
 	var request PostAdminUserResetPasswordRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostAdminUserResetPassword(ctx, request.(PostAdminUserResetPasswordRequestObject))
@@ -13291,7 +13291,7 @@ func (sh *strictHandler) PostAdminUserResetPassword(w http.ResponseWriter, r *ht
 func (sh *strictHandler) PostAdminUserSuspend(w http.ResponseWriter, r *http.Request, id string) {
 	var request PostAdminUserSuspendRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostAdminUserSuspend(ctx, request.(PostAdminUserSuspendRequestObject))
@@ -13372,7 +13372,7 @@ func (sh *strictHandler) PostAnalyses(w http.ResponseWriter, r *http.Request) {
 func (sh *strictHandler) DeleteAnalysis(w http.ResponseWriter, r *http.Request, id string) {
 	var request DeleteAnalysisRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.DeleteAnalysis(ctx, request.(DeleteAnalysisRequestObject))
@@ -13398,7 +13398,7 @@ func (sh *strictHandler) DeleteAnalysis(w http.ResponseWriter, r *http.Request, 
 func (sh *strictHandler) GetAnalysis(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetAnalysisRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetAnalysis(ctx, request.(GetAnalysisRequestObject))
@@ -13424,7 +13424,7 @@ func (sh *strictHandler) GetAnalysis(w http.ResponseWriter, r *http.Request, id 
 func (sh *strictHandler) PatchAnalysis(w http.ResponseWriter, r *http.Request, id string) {
 	var request PatchAnalysisRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	var body PatchAnalysisJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -13457,7 +13457,7 @@ func (sh *strictHandler) PatchAnalysis(w http.ResponseWriter, r *http.Request, i
 func (sh *strictHandler) GetAnalysisShares(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetAnalysisSharesRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetAnalysisShares(ctx, request.(GetAnalysisSharesRequestObject))
@@ -13483,7 +13483,7 @@ func (sh *strictHandler) GetAnalysisShares(w http.ResponseWriter, r *http.Reques
 func (sh *strictHandler) PostAnalysisShare(w http.ResponseWriter, r *http.Request, id string) {
 	var request PostAnalysisShareRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	var body PostAnalysisShareJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -13513,11 +13513,11 @@ func (sh *strictHandler) PostAnalysisShare(w http.ResponseWriter, r *http.Reques
 }
 
 // DeleteAnalysisShare operation middleware
-func (sh *strictHandler) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeId string) {
+func (sh *strictHandler) DeleteAnalysisShare(w http.ResponseWriter, r *http.Request, id string, granteeID string) {
 	var request DeleteAnalysisShareRequestObject
 
-	request.Id = id
-	request.GranteeId = granteeId
+	request.ID = id
+	request.GranteeID = granteeID
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.DeleteAnalysisShare(ctx, request.(DeleteAnalysisShareRequestObject))
@@ -13543,7 +13543,7 @@ func (sh *strictHandler) DeleteAnalysisShare(w http.ResponseWriter, r *http.Requ
 func (sh *strictHandler) GetArticleDetail(w http.ResponseWriter, r *http.Request, id string, params GetArticleDetailParams) {
 	var request GetArticleDetailRequestObject
 
-	request.Id = id
+	request.ID = id
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -13570,7 +13570,7 @@ func (sh *strictHandler) GetArticleDetail(w http.ResponseWriter, r *http.Request
 func (sh *strictHandler) GetArticleRevisions(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetArticleRevisionsRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetArticleRevisions(ctx, request.(GetArticleRevisionsRequestObject))
@@ -13596,7 +13596,7 @@ func (sh *strictHandler) GetArticleRevisions(w http.ResponseWriter, r *http.Requ
 func (sh *strictHandler) GetArticleRevisionDiff(w http.ResponseWriter, r *http.Request, id string, revisionIndex int) {
 	var request GetArticleRevisionDiffRequestObject
 
-	request.Id = id
+	request.ID = id
 	request.RevisionIndex = revisionIndex
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -13953,7 +13953,7 @@ func (sh *strictHandler) GetAuthWebauthnCredentials(w http.ResponseWriter, r *ht
 func (sh *strictHandler) DeleteAuthWebauthnCredential(w http.ResponseWriter, r *http.Request, id string) {
 	var request DeleteAuthWebauthnCredentialRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.DeleteAuthWebauthnCredential(ctx, request.(DeleteAuthWebauthnCredentialRequestObject))
@@ -14031,11 +14031,11 @@ func (sh *strictHandler) PostAuthWebauthnRegisterFinish(w http.ResponseWriter, r
 }
 
 // GetContent operation middleware
-func (sh *strictHandler) GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityId string, params GetContentParams) {
+func (sh *strictHandler) GetContent(w http.ResponseWriter, r *http.Request, entityType GetContentParamsEntityType, entityID string, params GetContentParams) {
 	var request GetContentRequestObject
 
 	request.EntityType = entityType
-	request.EntityId = entityId
+	request.EntityID = entityID
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -14536,7 +14536,7 @@ func (sh *strictHandler) GetProbes(w http.ResponseWriter, r *http.Request) {
 func (sh *strictHandler) GetProbeDossier(w http.ResponseWriter, r *http.Request, id string, params GetProbeDossierParams) {
 	var request GetProbeDossierRequestObject
 
-	request.Id = id
+	request.ID = id
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -14560,10 +14560,10 @@ func (sh *strictHandler) GetProbeDossier(w http.ResponseWriter, r *http.Request,
 }
 
 // GetProbeEquivalence operation middleware
-func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeEquivalenceParams) {
+func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Request, probeID string, params GetProbeEquivalenceParams) {
 	var request GetProbeEquivalenceRequestObject
 
-	request.ProbeId = probeId
+	request.ProbeID = probeID
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -14587,10 +14587,10 @@ func (sh *strictHandler) GetProbeEquivalence(w http.ResponseWriter, r *http.Requ
 }
 
 // GetProbeLeadLag operation middleware
-func (sh *strictHandler) GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeId string, params GetProbeLeadLagParams) {
+func (sh *strictHandler) GetProbeLeadLag(w http.ResponseWriter, r *http.Request, probeID string, params GetProbeLeadLagParams) {
 	var request GetProbeLeadLagRequestObject
 
-	request.ProbeId = probeId
+	request.ProbeID = probeID
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -14614,10 +14614,10 @@ func (sh *strictHandler) GetProbeLeadLag(w http.ResponseWriter, r *http.Request,
 }
 
 // GetProbeMetadataCoverage operation middleware
-func (sh *strictHandler) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeId string) {
+func (sh *strictHandler) GetProbeMetadataCoverage(w http.ResponseWriter, r *http.Request, probeID string) {
 	var request GetProbeMetadataCoverageRequestObject
 
-	request.ProbeId = probeId
+	request.ProbeID = probeID
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetProbeMetadataCoverage(ctx, request.(GetProbeMetadataCoverageRequestObject))
@@ -14876,7 +14876,7 @@ func (sh *strictHandler) ListSilverDocuments(w http.ResponseWriter, r *http.Requ
 func (sh *strictHandler) GetSilverDocumentDetail(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetSilverDocumentDetailRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetSilverDocumentDetail(ctx, request.(GetSilverDocumentDetailRequestObject))
@@ -14924,25 +14924,25 @@ func (sh *strictHandler) GetSources(w http.ResponseWriter, r *http.Request, para
 	}
 }
 
-// GetSourceById operation middleware
-func (sh *strictHandler) GetSourceById(w http.ResponseWriter, r *http.Request, id string) {
-	var request GetSourceByIdRequestObject
+// GetSourceByID operation middleware
+func (sh *strictHandler) GetSourceByID(w http.ResponseWriter, r *http.Request, id string) {
+	var request GetSourceByIDRequestObject
 
-	request.Id = id
+	request.ID = id
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetSourceById(ctx, request.(GetSourceByIdRequestObject))
+		return sh.ssi.GetSourceByID(ctx, request.(GetSourceByIDRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetSourceById")
+		handler = middleware(handler, "GetSourceByID")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetSourceByIdResponseObject); ok {
-		if err := validResponse.VisitGetSourceByIdResponse(w); err != nil {
+	} else if validResponse, ok := response.(GetSourceByIDResponseObject); ok {
+		if err := validResponse.VisitGetSourceByIDResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -14954,7 +14954,7 @@ func (sh *strictHandler) GetSourceById(w http.ResponseWriter, r *http.Request, i
 func (sh *strictHandler) GetSourceArticles(w http.ResponseWriter, r *http.Request, id string, params GetSourceArticlesParams) {
 	var request GetSourceArticlesRequestObject
 
-	request.Id = id
+	request.ID = id
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -14978,10 +14978,10 @@ func (sh *strictHandler) GetSourceArticles(w http.ResponseWriter, r *http.Reques
 }
 
 // GetSourceDiscoveryCoverage operation middleware
-func (sh *strictHandler) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceId string, params GetSourceDiscoveryCoverageParams) {
+func (sh *strictHandler) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *http.Request, sourceID string, params GetSourceDiscoveryCoverageParams) {
 	var request GetSourceDiscoveryCoverageRequestObject
 
-	request.SourceId = sourceId
+	request.SourceID = sourceID
 	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -15005,10 +15005,10 @@ func (sh *strictHandler) GetSourceDiscoveryCoverage(w http.ResponseWriter, r *ht
 }
 
 // GetSourceMetadataCoverage operation middleware
-func (sh *strictHandler) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceId string) {
+func (sh *strictHandler) GetSourceMetadataCoverage(w http.ResponseWriter, r *http.Request, sourceID string) {
 	var request GetSourceMetadataCoverageRequestObject
 
-	request.SourceId = sourceId
+	request.SourceID = sourceID
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetSourceMetadataCoverage(ctx, request.(GetSourceMetadataCoverageRequestObject))

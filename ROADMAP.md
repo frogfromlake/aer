@@ -4566,6 +4566,16 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+# Iteration 11 — Consolidation, Quality & Closure
+
+*Reframed 2026-06-14 on operator request. The engineering POC is feature-complete (through Iteration 10), but before AĒR is shown to the first invited researchers the operator wants it at target **code quality** AND demonstrably **maintainable** — not merely feature-complete. This iteration is therefore front-loaded with a code-quality & CI consolidation pass (Phases 136–144) that runs BEFORE the original closure phases (127 coherence, 128 a11y/perf, 129 docs) and before the security/deployment reviews of Iteration 12 — so those reviews run against a clean, green, localized, documented baseline and "some things are already done" by the time they start. **Deployment target (binding, 2026-06-14 planning session):** invited, authenticated researchers on a controlled domain (no open self-registration) — internet-exposed but not a public launch; this sets the threat model Iteration 12 reviews against.*
+
+*Two disciplines govern the consolidation pass:*
+- ***Assess → fix.*** The quality work is inventoried first (Phase 138) into a counted register, then remediated against it — never "refactor by feeling". Same two-stage pattern Iteration 12 uses for security.
+- ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
+
+*Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
+
 ## Phase 136: CI/CD Restoration — Green Pipelines & E2E Repair [P0] - [x] DONE
 
 *Nothing else in this iteration is safe until CI is green: refactoring on a red pipeline removes the only safety net the later phases depend on. Today several CI jobs fail and the E2E suite is believed entirely non-functional (operator report, 2026-06-14). This phase makes every pipeline green and the E2E suite actually runnable AND understood, and is an absolute prerequisite for Phases 137–144 and all of Iteration 12.*
@@ -4750,21 +4760,21 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 140: Naming & Code-Convention Unification [P2] - [ ] TODO
+## Phase 140: Naming & Code-Convention Unification [P2] - [x] DONE
 
 *Codify the conventions, then apply them — in that order, so the pass is consistent rather than another layer of drift. Runs against Phase 138's naming worklist.*
 
 **Grounding.** Read first: Phase-138 naming list, the implicit conventions across each language, the domain vocabulary in CLAUDE.md (probe / source / pillar / panel / cell / scope) and `discourse-function.ts`. Preserve: the **machine `probeId` as the stable load-bearing identifier** and all other load-bearing identifiers — rename display/local names, never wire-contract / DB / URL-grammar keys without an explicit migration. Verify-first: a name that crosses a boundary (OpenAPI field, ClickHouse column, URL key, NATS subject) is a contract, out of scope for a pure rename.
 
 ### Codify
-* [ ] **`docs/development/conventions.md`** — naming + style conventions per language (Go, Python, TS/Svelte), domain-term canon (one spelling per concept), file/module naming. The reference the rename checks against.
+* [x] **`docs/development/conventions.md`** — naming + style conventions per language (Go, Python, TS/Svelte), domain-term canon (one spelling per concept), file/module naming, the contract-boundary rule, and the enforced (ratchet) subset table.
 
 ### Apply
-* [ ] **Local/internal renames** applied per the convention doc (variables, private functions, local components), each behind green tests. Cross-boundary identifiers explicitly listed as deferred-with-reason.
-* [ ] **Ratchet.** Enforce the mechanically enforceable subset via linters (naming rules, import ordering, formatter settings) in CI.
+* [x] **Local/internal renames** applied per the convention doc, each behind green compiler/tests. → **Go initialisms** via oapi-codegen `name-normalizer` (the per-field renames were impossible — anonymous structs structurally mirror generated types; json wire tags 100% unchanged, ~119 refs chased, codegen deterministic). **TS**: `ViewMode`→`Presentation` (163), `viewmodes/`→`presentations/` (82 paths), `ViewingMode`→`PillarId` (50), `lanes/` split into `source/`/`article/`/`evidence/`/`charts/` (+ Lane→Line chart renames), user-facing "Function Lane"/"Surface II" strings → Workbench. Cross-boundary identifiers (OpenAPI fields, `view_mode` catalog key, URL keys, DB names, machine `probeId`) preserved; **"Surface II/III" numbering deferred-with-reason** (33 occ incl. generated `types.ts` from OpenAPI descriptions).
+* [x] **Ratchet.** → **Go** `.golangci.yml` (`stylecheck ST1003` + `gofmt`); **Python** `ruff N` in both services (targeted ignores for defensible FPs); **TS** eslint `no-restricted-syntax` vocabulary ban. All three proven with planted-symbol tests. (Register's "81 safe Go renames" + "Python N = 0 violations" assumptions were both wrong — corrected in register §3.)
 
 ### Validation
-* [ ] The convention doc exists and CI enforces the mechanical subset; the naming worklist is checked off or deferred-with-reason; no contract/identifier broken (OpenAPI sync + tests green).
+* [x] Convention doc exists; CI enforces the mechanical subset (3 ratchets active + proven); naming worklist checked off or deferred-with-reason; no contract broken — **OpenAPI sync verified** (codegen deterministic, json tags unchanged), `make lint` green (Go ×3, Python ×2, fe), svelte-check 0 errors, **Go tests green incl. Testcontainers**, fe-test 294/294.
 
 ---
 

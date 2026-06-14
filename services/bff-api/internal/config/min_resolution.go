@@ -13,12 +13,12 @@ package config
 // Returns an empty string when the metric has no recorded heuristic —
 // the BFF surfaces this as a JSON null.
 var MinMeaningfulResolution = map[string]string{
-	"word_count":            "hourly",
-	"sentiment_score":       "hourly",
-	"entity_count":          "hourly",
-	"language_confidence":   "hourly",
-	"publication_hour":      "hourly",
-	"publication_weekday":   "daily",
+	"word_count":          "hourly",
+	"sentiment_score":     "hourly",
+	"entity_count":        "hourly",
+	"language_confidence": "hourly",
+	"publication_hour":    "hourly",
+	"publication_weekday": "daily",
 }
 
 // LookupMinMeaningfulResolution returns the configured resolution for the

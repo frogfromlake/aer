@@ -115,7 +115,7 @@ func (s *Server) PostAuthWebauthnRegisterFinish(ctx context.Context, request Pos
 		return PostAuthWebauthnRegisterFinish500JSONResponse{Message: genericInternalError}, nil
 	}
 	return PostAuthWebauthnRegisterFinish201JSONResponse{
-		Id:         meta.ID,
+		ID:         meta.ID,
 		CreatedAt:  meta.CreatedAt,
 		Name:       nullStrPtr(meta.Name),
 		LastUsedAt: nullTimePtr(meta.LastUsedAt),
@@ -137,12 +137,12 @@ func (s *Server) GetAuthWebauthnCredentials(ctx context.Context, _ GetAuthWebaut
 	for _, m := range metas {
 		out.Credentials = append(out.Credentials, struct {
 			CreatedAt  time.Time  `json:"createdAt"`
-			Id         string     `json:"id"`
+			ID         string     `json:"id"`
 			LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 			Name       *string    `json:"name,omitempty"`
 		}{
 			CreatedAt:  m.CreatedAt,
-			Id:         m.ID,
+			ID:         m.ID,
 			LastUsedAt: nullTimePtr(m.LastUsedAt),
 			Name:       nullStrPtr(m.Name),
 		})
@@ -156,7 +156,7 @@ func (s *Server) DeleteAuthWebauthnCredential(ctx context.Context, request Delet
 	if id == nil {
 		return DeleteAuthWebauthnCredential401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
-	deleted, err := s.webAuthnBackend.DeleteCredential(ctx, id.UserID, request.Id)
+	deleted, err := s.webAuthnBackend.DeleteCredential(ctx, id.UserID, request.ID)
 	if err != nil {
 		slog.Error("webauthn delete credential", "error", err)
 		return DeleteAuthWebauthnCredential500JSONResponse{Message: genericInternalError}, nil

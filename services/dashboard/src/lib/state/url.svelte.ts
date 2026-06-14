@@ -34,11 +34,11 @@ import {
   type DataLayer,
   type Resolution,
   type UrlState,
-  type ViewingMode,
-  type ViewMode
+  type PillarId,
+  type Presentation
 } from './url-internals';
 
-export type { DataLayer, Resolution, UrlState, ViewingMode, ViewMode };
+export type { DataLayer, Resolution, UrlState, PillarId, Presentation };
 
 // Inline browser check (rather than `$app/environment`) so this module
 // is importable under plain vitest without a SvelteKit resolver.

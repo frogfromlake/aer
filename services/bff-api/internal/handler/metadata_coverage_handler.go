@@ -18,7 +18,7 @@ import (
 // probe are returned even when one has no observed cells (empty `fields`
 // slice) — same shape, semantically "no observations yet".
 func (s *Server) GetProbeMetadataCoverage(ctx context.Context, request GetProbeMetadataCoverageRequestObject) (GetProbeMetadataCoverageResponseObject, error) {
-	probe, ok := s.probes[request.ProbeId]
+	probe, ok := s.probes[request.ProbeID]
 	if !ok {
 		return GetProbeMetadataCoverage404JSONResponse{Message: "probe not found"}, nil
 	}
@@ -42,7 +42,7 @@ func (s *Server) GetSourceMetadataCoverage(ctx context.Context, request GetSourc
 		return GetSourceMetadataCoverage500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	_, name, err := s.dossier.ResolveSource(ctx, request.SourceId)
+	_, name, err := s.dossier.ResolveSource(ctx, request.SourceID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetSourceMetadataCoverage404JSONResponse{Message: "source not found"}, nil
@@ -70,7 +70,7 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 	Fields []struct {
 		ByMethod           map[string]int `json:"byMethod"`
 		Field              string         `json:"field"`
-		PopulationRate    float64        `json:"populationRate"`
+		PopulationRate     float64        `json:"populationRate"`
 		StructurallyAbsent bool           `json:"structurallyAbsent"`
 		TotalArticles      int            `json:"totalArticles"`
 	} `json:"fields"`
@@ -85,7 +85,7 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 		Fields []struct {
 			ByMethod           map[string]int `json:"byMethod"`
 			Field              string         `json:"field"`
-			PopulationRate    float64        `json:"populationRate"`
+			PopulationRate     float64        `json:"populationRate"`
 			StructurallyAbsent bool           `json:"structurallyAbsent"`
 			TotalArticles      int            `json:"totalArticles"`
 		} `json:"fields"`
@@ -96,7 +96,7 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 		fields := make([]struct {
 			ByMethod           map[string]int `json:"byMethod"`
 			Field              string         `json:"field"`
-			PopulationRate    float64        `json:"populationRate"`
+			PopulationRate     float64        `json:"populationRate"`
 			StructurallyAbsent bool           `json:"structurallyAbsent"`
 			TotalArticles      int            `json:"totalArticles"`
 		}, 0, len(summary.Fields))
@@ -108,7 +108,7 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 			fields = append(fields, struct {
 				ByMethod           map[string]int `json:"byMethod"`
 				Field              string         `json:"field"`
-				PopulationRate    float64        `json:"populationRate"`
+				PopulationRate     float64        `json:"populationRate"`
 				StructurallyAbsent bool           `json:"structurallyAbsent"`
 				TotalArticles      int            `json:"totalArticles"`
 			}{
@@ -123,7 +123,7 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 			Fields []struct {
 				ByMethod           map[string]int `json:"byMethod"`
 				Field              string         `json:"field"`
-				PopulationRate    float64        `json:"populationRate"`
+				PopulationRate     float64        `json:"populationRate"`
 				StructurallyAbsent bool           `json:"structurallyAbsent"`
 				TotalArticles      int            `json:"totalArticles"`
 			} `json:"fields"`

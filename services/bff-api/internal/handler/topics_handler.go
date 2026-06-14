@@ -33,7 +33,7 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetTopicDistribution404JSONResponse{Message: reason}, nil
@@ -103,7 +103,7 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 	}
 	resp := GetTopicDistribution200JSONResponse{
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: windowStart,
 		WindowEnd:   windowEnd,
 	}
@@ -117,7 +117,7 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 		Label         string  `json:"label"`
 		Language      string  `json:"language"`
 		ModelHash     *string `json:"modelHash,omitempty"`
-		TopicId       int32   `json:"topicId"`
+		TopicID       int32   `json:"topicId"`
 	}, len(rows))
 	for i, r := range rows {
 		label := r.Label
@@ -138,14 +138,14 @@ func (s *Server) GetTopicDistribution(ctx context.Context, request GetTopicDistr
 			Label         string  `json:"label"`
 			Language      string  `json:"language"`
 			ModelHash     *string `json:"modelHash,omitempty"`
-			TopicId       int32   `json:"topicId"`
+			TopicID       int32   `json:"topicId"`
 		}{
 			ArticleCount:  r.ArticleCount,
 			AvgConfidence: float32(r.AvgConf),
 			Label:         label,
 			Language:      r.Language,
 			ModelHash:     modelHash,
-			TopicId:       r.TopicID,
+			TopicID:       r.TopicID,
 		}
 	}
 	return resp, nil

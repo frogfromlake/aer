@@ -12,7 +12,7 @@
   // follow-up — the modal lands first; DF-grouped sections inside follow.
   import { onMount, onDestroy } from 'svelte';
   import type { FetchContext } from '$lib/api/queries';
-  import MetadataCoveragePanel from '$lib/components/lanes/MetadataCoveragePanel.svelte';
+  import MetadataCoveragePanel from '$lib/components/source/MetadataCoveragePanel.svelte';
 
   interface Props {
     probeId: string;

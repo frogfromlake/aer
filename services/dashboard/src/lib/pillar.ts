@@ -5,14 +5,14 @@
 // panel when the target is empty. Single URL grammar (Phase 122k): only
 // `activePillar` is written; the legacy `viewingMode` URL key is gone.
 
-import { defaultViewModeForPillar, getPillar, type PillarDefinition } from '$lib/viewmodes';
+import { defaultPresentationForPillar, getPillar, type PillarDefinition } from '$lib/presentations';
 import { setUrl, urlState } from '$lib/state/url.svelte';
 import type {
   Panel,
   PillarState,
   ScopeGroup,
   UrlState,
-  ViewingMode,
+  PillarId,
   WorkbenchPillarsState
 } from '$lib/state/url-internals';
 
@@ -22,9 +22,9 @@ import type {
  * current pillar's focused panel is cloned (with its view rebased to the
  * target pillar's default) so the user keeps continuity across switches.
  */
-export function pickPillar(id: ViewingMode): void {
+export function pickPillar(id: PillarId): void {
   const url = urlState();
-  const currentPillar: ViewingMode = url.activePillar ?? 'aleph';
+  const currentPillar: PillarId = url.activePillar ?? 'aleph';
   if (id === currentPillar) return;
 
   const updates: Partial<UrlState> = { activePillar: id };
@@ -49,8 +49,8 @@ export function pickPillar(id: ViewingMode): void {
  */
 function seedPillarFromCurrent(
   pillars: WorkbenchPillarsState,
-  currentPillar: ViewingMode,
-  targetPillar: ViewingMode
+  currentPillar: PillarId,
+  targetPillar: PillarId
 ): PillarState | null {
   const source = pillars[currentPillar];
   if (!source) return null;
@@ -70,7 +70,7 @@ function seedPillarFromCurrent(
     // axis (which would imply a cross-frame commensurability the methodology
     // refuses for scaled/intensive metrics). Merged stays an explicit opt-in.
     composition: 'split',
-    view: defaultViewModeForPillar(targetPillar),
+    view: defaultPresentationForPillar(targetPillar),
     metric: sourcePanel.metric,
     layer: sourcePanel.layer
   };
@@ -91,7 +91,7 @@ export function activePillarDefinition(): PillarDefinition {
  * the Borges / Foucault / Deleuze framing lives in
  * `PillarDefinition.description` and on the ⓘ hover-card.
  */
-export const PILLAR_QUESTIONS: Record<ViewingMode, string> = {
+export const PILLAR_QUESTIONS: Record<PillarId, string> = {
   aleph: 'What does the dataset look like right now?',
   episteme: 'How has the discourse shifted over time?',
   rhizome: 'How is the discourse connected?'
@@ -103,7 +103,7 @@ export const PILLAR_QUESTIONS: Record<ViewingMode, string> = {
  * the WP framing. Examples reference real metrics so the user maps the
  * abstract stance to the concrete dashboard immediately.
  */
-export const PILLAR_PLAIN_LANGUAGE: Record<ViewingMode, string> = {
+export const PILLAR_PLAIN_LANGUAGE: Record<PillarId, string> = {
   aleph:
     'A synchronic view of the active window — distributions, levels (e.g. mean sentiment), language mix, and per-source comparisons. No time axis.',
   episteme:

@@ -1,6 +1,12 @@
 package: handler
-generate:
-  - chi-server     # Generates the routing boilerplate
-  - strict-server  # Generates strictly typed interfaces for our handlers
-  - types          # Generates Go structs from our schemas
 output: internal/handler/generated.go
+generate:
+  chi-server: true # Generates the routing boilerplate
+  strict-server: true # Generates strictly typed interfaces for our handlers
+  models: true # Generates Go structs from our schemas
+output-options:
+  # Emit idiomatic Go initialisms (ID/URL/API/HTTP/JSON …) instead of Id/Url/Api.
+  # This is the SoT for Go field casing — the JSON wire contract is unchanged
+  # (json tags are derived from the OpenAPI property names, not the Go field
+  # name). See docs/development/conventions.md §2 (Phase 140).
+  name-normalizer: "ToCamelCaseWithInitialisms"

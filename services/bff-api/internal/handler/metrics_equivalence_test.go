@@ -209,7 +209,7 @@ func TestGetMetricsAvailable_IncludesEquivalenceStatusWithNotes(t *testing.T) {
 func TestGetProbeEquivalence_404OnUnknownProbe(t *testing.T) {
 	s := NewServer(&mockStore{}, nil, nil, nil, config.ProbeRegistry{})
 	resp, err := s.GetProbeEquivalence(context.Background(), GetProbeEquivalenceRequestObject{
-		ProbeId: "no-such-probe",
+		ProbeID: "no-such-probe",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -246,7 +246,7 @@ func TestGetProbeEquivalence_ReturnsLevel1OnlyForEmptyRegistry(t *testing.T) {
 		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	var body struct {
-		ProbeId string   `json:"probeId"`
+		ProbeID string   `json:"probeId"`
 		Sources []string `json:"sources"`
 		Metrics []struct {
 			MetricName      string `json:"metricName"`
@@ -258,8 +258,8 @@ func TestGetProbeEquivalence_ReturnsLevel1OnlyForEmptyRegistry(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.ProbeId != "probe-0-de-institutional-web" {
-		t.Errorf("probeId mismatch: %q", body.ProbeId)
+	if body.ProbeID != "probe-0-de-institutional-web" {
+		t.Errorf("probeId mismatch: %q", body.ProbeID)
 	}
 	if len(body.Sources) != 2 {
 		t.Errorf("expected 2 sources, got %d", len(body.Sources))

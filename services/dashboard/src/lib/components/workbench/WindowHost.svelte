@@ -19,14 +19,10 @@
   import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
-  import {
-    MAX_PANELS_PER_WINDOW,
-    type PillarState,
-    type ViewingMode
-  } from '$lib/state/url-internals';
+  import { MAX_PANELS_PER_WINDOW, type PillarState, type PillarId } from '$lib/state/url-internals';
   import { addPanel, setMaximizedPanel, setPanelsPerRow } from '$lib/workbench/panel-mutators';
   import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
-  import { defaultViewModeForPillar } from '$lib/viewmodes';
+  import { defaultPresentationForPillar } from '$lib/presentations';
   import type { ScopeGroup } from '$lib/state/url-internals';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import PanelHost from './PanelHost.svelte';
@@ -35,7 +31,7 @@
   // per-panel `PanelMetaStrip` surfaces scope info inside each panel.
 
   interface Props {
-    pillar: ViewingMode;
+    pillar: PillarId;
     pillarState: PillarState;
     dossier: ProbeDossierDto;
     ctx: FetchContext;
@@ -107,7 +103,7 @@
 
   function applyNewPanel(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) {
     const template = buildPanelFromScopes(scopes, {
-      view: defaultViewModeForPillar(pillar),
+      view: defaultPresentationForPillar(pillar),
       lockedFunction: lockedFunction ?? undefined
     });
     addPanel(pillar, template);

@@ -86,7 +86,7 @@ func TestAPIKeyAuth_UsesConstantTimeCompare(t *testing.T) {
 	h := APIKeyAuth("correcthorsebatterystaple")(okHandler)
 
 	cases := []string{
-		"x",                           // very short
+		"x",                            // very short
 		"correcthorsebatterystapleXXX", // longer than expected
 		"correcthorsebatterystaplE",    // same length, 1-char diff
 		"wrongwrongwrongwrongwrong",    // same length, all different

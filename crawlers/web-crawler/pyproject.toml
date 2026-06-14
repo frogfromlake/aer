@@ -59,3 +59,16 @@ include = ["internal*"]
 [tool.ruff]
 line-length = 120
 target-version = "py314"
+
+[tool.ruff.lint]
+# Phase 140 naming ratchet: pep8-naming (N) on top of ruff's default E/F rules.
+# N806 (local-variable casing) is ignored repo-wide — it conflicts with the
+# legitimate local UPPER_SNAKE ANSI-colour constants and lazy class imports;
+# N814 covers the deliberate `Client as NATS` alias; N802 is relaxed in tests
+# (descriptive test names embed JSON field names / emphasis). The valuable N
+# rules (N801 class names, N803 args, N818 exception suffix) stay enforced.
+extend-select = ["N"]
+ignore = ["N806", "N814"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802"]

@@ -636,13 +636,13 @@ export function articleDetailQuery(
 //
 // Each MVP cell is backed by exactly one BFF endpoint. The factories below
 // thin-wrap those endpoints; the matrix-cell registry under
-// `$lib/viewmodes/` decides which factory a given cell uses.
+// `$lib/presentations/` decides which factory a given cell uses.
 // -------------------------------------------------------------------------
 
-export type ViewModeScope = 'probe' | 'source';
+export type PresentationScope = 'probe' | 'source';
 
-export interface ViewModeQueryParams {
-  scope: ViewModeScope;
+export interface PresentationQueryParams {
+  scope: PresentationScope;
   scopeId: string;
   start?: string | undefined;
   end?: string | undefined;
@@ -695,7 +695,7 @@ export function metricsAvailableQuery(
 // `probeIds`, and `sourceIds`; at least one must be present (the call-site
 // gates the query off when the panel has no resolvable scope).
 export interface ScopeAvailableMetricsParams {
-  scope?: ViewModeScope | undefined;
+  scope?: PresentationScope | undefined;
   scopeId?: string | undefined;
   probeIds?: readonly string[] | undefined;
   sourceIds?: readonly string[] | undefined;
@@ -730,7 +730,7 @@ export function scopeAvailableMetricsQuery(
 export function metricDistributionQuery(
   ctx: FetchContext,
   metricName: string,
-  params: ViewModeQueryParams & { bins?: number }
+  params: PresentationQueryParams & { bins?: number }
 ): QueryOptions<DistributionResponseDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -758,7 +758,7 @@ export function metricDistributionQuery(
 export function metadataDistributionQuery(
   ctx: FetchContext,
   field: string,
-  params: ViewModeQueryParams & { topN?: number }
+  params: PresentationQueryParams & { topN?: number }
 ): QueryOptions<CategoricalDistributionResponseDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -811,7 +811,7 @@ export function scopeAvailableMetadataQuery(
 // pivots `aer_gold.metrics` by article and caps the cloud at `maxPoints`.
 export function metricScatterQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & {
+  params: PresentationQueryParams & {
     xMetric: string;
     yMetric: string;
     sizeMetric?: string | undefined;
@@ -842,7 +842,7 @@ export function metricScatterQuery(
 // without equivalence ⇒ the BFF returns a 400 refusal (gate=metric_equivalence).
 export function correlationMatrixQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & { metrics: string[] }
+  params: PresentationQueryParams & { metrics: string[] }
 ): QueryOptions<CorrelationMatrixDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -869,7 +869,7 @@ export function crossTabQuery(
   ctx: FetchContext,
   field: string,
   metric: string,
-  params: ViewModeQueryParams & { topN?: number }
+  params: PresentationQueryParams & { topN?: number }
 ): QueryOptions<CrossTabDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -891,7 +891,7 @@ export function crossTabQuery(
 // scope?). Cross-frame without equivalence ⇒ the BFF 400-refuses.
 export function correlationLeadLagQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & { xMetric: string; yMetric: string; maxLagHours?: number }
+  params: PresentationQueryParams & { xMetric: string; yMetric: string; maxLagHours?: number }
 ): QueryOptions<CorrelationLeadLagDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -918,7 +918,7 @@ export function correlationLeadLagQuery(
 // without equivalence ⇒ the BFF 400-refuses.
 export function parallelCoordsQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & { metrics: string[]; maxPoints?: number }
+  params: PresentationQueryParams & { metrics: string[]; maxPoints?: number }
 ): QueryOptions<ParallelCoordsDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -944,7 +944,7 @@ export function parallelCoordsQuery(
 export function sankeyQuery(
   ctx: FetchContext,
   fields: string[],
-  params: ViewModeQueryParams & { topN?: number }
+  params: PresentationQueryParams & { topN?: number }
 ): QueryOptions<SankeyDto> {
   const qs = new URLSearchParams();
   qs.set('scope', params.scope);
@@ -963,7 +963,7 @@ export function sankeyQuery(
 
 export function entityCoOccurrenceQuery(
   ctx: FetchContext,
-  params: ViewModeQueryParams & {
+  params: PresentationQueryParams & {
     topN?: number;
     viewerLanguage?: string;
     nodeMetric?: string;
@@ -1072,7 +1072,7 @@ export interface TopicDistributionParams {
   // Single scope target (probe id or single source name). At least one of
   // `scopeId`, `probeIds`, or `sourceIds` must be present.
   scopeId?: string | undefined;
-  scope?: ViewModeScope | undefined;
+  scope?: PresentationScope | undefined;
   probeIds?: readonly string[] | undefined;
   sourceIds?: readonly string[] | undefined;
   // RFC 3339 window. Both optional — BFF defaults to the latest sweep
@@ -1162,7 +1162,7 @@ export function silverAggregationQuery(
 // -------------------------------------------------------------------------
 
 export interface RevisionActivityParams {
-  scope: ViewModeScope;
+  scope: PresentationScope;
   scopeId: string;
   start?: string | undefined;
   end?: string | undefined;

@@ -285,7 +285,7 @@ func main() {
 		})
 
 		// Observability (Phase 154). Runs after otelhttp so the server span
-		// exists: TraceIDHeader surfaces X-Trace-Id on every response (operator
+		// exists: TraceIDHeader surfaces X-Trace-ID on every response (operator
 		// pivots from a 5xx to its trace), RequestLogger emits the access log
 		// with the active trace-id, and PrometheusMetrics records the
 		// request-rate/latency/error-rate signals scraped from /metrics.

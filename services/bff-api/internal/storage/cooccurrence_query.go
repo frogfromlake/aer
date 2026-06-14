@@ -21,7 +21,7 @@ const MaxCoOccurrenceTopN = 6000
 
 // CoOccurrenceEdge is one entity-pair edge aggregated over a window.
 //
-// Phase 131a: ``Presence`` lists the source names where this edge was
+// Phase 131a: “Presence“ lists the source names where this edge was
 // observed within the window. The dashboard uses it to render the
 // source-coloured overlay on a merged multi-source graph. Populated
 // only when the scope covers multiple sources (single-source scopes
@@ -76,10 +76,10 @@ type CoOccurrenceNode struct {
 
 // CoOccurrenceResult bundles top-N edges with the union of incident nodes.
 //
-// Phase 131a: ``ArticlesInScope`` is the pipeline-gap diagnostic — the
-// count of articles in the window whose ``aer_gold.entities`` contain
+// Phase 131a: “ArticlesInScope“ is the pipeline-gap diagnostic — the
+// count of articles in the window whose “aer_gold.entities“ contain
 // ≥2 entities for the resolved scope. The dashboard compares it against
-// ``len(Edges)`` to distinguish a sparse corpus (both small) from a
+// “len(Edges)“ to distinguish a sparse corpus (both small) from a
 // missing co-occurrence sweep (entities exist, no edges).
 type CoOccurrenceResult struct {
 	Nodes           []CoOccurrenceNode
@@ -365,7 +365,7 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 func edgeKey(a, b string) string { return a + "\x00" + b }
 
 // queryEdgePresence returns the distinct source set for each
-// already-returned edge, keyed by ``edgeKey(a, b)``. Used by the
+// already-returned edge, keyed by “edgeKey(a, b)“. Used by the
 // source-coloured-overlay overlay path (Phase 131a). Best-effort:
 // failure leaves edges without presence and the dashboard falls back
 // to label-based colouring.
@@ -418,7 +418,7 @@ func (s *ClickHouseStorage) queryEdgePresence(
 }
 
 // queryArticlesInScopeForCoOccurrence returns the count of distinct
-// article_ids in ``aer_gold.entities`` for the given scope+window whose
+// article_ids in “aer_gold.entities“ for the given scope+window whose
 // entity count is ≥2. This is the Phase 131a pipeline-gap probe — when
 // the cooccurrence query returns zero edges but this count is non-zero,
 // the worker's sweep is failing to emit rows for entity-bearing

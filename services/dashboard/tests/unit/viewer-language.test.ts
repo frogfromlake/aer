@@ -4,7 +4,7 @@ import {
   viewerLabelLanguage,
   APP_CONTENT_LANGUAGE,
   SUPPORTED_LABEL_LANGUAGES
-} from '../../src/lib/viewmodes/viewer-language';
+} from '../../src/lib/presentations/viewer-language';
 
 describe('pickViewerLabelLanguage', () => {
   it('maps a region-tagged locale to its primary supported subtag', () => {

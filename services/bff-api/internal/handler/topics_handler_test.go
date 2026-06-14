@@ -41,19 +41,19 @@ func TestGetTopicDistribution_ResolvesProbeAndReturnsTopics(t *testing.T) {
 
 	var resp struct {
 		Scope   string `json:"scope"`
-		ScopeId string `json:"scopeId"`
+		ScopeID string `json:"scopeId"`
 		Topics  []struct {
-			TopicId       int32  `json:"topicId"`
-			Label         string `json:"label"`
-			Language      string `json:"language"`
-			ArticleCount  int64  `json:"articleCount"`
+			TopicID       int32   `json:"topicId"`
+			Label         string  `json:"label"`
+			Language      string  `json:"language"`
+			ArticleCount  int64   `json:"articleCount"`
 			AvgConfidence float32 `json:"avgConfidence"`
 		} `json:"topics"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-web" {
+	if resp.Scope != "probe" || resp.ScopeID != "probe-0-de-institutional-web" {
 		t.Fatalf("scope echo mismatch: %+v", resp)
 	}
 	if len(resp.Topics) != 2 || resp.Topics[0].ArticleCount != 42 {
@@ -80,14 +80,14 @@ func TestGetTopicDistribution_OutlierRelabelled(t *testing.T) {
 
 	var resp struct {
 		Topics []struct {
-			TopicId int32  `json:"topicId"`
+			TopicID int32  `json:"topicId"`
 			Label   string `json:"label"`
 		} `json:"topics"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(resp.Topics) != 1 || resp.Topics[0].TopicId != -1 || resp.Topics[0].Label != "uncategorised" {
+	if len(resp.Topics) != 1 || resp.Topics[0].TopicID != -1 || resp.Topics[0].Label != "uncategorised" {
 		t.Fatalf("outlier relabelling failed: %+v", resp.Topics)
 	}
 }

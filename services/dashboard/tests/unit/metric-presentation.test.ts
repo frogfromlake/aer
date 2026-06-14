@@ -4,7 +4,7 @@ import {
   isPureCountMetric,
   metricSupportsPresentation,
   presentationsForMetric
-} from '../../src/lib/viewmodes';
+} from '../../src/lib/presentations';
 
 describe('metric → presentation compatibility map (Phase 130 / ADR-035)', () => {
   it('treats an unknown / scalar metric as distribution + time_series', () => {

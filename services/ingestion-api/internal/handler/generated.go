@@ -26,8 +26,8 @@ type IngestResult struct {
 	// Failed Number of documents that failed to persist.
 	Failed int32 `json:"failed"`
 
-	// JobId Numeric identifier of the ingestion job in PostgreSQL.
-	JobId int32 `json:"job_id"`
+	// JobID Numeric identifier of the ingestion job in PostgreSQL.
+	JobID int32 `json:"job_id"`
 
 	// Uploaded Number of documents successfully persisted to Bronze.
 	Uploaded int32 `json:"uploaded"`
@@ -35,8 +35,8 @@ type IngestResult struct {
 
 // SourceLookup Resolved source record for the requested `name`.
 type SourceLookup struct {
-	// Id Numeric source identifier used by `/ingest`.
-	Id int32 `json:"id"`
+	// ID Numeric source identifier used by `/ingest`.
+	ID int32 `json:"id"`
 
 	// Name Canonical source name (e.g., `tagesschau`).
 	Name string `json:"name"`
@@ -53,8 +53,8 @@ type IngestDocumentsJSONBody struct {
 		Key string `json:"key"`
 	} `json:"documents"`
 
-	// SourceId Numeric identifier of the source in the PostgreSQL `sources` table. Resolve the ID via `GET /sources?name=<name>` — crawlers should not hardcode IDs.
-	SourceId int32 `json:"source_id"`
+	// SourceID Numeric identifier of the source in the PostgreSQL `sources` table. Resolve the ID via `GET /sources?name=<name>` — crawlers should not hardcode IDs.
+	SourceID int32 `json:"source_id"`
 }
 
 // GetSourceByNameParams defines parameters for GetSourceByName.

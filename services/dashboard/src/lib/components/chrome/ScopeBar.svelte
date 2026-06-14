@@ -24,30 +24,11 @@
 
   let { children, label = 'Surface navigation' }: Props = $props();
 
-  // Derive surface (I/II/III) and layer (L0..L5) from the route so the
-  // chip stays accurate as the user descends. Atmosphere = Surface I,
-  // L0 by default; opening a SidePanel pushes through L1–L3 within
-  // the route. /lanes = Surface II, L1 (overview) → /lanes/{p}/dossier =
-  // L2, /lanes/{p}/{fn} = L3. /reflection = Surface III, L1 by default.
+  // Derive surface and layer from the route so the chip stays accurate as the
+  // user descends. ScopeBar renders only on Reflection routes today, so the
+  // Reflection branch is the live one; the Atmosphere fallback is the default.
   const breadcrumb = $derived.by(() => {
     const p = page.url.pathname;
-    if (p.startsWith('/lanes/')) {
-      const isFn = /^\/lanes\/[^/]+\/[^/]+/.test(p) && !p.endsWith('/dossier');
-      return {
-        surface: 'Surface II',
-        surfaceName: 'Function Lanes',
-        layer: isFn ? 'L3' : 'L2',
-        layerName: isFn ? 'Function Lane' : 'Probe Dossier'
-      };
-    }
-    if (p === '/lanes') {
-      return {
-        surface: 'Surface II',
-        surfaceName: 'Function Lanes',
-        layer: 'L1',
-        layerName: 'Overview'
-      };
-    }
     if (p.startsWith('/reflection')) {
       return {
         surface: 'Surface III',

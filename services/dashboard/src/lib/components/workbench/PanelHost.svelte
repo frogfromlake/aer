@@ -10,7 +10,7 @@
   //                     wires the CoOccurrence multi-scope POST path).
   //   - split         → N Cells, one per source or per ScopeGroup.
   //
-  // Cells keep their Phase-107 `ViewModeCellProps` contract. The host
+  // Cells keep their Phase-107 `PresentationCellProps` contract. The host
   // resolves Source-name → SourceMeta via the Dossier so cells receive
   // the same `sources` shape they always have.
   import type { Component } from 'svelte';
@@ -19,9 +19,9 @@
     getPresentation,
     DEFAULT_METRIC_NAME,
     type PresentationDefinition,
-    type ViewModeCellProps
-  } from '$lib/viewmodes';
-  import type { Panel, ViewingMode } from '$lib/state/url-internals';
+    type PresentationCellProps
+  } from '$lib/presentations';
+  import type { Panel, PillarId } from '$lib/state/url-internals';
   import {
     probesQuery,
     scopeAvailableMetricsQuery,
@@ -46,7 +46,7 @@
     shouldRefuseMergedCrossProbe,
     type CellRenderUnit
   } from '$lib/workbench/panel-queries';
-  import { isPureCountMetric } from '$lib/viewmodes/metric-presentation';
+  import { isPureCountMetric } from '$lib/presentations/metric-presentation';
   import CellMethodology from './CellMethodology.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
@@ -73,7 +73,7 @@
     /** Phase 122i — when set, the host enables interactive editing
      *  (focus on click, PanelControls, +Compare, ×Remove). Absent for
      *  legacy/preview rendering paths. */
-    pillar?: ViewingMode;
+    pillar?: PillarId;
     windowIndex?: number;
     panelIndex?: number;
     focused?: boolean;
@@ -89,7 +89,7 @@
     canMaximize?: boolean;
     /** Phase 125b — Window-level cross-panel brushing selection, threaded to
      *  every cell. Per-article cells (scatter, parallel) use it; others ignore. */
-    selection?: ViewModeCellProps['selection'];
+    selection?: PresentationCellProps['selection'];
   }
 
   let {
@@ -434,10 +434,10 @@
       !facetActive &&
       (panel.topN ?? 60) > AT_SCALE_TOPN_THRESHOLD
   );
-  let AtScaleComponent = $state<Component<ViewModeCellProps> | null>(null);
+  let AtScaleComponent = $state<Component<PresentationCellProps> | null>(null);
   $effect(() => {
     if (!atScaleActive || AtScaleComponent) return;
-    void import('$lib/components/viewmodes/CoOccurrenceNetworkAtScale.svelte').then((m) => {
+    void import('$lib/components/presentations/CoOccurrenceNetworkAtScale.svelte').then((m) => {
       AtScaleComponent = m.default;
     });
   });
@@ -473,7 +473,7 @@
   // Lazy-load the Cell component. Each presentation lives in its own
   // chunk; the same Component instance is reused across all units of a
   // panel (the contract is per-unit-props, not per-unit-bundle).
-  let CellComponent = $state<Component<ViewModeCellProps> | null>(null);
+  let CellComponent = $state<Component<PresentationCellProps> | null>(null);
   let loadError = $state<string | null>(null);
   let loadToken = 0;
 

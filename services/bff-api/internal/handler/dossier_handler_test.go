@@ -113,8 +113,8 @@ func TestGetProbeDossier_ComposesSourcesAndFunctionCoverage(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.ProbeId != "probe-0-de-institutional-web" {
-		t.Errorf("probeId mismatch: %s", got.ProbeId)
+	if got.ProbeID != "probe-0-de-institutional-web" {
+		t.Errorf("probeId mismatch: %s", got.ProbeID)
 	}
 	if len(got.Sources) != 2 {
 		t.Fatalf("expected 2 sources, got %d", len(got.Sources))

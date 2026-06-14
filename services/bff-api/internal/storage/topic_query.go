@@ -128,12 +128,12 @@ func (s *ClickHouseStorage) GetTopicDistribution(
 	`, strings.Join(clauses, " AND "), params.Limit)
 
 	var rows []struct {
-		TopicID      int32   `ch:"topic_id"`
-		Label        string  `ch:"label"`
-		Language     string  `ch:"language"`
-		ArticleCount uint64  `ch:"article_count"`
-		AvgConf      float64 `ch:"avg_confidence"`
-		ModelHash    string  `ch:"model_hash"`
+		TopicID      int32     `ch:"topic_id"`
+		Label        string    `ch:"label"`
+		Language     string    `ch:"language"`
+		ArticleCount uint64    `ch:"article_count"`
+		AvgConf      float64   `ch:"avg_confidence"`
+		ModelHash    string    `ch:"model_hash"`
 		WS           time.Time `ch:"ws"`
 		WE           time.Time `ch:"we"`
 	}

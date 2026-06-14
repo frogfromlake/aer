@@ -11,7 +11,7 @@ import {
   selectCellRender,
   shouldRefuseMergedCrossProbe
 } from '../../src/lib/workbench/panel-queries';
-import { CROSS_PROBE_DEFAULT_METRIC } from '../../src/lib/viewmodes';
+import { CROSS_PROBE_DEFAULT_METRIC } from '../../src/lib/presentations';
 import type { Panel, ScopeGroup } from '../../src/lib/state/url-internals';
 
 function panel(overrides: Partial<Panel> = {}): Panel {

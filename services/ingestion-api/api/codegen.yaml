@@ -1,6 +1,11 @@
 package: handler
-generate:
-  - chi-server
-  - strict-server
-  - types
 output: internal/handler/generated.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  # Emit idiomatic Go initialisms (ID/URL/API/HTTP/JSON …) instead of Id/Url/Api.
+  # The JSON wire contract is unchanged (json tags derive from OpenAPI property
+  # names, not Go field names). See docs/development/conventions.md §2 (Phase 140).
+  name-normalizer: "ToCamelCaseWithInitialisms"

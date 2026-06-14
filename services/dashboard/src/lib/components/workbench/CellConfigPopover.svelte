@@ -24,7 +24,7 @@
     NET_SIZE_CHANNELS
   } from '$lib/workbench/cell-levers';
   import type { CellChannelBinding, CellChannelPatch, Panel } from '$lib/state/url-internals';
-  import type { PresentationDefinition } from '$lib/viewmodes';
+  import type { PresentationDefinition } from '$lib/presentations';
 
   interface Props {
     panelPath: PanelPath;

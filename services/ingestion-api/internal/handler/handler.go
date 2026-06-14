@@ -60,7 +60,7 @@ func RequestErrorHandler(w http.ResponseWriter, _ *http.Request, err error) {
 func (s *Server) IngestDocuments(ctx context.Context, request IngestDocumentsRequestObject) (IngestDocumentsResponseObject, error) {
 	body := request.Body
 
-	if body.SourceId <= 0 {
+	if body.SourceID <= 0 {
 		return IngestDocuments400JSONResponse{Error: "source_id must be a positive integer"}, nil
 	}
 	if len(body.Documents) == 0 {
@@ -80,14 +80,14 @@ func (s *Server) IngestDocuments(ctx context.Context, request IngestDocumentsReq
 		docs = append(docs, core.Document{Key: d.Key, Data: string(raw)})
 	}
 
-	result, err := s.svc.IngestDocuments(ctx, int(body.SourceId), docs)
+	result, err := s.svc.IngestDocuments(ctx, int(body.SourceID), docs)
 	if err != nil {
 		slog.Error("handler failure", "op", "IngestDocuments", "error", err)
 		return IngestDocuments500JSONResponse{Error: genericInternalError}, nil
 	}
 
 	r := IngestResult{
-		JobId:    int32(result.JobID),
+		JobID:    int32(result.JobID),
 		Uploaded: int32(result.Accepted),
 		Failed:   int32(result.Failed),
 	}
@@ -132,7 +132,7 @@ func (s *Server) GetSourceByName(ctx context.Context, request GetSourceByNameReq
 	}
 
 	return GetSourceByName200JSONResponse(SourceLookup{
-		Id:   int32(id),
+		ID:   int32(id),
 		Name: sourceName,
 	}), nil
 }

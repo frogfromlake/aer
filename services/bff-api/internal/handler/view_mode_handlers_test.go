@@ -73,7 +73,7 @@ func TestGetMetricDistribution_ResolvesProbeAndReturnsBins(t *testing.T) {
 	var resp struct {
 		MetricName string `json:"metricName"`
 		Scope      string `json:"scope"`
-		ScopeId    string `json:"scopeId"`
+		ScopeID    string `json:"scopeId"`
 		Bins       []struct {
 			Lower float64 `json:"lower"`
 			Upper float64 `json:"upper"`
@@ -88,7 +88,7 @@ func TestGetMetricDistribution_ResolvesProbeAndReturnsBins(t *testing.T) {
 	}
 	// Phase 117 alias: `sentiment_score` is canonicalised to
 	// `sentiment_score_sentiws` before the response is shaped.
-	if resp.MetricName != "sentiment_score_sentiws" || resp.Scope != "probe" || resp.ScopeId != "probe-0-de-institutional-web" {
+	if resp.MetricName != "sentiment_score_sentiws" || resp.Scope != "probe" || resp.ScopeID != "probe-0-de-institutional-web" {
 		t.Fatalf("response echo mismatch: %+v", resp)
 	}
 	if len(resp.Bins) != 2 || resp.Bins[1].Count != 13 {
@@ -414,7 +414,7 @@ func TestGetMetricDistribution_SegmentBySourceBuildsStreams(t *testing.T) {
 
 	var resp struct {
 		Streams []struct {
-			Id        string `json:"id"`
+			ID        string `json:"id"`
 			ScopeKind string `json:"scopeKind"`
 		} `json:"streams"`
 	}
@@ -451,7 +451,7 @@ func TestGetMetricDistribution_SegmentByProbeBuildsStreams(t *testing.T) {
 
 	var resp struct {
 		Streams []struct {
-			Id        string `json:"id"`
+			ID        string `json:"id"`
 			ScopeKind string `json:"scopeKind"`
 		} `json:"streams"`
 	}
@@ -461,7 +461,7 @@ func TestGetMetricDistribution_SegmentByProbeBuildsStreams(t *testing.T) {
 	if len(resp.Streams) != 1 {
 		t.Fatalf("expected 1 probe stream, got %d", len(resp.Streams))
 	}
-	if resp.Streams[0].Id != "probe-0-de-institutional-web" || resp.Streams[0].ScopeKind != "probe" {
+	if resp.Streams[0].ID != "probe-0-de-institutional-web" || resp.Streams[0].ScopeKind != "probe" {
 		t.Fatalf("stream mismatch: %+v", resp.Streams[0])
 	}
 }

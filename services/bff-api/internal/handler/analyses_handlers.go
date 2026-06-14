@@ -31,7 +31,7 @@ type AnalysesBackend interface {
 type analysisListEntry = struct {
 	CreatedAt   time.Time           `json:"createdAt"`
 	Description string              `json:"description"`
-	Id          string              `json:"id"`
+	ID          string              `json:"id"`
 	Name        string              `json:"name"`
 	Owned       bool                `json:"owned"`
 	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
@@ -43,7 +43,7 @@ func listEntry(it storage.AnalysisListItem) analysisListEntry {
 	return analysisListEntry{
 		CreatedAt:   it.CreatedAt,
 		Description: it.Description,
-		Id:          it.ID,
+		ID:          it.ID,
 		Name:        it.Name,
 		Owned:       it.Owned,
 		OwnerEmail:  openapi_types.Email(it.OwnerEmail),
@@ -54,7 +54,7 @@ func listEntry(it storage.AnalysisListItem) analysisListEntry {
 
 func fullAnalysis(a *storage.Analysis) GetAnalysis200JSONResponse {
 	return GetAnalysis200JSONResponse{
-		Id:          a.ID,
+		ID:          a.ID,
 		Name:        a.Name,
 		Description: a.Description,
 		State:       a.State,
@@ -116,7 +116,7 @@ func (s *Server) GetAnalysis(ctx context.Context, request GetAnalysisRequestObje
 	if id == nil {
 		return GetAnalysis401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
-	a, err := s.analysesBackend.Get(ctx, request.Id, id.UserID)
+	a, err := s.analysesBackend.Get(ctx, request.ID, id.UserID)
 	if err != nil {
 		slog.Error("analyses: get", "error", err)
 		return GetAnalysis500JSONResponse{Message: genericInternalError}, nil
@@ -136,7 +136,7 @@ func (s *Server) PatchAnalysis(ctx context.Context, request PatchAnalysisRequest
 	if request.Body == nil {
 		return PatchAnalysis403JSONResponse{Code: "invalid_request", Message: "missing request body"}, nil
 	}
-	curr, err := s.analysesBackend.Get(ctx, request.Id, id.UserID)
+	curr, err := s.analysesBackend.Get(ctx, request.ID, id.UserID)
 	if err != nil {
 		slog.Error("analyses: patch load", "error", err)
 		return PatchAnalysis500JSONResponse{Message: genericInternalError}, nil
@@ -154,7 +154,7 @@ func (s *Server) PatchAnalysis(ctx context.Context, request PatchAnalysisRequest
 	if request.Body.State != nil {
 		state = *request.Body.State
 	}
-	ok, err := s.analysesBackend.Update(ctx, request.Id, id.UserID, name, desc, state)
+	ok, err := s.analysesBackend.Update(ctx, request.ID, id.UserID, name, desc, state)
 	if err != nil {
 		slog.Error("analyses: patch", "error", err)
 		return PatchAnalysis500JSONResponse{Message: genericInternalError}, nil
@@ -162,7 +162,7 @@ func (s *Server) PatchAnalysis(ctx context.Context, request PatchAnalysisRequest
 	if !ok {
 		return PatchAnalysis403JSONResponse{Code: "forbidden_not_shared", Message: "not allowed to edit this analysis"}, nil
 	}
-	fresh, err := s.analysesBackend.Get(ctx, request.Id, id.UserID)
+	fresh, err := s.analysesBackend.Get(ctx, request.ID, id.UserID)
 	if err != nil || fresh == nil {
 		slog.Error("analyses: patch reload", "error", err)
 		return PatchAnalysis500JSONResponse{Message: genericInternalError}, nil
@@ -176,7 +176,7 @@ func (s *Server) DeleteAnalysis(ctx context.Context, request DeleteAnalysisReque
 	if id == nil {
 		return DeleteAnalysis401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
-	ok, err := s.analysesBackend.Delete(ctx, request.Id, id.UserID)
+	ok, err := s.analysesBackend.Delete(ctx, request.ID, id.UserID)
 	if err != nil {
 		slog.Error("analyses: delete", "error", err)
 		return DeleteAnalysis500JSONResponse{Message: genericInternalError}, nil
@@ -193,7 +193,7 @@ func (s *Server) GetAnalysisShares(ctx context.Context, request GetAnalysisShare
 	if id == nil {
 		return GetAnalysisShares401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
-	owner, err := s.analysesBackend.IsOwner(ctx, request.Id, id.UserID)
+	owner, err := s.analysesBackend.IsOwner(ctx, request.ID, id.UserID)
 	if err != nil {
 		slog.Error("analyses: shares owner check", "error", err)
 		return GetAnalysisShares500JSONResponse{Message: genericInternalError}, nil
@@ -201,7 +201,7 @@ func (s *Server) GetAnalysisShares(ctx context.Context, request GetAnalysisShare
 	if !owner {
 		return GetAnalysisShares403JSONResponse{Code: "forbidden_not_owner", Message: "only the owner can manage shares"}, nil
 	}
-	shares, err := s.analysesBackend.ListShares(ctx, request.Id)
+	shares, err := s.analysesBackend.ListShares(ctx, request.ID)
 	if err != nil {
 		slog.Error("analyses: list shares", "error", err)
 		return GetAnalysisShares500JSONResponse{Message: genericInternalError}, nil
@@ -211,8 +211,8 @@ func (s *Server) GetAnalysisShares(ctx context.Context, request GetAnalysisShare
 		out.Shares = append(out.Shares, struct {
 			CanEdit   bool                `json:"canEdit"`
 			Email     openapi_types.Email `json:"email"`
-			GranteeId string              `json:"granteeId"`
-		}{CanEdit: sh.CanEdit, Email: openapi_types.Email(sh.Email), GranteeId: sh.GranteeID})
+			GranteeID string              `json:"granteeId"`
+		}{CanEdit: sh.CanEdit, Email: openapi_types.Email(sh.Email), GranteeID: sh.GranteeID})
 	}
 	return out, nil
 }
@@ -226,7 +226,7 @@ func (s *Server) PostAnalysisShare(ctx context.Context, request PostAnalysisShar
 	if request.Body == nil {
 		return PostAnalysisShare400JSONResponse{Code: "invalid_request", Message: "missing request body"}, nil
 	}
-	owner, err := s.analysesBackend.IsOwner(ctx, request.Id, id.UserID)
+	owner, err := s.analysesBackend.IsOwner(ctx, request.ID, id.UserID)
 	if err != nil {
 		slog.Error("analyses: share owner check", "error", err)
 		return PostAnalysisShare500JSONResponse{Message: genericInternalError}, nil
@@ -238,7 +238,7 @@ func (s *Server) PostAnalysisShare(ctx context.Context, request PostAnalysisShar
 	if request.Body.CanEdit != nil {
 		canEdit = *request.Body.CanEdit
 	}
-	sh, err := s.analysesBackend.AddShare(ctx, request.Id, id.UserID, strings.TrimSpace(string(request.Body.Email)), canEdit)
+	sh, err := s.analysesBackend.AddShare(ctx, request.ID, id.UserID, strings.TrimSpace(string(request.Body.Email)), canEdit)
 	if err != nil {
 		switch {
 		case errors.Is(err, storage.ErrGranteeNotFound):
@@ -251,7 +251,7 @@ func (s *Server) PostAnalysisShare(ctx context.Context, request PostAnalysisShar
 		}
 	}
 	return PostAnalysisShare201JSONResponse{
-		GranteeId: sh.GranteeID,
+		GranteeID: sh.GranteeID,
 		Email:     openapi_types.Email(sh.Email),
 		CanEdit:   sh.CanEdit,
 	}, nil
@@ -263,7 +263,7 @@ func (s *Server) DeleteAnalysisShare(ctx context.Context, request DeleteAnalysis
 	if id == nil {
 		return DeleteAnalysisShare401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
-	owner, err := s.analysesBackend.IsOwner(ctx, request.Id, id.UserID)
+	owner, err := s.analysesBackend.IsOwner(ctx, request.ID, id.UserID)
 	if err != nil {
 		slog.Error("analyses: revoke owner check", "error", err)
 		return DeleteAnalysisShare500JSONResponse{Message: genericInternalError}, nil
@@ -271,7 +271,7 @@ func (s *Server) DeleteAnalysisShare(ctx context.Context, request DeleteAnalysis
 	if !owner {
 		return DeleteAnalysisShare403JSONResponse{Code: "forbidden_not_owner", Message: "only the owner can manage shares"}, nil
 	}
-	ok, err := s.analysesBackend.RemoveShare(ctx, request.Id, request.GranteeId)
+	ok, err := s.analysesBackend.RemoveShare(ctx, request.ID, request.GranteeID)
 	if err != nil {
 		slog.Error("analyses: revoke", "error", err)
 		return DeleteAnalysisShare500JSONResponse{Message: genericInternalError}, nil

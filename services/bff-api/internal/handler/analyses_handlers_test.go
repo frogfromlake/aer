@@ -126,7 +126,7 @@ func TestAnalysesDeleteNonOwnerIs403(t *testing.T) {
 	m.ownerOf["a1"] = "owner"
 	s := analysesServer(m)
 
-	resp, _ := s.DeleteAnalysis(withUser("notowner"), DeleteAnalysisRequestObject{Id: "a1"})
+	resp, _ := s.DeleteAnalysis(withUser("notowner"), DeleteAnalysisRequestObject{ID: "a1"})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitDeleteAnalysisResponse(rec)
 	if rec.Code != http.StatusForbidden {
@@ -141,7 +141,7 @@ func TestAnalysesShareErrors(t *testing.T) {
 	ctx := withUser("owner")
 
 	// Unknown email → 404.
-	r1, _ := s.PostAnalysisShare(ctx, PostAnalysisShareRequestObject{Id: "a1", Body: &PostAnalysisShareJSONRequestBody{Email: openapi_types.Email("nobody@x.y")}})
+	r1, _ := s.PostAnalysisShare(ctx, PostAnalysisShareRequestObject{ID: "a1", Body: &PostAnalysisShareJSONRequestBody{Email: openapi_types.Email("nobody@x.y")}})
 	rec := httptest.NewRecorder()
 	_ = r1.VisitPostAnalysisShareResponse(rec)
 	if rec.Code != http.StatusNotFound {
@@ -149,7 +149,7 @@ func TestAnalysesShareErrors(t *testing.T) {
 	}
 
 	// Self → 400.
-	r2, _ := s.PostAnalysisShare(ctx, PostAnalysisShareRequestObject{Id: "a1", Body: &PostAnalysisShareJSONRequestBody{Email: openapi_types.Email("self@x.y")}})
+	r2, _ := s.PostAnalysisShare(ctx, PostAnalysisShareRequestObject{ID: "a1", Body: &PostAnalysisShareJSONRequestBody{Email: openapi_types.Email("self@x.y")}})
 	rec = httptest.NewRecorder()
 	_ = r2.VisitPostAnalysisShareResponse(rec)
 	if rec.Code != http.StatusBadRequest {
@@ -157,7 +157,7 @@ func TestAnalysesShareErrors(t *testing.T) {
 	}
 
 	// Non-owner sharing → 403.
-	r3, _ := s.PostAnalysisShare(withUser("stranger"), PostAnalysisShareRequestObject{Id: "a1", Body: &PostAnalysisShareJSONRequestBody{Email: openapi_types.Email("g@x.y")}})
+	r3, _ := s.PostAnalysisShare(withUser("stranger"), PostAnalysisShareRequestObject{ID: "a1", Body: &PostAnalysisShareJSONRequestBody{Email: openapi_types.Email("g@x.y")}})
 	rec = httptest.NewRecorder()
 	_ = r3.VisitPostAnalysisShareResponse(rec)
 	if rec.Code != http.StatusForbidden {

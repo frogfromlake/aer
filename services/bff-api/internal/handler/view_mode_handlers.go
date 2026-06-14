@@ -30,7 +30,7 @@ type probeSegment struct {
 // segmentBy=probe streams. At least one non-empty input is required; the
 // function returns ok=false with a human-readable reason otherwise.
 func (s *Server) resolveScopeMulti(
-	rawScope string, scopeId, probeIds, sourceIds *string,
+	rawScope string, scopeID, probeIds, sourceIds *string,
 ) (kind scopeKind, sources []string, probeSegs []probeSegment, reason string, ok bool) {
 	var resolvedKind scopeKind
 	switch strings.ToLower(strings.TrimSpace(rawScope)) {
@@ -53,8 +53,8 @@ func (s *Server) resolveScopeMulti(
 	hasProbes := false
 
 	// 1. Legacy scopeId (single probe id or source name).
-	if scopeId != nil && strings.TrimSpace(*scopeId) != "" {
-		id := strings.TrimSpace(*scopeId)
+	if scopeID != nil && strings.TrimSpace(*scopeID) != "" {
+		id := strings.TrimSpace(*scopeID)
 		if resolvedKind == scopeProbe {
 			probe, exists := s.probes[id]
 			if !exists {
@@ -148,7 +148,7 @@ func validateWindow(start, end time.Time) string {
 	return ""
 }
 
-// strPtr is a tiny helper for the optional Scope/ScopeId echo fields.
+// strPtr is a tiny helper for the optional Scope/ScopeID echo fields.
 func strPtr(s string) *string { return &s }
 
 // GetMetricDistribution returns the per-scope value distribution for a metric
@@ -158,7 +158,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, probeSegs, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, probeSegs, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricDistribution404JSONResponse{Message: reason}, nil
@@ -191,7 +191,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 	resp := GetMetricDistribution200JSONResponse{
 		MetricName:  request.MetricName,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}
@@ -229,7 +229,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 					Lower float64 `json:"lower"`
 					Upper float64 `json:"upper"`
 				} `json:"bins"`
-				Id        string `json:"id"`
+				ID        string `json:"id"`
 				Label     string `json:"label"`
 				ScopeKind string `json:"scopeKind"`
 				Summary   struct {
@@ -256,7 +256,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 						Lower float64 `json:"lower"`
 						Upper float64 `json:"upper"`
 					} `json:"bins"`
-					Id        string `json:"id"`
+					ID        string `json:"id"`
 					Label     string `json:"label"`
 					ScopeKind string `json:"scopeKind"`
 					Summary   struct {
@@ -270,7 +270,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 						P75    float64 `json:"p75"`
 						P95    float64 `json:"p95"`
 					} `json:"summary"`
-				}{Id: src, Label: src, ScopeKind: "source"}
+				}{ID: src, Label: src, ScopeKind: "source"}
 				elem.Bins = make([]struct {
 					Count int64   `json:"count"`
 					Lower float64 `json:"lower"`
@@ -305,7 +305,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 					Lower float64 `json:"lower"`
 					Upper float64 `json:"upper"`
 				} `json:"bins"`
-				Id        string `json:"id"`
+				ID        string `json:"id"`
 				Label     string `json:"label"`
 				ScopeKind string `json:"scopeKind"`
 				Summary   struct {
@@ -332,7 +332,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 						Lower float64 `json:"lower"`
 						Upper float64 `json:"upper"`
 					} `json:"bins"`
-					Id        string `json:"id"`
+					ID        string `json:"id"`
 					Label     string `json:"label"`
 					ScopeKind string `json:"scopeKind"`
 					Summary   struct {
@@ -346,7 +346,7 @@ func (s *Server) GetMetricDistribution(ctx context.Context, request GetMetricDis
 						P75    float64 `json:"p75"`
 						P95    float64 `json:"p95"`
 					} `json:"summary"`
-				}{Id: seg.id, Label: seg.id, ScopeKind: "probe"}
+				}{ID: seg.id, Label: seg.id, ScopeKind: "probe"}
 				elem.Bins = make([]struct {
 					Count int64   `json:"count"`
 					Lower float64 `json:"lower"`
@@ -387,7 +387,7 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricScatter404JSONResponse{Message: reason}, nil
@@ -457,13 +457,13 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 		SizeMetric:  sizeMetric,
 		ColorMetric: colorMetric,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 		Truncated:   res.Truncated,
 	}
 	resp.Points = make([]struct {
-		ArticleId *string   `json:"articleId,omitempty"`
+		ArticleID *string   `json:"articleId,omitempty"`
 		Color     *float64  `json:"color,omitempty"`
 		Size      *float64  `json:"size,omitempty"`
 		Source    string    `json:"source"`
@@ -473,7 +473,7 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 	}, len(res.Points))
 	for i, p := range res.Points {
 		elem := struct {
-			ArticleId *string   `json:"articleId,omitempty"`
+			ArticleID *string   `json:"articleId,omitempty"`
 			Color     *float64  `json:"color,omitempty"`
 			Size      *float64  `json:"size,omitempty"`
 			Source    string    `json:"source"`
@@ -490,7 +490,7 @@ func (s *Server) GetMetricScatter(ctx context.Context, request GetMetricScatterR
 		}
 		if p.ArticleID != "" {
 			aid := p.ArticleID
-			elem.ArticleId = &aid
+			elem.ArticleID = &aid
 		}
 		resp.Points[i] = elem
 	}
@@ -507,7 +507,7 @@ func (s *Server) GetScopeAvailableMetrics(ctx context.Context, request GetScopeA
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	_, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	_, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetScopeAvailableMetrics404JSONResponse{Message: reason}, nil
@@ -552,7 +552,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, probeSegs, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, probeSegs, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricHeatmap404JSONResponse{Message: reason}, nil
@@ -586,7 +586,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 	resp := GetMetricHeatmap200JSONResponse{
 		MetricName:  request.MetricName,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 		XDimension:  string(request.Params.XDimension),
@@ -618,7 +618,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 					X     string  `json:"x"`
 					Y     string  `json:"y"`
 				} `json:"cells"`
-				Id        string `json:"id"`
+				ID        string `json:"id"`
 				Label     string `json:"label"`
 				ScopeKind string `json:"scopeKind"`
 			}, 0, len(sources))
@@ -638,10 +638,10 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 						X     string  `json:"x"`
 						Y     string  `json:"y"`
 					} `json:"cells"`
-					Id        string `json:"id"`
+					ID        string `json:"id"`
 					Label     string `json:"label"`
 					ScopeKind string `json:"scopeKind"`
-				}{Id: src, Label: src, ScopeKind: "source"}
+				}{ID: src, Label: src, ScopeKind: "source"}
 				elem.Cells = make([]struct {
 					Count int64   `json:"count"`
 					Value float64 `json:"value"`
@@ -670,7 +670,7 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 					X     string  `json:"x"`
 					Y     string  `json:"y"`
 				} `json:"cells"`
-				Id        string `json:"id"`
+				ID        string `json:"id"`
 				Label     string `json:"label"`
 				ScopeKind string `json:"scopeKind"`
 			}, 0, len(probeSegs))
@@ -690,10 +690,10 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 						X     string  `json:"x"`
 						Y     string  `json:"y"`
 					} `json:"cells"`
-					Id        string `json:"id"`
+					ID        string `json:"id"`
 					Label     string `json:"label"`
 					ScopeKind string `json:"scopeKind"`
-				}{Id: seg.id, Label: seg.id, ScopeKind: "probe"}
+				}{ID: seg.id, Label: seg.id, ScopeKind: "probe"}
 				elem.Cells = make([]struct {
 					Count int64   `json:"count"`
 					Value float64 `json:"value"`
@@ -724,7 +724,7 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricCorrelation404JSONResponse{Message: reason}, nil
@@ -775,7 +775,7 @@ func (s *Server) GetMetricCorrelation(ctx context.Context, request GetMetricCorr
 		BucketCount: res.BucketCount,
 		Resolution:  res.Resolution,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}, nil
@@ -790,7 +790,7 @@ func (s *Server) GetCorrelationLeadLag(ctx context.Context, request GetCorrelati
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetCorrelationLeadLag404JSONResponse{Message: reason}, nil
@@ -845,7 +845,7 @@ func (s *Server) GetCorrelationLeadLag(ctx context.Context, request GetCorrelati
 		PeakLagHours:      res.PeakLagHours,
 		PeakCorrelation:   res.PeakCorrelation,
 		Scope:             strPtr(string(kind)),
-		ScopeId:           request.Params.ScopeId,
+		ScopeID:           request.Params.ScopeID,
 		WindowStart:       request.Params.Start,
 		WindowEnd:         request.Params.End,
 	}
@@ -871,7 +871,7 @@ func (s *Server) GetMetricParallelCoords(ctx context.Context, request GetMetricP
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetricParallelCoords404JSONResponse{Message: reason}, nil
@@ -920,21 +920,21 @@ func (s *Server) GetMetricParallelCoords(ctx context.Context, request GetMetricP
 		Metrics:     res.Metrics,
 		Truncated:   res.Truncated,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}
 	resp.Rows = make([]struct {
-		ArticleId string    `json:"articleId"`
+		ArticleID string    `json:"articleId"`
 		Source    string    `json:"source"`
 		Values    []float64 `json:"values"`
 	}, len(res.Rows))
 	for i, r := range res.Rows {
 		resp.Rows[i] = struct {
-			ArticleId string    `json:"articleId"`
+			ArticleID string    `json:"articleId"`
 			Source    string    `json:"source"`
 			Values    []float64 `json:"values"`
-		}{ArticleId: r.ArticleID, Source: r.Source, Values: r.Values}
+		}{ArticleID: r.ArticleID, Source: r.Source, Values: r.Values}
 	}
 	return resp, nil
 }
@@ -946,7 +946,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetEntityCoOccurrence404JSONResponse{Message: reason}, nil
@@ -1011,7 +1011,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	resp := GetEntityCoOccurrence200JSONResponse{
 		TopN:             res.TopN,
 		Scope:            strPtr(string(kind)),
-		ScopeId:          request.Params.ScopeId,
+		ScopeID:          request.Params.ScopeID,
 		WindowStart:      request.Params.Start,
 		WindowEnd:        request.Params.End,
 		ArticlesInScope:  &articlesInScope,

@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
   cellContentId,
   DEFAULT_METRIC_NAME,
-  defaultViewModeForPillar,
+  defaultPresentationForPillar,
   getPillar,
   getPresentation,
   listPresentations,
-  pillarForViewMode,
+  pillarForPresentation,
   PILLAR_DEFINITIONS,
   presentationsForPillar,
   resolvePresentation
-} from '../../src/lib/viewmodes';
+} from '../../src/lib/presentations';
 
 describe('view-mode registry', () => {
   it('exposes the Phase 107 MVP, Phase 121 Episteme, Phase 131 scatter, and Phase 122d.0 revision presentations', () => {
@@ -41,7 +41,7 @@ describe('view-mode registry', () => {
   // declares its configurable visual-channel binding.
   it('places metric_scatter in the Aleph pillar', () => {
     expect(presentationsForPillar('aleph').map((p) => p.id)).toContain('metric_scatter');
-    expect(pillarForViewMode('metric_scatter')).toBe('aleph');
+    expect(pillarForPresentation('metric_scatter')).toBe('aleph');
   });
 
   it('declares per-cell configurable params (Phase 131)', () => {
@@ -205,21 +205,21 @@ describe('pillar mapping', () => {
   });
 
   it('returns the first presentation as the pillar default', () => {
-    expect(defaultViewModeForPillar('aleph')).toBe('distribution');
-    expect(defaultViewModeForPillar('episteme')).toBe('time_series');
-    expect(defaultViewModeForPillar('rhizome')).toBe('cooccurrence_network');
-    expect(defaultViewModeForPillar(null)).toBe('distribution');
+    expect(defaultPresentationForPillar('aleph')).toBe('distribution');
+    expect(defaultPresentationForPillar('episteme')).toBe('time_series');
+    expect(defaultPresentationForPillar('rhizome')).toBe('cooccurrence_network');
+    expect(defaultPresentationForPillar(null)).toBe('distribution');
   });
 
   it('reverse-maps every presentation back to exactly one pillar', () => {
-    expect(pillarForViewMode('time_series')).toBe('episteme');
-    expect(pillarForViewMode('distribution')).toBe('aleph');
-    expect(pillarForViewMode('topic_distribution')).toBe('aleph');
-    expect(pillarForViewMode('topic_evolution')).toBe('episteme');
-    expect(pillarForViewMode('cooccurrence_network')).toBe('rhizome');
+    expect(pillarForPresentation('time_series')).toBe('episteme');
+    expect(pillarForPresentation('distribution')).toBe('aleph');
+    expect(pillarForPresentation('topic_distribution')).toBe('aleph');
+    expect(pillarForPresentation('topic_evolution')).toBe('episteme');
+    expect(pillarForPresentation('cooccurrence_network')).toBe('rhizome');
     // Phase 122d.0 / ADR-032 — silent-edit observability.
-    expect(pillarForViewMode('revision_activity')).toBe('aleph');
-    expect(pillarForViewMode('revision_timeline')).toBe('episteme');
+    expect(pillarForPresentation('revision_activity')).toBe('aleph');
+    expect(pillarForPresentation('revision_timeline')).toBe('episteme');
   });
 
   it('resolvePresentation respects the active pillar', () => {

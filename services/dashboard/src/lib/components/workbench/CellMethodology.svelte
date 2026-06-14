@@ -30,14 +30,14 @@
     pickBadgeTier,
     workingPaperHref as parseWorkingPaperHref
   } from '$lib/components/chrome/methodology-tray-internals';
-  import { cellContentId } from '$lib/viewmodes';
-  import type { ViewMode } from '$lib/state/url-internals';
+  import { cellContentId } from '$lib/presentations';
+  import type { Presentation } from '$lib/state/url-internals';
   import { page } from '$app/state';
   import { urlState } from '$lib/state/url.svelte';
 
   interface Props {
     metricName: string;
-    viewMode: ViewMode;
+    viewMode: Presentation;
     /** Human label of the active view (for the cell-id chip). */
     viewLabel: string;
   }

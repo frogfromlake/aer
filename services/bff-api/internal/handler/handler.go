@@ -789,8 +789,8 @@ func (s *Server) GetSources(ctx context.Context, request GetSourcesRequestObject
 		response = append(response, Source{
 			Name:             src.Name,
 			Type:             src.Type,
-			Url:              src.URL,
-			DocumentationUrl: src.DocumentationURL,
+			URL:              src.URL,
+			DocumentationURL: src.DocumentationURL,
 		})
 	}
 	return response, nil
@@ -809,7 +809,7 @@ func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProb
 		// positionally here rather than introducing a parallel named
 		// type that would have to be kept in sync with the generator.
 		probe := Probe{
-			ProbeId:     p.ProbeID,
+			ProbeID:     p.ProbeID,
 			DisplayName: p.Display(),
 			ShortName:   p.Short(),
 			Language:    p.Language,
@@ -920,7 +920,7 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 // computation, so the Dossier matrix and the manual baseline run share a
 // horizon.
 func (s *Server) GetProbeEquivalence(ctx context.Context, request GetProbeEquivalenceRequestObject) (GetProbeEquivalenceResponseObject, error) {
-	probe, ok := s.probes[request.ProbeId]
+	probe, ok := s.probes[request.ProbeID]
 	if !ok {
 		return GetProbeEquivalence404JSONResponse{Message: "probe not found"}, nil
 	}
@@ -950,7 +950,7 @@ func (s *Server) GetProbeEquivalence(ctx context.Context, request GetProbeEquiva
 	}
 
 	resp := GetProbeEquivalence200JSONResponse{
-		ProbeId:    probe.ProbeID,
+		ProbeID:    probe.ProbeID,
 		ComparedTo: comparedTo,
 	}
 	if len(scopeSources) > 0 {
@@ -1023,7 +1023,7 @@ const (
 // covering both probes' languages; an ungranted pair returns a RefusalPayload-
 // shaped 400. Phase 125 generalises this to arbitrary metric series.
 func (s *Server) GetProbeLeadLag(ctx context.Context, request GetProbeLeadLagRequestObject) (GetProbeLeadLagResponseObject, error) {
-	ref, ok := s.probes[request.ProbeId]
+	ref, ok := s.probes[request.ProbeID]
 	if !ok {
 		return GetProbeLeadLag404JSONResponse{Message: "probe not found"}, nil
 	}
@@ -1031,7 +1031,7 @@ func (s *Server) GetProbeLeadLag(ctx context.Context, request GetProbeLeadLagReq
 	if !ok {
 		return GetProbeLeadLag404JSONResponse{Message: "comparedTo probe not found"}, nil
 	}
-	if request.ProbeId == request.Params.ComparedTo {
+	if request.ProbeID == request.Params.ComparedTo {
 		return GetProbeLeadLag400JSONResponse{Message: "comparedTo must differ from probeId"}, nil
 	}
 
@@ -1159,7 +1159,7 @@ func (s *Server) GetContent(_ context.Context, request GetContentRequestObject) 
 		locale = string(*request.Params.Locale)
 	}
 
-	key := config.CatalogKey(locale, string(request.EntityType), request.EntityId)
+	key := config.CatalogKey(locale, string(request.EntityType), request.EntityID)
 	record, ok := s.catalog[key]
 	if !ok {
 		return GetContent404JSONResponse{Message: "no content found for the requested entity and locale"}, nil
@@ -1172,7 +1172,7 @@ func (s *Server) GetContent(_ context.Context, request GetContentRequestObject) 
 	}
 
 	var resp GetContent200JSONResponse
-	resp.EntityId = record.EntityID
+	resp.EntityID = record.EntityID
 	resp.EntityType = ContentResponseEntityType(record.EntityType)
 	resp.Locale = ContentResponseLocale(record.Locale)
 	resp.Registers.Semantic.Short = record.Registers.Semantic.Short

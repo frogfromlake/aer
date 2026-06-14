@@ -8,7 +8,7 @@
 //      request descriptor? (buildQueryFromPanel)
 //
 // Cell components themselves keep their Phase-107 `(scope, scopeId,
-// sources[])` contract (see `viewmodes/registry.ts:72-93`). The Panel
+// sources[])` contract (see `presentations/registry.ts:72-93`). The Panel
 // host translates ScopeGroups into per-Cell tuples for the `split`-
 // composition path, or into a unioned multi-scope POST descriptor for
 // the `merged`-composition path that needs the new CoOccurrence
@@ -20,9 +20,9 @@ import type {
   Panel,
   ScaleMode,
   ScopeGroup,
-  ViewMode
+  Presentation
 } from '$lib/state/url-internals';
-import { CROSS_PROBE_DEFAULT_METRIC, getPresentation, isPureCountMetric } from '../viewmodes';
+import { CROSS_PROBE_DEFAULT_METRIC, getPresentation, isPureCountMetric } from '../presentations';
 
 // ---------------------------------------------------------------------------
 // Cell-render strategy
@@ -89,7 +89,7 @@ export interface CellRender {
 // Views that operate on entity pairs and ignore the active metric. Their
 // merged-multi-scope path needs the POST endpoint; their split path
 // renders one Cell per ScopeGroup with the legacy GET endpoint.
-const COOCCURRENCE_VIEWS: ReadonlySet<ViewMode> = new Set(['cooccurrence_network']);
+const COOCCURRENCE_VIEWS: ReadonlySet<Presentation> = new Set(['cooccurrence_network']);
 
 // ---------------------------------------------------------------------------
 // Phase 126 — per-cell config resolution (override-with-inheritance).
@@ -487,7 +487,7 @@ import {
   type DataLayer,
   type Panel as PanelType,
   type ScopeGroup as ScopeGroupType,
-  type ViewMode as ViewModeType
+  type Presentation as PresentationType
 } from '../state/url-internals';
 
 /**
@@ -527,7 +527,7 @@ export function defaultMetricForScopes(
 export function buildPanelFromScopes(
   scopes: readonly ScopeGroupType[],
   opts: {
-    view?: ViewModeType;
+    view?: PresentationType;
     metric?: string;
     layer?: DataLayer;
     lockedFunction?: string | null | undefined;
@@ -541,7 +541,7 @@ export function buildPanelFromScopes(
     // when the user explicitly asks for the union but not as a default.
     composition: 'split',
     // Phase 130 — callers pass the pillar-correct default view
-    // (`defaultViewModeForPillar`); the literal fallback is the registry-
+    // (`defaultPresentationForPillar`); the literal fallback is the registry-
     // wide default `distribution`, never the diachronic `time_series`.
     view: opts.view ?? 'distribution',
     // Phase 123c (Issue 4) — scope-aware default: cross-probe scopes get the

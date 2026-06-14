@@ -30,7 +30,7 @@ func (s *Server) GetArticleRevisionDiff(
 		return GetArticleRevisionDiff500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	res, err := s.dossier.ResolveArticle(ctx, request.Id)
+	res, err := s.dossier.ResolveArticle(ctx, request.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetArticleRevisionDiff404JSONResponse{Message: "article not found"}, nil
@@ -58,7 +58,7 @@ func (s *Server) GetArticleRevisionDiff(
 		return GetArticleRevisionDiff500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	row, err := s.db.GetArticleRevisionDiff(ctx, request.Id, request.RevisionIndex)
+	row, err := s.db.GetArticleRevisionDiff(ctx, request.ID, request.RevisionIndex)
 	if err != nil {
 		if errors.Is(err, storage.ErrRevisionDiffPending) {
 			// BUG-7: text trimmed to remove the operator-side
@@ -125,7 +125,7 @@ func (s *Server) GetArticleRevisionDiff(
 	}
 
 	resp := GetArticleRevisionDiff200JSONResponse{
-		ArticleId:       row.ArticleID,
+		ArticleID:       row.ArticleID,
 		RevisionIndex:   int(row.RevisionIndex), //nolint:gosec // bounded
 		SnapshotAtAfter: row.SnapshotAtAfter,
 		HeadlineChanged: row.HeadlineChanged,
@@ -164,7 +164,7 @@ func (s *Server) GetRevisionsArticles(
 	if request.Params.Scope != nil {
 		scope = *request.Params.Scope
 	}
-	sources, err := s.resolveRevisionsArticlesScope(ctx, scope, request.Params.ScopeId)
+	sources, err := s.resolveRevisionsArticlesScope(ctx, scope, request.Params.ScopeID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) || errors.Is(err, errRevisionsProbeNotFound) {
 			return GetRevisionsArticles404JSONResponse{Message: err.Error()}, nil
@@ -226,7 +226,7 @@ func (s *Server) GetRevisionsArticles(
 	}
 	for _, r := range rows {
 		item := struct {
-			ArticleId            string     `json:"articleId"`
+			ArticleID            string     `json:"articleId"`
 			ChainLength          int        `json:"chainLength"`
 			EditorialChangeCount int        `json:"editorialChangeCount"`
 			HasHeadlineChange    bool       `json:"hasHeadlineChange"`
@@ -236,7 +236,7 @@ func (s *Server) GetRevisionsArticles(
 			Timestamp            time.Time  `json:"timestamp"`
 			WordCount            *int       `json:"wordCount,omitempty"`
 		}{
-			ArticleId:            r.ArticleID,
+			ArticleID:            r.ArticleID,
 			Source:               r.Source,
 			Timestamp:            r.Timestamp,
 			ChainLength:          int(r.ChainLength),          //nolint:gosec // bounded
@@ -259,7 +259,7 @@ func (s *Server) GetRevisionsArticles(
 	}
 	if page.Items == nil {
 		page.Items = []struct {
-			ArticleId            string     `json:"articleId"`
+			ArticleID            string     `json:"articleId"`
 			ChainLength          int        `json:"chainLength"`
 			EditorialChangeCount int        `json:"editorialChangeCount"`
 			HasHeadlineChange    bool       `json:"hasHeadlineChange"`

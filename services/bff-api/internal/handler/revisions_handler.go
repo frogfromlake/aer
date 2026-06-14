@@ -29,7 +29,7 @@ func (s *Server) GetRevisionActivity(ctx context.Context, request GetRevisionAct
 	if request.Params.Scope != nil {
 		scope = *request.Params.Scope
 	}
-	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeId)
+	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) || errors.Is(err, errRevisionsProbeNotFound) {
 			return GetRevisionActivity404JSONResponse{Message: err.Error()}, nil
@@ -58,7 +58,7 @@ func (s *Server) GetRevisionActivity(ctx context.Context, request GetRevisionAct
 
 	resp := GetRevisionActivity200JSONResponse{
 		Scope:      revisionScopeToResponse(scope),
-		ScopeId:    request.Params.ScopeId,
+		ScopeID:    request.Params.ScopeID,
 		Resolution: revisionResolutionToResponse(resolution),
 	}
 	resp.WindowStart = request.Params.StartDate
@@ -115,7 +115,7 @@ func (s *Server) GetRevisionDiscourseShift(ctx context.Context, request GetRevis
 	if request.Params.Scope != nil {
 		scope = GetRevisionActivityParamsScope(string(*request.Params.Scope))
 	}
-	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeId)
+	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) || errors.Is(err, errRevisionsProbeNotFound) {
 			return GetRevisionDiscourseShift404JSONResponse{Message: err.Error()}, nil
@@ -138,7 +138,7 @@ func (s *Server) GetRevisionDiscourseShift(ctx context.Context, request GetRevis
 
 	resp := GetRevisionDiscourseShift200JSONResponse{
 		Scope:      discourseShiftScopeToResponse(scope),
-		ScopeId:    request.Params.ScopeId,
+		ScopeID:    request.Params.ScopeID,
 		Resolution: discourseShiftResolutionToResponse(resolution),
 	}
 	resp.WindowStart = request.Params.StartDate
@@ -226,7 +226,7 @@ func (s *Server) GetRevisionEditClusters(ctx context.Context, request GetRevisio
 	if request.Params.Scope != nil {
 		scope = GetRevisionActivityParamsScope(string(*request.Params.Scope))
 	}
-	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeId)
+	sources, err := s.resolveRevisionScope(ctx, scope, request.Params.ScopeID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) || errors.Is(err, errRevisionsProbeNotFound) {
 			return GetRevisionEditClusters404JSONResponse{Message: err.Error()}, nil
@@ -260,7 +260,7 @@ func (s *Server) GetRevisionEditClusters(ctx context.Context, request GetRevisio
 
 	resp := GetRevisionEditClusters200JSONResponse{
 		Scope:      editClustersScopeToResponse(scope),
-		ScopeId:    request.Params.ScopeId,
+		ScopeID:    request.Params.ScopeID,
 		Resolution: editClustersResolutionToResponse(resolution),
 		MinSources: minSources,
 	}
@@ -338,7 +338,7 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 		return GetArticleRevisions500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	res, err := s.dossier.ResolveArticle(ctx, request.Id)
+	res, err := s.dossier.ResolveArticle(ctx, request.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetArticleRevisions404JSONResponse{Message: "article not found"}, nil
@@ -361,14 +361,14 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 		return GetArticleRevisions500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	rows, err := s.db.GetArticleRevisions(ctx, request.Id)
+	rows, err := s.db.GetArticleRevisions(ctx, request.ID)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetArticleRevisions", "error", err)
 		return GetArticleRevisions500JSONResponse{Message: genericInternalError}, nil
 	}
 
 	resp := GetArticleRevisions200JSONResponse{
-		ArticleId: request.Id,
+		ArticleID: request.ID,
 		Source:    res.SourceName,
 	}
 	if len(rows) == 0 {
@@ -383,7 +383,7 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 	}
 
 	revisions := make([]struct {
-		ArchiveUrl         *string                                     `json:"archiveUrl,omitempty"`
+		ArchiveURL         *string                                     `json:"archiveUrl,omitempty"`
 		ContentHash        string                                      `json:"contentHash"`
 		DeltasComputed     bool                                        `json:"deltasComputed"`
 		DiffStatus         ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
@@ -399,7 +399,7 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 	}, 0, len(rows))
 	for _, r := range rows {
 		entry := struct {
-			ArchiveUrl         *string                                     `json:"archiveUrl,omitempty"`
+			ArchiveURL         *string                                     `json:"archiveUrl,omitempty"`
 			ContentHash        string                                      `json:"contentHash"`
 			DeltasComputed     bool                                        `json:"deltasComputed"`
 			DiffStatus         ArticleRevisionsResponseRevisionsDiffStatus `json:"diffStatus"`
@@ -455,7 +455,7 @@ func (s *Server) GetArticleRevisions(ctx context.Context, request GetArticleRevi
 		// republication-trigger rows that have no archive page yet).
 		if r.ArchiveURL != "" {
 			archiveURL := r.ArchiveURL
-			entry.ArchiveUrl = &archiveURL
+			entry.ArchiveURL = &archiveURL
 		}
 		revisions = append(revisions, entry)
 	}

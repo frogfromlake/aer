@@ -10,7 +10,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { beforeNavigate, goto } from '$app/navigation';
   import { pushUrl, urlState, openOverlay } from '$lib/state/url.svelte';
-  import { defaultViewModeForPillar, getPillar } from '$lib/viewmodes';
+  import { defaultPresentationForPillar, getPillar } from '$lib/presentations';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
   import {
     probeDossierQuery,
@@ -23,7 +23,7 @@
   import {
     type PillarState,
     type ScopeGroup,
-    type ViewingMode,
+    type PillarId,
     type WorkbenchPillarsState
   } from '$lib/state/url-internals';
   import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
@@ -107,9 +107,9 @@
   );
 
   function applyNewPanel(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) {
-    const pillarId: ViewingMode = activePillar.id;
+    const pillarId: PillarId = activePillar.id;
     const panel = buildPanelFromScopes(scopes, {
-      view: defaultViewModeForPillar(pillarId),
+      view: defaultPresentationForPillar(pillarId),
       lockedFunction: lockedFunction ?? undefined
     });
     const pillarState: PillarState = {

@@ -39,7 +39,7 @@ func TestWebAuthnEndpointsRequireSession(t *testing.T) {
 		}
 	})
 	t.Run("delete credential", func(t *testing.T) {
-		resp, _ := s.DeleteAuthWebauthnCredential(ctx, DeleteAuthWebauthnCredentialRequestObject{Id: "x"})
+		resp, _ := s.DeleteAuthWebauthnCredential(ctx, DeleteAuthWebauthnCredentialRequestObject{ID: "x"})
 		rec := httptest.NewRecorder()
 		_ = resp.VisitDeleteAuthWebauthnCredentialResponse(rec)
 		if rec.Code != http.StatusUnauthorized {

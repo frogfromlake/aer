@@ -26,7 +26,7 @@ func (s *Server) GetMetadataDistribution(ctx context.Context, request GetMetadat
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetadataDistribution404JSONResponse{Message: reason}, nil
@@ -56,7 +56,7 @@ func (s *Server) GetMetadataDistribution(ctx context.Context, request GetMetadat
 	resp := GetMetadataDistribution200JSONResponse{
 		Field:          request.Field,
 		Scope:          strPtr(string(kind)),
-		ScopeId:        request.Params.ScopeId,
+		ScopeID:        request.Params.ScopeID,
 		WindowStart:    request.Params.Start,
 		WindowEnd:      request.Params.End,
 		TotalArticles:  int(res.TotalArticles),
@@ -84,7 +84,7 @@ func (s *Server) GetMetadataCrossTab(ctx context.Context, request GetMetadataCro
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetadataCrossTab404JSONResponse{Message: reason}, nil
@@ -133,7 +133,7 @@ func (s *Server) GetMetadataCrossTab(ctx context.Context, request GetMetadataCro
 		Field:          request.Field,
 		Metric:         metric,
 		Scope:          strPtr(string(kind)),
-		ScopeId:        request.Params.ScopeId,
+		ScopeID:        request.Params.ScopeID,
 		WindowStart:    request.Params.Start,
 		WindowEnd:      request.Params.End,
 		DistinctValues: res.DistinctValues,
@@ -163,7 +163,7 @@ func (s *Server) GetMetadataSankey(ctx context.Context, request GetMetadataSanke
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	kind, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetMetadataSankey404JSONResponse{Message: reason}, nil
@@ -197,23 +197,23 @@ func (s *Server) GetMetadataSankey(ctx context.Context, request GetMetadataSanke
 	resp := GetMetadataSankey200JSONResponse{
 		Fields:      res.Fields,
 		Scope:       strPtr(string(kind)),
-		ScopeId:     request.Params.ScopeId,
+		ScopeID:     request.Params.ScopeID,
 		WindowStart: request.Params.Start,
 		WindowEnd:   request.Params.End,
 	}
 	resp.Nodes = make([]struct {
 		Field string `json:"field"`
-		Id    string `json:"id"`
+		ID    string `json:"id"`
 		Layer int    `json:"layer"`
 		Value string `json:"value"`
 	}, len(res.Nodes))
 	for i, n := range res.Nodes {
 		resp.Nodes[i] = struct {
 			Field string `json:"field"`
-			Id    string `json:"id"`
+			ID    string `json:"id"`
 			Layer int    `json:"layer"`
 			Value string `json:"value"`
-		}{Field: n.Field, Id: n.ID, Layer: n.Layer, Value: n.Value}
+		}{Field: n.Field, ID: n.ID, Layer: n.Layer, Value: n.Value}
 	}
 	resp.Links = make([]struct {
 		Source string `json:"source"`
@@ -238,7 +238,7 @@ func (s *Server) GetScopeAvailableMetadata(ctx context.Context, request GetScope
 	if request.Params.Scope != nil {
 		rawScope = string(*request.Params.Scope)
 	}
-	_, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeId, request.Params.ProbeIds, request.Params.SourceIds)
+	_, sources, _, reason, ok := s.resolveScopeMulti(rawScope, request.Params.ScopeID, request.Params.ProbeIds, request.Params.SourceIds)
 	if !ok {
 		if strings.HasPrefix(reason, "unknown probe") {
 			return GetScopeAvailableMetadata404JSONResponse{Message: reason}, nil

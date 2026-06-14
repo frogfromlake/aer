@@ -154,7 +154,7 @@ func main() {
 	// BodyLimitMiddleware must run before the strict handler decodes the body.
 	r.Group(func(r chi.Router) {
 		// Observability (Phase 154). TraceIDHeader is outermost so its
-		// X-Trace-Id header survives every response, including auth
+		// X-Trace-ID header survives every response, including auth
 		// rejections; RequestLogger + PrometheusMetrics then record one
 		// log line and the request-rate/latency/error metrics per request.
 		r.Use(mw.TraceIDHeaderMiddleware)

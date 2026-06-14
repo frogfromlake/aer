@@ -22,8 +22,39 @@ export default ts.config(
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+      ],
+      // Retired-vocabulary ratchet (Phase 140). Bans the old domain terms from
+      // re-entering the code as identifiers or user-facing strings. Comments are
+      // not AST nodes, so legitimate historical "retired X" notes are untouched.
+      // The lowercase URL key 'viewMode' is a contract (legacy /lanes/ redirect)
+      // and stays — it is a string Literal but does not match these patterns.
+      // See docs/development/conventions.md §1.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Identifier[name=/^(ViewMode|ViewingMode|WorkbenchScopeBar)/]',
+          message:
+            'Retired vocabulary (Phase 140): use `Presentation` (not ViewMode) and `PillarId` (not ViewingMode); the WorkbenchScopeBar component was removed. See docs/development/conventions.md §1.'
+        },
+        {
+          selector: 'Literal[value=/Function Lane/]',
+          message:
+            'Retired surface name (Phase 140): the second surface is the Workbench. See docs/development/conventions.md §1.'
+        },
+        {
+          selector: 'TemplateElement[value.raw=/Function Lane/]',
+          message:
+            'Retired surface name (Phase 140): the second surface is the Workbench. See docs/development/conventions.md §1.'
+        }
       ]
     }
+  },
+  {
+    // This config necessarily contains the retired terms inside the
+    // no-restricted-syntax selector patterns/messages; exempt it from its own
+    // rule so it does not flag itself.
+    files: ['eslint.config.js'],
+    rules: { 'no-restricted-syntax': 'off' }
   },
   {
     files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],

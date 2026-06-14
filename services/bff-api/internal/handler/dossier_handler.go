@@ -49,7 +49,7 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 		return GetProbeDossier500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	probe, ok := s.probes[request.Id]
+	probe, ok := s.probes[request.ID]
 	if !ok {
 		return GetProbeDossier404JSONResponse{Message: "probe not found"}, nil
 	}
@@ -66,7 +66,7 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 	}
 
 	resp := GetProbeDossier200JSONResponse{
-		ProbeId:     probe.ProbeID,
+		ProbeID:     probe.ProbeID,
 		DisplayName: probe.Display(),
 		ShortName:   probe.Short(),
 		Language:    probe.Language,
@@ -85,7 +85,7 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 		card := struct {
 			ArticlesInWindow              int                                   `json:"articlesInWindow"`
 			ArticlesTotal                 int                                   `json:"articlesTotal"`
-			DocumentationUrl              *string                               `json:"documentationUrl,omitempty"`
+			DocumentationURL              *string                               `json:"documentationUrl,omitempty"`
 			EmicContext                   *string                               `json:"emicContext,omitempty"`
 			EmicDesignation               *string                               `json:"emicDesignation,omitempty"`
 			Name                          string                                `json:"name"`
@@ -96,7 +96,7 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 			SilverReviewDate              *openapi_types.Date                   `json:"silverReviewDate,omitempty"`
 			TemporalProvenanceAbsentCount *int                                  `json:"temporalProvenanceAbsentCount,omitempty"`
 			Type                          string                                `json:"type"`
-			Url                           *string                               `json:"url,omitempty"`
+			URL                           *string                               `json:"url,omitempty"`
 		}{
 			Name:             r.Name,
 			Type:             r.Type,
@@ -106,11 +106,11 @@ func (s *Server) GetProbeDossier(ctx context.Context, request GetProbeDossierReq
 		}
 		if r.URL.Valid {
 			v := r.URL.String
-			card.Url = &v
+			card.URL = &v
 		}
 		if r.DocumentationURL.Valid {
 			v := r.DocumentationURL.String
-			card.DocumentationUrl = &v
+			card.DocumentationURL = &v
 		}
 		if r.PublicationFreqPerDay.Valid {
 			v := float32(r.PublicationFreqPerDay.Float64)
@@ -192,7 +192,7 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 		return GetSourceArticles500JSONResponse{Message: genericInternalError}, nil
 	}
 
-	_, sourceName, err := s.dossier.ResolveSource(ctx, request.Id)
+	_, sourceName, err := s.dossier.ResolveSource(ctx, request.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetSourceArticles404JSONResponse{Message: "source not found"}, nil
@@ -256,7 +256,7 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 	}
 	for _, r := range rows {
 		item := struct {
-			ArticleId            string     `json:"articleId"`
+			ArticleID            string     `json:"articleId"`
 			ChainLength          *int       `json:"chainLength,omitempty"`
 			EditorialChangeCount *int       `json:"editorialChangeCount,omitempty"`
 			HasHeadlineChange    *bool      `json:"hasHeadlineChange,omitempty"`
@@ -268,7 +268,7 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 			TimestampSource      *string    `json:"timestampSource,omitempty"`
 			WordCount            *int       `json:"wordCount,omitempty"`
 		}{
-			ArticleId: r.ArticleID,
+			ArticleID: r.ArticleID,
 			Source:    r.Source,
 			Timestamp: r.Timestamp,
 		}
@@ -306,7 +306,7 @@ func (s *Server) GetSourceArticles(ctx context.Context, request GetSourceArticle
 	}
 	if page.Items == nil {
 		page.Items = []struct {
-			ArticleId            string     `json:"articleId"`
+			ArticleID            string     `json:"articleId"`
 			ChainLength          *int       `json:"chainLength,omitempty"`
 			EditorialChangeCount *int       `json:"editorialChangeCount,omitempty"`
 			HasHeadlineChange    *bool      `json:"hasHeadlineChange,omitempty"`
@@ -328,7 +328,7 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 		return GetArticleDetail404JSONResponse{Message: "article-detail endpoint not configured"}, nil
 	}
 
-	res, err := s.dossier.ResolveArticle(ctx, request.Id)
+	res, err := s.dossier.ResolveArticle(ctx, request.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSourceNotFound) {
 			return GetArticleDetail404JSONResponse{Message: "article not found"}, nil
@@ -387,7 +387,7 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 		}, nil
 	}
 
-	provenance, err := s.articles.GetArticleProvenance(ctx, request.Id)
+	provenance, err := s.articles.GetArticleProvenance(ctx, request.ID)
 	if err != nil {
 		slog.Warn("article provenance lookup failed; continuing", "error", err)
 		provenance = map[string]string{}
@@ -399,7 +399,7 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 	}
 
 	resp := GetArticleDetail200JSONResponse{
-		ArticleId:     envelope.Core.DocumentID,
+		ArticleID:     envelope.Core.DocumentID,
 		Source:        envelope.Core.Source,
 		Timestamp:     timestamp,
 		CleanedText:   envelope.Core.CleanedText,
@@ -412,7 +412,7 @@ func (s *Server) GetArticleDetail(ctx context.Context, request GetArticleDetailR
 	}
 	if envelope.Core.URL != "" {
 		u := envelope.Core.URL
-		resp.Url = &u
+		resp.URL = &u
 	}
 	if envelope.Core.Language != "" {
 		l := envelope.Core.Language

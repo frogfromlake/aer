@@ -5,7 +5,7 @@ import {
   languagesOf,
   OUTLIER_TOPIC_ID,
   UNCATEGORISED_LABEL
-} from '../../src/lib/viewmodes/topic-internals';
+} from '../../src/lib/presentations/topic-internals';
 import type { TopicDistributionEntryDto } from '../../src/lib/api/queries';
 
 const topic = (

@@ -22,7 +22,11 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { urlState } from '$lib/state/url.svelte';
-  import { DEFAULT_METRIC_NAME, resolvePresentation, type ViewModeCellProps } from '$lib/viewmodes';
+  import {
+    DEFAULT_METRIC_NAME,
+    resolvePresentation,
+    type PresentationCellProps
+  } from '$lib/presentations';
   import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
@@ -95,7 +99,7 @@
   const scope = $derived<'probe' | 'source'>('probe');
   const scopeId = $derived<string>(activeProbeId);
 
-  let CellComponent = $state<Component<ViewModeCellProps> | null>(null);
+  let CellComponent = $state<Component<PresentationCellProps> | null>(null);
   let loadError = $state<string | null>(null);
   let loadToken = 0;
 

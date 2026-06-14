@@ -1,7 +1,7 @@
 // Discourse-function single source of truth (Phase 122h, ADR-033 §4).
 //
 // The four WP-001 §3 discourse functions are referenced from four UI
-// locations (ProbeDossier source cards, WorkbenchScopeBar function chips,
+// locations (ProbeDossier source cards,
 // per-Cell filter strips, SourceCard headers). Each location used to
 // declare its own FUNCTION_* constant with inconsistent shapes — ProbeDossier
 // carried color+description, SourceCard had only label+abbr. This module

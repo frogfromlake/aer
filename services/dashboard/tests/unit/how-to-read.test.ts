@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { composeHowToRead } from '../../src/lib/viewmodes/how-to-read';
+import { composeHowToRead } from '../../src/lib/presentations/how-to-read';
 
 // Phase 131 — the "how to read" note is composed from a per-presentation
 // template plus config-derived building blocks.

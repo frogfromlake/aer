@@ -1,0 +1,31 @@
+# golangci-lint v1.64.x configuration.
+#
+# Phase 140 (Naming & Code-Convention Unification) introduces this file. Before
+# it, golangci-lint ran with its default linter set (govet, staticcheck,
+# errcheck, ineffassign, unused, …) and no config — that default set is the
+# Phase-139 dead-code ratchet and MUST stay enabled. This file only ADDS the
+# Go-initialism naming check (stylecheck ST1003) on top, as the naming ratchet.
+#
+# See docs/development/conventions.md §2 + §6.
+
+linters:
+  enable:
+    - stylecheck
+    # Formatter ratchet (Phase 140): gofmt drift had accumulated because the
+    # default linter set does not check formatting. gofmt is the house standard
+    # (canonical, deterministic). Run `gofmt -w` / `make fe-lint-fix`-equivalent
+    # before commit; CI fails on unformatted Go.
+    - gofmt
+
+linters-settings:
+  stylecheck:
+    # Restrict stylecheck to the single initialism-casing check (ID/URL/API/
+    # HTTP/JSON/SQL/DB/…). The rest of stylecheck's opinionated checks are out
+    # of scope for a naming pass and would flood unrelated findings.
+    checks:
+      - "ST1003"
+
+# With the oapi-codegen name-normalizer (ToCamelCaseWithInitialisms, Phase 140)
+# the generated method names are themselves idiomatic (GetSourceByID), so no
+# per-file ST1003 exclusion is needed. Generated files are excluded by
+# golangci-lint's default generated-file detection.

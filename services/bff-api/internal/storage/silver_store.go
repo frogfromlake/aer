@@ -21,9 +21,9 @@ const silverBucket = "silver"
 // endpoint are decoded; SilverMeta is kept as raw JSON because it is
 // source-specific and intentionally unstable (see ADR-015).
 type SilverEnvelope struct {
-	Core                 SilverCore             `json:"core"`
-	Meta                 map[string]any         `json:"meta,omitempty"`
-	ExtractionProvenance map[string]string      `json:"extraction_provenance"`
+	Core                 SilverCore        `json:"core"`
+	Meta                 map[string]any    `json:"meta,omitempty"`
+	ExtractionProvenance map[string]string `json:"extraction_provenance"`
 }
 
 // SilverCore is the universal-minimum Silver contract.

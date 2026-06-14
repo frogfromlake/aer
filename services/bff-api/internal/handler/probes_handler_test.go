@@ -41,8 +41,8 @@ func TestGetProbes_ReturnsRegistryEntries(t *testing.T) {
 		t.Fatalf("expected 1 probe, got %d", len(probes))
 	}
 	p := probes[0]
-	if p.ProbeId != "probe-0-de-institutional-web" {
-		t.Errorf("probeId mismatch: %s", p.ProbeId)
+	if p.ProbeID != "probe-0-de-institutional-web" {
+		t.Errorf("probeId mismatch: %s", p.ProbeID)
 	}
 	if p.Language != "de" {
 		t.Errorf("language mismatch: %s", p.Language)

@@ -10,21 +10,21 @@ import (
 // DiscoveryCoverageRow is one (source × channel) record summarised
 // across the requested trailing window (Phase 122g).
 type DiscoveryCoverageRow struct {
-	Channel               string
-	LastRunDiscovered     int64
-	LastRunAfterDedup     int64
+	Channel                 string
+	LastRunDiscovered       int64
+	LastRunAfterDedup       int64
 	AverageDiscoveredPerRun float64
 }
 
 // DiscoveryCoverageSummary is the per-source assemblage of telemetry
 // the BFF handler renders into the OpenAPI response shape.
 type DiscoveryCoverageSummary struct {
-	WindowDays                int
-	PerChannel                []DiscoveryCoverageRow
-	TotalDiscoveredLastRun    int64
-	UniqueAfterDedupLastRun   int64
-	UnderflowAlertActive      bool
-	ExpectedFloorPerRun       sql.NullInt64
+	WindowDays              int
+	PerChannel              []DiscoveryCoverageRow
+	TotalDiscoveredLastRun  int64
+	UniqueAfterDedupLastRun int64
+	UnderflowAlertActive    bool
+	ExpectedFloorPerRun     sql.NullInt64
 }
 
 // GetDiscoveryCoverage queries crawler_discovery_runs +

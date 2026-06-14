@@ -1,7 +1,7 @@
 <script lang="ts">
   // FunctionBadge — single visual primitive for discourse-function display
-  // (Phase 122h / ADR-033 §4). One Badge, three Pillar-anchored locations:
-  // ProbeDossier Source-Cards, WorkbenchScopeBar Function-Chips, Cell-Header
+  // (Phase 122h / ADR-033 §4). One Badge, two Pillar-anchored locations:
+  // ProbeDossier Source-Cards, Cell-Header
   // filter strips. Replaces four inline-defined badge variants in the lanes/
   // tree.
   //

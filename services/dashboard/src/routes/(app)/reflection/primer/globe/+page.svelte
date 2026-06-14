@@ -55,9 +55,9 @@ A probe is not a country. It is a constellation of sources chosen for the discur
     },
     {
       heading: 'Descending from the globe',
-      body: `The globe is the landing overview, not the primary working surface. To do scientific work, descend to Surface II (Function Lanes) via the side rail or by clicking a probe glyph. There you will find time-series data, entity co-occurrence networks, and the full view-mode matrix.
+      body: `The globe is the landing overview, not the primary working surface. To do scientific work, descend to the Workbench via the side rail or by clicking a probe glyph. There you will find time-series data, entity co-occurrence networks, and the full set of presentations.
 
-Surface III (here) is where methodology becomes legible — every metric's provenance, every probe's dossier, and the six Working Papers that define AĒR's scientific foundations.`
+The Reflection surface (here) is where methodology becomes legible — every metric's provenance, every probe's dossier, and the six Working Papers that define AĒR's scientific foundations.`
     }
   ];
 </script>

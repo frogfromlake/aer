@@ -69,7 +69,7 @@ func TestGetContent_MetricReturns200(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
-		EntityId:   "sentiment_score",
+		EntityID:   "sentiment_score",
 		Params:     GetContentParams{},
 	})
 	if err != nil {
@@ -79,8 +79,8 @@ func TestGetContent_MetricReturns200(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 200 response, got %T", resp)
 	}
-	if got.EntityId != "sentiment_score" {
-		t.Errorf("entityId: want sentiment_score, got %s", got.EntityId)
+	if got.EntityID != "sentiment_score" {
+		t.Errorf("entityId: want sentiment_score, got %s", got.EntityID)
 	}
 	if got.EntityType != ContentResponseEntityTypeMetric {
 		t.Errorf("entityType: want metric, got %s", got.EntityType)
@@ -109,7 +109,7 @@ func TestGetContent_ProbeReturns200(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeProbe,
-		EntityId:   "probe-0-de-institutional-web",
+		EntityID:   "probe-0-de-institutional-web",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -125,7 +125,7 @@ func TestGetContent_DiscourseFunction(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeDiscourseFunction,
-		EntityId:   "epistemic_authority",
+		EntityID:   "epistemic_authority",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -145,7 +145,7 @@ func TestGetContent_Refusal(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeRefusal,
-		EntityId:   "normalization_equivalence_missing",
+		EntityID:   "normalization_equivalence_missing",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -161,7 +161,7 @@ func TestGetContent_MissingEntityReturns404(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
-		EntityId:   "nonexistent_metric",
+		EntityID:   "nonexistent_metric",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -179,7 +179,7 @@ func TestGetContent_MissingLocaleReturns404(t *testing.T) {
 	locDE := GetContentParamsLocaleDe
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeProbe,
-		EntityId:   "probe-0-de-institutional-web",
+		EntityID:   "probe-0-de-institutional-web",
 		Params:     GetContentParams{Locale: &locDE},
 	})
 	if err != nil {
@@ -197,7 +197,7 @@ func TestGetContent_LocaleDefaultsToEN(t *testing.T) {
 
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
-		EntityId:   "sentiment_score",
+		EntityID:   "sentiment_score",
 		Params:     GetContentParams{Locale: nil},
 	})
 	if err != nil {
@@ -219,7 +219,7 @@ func TestGetContent_GermanLocaleReturns200(t *testing.T) {
 	locDE := GetContentParamsLocaleDe
 	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
 		EntityType: GetContentParamsEntityTypeMetric,
-		EntityId:   "sentiment_score",
+		EntityID:   "sentiment_score",
 		Params:     GetContentParams{Locale: &locDE},
 	})
 	if err != nil {
@@ -268,8 +268,8 @@ func TestGetContent_HTTPPathReturns200(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("response is not valid JSON: %v", err)
 	}
-	if body.EntityId != "sentiment_score" {
-		t.Errorf("entityId: want sentiment_score, got %s", body.EntityId)
+	if body.EntityID != "sentiment_score" {
+		t.Errorf("entityId: want sentiment_score, got %s", body.EntityID)
 	}
 	if body.Registers.Semantic.Short == "" {
 		t.Error("semantic.short must not be empty")
