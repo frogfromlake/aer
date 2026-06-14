@@ -105,4 +105,9 @@ bertopic==0.17.0
 sentence-transformers==3.3.1
 umap-learn==0.5.7
 hdbscan==0.8.40
-scikit-learn==1.7.0
+# 1.7.2 is the first scikit-learn with a cp314 (Python 3.14) wheel — 1.7.0
+# shipped none, forcing a multi-minute source build in CI. scipy 1.17.1 and
+# numpy 2.4.4 already ship cp314 wheels at their pinned versions; regenerating
+# requirements.lock.txt on Python 3.14 captures those wheel hashes so
+# --require-hashes installs them instead of compiling from sdist.
+scikit-learn==1.7.2
