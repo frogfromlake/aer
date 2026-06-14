@@ -198,7 +198,11 @@ Every dataset entering AĒR is fully traceable from the Gold layer back to the o
 
 ### 8.6.1 Distributed Tracing
 
-All three services emit OpenTelemetry traces via OTLP gRPC to the OTel Collector (`:4317`). The Collector exports traces to Grafana Tempo. Trace data is persisted to a named Docker volume (`tempo_data` mounted at `/var/tempo`) with a block retention of 72h (development) or 720h (production), ensuring traces survive container restarts. Trace context is propagated across the NATS message boundary via message headers, enabling end-to-end correlation from the crawler's HTTP POST through ingestion, NATS delivery, worker processing, and ClickHouse insertion.
+All three services emit OpenTelemetry traces via OTLP to the OTel Collector. The Collector exports traces to Grafana Tempo. Trace data is persisted to a named Docker volume (`tempo_data` mounted at `/var/tempo`) with a block retention of 72h (development) or 720h (production), ensuring traces survive container restarts.
+
+Because AĒR is **NATS/MinIO-coordinated** (no direct inter-service HTTP), an end-to-end trace is a set of **linked spans joined by propagated context**, not an HTTP call chain. Context crosses the async boundary via the **MinIO Bronze object's `UserMetadata`**: the Ingestion API injects the W3C `traceparent` on upload (`internal/storage/minio.go`), MinIO echoes it in the S3 event it publishes to NATS JetStream, and the worker extracts it (`propagate.extract`) to continue the same trace through worker processing and ClickHouse insertion.
+
+**Logs ↔ traces correlation.** Every backend attaches the active trace-id to its logs — the shared Go access-log middleware (`pkg/middleware/observability.go`) and the worker's `structlog` trace-id processor (`internal/logging.py`) both emit `trace_id`. The Go services additionally surface it on every HTTP response (including 5xx) via the **`X-Trace-Id`** header, so an operator can pivot from any error straight to its trace in Tempo.
 
 ### 8.6.2 Trace Sampling Strategy
 
@@ -216,14 +220,20 @@ The sampler is initialized in `pkg/telemetry/otel.go` (`InitProvider`) and the r
 
 ### 8.6.3 Prometheus Metrics
 
-The Python analysis worker exposes business metrics on `:8001/metrics` via the `prometheus_client` library. Prometheus scrapes this endpoint (and the OTel Collector's metrics exporter on `:8889`) every 5 seconds.
+Prometheus scrapes six targets every 5 seconds: the OTel Collector (`:8889`), the analysis worker (`:8001`), the two Go services' `/metrics` endpoints (ingestion-api `:8081`, bff-api `:8080`), and — via their **native Prometheus endpoints, no exporter container** — MinIO (`:9000/minio/v2/metrics/cluster`, public auth on the internal network) and ClickHouse (`:9363`, built-in endpoint enabled by `infra/clickhouse/config.d/prometheus.xml`).
 
-| Metric | Type | Description |
-| :--- | :--- | :--- |
-| `events_processed_total` | Counter | Total events successfully processed through the pipeline. |
-| `events_quarantined_total` | Counter | Total events routed to the DLQ. |
-| `event_processing_duration_seconds` | Histogram | End-to-end processing duration per event (buckets: 50ms–10s). |
-| `dlq_size` | Gauge | Current number of objects in the `bronze-quarantine` bucket. |
+The Python analysis worker exposes business metrics via the `prometheus_client` library; the Go services expose HTTP server metrics via a shared middleware (`pkg/middleware/observability.go`) on their existing `/metrics` endpoint.
+
+| Metric | Source | Type | Description |
+| :--- | :--- | :--- | :--- |
+| `http_server_requests_total` | Go services | Counter | HTTP requests by `service`, `method`, route **pattern** and `status` (route pattern, never concrete path, to bound cardinality). |
+| `http_server_request_duration_seconds` | Go services | Histogram | HTTP handling duration by `service`, `method`, route pattern. |
+| `events_processed_total` | Worker | Counter | Total events successfully processed through the pipeline. |
+| `events_quarantined_total` | Worker | Counter | Total events routed to the DLQ. |
+| `event_processing_duration_seconds` | Worker | Histogram | End-to-end processing duration per event (buckets: 50ms–10s). |
+| `dlq_size` | Worker | Gauge | Current number of objects in the `bronze-quarantine` bucket. |
+| `nats_consumer_pending` | Worker | Gauge | JetStream messages pending delivery to the durable consumer (backlog). |
+| `nats_consumer_ack_pending` | Worker | Gauge | Messages delivered but not yet acknowledged (in-flight). |
 
 ### 8.6.4 Alerting
 
@@ -237,7 +247,9 @@ Prometheus alerting rules are defined in `infra/observability/prometheus/alert.r
 
 ### 8.6.5 Dashboards
 
-Grafana dashboards are provisioned automatically from JSON files mounted via `infra/observability/grafana/provisioning/dashboards/`. Datasources (Tempo, Prometheus) are pre-configured via `grafana-datasources.yaml`. No manual Grafana setup is required after `make infra-up`.
+A single curated dashboard — **AER Pipeline Overview** (`aer-overview`) — is provisioned automatically from JSON mounted via `infra/observability/grafana/provisioning/dashboards/`, organised into four rows (HTTP Services · Pipeline · Infrastructure Health · Distributed Traces). It carries the key signals only — per-service request rate / latency / error rate, NATS consumer lag, worker throughput + DLQ, and ClickHouse / MinIO / target health — plus Tempo's recent-traces table and service map. Datasources (Tempo, Prometheus) are pre-configured via `grafana-datasources.yaml`; no manual Grafana setup is required after `make infra-up`.
+
+The whole observability config (Prometheus config + rules, the OTel collector config, the dashboards/provisioning, and the ClickHouse prometheus XML) is validated as code by `make observability-validate`, run as a CI gate so a broken scrape/rule/dashboard fails the build rather than surfacing only at deploy time.
 
 ## 8.7 Security
 

@@ -153,6 +153,13 @@ func main() {
 	// Scoped via Group so /metrics above stays unauthenticated.
 	// BodyLimitMiddleware must run before the strict handler decodes the body.
 	r.Group(func(r chi.Router) {
+		// Observability (Phase 154). TraceIDHeader is outermost so its
+		// X-Trace-Id header survives every response, including auth
+		// rejections; RequestLogger + PrometheusMetrics then record one
+		// log line and the request-rate/latency/error metrics per request.
+		r.Use(mw.TraceIDHeaderMiddleware)
+		r.Use(mw.RequestLogger("ingestion-api"))
+		r.Use(mw.PrometheusMetrics("ingestion-api"))
 		r.Use(mw.NewCORSHandler(strings.Split(cfg.CORSOrigins, ","), []string{"GET", "POST", "OPTIONS"}))
 		r.Use(mw.APIKeyAuth(cfg.APIKey))
 		r.Use(srv.BodyLimitMiddleware)

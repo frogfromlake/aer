@@ -19,7 +19,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
 
 	"github.com/frogfromlake/aer/pkg/logger"
@@ -285,8 +284,14 @@ func main() {
 			return otelhttp.NewHandler(next, "bff-api")
 		})
 
-		// Request Logging: structured access log for every request via slog
-		r.Use(requestLogger)
+		// Observability (Phase 154). Runs after otelhttp so the server span
+		// exists: TraceIDHeader surfaces X-Trace-Id on every response (operator
+		// pivots from a 5xx to its trace), RequestLogger emits the access log
+		// with the active trace-id, and PrometheusMetrics records the
+		// request-rate/latency/error-rate signals scraped from /metrics.
+		r.Use(mw.TraceIDHeaderMiddleware)
+		r.Use(mw.RequestLogger("bff-api"))
+		r.Use(mw.PrometheusMetrics("bff-api"))
 
 		// Rate Limiting: token-bucket limiter; rejects excess requests with 429
 		limiter := rate.NewLimiter(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
@@ -443,30 +448,4 @@ func rateLimiter(limiter *rate.Limiter) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// requestLogger is a structured access log middleware using slog.
-//
-// The trace_id is read from the active OpenTelemetry span rather than the
-// incoming Traceparent header. The otelhttp middleware runs earlier in the
-// stack and establishes the server-side span; its TraceID is what Tempo
-// indexes, so using the span's ID is the only way to make access logs and
-// Tempo traces correlatable.
-func requestLogger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-		next.ServeHTTP(ww, r)
-		traceID := ""
-		if sc := trace.SpanFromContext(r.Context()).SpanContext(); sc.IsValid() {
-			traceID = sc.TraceID().String()
-		}
-		slog.Info("http request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", ww.Status(),
-			"duration_ms", time.Since(start).Milliseconds(),
-			"trace_id", traceID,
-		)
-	})
 }

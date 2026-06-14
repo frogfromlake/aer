@@ -19,6 +19,8 @@ from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 # Internal application imports
 from prometheus_client import start_http_server
+from internal.logging import configure_logging
+from internal.metrics import nats_consumer_pending, nats_consumer_ack_pending
 from internal.storage import init_minio, init_clickhouse, init_postgres, PG_POOL_HEADROOM
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter, WebAdapter
@@ -476,9 +478,35 @@ async def _handle_message(
         await msg.nak()
 
 
+async def consumer_lag_loop(subscription, stop_event: asyncio.Event, interval_seconds: float = 10.0):
+    """Poll JetStream consumer info and publish the lag gauges (Phase 154).
+
+    Fail-silent by construction: a transient NATS error must never crash the
+    worker, so a failed poll logs at debug and retries on the next tick. The
+    gauges are the operator dashboard's primary "is the pipeline keeping up?"
+    signal alongside dlq_size.
+    """
+    while not stop_event.is_set():
+        try:
+            info = await subscription.consumer_info()
+            nats_consumer_pending.set(info.num_pending or 0)
+            nats_consumer_ack_pending.set(info.num_ack_pending or 0)
+        except Exception as e:  # noqa: BLE001 — observability poll is best-effort
+            logger.debug("Consumer-lag poll failed", error=str(e))
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+        except asyncio.TimeoutError:
+            continue
+
+
 async def main(config: WorkerConfig | None = None):
     if config is None:
         config = WorkerConfig()
+
+    # Phase 154 — structured logging with trace-id correlation. Configure
+    # before the first log line so every record (incl. boot logs) carries the
+    # active trace-id and uses the env-appropriate renderer.
+    configure_logging()
 
     validate_required_env()
 
@@ -579,7 +607,7 @@ async def main(config: WorkerConfig | None = None):
         ack_wait=config.ack_wait_seconds,
         max_deliver=config.max_deliver,
     )
-    await js.subscribe(
+    subscription = await js.subscribe(
         config.subject,
         durable=config.durable_name,
         cb=message_handler,
@@ -673,6 +701,11 @@ async def main(config: WorkerConfig | None = None):
         enrichment_reattempt_loop(reattempt_tasks, stop_event, ReAttemptConfig())
     )
 
+    # Phase 154 — periodic JetStream consumer-lag gauge poller.
+    consumer_lag_task = asyncio.create_task(
+        consumer_lag_loop(subscription, stop_event)
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -705,6 +738,9 @@ async def main(config: WorkerConfig | None = None):
 
         logger.info("Waiting for enrichment re-attempt loop to drain...")
         await reattempt_task
+
+        logger.info("Waiting for consumer-lag poller to drain...")
+        await consumer_lag_task
 
         await nc.close()
 

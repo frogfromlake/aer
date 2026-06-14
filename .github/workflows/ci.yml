@@ -540,6 +540,24 @@ jobs:
           ignore-unfixed: true
           severity: 'MEDIUM'
 
+  observability-validate:
+    name: Observability Config Validation
+    runs-on: ubuntu-latest
+    # Phase 154 — config-as-code ratchet for the observability stack. Fast
+    # (only pulls the pinned prometheus + otel-collector images, no build), so
+    # it shares the same 25-min runaway budget as every other job.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      # Validates Prometheus config + alert rules (promtool), the OTel collector
+      # config (otelcol validate), and the Grafana dashboards/provisioning +
+      # ClickHouse prometheus XML — all against the compose-pinned image tags.
+      # A broken scrape/rule/dashboard now fails CI instead of only at deploy.
+      - name: Validate observability configs
+        run: make observability-validate
+
 # E2E smoke test moved to .github/workflows/e2e_smoke_nightly.yml.
 # Rationale: testcontainer suites cover service-level integration; the
 # Compose-wiring smoke check is unique value but not a per-push regression

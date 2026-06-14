@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!--
+  Phase 154 — ClickHouse built-in Prometheus endpoint.
+
+  Exposes ClickHouse's internal metrics/events/async-metrics on an internal-only
+  port so the operator dashboard can surface analytical-DB health (query rate,
+  memory, connections, merges) WITHOUT a separate exporter container. The port
+  is reachable only on the aer-backend network; it is never published to the
+  host (not even via `make debug-up`) and carries no secrets.
+
+  Scraped by Prometheus as the `clickhouse` job (see
+  infra/observability/prometheus.yml).
+-->
+<clickhouse>
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+        <errors>true</errors>
+    </prometheus>
+</clickhouse>

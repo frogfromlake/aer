@@ -117,6 +117,11 @@ services:
       MINIO_NOTIFY_NATS_ADDRESS_aer: "nats:4222"
       MINIO_NOTIFY_NATS_SUBJECT_aer: "aer.lake.bronze"
       MINIO_NOTIFY_NATS_JETSTREAM_aer: "on"
+      # Phase 154 — expose the native Prometheus metrics endpoint without a
+      # bearer token. Safe because the endpoint is reachable only on the
+      # internal, zero-trust aer-backend network (never published to the host),
+      # mirroring the unauthenticated /metrics endpoints on the Go services.
+      MINIO_PROMETHEUS_AUTH_TYPE: "public"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -275,6 +280,10 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      # Phase 154 — enable the built-in Prometheus endpoint (port 9363,
+      # internal-only). No exporter container; scraped by the `clickhouse`
+      # Prometheus job.
+      - ./infra/clickhouse/config.d/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
     networks:
       - aer-backend
     healthcheck:

@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -327,6 +327,14 @@ openapi-bundle:
 
 openapi-lint:
 	@./scripts/build/openapi_ref_style_check.sh
+
+# Phase 154 — observability config validation ratchet. Validates Prometheus
+# config + rules (promtool), the OTel collector config (otelcol validate), and
+# the Grafana dashboards/provisioning + ClickHouse prometheus XML, all against
+# the compose-pinned image tags. Runs in CI; run locally before touching any
+# infra/observability config.
+observability-validate:
+	@./scripts/build/observability_validate.sh
 
 swagger-up:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling OpenAPI specs for Swagger UI...$(RESET)"

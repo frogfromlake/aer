@@ -736,7 +736,33 @@ nats -s nats://localhost:4222 stream view AER_LAKE   # View recent messages
 
 Pre-provisioned datasources: Tempo (traces) and Prometheus (metrics). Dashboards auto-load from `infra/observability/grafana/provisioning/dashboards/`.
 
-**Finding a trace:** Navigate to Explore → select Tempo datasource → paste a `trace_id` from PostgreSQL's `documents` table. The trace spans the entire pipeline: Ingestion → NATS → Analysis Worker → ClickHouse.
+#### The curated dashboard — "AER Pipeline Overview"
+
+One provisioned dashboard (`aer-overview`, uid `aer-overview`) carries the key signals only — no hand-built, unversioned panels. Open Grafana → Dashboards → **AER Pipeline Overview**. It is organised into four rows:
+
+| Row | Panel | Reads | What it tells you |
+| :-- | :---- | :---- | :---------------- |
+| **HTTP Services** | Request Rate by Service | `http_server_requests_total` | Per-service (ingestion-api, bff-api) requests/sec — load + traffic shape. |
+| | Request Latency p95 | `http_server_request_duration_seconds_bucket` | p95 server-side handling time per service — slowness detector. |
+| | Error Rate (5xx ratio) | `http_server_requests_total{status=~"5.."}` | Fraction of requests failing per service — the first thing to watch on deploy. |
+| **Pipeline** | Events Processed / Quarantined (rate) | `events_processed_total`, `events_quarantined_total` | Worker throughput and quarantine (DLQ) rate. |
+| | DLQ Size | `dlq_size` | Objects sitting in `bronze-quarantine` (alert ≥ 50). |
+| | Event Processing Duration (p50/p95/p99) | `event_processing_duration_seconds_bucket` | End-to-end per-event NLP cost. |
+| | **NATS Consumer Lag** | `nats_consumer_pending`, `nats_consumer_ack_pending` | `pending` = stream messages not yet delivered (backlog); `ack_pending` = delivered-but-in-flight. Sustained rising `pending` = the worker pool is falling behind ingestion. |
+| **Infrastructure Health** | Scrape Targets Up | `up` | Per-job UP/DOWN — the definitive "is it reachable" signal for every service incl. MinIO + ClickHouse. |
+| | ClickHouse Query Rate | `ClickHouseProfileEvents_Query` | Analytical-DB query throughput. |
+| | MinIO Cluster Usage | `minio_cluster_usage_total_bytes` | Object-store bytes used. |
+| **Distributed Traces** | Recent Traces / Trace Service Map | Tempo | Latest traces + the linked-span service topology (see correlation below). |
+
+> Metric provenance: per-service HTTP metrics come from a shared middleware (`pkg/middleware/observability.go`, scraped from each Go service's `/metrics`); worker metrics from `internal/metrics.py` (`:8001`); MinIO/ClickHouse from their native Prometheus endpoints (no exporter container). The `route` label is always the chi route *pattern* (e.g. `/api/v1/metrics/{metricName}/distribution`), never the concrete path, to bound cardinality.
+
+#### Finding a trace by its trace-id (logs ↔ traces correlation)
+
+Every backend attaches the active **trace-id** to its logs (`trace_id=…` on each Go access log and every worker `structlog` line) and surfaces it on HTTP responses as the **`X-Trace-Id`** header — including 5xx errors. So the pivot from a symptom to its root-cause trace is always:
+
+1. Get a trace-id — from the `X-Trace-Id` response header of a failing request, from a `trace_id=` log line (`make logs`), or from the `trace_id` column of PostgreSQL's `documents` table.
+2. Grafana → **Explore** → select the **Tempo** datasource → query by **TraceID** → paste the id.
+3. The trace spans the pipeline across the async hops: Ingestion API → (W3C `traceparent` propagated in the MinIO Bronze object's `UserMetadata`, carried to the worker on the NATS S3-notification) → Analysis Worker → ClickHouse/MinIO Silver. Because AĒR is NATS/MinIO-coordinated, a "distributed trace" here is **linked spans via propagated context**, not an HTTP call chain.
 
 ### Prometheus (Metrics & Alerting)
 
@@ -744,7 +770,7 @@ Pre-provisioned datasources: Tempo (traces) and Prometheus (metrics). Dashboards
 | :------------- | :------------------------------------------- |
 | Internal only  | `prometheus:9090` (not exposed to host)       |
 
-Accessed via Grafana. Scrapes the OTel Collector (`:8889`) and the Analysis Worker (`:8001`) every 5 seconds. Alert rules are defined in `infra/observability/prometheus/alert.rules.yml`.
+Accessed via Grafana. Scrapes every 5 seconds: the OTel Collector (`:8889`), Analysis Worker (`:8001`), Ingestion API (`:8081/metrics`), BFF API (`:8080/metrics`), MinIO (`:9000/minio/v2/metrics/cluster`, public auth on the internal network) and ClickHouse (`:9363`, built-in Prometheus endpoint). Alert rules are defined in `infra/observability/prometheus/alert.rules.yml`. Validate any config change with `make observability-validate` (also a CI gate).
 
 ### Tempo (Distributed Tracing)
 
@@ -752,7 +778,7 @@ Accessed via Grafana. Scrapes the OTel Collector (`:8889`) and the Analysis Work
 | :------------- | :------------------------------------------- |
 | Internal only  | `tempo:3200` (not exposed to host)            |
 
-Accessed via Grafana. Stores traces with configurable block retention (72h dev / 720h prod). Trace context propagates across the NATS boundary via message headers.
+Accessed via Grafana. Stores traces with configurable block retention (72h dev / 720h prod). Trace context propagates across the async boundary not via NATS headers but via the **MinIO Bronze object's `UserMetadata`**: the Ingestion API injects the W3C `traceparent` on upload, MinIO echoes it in the S3 event it publishes to NATS JetStream, and the worker extracts it to continue the same trace.
 
 ### OpenTelemetry Collector
 
@@ -764,7 +790,23 @@ Accessed via Grafana. Stores traces with configurable block retention (72h dev /
 
 Configuration: `infra/observability/otel-collector.yaml`. Routes traces to Tempo and metrics to Prometheus.
 
-**Trace sampling** is configurable via `OTEL_TRACE_SAMPLE_RATE` (default: `1.0` = 100%). Production recommendation: `0.1` (10%).
+**Trace sampling** is configurable via `OTEL_TRACE_SAMPLE_RATE` (default: `1.0` = 100%). Production recommendation: `0.1` (10%). The sampler is `ParentBased(TraceIDRatioBased(rate))` in every service, so a sampled root keeps its whole linked-span trace.
+
+### Observability runbook — symptom → trace → root cause
+
+Start every investigation at the **AER Pipeline Overview** dashboard, then drill from a metric to the trace that explains it. Each row below is "what you'd see → first move → likely cause".
+
+| Symptom (on the dashboard) | Pivot | Likely root cause / next step |
+| :------------------------- | :---- | :---------------------------- |
+| **Error Rate (5xx) spikes for a service** | Reproduce or grab a failing request's `X-Trace-Id`; open it in Tempo. Cross-check the `trace_id=` access log (`make logs`). | Find the failing span: a DB/MinIO error span points at storage; an auth/validation span points at config. The generic `{"error":"internal error"}` body never leaks detail — the trace and server log do. |
+| **Request Latency p95 climbs** | Open a slow trace in Tempo; read the span durations. | Which span dominates — ClickHouse query (BFF), MinIO read, or PostgreSQL? Confirm against ClickHouse Query Rate + the store's `up`. |
+| **NATS Consumer Lag `pending` rises and stays up** | Compare Events Processed rate vs. ingestion volume; check Event Processing Duration p95. | Worker pool can't keep up: a heavy-NLP backlog (duration p95 high) or too few workers (`WORKER_COUNT`). `ack_pending` pinned at the queue cap = backpressure working as designed. |
+| **DLQ Size / Quarantine rate rises** | Inspect a quarantined object in `bronze-quarantine` (see the MinIO section); find its trace via the `documents.trace_id`. | Poison pill (unknown `source_type`, malformed envelope) — the worker routed it to DLQ after `NATS_MAX_DELIVER`. The quarantine span carries the reason. |
+| **WorkerDown alert / `up{job="analysis-worker"}=0`** | Check `make logs` for the worker; check the worker container health. | Crash-loop (bad config/missing secret → boot validation `SystemExit`) or OOM. The boot logs name the missing credential. |
+| **A store panel is empty but its `up=1`** | The service is reachable but a specific metric name drifted across an image bump. | Confirm the live metric name at the native endpoint (`curl` from inside the backend network) and adjust the dashboard panel; run `make observability-validate`. |
+| **A trace stops at the Ingestion span (no worker span)** | Expected if the document was filtered before the worker; otherwise check the MinIO→NATS hop. | Verify the Bronze object carries a `traceparent` in its `UserMetadata` and the worker is consuming (`nats_consumer_pending`). |
+
+If telemetry itself looks dark: confirm `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318` (in-network host, not `localhost`), that the OTel Collector is up, and that `OTEL_TRACE_SAMPLE_RATE` is not `0`.
 
 ---
 

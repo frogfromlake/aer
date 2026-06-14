@@ -39,6 +39,22 @@ dlq_size = Gauge(
     "Current number of objects accumulated in the bronze-quarantine bucket.",
 )
 
+# Phase 154 — NATS JetStream consumer lag. `num_pending` is the count of
+# stream messages not yet delivered to this durable consumer; a sustained
+# rise means the worker pool is falling behind ingestion. `num_ack_pending`
+# is the count delivered but not yet acknowledged (in-flight). Both are
+# polled periodically from the consumer info (see main.py) — the operator
+# dashboard's primary "is the pipeline keeping up?" signal alongside dlq_size.
+nats_consumer_pending = Gauge(
+    "nats_consumer_pending",
+    "JetStream messages pending delivery to the analysis-worker durable consumer.",
+)
+
+nats_consumer_ack_pending = Gauge(
+    "nats_consumer_ack_pending",
+    "JetStream messages delivered to the analysis-worker but not yet acknowledged (in-flight).",
+)
+
 analysis_worker_poison_messages_total = Counter(
     "analysis_worker_poison_messages_total",
     "Messages that exhausted NATS redeliveries and were routed to the poison-pill DLQ.",

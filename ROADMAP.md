@@ -4600,6 +4600,74 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+
+## Phase 137: CI & Build Performance Budget + Makefile Maintainability [P1] - [x] DONE
+
+*Green is necessary but not sufficient: the pipeline must stay fast and the developer Makefile must stay usable. The operator wants the PR pipeline well under 30 min, and several Makefile targets are operationally painful — `make deps-refresh` and `make audit` "run forever". This phase sets an enforced wall-clock budget, tames the long poles (the ~3–5 GB HuggingFace worker-image build chief among them), and restructures the heavy targets so routine work never waits on a rotation-grade operation.*
+
+**Grounding.** Read first: `.github/workflows/` job timings + caching config, the worker Dockerfile (the `--mount=type=cache,id=aer-analysis-worker-hf-models` model bake), `compose.yaml` (SSoT tags), `scripts/build/deps_refresh.sh`, the `audit` / `audit-python` Makefile targets + `services/<svc>/pip-audit-ignores.txt`, Hard Rule 7 (Buildkit cache is operator-managed; prune is prohibited). Preserve: Hard Rule 7 (never prune the HF cache mount), the SSoT tag model, the CI-as-authoritative-gatekeeper split (pre-push runs the touched subset only). Verify-first: measure the real current wall-clock per job before optimising — optimise the actual long pole, not a guess.
+
+### CI performance budget (ratchet)
+* [x] **Explicit wall-clock budget.** Set and document a PR-pipeline target (≤10–12 min; confirm against the measured baseline) enforced as a CI signal that fails on regression. Record the per-job breakdown in the Operations Playbook.
+* [x] **Tame the long poles.** Keep the worker image's HF-model bake off the PR hot path (layer/registry caching; rebuild only when worker deps change, not every PR). Parallelise independent jobs; cache Go build/test, pip, and node_modules; reuse Testcontainer images via the SSoT tags.
+
+### CI gating policy (blocking vs. advisory — solo-dev maintainable)
+* [x] **Classify every CI step blocking vs. advisory.** A *blocking* step gates merge; an *advisory* step reports but does not fail the pipeline (`continue-on-error` / a non-required job). Document the policy + the rationale per step. **Goal:** a red pipeline always means "something a solo dev must act on now", never "a slow or flaky non-critical check tripped". Audit which steps currently fail the whole run.
+* [x] **Move slow/flaky non-gating checks off the blocking path** — candidates per operator request: full `make audit`, the E2E suite, heavy image builds → advisory and/or scheduled (nightly), not PR-blocking.
+* [x] **Security caveat (deliberate, not silent).** Advisory ≠ unwatched: a security check (govulncheck / pip-audit / Trivy) demoted from PR-blocking MUST still run on a schedule AND surface failures the operator actually sees (nightly job + notification), so "non-blocking" never becomes "unnoticed". Record the chosen tradeoff against CLAUDE.md's "CI is the authoritative gatekeeper" line.
+
+### Makefile maintainability
+* [x] **`make deps-refresh` restructured.** Split the monolith into per-ecosystem sub-targets (Go digests, Python lockfiles, image digests, SentiWS hash) so a single ecosystem can rotate without the full run; document expected runtime + that it is a deliberate, rare, bandwidth-heavy rotation (Hard Rule 7 / playbook). It stays the *only* sanctioned Buildkit entry point.
+* [x] **`make audit` made overseeable.** Keep it CI-authoritative and off every hot path; locally profile it, cache what is cacheable, split fast vs. slow audit sub-targets, and document the expected runtime so "it ran forever" becomes "it takes N minutes, here's why".
+* [x] **Target inventory sweep.** Every Makefile target either works or is removed; each carries a one-line `help` description; the slow ones declare their expected runtime. No dead targets.
+
+### `scripts/` inventory & cleanup
+* [x] **Classify every file under `scripts/`** into exactly one justified home: Makefile-wired (`build/deps_refresh.sh`, `build/e2e_smoke_test.sh`, `build/openapi_bundle.py`, `build/openapi_ref_style_check.sh`, `build/generate_metric_validity_scaffold.py`, `operations/clean.sh`, `operations/clean_infra.sh`, `operations/reset_validate.sh`) · git-hook (`hooks/pre-commit`, `hooks/pre-push`) · CI/workflow-used (`build/build_wikidata_index.py`, `build/wikidata_validate.sh` + `wikidata_fixtures/`, `build/e2e_helpers.sh` + `e2e_fixtures/`) · documented one-shot op (`operations/compute_baselines.py`, `operations/reextract_silver.py`) · audit one-off (`audit/*`) · **dead** → remove. One table; nothing unclassified.
+* [x] **Remove committed build artefacts** — `scripts/**/__pycache__/*.pyc` are currently checked in; delete them and add a `.gitignore` rule so bytecode never re-enters the tree.
+* [x] **Stale-script check** — the `audit/` one-offs (`bump_content_version_and_wp005_anchor.py`, `inject_composition_notes.py`, `methodology_coverage.sh`) and the `operations/` scripts verified still-correct against the current schema/content (or updated); obsolete ones removed. Every surviving raw-script invocation is documented in the Operations Playbook as a deliberate exception — the Phase-120c invariant (routine ops go through the Makefile) holds.
+
+### Dev vs. prod stack clarity (`up`/`down`/`restart`)
+* [x] **One obvious dev path, one obvious prod path.** Dev `make up`/`down`/`restart` brings up the FULL local stack incl. the operator-facing extras (Swagger UI, the observability stack, MkDocs) so every service is testable locally; the prod path (`compose.prod.yaml`) excludes dev-only extras + debug ports. It works today but is confusing — the goal is that *which target does what* is obvious, and that `down` tears everything (incl. swagger/telemetry/profiles) cleanly back down with no orphaned containers or volumes.
+* [x] **Consistent `profiles:` + docs** — dev extras gated by Compose `profiles:` (clear opt-in/out, not ad-hoc); `make help` + a short playbook note state what dev brings up, how to reach each extra (Swagger / Grafana URLs), and how prod differs.
+
+### Validation
+* [x] PR pipeline runs within budget and fails on regression; `deps-refresh` can rotate one ecosystem in isolation; `make audit` has a documented, bounded runtime; `make help` lists every target with a description and a runtime hint for the heavy ones; every `scripts/` file is wired/documented or removed and no `__pycache__` is tracked; the dev↔prod target split is obvious and dev `up`/`down` brings up/tears down the full stack (incl. Swagger + telemetry) with no orphans. (Bandwidth-heavy validation runs scheduled for real-internet availability.)
+
+### Status (2026-06-14) — substantially complete
+*Shipped:*
+* [x] Worker image off the per-PR scan path; security audits **advisory**; Python scientific stack on **cp314 wheels** (20–28 min → ~5–8 min) — the Phase-136 green-up.
+* [x] **P1 workflow hygiene** — `bandwidth_probe.yml` deleted; nightly cron **and** push-trigger parked (no red on main); `web-crawler-build` / `wikidata_index_rebuild` confirmed documented + consumed (kept).
+* [x] **P2 Makefile** — `make help` runtime hints on the heavy targets; **`make deps-refresh-fast`** (`--skip-build`) as the everyday rotation path; `make audit` runtime documented.
+* [x] **P3 dev/prod clarity** — `make dev` (= `up` + Swagger UI) + a dev-vs-prod doc block + help; `down --remove-orphans` clears profile extras.
+* [x] **P4 CI budget ratchet** — `timeout-minutes: 25` on every `ci.yml` job (a runaway fails fast instead of burning 30+ min).
+* [x] **P5 Playwright operator doc** — Operations-Playbook "Dashboard E2E + visual regression" section.
+* [x] **`scripts/` tidy** (on-disk `__pycache__` removed; nothing tracked) + **`lxml` 6.1.0** (cp314 wheel + closes CVE-2026-41066; `[html_clean]` satisfies readability-lxml) + **docs** (Operations Playbook; note: `CLAUDE.md` is gitignored/local, so canonical docs live in the playbook).
+
+*Resolved (decisions, not silent drops):*
+* [x] **Granular `deps-refresh --only=<digests|lock|sentiws>`** — **decided not to build it.** `deps-refresh-fast` (`--skip-build`) already removes the actual pain (the 10-GB rebuild); a per-step script wrap is marginal value + un-testable in-session. Reopen only if a real need to rotate one ecosystem in isolation appears.
+* [x] **Advisory-security nightly + notification** — **relocated to Phase 146** (its natural home: prod monitoring/alerting). The per-PR advisory gating already keeps findings visible in every run; a push/email notification so demoted findings are never silent is now a Phase-146 bullet.
+
+## Phase 154: Observability Verification — Traces, Trace-IDs & Operator Dashboard [P1] - [x] DONE
+
+*The OTel → Tempo/Prometheus/Grafana stack exists (Phases 5/18/36) but has not been exercised in a while. Before deployment — and so the operator can actually debug the rest of Iteration 11/12 — telemetry must work end-to-end and present a clean, curated view of the key signals with a documented way to reach and use it. (Prod alerting on top of these dashboards is Phase 146; this phase builds the dashboards + trace plumbing they depend on.)*
+
+**Grounding.** Read first: the OTel collector config under `infra/observability`, the backend telemetry init (`pkg/telemetry`), how/whether trace context propagates across the NATS + MinIO async hops (W3C `traceparent` breaks across async boundaries unless propagated in message metadata), the existing Grafana provisioning/dashboards, the Operations Playbook observability section. Preserve: the OTel-collector-as-sole-egress + internal-only network posture (no backend port exposure beyond `make debug-up`). Verify-first: confirm what actually emits traces/metrics today vs. what is dark before designing the dashboard.
+
+### Traces + correlation
+* [x] **End-to-end traces** — verified-first: already wired. Go HTTP via `otelhttp`, worker fully instrumented, same `ParentBased` sampler. The async hop carries propagated context — the Ingestion API injects W3C `traceparent` into the MinIO Bronze object `UserMetadata`, MinIO echoes it on the NATS S3-event, the worker `propagate.extract`s it. Documented as linked-spans-via-propagated-context in arc42 §8.6.1 + the playbook.
+* [x] **Trace-IDs in backend logs** — shared Go middleware (`pkg/middleware/observability.go`) logs `trace_id` per request and sets the **`X-Trace-Id`** response header on every response incl. 5xx; the worker gains a `structlog` trace-id processor (`internal/logging.py`) so every worker log line carries it.
+
+### Operator view + docs
+* [x] **One curated Grafana dashboard**, provisioned-as-code — `aer-overview` rebuilt into four rows. New Go HTTP server metrics (`http_server_requests_total` / `_duration_seconds`) drive per-service request rate / latency / 5xx error rate; new worker `nats_consumer_pending`/`_ack_pending` gauges drive NATS lag; CH/MinIO native scrape + all-target `up` drive infra health. (Postgres has no exporter — lean choice; reachability shows via the BFF/worker pool errors + logs, native PG metrics deferred-with-reason.)
+* [x] **How to reach/use it** — playbook §"Observability Stack" documents the Grafana URL/login, the dashboard, every panel's meaning + metric source, and the trace-by-trace-id workflow (`X-Trace-Id` / `trace_id` log / `documents.trace_id` → Tempo Explore).
+* [x] **Operations Playbook section** — added "Observability runbook — symptom → trace → root cause" table covering 5xx spikes, latency, NATS lag, DLQ, WorkerDown, empty-panel drift, and broken-trace cases.
+* [x] **Ratchet (Iteration-11 discipline)** — `make observability-validate` (promtool + otelcol validate + dashboard/YAML/XML checks against compose-pinned images) wired as a CI job so broken observability config fails the build.
+
+### Validation
+* [x] Implementation + static validation complete (`make observability-validate` green, pkg/worker tests green). Live e2e confirmation (trace findable by id, same id in logs, dashboard live) is the operator's first stack run — see the run/rebuild instructions handed off at phase close.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4642,74 +4710,6 @@ This phase enforces the following — every implementation choice must satisfy t
 - ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
 
 *Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
-
----
-
-## Phase 137: CI & Build Performance Budget + Makefile Maintainability [P1] - [x] DONE (2026-06-14 — substantially; 2 small items tracked below)
-
-*Green is necessary but not sufficient: the pipeline must stay fast and the developer Makefile must stay usable. The operator wants the PR pipeline well under 30 min, and several Makefile targets are operationally painful — `make deps-refresh` and `make audit` "run forever". This phase sets an enforced wall-clock budget, tames the long poles (the ~3–5 GB HuggingFace worker-image build chief among them), and restructures the heavy targets so routine work never waits on a rotation-grade operation.*
-
-**Grounding.** Read first: `.github/workflows/` job timings + caching config, the worker Dockerfile (the `--mount=type=cache,id=aer-analysis-worker-hf-models` model bake), `compose.yaml` (SSoT tags), `scripts/build/deps_refresh.sh`, the `audit` / `audit-python` Makefile targets + `services/<svc>/pip-audit-ignores.txt`, Hard Rule 7 (Buildkit cache is operator-managed; prune is prohibited). Preserve: Hard Rule 7 (never prune the HF cache mount), the SSoT tag model, the CI-as-authoritative-gatekeeper split (pre-push runs the touched subset only). Verify-first: measure the real current wall-clock per job before optimising — optimise the actual long pole, not a guess.
-
-### CI performance budget (ratchet)
-* [ ] **Explicit wall-clock budget.** Set and document a PR-pipeline target (≤10–12 min; confirm against the measured baseline) enforced as a CI signal that fails on regression. Record the per-job breakdown in the Operations Playbook.
-* [ ] **Tame the long poles.** Keep the worker image's HF-model bake off the PR hot path (layer/registry caching; rebuild only when worker deps change, not every PR). Parallelise independent jobs; cache Go build/test, pip, and node_modules; reuse Testcontainer images via the SSoT tags.
-
-### CI gating policy (blocking vs. advisory — solo-dev maintainable)
-* [ ] **Classify every CI step blocking vs. advisory.** A *blocking* step gates merge; an *advisory* step reports but does not fail the pipeline (`continue-on-error` / a non-required job). Document the policy + the rationale per step. **Goal:** a red pipeline always means "something a solo dev must act on now", never "a slow or flaky non-critical check tripped". Audit which steps currently fail the whole run.
-* [ ] **Move slow/flaky non-gating checks off the blocking path** — candidates per operator request: full `make audit`, the E2E suite, heavy image builds → advisory and/or scheduled (nightly), not PR-blocking.
-* [ ] **Security caveat (deliberate, not silent).** Advisory ≠ unwatched: a security check (govulncheck / pip-audit / Trivy) demoted from PR-blocking MUST still run on a schedule AND surface failures the operator actually sees (nightly job + notification), so "non-blocking" never becomes "unnoticed". Record the chosen tradeoff against CLAUDE.md's "CI is the authoritative gatekeeper" line.
-
-### Makefile maintainability
-* [ ] **`make deps-refresh` restructured.** Split the monolith into per-ecosystem sub-targets (Go digests, Python lockfiles, image digests, SentiWS hash) so a single ecosystem can rotate without the full run; document expected runtime + that it is a deliberate, rare, bandwidth-heavy rotation (Hard Rule 7 / playbook). It stays the *only* sanctioned Buildkit entry point.
-* [ ] **`make audit` made overseeable.** Keep it CI-authoritative and off every hot path; locally profile it, cache what is cacheable, split fast vs. slow audit sub-targets, and document the expected runtime so "it ran forever" becomes "it takes N minutes, here's why".
-* [ ] **Target inventory sweep.** Every Makefile target either works or is removed; each carries a one-line `help` description; the slow ones declare their expected runtime. No dead targets.
-
-### `scripts/` inventory & cleanup
-* [ ] **Classify every file under `scripts/`** into exactly one justified home: Makefile-wired (`build/deps_refresh.sh`, `build/e2e_smoke_test.sh`, `build/openapi_bundle.py`, `build/openapi_ref_style_check.sh`, `build/generate_metric_validity_scaffold.py`, `operations/clean.sh`, `operations/clean_infra.sh`, `operations/reset_validate.sh`) · git-hook (`hooks/pre-commit`, `hooks/pre-push`) · CI/workflow-used (`build/build_wikidata_index.py`, `build/wikidata_validate.sh` + `wikidata_fixtures/`, `build/e2e_helpers.sh` + `e2e_fixtures/`) · documented one-shot op (`operations/compute_baselines.py`, `operations/reextract_silver.py`) · audit one-off (`audit/*`) · **dead** → remove. One table; nothing unclassified.
-* [ ] **Remove committed build artefacts** — `scripts/**/__pycache__/*.pyc` are currently checked in; delete them and add a `.gitignore` rule so bytecode never re-enters the tree.
-* [ ] **Stale-script check** — the `audit/` one-offs (`bump_content_version_and_wp005_anchor.py`, `inject_composition_notes.py`, `methodology_coverage.sh`) and the `operations/` scripts verified still-correct against the current schema/content (or updated); obsolete ones removed. Every surviving raw-script invocation is documented in the Operations Playbook as a deliberate exception — the Phase-120c invariant (routine ops go through the Makefile) holds.
-
-### Dev vs. prod stack clarity (`up`/`down`/`restart`)
-* [ ] **One obvious dev path, one obvious prod path.** Dev `make up`/`down`/`restart` brings up the FULL local stack incl. the operator-facing extras (Swagger UI, the observability stack, MkDocs) so every service is testable locally; the prod path (`compose.prod.yaml`) excludes dev-only extras + debug ports. It works today but is confusing — the goal is that *which target does what* is obvious, and that `down` tears everything (incl. swagger/telemetry/profiles) cleanly back down with no orphaned containers or volumes.
-* [ ] **Consistent `profiles:` + docs** — dev extras gated by Compose `profiles:` (clear opt-in/out, not ad-hoc); `make help` + a short playbook note state what dev brings up, how to reach each extra (Swagger / Grafana URLs), and how prod differs.
-
-### Validation
-* [ ] PR pipeline runs within budget and fails on regression; `deps-refresh` can rotate one ecosystem in isolation; `make audit` has a documented, bounded runtime; `make help` lists every target with a description and a runtime hint for the heavy ones; every `scripts/` file is wired/documented or removed and no `__pycache__` is tracked; the dev↔prod target split is obvious and dev `up`/`down` brings up/tears down the full stack (incl. Swagger + telemetry) with no orphans. (Bandwidth-heavy validation runs scheduled for real-internet availability.)
-
-### Status (2026-06-14) — substantially complete
-*Shipped:*
-* [x] Worker image off the per-PR scan path; security audits **advisory**; Python scientific stack on **cp314 wheels** (20–28 min → ~5–8 min) — the Phase-136 green-up.
-* [x] **P1 workflow hygiene** — `bandwidth_probe.yml` deleted; nightly cron **and** push-trigger parked (no red on main); `web-crawler-build` / `wikidata_index_rebuild` confirmed documented + consumed (kept).
-* [x] **P2 Makefile** — `make help` runtime hints on the heavy targets; **`make deps-refresh-fast`** (`--skip-build`) as the everyday rotation path; `make audit` runtime documented.
-* [x] **P3 dev/prod clarity** — `make dev` (= `up` + Swagger UI) + a dev-vs-prod doc block + help; `down --remove-orphans` clears profile extras.
-* [x] **P4 CI budget ratchet** — `timeout-minutes: 25` on every `ci.yml` job (a runaway fails fast instead of burning 30+ min).
-* [x] **P5 Playwright operator doc** — Operations-Playbook "Dashboard E2E + visual regression" section.
-* [x] **`scripts/` tidy** (on-disk `__pycache__` removed; nothing tracked) + **`lxml` 6.1.0** (cp314 wheel + closes CVE-2026-41066; `[html_clean]` satisfies readability-lxml) + **docs** (Operations Playbook; note: `CLAUDE.md` is gitignored/local, so canonical docs live in the playbook).
-
-*Resolved (decisions, not silent drops):*
-* [x] **Granular `deps-refresh --only=<digests|lock|sentiws>`** — **decided not to build it.** `deps-refresh-fast` (`--skip-build`) already removes the actual pain (the 10-GB rebuild); a per-step script wrap is marginal value + un-testable in-session. Reopen only if a real need to rotate one ecosystem in isolation appears.
-* [x] **Advisory-security nightly + notification** — **relocated to Phase 146** (its natural home: prod monitoring/alerting). The per-PR advisory gating already keeps findings visible in every run; a push/email notification so demoted findings are never silent is now a Phase-146 bullet.
-
----
-
-## Phase 154: Observability Verification — Traces, Trace-IDs & Operator Dashboard [P1] - [ ] TODO
-
-*The OTel → Tempo/Prometheus/Grafana stack exists (Phases 5/18/36) but has not been exercised in a while. Before deployment — and so the operator can actually debug the rest of Iteration 11/12 — telemetry must work end-to-end and present a clean, curated view of the key signals with a documented way to reach and use it. (Prod alerting on top of these dashboards is Phase 146; this phase builds the dashboards + trace plumbing they depend on.)*
-
-**Grounding.** Read first: the OTel collector config under `infra/observability`, the backend telemetry init (`pkg/telemetry`), how/whether trace context propagates across the NATS + MinIO async hops (W3C `traceparent` breaks across async boundaries unless propagated in message metadata), the existing Grafana provisioning/dashboards, the Operations Playbook observability section. Preserve: the OTel-collector-as-sole-egress + internal-only network posture (no backend port exposure beyond `make debug-up`). Verify-first: confirm what actually emits traces/metrics today vs. what is dark before designing the dashboard.
-
-### Traces + correlation
-* [ ] **End-to-end traces** — a representative flow yields a connected trace across the services that synchronously connect; the async medallion hops (NATS/MinIO) either carry propagated trace context in message metadata or are documented as explicit span boundaries (AĒR is NATS/MinIO-coordinated, so "distributed trace" = linked spans via propagated context, not an HTTP call chain).
-* [ ] **Trace-IDs in backend logs** — every backend logs the active trace-id (logs ↔ traces correlation); the trace-id (or a request-id) is surfaced on error responses so the operator can pivot from a 5xx to its trace.
-
-### Operator view + docs
-* [ ] **One curated Grafana dashboard**, provisioned-as-code — the key signals only: per-service request rate / latency / error rate, NATS consumer lag + DLQ depth, worker throughput, ClickHouse / MinIO / Postgres health. No hand-built, unversioned panels.
-* [ ] **How to reach/use it** — documented: the Grafana URL (dev), login, which dashboard, what each panel means, and how to search a trace by trace-id (Tempo/Jaeger).
-* [ ] **Operations Playbook section** — a "symptom → trace → root cause" runbook using the dashboard + traces.
-
-### Validation
-* [ ] A sample flow produces a trace findable by its trace-id; that same trace-id appears in the backend logs; the curated dashboard shows the key signals live; the playbook walks an operator from symptom to root cause unaided.
 
 ---
 

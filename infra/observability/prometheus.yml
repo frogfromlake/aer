@@ -21,3 +21,16 @@ scrape_configs:
     static_configs:
       - targets: ['bff-api:8080']
     metrics_path: /metrics
+
+  # Phase 154 — datastore health via native Prometheus endpoints (no exporter
+  # containers). MinIO exposes cluster metrics unauthenticated (public auth
+  # type, internal network only); ClickHouse exposes its built-in endpoint on
+  # port 9363. Both are scraped for the operator dashboard's storage-health row.
+  - job_name: 'minio'
+    metrics_path: /minio/v2/metrics/cluster
+    static_configs:
+      - targets: ['minio:9000']
+
+  - job_name: 'clickhouse'
+    static_configs:
+      - targets: ['clickhouse:9363']
