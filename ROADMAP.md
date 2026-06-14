@@ -4850,6 +4850,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ### Routing & state
 * [ ] **Back/forward state preservation** — from any view, back AND forward preserve charts/panels/configuration/Dossier filters. **"Your work will be lost" guard** (`beforeunload`/navigation guard) + localStorage quick-save (server-side from Phase 135). Every reachable state in the URL; deep-links round-trip byte-identically.
+* [ ] **Re-enable the Phase-136 quarantined E2E tests (MUST).** During the Phase-136 CI restoration, 3 dashboard E2E tests were `test.skip`-quarantined because they assert the **retired `/lanes/{id}/…?viewMode=` grammar + Surface-I/II DOM**: `atmosphere.spec.ts` (deep-linked probe → Dossier descent), `topic-views.spec.ts` (`topic_distribution` cell renders + fires `/topics/distribution`), `iteration6-closure.spec.ts` (cooccurrence node → Wikidata external link). They are **real feature coverage that moved to the new surfaces** (Atmosphäre overlay `?dossier=open`/`?selectedProbes=`; Workbench Episteme/Rhizome cells under `?{aleph,episteme,rhizome}=<base64url-json>`). Rewrite each against the three-surface grammar + current cell DOM (`.plot-host`, `svg.graph g.node`, `[data-testid="entity-external-links"]`) and **un-skip** — do not delete the coverage. Search marker: `QUARANTINED (Phase 136 → rewrite in 127)`.
 
 ### Coherence audit (three surfaces)
 * [ ] Pillar-identity coherence; metric+metadata inventory coherence (all in the picker, EN+DE explanations); "always explained" coherence; configurable-cell coherence.
