@@ -117,7 +117,11 @@ async function mockBff(page: import('@playwright/test').Page) {
 }
 
 test.describe('Atmosphere — Phase 113c probe descent', () => {
-  test('deep-linked probe redirects to /lanes/{id}/dossier and renders the Dossier', async ({
+  // QUARANTINED (Phase 136 → rewrite in 127): asserts the retired
+  // /lanes/{id}/dossier route + Surface-I/II descent. The probe→Dossier flow
+  // now lives in the Atmosphäre overlay (?dossier=open / ?selectedProbes=).
+  // Rewrite against the three-surface grammar in Phase 127, then un-skip.
+  test.skip('deep-linked probe redirects to /lanes/{id}/dossier and renders the Dossier', async ({
     page
   }) => {
     await mockBff(page);

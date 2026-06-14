@@ -340,6 +340,15 @@ jobs:
         continue-on-error: true   # advisory — report, don't block (see note above)
         run: make audit-python
 
+      # Same Python-3.14/no-cp314-wheel reason as the python-pipeline job: the
+      # lockfile install builds scipy/scikit-learn from source and needs the
+      # Fortran/BLAS toolchain. (Phase 137: a cp314 wheel bump removes both this
+      # step and the slow source build.)
+      - name: Install scientific-stack build deps (scipy/scikit-learn on Python 3.14)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc g++ gfortran make libopenblas-dev liblapack-dev
+
       - name: Verify hash-pinned lockfile installs (analysis-worker)
         working-directory: ./services/analysis-worker
         run: |
@@ -353,16 +362,15 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      # The analysis-worker image bakes 10+ GB of HuggingFace model weights;
-      # building all five images on a stock ubuntu-latest runner (~14 GB free)
-      # exhausts the disk mid model-download ("no space left on device").
-      # Reclaim ~20-25 GB of preinstalled toolchains we don't use. (Phase 137
-      # will additionally keep the model bake off this scan path.)
-      - name: Free up runner disk (worker image bakes 10+ GB of HF models)
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
-          df -h /
-
+      # The analysis-worker image is intentionally NOT built/scanned on the
+      # per-PR path: it bakes 10+ GB of HuggingFace model weights (plus a
+      # `load: true` tarball export that doubles disk use), which exhausts the
+      # runner disk and dominates wall-clock (~30 min). The model bytes are
+      # irrelevant to a CVE scan — the worker's Python dependencies are already
+      # covered by pip-audit (dependency-audit job), and its debian-slim OS
+      # layer is covered by the web-crawler image scan (same base). The full
+      # worker image is scanned out-of-band (scheduled/release — Phase 137/146),
+      # keeping the per-PR scan fast and disk-safe.
       - name: Set up Python (for OpenAPI bundler)
         uses: actions/setup-python@v6
         with:
@@ -403,16 +411,6 @@ jobs:
           load: true
           cache-from: type=gha,scope=bff-api
           cache-to: type=gha,mode=max,scope=bff-api
-
-      - name: Build analysis-worker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/analysis-worker/Dockerfile
-          tags: aer/analysis-worker:ci
-          load: true
-          cache-from: type=gha,scope=analysis-worker
-          cache-to: type=gha,mode=max,scope=analysis-worker
 
       - name: Build dashboard image
         uses: docker/build-push-action@v6
@@ -458,16 +456,6 @@ jobs:
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
 
-      - name: Trivy scan — analysis-worker
-        continue-on-error: true   # advisory — report image CVEs, don't block
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: 'aer/analysis-worker:ci'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: 'HIGH,CRITICAL'
-
       - name: Trivy scan — dashboard
         continue-on-error: true   # advisory — report image CVEs, don't block
         uses: aquasecurity/trivy-action@v0.36.0
@@ -503,15 +491,6 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aer/bff-api:ci'
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'MEDIUM'
-
-      - name: Trivy scan (MEDIUM, reporting-only) — analysis-worker
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: 'aer/analysis-worker:ci'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true

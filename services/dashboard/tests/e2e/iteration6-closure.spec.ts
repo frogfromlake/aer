@@ -247,7 +247,12 @@ async function mockCooccurrence(page: import('@playwright/test').Page) {
 }
 
 test.describe('Phase 118 / 121b — Wikidata link on cooccurrence node', () => {
-  test('linked entity renders an <a> to the canonical Wikidata QID URL; unlinked entity does not', async ({
+  // QUARANTINED (Phase 136 → rewrite in 127): navigates the retired
+  // /lanes/{id}/{fn}?viewMode=cooccurrence_network route + asserts the old
+  // graph DOM. The cooccurrence cell + Wikidata external-link affordance now
+  // render as a Workbench Rhizome cell under the base64url-json grammar.
+  // Rewrite against the three-surface grammar in Phase 127, then un-skip.
+  test.skip('linked entity renders an <a> to the canonical Wikidata QID URL; unlinked entity does not', async ({
     page
   }) => {
     await mockCooccurrence(page);

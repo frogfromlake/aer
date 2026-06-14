@@ -150,7 +150,12 @@ async function mockBff(page: import('@playwright/test').Page) {
 }
 
 test.describe('Phase 121 — topic_distribution view mode', () => {
-  test('switching to topic_distribution calls /topics/distribution and renders a ridge', async ({
+  // QUARANTINED (Phase 136 → rewrite in 127): navigates the retired
+  // /lanes/{id}/{fn}?viewMode=topic_distribution route + asserts the old
+  // request shape (scope=probe&scopeId=) and DOM. topic_distribution now
+  // renders as a Workbench Episteme cell under the base64url-json grammar.
+  // Rewrite against the three-surface grammar in Phase 127, then un-skip.
+  test.skip('switching to topic_distribution calls /topics/distribution and renders a ridge', async ({
     page
   }) => {
     await mockBff(page);

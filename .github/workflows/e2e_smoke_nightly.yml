@@ -45,6 +45,12 @@ jobs:
     name: Full-stack smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # The Compose stack pulls private GHCR images (e.g. aer-wikidata-index,
+    # built by wikidata_index_rebuild.yml). packages:read lets GITHUB_TOKEN
+    # authorise those pulls.
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
@@ -98,6 +104,11 @@ jobs:
           # BFF connects with it, so both sides read the same .env value.
           sed -i "s|^BFF_AUTH_DB_PASSWORD=.*|BFF_AUTH_DB_PASSWORD=${{ secrets.BFF_AUTH_DB_PASSWORD }}|" .env
           sed -i "s|^GF_SECURITY_ADMIN_PASSWORD=.*|GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}|" .env
+
+      # The Compose stack references private GHCR images; without this the
+      # daemon pull fails with "unauthorized" before any service starts.
+      - name: Log in to GHCR (pull private aer-* images)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Run E2E smoke test
         run: bash scripts/build/e2e_smoke_test.sh
