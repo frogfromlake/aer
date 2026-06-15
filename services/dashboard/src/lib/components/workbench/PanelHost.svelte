@@ -17,7 +17,6 @@
   import { createQuery } from '@tanstack/svelte-query';
   import {
     getPresentation,
-    DEFAULT_METRIC_NAME,
     type PresentationDefinition,
     type PresentationCellProps
   } from '$lib/presentations';
@@ -46,7 +45,10 @@
     shouldRefuseMergedCrossProbe,
     type CellRenderUnit
   } from '$lib/workbench/panel-queries';
-  import { isPureCountMetric } from '$lib/presentations/metric-presentation';
+  // Phase 141 — pure layout/comparison logic (unit-tested in
+  // tests/unit/panel-host-layout.test.ts). The component reads the reactive
+  // inputs (query data, $state extents, panel) and passes them in.
+  import * as layout from '$lib/workbench/panel-host-layout';
   import CellMethodology from './CellMethodology.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
@@ -254,39 +256,19 @@
   // The active dimension's availability split (available / partial / scopedSources)
   // from whichever endpoint matches the view. `partialField` reads the right key
   // (`field` vs `metricName`).
-  const dimensionAvail = $derived.by<{
-    available: string[];
-    partialSources: string[] | null;
-    scopedSources: string[];
-  } | null>(() => {
+  const dimensionAvail = $derived.by(() => {
     const q = fieldDriven ? metadataAvailQ : metricAvailQ;
-    if (q.data?.kind !== 'success') return null;
-    const d = q.data.data;
-    const partial = fieldDriven
-      ? (d as ScopeAvailableMetadataDto).partial.find((p) => p.field === panel.metric)
-      : (d as ScopeAvailableMetricsDto).partial.find((p) => p.metricName === panel.metric);
-    return {
-      available: d.available,
-      partialSources: partial ? partial.sources : null,
-      scopedSources: d.scopedSources
-    };
+    const d = q.data?.kind === 'success' ? q.data.data : null;
+    return layout.extractDimensionAvail(d, fieldDriven, panel.metric);
   });
   // `null` = no narrowing (dimension on every source, or data not loaded). A Set
   // = render only these sources for the active dimension.
-  const dimensionSourceFilter = $derived.by<Set<string> | null>(() => {
-    const a = dimensionAvail;
-    if (!a) return null;
-    if (a.available.includes(panel.metric)) return null;
-    return a.partialSources ? new Set(a.partialSources) : null;
-  });
+  const dimensionSourceFilter = $derived(
+    layout.dimensionSourceFilter(dimensionAvail, panel.metric)
+  );
   // ADR-038 — scoped sources dropped because they lack the active dimension,
   // named in the panel note so absence is disclosed, never silent.
-  const droppedSources = $derived.by<string[]>(() => {
-    const a = dimensionAvail;
-    if (!a || !a.partialSources) return [];
-    const have = new Set(a.partialSources);
-    return a.scopedSources.filter((s) => !have.has(s));
-  });
+  const droppedSources = $derived(layout.droppedSources(dimensionAvail));
   // ADR-038 — field-driven panel whose chosen dimension is empty/unshared: there
   // is no comparable categorical field across the scope (intersection empty,
   // show-anyway off). Surface ONE panel note instead of N empty cells.
@@ -300,20 +282,11 @@
   // Same all-source-intersection set as the panel metric picker (`available`),
   // default-prepended so the picker is never empty. The popover augments this
   // with any currently-bound channel metric so a binding stays visible.
-  const scalarMetricOptions = $derived.by<string[]>(() => {
-    const seen: Record<string, true> = {};
-    const out: string[] = [];
-    const push = (n: string | undefined) => {
-      if (n && !seen[n]) {
-        seen[n] = true;
-        out.push(n);
-      }
-    };
-    push(DEFAULT_METRIC_NAME);
-    if (metricAvailQ.data?.kind === 'success')
-      for (const m of metricAvailQ.data.data.available) push(m);
-    return out;
-  });
+  const scalarMetricOptions = $derived(
+    layout.scalarMetricOptionsFromAvailable(
+      metricAvailQ.data?.kind === 'success' ? metricAvailQ.data.data.available : []
+    )
+  );
   // The distinct in-scope probe ids of a single-ScopeGroup split fan-out,
   // in stable scope order — drives the per-probe accent index (1-based tint
   // cycles through the same four-tone palette as the ScopeGroup accent).
@@ -534,20 +507,9 @@
   // least one of the cell's sources carries. This is the peek menu: a cell may
   // glance at a dimension the panel does not compare, but only one its own source
   // actually emits. Fully data-driven (no probe/source-specific code).
-  const cellDimensionOptions = $derived.by<string[]>(() => {
-    const d = availFullData;
-    if (!d || openCellSources.length === 0) return [];
-    const srcSet = new Set(openCellSources);
-    const names = [...d.available];
-    if (fieldDriven) {
-      for (const p of (d as ScopeAvailableMetadataDto).partial)
-        if (p.sources.some((s) => srcSet.has(s))) names.push(p.field);
-    } else {
-      for (const p of (d as ScopeAvailableMetricsDto).partial)
-        if (p.sources.some((s) => srcSet.has(s))) names.push(p.metricName);
-    }
-    return [...new Set(names)].sort();
-  });
+  const cellDimensionOptions = $derived(
+    layout.cellDimensionOptions(availFullData, openCellSources, fieldDriven)
+  );
 
   const dataLayer = $derived<'gold' | 'silver'>(panel.layer === 'silver' ? 'silver' : 'gold');
 
@@ -595,16 +557,7 @@
     'metric_scatter'
   ]);
   const sharedAxisApplies = $derived(SHARED_AXIS_VIEWS.has(panel.view) && expandedUnits.length > 1);
-  const renderedProbeCount = $derived.by(() => {
-    // Plain Record dedup (not Set) per the codebase's prefer-svelte-reactivity
-    // convention for transient reactive computations.
-    const seen: Record<string, true> = {};
-    for (const u of expandedUnits) {
-      if (u.probeId) seen[u.probeId] = true;
-      for (const pid of u.probeIds) seen[pid] = true;
-    }
-    return Object.keys(seen).length;
-  });
+  const renderedProbeCount = $derived(layout.renderedProbeCount(expandedUnits));
   // Intensiveness for the cross-context guard. Most presentations carry the
   // axis metric in `panel.metric`; metric_scatter (usesMetric:false) instead
   // binds its axes to channel metrics (`panel.channels` x/y, defaulting exactly
@@ -612,14 +565,14 @@
   // cross-probe scatter of intensive metrics would silently share axes with no
   // equivalence grant (the very cross-cultural commensurability claim the guard
   // exists to forbid).
-  const isIntensiveMetric = $derived.by(() => {
-    if (panel.view === 'metric_scatter') {
-      const x = panel.channels?.x ?? 'word_count';
-      const y = panel.channels?.y ?? DEFAULT_METRIC_NAME;
-      return !isPureCountMetric(x) || !isPureCountMetric(y);
-    }
-    return presentation.usesMetric !== false && !isPureCountMetric(panel.metric);
-  });
+  const isIntensiveMetric = $derived(
+    layout.isIntensiveMetric({
+      view: panel.view,
+      channels: panel.channels,
+      metric: panel.metric,
+      presentationUsesMetric: presentation.usesMetric
+    })
+  );
   const shareForbidden = $derived(sharedAxisApplies && renderedProbeCount > 1 && isIntensiveMetric);
 
   // Phase 126 — a cell's EFFECTIVE axis-scale, honouring per-cell overrides:
@@ -629,20 +582,25 @@
   //     a shared union would merge incompatible metric ranges);
   //   - otherwise the per-cell `scales` override wins over the panel default.
   function effectiveCellScale(cellKey: string): 'shared' | 'free' {
-    if (shareForbidden) return 'free';
-    const ov = panel.cellOverrides?.[cellKey];
-    if (ov?.channels?.x !== undefined || ov?.channels?.y !== undefined) return 'free';
-    return ov?.scales ?? panel.scales ?? 'shared';
+    return layout.effectiveCellScale({
+      cellKey,
+      shareForbidden,
+      cellOverrides: panel.cellOverrides,
+      panelScales: panel.scales
+    });
   }
   // The cells that actually share the axis — only these feed AND read the union,
   // so a cell freed (by override or guard) neither stretches its siblings' axis
   // nor is distorted by theirs.
-  const sharedCellKeys = $derived.by<Record<string, true>>(() => {
-    const out: Record<string, true> = {};
-    if (!sharedAxisApplies || shareForbidden) return out;
-    for (const u of expandedUnits) if (effectiveCellScale(u.key) === 'shared') out[u.key] = true;
-    return out;
-  });
+  const sharedCellKeys = $derived(
+    layout.computeSharedCellKeys({
+      sharedAxisApplies,
+      shareForbidden,
+      units: expandedUnits,
+      cellOverrides: panel.cellOverrides,
+      panelScales: panel.scales
+    })
+  );
   // Compute the union only when at least one cell consumes it (avoids the
   // all-'free' panel recomputing a union nothing reads).
   const computeShared = $derived(sharedAxisApplies && Object.keys(sharedCellKeys).length > 0);
@@ -666,30 +624,9 @@
       reportedExtents = { ...reportedExtents, [k]: [extent[0], extent[1]] };
     };
   }
-  function unionExtent(axis: 'value' | 'x'): readonly [number, number] | undefined {
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (const [k, v] of Object.entries(reportedExtents)) {
-      if (!k.endsWith(`|${axis}`)) continue;
-      // Phase 126 — only the shared cells form the union; a freed cell still
-      // reports its extent (so it stays fresh if re-shared) but is excluded here.
-      if (!sharedCellKeys[k.slice(0, k.lastIndexOf('|'))]) continue;
-      if (v[0] < lo) lo = v[0];
-      if (v[1] > hi) hi = v[1];
-    }
-    return lo <= hi ? [lo, hi] : undefined;
-  }
-  const sharedDomains = $derived.by<
-    { value?: readonly [number, number]; x?: readonly [number, number] } | undefined
-  >(() => {
-    if (!computeShared) return undefined;
-    const value = unionExtent('value');
-    const x = unionExtent('x');
-    const out: { value?: readonly [number, number]; x?: readonly [number, number] } = {};
-    if (value) out.value = value;
-    if (x) out.x = x;
-    return value || x ? out : undefined;
-  });
+  const sharedDomains = $derived(
+    layout.computeSharedDomains({ computeShared, reportedExtents, sharedCellKeys })
+  );
 
   // Prune extents for cells no longer rendered (split→merged toggle, scope
   // narrowing, fan-out change). Without this a removed cell's extent lingers in
